@@ -8,10 +8,12 @@ export default function Layout({
   children: React.ReactNode
 }) {
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-screen overflow-hidden flex">
       <AppSidebar />
-      <SidebarInset>
-        {children}
+      <SidebarInset className="overflow-y-auto flex-1">
+        <div className="min-h-full bg-foreground-light">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

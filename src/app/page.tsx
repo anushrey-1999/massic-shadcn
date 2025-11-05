@@ -3,10 +3,11 @@ import React from 'react'
 
 const page = () => {
   return (
-    <div>
+    <div className='bg-muted p-8 flex justify-start items-center min-h-full'>
       <TestForm />
     </div>
   )
 }
 
 export default page
+

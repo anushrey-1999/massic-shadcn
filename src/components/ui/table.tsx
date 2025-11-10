@@ -151,9 +151,9 @@ function DataTable<TData, TValue>({
 
   return (
     <div className="relative">
-      <Table 
+      <div 
         ref={tableContainerRef} 
-        className={cn("overflow-auto", className)}
+        className={cn("relative w-full overflow-auto", className)}
       >
         <TableElement>
           <TableHeader>
@@ -248,7 +248,7 @@ function DataTable<TData, TValue>({
             )}
           </TableBody>
         </TableElement>
-      </Table>
+      </div>
     </div>
   )
 }

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import LayoutWrapper from "@/components/layouts/layout-wrapper";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { NuqsProvider } from "@/components/providers/nuqs-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,10 +33,12 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <QueryProvider>
-          <LayoutWrapper>
-            {children}
-          </LayoutWrapper>
-          <Toaster />
+          <NuqsProvider>
+            <LayoutWrapper>
+              {children}
+            </LayoutWrapper>
+            <Toaster />
+          </NuqsProvider>
         </QueryProvider>
       </body>
     </html>

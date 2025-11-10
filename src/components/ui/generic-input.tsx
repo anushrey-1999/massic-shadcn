@@ -426,11 +426,13 @@ function GenericInput<
                   onChange(syntheticEvent);
                 }}
                 onBlur={props.onBlur}
+                aria-invalid={isInvalid}
                 className={cn(
                   "h-4 w-4 rounded border border-input bg-background",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   "disabled:cursor-not-allowed disabled:opacity-50",
                   "appearance-none cursor-pointer transition-colors",
+                  "aria-invalid:border-destructive",
                   isChecked && "bg-foreground border-foreground"
                 )}
                 style={{
@@ -518,6 +520,7 @@ function GenericInput<
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "appearance-none cursor-pointer transition-colors",
+        "aria-invalid:border-destructive",
         isChecked && "bg-foreground border-foreground",
         className
       ),

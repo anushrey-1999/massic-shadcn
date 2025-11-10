@@ -29,6 +29,7 @@ interface TasksTableProps {
     max: number;
   };
   queryKeys?: Partial<QueryKeys>;
+  isLoading?: boolean; // Show skeleton rows when loading on first page
 }
 
 export function TasksTable({
@@ -38,6 +39,7 @@ export function TasksTable({
   priorityCounts,
   estimatedHoursRange,
   queryKeys,
+  isLoading = false,
 }: TasksTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
@@ -68,7 +70,7 @@ export function TasksTable({
   });
 
   return (
-    <DataTable table={table}>
+    <DataTable table={table} isLoading={isLoading}>
       <DataTableAdvancedToolbar table={table}>
         <DataTableSortList table={table} align="start" />
         <DataTableFilterList

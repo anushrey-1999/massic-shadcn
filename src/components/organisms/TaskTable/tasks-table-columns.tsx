@@ -84,9 +84,15 @@ export function getTasksTableColumns({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Task" />
       ),
-      cell: ({ row }) => <div className="w-20">{row.getValue("code")}</div>,
+      cell: ({ row }) => (
+        <div className="truncate font-mono text-sm">{row.getValue("code")}</div>
+      ),
       enableSorting: false,
       enableHiding: false,
+      size: 120, // Fixed width: 120px
+      minSize: 100,
+      maxSize: 150,
+      // align defaults to "left" - no need to specify
     },
     {
       id: "title",
@@ -100,9 +106,9 @@ export function getTasksTableColumns({
         );
 
         return (
-          <div className="flex items-center gap-2">
-            {label && <Badge variant="outline">{label}</Badge>}
-            <span className="max-w-125 truncate font-medium">
+          <div className="flex items-center gap-2 min-w-0">
+            {label && <Badge variant="outline" className="shrink-0">{label}</Badge>}
+            <span className="truncate font-medium flex-1 min-w-0">
               {row.getValue("title")}
             </span>
           </div>
@@ -115,6 +121,9 @@ export function getTasksTableColumns({
         icon: Text,
       },
       enableColumnFilter: true,
+      size: 300, // Fixed width: 300px (flexible, can be adjusted)
+      minSize: 200,
+      maxSize: 400,
     },
     {
       id: "status",
@@ -132,7 +141,7 @@ export function getTasksTableColumns({
         const Icon = getStatusIcon(status);
 
         return (
-          <Badge variant="outline" className="py-1 [&>svg]:size-3.5">
+          <Badge variant="outline" className="py-1 [&>svg]:size-3.5 w-fit">
             <Icon />
             <span className="capitalize">{status}</span>
           </Badge>
@@ -150,6 +159,9 @@ export function getTasksTableColumns({
         icon: CircleDashed,
       },
       enableColumnFilter: true,
+      size: 140, // Fixed width: 140px
+      minSize: 120,
+      maxSize: 180,
     },
     {
       id: "priority",
@@ -167,7 +179,7 @@ export function getTasksTableColumns({
         const Icon = getPriorityIcon(priority);
 
         return (
-          <Badge variant="outline" className="py-1 [&>svg]:size-3.5">
+          <Badge variant="outline" className="py-1 [&>svg]:size-3.5 w-fit">
             <Icon />
             <span className="capitalize">{priority}</span>
           </Badge>
@@ -185,6 +197,9 @@ export function getTasksTableColumns({
         icon: ArrowUpDown,
       },
       enableColumnFilter: true,
+      size: 130, // Fixed width: 130px
+      minSize: 110,
+      maxSize: 160,
     },
     {
       id: "estimatedHours",
@@ -194,7 +209,7 @@ export function getTasksTableColumns({
       ),
       cell: ({ cell }) => {
         const estimatedHours = cell.getValue<number>();
-        return <div className="w-20 text-right">{estimatedHours}</div>;
+        return <div className="font-medium">{estimatedHours}</div>;
       },
       meta: {
         label: "Est. Hours",
@@ -202,8 +217,12 @@ export function getTasksTableColumns({
         range: [estimatedHoursRange.min, estimatedHoursRange.max],
         unit: "hr",
         icon: Clock,
+        // align defaults to "left" - no need to specify
       },
       enableColumnFilter: true,
+      size: 110, // Fixed width: 110px
+      minSize: 90,
+      maxSize: 130,
     },
     {
       id: "createdAt",
@@ -211,13 +230,20 @@ export function getTasksTableColumns({
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Created At" />
       ),
-      cell: ({ cell }) => formatDate(cell.getValue<Date>()),
+      cell: ({ cell }) => (
+        <div className="text-sm text-muted-foreground">
+          {formatDate(cell.getValue<Date>())}
+        </div>
+      ),
       meta: {
         label: "Created At",
         variant: "dateRange",
         icon: CalendarIcon,
       },
       enableColumnFilter: true,
+      size: 140, // Fixed width: 140px
+      minSize: 120,
+      maxSize: 180,
     },
   ];
 }

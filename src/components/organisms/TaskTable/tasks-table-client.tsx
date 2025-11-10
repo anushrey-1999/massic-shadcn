@@ -105,11 +105,6 @@ export function TasksTableClient() {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Show skeleton on initial load (better UX than plain text)
-  if (tasksLoading && !tasksData) {
-    return <DataTableSkeleton columnCount={6} rowCount={10} />;
-  }
-
   // Show error state for tasks
   if (tasksError) {
     return (
@@ -124,10 +119,7 @@ export function TasksTableClient() {
     );
   }
 
-  // Show loading state if counts haven't loaded yet (but tasks have)
-  if (!countsData && !countsError) {
-    return <DataTableSkeleton columnCount={6} rowCount={10} />;
-  }
+  // Counts can load in the background - we'll use default values if not loaded yet
 
   // Show error for counts (but still show tasks if available)
   if (countsError && !countsData) {
@@ -144,11 +136,11 @@ export function TasksTableClient() {
   }
 
   // Always render the table (even with empty data) so filters, toolbar, and pagination remain visible
-  // The table itself will show "No results." in the table body when there's no data
+  // The table itself will show skeleton rows when loading on first page
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {/* Subtle loading indicator when refetching (data already visible) */}
-      {tasksFetching && tasksData && (
+      {tasksFetching && tasksData && page !== 1 && (
         <div className="absolute top-2 right-2 z-10">
           <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
         </div>
@@ -170,6 +162,7 @@ export function TasksTableClient() {
         estimatedHoursRange={
           countsData?.estimatedHoursRange || { min: 0, max: 0 }
         }
+        isLoading={tasksLoading && !tasksData}
       />
     </div>
   );

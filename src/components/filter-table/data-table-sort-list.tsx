@@ -4,7 +4,6 @@ import type { ColumnSort, SortDirection, Table } from "@tanstack/react-table";
 import {
   ArrowDownUp,
   ChevronsUpDown,
-  GripVertical,
   Trash2,
 } from "lucide-react";
 import * as React from "react";
@@ -31,12 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sortable,
-  SortableContent,
-  SortableItem,
-  SortableItemHandle,
-} from "@/components/ui/sortable";
 import { dataTableConfig } from "./data-table-config";
 import { cn } from "@/lib/utils";
 
@@ -158,12 +151,7 @@ export function DataTableSortList<TData>({
   );
 
   return (
-    <Sortable
-      value={sorting}
-      onValueChange={onSortingChange}
-      getItemValue={(item) => item.id}
-    >
-      <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -206,21 +194,19 @@ export function DataTableSortList<TData>({
             </p>
           </div>
           {sorting.length > 0 && (
-            <SortableContent asChild>
-              <ul className="flex max-h-[300px] flex-col gap-2 overflow-y-auto p-1">
-                {sorting.map((sort) => (
-                  <DataTableSortItem
-                    key={sort.id}
-                    sort={sort}
-                    sortItemId={`${id}-sort-${sort.id}`}
-                    columns={columns}
-                    columnLabels={columnLabels}
-                    onSortUpdate={onSortUpdate}
-                    onSortRemove={onSortRemove}
-                  />
-                ))}
-              </ul>
-            </SortableContent>
+            <ul className="flex max-h-[300px] flex-col gap-2 overflow-y-auto p-1">
+              {sorting.map((sort) => (
+                <DataTableSortItem
+                  key={sort.id}
+                  sort={sort}
+                  sortItemId={`${id}-sort-${sort.id}`}
+                  columns={columns}
+                  columnLabels={columnLabels}
+                  onSortUpdate={onSortUpdate}
+                  onSortRemove={onSortRemove}
+                />
+              ))}
+            </ul>
           )}
           <div className="flex w-full items-center gap-2">
             <Button
@@ -245,7 +231,6 @@ export function DataTableSortList<TData>({
           </div>
         </PopoverContent>
       </Popover>
-    </Sortable>
   );
 }
 
@@ -296,13 +281,12 @@ function DataTableSortItem({
   );
 
   return (
-    <SortableItem value={sort.id} asChild>
-      <li
-        id={sortItemId}
-        tabIndex={-1}
-        className="flex items-center gap-2"
-        onKeyDown={onItemKeyDown}
-      >
+    <li
+      id={sortItemId}
+      tabIndex={-1}
+      className="flex items-center gap-2"
+      onKeyDown={onItemKeyDown}
+    >
         <Popover open={showFieldSelector} onOpenChange={setShowFieldSelector}>
           <PopoverTrigger asChild>
             <Button
@@ -392,16 +376,6 @@ function DataTableSortItem({
         >
           <Trash2 />
         </Button>
-        <SortableItemHandle asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8 shrink-0 rounded"
-          >
-            <GripVertical />
-          </Button>
-        </SortableItemHandle>
       </li>
-    </SortableItem>
   );
 }

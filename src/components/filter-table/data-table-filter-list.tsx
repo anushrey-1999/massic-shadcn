@@ -5,7 +5,6 @@ import {
   CalendarIcon,
   Check,
   ChevronsUpDown,
-  GripVertical,
   ListFilter,
   Trash2,
 } from "lucide-react";
@@ -48,12 +47,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sortable,
-  SortableContent,
-  SortableItem,
-  SortableItemHandle,
-} from "@/components/ui/sortable";
 import { dataTableConfig } from "./data-table-config";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { getDefaultFilterOperator, getFilterOperators } from "@/utils/data-table-utils";
@@ -213,12 +206,7 @@ export function DataTableFilterList<TData>({
   );
 
   return (
-    <Sortable
-      value={filters}
-      onValueChange={setFilters}
-      getItemValue={(item) => item.filterId}
-    >
-      <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -261,23 +249,21 @@ export function DataTableFilterList<TData>({
             </p>
           </div>
           {filters.length > 0 ? (
-            <SortableContent asChild>
-              <ul className="flex max-h-[300px] flex-col gap-2 overflow-y-auto p-1">
-                {filters.map((filter, index) => (
-                  <DataTableFilterItem<TData>
-                    key={filter.filterId}
-                    filter={filter}
-                    index={index}
-                    filterItemId={`${id}-filter-${filter.filterId}`}
-                    joinOperator={joinOperator}
-                    setJoinOperator={setJoinOperator}
-                    columns={columns}
-                    onFilterUpdate={onFilterUpdate}
-                    onFilterRemove={onFilterRemove}
-                  />
-                ))}
-              </ul>
-            </SortableContent>
+            <ul className="flex max-h-[300px] flex-col gap-2 overflow-y-auto p-1">
+              {filters.map((filter, index) => (
+                <DataTableFilterItem<TData>
+                  key={filter.filterId}
+                  filter={filter}
+                  index={index}
+                  filterItemId={`${id}-filter-${filter.filterId}`}
+                  joinOperator={joinOperator}
+                  setJoinOperator={setJoinOperator}
+                  columns={columns}
+                  onFilterUpdate={onFilterUpdate}
+                  onFilterRemove={onFilterRemove}
+                />
+              ))}
+            </ul>
           ) : null}
           <div className="flex w-full items-center gap-2">
             <Button
@@ -301,7 +287,6 @@ export function DataTableFilterList<TData>({
           </div>
         </PopoverContent>
       </Popover>
-    </Sortable>
   );
 }
 
@@ -373,13 +358,12 @@ function DataTableFilterItem<TData>({
   if (!column) return null;
 
   return (
-    <SortableItem value={filter.filterId} asChild>
-      <li
-        id={filterItemId}
-        tabIndex={-1}
-        className="flex items-center gap-2"
-        onKeyDown={onItemKeyDown}
-      >
+    <li
+      id={filterItemId}
+      tabIndex={-1}
+      className="flex items-center gap-2"
+      onKeyDown={onItemKeyDown}
+    >
         <div className="min-w-[72px] text-center">
           {index === 0 ? (
             <span className="text-muted-foreground text-sm">Where</span>
@@ -536,13 +520,7 @@ function DataTableFilterItem<TData>({
         >
           <Trash2 />
         </Button>
-        <SortableItemHandle asChild>
-          <Button variant="outline" size="icon" className="size-8 rounded">
-            <GripVertical />
-          </Button>
-        </SortableItemHandle>
       </li>
-    </SortableItem>
   );
 }
 

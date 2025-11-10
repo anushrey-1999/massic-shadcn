@@ -282,8 +282,13 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     defaultColumn: {
       ...tableProps.defaultColumn,
       enableColumnFilter: false,
+      size: 150, // Default column size
+      minSize: 50,
+      maxSize: 500,
     },
     enableRowSelection: true,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
     onRowSelectionChange: setRowSelection,
     onPaginationChange,
     onSortingChange,

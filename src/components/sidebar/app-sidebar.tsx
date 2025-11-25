@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { Home, LineChart, Settings, Bell, LogOut, Plus, Search, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useLogout } from '@/hooks/use-auth'
+import { toast } from 'sonner'
 import {
   Sidebar,
   SidebarContent,
@@ -53,29 +55,41 @@ function NavItem({ href, icon: Icon, label, isActive }: NavItemProps) {
 }
 
 interface FooterActionProps {
-  href: string
+  href?: string
   icon: React.ComponentType<{ className?: string }>
   label: string
   isActive: boolean
+  onClick?: () => void
 }
 
-function FooterAction({ href, icon: Icon, label, isActive }: FooterActionProps) {
+function FooterAction({ href, icon: Icon, label, isActive, onClick }: FooterActionProps) {
   return (
     <SidebarMenuItem>
       <div className="relative">
         {isActive && (
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white rounded-r-full z-10" />
         )}
-        <SidebarMenuButton
-          asChild
-          isActive={isActive}
-          className="py-4.5 pl-4 cursor-pointer"
-        >
-          <Link href={href}>
+        {onClick ? (
+          <SidebarMenuButton
+            onClick={onClick}
+            isActive={isActive}
+            className="py-4.5 pl-4 cursor-pointer w-full"
+          >
             <Icon className="h-5 w-5" />
             <span>{label}</span>
-          </Link>
-        </SidebarMenuButton>
+          </SidebarMenuButton>
+        ) : (
+          <SidebarMenuButton
+            asChild
+            isActive={isActive}
+            className="py-4.5 pl-4 cursor-pointer"
+          >
+            <Link href={href!}>
+              <Icon className="h-5 w-5" />
+              <span>{label}</span>
+            </Link>
+          </SidebarMenuButton>
+        )}
       </div>
     </SidebarMenuItem>
   )
@@ -84,6 +98,7 @@ function FooterAction({ href, icon: Icon, label, isActive }: FooterActionProps) 
 export default function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const logout = useLogout()
 
   const navItems = [
     {
@@ -147,6 +162,19 @@ export default function AppSidebar() {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      await logout.mutateAsync()
+      toast.success('Logged out successfully')
+      router.push('/login')
+    } catch (error) {
+      // Error is handled in the hook (onError clears local state)
+      // Still show success message and redirect since local state is cleared
+      toast.success('Logged out successfully')
+      router.push('/login')
+    }
+  }
+
   const footerItems = [
     {
       href: '/settings',
@@ -159,9 +187,9 @@ export default function AppSidebar() {
       label: 'Notifications',
     },
     {
-      href: '/logout',
       icon: LogOut,
       label: 'Logout',
+      onClick: handleLogout,
     },
   ]
 
@@ -283,11 +311,12 @@ export default function AppSidebar() {
         <SidebarMenu className="gap-1">
           {footerItems.map((item) => (
             <FooterAction
-              key={item.href}
+              key={item.label}
               href={item.href}
               icon={item.icon}
               label={item.label}
-              isActive={pathname === item.href}
+              isActive={item.href ? pathname === item.href : false}
+              onClick={item.onClick}
             />
           ))}
         </SidebarMenu>

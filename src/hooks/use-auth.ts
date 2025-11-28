@@ -8,28 +8,42 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface GoogleLoginCredentials {
+  token: string;
+}
+
 interface ApiLoginResponse {
   success: boolean;
   message: string;
   data: {
     token?: string;
-    user?: {
-      id?: string;
-      email?: string;
-      username?: string;
-      [key: string]: any;
-    };
+    id?: string;
+    email?: string;
+    username?: string;
+    userName?: string;
+    uniqueId?: string;
+    roleid?: number;
+    rolename?: string;
     userNotFound?: boolean;
+    googleUserDetails?: {
+      email: string;
+      firstName?: string;
+      lastName?: string;
+    };
     [key: string]: any;
   };
 }
 
 interface LoginResponse {
   token: string;
-  user?: {
+  user: {
     id?: string;
     email?: string;
     username?: string;
+    userName?: string;
+    uniqueId?: string;
+    roleid?: number;
+    rolename?: string;
     [key: string]: any;
   };
 }
@@ -42,7 +56,7 @@ export function useLogin() {
     mutationFn: async (data: LoginCredentials) => {
       // arguments should always be an object - IMP 
       const response = await api.post<ApiLoginResponse>("/login", "node", data);
-      
+
       // Check if the API returned success: false
       if (!response.success) {
         // Throw an error with the message from the API
@@ -51,15 +65,18 @@ export function useLogin() {
         (error as any).response = { data: response };
         throw error;
       }
-      
+
       // Extract token and user from the data field
       if (!response.data?.token) {
         throw new Error("Token not found in response");
       }
-      
+
+      // The API returns user data directly in response.data (not response.data.user)
+      const { token, ...userData } = response.data;
+
       return {
-        token: response.data.token,
-        user: response.data.user,
+        token,
+        user: userData,
       };
     },
     onSuccess: (data) => {
@@ -85,7 +102,7 @@ export function useLogout() {
     mutationFn: async () => {
       try {
         const response = await api.post<ApiLogoutResponse>("/logout", "node");
-        
+
         // For logout, we don't need to throw errors even if success is false
         // We'll still clear local state regardless of API response
         // Common case: API returns success: false with "No Token Found" - this is fine for logout
@@ -97,7 +114,7 @@ export function useLogout() {
             console.warn("Logout API returned success: false", response.message);
           }
         }
-        
+
         return response;
       } catch (error: any) {
         // If the API returns an HTTP error (401, 403, etc.), that's also fine for logout
@@ -122,6 +139,130 @@ export function useLogout() {
       // Fallback: Even if everything fails, clear local auth state
       logout();
       // Invalidate all auth-related queries
+      qc.invalidateQueries({ queryKey: ["auth"] });
+    },
+  });
+}
+
+interface GoogleLoginResponse {
+  token: string;
+  user?: {
+    id?: string;
+    email?: string;
+    username?: string;
+    [key: string]: any;
+  };
+  userNotFound?: boolean;
+  googleUserDetails?: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  };
+}
+
+export function useGoogleLogin() {
+  const qc = useQueryClient();
+  const setAuth = useAuthStore((state) => state.setAuth);
+
+  return useMutation<GoogleLoginResponse, Error, GoogleLoginCredentials>({
+    mutationFn: async (data: GoogleLoginCredentials) => {
+      const response = await api.post<ApiLoginResponse>("/google-login", "node", {
+        token: data.token,
+      });
+
+      if (!response.success) {
+        if (response.data?.userNotFound) {
+          const error = new Error("User not found");
+          (error as any).userNotFound = true;
+          (error as any).googleUserDetails = response.data.googleUserDetails;
+          throw error;
+        }
+        const error = new Error(response.message || "Google login failed");
+        (error as any).response = { data: response };
+        throw error;
+      }
+
+      if (!response.data?.token) {
+        throw new Error("Token not found in response");
+      }
+
+      return {
+        token: response.data.token,
+        user: response.data.user,
+      };
+    },
+    onSuccess: (data) => {
+      setAuth(data.token, data.user);
+      qc.invalidateQueries({ queryKey: ["auth"] });
+    },
+  });
+}
+
+export interface SignupCredentials {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  orgName: string;
+  userType: "AGENCY" | "BUSINESS";
+  signupMethod: "EMAIL" | "GOOGLE";
+  googleToken?: string;
+}
+
+interface ApiSignupResponse {
+  success: boolean;
+  message: string;
+  data: {
+    token?: string;
+    user?: {
+      id?: string;
+      email?: string;
+      username?: string;
+      [key: string]: any;
+    };
+    [key: string]: any;
+  };
+}
+
+interface SignupResponse {
+  token: string;
+  user?: {
+    id?: string;
+    email?: string;
+    username?: string;
+    [key: string]: any;
+  };
+}
+
+export function useSignup() {
+  const qc = useQueryClient();
+  const setAuth = useAuthStore((state) => state.setAuth);
+
+  return useMutation<SignupResponse, Error, SignupCredentials>({
+    mutationFn: async (data: SignupCredentials) => {
+      const response = await api.post<ApiSignupResponse>(
+        "/signup-with-type",
+        "node",
+        data
+      );
+
+      if (!response.success) {
+        const error = new Error(response.message || "Signup failed");
+        (error as any).response = { data: response };
+        throw error;
+      }
+
+      if (!response.data?.token) {
+        throw new Error("Token not found in response");
+      }
+
+      return {
+        token: response.data.token,
+        user: response.data.user || response.data,
+      };
+    },
+    onSuccess: (data) => {
+      setAuth(data.token, data.user);
       qc.invalidateQueries({ queryKey: ["auth"] });
     },
   });

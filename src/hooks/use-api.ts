@@ -1,20 +1,21 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from "axios";
 import { useCallback, useState } from "react";
+import Cookies from "js-cookie";
 
 export type ApiPlatform = "node" | "python" | "dotnet";
-
+console.log(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID, ')')
 
 function getBaseURLByPlatform(platform: ApiPlatform): string {
   switch (platform) {
     case "node":
       return process.env.NEXT_PUBLIC_NODE_API_URL || "https://seedmain.seedinternaldev.xyz/api/1";
-    
+
     case "python":
       return process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v1";
-    
+
     case "dotnet":
       return process.env.NEXT_PUBLIC_DOTNET_API_URL || "https://seedcore.seedinternaldev.xyz/api";
-    
+
     default:
       return "";
   }
@@ -22,7 +23,7 @@ function getBaseURLByPlatform(platform: ApiPlatform): string {
 
 function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
   const baseURL = getBaseURLByPlatform(platform);
-  
+
   const instance = axios.create({
     baseURL,
     timeout: 30000,
@@ -33,17 +34,9 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
 
   instance.interceptors.request.use(
     (config) => {
-      // Automatically add auth token from localStorage to all requests
-      if (typeof window !== "undefined") {
-        try {
-          const tokenFromStorage = localStorage.getItem("token");
-          const token = tokenFromStorage ? tokenFromStorage.replaceAll('"', '') : null;
-          if (token && config.headers) {
-            config.headers.Authorization = `Bearer ${token}`;
-          }
-        } catch (error) {
-          // localStorage might not be available, continue without token
-        }
+      const token = Cookies.get("token");
+      if (token && config.headers) {
+        config.headers.Token = token;
       }
       return config;
     },
@@ -93,16 +86,16 @@ async function request<T>(
 export const api = {
   get: <T = any>(url: string, platform: ApiPlatform, config?: AxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "GET" }),
-  
+
   post: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "POST", data: body }),
-  
+
   put: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "PUT", data: body }),
-  
+
   patch: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "PATCH", data: body }),
-  
+
   delete: <T = any>(url: string, platform: ApiPlatform, config?: AxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "DELETE" }),
 };
@@ -123,7 +116,7 @@ export interface UseApiReturn<T = any> {
 
 export function useApi<T = any>(options: UseApiOptions): UseApiReturn<T> {
   const { platform, headers: defaultHeaders, timeout } = options;
-  
+
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AxiosError | null>(null);
@@ -143,7 +136,7 @@ export function useApi<T = any>(options: UseApiOptions): UseApiReturn<T> {
 
       try {
         const instance = axiosInstance();
-        
+
         const headers = {
           ...defaultHeaders,
           ...config?.headers,

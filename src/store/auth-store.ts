@@ -1,10 +1,15 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import Cookies from "js-cookie";
+
+const TOKEN_KEY = "token";
+const USER_KEY = "user";
 
 interface User {
   id?: string;
   email?: string;
   username?: string;
+  uniqueId?: string;
+  UniqueId?: string;
   [key: string]: any;
 }
 
@@ -14,57 +19,57 @@ interface AuthState {
   isAuthenticated: boolean;
   setAuth: (token: string, user?: User) => void;
   logout: () => void;
+  hydrate: () => void;
 }
 
-// arguments should always be an object
-
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
+export const useAuthStore = create<AuthState>()((set) => ({
+  token: null,
+  user: null,
+  isAuthenticated: false,
+  setAuth: (token: string, user?: User) => {
+    Cookies.set(TOKEN_KEY, token, {
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+    if (user) {
+      Cookies.set(USER_KEY, JSON.stringify(user), {
+        path: "/",
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
+    }
+    set({
+      token,
+      user: user || null,
+      isAuthenticated: true,
+    });
+  },
+  logout: () => {
+    Cookies.remove(TOKEN_KEY, { path: "/" });
+    Cookies.remove(USER_KEY, { path: "/" });
+    set({
       token: null,
       user: null,
       isAuthenticated: false,
-      setAuth: (token: string, user?: User) => {
-        // Store token in localStorage (for API interceptor)
-        if (typeof window !== "undefined") {
-          localStorage.setItem("token", token);
-        }
-        set({
-          token,
-          user: user || null,
-          isAuthenticated: true,
-        });
-      },
-      logout: () => {
-        // Remove token from localStorage
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("token");
-        }
-        set({
-          token: null,
-          user: null,
-          isAuthenticated: false,
-        });
-      },
-    }),
-    {
-      name: "auth-storage",
-      // Only persist token and user, not isAuthenticated (derived from token)
-      partialize: (state) => ({
-        token: state.token,
-        user: state.user,
-      }),
-      // Set isAuthenticated when store is rehydrated from storage
-      onRehydrateStorage: () => (state) => {
-        if (state?.token) {
-          state.isAuthenticated = true;
-          // Ensure token is in localStorage
-          if (typeof window !== "undefined") {
-            localStorage.setItem("token", state.token);
-          }
-        }
-      },
+    });
+  },
+  hydrate: () => {
+    const token = Cookies.get(TOKEN_KEY);
+    const userStr = Cookies.get(USER_KEY);
+    let user: User | null = null;
+    if (userStr) {
+      try {
+        user = JSON.parse(userStr);
+      } catch {
+        user = null;
+      }
     }
-  )
-);
+    set({
+      token: token || null,
+      user,
+      isAuthenticated: !!token,
+    });
+  },
+}));
 

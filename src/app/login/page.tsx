@@ -3,13 +3,14 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { GenericInput } from '@/components/ui/generic-input'
-import { useLogin } from '@/hooks/use-auth'
+import { useLogin, useGoogleLogin } from '@/hooks/use-auth'
 import { useAuthStore } from '@/store/auth-store'
 import { useRouter } from 'next/navigation'
 import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-
-// use react hook form
+import { GoogleLogin, CredentialResponse } from '@react-oauth/google'
+import { Separator } from '@/components/ui/separator'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -17,8 +18,8 @@ export default function LoginPage() {
   const router = useRouter()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const login = useLogin()
+  const googleLogin = useGoogleLogin()
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
       router.push('/')
@@ -27,8 +28,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
-    // Validate inputs
+
     if (!email || !password) {
       toast.error('Please fill in all fields')
       return
@@ -39,29 +39,73 @@ export default function LoginPage() {
         email,
         password,
       })
-      
+
       toast.success('Login successful!')
       router.push('/')
     } catch (error: any) {
-      // Handle error - show user-friendly message
-      const errorMessage = 
-        error?.response?.data?.message || 
-        error?.message || 
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
         'Login failed. Please check your credentials.'
       toast.error(errorMessage)
     }
   }
 
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) {
+      toast.error('Google login failed: No credential received')
+      return
+    }
+
+    try {
+      await googleLogin.mutateAsync({
+        token: credentialResponse.credential,
+      })
+
+      toast.success('Login successful!')
+      router.push('/')
+    } catch (error: any) {
+      if (error.userNotFound) {
+        toast.error('Account not found. Please sign up first.')
+        return
+      }
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Google login failed.'
+      toast.error(errorMessage)
+    }
+  }
+
+  const handleGoogleError = () => {
+    toast.error('Google login failed. Please try again.')
+  }
+
+  const isLoading = login.isPending || googleLogin.isPending
+
   return (
     <div className="min-h-full flex items-center justify-center bg-background p-8">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardTitle className="text-2xl">Welcome to Massic</CardTitle>
           <CardDescription>
-            Enter your credentials to access your account
+            Sign in to your account
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+            />
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground uppercase">or</span>
+            <Separator className="flex-1" />
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <GenericInput
               type="email"
@@ -70,7 +114,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              disabled={login.isPending}
+              disabled={isLoading}
             />
             <GenericInput
               type="password"
@@ -79,21 +123,28 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              disabled={login.isPending}
+              disabled={isLoading}
             />
-            {login.isError && (
+            {(login.isError || googleLogin.isError) && (
               <div className="text-sm text-destructive">
-                {login.error?.message || 'An error occurred'}
+                {login.error?.message || googleLogin.error?.message || 'An error occurred'}
               </div>
             )}
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full"
-              disabled={login.isPending}
+              disabled={isLoading}
             >
               {login.isPending ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Don&apos;t have an account?{' '}
+            <Link href="/signup" className="underline hover:text-foreground">
+              Sign up
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

@@ -4,8 +4,8 @@
  */
 export const routesWithoutSidebar: string[] = [
   // Add routes here that should use empty layout (without sidebar)
-  // '/login',
   // '/auth/callback',
-  '/login'
+  '/login',
+  '/signup'
 ]
 

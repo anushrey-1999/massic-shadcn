@@ -1,17 +1,20 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Home, LineChart, Settings, Bell, LogOut, Plus, Search, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
+import { useBusinessProfiles } from '@/hooks/use-business-profiles'
+import { useAuthStore } from '@/store/auth-store'
+import { useBusinessStore } from '@/store/business-store'
 import { toast } from 'sonner'
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
@@ -24,6 +27,40 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Skeleton } from '@/components/ui/skeleton'
+
+const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
+
+interface BusinessIconProps {
+  website?: string
+  name?: string
+}
+
+function BusinessIcon({ website, name }: BusinessIconProps) {
+  const [imgError, setImgError] = useState(false)
+  const fallbackInitial = name?.charAt(0).toUpperCase() || 'B'
+
+  if (!website || imgError) {
+    return (
+      <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-xs border border-dashed border-black dark:border-white text-[9px] text-sidebar-foreground">
+        {fallbackInitial}
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-xs overflow-hidden bg-sidebar-accent">
+      <img
+        src={`${FAVICON_URL}${website}`}
+        alt=""
+        width={16}
+        height={16}
+        className="h-full w-full object-contain"
+        onError={() => setImgError(true)}
+      />
+    </div>
+  )
+}
 
 interface NavItemProps {
   href: string
@@ -99,6 +136,15 @@ export default function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const logout = useLogout()
+  const { user } = useAuthStore()
+
+  const {
+    profiles,
+    sidebarDataLoading,
+    expandedBusinessId,
+  } = useBusinessProfiles()
+
+  const setExpandedBusinessId = useBusinessStore((state) => state.setExpandedBusinessId)
 
   const navItems = [
     {
@@ -113,22 +159,7 @@ export default function AppSidebar() {
     },
   ]
 
-  // User/Agency name - TODO: Replace with actual user data
-  const userName = 'Dhruv Garg'
-
-  // Businesses data - TODO: Replace with actual data
-  const [openBusinessId, setOpenBusinessId] = useState<string | null>(null)
-
-  const businesses = [
-    { id: 'business-1', name: 'Business 1', initial: 'B1' },
-    { id: 'business-2', name: 'Business 2', initial: 'B2' },
-    { id: 'business-3', name: 'Business 3', initial: 'B3' },
-    { id: 'business-4', name: 'Business 4', initial: 'B4' },
-    { id: 'business-5', name: 'Business 5', initial: 'B5' },
-    { id: 'business-6', name: 'Business 6', initial: 'B6' },
-    { id: 'business-7', name: 'Business 7', initial: 'B7' },
-    { id: 'business-8', name: 'Business 8', initial: 'B8' },
-  ]
+  const userName = user?.username || user?.email || 'User'
 
   const businessSubItems = [
     { label: 'Analytics', slug: 'analytics' },
@@ -138,27 +169,31 @@ export default function AppSidebar() {
     { label: 'Profile', slug: 'profile' },
   ]
 
-  // Check if current pathname is a business route
   const isBusinessRoute = pathname.startsWith('/business/')
 
-  // Close business accordion when navigating away from business routes
   useEffect(() => {
     if (!isBusinessRoute) {
-      setOpenBusinessId(null)
+      if (expandedBusinessId !== null) {
+        setExpandedBusinessId(null)
+      }
     } else {
-      // Extract business ID from pathname (e.g., /business/business-1/strategy -> business-1)
-      const businessIdMatch = pathname.match(/^\/business\/(business-\d+)/)
+      const businessIdMatch = pathname.match(/^\/business\/([^/]+)/)
       if (businessIdMatch) {
-        setOpenBusinessId(businessIdMatch[1])
+        const businessUniqueId = businessIdMatch[1]
+        const matchingBusiness = profiles.find(
+          (p) => p.UniqueId === businessUniqueId
+        )
+        if (matchingBusiness && expandedBusinessId !== matchingBusiness.UniqueId) {
+          setExpandedBusinessId(matchingBusiness.UniqueId)
+        }
       }
     }
-  }, [pathname, isBusinessRoute])
+  }, [pathname, isBusinessRoute, profiles, expandedBusinessId])
 
-  const toggleBusiness = (id: string, open: boolean) => {
-    setOpenBusinessId(open ? id : null)
-    // When opening, navigate to analytics page
+  const toggleBusiness = (uniqueId: string, open: boolean) => {
+    setExpandedBusinessId(open ? uniqueId : null)
     if (open) {
-      router.push(`/business/${id}/analytics`)
+      router.push(`/business/${uniqueId}/analytics`)
     }
   }
 
@@ -241,64 +276,80 @@ export default function AppSidebar() {
           </div>
           <SidebarGroupContent className="flex-1 overflow-y-auto">
             <SidebarMenu className="gap-1">
-              {businesses.map((business) => {
-                const isOpen = openBusinessId === business.id
-                // Check if any sub-item of this business is active
-                const hasActiveSubItem = businessSubItems.some((subItem) => {
-                  const subItemHref = `/business/${business.id}/${subItem.slug}`
-                  return pathname === subItemHref
-                })
-                return (
-                  <Collapsible
-                    key={business.id}
-                    open={isOpen}
-                    onOpenChange={(open) => toggleBusiness(business.id, open)}
-                  >
-                    <SidebarMenuItem>
-                      <div className="relative">
-                        {hasActiveSubItem && (
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white rounded-r-full z-10" />
-                        )}
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            isActive={hasActiveSubItem}
-                            className="py-4.5 pl-4 group/business w-full justify-between cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="flex h-4 w-4 items-center justify-center rounded-xs border border-dashed border-black dark:border-white text-[9px]  text-sidebar-foreground">
-                                {business.initial}
-                              </div>
-                              <span>{business.name}</span>
-                            </div>
-                            <ChevronRight className={`ml-auto h-4 w-4 opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
+              {sidebarDataLoading ? (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <SidebarMenuItem key={i}>
+                      <div className="flex items-center gap-2 py-4.5 pl-4">
+                        <Skeleton className="h-4 w-4 rounded-xs" />
+                        <Skeleton className="h-4 w-24" />
                       </div>
-                      <CollapsibleContent>
-                        <SidebarMenuSub className="ml-5 border-l-2 border-sidebar-border">
-                          {businessSubItems.map((subItem) => {
-                            const subItemHref = `/business/${business.id}/${subItem.slug}`
-                            const isActive = pathname === subItemHref
-                            return (
-                              <SidebarMenuSubItem key={subItem.slug}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={isActive}
-                                  className="cursor-pointer py-4"
-                                >
-                                  <Link href={subItemHref}>
-                                    <span className="pl-2">{subItem.label}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            )
-                          })}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
                     </SidebarMenuItem>
-                  </Collapsible>
-                )
-              })}
+                  ))}
+                </>
+              ) : profiles.length === 0 ? (
+                <SidebarMenuItem>
+                  <div className="py-4 pl-4 text-sm text-muted-foreground">
+                    No businesses found
+                  </div>
+                </SidebarMenuItem>
+              ) : (
+                profiles.map((business) => {
+                  const isOpen = expandedBusinessId === business.UniqueId
+                  const hasActiveSubItem = businessSubItems.some((subItem) => {
+                    const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
+                    return pathname === subItemHref
+                  })
+                  return (
+                    <Collapsible
+                      key={business.UniqueId}
+                      open={isOpen}
+                      onOpenChange={(open) => toggleBusiness(business.UniqueId, open)}
+                    >
+                      <SidebarMenuItem>
+                        <div className="relative">
+                          {hasActiveSubItem && (
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white rounded-r-full z-10" />
+                          )}
+                          <CollapsibleTrigger asChild>
+                            <SidebarMenuButton
+                              isActive={hasActiveSubItem}
+                              className="py-4.5 pl-4 group/business w-full justify-between cursor-pointer overflow-hidden"
+                            >
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <BusinessIcon website={business.Website} name={business.Name} />
+                                <span className="truncate" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
+                              </div>
+                              <ChevronRight className={`shrink-0 ml-auto h-4 w-4 opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                        </div>
+                        <CollapsibleContent>
+                          <SidebarMenuSub className="ml-5 border-l-2 border-sidebar-border">
+                            {businessSubItems.map((subItem) => {
+                              const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
+                              const isActive = pathname === subItemHref
+                              return (
+                                <SidebarMenuSubItem key={subItem.slug}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={isActive}
+                                    className="cursor-pointer py-4"
+                                  >
+                                    <Link href={subItemHref}>
+                                      <span className="pl-2">{subItem.label}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              )
+                            })}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  )
+                })
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -324,4 +375,3 @@ export default function AppSidebar() {
     </Sidebar>
   )
 }
-

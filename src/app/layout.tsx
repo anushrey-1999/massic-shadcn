@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/sonner";
 import LayoutWrapper from "@/components/layouts/layout-wrapper";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { NuqsProvider } from "@/components/providers/nuqs-provider";
+import { AuthProvider } from "@/components/providers/auth-provider";
+import { GoogleAuthProvider } from "@/components/providers/google-auth-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,12 +35,16 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <QueryProvider>
-          <NuqsProvider>
-            <LayoutWrapper>
-              {children}
-            </LayoutWrapper>
-            <Toaster />
-          </NuqsProvider>
+          <GoogleAuthProvider>
+            <AuthProvider>
+              <NuqsProvider>
+                <LayoutWrapper>
+                  {children}
+                </LayoutWrapper>
+                <Toaster />
+              </NuqsProvider>
+            </AuthProvider>
+          </GoogleAuthProvider>
         </QueryProvider>
       </body>
     </html>

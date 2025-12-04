@@ -262,6 +262,7 @@ export default function AppSidebar() {
             <div className="flex items-center gap-2 ml-auto">
               <button
                 type="button"
+                onClick={() => router.push('/create-business')}
                 className="text-sidebar-foreground ring-sidebar-ring bg-sidebar-accent hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground flex aspect-square w-6 items-center justify-center rounded-md p-0 outline-hidden transition-colors focus-visible:ring-2 cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />

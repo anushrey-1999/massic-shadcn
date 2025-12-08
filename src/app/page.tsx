@@ -1,3 +1,4 @@
+import TestForm from "@/components/forms/test-form"
 import { TopicsTableClient } from "@/components/topics/topics-table-client"
 import type { ApiResponse } from "@/hooks/use-api-query"
 
@@ -52,6 +53,7 @@ export default async function Page() {
     <div className="bg-muted p-8 flex flex-col gap-8 min-h-full">
       {/* Pass initialData to client component for hydration */}
       <TopicsTableClient initialData={initialData} />
+      <TestForm />
     </div>
   )
 }

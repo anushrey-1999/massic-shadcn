@@ -82,6 +82,7 @@ export default function LoginPage() {
   }
 
   const isLoading = login.isPending || googleLogin.isPending
+  const hasGoogleClientId = !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
   return (
     <div className="min-h-full flex items-center justify-center bg-background p-8">
@@ -93,18 +94,22 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex justify-center">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-            />
-          </div>
+          {hasGoogleClientId && (
+            <>
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                />
+              </div>
 
-          <div className="flex items-center gap-4">
-            <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground uppercase">or</span>
-            <Separator className="flex-1" />
-          </div>
+              <div className="flex items-center gap-4">
+                <Separator className="flex-1" />
+                <span className="text-xs text-muted-foreground uppercase">or</span>
+                <Separator className="flex-1" />
+              </div>
+            </>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <GenericInput

@@ -36,7 +36,11 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
     (config) => {
       const token = Cookies.get("token");
       if (token && config.headers) {
-        config.headers.Token = token;
+        if (platform === "dotnet") {
+          config.headers.Authorization = `Bearer ${token}`;
+        } else {
+          config.headers.Token = token;
+        }
       }
       return config;
     },

@@ -10,6 +10,8 @@ interface User {
   username?: string;
   uniqueId?: string;
   UniqueId?: string;
+  roleid?: number;
+  rolename?: string;
   [key: string]: any;
 }
 

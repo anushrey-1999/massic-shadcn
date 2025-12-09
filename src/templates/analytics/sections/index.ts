@@ -1,0 +1,5 @@
+export { OrganicPerformanceSection } from "./OrganicPerformanceSection"
+export { WebPerformanceSection } from "./WebPerformanceSection"
+export { AISearchSection } from "./AISearchSection"
+export { LocalSearchSection } from "./LocalSearchSection"
+export { ReviewsSection } from "./ReviewsSection"

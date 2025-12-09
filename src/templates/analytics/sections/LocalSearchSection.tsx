@@ -1,0 +1,167 @@
+"use client"
+
+import { useState, useMemo } from "react"
+import { usePathname } from "next/navigation"
+import { MapPin, Search, Loader2 } from "lucide-react"
+import { DataTable, type SortConfig } from "../components/DataTable"
+import { DataTableModal } from "../components/DataTableModal"
+import { InteractionsChartCard } from "../components/InteractionsChartCard"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useLocalPresence, type TimePeriodValue } from "@/hooks/use-local-presence"
+import { useBusinessStore } from "@/store/business-store"
+
+interface LocationOption {
+  value: string
+  label: string
+}
+
+interface LocalSearchSectionProps {
+  period?: TimePeriodValue
+  locations?: LocationOption[]
+  selectedLocation?: string
+  onLocationChange?: (location: string) => void
+}
+
+export function LocalSearchSection({
+  period = "3 months",
+  locations = [],
+  selectedLocation = "",
+  onLocationChange,
+}: LocalSearchSectionProps) {
+  const pathname = usePathname()
+  const profiles = useBusinessStore((state) => state.profiles)
+  const [queriesModalOpen, setQueriesModalOpen] = useState(false)
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ column: "searches", direction: "desc" })
+
+  const { businessUniqueId } = useMemo(() => {
+    const match = pathname.match(/^\/business\/([^/]+)/)
+    if (!match) return { businessUniqueId: null }
+
+    const id = match[1]
+    return { businessUniqueId: id }
+  }, [pathname])
+
+  const {
+    interactionsChartData,
+    interactionsMetric,
+    queriesData,
+    isLoading,
+    hasInteractionsData,
+    hasQueriesData,
+  } = useLocalPresence(businessUniqueId, period, selectedLocation)
+
+  const tableData = useMemo(() => {
+    const mapped = queriesData.map((item) => ({
+      query: item.queries,
+      searches: { value: item.searches.value },
+    }))
+
+    if (sortConfig.column === "searches") {
+      return [...mapped].sort((a, b) => {
+        const aVal = a.searches.value
+        const bVal = b.searches.value
+        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal
+      })
+    }
+
+    return mapped
+  }, [queriesData, sortConfig])
+
+  const handleSort = (column: string) => {
+    setSortConfig((prev) => ({
+      column,
+      direction: prev.column === column && prev.direction === "desc" ? "asc" : "desc",
+    }))
+  }
+
+  if (locations.length === 0) {
+    return (
+      <div className="flex flex-col gap-7">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Local Search</h2>
+        </div>
+        <div className="flex items-center justify-center h-[200px] border rounded-lg bg-muted/20">
+          <p className="text-sm text-muted-foreground">No locations configured for this business</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-7">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">Local Search</h2>
+        <Select value={selectedLocation} onValueChange={onLocationChange}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Select location" />
+          </SelectTrigger>
+          <SelectContent>
+            {locations.map((location) => (
+              <SelectItem key={location.value} value={location.value}>
+                {location.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[300px] border rounded-lg">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <InteractionsChartCard
+            icon={<MapPin className="h-4 w-4 text-muted-foreground" />}
+            title="Total Interactions"
+            legend={{
+              color: "#3b82f6",
+              label: interactionsMetric.label,
+              value: interactionsMetric.value,
+              change: interactionsMetric.change,
+            }}
+            data={hasInteractionsData ? interactionsChartData : []}
+            dataKey="interactions"
+          />
+        )}
+
+        <DataTable
+          icon={<Search className="h-4 w-4" />}
+          title="Top Queries"
+          columns={[
+            { key: "query", label: "Query", width: "w-[250px]" },
+            { key: "searches", label: "Searches", sortable: true },
+          ]}
+          data={tableData}
+          isLoading={isLoading}
+          hasData={hasQueriesData}
+          maxRows={5}
+          sortConfig={sortConfig}
+          onSort={handleSort}
+          onArrowClick={() => setQueriesModalOpen(true)}
+        />
+      </div>
+
+      <DataTableModal
+        open={queriesModalOpen}
+        onOpenChange={setQueriesModalOpen}
+        title="Top Queries"
+        icon={<Search className="h-4 w-4" />}
+        columns={[
+          { key: "query", label: "Query" },
+          { key: "searches", label: "Searches", sortable: true },
+        ]}
+        data={tableData}
+        isLoading={isLoading}
+        sortConfig={sortConfig}
+        onSort={handleSort}
+      />
+    </div>
+  )
+}

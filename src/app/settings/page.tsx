@@ -1,8 +1,9 @@
+import SettingsTemplate from '@/components/templates/SettingsTemplate'
 import React from 'react'
 
 const page = () => {
   return (
-    <div>settings page</div>
+    <SettingsTemplate />
   )
 }
 

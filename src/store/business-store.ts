@@ -1,5 +1,10 @@
 import { create } from "zustand";
 
+export interface BusinessLocation {
+  Name: string;
+  DisplayName: string;
+}
+
 export interface BusinessProfile {
   UniqueId: string;
   Name: string;
@@ -8,7 +13,7 @@ export interface BusinessProfile {
   Description?: string;
   ProductsServices?: string[];
   LocationType?: string;
-  Locations?: string[];
+  Locations?: BusinessLocation[];
   CustomerPersonas?: { personName: string; personDescription: string }[] | null;
   SellingPoints?: string[] | null;
   BusinessObjective?: string | null;

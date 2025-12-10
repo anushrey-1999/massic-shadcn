@@ -1,60 +1,57 @@
-import TestForm from "@/components/forms/test-form"
-import { TopicsTableClient } from "@/components/topics/topics-table-client"
-import type { ApiResponse } from "@/hooks/use-api-query"
+'use client'
 
-const DUMMYJSON_BASE_URL = "https://dummyjson.com"
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuthStore } from '@/store/auth-store'
+import { useBusinessProfiles } from '@/hooks/use-business-profiles'
+import { TopicsTableClient } from '@/components/topics/topics-table-client'
 
-// Product type from DummyJSON API
-type Product = {
-  id: number
-  title: string
-  description: string
-  price: number
-  discountPercentage: number
-  rating: number
-  stock: number
-  brand: string
-  category: string
-  thumbnail: string
+const SINGLE_BUSINESS_ROLE_ID = 4
+
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-muted">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <p className="text-muted-foreground">Loading your business...</p>
+      </div>
+    </div>
+  )
 }
 
-/**
- * Server Component - Fetches initial data on the server for faster page load
- * This improves:
- * - Initial page load speed (data fetched on server)
- * - SEO (content available on first render)
- * - User experience (no loading spinner on first render)
- */
-export default async function Page() {
-  // Fetch initial page of data directly from DummyJSON on the server
-  const url = `${DUMMYJSON_BASE_URL}/products?limit=100&skip=0`
+function useSingleBusinessRedirect() {
+  const router = useRouter()
+  const { user, isAuthenticated } = useAuthStore()
+  const { profiles, sidebarDataLoading } = useBusinessProfiles()
 
-  const response = await fetch(url, {
-    next: { revalidate: 60 }, // Cache for 60 seconds
-  })
+  const isSingleBusinessUser = user?.roleid === SINGLE_BUSINESS_ROLE_ID
+  const isReady = isAuthenticated && !sidebarDataLoading
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch products")
-  }
+  useEffect(() => {
+    if (!isReady || !isSingleBusinessUser) return
 
-  const productsData = await response.json()
-  const products = productsData.products || []
-  const total = productsData.total || 0
+    const redirectPath = profiles.length > 0
+      ? `/business/${profiles[0].UniqueId}/analytics`
+      : '/settings'
 
-  const initialData: ApiResponse<Product> = {
-    data: products,
-    hasMore: products.length < total,
-    total,
-    page: 1,
-    limit: products.length,
+    router.replace(redirectPath)
+  }, [isReady, isSingleBusinessUser, profiles, router])
+
+  return { isSingleBusinessUser, isRedirecting: isSingleBusinessUser }
+}
+
+export default function HomePage() {
+  const { isRedirecting } = useSingleBusinessRedirect()
+
+  if (isRedirecting) {
+    return <LoadingSpinner />
   }
 
   return (
     <div className="bg-muted p-8 flex flex-col gap-8 min-h-full">
-      {/* Pass initialData to client component for hydration */}
-      <TopicsTableClient initialData={initialData} />
-      <TestForm />
+      <TopicsTableClient />
     </div>
   )
 }
+
 

@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./select";
+import { LocationSelect } from "./location-select";
 import type { VariantProps } from "class-variance-authority";
 
 type BaseInputProps = Omit<
@@ -60,6 +61,7 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
     | "input"
     | "textarea"
     | "select"
+    | "location-select"
     | "checkbox"
     | "checkbox-group"
     | "radio"
@@ -88,6 +90,8 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
   name?: string;
   // Layout for radio/checkbox groups
   orientation?: "horizontal" | "vertical";
+  // LocationSelect specific
+  loading?: boolean;
   addon?: {
     position?: "inline-start" | "inline-end" | "block-start" | "block-end";
     content?: React.ReactNode;
@@ -170,6 +174,7 @@ export type FieldConfig = {
   disabled?: boolean;
   required?: boolean;
   autoComplete?: string;
+  loading?: boolean;
 };
 
 function GenericInput<
@@ -194,14 +199,22 @@ function GenericInput<
   formField,
   form,
   fieldName,
+  loading,
   ...props
 }: GenericInputProps<TFormData>) {
   // If formField is provided, extract field values and handlers
   // Then merge with existing props and continue to normal rendering
   if (formField) {
     const field = formField;
+    // Show errors if field has been interacted with (touched or has value) AND is invalid
+    // With onChange validation, errors clear immediately when value becomes valid
+    // This prevents showing errors on untouched empty fields, but shows them once user interacts
+    const hasValue = field.state.value !== "" && field.state.value !== undefined && field.state.value !== null;
     const fieldIsInvalid =
-      field.state.meta.isTouched && !field.state.meta.isValid;
+      (field.state.meta.isTouched || hasValue) && 
+      !field.state.meta.isValid && 
+      field.state.meta.errors && 
+      field.state.meta.errors.length > 0;
     
     // Override with field values
     id = field.name;
@@ -227,6 +240,14 @@ function GenericInput<
       value = field.state.value as number;
       onChange = ((e: React.ChangeEvent<HTMLInputElement>) =>
         field.handleChange(Number(e.target.value) as TFormData[keyof TFormData])) as typeof onChange;
+    } else if (type === "location-select") {
+      value = field.state.value as string;
+      // LocationSelect uses direct value callback, but we need to maintain event signature
+      // Store the direct callback separately and handle it in renderInput
+      onChange = ((val: string | React.ChangeEvent<HTMLSelectElement>) => {
+        const stringValue = typeof val === 'string' ? val : val.target.value;
+        field.handleChange(stringValue as TFormData[keyof TFormData]);
+      }) as typeof onChange;
     } else {
       value = field.state.value as string;
       onChange = ((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -259,6 +280,7 @@ function GenericInput<
             addon={addon}
             className={className}
             disabled={shouldDisable}
+            loading={loading}
           />
         )}
       />
@@ -273,6 +295,35 @@ function GenericInput<
 
   // Render the input component
   const renderInput = () => {
+    // Handle location-select using LocationSelect component
+    if (type === "location-select") {
+      const currentValue = value as string | undefined;
+      const locationOptions = options?.map((opt) => ({
+        value: String(opt.value),
+        label: opt.label,
+        disabled: opt.disabled,
+      })) || [];
+
+      const handleLocationChange = (newValue: string) => {
+        if (onChange) {
+          // LocationSelect passes value directly, but onChange can handle both
+          // Pass the string directly - onChange wrapper will handle it
+          (onChange as (val: string | React.ChangeEvent<HTMLSelectElement>) => void)(newValue);
+        }
+      };
+
+      return (
+        <LocationSelect
+          value={currentValue}
+          onChange={handleLocationChange}
+          options={locationOptions}
+          placeholder={props.placeholder}
+          disabled={props.disabled}
+          loading={loading}
+        />
+      );
+    }
+
     // Handle select dropdown using shadcn Select component for full styling control
     if (type === "select") {
       const currentValue = value as string | number | undefined;

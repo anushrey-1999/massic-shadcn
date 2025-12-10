@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { TasksTableClient } from "@/components/organisms/TaskTable/tasks-table-client";
+import { DataTableSkeleton } from "@/components/filter-table/data-table-skeleton";
 
 export default function TasksPage() {
   return (
@@ -10,7 +12,9 @@ export default function TasksPage() {
         </p>
       </div>
       <div className="flex-1 min-h-0">
-        <TasksTableClient />
+        <Suspense fallback={<DataTableSkeleton columnCount={10} />}>
+          <TasksTableClient />
+        </Suspense>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-export { DataTable } from "./data-table";
+export { DataTable } from "./data-table.tsx";
 export { DataTableAdvancedToolbar } from "./data-table-advanced-toolbar";
 export { DataTableSortList } from "./data-table-sort-list";
 export { useDataTable } from "../../hooks/use-data-table";

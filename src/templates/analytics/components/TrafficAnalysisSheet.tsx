@@ -144,9 +144,9 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
   const TrendIcon = isNegative ? TrendingDown : TrendingUp
 
   const actionCategories = {
-    urgent: traffic.narrative?.actions?.filter(a => a.priority === "urgent") || [],
-    important: traffic.narrative?.actions?.filter(a => a.priority === "important") || [],
-    monitor: traffic.narrative?.actions?.filter(a => a.priority === "monitor") || [],
+    urgent: traffic.narrative?.actions?.urgent || [],
+    important: traffic.narrative?.actions?.important || [],
+    monitor: traffic.narrative?.actions?.monitoring || [],
   }
 
   return (
@@ -220,16 +220,16 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                   {traffic.narrative.brand_split.brand_pct}%
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {traffic.narrative.brand_split.brand_clicks.toLocaleString()}
+                  {traffic.narrative.brand_split.brand_delta > 0 ? "+" : ""}{traffic.narrative.brand_split.brand_delta.toLocaleString()}
                 </p>
               </div>
               <div className="rounded-lg border bg-card p-2.5">
                 <p className="text-[10px] text-muted-foreground mb-0.5">Non-Brand</p>
                 <p className="text-lg font-bold text-foreground">
-                  {traffic.narrative.brand_split.nonbrand_pct}%
+                  {100 - traffic.narrative.brand_split.brand_pct}%
                 </p>
                 <p className="text-[10px] text-muted-foreground">
-                  {traffic.narrative.brand_split.nonbrand_clicks.toLocaleString()}
+                  {traffic.narrative.brand_split.nonbrand_delta > 0 ? "+" : ""}{traffic.narrative.brand_split.nonbrand_delta.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -248,7 +248,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <p className="text-xs font-medium text-foreground flex-1 leading-tight line-clamp-1">
-                      {contributor.page || contributor.query}
+                      {contributor.key}
                     </p>
                     <div className="flex items-center gap-0.5 shrink-0">
                       <TrendIcon className={cn("h-3 w-3",
@@ -261,9 +261,9 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                       </span>
                     </div>
                   </div>
-                  {contributor.diagnosis && (
+                  {contributor.classification && (
                     <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
-                      {contributor.diagnosis}
+                      {contributor.classification}
                     </p>
                   )}
                 </div>
@@ -273,7 +273,10 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
         )}
 
         {/* Actions */}
-        {traffic.narrative?.actions && traffic.narrative.actions.length > 0 && (
+        {traffic.narrative?.actions && 
+          (traffic.narrative.actions.urgent?.length > 0 || 
+           traffic.narrative.actions.important?.length > 0 || 
+           traffic.narrative.actions.monitoring?.length > 0) && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2">Actions</h3>
             <div className="space-y-2">
@@ -287,7 +290,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                     {actionCategories.urgent.map((action, idx) => (
                       <li key={idx} className="flex items-start gap-1.5 text-[11px] text-red-600">
                         <ArrowRight className="h-3 w-3 shrink-0 mt-0.5" />
-                        <span className="leading-snug">{action.action}</span>
+                        <span className="leading-snug">{action}</span>
                       </li>
                     ))}
                   </ul>
@@ -304,7 +307,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                     {actionCategories.important.map((action, idx) => (
                       <li key={idx} className="flex items-start gap-1.5 text-[11px] text-amber-600">
                         <ArrowRight className="h-3 w-3 shrink-0 mt-0.5" />
-                        <span className="leading-snug">{action.action}</span>
+                        <span className="leading-snug">{action}</span>
                       </li>
                     ))}
                   </ul>
@@ -321,7 +324,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                     {actionCategories.monitor.map((action, idx) => (
                       <li key={idx} className="flex items-start gap-1.5 text-[11px] text-blue-600">
                         <ArrowRight className="h-3 w-3 shrink-0 mt-0.5" />
-                        <span className="leading-snug">{action.action}</span>
+                        <span className="leading-snug">{action}</span>
                       </li>
                     ))}
                   </ul>
@@ -333,7 +336,9 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
       </div>
     </ScrollArea>
   )
-} export function TrafficAnalysisSheet({
+}
+
+export function TrafficAnalysisSheet({
   open,
   onOpenChange,
   defaultTrafficData,

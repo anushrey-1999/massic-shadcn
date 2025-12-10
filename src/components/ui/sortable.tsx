@@ -33,7 +33,8 @@ export function SortableContent({
   ...props 
 }: React.HTMLAttributes<HTMLUListElement> & { asChild?: boolean }) {
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children, { className: cn(className, children.props.className) })
+    const childProps = children.props as { className?: string }
+    return React.cloneElement(children, { className: cn(className, childProps.className) } as any)
   }
   return (
     <ul className={cn("", className)} {...props}>
@@ -53,10 +54,11 @@ export function SortableItem({
   asChild?: boolean 
 }) {
   if (asChild && React.isValidElement(children)) {
+    const childProps = children.props as { className?: string }
     return React.cloneElement(children, { 
-      className: cn(className, children.props.className),
+      className: cn(className, childProps.className),
       ...props 
-    })
+    } as any)
   }
   return (
     <li className={cn("", className)} {...props}>
@@ -72,10 +74,11 @@ export function SortableItemHandle({
   ...props 
 }: React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }) {
   if (asChild && React.isValidElement(children)) {
+    const childProps = children.props as { className?: string }
     return React.cloneElement(children, { 
-      className: cn(className, children.props.className),
+      className: cn(className, childProps.className),
       ...props 
-    })
+    } as any)
   }
   return (
     <div className={cn("cursor-grab active:cursor-grabbing", className)} {...props}>

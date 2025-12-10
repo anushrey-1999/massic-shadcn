@@ -9,9 +9,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { getCommonPinningStyles } from "@/utils/data-table-utils";
-import { cn } from "@/lib/utils";
+} from "../../components/ui/table";
+import { getCommonPinningStyles } from "../../utils/data-table-utils";
+import { cn } from "../../lib/utils";
 import { Loader2 } from "lucide-react";
 
 // Helper function to get alignment class from column meta

@@ -1,5 +1,7 @@
 "use client";
 
+import React, { useMemo } from "react";
+import { useStore } from "@tanstack/react-form";
 import {
   Card,
   CardContent,
@@ -13,6 +15,8 @@ import {
   CustomAddRowTable,
   Column,
 } from "@/components/organisms/CustomAddRowTable";
+import { OfferingRow } from "@/store/business-store";
+import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 
 type BusinessInfoFormData = {
   website: string;
@@ -29,35 +33,39 @@ type BusinessInfoFormData = {
     description: string;
     link: string;
   }>;
+  offeringsSavedIndices?: number[];
 };
 
-type OfferingRow = {
-  name: string;
-  description: string;
-  link: string;
-};
-
-interface OfferingsExtratorCardProps {
+interface OfferingsFormProps {
   form: any; // TanStack Form instance
-  offeringsColumns: Column<OfferingRow>[];
-  offeringsData: OfferingRow[];
-  savedRowIndices: Set<number>;
-  onAddRow: () => void;
-  onRowChange: (rowIndex: number, field: string, value: string) => void;
-  onDeleteRow: (rowIndex: number) => void;
-  onSaveRow: (rowIndex: number, row: OfferingRow) => void;
 }
 
-const OfferingsExtratorCard = ({
+export const OfferingsForm = ({
   form,
-  offeringsColumns,
-  offeringsData,
-  savedRowIndices,
-  onAddRow,
-  onRowChange,
-  onDeleteRow,
-  onSaveRow,
-}: OfferingsExtratorCardProps) => {
+}: OfferingsFormProps) => {
+  // Subscribe only to specific fields this component cares about
+  // Component will only re-render when these fields change
+  const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
+
+  // Own column definitions
+  const offeringsColumns: Column<OfferingRow>[] = useMemo(() => [
+    { key: "name", label: "Name", validation: { required: true } },
+    { key: "description", label: "Description", validation: { required: false } },
+    { key: "link", label: "Link", validation: { required: false, url: true } },
+  ], []);
+
+  // Own handlers - encapsulated logic
+  const {
+    handleAddRow,
+    handleRowChange,
+    handleDeleteRow,
+  } = useAddRowTableState<OfferingRow>({
+    data: offeringsData,
+    formFieldName: "offeringsList",
+    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
+    emptyRowFactory: () => ({ name: "", description: "", link: "" }),
+  });
+
   return (
     <Card
       id="offerings"
@@ -100,11 +108,9 @@ const OfferingsExtratorCard = ({
             <CustomAddRowTable
               columns={offeringsColumns}
               data={offeringsData}
-              onAddRow={onAddRow}
-              onRowChange={onRowChange}
-              onDeleteRow={onDeleteRow}
-              onSaveRow={onSaveRow}
-              savedRowIndices={savedRowIndices}
+              onAddRow={handleAddRow}
+              onRowChange={handleRowChange}
+              onDeleteRow={handleDeleteRow}
               addButtonText="Add Product/Service"
             />
           </CardContent>
@@ -114,4 +120,3 @@ const OfferingsExtratorCard = ({
   );
 };
 
-export default OfferingsExtratorCard;

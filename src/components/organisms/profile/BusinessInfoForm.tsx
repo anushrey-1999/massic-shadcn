@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Card,
   CardContent,
@@ -8,6 +9,8 @@ import {
 } from "@/components/ui/card";
 import { GenericInput } from "@/components/ui/generic-input";
 import { Typography } from "@/components/ui/typography";
+import { useBusinessStore } from "@/store/business-store";
+import { useShallow } from "zustand/react/shallow";
 
 type BusinessInfoFormData = {
   website: string;
@@ -26,11 +29,21 @@ type BusinessInfoFormData = {
   }>;
 };
 
-interface BusinessInfoCardProps {
+interface BusinessInfoFormProps {
   form: any; // TanStack Form instance
 }
 
-const BusinessInfoCard = ({ form }: BusinessInfoCardProps) => {
+export const BusinessInfoForm = React.memo(({ 
+  form
+}: BusinessInfoFormProps) => {
+  // Own Zustand selectors - isolated selector for better performance
+  const { locationOptions, locationsLoading } = useBusinessStore(
+    useShallow((state) => ({
+      locationOptions: state.profileForm.locationOptions,
+      locationsLoading: state.profileForm.locationsLoading,
+    }))
+  );
+
   return (
     <Card
       id="business-info"
@@ -55,6 +68,7 @@ const BusinessInfoCard = ({ form }: BusinessInfoCardProps) => {
                 label="Website"
                 required={true}
                 placeholder="Provide the official url of your business website"
+                disabled={true}
               />
             </CardContent>
           </Card>
@@ -91,23 +105,18 @@ const BusinessInfoCard = ({ form }: BusinessInfoCardProps) => {
               <GenericInput<BusinessInfoFormData>
                 form={form as any}
                 fieldName="primaryLocation"
-                type="select"
+                type="location-select"
                 label="Primary Location"
                 required={true}
                 inputVariant="noBorder"
-                placeholder="Where are your customers primarily located?"
-                options={[
-                  {
-                    value: "",
-                    label: "Select a location",
-                    disabled: true,
-                  },
-                  { value: "us", label: "United States" },
-                  { value: "uk", label: "United Kingdom" },
-                  { value: "ca", label: "Canada" },
-                  { value: "au", label: "Australia" },
-                  { value: "other", label: "Other" },
-                ]}
+                placeholder={
+                  locationsLoading
+                    ? "Loading locations..."
+                    : "Where are your customers primarily located?"
+                }
+                options={locationOptions}
+                disabled={locationsLoading}
+                loading={locationsLoading}
               />
             </CardContent>
           </Card>
@@ -137,7 +146,6 @@ const BusinessInfoCard = ({ form }: BusinessInfoCardProps) => {
                 type="select"
                 inputVariant="noBorder"
                 label="Recurring Revenue"
-                required={true}
                 placeholder="Is your revenue earned on a set schedule?"
                 options={[
                   {
@@ -182,6 +190,6 @@ const BusinessInfoCard = ({ form }: BusinessInfoCardProps) => {
       </CardContent>
     </Card>
   );
-};
+});
 
-export default BusinessInfoCard;
+BusinessInfoForm.displayName = "BusinessInfoForm";

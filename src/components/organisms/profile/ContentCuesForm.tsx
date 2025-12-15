@@ -1,5 +1,7 @@
 "use client";
 
+import React, { useMemo } from "react";
+import { useStore } from "@tanstack/react-form";
 import {
   Card,
   CardContent,
@@ -10,54 +12,67 @@ import { Typography } from "@/components/ui/typography";
 import { FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
-import React from "react";
 import { AlertCircle } from "lucide-react";
+import { CTARow, StakeholderRow } from "@/store/business-store";
+import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 
-type CTARow = {
-  buttonText: string;
-  url: string;
+type BusinessInfoFormData = {
+  usps?: string;
+  ctas?: Array<{ buttonText: string; url: string }>;
+  ctasSavedIndices?: number[];
+  stakeholders?: Array<{ name: string; title: string }>;
+  stakeholdersSavedIndices?: number[];
+  brandToneSocial?: string[];
+  brandToneWeb?: string[];
+  brandTerms?: string;
 };
 
-type StakeholderRow = {
-  name: string;
-  title: string;
-};
-
-interface ContentCuesCardProps {
+interface ContentCuesFormProps {
   form: any; // TanStack Form instance
-  ctaColumns: Column<CTARow>[];
-  ctasData: CTARow[];
-  ctasSavedRowIndices: Set<number>;
-  onAddCTARow: () => void;
-  onCTARowChange: (rowIndex: number, field: string, value: string) => void;
-  onCTADeleteRow: (rowIndex: number) => void;
-  onCTASaveRow: (rowIndex: number, row: CTARow) => void;
-  stakeholdersColumns: Column<StakeholderRow>[];
-  stakeholdersData: StakeholderRow[];
-  stakeholdersSavedRowIndices: Set<number>;
-  onAddStakeholderRow: () => void;
-  onStakeholderRowChange: (rowIndex: number, field: string, value: string) => void;
-  onStakeholderDeleteRow: (rowIndex: number) => void;
-  onStakeholderSaveRow: (rowIndex: number, row: StakeholderRow) => void;
 }
 
-const ContentCuesCard = ({
+export const ContentCuesForm = ({
   form,
-  ctaColumns,
-  ctasData,
-  ctasSavedRowIndices,
-  onAddCTARow,
-  onCTARowChange,
-  onCTADeleteRow,
-  onCTASaveRow,
-  stakeholdersColumns,
-  stakeholdersData,
-  stakeholdersSavedRowIndices,
-  onAddStakeholderRow,
-  onStakeholderRowChange,
-  onStakeholderDeleteRow,
-  onStakeholderSaveRow,
-}: ContentCuesCardProps) => {
+}: ContentCuesFormProps) => {
+  // Subscribe only to specific fields this component cares about
+  // Component will only re-render when these fields change
+  const ctasData = useStore(form.store, (state: any) => (state.values?.ctas || []) as CTARow[]);
+  const stakeholdersData = useStore(form.store, (state: any) => (state.values?.stakeholders || []) as StakeholderRow[]);
+
+  // Own column definitions
+  const ctaColumns: Column<CTARow>[] = useMemo(() => [
+    { key: "buttonText", label: "Button Text", validation: { required: true } },
+    { key: "url", label: "URL", validation: { required: true, url: true } },
+  ], []);
+
+  const stakeholdersColumns: Column<StakeholderRow>[] = useMemo(() => [
+    { key: "name", label: "Name", validation: { required: false } },
+    { key: "title", label: "Title", validation: { required: false } },
+  ], []);
+
+  // Own handlers - encapsulated logic
+  const {
+    handleAddRow: handleAddCTARow,
+    handleRowChange: handleCTARowChange,
+    handleDeleteRow: handleCTADeleteRow,
+  } = useAddRowTableState<CTARow>({
+    data: ctasData,
+    formFieldName: "ctas",
+    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
+    emptyRowFactory: () => ({ buttonText: "", url: "" }),
+  });
+
+  const {
+    handleAddRow: handleAddStakeholderRow,
+    handleRowChange: handleStakeholderRowChange,
+    handleDeleteRow: handleStakeholderDeleteRow,
+  } = useAddRowTableState<StakeholderRow>({
+    data: stakeholdersData,
+    formFieldName: "stakeholders",
+    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
+    emptyRowFactory: () => ({ name: "", title: "" }),
+  });
+
   return (
     <Card
       id="content-cues"
@@ -80,28 +95,11 @@ const ContentCuesCard = ({
             <form.Field
               name="usps"
               children={(field: any) => {
-                // Convert array to comma-separated string for display
-                const displayValue = Array.isArray(field.state.value)
-                  ? field.state.value.join(", ")
-                  : "";
-
-                const handleChange = (
-                  e: React.ChangeEvent<HTMLInputElement>
-                ) => {
-                  const inputValue = e.target.value;
-                  // Split by comma, trim each value, and filter out empty strings
-                  const uspsArray = inputValue
-                    .split(",")
-                    .map((item) => item.trim())
-                    .filter((item) => item.length > 0);
-                  field.handleChange(uspsArray);
-                };
-
                 return (
                   <Input
                     variant="noBorder"
-                    value={displayValue}
-                    onChange={handleChange}
+                    value={field.state.value || ""}
+                    onChange={(e) => field.handleChange(e.target.value)}
                     placeholder="Add the top benefits or features you want customers to notice"
                     className="w-full"
                   />
@@ -123,11 +121,9 @@ const ContentCuesCard = ({
             <CustomAddRowTable
               columns={ctaColumns}
               data={ctasData}
-              onAddRow={onAddCTARow}
-              onRowChange={onCTARowChange}
-              onDeleteRow={onCTADeleteRow}
-              onSaveRow={onCTASaveRow}
-              savedRowIndices={ctasSavedRowIndices}
+              onAddRow={handleAddCTARow}
+              onRowChange={handleCTARowChange}
+              onDeleteRow={handleCTADeleteRow}
               addButtonText="Add Button"
             />
           </CardContent>
@@ -145,28 +141,11 @@ const ContentCuesCard = ({
             <form.Field
               name="brandTerms"
               children={(field: any) => {
-                // Convert array to comma-separated string for display
-                const displayValue = Array.isArray(field.state.value)
-                  ? field.state.value.join(", ")
-                  : "";
-
-                const handleChange = (
-                  e: React.ChangeEvent<HTMLInputElement>
-                ) => {
-                  const inputValue = e.target.value;
-                  // Split by comma, trim each value, and filter out empty strings
-                  const brandTermsArray = inputValue
-                    .split(",")
-                    .map((item) => item.trim())
-                    .filter((item) => item.length > 0);
-                  field.handleChange(brandTermsArray);
-                };
-
                 return (
                   <Input
                     variant="noBorder"
-                    value={displayValue}
-                    onChange={handleChange}
+                    value={field.state.value || ""}
+                    onChange={(e) => field.handleChange(e.target.value)}
                     placeholder="List the words, separating each one with a comma"
                     className="w-full"
                   />
@@ -360,11 +339,9 @@ const ContentCuesCard = ({
             <CustomAddRowTable
               columns={stakeholdersColumns}
               data={stakeholdersData}
-              onAddRow={onAddStakeholderRow}
-              onRowChange={onStakeholderRowChange}
-              onDeleteRow={onStakeholderDeleteRow}
-              onSaveRow={onStakeholderSaveRow}
-              savedRowIndices={stakeholdersSavedRowIndices}
+              onAddRow={handleAddStakeholderRow}
+              onRowChange={handleStakeholderRowChange}
+              onDeleteRow={handleStakeholderDeleteRow}
               addButtonText="Add Person"
             />
           </CardContent>
@@ -374,4 +351,3 @@ const ContentCuesCard = ({
   );
 };
 
-export default ContentCuesCard;

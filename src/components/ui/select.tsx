@@ -40,29 +40,52 @@ const selectTriggerVariants = cva(
   }
 )
 
-function SelectTrigger({
-  className,
-  size = "default",
-  variant,
-  children,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
-  size?: "sm" | "default"
-} & VariantProps<typeof selectTriggerVariants>) {
-  return (
-    <SelectPrimitive.Trigger
-      data-slot="select-trigger"
-      data-size={size}
-      className={cn(selectTriggerVariants({ variant }), className)}
-      {...props}
-    >
-      {children}
-      <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
-      </SelectPrimitive.Icon>
-    </SelectPrimitive.Trigger>
-  )
-}
+const SelectTrigger = React.memo(
+  React.forwardRef<
+    React.ElementRef<typeof SelectPrimitive.Trigger>,
+    React.ComponentProps<typeof SelectPrimitive.Trigger> & {
+      size?: "sm" | "default"
+    } & VariantProps<typeof selectTriggerVariants>
+  >(({ className, size = "default", variant, children, ...props }, ref) => {
+    const variantClassName = React.useMemo(
+      () => selectTriggerVariants({ variant }),
+      [variant]
+    )
+
+    const finalClassName = React.useMemo(
+      () => cn(variantClassName, className),
+      [variantClassName, className]
+    )
+
+    return (
+      <SelectPrimitive.Trigger
+        ref={ref}
+        data-slot="select-trigger"
+        data-size={size}
+        className={finalClassName}
+        {...props}
+      >
+        {children}
+        <SelectPrimitive.Icon asChild>
+          <ChevronDownIcon className="size-4 opacity-50" />
+        </SelectPrimitive.Icon>
+      </SelectPrimitive.Trigger>
+    )
+  }),
+  (prevProps, nextProps) => {
+    // Custom comparison to prevent unnecessary re-renders
+    return (
+      prevProps.className === nextProps.className &&
+      prevProps.size === nextProps.size &&
+      prevProps.variant === nextProps.variant &&
+      prevProps.disabled === nextProps.disabled &&
+      prevProps.value === nextProps.value &&
+      React.Children.count(prevProps.children) === React.Children.count(nextProps.children)
+    )
+  }
+)
+
+SelectTrigger.displayName = "SelectTrigger"
 
 function SelectContent({
   className,
@@ -114,29 +137,47 @@ function SelectLabel({
   )
 }
 
-function SelectItem({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
-  return (
-    <SelectPrimitive.Item
-      data-slot="select-item"
-      className={cn(
+const SelectItem = React.memo(
+  React.forwardRef<
+    React.ElementRef<typeof SelectPrimitive.Item>,
+    React.ComponentProps<typeof SelectPrimitive.Item>
+  >(({ className, children, ...props }, ref) => {
+    const itemClassName = React.useMemo(
+      () => cn(
         "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
-      )}
-      {...props}
-    >
-      <span className="absolute right-2 flex size-3.5 items-center justify-center">
-        <SelectPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
-        </SelectPrimitive.ItemIndicator>
-      </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-    </SelectPrimitive.Item>
-  )
-}
+      ),
+      [className]
+    );
+
+    return (
+      <SelectPrimitive.Item
+        ref={ref}
+        data-slot="select-item"
+        className={itemClassName}
+        {...props}
+      >
+        <span className="absolute right-2 flex size-3.5 items-center justify-center">
+          <SelectPrimitive.ItemIndicator>
+            <CheckIcon className="size-4" />
+          </SelectPrimitive.ItemIndicator>
+        </span>
+        <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      </SelectPrimitive.Item>
+    );
+  }),
+  (prevProps, nextProps) => {
+    // Custom comparison - focus on props that actually matter for re-renders
+    // Don't compare children as React handles that internally
+    return (
+      prevProps.value === nextProps.value &&
+      prevProps.className === nextProps.className &&
+      prevProps.disabled === nextProps.disabled
+    );
+  }
+);
+
+SelectItem.displayName = "SelectItem";
 
 function SelectSeparator({
   className,

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FieldError } from "@/components/ui/field";
 
@@ -35,8 +35,6 @@ export interface CustomAddRowTableProps<T = Record<string, any>> {
   onAddRow: () => void;
   onRowChange?: (rowIndex: number, field: string, value: any) => void;
   onDeleteRow?: (rowIndex: number) => void;
-  onSaveRow?: (rowIndex: number, row: T) => void;
-  savedRowIndices?: Set<number>;
   addButtonText?: string;
   className?: string;
   emptyRowData?: T;
@@ -86,16 +84,12 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   onAddRow,
   onRowChange,
   onDeleteRow,
-  onSaveRow,
-  savedRowIndices = new Set(),
   addButtonText = "Add Product/Service",
   className,
   emptyRowData,
 }: CustomAddRowTableProps<T>) {
   // Error state: { rowIndex: { fieldKey: errorMessage } }
   const [errors, setErrors] = useState<Record<number, Record<string, string>>>({});
-  // Track which rows have been attempted to save (touched)
-  const [touchedRows, setTouchedRows] = useState<Set<number>>(new Set());
 
   // Validate all fields in a row
   const validateRow = (rowIndex: number, row: T) => {
@@ -130,50 +124,25 @@ export function CustomAddRowTable<T extends Record<string, any>>({
       onRowChange(rowIndex, field, value);
     }
 
-    // Only re-validate if this row has been touched (attempted to save)
-    if (touchedRows.has(rowIndex)) {
-      const column = columns.find((col) => col.key === field);
-      const error = validateField(value, column?.validation);
+    // Validate on change
+    const column = columns.find((col) => col.key === field);
+    const error = validateField(value, column?.validation);
 
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        if (!newErrors[rowIndex]) {
-          newErrors[rowIndex] = {};
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      if (!newErrors[rowIndex]) {
+        newErrors[rowIndex] = {};
+      }
+      if (error) {
+        newErrors[rowIndex][field] = error;
+      } else {
+        delete newErrors[rowIndex][field];
+        if (Object.keys(newErrors[rowIndex]).length === 0) {
+          delete newErrors[rowIndex];
         }
-        if (error) {
-          newErrors[rowIndex][field] = error;
-        } else {
-          delete newErrors[rowIndex][field];
-          if (Object.keys(newErrors[rowIndex]).length === 0) {
-            delete newErrors[rowIndex];
-          }
-        }
-        return newErrors;
-      });
-    }
-  };
-
-  // Check if at least one column in the row has a value
-  const hasAtLeastOneValue = (row: T): boolean => {
-    return columns.some((column) => {
-      const value = row[column.key];
-      if (value === null || value === undefined) return false;
-      const stringValue = String(value).trim();
-      return stringValue.length > 0;
+      }
+      return newErrors;
     });
-  };
-
-  const handleSaveClick = (rowIndex: number, row: T) => {
-    // Mark row as touched
-    setTouchedRows((prev) => new Set(prev).add(rowIndex));
-    
-    // Validate row
-    const isValid = validateRow(rowIndex, row);
-    
-    // Only save if valid
-    if (isValid && onSaveRow) {
-      onSaveRow(rowIndex, row);
-    }
   };
 
   return (
@@ -193,11 +162,6 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                   )}
                 </TableHead>
               ))}
-              {onSaveRow && (
-                <TableHead className="text-general-muted-foreground font-medium text-sm w-[50px] h-12 px-2 bg-general-primary-foreground">
-                  {/* Empty header for save column */}
-                </TableHead>
-              )}
               {onDeleteRow && (
                 <TableHead className="text-general-muted-foreground font-medium text-sm w-[50px] h-12 px-2 bg-general-primary-foreground">
                   {/* Empty header for delete column */}
@@ -213,9 +177,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                   <React.Fragment key={rowIndex}>
                     <TableRow className="border-b border-general-border">
                       {columns.map((column) => {
-                        // Only show error if row has been touched (attempted to save)
-                        const shouldShowError = touchedRows.has(rowIndex);
-                        const fieldError = shouldShowError ? rowErrors[column.key] : undefined;
+                        const fieldError = rowErrors[column.key];
                         const isInvalid = !!fieldError;
                         return (
                           <TableCell key={column.key} className="p-2">
@@ -252,29 +214,6 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                           </TableCell>
                         );
                       })}
-                      {onSaveRow && !savedRowIndices.has(rowIndex) && (
-                        <TableCell className="p-2 w-[50px]">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleSaveClick(rowIndex, row)}
-                            disabled={
-                              !hasAtLeastOneValue(row) ||
-                              (touchedRows.has(rowIndex) && Object.keys(rowErrors).length > 0)
-                            }
-                            className="h-8 w-8 text-[#16a34a] hover:text-[#16a34a] hover:bg-[#16a34a]/10 cursor-pointer border border-[#16a34a]/30 hover:border-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Save row"
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      )}
-                      {onSaveRow && savedRowIndices.has(rowIndex) && (
-                        <TableCell className="p-2 w-[50px]">
-                          {/* Empty cell for saved rows to maintain column alignment */}
-                        </TableCell>
-                      )}
                       {onDeleteRow && (
                         <TableCell className="p-2 w-[50px]">
                           <Button
@@ -283,7 +222,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                             size="icon"
                             onClick={() => {
                               onDeleteRow(rowIndex);
-                              // Clean up errors and touched state for deleted row
+                              // Clean up errors for deleted row
                               setErrors((prev) => {
                                 const newErrors = { ...prev };
                                 delete newErrors[rowIndex];
@@ -295,21 +234,6 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                                     reindexed[idx - 1] = newErrors[idx];
                                   } else {
                                     reindexed[idx] = newErrors[idx];
-                                  }
-                                });
-                                return reindexed;
-                              });
-                              // Clean up touched state
-                              setTouchedRows((prev) => {
-                                const newTouched = new Set(prev);
-                                newTouched.delete(rowIndex);
-                                // Reindex touched rows after deleted one
-                                const reindexed = new Set<number>();
-                                newTouched.forEach((idx) => {
-                                  if (idx > rowIndex) {
-                                    reindexed.add(idx - 1);
-                                  } else {
-                                    reindexed.add(idx);
                                   }
                                 });
                                 return reindexed;
@@ -329,7 +253,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (onSaveRow ? 1 : 0) + (onDeleteRow ? 1 : 0)}
+                  colSpan={columns.length + (onDeleteRow ? 1 : 0)}
                   className="text-general-muted-foreground p-2"
                 >
                   No data available

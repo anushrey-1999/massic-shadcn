@@ -104,6 +104,8 @@ interface LocationSelectProps {
   placeholder?: string
   disabled?: boolean
   loading?: boolean
+  className?: string
+  triggerClassName?: string
 }
 
 export function LocationSelect({
@@ -113,6 +115,8 @@ export function LocationSelect({
   placeholder = 'Select location',
   disabled = false,
   loading = false,
+  className,
+  triggerClassName,
 }: LocationSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState('')
@@ -165,19 +169,24 @@ export function LocationSelect({
   }, [open])
 
   return (
-    <div ref={triggerRef} className="w-full">
+    <div ref={triggerRef} className={cn("w-full", className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between h-10 rounded-lg"
+            className={cn(
+              "w-full justify-between",
+              // Only apply default classes if triggerClassName doesn't override them
+              !triggerClassName && "h-10 rounded-lg",
+              triggerClassName
+            )}
             disabled={disabled || loading}
           >
             <span className={cn(
               "truncate",
-              !selectedOption && "text-general-muted-foreground text-xs"
+              selectedOption ? "text-sm" : "text-general-muted-foreground text-xs"
             )}>
               {loading ? 'Loading locations...' : displayValue}
             </span>

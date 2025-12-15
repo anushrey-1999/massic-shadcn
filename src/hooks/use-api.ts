@@ -56,12 +56,21 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
     },
     (error: AxiosError) => {
       if (error.response) {
-        console.error(`API Error [${platform}]:`, {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data,
-          url: error.config?.url,
-        });
+        const url = error.config?.url || "";
+        const status = error.response.status;
+        
+        // Don't log 404 errors for endpoints that have fallbacks (like timezones)
+        const silent404Endpoints = ["/timezones"];
+        const shouldSuppress404 = status === 404 && silent404Endpoints.some(endpoint => url.includes(endpoint));
+        
+        if (!shouldSuppress404) {
+          console.error(`API Error [${platform}]:`, {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            data: error.response.data,
+            url: error.config?.url,
+          });
+        }
       } else if (error.request) {
         console.error(`API Request Error [${platform}]:`, {
           message: error.message,

@@ -263,9 +263,9 @@ function GenericInput<
 
   // If form and fieldName are provided, wrap with form.Field
   if (form && fieldName) {
-    const isFormSubmitting = form.state?.isSubmitting ?? false;
-    // Disable inputs during form submission for better API integration
-    const shouldDisable = props.disabled ?? isFormSubmitting;
+    // Only disable if explicitly set via props, not during form submission
+    // This allows fields to remain editable after saving
+    const shouldDisable = props.disabled ?? false;
     
     return (
       <form.Field
@@ -320,6 +320,29 @@ function GenericInput<
         }
       };
 
+      // Apply inputVariant styling to trigger button to match Select component styling
+      // When noBorder, match the Select component's noBorder variant classes
+      const triggerClassName = cn(
+        inputVariant === "noBorder" && [
+          // Override Button base classes to match Select
+          "!h-10 !px-3 !py-1 !text-sm !rounded-md", // Match Select's h-10 (40px) height and text-sm font size
+          "!min-w-0", // Match Input
+          // Match Select noBorder variant exactly
+          "!border-0 !bg-white !shadow-none",
+          // Override Button outline variant hover states
+          "!hover:bg-white !hover:text-foreground",
+          // Override dark mode styles
+          "!dark:bg-white !dark:border-0 !dark:hover:bg-white",
+          // Remove focus ring to match noBorder input
+          "!focus-visible:ring-0 !focus-visible:ring-offset-0 !focus-visible:border-0",
+          // Remove cursor pointer to match input styling
+          "!cursor-default",
+          // Match Select transition
+          "transition-[color,box-shadow]",
+        ],
+        className
+      );
+
       return (
         <LocationSelect
           value={currentValue}
@@ -328,6 +351,7 @@ function GenericInput<
           placeholder={props.placeholder}
           disabled={props.disabled}
           loading={loading}
+          triggerClassName={triggerClassName}
         />
       );
     }

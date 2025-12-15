@@ -16,6 +16,7 @@ interface ProfileSidebarProps {
   completionPercentage?: number;
   buttonText?: string;
   onButtonClick?: () => void;
+  buttonDisabled?: boolean;
 }
 
 export function ProfileSidebar({
@@ -25,6 +26,7 @@ export function ProfileSidebar({
   completionPercentage = 35,
   buttonText = "Confirm & Proceed to Strategy",
   onButtonClick,
+  buttonDisabled = false,
 }: ProfileSidebarProps) {
   return (
     <div className="flex flex-col gap-2 sticky top-[80px]">
@@ -64,7 +66,13 @@ export function ProfileSidebar({
               {completionPercentage}% Complete
             </span>
           </div>
-          <Button className="w-full" variant='default' size="lg" onClick={onButtonClick}>
+          <Button 
+            className="w-full" 
+            variant='default' 
+            size="lg" 
+            onClick={onButtonClick}
+            disabled={buttonDisabled}
+          >
             {buttonText}
           </Button>
         </CardContent>

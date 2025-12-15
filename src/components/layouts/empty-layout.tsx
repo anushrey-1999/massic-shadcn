@@ -6,8 +6,8 @@ export default function EmptyLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="h-screen overflow-hidden">
-      <main className="h-full overflow-y-auto">
+    <div className="h-screen overflow-hidden bg-foreground-light">
+      <main className="h-full overflow-y-auto bg-foreground-light">
         {children}
       </main>
     </div>

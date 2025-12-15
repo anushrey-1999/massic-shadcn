@@ -1,0 +1,355 @@
+"use client";
+
+import React, { useState } from "react";
+import {
+  Table,
+  TableElement,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Plus, Trash2, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { FieldError } from "@/components/ui/field";
+
+export interface ColumnValidation {
+  required?: boolean;
+  url?: boolean;
+  customValidator?: (value: any) => string | undefined;
+}
+
+export interface Column<T = any> {
+  key: string;
+  label: string;
+  render?: (value: any, row: T, index: number) => React.ReactNode;
+  validation?: ColumnValidation;
+}
+
+export interface CustomAddRowTableProps<T = Record<string, any>> {
+  columns: Column<T>[];
+  data: T[];
+  onAddRow: () => void;
+  onRowChange?: (rowIndex: number, field: string, value: any) => void;
+  onDeleteRow?: (rowIndex: number) => void;
+  onSaveRow?: (rowIndex: number, row: T) => void;
+  savedRowIndices?: Set<number>;
+  addButtonText?: string;
+  className?: string;
+  emptyRowData?: T;
+}
+
+// URL validation helper
+const isValidUrl = (url: string): boolean => {
+  if (!url || url.trim() === "") return true; // Empty is valid (optional field)
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Validation helper
+const validateField = (
+  value: any,
+  validation?: ColumnValidation
+): string | undefined => {
+  if (!validation) return undefined;
+
+  const stringValue = String(value || "").trim();
+
+  // Required validation
+  if (validation.required && !stringValue) {
+    return "This field is required";
+  }
+
+  // URL validation
+  if (validation.url && stringValue && !isValidUrl(stringValue)) {
+    return "Please enter a valid URL";
+  }
+
+  // Custom validator
+  if (validation.customValidator) {
+    return validation.customValidator(value);
+  }
+
+  return undefined;
+};
+
+export function CustomAddRowTable<T extends Record<string, any>>({
+  columns,
+  data,
+  onAddRow,
+  onRowChange,
+  onDeleteRow,
+  onSaveRow,
+  savedRowIndices = new Set(),
+  addButtonText = "Add Product/Service",
+  className,
+  emptyRowData,
+}: CustomAddRowTableProps<T>) {
+  // Error state: { rowIndex: { fieldKey: errorMessage } }
+  const [errors, setErrors] = useState<Record<number, Record<string, string>>>({});
+  // Track which rows have been attempted to save (touched)
+  const [touchedRows, setTouchedRows] = useState<Set<number>>(new Set());
+
+  // Validate all fields in a row
+  const validateRow = (rowIndex: number, row: T) => {
+    const rowErrors: Record<string, string> = {};
+    columns.forEach((column) => {
+      const error = validateField(row[column.key], column.validation);
+      if (error) {
+        rowErrors[column.key] = error;
+      }
+    });
+
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      if (Object.keys(rowErrors).length > 0) {
+        newErrors[rowIndex] = rowErrors;
+      } else {
+        delete newErrors[rowIndex];
+      }
+      return newErrors;
+    });
+
+    return Object.keys(rowErrors).length === 0;
+  };
+
+  const handleRowChange = (
+    rowIndex: number,
+    field: string,
+    value: any
+  ) => {
+    // Update the value
+    if (onRowChange) {
+      onRowChange(rowIndex, field, value);
+    }
+
+    // Only re-validate if this row has been touched (attempted to save)
+    if (touchedRows.has(rowIndex)) {
+      const column = columns.find((col) => col.key === field);
+      const error = validateField(value, column?.validation);
+
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        if (!newErrors[rowIndex]) {
+          newErrors[rowIndex] = {};
+        }
+        if (error) {
+          newErrors[rowIndex][field] = error;
+        } else {
+          delete newErrors[rowIndex][field];
+          if (Object.keys(newErrors[rowIndex]).length === 0) {
+            delete newErrors[rowIndex];
+          }
+        }
+        return newErrors;
+      });
+    }
+  };
+
+  // Check if at least one column in the row has a value
+  const hasAtLeastOneValue = (row: T): boolean => {
+    return columns.some((column) => {
+      const value = row[column.key];
+      if (value === null || value === undefined) return false;
+      const stringValue = String(value).trim();
+      return stringValue.length > 0;
+    });
+  };
+
+  const handleSaveClick = (rowIndex: number, row: T) => {
+    // Mark row as touched
+    setTouchedRows((prev) => new Set(prev).add(rowIndex));
+    
+    // Validate row
+    const isValid = validateRow(rowIndex, row);
+    
+    // Only save if valid
+    if (isValid && onSaveRow) {
+      onSaveRow(rowIndex, row);
+    }
+  };
+
+  return (
+    <div className={cn("w-full", className)}>
+      <Table>
+        <TableElement>
+          <TableHeader className="bg-general-primary-foreground">
+            <TableRow className="border-b border-general-border">
+              {columns.map((column) => (
+                <TableHead
+                  key={column.key}
+                  className="text-general-muted-foreground font-medium text-sm h-12 px-2 bg-general-primary-foreground"
+                >
+                  {column.label}
+                  {column.validation?.required && (
+                    <span className="text-destructive ml-0.5">*</span>
+                  )}
+                </TableHead>
+              ))}
+              {onSaveRow && (
+                <TableHead className="text-general-muted-foreground font-medium text-sm w-[50px] h-12 px-2 bg-general-primary-foreground">
+                  {/* Empty header for save column */}
+                </TableHead>
+              )}
+              {onDeleteRow && (
+                <TableHead className="text-general-muted-foreground font-medium text-sm w-[50px] h-12 px-2 bg-general-primary-foreground">
+                  {/* Empty header for delete column */}
+                </TableHead>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.length > 0 ? (
+              data.map((row, rowIndex) => {
+                const rowErrors = errors[rowIndex] || {};
+                return (
+                  <React.Fragment key={rowIndex}>
+                    <TableRow className="border-b border-general-border">
+                      {columns.map((column) => {
+                        // Only show error if row has been touched (attempted to save)
+                        const shouldShowError = touchedRows.has(rowIndex);
+                        const fieldError = shouldShowError ? rowErrors[column.key] : undefined;
+                        const isInvalid = !!fieldError;
+                        return (
+                          <TableCell key={column.key} className="p-2">
+                            <div className="flex flex-col gap-1">
+                              {column.render ? (
+                                column.render(row[column.key], row, rowIndex)
+                              ) : onRowChange ? (
+                                <Input
+                                  variant="noBorder"
+                                  value={row[column.key] || ""}
+                                  onChange={(e) =>
+                                    handleRowChange(
+                                      rowIndex,
+                                      column.key,
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Enter value"
+                                  className={cn(
+                                    "w-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
+                                    isInvalid && "aria-invalid"
+                                  )}
+                                  aria-invalid={isInvalid}
+                                />
+                              ) : (
+                                row[column.key] || "Enter value"
+                              )}
+                              {isInvalid && (
+                                <FieldError className="text-xs mt-0">
+                                  {fieldError}
+                                </FieldError>
+                              )}
+                            </div>
+                          </TableCell>
+                        );
+                      })}
+                      {onSaveRow && !savedRowIndices.has(rowIndex) && (
+                        <TableCell className="p-2 w-[50px]">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleSaveClick(rowIndex, row)}
+                            disabled={
+                              !hasAtLeastOneValue(row) ||
+                              (touchedRows.has(rowIndex) && Object.keys(rowErrors).length > 0)
+                            }
+                            className="h-8 w-8 text-[#16a34a] hover:text-[#16a34a] hover:bg-[#16a34a]/10 cursor-pointer border border-[#16a34a]/30 hover:border-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Save row"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
+                      {onSaveRow && savedRowIndices.has(rowIndex) && (
+                        <TableCell className="p-2 w-[50px]">
+                          {/* Empty cell for saved rows to maintain column alignment */}
+                        </TableCell>
+                      )}
+                      {onDeleteRow && (
+                        <TableCell className="p-2 w-[50px]">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              onDeleteRow(rowIndex);
+                              // Clean up errors and touched state for deleted row
+                              setErrors((prev) => {
+                                const newErrors = { ...prev };
+                                delete newErrors[rowIndex];
+                                // Reindex errors for rows after deleted one
+                                const reindexed: Record<number, Record<string, string>> = {};
+                                Object.keys(newErrors).forEach((key) => {
+                                  const idx = parseInt(key);
+                                  if (idx > rowIndex) {
+                                    reindexed[idx - 1] = newErrors[idx];
+                                  } else {
+                                    reindexed[idx] = newErrors[idx];
+                                  }
+                                });
+                                return reindexed;
+                              });
+                              // Clean up touched state
+                              setTouchedRows((prev) => {
+                                const newTouched = new Set(prev);
+                                newTouched.delete(rowIndex);
+                                // Reindex touched rows after deleted one
+                                const reindexed = new Set<number>();
+                                newTouched.forEach((idx) => {
+                                  if (idx > rowIndex) {
+                                    reindexed.add(idx - 1);
+                                  } else {
+                                    reindexed.add(idx);
+                                  }
+                                });
+                                return reindexed;
+                              });
+                            }}
+                            className="h-8 w-8 text-[#dc2626] hover:text-[#dc2626] hover:bg-[#dc2626]/10 cursor-pointer border border-[#dc2626]/30 hover:border-[#dc2626]"
+                            title="Delete row"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  </React.Fragment>
+                );
+              })
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length + (onSaveRow ? 1 : 0) + (onDeleteRow ? 1 : 0)}
+                  className="text-general-muted-foreground p-2"
+                >
+                  No data available
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </TableElement>
+      </Table>
+      <div className="mt-4 flex justify-start">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onAddRow}
+          className="rounded-md border border-general-border bg-white hover:bg-secondary text-general-foreground"
+        >
+          <Plus className="h-4 w-4" />
+          {addButtonText}
+        </Button>
+      </div>
+    </div>
+  );
+}

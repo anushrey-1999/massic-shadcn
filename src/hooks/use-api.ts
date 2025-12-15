@@ -63,7 +63,13 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
           url: error.config?.url,
         });
       } else if (error.request) {
-        console.error(`API Request Error [${platform}]:`, error.request);
+        console.error(`API Request Error [${platform}]:`, {
+          message: error.message,
+          url: error.config?.url,
+          method: error.config?.method,
+          baseURL: error.config?.baseURL,
+          timeout: error.config?.timeout,
+        });
       } else {
         console.error(`API Error [${platform}]:`, error.message);
       }

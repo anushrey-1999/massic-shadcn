@@ -172,10 +172,13 @@ export function LocationSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between h-9"
+            className="w-full justify-between h-10 rounded-lg"
             disabled={disabled || loading}
           >
-            <span className="truncate">
+            <span className={cn(
+              "truncate",
+              !selectedOption && "text-general-muted-foreground text-xs"
+            )}>
               {loading ? 'Loading locations...' : displayValue}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

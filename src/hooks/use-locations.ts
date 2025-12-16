@@ -22,22 +22,31 @@ export function useLocations(country: string = "us") {
         return [];
       }
 
-      const response = await api.get<LocationsResponse>(
-        `/locations?country=${country}`,
-        "python"
-      );
+      try {
+        const response = await api.get<LocationsResponse>(
+          `/locations?country=${country}`,
+          "python"
+        );
 
-      // Filter out empty or invalid locations
-      const validLocations = (response.locations || []).filter(
-        (location) =>
-          location && typeof location === "string" && location.trim().length > 0
-      );
+        // Filter out empty or invalid locations
+        const validLocations = (response.locations || []).filter(
+          (location) =>
+            location && typeof location === "string" && location.trim().length > 0
+        );
 
-      return validLocations;
+        return validLocations;
+      } catch (error) {
+        // Handle network errors gracefully - return empty array instead of throwing
+        // This prevents the error from breaking the UI on first page load
+        console.warn("Failed to fetch locations, using empty list:", error);
+        return [];
+      }
     },
     enabled: !!country,
     staleTime: 30 * 60 * 1000, // 30 minutes - locations don't change often
     gcTime: 60 * 60 * 1000, // 1 hour
+    retry: 1, // Only retry once for network errors
+    retryDelay: 1000, // Wait 1 second before retry
   });
 
   // Limit locations to prevent freezing - only show first MAX_LOCATIONS

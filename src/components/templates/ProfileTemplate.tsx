@@ -32,8 +32,9 @@ import {
 interface ProfileTemplateProps {
   businessId: string;
   profileData?: BusinessProfile | null;
+  jobDetails?: any | null; // Job details from job API
   isLoading?: boolean;
-  onUpdateProfile?: (payload: any) => Promise<void>;
+  onUpdateProfile?: (payload: any, formValues?: any) => Promise<void>;
 }
 
 const sections = [
@@ -83,6 +84,7 @@ const getElementScrollPosition = (
 const ProfileTemplate = ({
   businessId,
   profileData: externalProfileData,
+  jobDetails: externalJobDetails,
   isLoading: externalLoading = false,
   onUpdateProfile,
 }: ProfileTemplateProps) => {
@@ -101,10 +103,17 @@ const ProfileTemplate = ({
   const lastProfileDataRef = useRef<string | null>(null);
   const lastProfileDataStringRef = useRef<string | null>(null);
 
-  // Helper function to map profile data to form values
+  // Helper function to map profile data and job data to form values
+  // ALWAYS checks if job exists first - this determines which data source to use
+  // If job exists: fill inputs from job API data
+  // If no job: fill inputs from business API data
   const mapProfileDataToFormValues = (
-    profileData: typeof externalProfileData
+    profileData: typeof externalProfileData,
+    jobDetails: typeof externalJobDetails
   ): BusinessInfoFormData => {
+    // SIMPLIFIED FLOW: Business API is always the source of truth for all fields except offerings
+    // Job API only provides offerings data
+    
     if (!profileData) {
       return {
         website: "",
@@ -128,44 +137,60 @@ const ProfileTemplate = ({
       };
     }
 
-    // Extract primary location - check PrimaryLocation first, then Locations array
+    // Helper function to ensure we always have an array
+    const ensureArray = <T,>(value: T | T[] | null | undefined): T[] => {
+      if (Array.isArray(value)) return value;
+      return [];
+    };
+
+    // Extract primary location from business API
     let primaryLocation = "";
     const profileDataAny = profileData as any; // Type assertion for PrimaryLocation
-    if (profileDataAny.PrimaryLocation) {
+    if (profileDataAny?.PrimaryLocation) {
       const loc = profileDataAny.PrimaryLocation;
-      primaryLocation = loc.Location
-        ? `${loc.Location}${loc.Country ? `,${loc.Country}` : ""}`
-        : "";
-    } else if (profileData.Locations?.[0]) {
+      if (loc.Location) {
+        // Only append country if it's different from location to avoid duplication
+        const location = loc.Location;
+        const country = loc.Country || "";
+        primaryLocation = country && country.toLowerCase() !== location.toLowerCase()
+          ? `${location},${country}`
+          : location;
+      }
+    } else if (profileData?.Locations?.[0]) {
       const loc = profileData.Locations[0] as any;
       primaryLocation = loc.Name || "";
     }
 
-    const offeringsList = (profileData.ProductsServices || []).map(
-      (ps: any): OfferingRow => ({
-        name: typeof ps === "string" ? ps : ps?.name || "",
-        description: ps?.description || "",
-        link: ps?.link || ps?.url || "",
-      })
-    );
+    // Offerings: ONLY field that comes from job API (if job exists)
+    const jobExists = jobDetails && jobDetails.job_id;
+    const offeringsList = (() => {
+      if (jobExists && jobDetails?.offerings && jobDetails.offerings.length > 0) {
+        return jobDetails.offerings.map((offering: any): OfferingRow => ({
+          name: offering.offering || offering.name || "",
+          description: offering.description || "",
+          link: offering.url || "",
+        }));
+      }
+      return [];
+    })();
 
-    const ctasList = ((profileData as any).CTAs || []).map(
+    // ALL OTHER FIELDS come from business API (source of truth)
+    const ctasList = ensureArray((profileData as any).CTAs).map(
       (cta: any): CTARow => ({
         buttonText: cta.buttonText || "",
         url: cta.url || "",
       })
     );
 
-    const stakeholdersList = (profileData.CustomerPersonas || []).map(
+    const stakeholdersList = ensureArray(profileData.CustomerPersonas).map(
       (person: any): StakeholderRow => ({
         name: person.personName || "",
         title: person.personDescription || "",
       })
     );
 
-    const locationsList = (profileData.Locations || []).map(
+    const locationsList = ensureArray(profileData.Locations).map(
       (loc: any, index: number): LocationRow => {
-        // Use DisplayName if available, otherwise use a fallback name
         const locationName = loc.DisplayName || `Location ${index + 1}`;
         return {
           name: locationName,
@@ -175,43 +200,72 @@ const ProfileTemplate = ({
       }
     );
 
-    const competitorsList = (profileData.Competitors || []).map(
+    const competitorsList = ensureArray(profileData.Competitors).map(
       (comp: any): CompetitorRow => ({
         url: comp.website || comp.Website || "",
       })
     );
 
+    // USPs from business API
+    const usps = Array.isArray((profileData as any).USPs)
+      ? (profileData as any).USPs.join(", ")
+      : "";
+
+    // Brand Voice from business API - convert to lowercase for checkboxes
+    // IMPORTANT: Checkboxes in ContentCuesForm expect lowercase values (e.g., "professional", "bold")
+    const validOptions = ["professional", "bold", "friendly", "innovative", "playful", "trustworthy"];
+    const brandToneSocial = (profileData as any).SocialBrandVoice
+      ? (profileData as any).SocialBrandVoice
+          .map((s: string) => s.toLowerCase().trim())
+          .filter((s: string) => validOptions.includes(s))
+      : [];
+
+    const brandToneWeb = (profileData as any).WebBrandVoice
+      ? (profileData as any).WebBrandVoice
+          .map((s: string) => s.toLowerCase().trim())
+          .filter((s: string) => validOptions.includes(s))
+      : [];
+
     return {
+      // All fields from business API (source of truth)
       website: profileData.Website || "",
       businessName: profileData.Name || "",
-      businessDescription: profileData.UserDefinedBusinessDescription || "",
+      businessDescription: profileData.UserDefinedBusinessDescription || profileData.Description || "",
       primaryLocation: primaryLocation,
-      serviceType: (profileData.BusinessObjective?.toLowerCase() === "local"
-        ? "physical"
-        : "online") as "physical" | "online",
+      serviceType: (() => {
+        const objective = profileData.BusinessObjective?.toLowerCase();
+        return objective === "local" ? "physical" : "online";
+      })() as "physical" | "online",
       recurringRevenue: "",
       avgOrderValue: "",
       lifetimeValue: "",
-      offerings: (profileData.LocationType?.toLowerCase() === "products"
-        ? "products"
-        : profileData.LocationType?.toLowerCase() === "services"
-        ? "services"
-        : "products") as "products" | "services" | "both",
-      offeringsList: offeringsList,
-      usps: Array.isArray((profileData as any).USPs)
-        ? (profileData as any).USPs.join(", ")
-        : "",
+      offerings: (() => {
+        const locationType = profileData.LocationType?.toLowerCase();
+        return locationType === "products"
+          ? "products"
+          : locationType === "services"
+          ? "services"
+          : "products";
+      })() as "products" | "services" | "both",
+      usps: usps,
       ctas: ctasList,
       brandTerms: "",
       stakeholders: stakeholdersList,
       locations: locationsList,
       competitors: competitorsList,
-      brandToneSocial: (profileData as any).SocialBrandVoice || [],
-      brandToneWeb: (profileData as any).WebBrandVoice || [],
+      brandToneSocial: brandToneSocial,
+      brandToneWeb: brandToneWeb,
+      // ONLY offerings come from job API (if job exists)
+      offeringsList: offeringsList,
     };
   };
 
-  const defaultValues = mapProfileDataToFormValues(externalProfileData || null);
+  // On page load: Business API is source of truth for all fields except offerings
+  // Offerings come from job API if job exists
+  const defaultValues = mapProfileDataToFormValues(
+    externalProfileData || null,
+    externalJobDetails || null // Only used for offerings if job exists
+  );
 
   const form = useForm({
     defaultValues,
@@ -249,58 +303,64 @@ const ProfileTemplate = ({
             Location: location,
             Country: country,
           },
-          ProductsServices: value.offeringsList || [],
+          // ProductsServices removed - offerings are only in job API, not business API
           USPs:
             value.usps && value.usps.trim()
               ? value.usps
                   .split(",")
-                  .map((item: string) => item.trim())
-                  .filter((item: string) => item.length > 0)
+                  ?.map((item: string) => item.trim())
+                  ?.filter((item: string) => item.length > 0)
               : null,
           SellingPoints:
             value.usps && value.usps.trim()
               ? value.usps
                   .split(",")
-                  .map((item: string) => item.trim())
-                  .filter((item: string) => item.length > 0)
+                  ?.map((item: string) => item.trim())
+                  ?.filter((item: string) => item.length > 0)
               : null, // Keep for backward compatibility
           BrandTerms:
             value.brandTerms && value.brandTerms.trim()
               ? value.brandTerms
                   .split(",")
-                  .map((item: string) => item.trim())
-                  .filter((item: string) => item.length > 0)
+                  ?.map((item: string) => item.trim())
+                  ?.filter((item: string) => item.length > 0)
               : null,
           CTAs:
             value.ctas && value.ctas.length > 0
-              ? (value.ctas || []).map((cta: any) => ({
+              ? (value.ctas || [])?.map((cta: any) => ({
                   buttonText: cta.buttonText || "",
                   url: cta.url || "",
                 }))
               : null,
-          CustomerPersonas: (value.stakeholders || []).map((s: any) => ({
+          CustomerPersonas: (value.stakeholders || [])?.map((s: any) => ({
             personName: s.name || "",
             personDescription: s.title || "",
           })),
-          Locations: (value.locations || []).map((loc: any) => ({
+          Locations: (value.locations || [])?.map((loc: any) => ({
             Name: loc.name || "",
             Address1: loc.address || "",
             TimeZone: loc.timezone || "",
           })),
-          Competitors: (value.competitors || []).map((comp: any) => ({
+          Competitors: (value.competitors || [])?.map((comp: any) => ({
             website: comp.url || "",
           })),
           WebBrandVoice:
             value.brandToneWeb && value.brandToneWeb.length > 0
-              ? value.brandToneWeb
+              ? value.brandToneWeb.map((v: string) => {
+                  // Convert lowercase to title case for business API
+                  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+                })
               : null,
           SocialBrandVoice:
             value.brandToneSocial && value.brandToneSocial.length > 0
-              ? value.brandToneSocial
+              ? value.brandToneSocial.map((v: string) => {
+                  // Convert lowercase to title case for business API
+                  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+                })
               : null,
         };
 
-        await onUpdateProfile(payload);
+        await onUpdateProfile(payload, value);
 
         // Update initial values after successful save
         initialValuesRef.current = JSON.stringify(value);
@@ -320,8 +380,18 @@ const ProfileTemplate = ({
     }
   }, []); // Only run on mount
 
-  // Update form when external profile data changes
+  // Track job details to detect changes
+  const lastJobDetailsRef = useRef<string | null>(null);
+
+  // Update form when external profile data or job details change
+  // Job details only affect offerings, but we still need to update when job is created/updated
   useEffect(() => {
+    const currentJobDetailsString = externalJobDetails
+      ? JSON.stringify(externalJobDetails)
+      : null;
+    const jobDetailsChanged =
+      lastJobDetailsRef.current !== currentJobDetailsString;
+
     if (externalProfileData) {
       // Serialize current profile data to detect if it changed
       const currentDataString = JSON.stringify(externalProfileData);
@@ -330,9 +400,21 @@ const ProfileTemplate = ({
       const isDataChanged =
         lastProfileDataStringRef.current !== currentDataString;
 
-      // Update form if it's a new profile, data changed, or we haven't initialized yet
-      if (isNewProfile || isDataChanged || !initialValuesRef.current) {
-        const mappedValues = mapProfileDataToFormValues(externalProfileData);
+      // Update form if:
+      // 1. It's a new profile
+      // 2. Profile data changed (business API is source of truth)
+      // 3. Job details changed (important: job creation affects offerings)
+      // 4. We haven't initialized yet
+      if (
+        isNewProfile ||
+        isDataChanged ||
+        jobDetailsChanged ||
+        !initialValuesRef.current
+      ) {
+        const mappedValues = mapProfileDataToFormValues(
+          externalProfileData,
+          externalJobDetails
+        );
 
         // Set form values for each field individually to ensure they update
         Object.entries(mappedValues).forEach(([key, value]) => {
@@ -343,14 +425,16 @@ const ProfileTemplate = ({
         initialValuesRef.current = JSON.stringify(mappedValues);
         lastProfileDataRef.current = currentProfileId;
         lastProfileDataStringRef.current = currentDataString;
+        lastJobDetailsRef.current = currentJobDetailsString;
       }
     } else if (!externalProfileData && initialValuesRef.current) {
       // If profile data is cleared, reset the form
       initialValuesRef.current = null;
       lastProfileDataRef.current = null;
       lastProfileDataStringRef.current = null;
+      lastJobDetailsRef.current = null;
     }
-  }, [externalProfileData, form]);
+  }, [externalProfileData, externalJobDetails, form]);
 
   // Store initial values on mount (only once)
   useEffect(() => {

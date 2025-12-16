@@ -64,7 +64,7 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
         const shouldSuppress404 = status === 404 && silent404Endpoints.some(endpoint => url.includes(endpoint));
         
         if (!shouldSuppress404) {
-          console.error(`API Error [${platform}]:`, {
+          console.log(`API Error [${platform}]:`, {
             status: error.response.status,
             statusText: error.response.statusText,
             data: error.response.data,
@@ -72,12 +72,58 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
           });
         }
       } else if (error.request) {
+        // Network error - request was made but no response received
+        // This typically indicates: CORS issue, network connectivity, server down, or timeout
+        const errorInfo: Record<string, any> = {};
+        
+        // Core error information
+        if (error.message) {
+          errorInfo.message = error.message;
+        }
+        
+        // Request configuration
+        if (error.config) {
+          const fullUrl = error.config.baseURL 
+            ? `${error.config.baseURL}${error.config.url || ''}`
+            : error.config.url;
+          errorInfo.fullUrl = fullUrl;
+          errorInfo.method = error.config.method || 'GET';
+          errorInfo.baseURL = error.config.baseURL;
+          errorInfo.timeout = error.config.timeout;
+        }
+        
+        // Request status (if available)
+        if (error.request.status) {
+          errorInfo.requestStatus = error.request.status;
+        }
+        
+        // Detect common root causes
+        const rootCause: string[] = [];
+        if (error.message?.toLowerCase().includes('network error') || 
+            error.message?.toLowerCase().includes('failed to fetch')) {
+          rootCause.push('Network connectivity issue');
+        }
+        if (error.message?.toLowerCase().includes('cors') || 
+            error.code === 'ERR_NETWORK') {
+          rootCause.push('CORS (Cross-Origin) issue - API server may not allow requests from this domain');
+        }
+        if (error.message?.toLowerCase().includes('timeout') || 
+            error.code === 'ECONNABORTED') {
+          rootCause.push('Request timeout - server took too long to respond');
+        }
+        if (error.code === 'ERR_INTERNET_DISCONNECTED') {
+          rootCause.push('No internet connection');
+        }
+        
+        if (rootCause.length > 0) {
+          errorInfo.possibleRootCauses = rootCause;
+        }
+        
+        // Log with diagnostic information
         console.error(`API Request Error [${platform}]:`, {
-          message: error.message,
-          url: error.config?.url,
-          method: error.config?.method,
-          baseURL: error.config?.baseURL,
-          timeout: error.config?.timeout,
+          ...errorInfo,
+          code: error.code,
+          note: 'Request was sent but no response received. Check network tab for details.',
         });
       } else {
         console.error(`API Error [${platform}]:`, error.message);

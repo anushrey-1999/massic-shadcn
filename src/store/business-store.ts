@@ -11,13 +11,58 @@ export interface BusinessProfile {
   DisplayName?: string;
   Website?: string;
   Description?: string;
+  UserDefinedBusinessDescription?: string;
   ProductsServices?: string[];
   LocationType?: string;
   Locations?: BusinessLocation[];
   CustomerPersonas?: { personName: string; personDescription: string }[] | null;
   SellingPoints?: string[] | null;
+  USPs?: string[] | null;
   BusinessObjective?: string | null;
   Competitors?: { name: string; website: string }[] | null;
+}
+
+// Profile form table row types
+export type OfferingRow = {
+  name: string;
+  description: string;
+  link: string;
+};
+
+export type CTARow = {
+  buttonText: string;
+  url: string;
+};
+
+export type StakeholderRow = {
+  name: string;
+  title: string;
+};
+
+export type LocationRow = {
+  name: string;
+  address: string;
+  timezone: string;
+};
+
+export type CompetitorRow = {
+  url: string;
+};
+
+export type LocationOption = {
+  value: string;
+  label: string;
+  disabled?: boolean;
+};
+
+interface ProfileFormState {
+  // Location options
+  locationOptions: LocationOption[];
+  locationsLoading: boolean;
+  
+  // UI state
+  activeSection: string;
+  currentBusinessId: string | null;
 }
 
 interface BusinessState {
@@ -25,19 +70,41 @@ interface BusinessState {
   error: string | null;
   expandedBusinessId: string | null;
   profileDataByUniqueID: BusinessProfile | null;
+  
+  // Profile form state
+  profileForm: ProfileFormState;
 
+  // Actions
   setBusinessProfiles: (profiles: BusinessProfile[]) => void;
   resetBusinessProfiles: () => void;
   setError: (error: string | null) => void;
   setExpandedBusinessId: (id: string | null) => void;
   setProfileDataByUniqueID: (data: BusinessProfile | null) => void;
+  
+  // Profile form actions
+  setLocationOptions: (options: LocationOption[]) => void;
+  setLocationsLoading: (loading: boolean) => void;
+  
+  setActiveSection: (section: string) => void;
+  setCurrentBusinessId: (id: string | null) => void;
+  
+  // Reset profile form state
+  resetProfileForm: () => void;
 }
+
+const initialProfileFormState: ProfileFormState = {
+  locationOptions: [],
+  locationsLoading: false,
+  activeSection: "business-info",
+  currentBusinessId: null,
+};
 
 export const useBusinessStore = create<BusinessState>()((set) => ({
   profiles: [],
   error: null,
   expandedBusinessId: null,
   profileDataByUniqueID: null,
+  profileForm: initialProfileFormState,
 
   setBusinessProfiles: (profiles) => set({ profiles }),
 
@@ -48,4 +115,35 @@ export const useBusinessStore = create<BusinessState>()((set) => ({
   setExpandedBusinessId: (id) => set({ expandedBusinessId: id }),
 
   setProfileDataByUniqueID: (data) => set({ profileDataByUniqueID: data }),
+  
+  // Profile form actions
+  setLocationOptions: (options) => set((state) => {
+    // Only update if options actually changed
+    if (state.profileForm.locationOptions === options) {
+      return state; // Return same state to prevent re-render
+    }
+    return {
+      profileForm: { ...state.profileForm, locationOptions: options }
+    };
+  }),
+  
+  setLocationsLoading: (loading) => set((state) => {
+    // Only update if loading state actually changed
+    if (state.profileForm.locationsLoading === loading) {
+      return state; // Return same state to prevent re-render
+    }
+    return {
+      profileForm: { ...state.profileForm, locationsLoading: loading }
+    };
+  }),
+  
+  setActiveSection: (section) => set((state) => ({
+    profileForm: { ...state.profileForm, activeSection: section }
+  })),
+  
+  setCurrentBusinessId: (id) => set((state) => ({
+    profileForm: { ...state.profileForm, currentBusinessId: id }
+  })),
+  
+  resetProfileForm: () => set({ profileForm: initialProfileFormState }),
 }));

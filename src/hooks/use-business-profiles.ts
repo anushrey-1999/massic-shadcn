@@ -53,8 +53,12 @@ export function useBusinessProfiles() {
       return parsedProfiles;
     },
     enabled: isAuthenticated && !!userUniqueId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh
+    gcTime: 30 * 60 * 1000, // 30 minutes - keep in cache
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false, // Don't refetch if data is fresh
+    refetchOnReconnect: true, // Refetch when network reconnects
+    structuralSharing: true, // Prevent unnecessary re-renders when data hasn't changed
   });
 
   return {
@@ -95,8 +99,12 @@ export function useBusinessProfileById(businessUniqueId: string | null) {
       return null;
     },
     enabled: !!businessUniqueId,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh
+    gcTime: 30 * 60 * 1000, // 30 minutes - keep in cache
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false, // Don't refetch if data is fresh
+    refetchOnReconnect: true, // Refetch when network reconnects
+    structuralSharing: true, // Prevent unnecessary re-renders when data hasn't changed
   });
 
   return {
@@ -229,6 +237,111 @@ export function useCreateBusiness() {
     },
     onError: (error: Error) => {
       toast.error("Failed to create business", {
+        description: error.message || "Please try again later.",
+      });
+    },
+  });
+}
+
+interface UpdateBusinessProfilePayload {
+  [key: string]: any; // Flexible payload structure matching BusinessProfile
+}
+
+export function useUpdateBusinessProfile(businessUniqueId: string | null) {
+  const queryClient = useQueryClient();
+  const { setProfileDataByUniqueID } = useBusinessStore();
+
+  return useMutation<
+    BusinessProfile,
+    Error,
+    UpdateBusinessProfilePayload
+  >({
+    mutationFn: async (payload: UpdateBusinessProfilePayload) => {
+      if (!businessUniqueId) {
+        throw new Error("Business ID is required");
+      }
+
+      // Ensure uniqueId is in the payload
+      const payloadWithId = {
+        ...payload,
+        UniqueId: businessUniqueId,
+      };
+
+      const response = await api.post<{ 
+        status?: number;
+        err?: boolean; 
+        data?: string; 
+        message?: string;
+        response?: {
+          data?: {
+            message?: string;
+          };
+        };
+      }>(
+        `/profile/update-business-profile`,
+        "node",
+        payloadWithId
+      );
+
+      // Check for errors - API might return status 200 with err: true, or status !== 200
+      const hasError = response.err === true || 
+                      (response.status !== undefined && response.status !== 200);
+
+      if (hasError) {
+        const errorMessage =
+          response.message ||
+          response.response?.data?.message ||
+          "Failed to update business profile";
+        throw new Error(errorMessage);
+      }
+
+      const updatedProfile = payloadWithId as BusinessProfile;
+
+      // Optimistic update: Update React Query cache immediately
+      queryClient.setQueryData<BusinessProfile>(
+        [BUSINESS_PROFILES_KEY, "detail", businessUniqueId],
+        updatedProfile
+      );
+
+      // Update the store with the payload data immediately
+      setProfileDataByUniqueID(updatedProfile);
+
+      // Update the profile in the list cache if it exists
+      const { user } = useAuthStore.getState();
+      const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
+      if (userUniqueId) {
+        queryClient.setQueryData<BusinessProfile[]>(
+          [BUSINESS_PROFILES_KEY, userUniqueId],
+          (oldProfiles) => {
+            if (!oldProfiles) return oldProfiles;
+            return oldProfiles.map((profile) =>
+              profile.UniqueId === businessUniqueId ? updatedProfile : profile
+            );
+          }
+        );
+      }
+
+      // Invalidate queries in the background to sync with server (non-blocking)
+      queryClient.invalidateQueries({
+        queryKey: [BUSINESS_PROFILES_KEY, "detail", businessUniqueId],
+        refetchType: "none", // Don't refetch immediately, just mark as stale
+      });
+
+      if (userUniqueId) {
+        queryClient.invalidateQueries({
+          queryKey: [BUSINESS_PROFILES_KEY, userUniqueId],
+          refetchType: "none", // Don't refetch immediately, just mark as stale
+        });
+      }
+
+      // Return the updated profile (optimistic update)
+      return updatedProfile;
+    },
+    onSuccess: () => {
+      toast.success("Business profile updated successfully");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update business profile", {
         description: error.message || "Please try again later.",
       });
     },

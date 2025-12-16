@@ -102,6 +102,9 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
   description?: React.ReactNode;
   fieldOrientation?: VariantProps<typeof Field>["orientation"];
   isInvalid?: boolean;
+  required?: boolean;
+  // Input variant
+  inputVariant?: "default" | "noBorder";
   // TanStack Form integration
   // Using Record<string, unknown> constraint ensures type safety without 'any'
   formField?: {
@@ -175,6 +178,7 @@ export type FieldConfig = {
   required?: boolean;
   autoComplete?: string;
   loading?: boolean;
+  inputVariant?: "default" | "noBorder";
 };
 
 function GenericInput<
@@ -200,6 +204,8 @@ function GenericInput<
   form,
   fieldName,
   loading,
+  required = false,
+  inputVariant,
   ...props
 }: GenericInputProps<TFormData>) {
   // If formField is provided, extract field values and handlers
@@ -257,9 +263,9 @@ function GenericInput<
 
   // If form and fieldName are provided, wrap with form.Field
   if (form && fieldName) {
-    const isFormSubmitting = form.state?.isSubmitting ?? false;
-    // Disable inputs during form submission for better API integration
-    const shouldDisable = props.disabled ?? isFormSubmitting;
+    // Only disable if explicitly set via props, not during form submission
+    // This allows fields to remain editable after saving
+    const shouldDisable = props.disabled ?? false;
     
     return (
       <form.Field
@@ -281,6 +287,8 @@ function GenericInput<
             className={className}
             disabled={shouldDisable}
             loading={loading}
+            required={required}
+            inputVariant={inputVariant}
           />
         )}
       />
@@ -312,6 +320,29 @@ function GenericInput<
         }
       };
 
+      // Apply inputVariant styling to trigger button to match Select component styling
+      // When noBorder, match the Select component's noBorder variant classes
+      const triggerClassName = cn(
+        inputVariant === "noBorder" && [
+          // Override Button base classes to match Select
+          "!h-10 !px-3 !py-1 !text-sm !rounded-md", // Match Select's h-10 (40px) height and text-sm font size
+          "!min-w-0", // Match Input
+          // Match Select noBorder variant exactly
+          "!border-0 !bg-white !shadow-none",
+          // Override Button outline variant hover states
+          "!hover:bg-white !hover:text-foreground",
+          // Override dark mode styles
+          "!dark:bg-white !dark:border-0 !dark:hover:bg-white",
+          // Remove focus ring to match noBorder input
+          "!focus-visible:ring-0 !focus-visible:ring-offset-0 !focus-visible:border-0",
+          // Remove cursor pointer to match input styling
+          "!cursor-default",
+          // Match Select transition
+          "transition-[color,box-shadow]",
+        ],
+        className
+      );
+
       return (
         <LocationSelect
           value={currentValue}
@@ -320,6 +351,7 @@ function GenericInput<
           placeholder={props.placeholder}
           disabled={props.disabled}
           loading={loading}
+          triggerClassName={triggerClassName}
         />
       );
     }
@@ -376,7 +408,7 @@ function GenericInput<
 
       if (hasInputGroup) {
         return (
-          <InputGroup>
+          <InputGroup className="h-10 rounded-lg">
             {addon && addon.position === "inline-start" && (
               <InputGroupAddon align={addon.position}>
                 {typeof addon.content === "string" ? (
@@ -393,8 +425,9 @@ function GenericInput<
             >
               <SelectTrigger
                 id={inputId}
+                variant={inputVariant}
                 className={cn(
-                  "flex-1 rounded-none border-0 shadow-none focus-visible:ring-0 w-full",
+                  "flex-1 rounded-lg focus-visible:ring-0 w-full",
                   className
                 )}
                 aria-invalid={isInvalid}
@@ -424,6 +457,7 @@ function GenericInput<
         >
           <SelectTrigger
             id={inputId}
+            variant={inputVariant}
             className={cn("w-full", className)}
             aria-invalid={isInvalid}
           >
@@ -516,7 +550,7 @@ function GenericInput<
           "flex gap-4",
           groupOrientation === "horizontal"
             ? "flex-row flex-wrap"
-            : "flex-col gap-3",
+            : "flex-col gap-2",
           className
         )}
       >
@@ -619,7 +653,7 @@ function GenericInput<
       type: "file",
       onChange,
       className: cn(
-        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-10 w-full min-w-0 rounded-lg border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
         "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
         "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
         className
@@ -653,7 +687,7 @@ function GenericInput<
       value: value as string | undefined,
       onChange,
       className: cn(
-        "h-9 w-full cursor-pointer rounded-md border border-input bg-transparent disabled:cursor-not-allowed disabled:opacity-50",
+        "h-10 w-full cursor-pointer rounded-lg border border-input bg-transparent disabled:cursor-not-allowed disabled:opacity-50",
         className
       ),
     };
@@ -664,7 +698,10 @@ function GenericInput<
   const inputProps = {
     ...props,
     id: inputId,
-    className,
+    className: cn(
+      "h-10 rounded-lg", // Increased height and border radius
+      className
+    ),
     maxLength,
     value: value as string | number | readonly string[] | undefined,
     onChange,
@@ -675,7 +712,7 @@ function GenericInput<
   if (hasInputGroup) {
     if (type === "textarea") {
       return (
-        <InputGroup>
+        <InputGroup className="h-auto rounded-lg">
           <InputGroupTextarea
             {...(inputProps as React.ComponentProps<typeof InputGroupTextarea>)}
             rows={rows}
@@ -705,7 +742,7 @@ function GenericInput<
 
     // type === "input" or other input types
     return (
-      <InputGroup>
+      <InputGroup className="h-10 rounded-lg">
         {addon && addon.position === "inline-start" && (
           <InputGroupAddon align={addon.position}>
             {typeof addon.content === "string" ? (
@@ -738,6 +775,11 @@ function GenericInput<
       <Textarea
         {...(inputProps as React.ComponentProps<typeof Textarea>)}
         rows={rows}
+        variant={inputVariant}
+        className={cn(
+          "rounded-lg min-h-16", // Increased border radius for textarea
+          inputProps.className
+        )}
       />
     );
   }
@@ -748,12 +790,44 @@ function GenericInput<
         id={inputId}
         type={type === "input" ? undefined : type}
         aria-invalid={isInvalid}
+        variant={inputVariant}
         {...(inputProps as React.ComponentProps<typeof Input>)}
+        className={cn(
+          "h-10 rounded-lg", // Increased height and border radius
+          inputProps.className
+        )}
       />
     );
   };
 
   const inputElement = renderInput();
+
+  // Helper function to render label with required asterisk
+  const renderLabel = () => {
+    if (!label) return null;
+    
+    if (required) {
+      // If label is a string, wrap it with asterisk
+      if (typeof label === "string") {
+        return (
+          <FieldLabel htmlFor={inputId} className="gap-0">
+            <span className="text-destructive mr-0.5">*</span>
+            {label}
+          </FieldLabel>
+        );
+      }
+      // If label is a ReactNode, wrap it with asterisk
+      return (
+        <FieldLabel htmlFor={inputId} className="gap-0">
+          <span className="text-destructive mr-0.5">*</span>
+          {label}
+        </FieldLabel>
+      );
+    }
+    
+    // No required asterisk needed
+    return <FieldLabel htmlFor={inputId}>{label}</FieldLabel>;
+  };
 
   // If label, error, or description is provided, wrap with Field components
   if (hasFieldWrapper) {
@@ -767,9 +841,7 @@ function GenericInput<
         data-invalid={isInvalid}
         orientation={shouldUseHorizontalField ? "horizontal" : fieldOrientation}
       >
-        {label && (
-          <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
-        )}
+        {renderLabel()}
         {inputElement}
         {description && <FieldDescription>{description}</FieldDescription>}
         {error && (
@@ -831,6 +903,8 @@ export function FormFieldInput<
       orientation={config.orientation}
       fieldOrientation={config.fieldOrientation}
       addon={config.addon}
+      required={config.required}
+      inputVariant={config.inputVariant}
       {...config}
     />
   );

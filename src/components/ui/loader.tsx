@@ -111,8 +111,8 @@ export function LoaderOverlay({
 
   return (
     <div className="relative flex-1 min-h-0">
-      {/* Overlay - Relative to container, covers only the right panel */}
-      <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 rounded-lg">
+      {/* Overlay - Fixed to viewport so it's always visible regardless of scroll position */}
+      <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
         <Loader size="lg" />
         {message && (
           <p className="text-sm text-muted-foreground animate-pulse">

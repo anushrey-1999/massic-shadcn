@@ -16,11 +16,13 @@ import { OfferingsForm } from "../organisms/profile/OfferingsForm";
 import { ContentCuesForm } from "../organisms/profile/ContentCuesForm";
 import { LocationsForm } from "../organisms/profile/LocationsForm";
 import { CompetitorsForm } from "../organisms/profile/CompetitorsForm";
-import { useForm } from "@tanstack/react-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoaderOverlay } from "@/components/ui/loader";
+import { cn } from "@/lib/utils";
+import { parseArrayField, cleanWebsiteUrl, normalizeWebsiteUrl } from "@/utils/utils";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
@@ -108,6 +110,8 @@ const ProfileTemplate = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const initialValuesRef = useRef<any>(null);
+  const hasChangesRef = useRef(false);
+  const rafIdRef = useRef<number | null>(null);
   const lastProfileDataRef = useRef<string | null>(null);
   const lastProfileDataStringRef = useRef<string | null>(null);
   // Track the offerings that were just saved to prevent overwriting with stale data
@@ -147,12 +151,6 @@ const ProfileTemplate = ({
       };
     }
 
-    // Helper function to ensure we always have an array
-    const ensureArray = <T,>(value: T | T[] | null | undefined): T[] => {
-      if (Array.isArray(value)) return value;
-      return [];
-    };
-
     // Extract primary location from business API
     let primaryLocation = "";
     const profileDataAny = profileData as any; // Type assertion for PrimaryLocation
@@ -162,9 +160,10 @@ const ProfileTemplate = ({
         // Only append country if it's different from location to avoid duplication
         const location = loc.Location;
         const country = loc.Country || "";
-        primaryLocation = country && country.toLowerCase() !== location.toLowerCase()
-          ? `${location},${country}`
-          : location;
+        primaryLocation =
+          country && country.toLowerCase() !== location.toLowerCase()
+            ? `${location},${country}`
+            : location;
       }
     } else if (profileData?.Locations?.[0]) {
       const loc = profileData.Locations[0] as any;
@@ -174,32 +173,38 @@ const ProfileTemplate = ({
     // Offerings: ONLY field that comes from job API (if job exists)
     const jobExists = jobDetails && jobDetails.job_id;
     const offeringsList = (() => {
-      if (jobExists && jobDetails?.offerings && jobDetails.offerings.length > 0) {
-        return jobDetails.offerings.map((offering: any): OfferingRow => ({
-          name: offering.offering || offering.name || "",
-          description: offering.description || "",
-          link: offering.url || "",
-        }));
+      if (
+        jobExists &&
+        jobDetails?.offerings &&
+        jobDetails.offerings.length > 0
+      ) {
+        return jobDetails.offerings.map(
+          (offering: any): OfferingRow => ({
+            name: offering.offering || offering.name || "",
+            description: offering.description || "",
+            link: offering.url || "",
+          })
+        );
       }
       return [];
     })();
 
     // ALL OTHER FIELDS come from business API (source of truth)
-    const ctasList = ensureArray((profileData as any).CTAs).map(
+    const ctasList = parseArrayField((profileData as any).CTAs).map(
       (cta: any): CTARow => ({
         buttonText: cta.buttonText || "",
         url: cta.url || "",
       })
     );
 
-    const stakeholdersList = ensureArray(profileData.CustomerPersonas).map(
+    const stakeholdersList = parseArrayField(profileData.CustomerPersonas).map(
       (person: any): StakeholderRow => ({
         name: person.personName || "",
         title: person.personDescription || "",
       })
     );
 
-    const locationsList = ensureArray(profileData.Locations).map(
+    const locationsList = parseArrayField(profileData.Locations).map(
       (loc: any, index: number): LocationRow => {
         const locationName = loc.DisplayName || `Location ${index + 1}`;
         return {
@@ -210,9 +215,9 @@ const ProfileTemplate = ({
       }
     );
 
-    const competitorsList = ensureArray(profileData.Competitors).map(
+    const competitorsList = parseArrayField(profileData.Competitors).map(
       (comp: any): CompetitorRow => ({
-        url: comp.website || comp.Website || "",
+        url: cleanWebsiteUrl(comp.website || comp.Website),
       })
     );
 
@@ -223,24 +228,34 @@ const ProfileTemplate = ({
 
     // Brand Voice from business API - convert to lowercase for checkboxes
     // IMPORTANT: Checkboxes in ContentCuesForm expect lowercase values (e.g., "professional", "bold")
-    const validOptions = ["professional", "bold", "friendly", "innovative", "playful", "trustworthy"];
+    const validOptions = [
+      "professional",
+      "bold",
+      "friendly",
+      "innovative",
+      "playful",
+      "trustworthy",
+    ];
     const brandToneSocial = (profileData as any).SocialBrandVoice
-      ? (profileData as any).SocialBrandVoice
-          .map((s: string) => s.toLowerCase().trim())
-          .filter((s: string) => validOptions.includes(s))
+      ? (profileData as any).SocialBrandVoice.map((s: string) =>
+          s.toLowerCase().trim()
+        ).filter((s: string) => validOptions.includes(s))
       : [];
 
     const brandToneWeb = (profileData as any).WebBrandVoice
-      ? (profileData as any).WebBrandVoice
-          .map((s: string) => s.toLowerCase().trim())
-          .filter((s: string) => validOptions.includes(s))
+      ? (profileData as any).WebBrandVoice.map((s: string) =>
+          s.toLowerCase().trim()
+        ).filter((s: string) => validOptions.includes(s))
       : [];
 
     return {
       // All fields from business API (source of truth)
-      website: profileData.Website || "",
+      website: cleanWebsiteUrl(profileData.Website),
       businessName: profileData.Name || "",
-      businessDescription: profileData.UserDefinedBusinessDescription || profileData.Description || "",
+      businessDescription:
+        profileData.UserDefinedBusinessDescription ||
+        profileData.Description ||
+        "",
       primaryLocation: primaryLocation,
       serviceType: (() => {
         const objective = profileData.BusinessObjective?.toLowerCase();
@@ -299,7 +314,7 @@ const ProfileTemplate = ({
         const payload = {
           ...externalProfileData, // Spread existing profile data
           Name: value.businessName,
-          Website: value.website,
+          Website: normalizeWebsiteUrl(cleanWebsiteUrl(value.website)),
           UserDefinedBusinessDescription: value.businessDescription,
           BusinessObjective:
             value.serviceType === "physical" ? "local" : "online",
@@ -352,7 +367,7 @@ const ProfileTemplate = ({
             TimeZone: loc.timezone || "",
           })),
           Competitors: (value.competitors || [])?.map((comp: any) => ({
-            website: comp.url || "",
+            website: cleanWebsiteUrl(comp.url),
           })),
           WebBrandVoice:
             value.brandToneWeb && value.brandToneWeb.length > 0
@@ -371,11 +386,13 @@ const ProfileTemplate = ({
         };
 
         // Store offerings that are being saved (ensure proper type - all fields must be strings)
-        lastSavedOfferingsRef.current = (value.offeringsList || []).map((off: any): OfferingRow => ({
-          name: off.name || "",
-          description: off.description || "",
-          link: off.link || "",
-        }));
+        lastSavedOfferingsRef.current = (value.offeringsList || []).map(
+          (off: any): OfferingRow => ({
+            name: off.name || "",
+            description: off.description || "",
+            link: off.link || "",
+          })
+        );
 
         await onUpdateProfile(payload, value);
 
@@ -444,28 +461,33 @@ const ProfileTemplate = ({
         // 2. Current form has no offerings (empty array), OR
         // 3. The new API data is different from what was just saved (avoid stale data overwrite)
         const currentOfferings = form.state.values.offeringsList || [];
-        const hasUserOfferings = currentOfferings.length > 0 && 
+        const hasUserOfferings =
+          currentOfferings.length > 0 &&
           currentOfferings.some((off: any) => off?.name?.trim());
-        
+
         // Check if the new API offerings match what was just saved
         const newApiOfferings = mappedValues.offeringsList || [];
-        const apiOfferingsMatchSaved = lastSavedOfferingsRef.current && 
+        const apiOfferingsMatchSaved =
+          lastSavedOfferingsRef.current &&
           newApiOfferings.length === lastSavedOfferingsRef.current.length &&
           newApiOfferings.every((apiOff: any, idx: number) => {
             const savedOff = lastSavedOfferingsRef.current![idx];
-            return apiOff.name === savedOff.name &&
-                   apiOff.description === savedOff.description &&
-                   apiOff.link === savedOff.link;
+            return (
+              apiOff.name === savedOff.name &&
+              apiOff.description === savedOff.description &&
+              apiOff.link === savedOff.link
+            );
           });
-        
+
         // Only update offeringsList if:
         // - No user offerings exist, OR
         // - Form not initialized, OR
         // - API data doesn't match what was just saved (means it's fresh data)
-        const shouldUpdateOfferings = !hasUserOfferings || 
-          !initialValuesRef.current || 
+        const shouldUpdateOfferings =
+          !hasUserOfferings ||
+          !initialValuesRef.current ||
           !apiOfferingsMatchSaved;
-        
+
         if (shouldUpdateOfferings) {
           // Set form values for each field individually to ensure they update
           Object.entries(mappedValues).forEach(([key, value]) => {
@@ -479,7 +501,7 @@ const ProfileTemplate = ({
             }
           });
         }
-        
+
         // Clear the saved offerings ref after processing (so next update can proceed normally)
         if (apiOfferingsMatchSaved) {
           lastSavedOfferingsRef.current = null;
@@ -507,16 +529,52 @@ const ProfileTemplate = ({
     }
   }, []);
 
-  // Use form state for change detection
-  const hasChanges = useMemo(() => {
-    if (!initialValuesRef.current) return false;
-    const currentValuesString = JSON.stringify(form.state.values);
-    return currentValuesString !== initialValuesRef.current;
-  }, [form.state.values]);
+  // Use form store subscription for real-time change detection
+  // Optimized: Batches updates using requestAnimationFrame to avoid excessive JSON.stringify calls
+  // This provides instant visual feedback while maintaining good performance
+  const formValues = useStore(form.store, (state) => state.values);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Optimized change detection: Batch comparisons using requestAnimationFrame
+  // This prevents JSON.stringify from running on every single keystroke
+  // while still feeling instant to the user (updates within 16ms frame budget)
+  useEffect(() => {
+    if (!initialValuesRef.current) {
+      setHasChanges(false);
+      return;
+    }
+
+    // Cancel any pending comparison
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+    }
+
+    // Schedule comparison on next animation frame (batches rapid updates)
+    // This means if user types 10 characters quickly, we only compare once
+    rafIdRef.current = requestAnimationFrame(() => {
+      const currentValuesString = JSON.stringify(formValues);
+      const hasChangesValue = currentValuesString !== initialValuesRef.current;
+      
+      // Only update state if it actually changed (prevents unnecessary re-renders)
+      if (hasChangesRef.current !== hasChangesValue) {
+        hasChangesRef.current = hasChangesValue;
+        setHasChanges(hasChangesValue);
+      }
+      rafIdRef.current = null;
+    });
+
+    // Cleanup on unmount or when formValues changes before RAF executes
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, [formValues]);
 
   // Calculate completion percentage based on filled fields
   const completionPercentage = useMemo(() => {
-    const values = form.state.values;
+    const values = formValues;
     const totalFields = 19; // Total number of fields to track
 
     let filledFields = 0;
@@ -638,38 +696,43 @@ const ProfileTemplate = ({
       setIsTriggeringWorkflow(true);
 
       // Call trigger workflow API
-      const response = await api.post<{ success?: boolean; [key: string]: any }>(
-        "/trigger-workflow",
-        "python",
-        {
-          business_id: businessId,
-        }
-      );
+      const response = await api.post<{
+        success?: boolean;
+        [key: string]: any;
+      }>("/trigger-workflow", "python", {
+        business_id: businessId,
+      });
 
       // Validate response (matching old repo pattern)
       if (response) {
         toast.success("Workflow triggered successfully!");
-        
+
         // Invalidate job query cache to ensure fresh workflow status when user returns
         // This is more efficient than always refetching - only refetches when needed
         queryClient.invalidateQueries({
           queryKey: ["jobs", "detail", businessId],
         });
-        
+
         // Navigate to strategy page after successful API call
         router.push(`/business/${businessId}/strategy`);
       }
     } catch (error: unknown) {
       // Improved error handling with better type safety
       let errorMessage = "Unknown error";
-      
+
       if (error && typeof error === "object") {
-        const axiosError = error as { response?: { data?: { detail?: string } }; message?: string };
-        errorMessage = axiosError?.response?.data?.detail || axiosError?.message || errorMessage;
+        const axiosError = error as {
+          response?: { data?: { detail?: string } };
+          message?: string;
+        };
+        errorMessage =
+          axiosError?.response?.data?.detail ||
+          axiosError?.message ||
+          errorMessage;
       } else if (typeof error === "string") {
         errorMessage = error;
       }
-      
+
       toast.error(`Error triggering workflow: ${errorMessage}`);
     } finally {
       setIsTriggeringWorkflow(false);
@@ -858,6 +921,7 @@ const ProfileTemplate = ({
     return externalJobDetails?.workflow_status?.status === "processing";
   }, [externalJobDetails?.workflow_status?.status]);
 
+  // Always prioritize showing "Save Changes" when there are changes, regardless of workflow state
   const buttonText = hasChanges
     ? isSaving
       ? "Saving..."
@@ -867,17 +931,19 @@ const ProfileTemplate = ({
     : isWorkflowProcessing
     ? "Workflow Processing..."
     : "Confirm & Proceed to Strategy";
+  
+  // Always use Save Changes handler when there are changes, even during workflow operations
   const handleButtonClick = hasChanges
     ? handleSaveChanges
     : handleConfirmAndProceed;
-  
+
   // Disable button logic:
-  // - For "Save Changes": only disable if loading or saving
+  // - For "Save Changes": only disable if loading or saving (NOT during workflow triggering)
   // - For "Confirm & Proceed": disable if loading, saving, triggering, workflow processing, or no job exists
   const isButtonDisabled = hasChanges
-    ? externalLoading || isSaving // Save Changes: only disable during loading/saving
-    : externalLoading || 
-      isSaving || 
+    ? externalLoading || isSaving // Save Changes: only disable during initial loading or saving
+    : externalLoading ||
+      isSaving ||
       isTriggeringWorkflow ||
       isWorkflowProcessing || // Disable if workflow is already processing
       !externalJobDetails?.job_id; // Require job to exist before proceeding
@@ -892,26 +958,26 @@ const ProfileTemplate = ({
   }, [isTriggeringWorkflow, isSaving, externalLoading]);
 
   return (
-    <div className="flex flex-col h-full">
-<LoaderOverlay isLoading={isLoading} message={loadingMessage}>
-      {/* Sticky Page Header */}
-      <div className="sticky top-0 z-10 bg-background">
-        <PageHeader breadcrumbs={breadcrumbs} />
-      </div>
+    <div className={cn("flex flex-col min-h-full relative", isLoading ? "overflow-hidden" : "")}>
+      <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
+        {/* Sticky Page Header */}
+        <div className="sticky top-0 z-10 bg-background">
+          <PageHeader breadcrumbs={breadcrumbs} />
+        </div>
 
-      {/* Scrollable Content */}
-      <div className="flex gap-6 p-7 items-start">
-        <ProfileSidebar
-          sections={sections}
-          activeSection={activeSection}
-          onSectionClick={handleSectionClick}
-          completionPercentage={completionPercentage}
-          buttonText={buttonText}
-          onButtonClick={handleButtonClick}
-          buttonDisabled={isButtonDisabled}
-        />
-        {/* Loader overlay only on the right panel (form content) */}
-        
+        {/* Scrollable Content */}
+        <div className="flex gap-6 p-7 items-start">
+          <ProfileSidebar
+            sections={sections}
+            activeSection={activeSection}
+            onSectionClick={handleSectionClick}
+            completionPercentage={completionPercentage}
+            buttonText={buttonText}
+            onButtonClick={handleButtonClick}
+            buttonDisabled={isButtonDisabled}
+          />
+          {/* Loader overlay only on the right panel (form content) */}
+
           <div className="flex-1">
             <form
               onSubmit={(e) => {
@@ -926,8 +992,8 @@ const ProfileTemplate = ({
               <CompetitorsForm form={form} />
             </form>
           </div>
-      </div>
-        </LoaderOverlay>
+        </div>
+      </LoaderOverlay>
     </div>
   );
 };

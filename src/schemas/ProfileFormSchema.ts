@@ -1,10 +1,14 @@
 import * as z from "zod";
+import { isValidWebsiteUrl } from "@/utils/utils";
 
 export const businessInfoSchema = z.object({
   website: z
     .string()
     .min(1, "Website is required")
-    .url("Please enter a valid URL"),
+    .refine(
+      (val) => isValidWebsiteUrl(val),
+      { message: "Please enter a valid website URL (e.g., example.com, www.example.com, or https://example.com)" }
+    ),
   businessName: z.string().min(1, "Business Name is required"),
   businessDescription: z.string(),
   primaryLocation: z.string().min(1, "Primary Location is required"),

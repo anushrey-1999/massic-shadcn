@@ -53,6 +53,10 @@ export interface JobDetails {
   };
   social_brand_voice?: string[];
   web_brand_voice?: string[];
+  workflow_status?: {
+    status?: "pending" | "processing" | "success" | "error";
+    [key: string]: any;
+  };
   [key: string]: any;
 }
 
@@ -243,9 +247,10 @@ export function useJobByBusinessId(businessId: string | null) {
       }
     },
     enabled: !!businessId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000, // 30 seconds - short enough to catch workflow status changes, but not excessive
     gcTime: 30 * 60 * 1000, // 30 minutes
-    refetchOnWindowFocus: false,
+    refetchOnMount: true, // Refetch on mount if data is stale (within 30 seconds)
+    refetchOnWindowFocus: true, // Refetch on window focus if data is stale
     retry: (failureCount, error: any) => {
       // Don't retry on 404 (job doesn't exist)
       if (error?.response?.status === 404) {

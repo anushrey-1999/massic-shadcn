@@ -120,13 +120,13 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
         }
         
         // Log with diagnostic information
-        console.error(`API Request Error [${platform}]:`, {
+        console.log(`API Request Error [${platform}]:`, {
           ...errorInfo,
           code: error.code,
           note: 'Request was sent but no response received. Check network tab for details.',
         });
       } else {
-        console.error(`API Error [${platform}]:`, error.message);
+        console.log(`API Error [${platform}]:`, error.message);
       }
       return Promise.reject(error);
     }

@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import { useRouter } from "next/navigation";
 import PageHeader from "../molecules/PageHeader";
 import { useBusinessStore } from "@/store/business-store";
 import ProfileSidebar from "../organisms/ProfileSidebar";
@@ -16,6 +17,9 @@ import { ContentCuesForm } from "../organisms/profile/ContentCuesForm";
 import { LocationsForm } from "../organisms/profile/LocationsForm";
 import { CompetitorsForm } from "../organisms/profile/CompetitorsForm";
 import { useForm } from "@tanstack/react-form";
+import { api } from "@/hooks/use-api";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
@@ -88,6 +92,8 @@ const ProfileTemplate = ({
   isLoading: externalLoading = false,
   onUpdateProfile,
 }: ProfileTemplateProps) => {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const profiles = useBusinessStore((state) => state.profiles);
 
   // Get setters from Zustand store (only for UI state)
@@ -99,9 +105,12 @@ const ProfileTemplate = ({
   );
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const initialValuesRef = useRef<any>(null);
   const lastProfileDataRef = useRef<string | null>(null);
   const lastProfileDataStringRef = useRef<string | null>(null);
+  // Track the offerings that were just saved to prevent overwriting with stale data
+  const lastSavedOfferingsRef = useRef<OfferingRow[] | null>(null);
 
   // Helper function to map profile data and job data to form values
   // ALWAYS checks if job exists first - this determines which data source to use
@@ -360,6 +369,13 @@ const ProfileTemplate = ({
               : null,
         };
 
+        // Store offerings that are being saved (ensure proper type - all fields must be strings)
+        lastSavedOfferingsRef.current = (value.offeringsList || []).map((off: any): OfferingRow => ({
+          name: off.name || "",
+          description: off.description || "",
+          link: off.link || "",
+        }));
+
         await onUpdateProfile(payload, value);
 
         // Update initial values after successful save
@@ -386,6 +402,11 @@ const ProfileTemplate = ({
   // Update form when external profile data or job details change
   // Job details only affect offerings, but we still need to update when job is created/updated
   useEffect(() => {
+    // Don't update form while saving - preserve user's current input
+    if (isSaving) {
+      return;
+    }
+
     const currentJobDetailsString = externalJobDetails
       ? JSON.stringify(externalJobDetails)
       : null;
@@ -416,10 +437,52 @@ const ProfileTemplate = ({
           externalJobDetails
         );
 
-        // Set form values for each field individually to ensure they update
-        Object.entries(mappedValues).forEach(([key, value]) => {
-          form.setFieldValue(key as any, value as any);
-        });
+        // IMPORTANT: Preserve current offeringsList if user has made changes or just saved
+        // Only update offeringsList from API if:
+        // 1. Form hasn't been initialized yet, OR
+        // 2. Current form has no offerings (empty array), OR
+        // 3. The new API data is different from what was just saved (avoid stale data overwrite)
+        const currentOfferings = form.state.values.offeringsList || [];
+        const hasUserOfferings = currentOfferings.length > 0 && 
+          currentOfferings.some((off: any) => off?.name?.trim());
+        
+        // Check if the new API offerings match what was just saved
+        const newApiOfferings = mappedValues.offeringsList || [];
+        const apiOfferingsMatchSaved = lastSavedOfferingsRef.current && 
+          newApiOfferings.length === lastSavedOfferingsRef.current.length &&
+          newApiOfferings.every((apiOff: any, idx: number) => {
+            const savedOff = lastSavedOfferingsRef.current![idx];
+            return apiOff.name === savedOff.name &&
+                   apiOff.description === savedOff.description &&
+                   apiOff.link === savedOff.link;
+          });
+        
+        // Only update offeringsList if:
+        // - No user offerings exist, OR
+        // - Form not initialized, OR
+        // - API data doesn't match what was just saved (means it's fresh data)
+        const shouldUpdateOfferings = !hasUserOfferings || 
+          !initialValuesRef.current || 
+          !apiOfferingsMatchSaved;
+        
+        if (shouldUpdateOfferings) {
+          // Set form values for each field individually to ensure they update
+          Object.entries(mappedValues).forEach(([key, value]) => {
+            form.setFieldValue(key as any, value as any);
+          });
+        } else {
+          // Preserve user's offerings, only update other fields
+          Object.entries(mappedValues).forEach(([key, value]) => {
+            if (key !== "offeringsList") {
+              form.setFieldValue(key as any, value as any);
+            }
+          });
+        }
+        
+        // Clear the saved offerings ref after processing (so next update can proceed normally)
+        if (apiOfferingsMatchSaved) {
+          lastSavedOfferingsRef.current = null;
+        }
 
         // Set initial values ref
         initialValuesRef.current = JSON.stringify(mappedValues);
@@ -434,7 +497,7 @@ const ProfileTemplate = ({
       lastProfileDataStringRef.current = null;
       lastJobDetailsRef.current = null;
     }
-  }, [externalProfileData, externalJobDetails, form]);
+  }, [externalProfileData, externalJobDetails, form, isSaving]);
 
   // Store initial values on mount (only once)
   useEffect(() => {
@@ -557,11 +620,60 @@ const ProfileTemplate = ({
     await form.handleSubmit();
   }, [form]);
 
-  // Handle Confirm & Proceed - memoized to prevent re-renders
-  const handleConfirmAndProceed = useCallback(() => {
-    form.handleSubmit();
-    // Navigate to strategy page or handle proceed logic
-  }, [form]);
+  // Handle Confirm & Proceed - trigger workflow API and navigate to strategy
+  const handleConfirmAndProceed = useCallback(async () => {
+    if (!businessId) {
+      toast.error("Business ID is required");
+      return;
+    }
+
+    // Check if job exists (required before triggering workflow)
+    if (!externalJobDetails?.job_id) {
+      toast.error("Please add offerings to create a job first");
+      return;
+    }
+
+    try {
+      setIsTriggeringWorkflow(true);
+
+      // Call trigger workflow API
+      const response = await api.post<{ success?: boolean; [key: string]: any }>(
+        "/trigger-workflow",
+        "python",
+        {
+          business_id: businessId,
+        }
+      );
+
+      // Validate response (matching old repo pattern)
+      if (response) {
+        toast.success("Workflow triggered successfully!");
+        
+        // Invalidate job query cache to ensure fresh workflow status when user returns
+        // This is more efficient than always refetching - only refetches when needed
+        queryClient.invalidateQueries({
+          queryKey: ["jobs", "detail", businessId],
+        });
+        
+        // Navigate to strategy page after successful API call
+        router.push(`/business/${businessId}/strategy`);
+      }
+    } catch (error: unknown) {
+      // Improved error handling with better type safety
+      let errorMessage = "Unknown error";
+      
+      if (error && typeof error === "object") {
+        const axiosError = error as { response?: { data?: { detail?: string } }; message?: string };
+        errorMessage = axiosError?.response?.data?.detail || axiosError?.message || errorMessage;
+      } else if (typeof error === "string") {
+        errorMessage = error;
+      }
+      
+      toast.error(`Error triggering workflow: ${errorMessage}`);
+    } finally {
+      setIsTriggeringWorkflow(false);
+    }
+  }, [businessId, externalJobDetails, router]);
 
   const businessName = useMemo(() => {
     const profile = profiles.find((p) => p.UniqueId === businessId);
@@ -740,15 +852,34 @@ const ProfileTemplate = ({
     };
   }, []);
 
+  // Check if workflow is currently processing
+  const isWorkflowProcessing = useMemo(() => {
+    return externalJobDetails?.workflow_status?.status === "processing";
+  }, [externalJobDetails?.workflow_status?.status]);
+
   const buttonText = hasChanges
     ? isSaving
       ? "Saving..."
       : "Save Changes"
+    : isTriggeringWorkflow
+    ? "Triggering Workflow..."
+    : isWorkflowProcessing
+    ? "Workflow Processing..."
     : "Confirm & Proceed to Strategy";
   const handleButtonClick = hasChanges
     ? handleSaveChanges
     : handleConfirmAndProceed;
-  const isButtonDisabled = externalLoading || isSaving;
+  
+  // Disable button logic:
+  // - For "Save Changes": only disable if loading or saving
+  // - For "Confirm & Proceed": disable if loading, saving, triggering, workflow processing, or no job exists
+  const isButtonDisabled = hasChanges
+    ? externalLoading || isSaving // Save Changes: only disable during loading/saving
+    : externalLoading || 
+      isSaving || 
+      isTriggeringWorkflow ||
+      isWorkflowProcessing || // Disable if workflow is already processing
+      !externalJobDetails?.job_id; // Require job to exist before proceeding
 
   return (
     <div className="flex flex-col h-full">
@@ -776,7 +907,7 @@ const ProfileTemplate = ({
             }}
           >
             <BusinessInfoForm form={form} />
-            <OfferingsForm form={form} />
+            <OfferingsForm form={form} businessId={businessId} />
             <ContentCuesForm form={form} />
             <LocationsForm form={form} />
             <CompetitorsForm form={form} />

@@ -22,7 +22,14 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoaderOverlay } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
-import { parseArrayField, cleanWebsiteUrl, normalizeWebsiteUrl } from "@/utils/utils";
+import {
+  parseArrayField,
+  cleanWebsiteUrl,
+  normalizeWebsiteUrl,
+} from "@/utils/utils";
+import { Button } from "@/components/ui/button";
+import { Link2Off, Unlink } from "lucide-react";
+import { BasicModal } from "@/components/molecules/BasicModal";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
@@ -109,6 +116,7 @@ const ProfileTemplate = ({
 
   const [isSaving, setIsSaving] = useState(false);
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
+  const [isUnlinkModalOpen, setIsUnlinkModalOpen] = useState(false);
   const initialValuesRef = useRef<any>(null);
   const hasChangesRef = useRef(false);
   const rafIdRef = useRef<number | null>(null);
@@ -127,7 +135,7 @@ const ProfileTemplate = ({
   ): BusinessInfoFormData => {
     // SIMPLIFIED FLOW: Business API is always the source of truth for all fields except offerings
     // Job API only provides offerings data
-    
+
     if (!profileData) {
       return {
         website: "",
@@ -554,7 +562,7 @@ const ProfileTemplate = ({
     rafIdRef.current = requestAnimationFrame(() => {
       const currentValuesString = JSON.stringify(formValues);
       const hasChangesValue = currentValuesString !== initialValuesRef.current;
-      
+
       // Only update state if it actually changed (prevents unnecessary re-renders)
       if (hasChangesRef.current !== hasChangesValue) {
         hasChangesRef.current = hasChangesValue;
@@ -931,7 +939,7 @@ const ProfileTemplate = ({
     : isWorkflowProcessing
     ? "Workflow Processing..."
     : "Confirm & Proceed to Strategy";
-  
+
   // Always use Save Changes handler when there are changes, even during workflow operations
   const handleButtonClick = hasChanges
     ? handleSaveChanges
@@ -958,7 +966,12 @@ const ProfileTemplate = ({
   }, [isTriggeringWorkflow, isSaving, externalLoading]);
 
   return (
-    <div className={cn("flex flex-col min-h-full relative", isLoading ? "overflow-hidden" : "")}>
+    <div
+      className={cn(
+        "flex flex-col min-h-full relative",
+        isLoading ? "overflow-hidden" : ""
+      )}
+    >
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         {/* Sticky Page Header */}
         <div className="sticky top-0 z-10 bg-background">
@@ -991,8 +1004,35 @@ const ProfileTemplate = ({
               <LocationsForm form={form} />
               <CompetitorsForm form={form} />
             </form>
+            <div className="mt-6 flex justify-end">
+              <Button
+                variant="destructive"
+                onClick={() => setIsUnlinkModalOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Unlink className="size-4" />
+                Unlink Business
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Unlink Confirmation Modal */}
+        <BasicModal
+          open={isUnlinkModalOpen}
+          onOpenChange={setIsUnlinkModalOpen}
+          title="Are you sure want to unlink this business?"
+          description="This business will be removed from your dashboard, and Massic will stop collecting insights. You can reactivate it anytime later."
+          showCloseButton={false}
+          primaryButtonLabel="Unlink"
+          primaryButtonVariant="destructive"
+          primaryButtonIcon={Link2Off}
+          primaryButtonOnClick={() => {
+            // TODO: Implement unlink business logic here
+            setIsUnlinkModalOpen(false);
+            toast.success("Business unlinked successfully");
+          }}
+        />
       </LoaderOverlay>
     </div>
   );

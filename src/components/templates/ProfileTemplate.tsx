@@ -20,6 +20,7 @@ import { useForm } from "@tanstack/react-form";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { LoaderOverlay } from "@/components/ui/loader";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
@@ -881,8 +882,18 @@ const ProfileTemplate = ({
       isWorkflowProcessing || // Disable if workflow is already processing
       !externalJobDetails?.job_id; // Require job to exist before proceeding
 
+  // Determine loading state and message
+  const isLoading = externalLoading || isSaving || isTriggeringWorkflow;
+  const loadingMessage = useMemo(() => {
+    if (isTriggeringWorkflow) return "Triggering workflow...";
+    if (isSaving) return "Saving changes...";
+    if (externalLoading) return "Loading profile data...";
+    return undefined;
+  }, [isTriggeringWorkflow, isSaving, externalLoading]);
+
   return (
     <div className="flex flex-col h-full">
+<LoaderOverlay isLoading={isLoading} message={loadingMessage}>
       {/* Sticky Page Header */}
       <div className="sticky top-0 z-10 bg-background">
         <PageHeader breadcrumbs={breadcrumbs} />
@@ -899,21 +910,24 @@ const ProfileTemplate = ({
           onButtonClick={handleButtonClick}
           buttonDisabled={isButtonDisabled}
         />
-        <div className="flex-1">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              form.handleSubmit();
-            }}
-          >
-            <BusinessInfoForm form={form} />
-            <OfferingsForm form={form} businessId={businessId} />
-            <ContentCuesForm form={form} />
-            <LocationsForm form={form} />
-            <CompetitorsForm form={form} />
-          </form>
-        </div>
+        {/* Loader overlay only on the right panel (form content) */}
+        
+          <div className="flex-1">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                form.handleSubmit();
+              }}
+            >
+              <BusinessInfoForm form={form} />
+              <OfferingsForm form={form} businessId={businessId} />
+              <ContentCuesForm form={form} />
+              <LocationsForm form={form} />
+              <CompetitorsForm form={form} />
+            </form>
+          </div>
       </div>
+        </LoaderOverlay>
     </div>
   );
 };

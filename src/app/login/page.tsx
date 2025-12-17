@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { GenericInput } from '@/components/ui/generic-input'
 import { useLogin, useGoogleLogin } from '@/hooks/use-auth'
 import { useAuthStore } from '@/store/auth-store'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google'
@@ -26,6 +26,9 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, router])
 
+  const searchParams = useSearchParams()
+  const redirect = searchParams.get('redirect')
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
@@ -41,7 +44,7 @@ export default function LoginPage() {
       })
 
       toast.success('Login successful!')
-      router.push('/')
+      router.push(redirect || '/')
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.message ||
@@ -63,7 +66,7 @@ export default function LoginPage() {
       })
 
       toast.success('Login successful!')
-      router.push('/')
+      router.push(redirect || '/')
     } catch (error: any) {
       if (error.userNotFound) {
         toast.error('Account not found. Please sign up first.')

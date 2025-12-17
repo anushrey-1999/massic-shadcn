@@ -20,15 +20,17 @@ interface CreditModalProps {
   currentBalance?: number;
   autoTopupEnabled?: boolean;
   autoTopupThreshold?: number;
+  onPurchaseCredits?: (params?: { quantity: number }) => Promise<void>;
 }
 
 export function CreditModal({
   open,
   onClose,
   errorMessage,
-  currentBalance = 358,
+  currentBalance = 0,
   autoTopupEnabled = false,
   autoTopupThreshold = 0,
+  onPurchaseCredits,
 }: CreditModalProps) {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -39,13 +41,12 @@ export function CreditModal({
   };
 
   const handlePurchaseCredits = async () => {
+    if (!onPurchaseCredits) return;
     setLoading(true);
     try {
-      // Handle purchase credits
-      console.log("Purchase credits:", quantity * 100);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      // Close modal after purchase
-      onClose();
+      await onPurchaseCredits({ quantity });
+      // Modal closing is usually handled after external action or we can keep it open
+      // In this flow, we redirect to checkout so closing might not matter as page will unload
     } catch (error) {
       console.error("Failed to purchase credits:", error);
     } finally {
@@ -58,7 +59,7 @@ export function CreditModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent 
+      <DialogContent
         className="max-w-md bg-transparent border-none p-0 gap-3"
         showCloseButton={false}
       >

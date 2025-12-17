@@ -21,9 +21,17 @@ interface PlansWrapperProps {
   plansData: PlanItem[];
   modalPlansData?: PlanData[];
   onCreditsRefresh?: () => void;
+  currentCreditBalance?: number;
+  onPurchaseCredits?: (params?: { quantity: number }) => Promise<void>;
 }
 
-export function PlansWrapper({ plansData, modalPlansData, onCreditsRefresh }: PlansWrapperProps) {
+export function PlansWrapper({
+  plansData,
+  modalPlansData,
+  onCreditsRefresh,
+  currentCreditBalance = 0,
+  onPurchaseCredits
+}: PlansWrapperProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [creditModalOpen, setCreditModalOpen] = useState(false);
 
@@ -84,7 +92,8 @@ export function PlansWrapper({ plansData, modalPlansData, onCreditsRefresh }: Pl
       <CreditModal
         open={creditModalOpen}
         onClose={handleCloseCreditModal}
-        currentBalance={358}
+        currentBalance={currentCreditBalance}
+        onPurchaseCredits={onPurchaseCredits}
       />
     </>
   );

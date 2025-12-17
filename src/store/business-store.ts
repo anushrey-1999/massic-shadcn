@@ -18,6 +18,11 @@ export interface BusinessProfile {
   SellingPoints?: string[] | null;
   BusinessObjective?: string | null;
   Competitors?: { name: string; website: string }[] | null;
+  SubscriptionItems?: {
+    plan_type?: string;
+    status?: string;
+    [key: string]: any;
+  };
 }
 
 interface BusinessState {

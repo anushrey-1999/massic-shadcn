@@ -49,7 +49,7 @@ export function CustomSelect({
 
   const handleSelect = (optionValue: string) => {
     const isSelected = value.includes(optionValue);
-    
+
     // Handle mutual exclusivity: "no-location-exist" and regular locations
     if (optionValue === "no-location-exist") {
       // If selecting "no-location-exist", clear all other selections
@@ -72,11 +72,17 @@ export function CustomSelect({
   };
 
   const defaultRenderSelected = (option: CustomSelectOption) => (
-    <Badge key={option.value} variant="secondary" className="text-xs" onClick={(e) => e.stopPropagation()}>
-      {option.label}
+    <Badge
+      key={option.value}
+      variant="secondary"
+      className="text-xs flex items-center gap-1 max-w-[200px]"
+      onClick={(e) => e.stopPropagation()}
+      title={option.label}
+    >
+      <span className="truncate max-w-[160px]">{option.label}</span>
       <span
         onClick={(e) => handleRemove(option.value, e)}
-        className="ml-1 hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center"
+        className="hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center flex-shrink-0"
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -127,14 +133,14 @@ export function CustomSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0 z-50"
+        className="p-0 z-50 overflow-hidden"
         style={{ width: maxWidth }}
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <Command shouldFilter={true}>
+        <Command shouldFilter={true} className="overflow-hidden">
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList className="max-h-[300px] overflow-y-auto">
+          <CommandList className="max-h-[300px] overflow-y-auto overflow-x-hidden">
             {options.length === 0 ? (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 {emptyMessage}
@@ -155,18 +161,22 @@ export function CustomSelect({
                         e.stopPropagation();
                         handleSelect(option.value);
                       }}
-                      className="cursor-pointer"
+                      className="cursor-pointer flex items-center overflow-hidden"
                     >
                       <div
-                        className={`mr-2 flex h-4 w-4 items-center justify-center rounded-sm border ${
-                          isSelected
-                            ? "bg-primary text-primary-foreground"
-                            : "opacity-50"
-                        }`}
+                        className={`mr-2 flex h-4 w-4 items-center justify-center rounded-sm border flex-shrink-0 ${isSelected
+                          ? "bg-primary text-primary-foreground"
+                          : "opacity-50"
+                          }`}
                       >
                         {isSelected && <Check className="h-4 w-4" />}
                       </div>
-                      <span>{option.label}</span>
+                      <span
+                        className="overflow-hidden text-ellipsis whitespace-nowrap block max-w-[calc(100%-30px)]"
+                        title={option.label}
+                      >
+                        {option.label}
+                      </span>
                     </CommandItem>
                   );
                 })}

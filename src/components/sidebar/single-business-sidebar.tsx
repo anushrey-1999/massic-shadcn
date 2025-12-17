@@ -1,5 +1,5 @@
-'use client'
 
+'use client'
 import React from 'react'
 import { Settings, Bell, LogOut, BarChart3, Target, Star, Megaphone, User, Link2 } from 'lucide-react'
 import Link from 'next/link'
@@ -21,6 +21,15 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -169,7 +178,10 @@ export default function SingleBusinessSidebar() {
 
   const isBusinessRoute = pathname.startsWith('/business/')
 
-  const handleLogout = async () => {
+
+  const [showLogoutDialog, setShowLogoutDialog] = React.useState(false)
+
+  const confirmLogout = async () => {
     try {
       await logout.mutateAsync()
       toast.success('Logged out successfully')
@@ -178,6 +190,11 @@ export default function SingleBusinessSidebar() {
       toast.success('Logged out successfully')
       router.push('/login')
     }
+    setShowLogoutDialog(false)
+  }
+
+  const handleLogout = () => {
+    setShowLogoutDialog(true)
   }
 
   const footerItems = [
@@ -282,40 +299,61 @@ export default function SingleBusinessSidebar() {
   }
 
   return (
-    <Sidebar collapsible="none" className="h-screen bg-white">
-      <SidebarHeader className="border-b border-sidebar-border shrink-0">
-        <div className="px-4 py-4.5">
-          <h1 className="text-lg font-semibold text-foreground">Massic</h1>
-        </div>
-      </SidebarHeader>
+    <>
+      <Sidebar collapsible="none" className="h-screen bg-white">
+        <SidebarHeader className="border-b border-sidebar-border shrink-0">
+          <div className="px-4 py-4.5">
+            <h1 className="text-lg font-semibold text-foreground">Massic</h1>
+          </div>
+        </SidebarHeader>
 
-      <SidebarContent className="flex-1 flex flex-col overflow-hidden">
-        <SidebarGroup className="px-1 flex-1 flex flex-col overflow-hidden pt-4">
-          <SidebarGroupContent className="flex-1 overflow-y-auto">
-            {renderBusinessSection()}
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+        <SidebarContent className="flex-1 flex flex-col overflow-hidden">
+          <SidebarGroup className="px-1 flex-1 flex flex-col overflow-hidden pt-4">
+            <SidebarGroupContent className="flex-1 overflow-y-auto">
+              {renderBusinessSection()}
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-      <SidebarSeparator />
+        <SidebarSeparator />
 
-      <SidebarFooter className="px-1 py-5 shrink-0">
-        <div className="mb-1 px-4">
-          <p className="text-sm font-medium text-foreground">{userName}</p>
-        </div>
-        <SidebarMenu className="gap-1">
-          {footerItems.map((item) => (
-            <FooterAction
-              key={item.label}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={item.href ? pathname === item.href : false}
-              onClick={item.onClick}
-            />
-          ))}
-        </SidebarMenu>
-      </SidebarFooter>
-    </Sidebar>
+        <SidebarFooter className="px-1 py-5 shrink-0">
+          <div className="mb-1 px-4">
+            <p className="text-sm font-medium text-foreground">{userName}</p>
+          </div>
+          <SidebarMenu className="gap-1">
+            {footerItems.map((item) => (
+              <FooterAction
+                key={item.label}
+                href={item.href}
+                icon={item.icon}
+                label={item.label}
+                isActive={item.href ? pathname === item.href : false}
+                onClick={item.onClick}
+              />
+            ))}
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+
+      <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Logout</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to log out of your account?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLogoutDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmLogout}>
+              Logout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

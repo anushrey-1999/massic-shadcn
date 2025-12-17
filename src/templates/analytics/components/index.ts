@@ -1,7 +1,7 @@
 export { MetricCard } from "./MetricCard"
 export { StatsBadge, TrendBadge } from "./StatsBadge"
 export { FunnelChart } from "./FunnelChart"
-export { DataTable, SimpleTable } from "./DataTable"
+export { DataTable } from "./DataTable"
 export { SectionHeader } from "./SectionHeader"
 export { ChartLegend, PositionLegend } from "./ChartLegend"
 export { LLMBarChart } from "./LLMBarChart"

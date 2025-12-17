@@ -10,8 +10,8 @@ export default function Layout({
   return (
     <SidebarProvider className="h-screen overflow-hidden flex">
       <AppSidebar />
-      <SidebarInset className="overflow-y-auto flex-1">
-        <div className="min-h-full bg-foreground-light">
+      <SidebarInset className="overflow-y-auto flex-1 bg-foreground-light">
+        <div className="min-h-full">
           {children}
         </div>
       </SidebarInset>

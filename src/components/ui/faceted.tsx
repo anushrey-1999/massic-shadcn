@@ -34,8 +34,11 @@ export function Faceted({ open, onOpenChange, value, onValueChange, multiple, ch
     (child) => {
       if (!React.isValidElement(child)) return false
       // Check if it's a Popover by displayName or by checking if it's the Popover component
-      return child.type === Popover || 
-             (typeof child.type === 'object' && child.type !== null && 'displayName' in child.type && child.type.displayName === 'Popover')
+      if (child.type === Popover) return true
+      if (typeof child.type === 'object' && child.type !== null && 'displayName' in child.type) {
+        return (child.type as { displayName?: string }).displayName === 'Popover'
+      }
+      return false
     }
   )
 
@@ -44,8 +47,14 @@ export function Faceted({ open, onOpenChange, value, onValueChange, multiple, ch
       {hasPopover ? (
         // If Popover exists, clone it with open state
         React.Children.map(children, (child) => {
-          if (React.isValidElement(child) && (child.type === Popover || (typeof child.type === 'object' && child.type !== null && 'displayName' in child.type && child.type.displayName === 'Popover'))) {
+          if (!React.isValidElement(child)) return child
+          if (child.type === Popover) {
             return React.cloneElement(child, { open: isOpen, onOpenChange: setIsOpen } as any)
+          }
+          if (typeof child.type === 'object' && child.type !== null && 'displayName' in child.type) {
+            if ((child.type as { displayName?: string }).displayName === 'Popover') {
+              return React.cloneElement(child, { open: isOpen, onOpenChange: setIsOpen } as any)
+            }
           }
           return child
         })

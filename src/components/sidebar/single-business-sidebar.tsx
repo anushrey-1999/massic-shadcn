@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Settings, Bell, LogOut, BarChart3, Target, Star, Megaphone, User, Link2 } from 'lucide-react'
+import { Settings, Bell, LogOut, BarChart3, Target, Star, Megaphone, User, Link2, Globe } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
@@ -162,6 +162,7 @@ export default function SingleBusinessSidebar() {
   const businessNavItems = [
     { label: 'Analytics', slug: 'analytics', icon: BarChart3 },
     { label: 'Strategy', slug: 'strategy', icon: Target },
+    { label: 'Web', slug: 'web', icon: Globe },
     { label: 'Actions', slug: 'actions', icon: Megaphone },
     { label: 'Reviews', slug: 'reviews', icon: Star },
     { label: 'Profile', slug: 'profile', icon: User },

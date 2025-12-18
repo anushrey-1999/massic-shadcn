@@ -10,15 +10,9 @@ import {
 } from "lucide-react";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { ExpandablePills } from "@/components/ui/expandable-pills";
+import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { StrategyRow } from "@/types/strategy-types";
-
-// Helper to get color based on relevance score
-function getRelevanceColor(score: number): string {
-  if (score >= 0.8) return "hsl(142, 71%, 45%)"; // Green
-  if (score >= 0.6) return "hsl(45, 93%, 47%)"; // Yellow
-  if (score >= 0.4) return "hsl(25, 95%, 53%)"; // Orange
-  return "hsl(0, 84%, 60%)"; // Red
-}
+import { Typography } from "@/components/ui/typography";
 
 // Helper to format percentage
 function formatPercentage(value: number): string {
@@ -46,9 +40,9 @@ export function getStrategyTableColumns({
         <DataTableColumnHeader column={column} label="Topic" />
       ),
       cell: ({ row }) => (
-        <div className="max-w-full">
-          <div className="truncate font-medium">{row.getValue("topic")}</div>
-        </div>
+        <Typography variant="p" className="truncate">
+          {row.getValue("topic")}
+        </Typography>
       ),
       meta: {
         label: "Topic",
@@ -70,16 +64,9 @@ export function getStrategyTableColumns({
       ),
       cell: ({ cell }) => {
         const score = cell.getValue<number>();
-        const color = getRelevanceColor(score);
         return (
-          <div className="flex items-center gap-2">
-            <div
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: color }}
-            />
-            <span className="font-medium" style={{ color }}>
-              {score.toFixed(2)}
-            </span>
+          <div className="flex items-center">
+            <RelevancePill score={score || 0} />
           </div>
         );
       },
@@ -91,9 +78,9 @@ export function getStrategyTableColumns({
       },
       enableColumnFilter: true,
       enableSorting: true,
-      size: 120,
-      minSize: 100,
-      maxSize: 150,
+      size: 130,
+      minSize: 110,
+      maxSize: 160,
     },
     {
       id: "topic_cluster_topic_coverage",
@@ -104,9 +91,7 @@ export function getStrategyTableColumns({
       cell: ({ cell }) => {
         const value = cell.getValue<number>();
         return (
-          <div className="font-medium text-muted-foreground">
-            {formatPercentage(value)}
-          </div>
+          <Typography variant="p">{formatPercentage(value)}</Typography>
         );
       },
       meta: {
@@ -185,9 +170,7 @@ export function getStrategyTableColumns({
       cell: ({ cell }) => {
         const volume = cell.getValue<number>();
         return (
-          <div className="font-medium">
-            {volume.toLocaleString()}
-          </div>
+          <Typography variant="p">{volume.toLocaleString()}</Typography>
         );
       },
       meta: {

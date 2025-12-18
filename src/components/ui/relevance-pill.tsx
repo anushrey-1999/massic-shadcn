@@ -1,0 +1,62 @@
+"use client";
+
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+interface RelevancePillProps {
+  score: number;
+  className?: string;
+}
+
+export function RelevancePill({ score, className }: RelevancePillProps) {
+  const normalizedScore = Math.max(0, Math.min(1, score || 0));
+  
+  // Calculate how many bars to fill (1-4)
+  const filledBars = Math.ceil(normalizedScore * 4);
+  const barsToFill = Math.min(4, Math.max(1, filledBars));
+  
+  // Determine color based on number of filled bars
+  let barColor: string;
+  if (barsToFill === 1) {
+    barColor = "hsl(0, 84%, 60%)"; // Red
+  } else if (barsToFill === 2) {
+    barColor = "hsl(45, 93%, 47%)"; // Yellow
+  } else {
+    barColor = "hsl(142, 71%, 45%)"; // Green (3 or 4 bars)
+  }
+  
+  // Calculate score percentage for display
+  const scorePercentage = Math.round(normalizedScore * 100);
+
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center gap-2 px-2 py-1 rounded-lg border bg-white",
+        className
+      )}
+    >
+      <div className="flex items-end gap-0.5">
+        {[1, 2, 3, 4].map((barIndex) => {
+          const isFilled = barIndex <= barsToFill;
+          const heights = ["h-1.5", "h-2", "h-2.5", "h-3"];
+          
+          return (
+            <div
+              key={barIndex}
+              className={cn(
+                "w-0.5 rounded-full transition-colors",
+                heights[barIndex - 1]
+              )}
+              style={{
+                backgroundColor: isFilled ? barColor : "#e5e7eb",
+              }}
+            />
+          );
+        })}
+      </div>
+      <span className="text-xs font-semibold text-foreground">
+        {scorePercentage}
+      </span>
+    </div>
+  );
+}

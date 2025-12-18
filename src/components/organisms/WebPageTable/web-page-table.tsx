@@ -12,6 +12,7 @@ import type { QueryKeys } from "@/types/data-table-types";
 import { getWebPageTableColumns } from "./web-page-table-columns";
 
 interface WebPageTableProps {
+  businessId: string;
   data: WebPageRow[];
   pageCount: number;
   queryKeys?: Partial<QueryKeys>;
@@ -22,6 +23,7 @@ interface WebPageTableProps {
 }
 
 export function WebPageTable({
+  businessId,
   data,
   pageCount,
   queryKeys,
@@ -33,8 +35,8 @@ export function WebPageTable({
   const enableAdvancedFilter = true;
 
   const columns = React.useMemo(
-    () => getWebPageTableColumns({}),
-    []
+    () => getWebPageTableColumns({ businessId }),
+    [businessId]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -56,8 +58,8 @@ export function WebPageTable({
   });
 
   return (
-    <DataTable 
-      table={table} 
+    <DataTable
+      table={table}
       isLoading={isLoading}
       isFetching={isFetching}
       pageSizeOptions={[10, 30, 50, 100, 200]}

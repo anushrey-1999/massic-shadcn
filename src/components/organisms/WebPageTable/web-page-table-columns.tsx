@@ -1,20 +1,13 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  FileText,
-  Tag,
-  TrendingUp,
-  BarChart3,
-  Sparkles,
-  Eye,
-} from "lucide-react";
+import { FileText, Tag, TrendingUp, BarChart3 } from "lucide-react";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { RelevancePill } from "@/components/ui/relevance-pill";
-import { Button } from "@/components/ui/button";
 import type { WebPageRow } from "@/types/web-page-types";
 import { Typography } from "@/components/ui/typography";
+import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
 
 function formatVolume(volume: number): string {
   if (!volume && volume !== 0) return "0";
@@ -33,10 +26,10 @@ function formatVolume(volume: number): string {
 }
 
 interface GetWebPageTableColumnsProps {
-  [key: string]: any;
+  businessId: string;
 }
 
-export function getWebPageTableColumns({}: GetWebPageTableColumnsProps = {}): ColumnDef<WebPageRow>[] {
+export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
   return [
     {
       id: "keyword",
@@ -208,37 +201,21 @@ export function getWebPageTableColumns({}: GetWebPageTableColumnsProps = {}): Co
     {
       id: "actions",
       header: () => <div className="text-center">Actions</div>,
-      cell: () => {
+      cell: ({ row }) => {
         return (
-          <div className="flex items-center justify-center gap-2">
-            <Button
-              variant="default"
-              size="icon"
-              className="h-6 w-6 rounded-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <Sparkles className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-6 w-6 rounded-sm"
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-            >
-              <Eye className="h-3 w-3" />
-            </Button>
+          <div className="flex items-center justify-center">
+            <WebPageActionCell businessId={businessId} row={row.original} />
           </div>
         );
       },
+      meta: {
+        align: "center",
+      },
       enableColumnFilter: false,
       enableSorting: false,
-      size: 120,
-      minSize: 100,
-      maxSize: 150,
+      size: 56,
+      minSize: 56,
+      maxSize: 64,
     },
   ];
 }

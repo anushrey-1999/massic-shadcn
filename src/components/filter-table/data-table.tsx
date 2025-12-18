@@ -63,7 +63,7 @@ export function DataTable<TData>({
           {children}
         </div>
       )}
-      
+
       {/* Table container - Scrollable with max-height, no horizontal scroll */}
       <div className="relative flex-1 min-h-0 rounded-md border overflow-hidden">
         {isFetching && !showLoading && (
@@ -75,7 +75,7 @@ export function DataTable<TData>({
           </div>
         )}
         <div className="h-full w-full overflow-y-auto overflow-x-auto">
-          <TableElement className="w-full" style={{ minWidth: '1000px' }}>
+          <TableElement className="w-full table-fixed" style={{ minWidth: "1000px", tableLayout: "fixed" }}>
             <TableHeader className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -89,15 +89,17 @@ export function DataTable<TData>({
                       )}
                       style={{
                         width: header.getSize(),
+                        minWidth: header.getSize(),
+                        maxWidth: header.getSize(),
                         ...getCommonPinningStyles({ column: header.column }),
                       }}
                     >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -131,6 +133,8 @@ export function DataTable<TData>({
                         )}
                         style={{
                           width: cell.column.getSize(),
+                          minWidth: cell.column.getSize(),
+                          maxWidth: cell.column.getSize(),
                           ...getCommonPinningStyles({ column: cell.column }),
                         }}
                       >
@@ -156,7 +160,7 @@ export function DataTable<TData>({
           </TableElement>
         </div>
       </div>
-      
+
       {/* Pagination - Always visible, no scroll */}
       <div className="shrink-0 flex flex-col gap-2.5">
         <DataTablePagination table={table} pageSizeOptions={pageSizeOptions} />

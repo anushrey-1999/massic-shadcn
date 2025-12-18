@@ -76,7 +76,7 @@ export function DataTable<TData>({
         )}
         <div className="h-full w-full overflow-y-auto overflow-x-auto">
           <TableElement className="w-full" style={{ minWidth: '1000px' }}>
-            <TableHeader className="sticky top-0 z-10 bg-background">
+            <TableHeader className="sticky top-0 z-10 ">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
@@ -84,7 +84,7 @@ export function DataTable<TData>({
                       key={header.id}
                       colSpan={header.colSpan}
                       className={cn(
-                        "bg-background",
+                        "",
                         getAlignmentClass(header.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
                       )}
                       style={{
@@ -117,31 +117,40 @@ export function DataTable<TData>({
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={cn(
-                          "overflow-hidden",
-                          getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
-                        )}
-                        style={{
-                          width: cell.column.getSize(),
-                          ...getCommonPinningStyles({ column: cell.column }),
-                        }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
+                table.getRowModel().rows.map((row) => {
+                  const rowMeta = row.original as { isSelected?: boolean; onClick?: () => void; [key: string]: any };
+                  const isSelected = rowMeta?.isSelected || false;
+                  const handleRowClick = rowMeta?.onClick;
+                  return (
+                    <TableRow
+                      key={row.id}
+                      data-state={(isSelected || row.getIsSelected()) && "selected"}
+                      className={cn(
+                        handleRowClick && "cursor-pointer"
+                      )}
+                      onClick={handleRowClick}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            "overflow-hidden",
+                            getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
+                          )}
+                          style={{
+                            width: cell.column.getSize(),
+                            ...getCommonPinningStyles({ column: cell.column }),
+                          }}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell

@@ -63,7 +63,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
       className={cn(
-        "border-b border-border/40 transition-colors hover:bg-muted/30 data-[state=selected]:bg-muted",
+        "border-b transition-colors  data-[state=selected]:bg-muted",
         className
       )}
       {...props}
@@ -88,7 +88,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
-      className={cn("py-1.5 px-2 align-middle [&:has([role=checkbox])]:pr-0 overflow-hidden", className)}
+      className={cn("py-1.5 px-2 align-middle  [&:has([role=checkbox])]:pr-0 overflow-hidden", className)}
       {...props}
     />
   )
@@ -175,7 +175,7 @@ function DataTable<TData, TValue>({
                               header.column.getIsSorted() === "asc"
                             )
                           }
-                          className="flex items-center gap-2 hover:opacity-70 transition-opacity cursor-pointer"
+                          className="flex items-center gap-2  transition-opacity cursor-pointer"
                         >
                           {headerContent}
                           <div className="flex items-center">

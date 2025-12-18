@@ -4,6 +4,7 @@ import React from 'react'
 import { StrategyTableClient } from '@/components/organisms/StrategyTable/strategy-table-client'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
+import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 
 interface PageProps {
   params: Promise<{
@@ -69,18 +70,22 @@ export default function BusinessStrategyPage({ params }: PageProps) {
   }
 
   return (
-    <div className="flex flex-col h-screen">
-      <PageHeader
-        breadcrumbs={[
-          { label: "Home", href: "/" },
-          { label: "Business", href: `/business/${businessId}` },
-          { label: "Strategy" },
-        ]}
-      />
-      <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
-        <StrategyTableClient businessId={businessId} />
+    <EntitlementsGuard entitlement="strategy" businessId={businessId}>
+      <div className="flex flex-col h-screen">
+
+        <PageHeader
+          breadcrumbs={[
+            { label: "Home", href: "/" },
+            { label: "Business", href: `/business/${businessId}` },
+            { label: "Strategy" },
+          ]}
+        />
+        <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
+          <StrategyTableClient businessId={businessId} />
+        </div>
       </div>
-    </div>
+    </EntitlementsGuard>
+
   )
 }
 

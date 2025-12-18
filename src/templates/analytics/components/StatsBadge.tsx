@@ -7,12 +7,38 @@ interface StatsBadgeProps {
   value: number
   className?: string
   showIcon?: boolean
+  variant?: "pill" | "plain"
 }
 
-export function StatsBadge({ value, className, showIcon = true }: StatsBadgeProps) {
+export function StatsBadge({ value, className, showIcon = true, variant = "pill" }: StatsBadgeProps) {
   const isPositive = value > 0
   const isNegative = value < 0
   const isNeutral = value === 0
+
+  if (variant === "plain") {
+    const iconColor = isPositive
+      ? "text-emerald-600"
+      : isNegative
+        ? "text-red-600"
+        : "text-muted-foreground"
+
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 text-[10px] font-medium leading-4 tracking-[0.15px] text-muted-foreground",
+          className
+        )}
+      >
+        {showIcon && !isNeutral &&
+          (isPositive ? (
+            <TrendingUp className={cn("h-3 w-3", iconColor)} />
+          ) : (
+            <TrendingDown className={cn("h-3 w-3", iconColor)} />
+          ))}
+        <span>{Math.abs(value)}%</span>
+      </span>
+    )
+  }
 
   return (
     <span

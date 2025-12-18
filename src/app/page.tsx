@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth-store'
 import { useBusinessProfiles } from '@/hooks/use-business-profiles'
-import { TopicsTableClient } from '@/components/topics/topics-table-client'
+import { HomeTemplate } from '@/templates/home/HomeTemplate'
 
 const SINGLE_BUSINESS_ROLE_ID = 4
 
@@ -47,11 +47,7 @@ export default function HomePage() {
     return <LoadingSpinner />
   }
 
-  return (
-    <div className="bg-muted p-8 flex flex-col gap-8 min-h-full">
-      <TopicsTableClient />
-    </div>
-  )
+  return <HomeTemplate />
 }
 
 

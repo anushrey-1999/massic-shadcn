@@ -1,6 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from "axios";
 import { useCallback, useState } from "react";
 import Cookies from "js-cookie";
+import { isTokenExpired } from "@/utils/jwt";
+import { useAuthStore } from "@/store/auth-store";
 
 export type ApiPlatform = "node" | "python" | "dotnet";
 console.log(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID, ')')
@@ -9,6 +11,7 @@ function getBaseURLByPlatform(platform: ApiPlatform): string {
   switch (platform) {
     case "node":
       return process.env.NEXT_PUBLIC_NODE_API_URL || "https://seedmain.seedinternaldev.xyz/api/1";
+      // return 'http://localhost:4922/api/1'
 
     case "python":
       return process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v1";
@@ -35,6 +38,18 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
   instance.interceptors.request.use(
     (config) => {
       const token = Cookies.get("token");
+
+      if (token && isTokenExpired(token)) {
+        // Token is expired
+        useAuthStore.getState().logout();
+
+        if (typeof window !== "undefined") {
+          window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+        }
+
+        return Promise.reject(new Error("Token expired"));
+      }
+
       if (token && config.headers) {
         if (platform === "dotnet") {
           config.headers.Authorization = `Bearer ${token}`;

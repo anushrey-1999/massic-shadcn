@@ -164,6 +164,7 @@ export default function AppSidebar() {
   const businessSubItems = [
     { label: 'Analytics', slug: 'analytics' },
     { label: 'Strategy', slug: 'strategy' },
+    { label: 'Web', slug: 'web' },
     { label: 'Actions', slug: 'actions' },
     { label: 'Reviews', slug: 'reviews' },
     { label: 'Profile', slug: 'profile' },

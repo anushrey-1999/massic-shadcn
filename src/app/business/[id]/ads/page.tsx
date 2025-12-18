@@ -1,12 +1,10 @@
 "use client"
 
 import React from 'react'
-import { StrategyTableClient } from '@/components/organisms/StrategyTable/strategy-table-client'
-import { AudienceTableClient } from '@/components/organisms/AudienceTable/audience-table-client'
-import { PageHeader } from '@/components/molecules/PageHeader'
-import { useJobByBusinessId } from '@/hooks/use-jobs'
-import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { PageHeader } from '@/components/molecules/PageHeader'
+import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
+import { useJobByBusinessId } from '@/hooks/use-jobs'
 
 interface PageProps {
   params: Promise<{
@@ -14,7 +12,7 @@ interface PageProps {
   }>
 }
 
-export default function BusinessStrategyPage({ params }: PageProps) {
+export default function BusinessAdsPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
 
   React.useEffect(() => {
@@ -39,7 +37,7 @@ export default function BusinessStrategyPage({ params }: PageProps) {
           breadcrumbs={[
             { label: "Home", href: "/" },
             { label: "Business", href: `/business/${businessId}` },
-            { label: "Strategy" },
+            { label: "Ads" },
           ]}
         />
         <div className="flex items-center justify-center flex-1">
@@ -56,14 +54,14 @@ export default function BusinessStrategyPage({ params }: PageProps) {
           breadcrumbs={[
             { label: "Home", href: "/" },
             { label: "Business", href: `/business/${businessId}` },
-            { label: "Strategy" },
+            { label: "Ads" },
           ]}
         />
         <div className="flex items-center justify-center flex-1">
           <div className="text-center">
             <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
             <p className="text-muted-foreground">
-              Please create a job in the profile page to view strategy data.
+              Please create a job in the profile page to view ads data.
             </p>
           </div>
         </div>
@@ -72,33 +70,30 @@ export default function BusinessStrategyPage({ params }: PageProps) {
   }
 
   return (
-    <EntitlementsGuard entitlement="strategy" businessId={businessId}>
-      <div className="flex flex-col h-screen">
-
-        <PageHeader
-          breadcrumbs={[
-            { label: "Home", href: "/" },
-            { label: "Business", href: `/business/${businessId}` },
-            { label: "Strategy" },
-          ]}
-        />
-        <div className="container mx-auto flex-1 min-h-0 py-5 px-4 flex flex-col">
-          <Tabs defaultValue="strategy" className="flex flex-col flex-1 min-h-0">
-            <TabsList className="shrink-0">
-              <TabsTrigger value="strategy">Strategy</TabsTrigger>
-              <TabsTrigger value="audience">Audience</TabsTrigger>
-            </TabsList>
-            <TabsContent value="strategy" className="flex-1 min-h-0 mt-4 overflow-hidden">
-              <StrategyTableClient businessId={businessId} />
-            </TabsContent>
-            <TabsContent value="audience" className="flex-1 min-h-0 mt-4 overflow-hidden">
-              <AudienceTableClient businessId={businessId} />
-            </TabsContent>
-          </Tabs>
-        </div>
+    <div className="flex flex-col h-screen">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Business", href: `/business/${businessId}` },
+          { label: "Ads" },
+        ]}
+      />
+      <div className="container mx-auto flex-1 min-h-0 py-5 px-4 flex flex-col">
+        <Tabs defaultValue="digital" className="flex flex-col flex-1 min-h-0">
+          <TabsList className="shrink-0">
+            <TabsTrigger value="digital">Digital</TabsTrigger>
+            <TabsTrigger value="tv-radio">TV & Radio</TabsTrigger>
+          </TabsList>
+          <TabsContent value="digital" className="flex-1 min-h-0 mt-4 overflow-hidden">
+            <DigitalAdsTableClient businessId={businessId} />
+          </TabsContent>
+          <TabsContent value="tv-radio" className="flex-1 min-h-0 mt-4">
+            <div className="p-4">
+              <p className="text-muted-foreground">TV & Radio ads content</p>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
-    </EntitlementsGuard>
-
+    </div>
   )
 }
-

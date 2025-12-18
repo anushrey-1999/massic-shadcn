@@ -1,10 +1,9 @@
 "use client"
 
 import React from 'react'
-import { StrategyTableClient } from '@/components/organisms/StrategyTable/strategy-table-client'
+import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page-table-client'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
-import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 
 interface PageProps {
   params: Promise<{
@@ -12,7 +11,7 @@ interface PageProps {
   }>
 }
 
-export default function BusinessStrategyPage({ params }: PageProps) {
+export default function BusinessWebPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
 
   React.useEffect(() => {
@@ -37,7 +36,7 @@ export default function BusinessStrategyPage({ params }: PageProps) {
           breadcrumbs={[
             { label: "Home", href: "/" },
             { label: "Business", href: `/business/${businessId}` },
-            { label: "Strategy" },
+            { label: "Web" },
           ]}
         />
         <div className="flex items-center justify-center flex-1">
@@ -54,14 +53,14 @@ export default function BusinessStrategyPage({ params }: PageProps) {
           breadcrumbs={[
             { label: "Home", href: "/" },
             { label: "Business", href: `/business/${businessId}` },
-            { label: "Strategy" },
+            { label: "Web" },
           ]}
         />
         <div className="flex items-center justify-center flex-1">
           <div className="text-center">
             <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
             <p className="text-muted-foreground">
-              Please create a job in the profile page to view strategy data.
+              Please create a job in the profile page to view web page data.
             </p>
           </div>
         </div>
@@ -70,22 +69,17 @@ export default function BusinessStrategyPage({ params }: PageProps) {
   }
 
   return (
-    <EntitlementsGuard entitlement="strategy" businessId={businessId}>
-      <div className="flex flex-col h-screen">
-
-        <PageHeader
-          breadcrumbs={[
-            { label: "Home", href: "/" },
-            { label: "Business", href: `/business/${businessId}` },
-            { label: "Strategy" },
-          ]}
-        />
-        <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
-          <StrategyTableClient businessId={businessId} />
-        </div>
+    <div className="flex flex-col h-screen">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Home", href: "/" },
+          { label: "Business", href: `/business/${businessId}` },
+          { label: "Web" },
+        ]}
+      />
+      <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
+        <WebPageTableClient businessId={businessId} />
       </div>
-    </EntitlementsGuard>
-
+    </div>
   )
 }
-

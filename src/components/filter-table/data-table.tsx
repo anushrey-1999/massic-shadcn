@@ -32,7 +32,9 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   table: TanstackTable<TData>;
   actionBar?: React.ReactNode;
   pageSizeOptions?: number[];
-  isLoading?: boolean; // Show skeleton rows when loading on first page
+  isLoading?: boolean;
+  isFetching?: boolean;
+  emptyMessage?: string;
 }
 
 export function DataTable<TData>({
@@ -42,6 +44,8 @@ export function DataTable<TData>({
   className,
   pageSizeOptions,
   isLoading = false,
+  isFetching = false,
+  emptyMessage = "No results found.",
   ...props
 }: DataTableProps<TData>) {
   const showLoading = isLoading && table.getRowModel().rows.length === 0;
@@ -62,8 +66,16 @@ export function DataTable<TData>({
       
       {/* Table container - Scrollable with max-height, no horizontal scroll */}
       <div className="relative flex-1 min-h-0 rounded-md border overflow-hidden">
-        <div className="h-full w-full overflow-y-auto overflow-x-hidden">
-          <TableElement className="w-full table-fixed" style={{ tableLayout: 'fixed' }}>
+        {isFetching && !showLoading && (
+          <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-20 flex items-center justify-center">
+            <div className="flex flex-col items-center justify-center gap-2">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <p className="text-xs text-muted-foreground">Loading...</p>
+            </div>
+          </div>
+        )}
+        <div className="h-full w-full overflow-y-auto overflow-x-auto">
+          <TableElement className="w-full" style={{ minWidth: '1000px' }}>
             <TableHeader className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -93,10 +105,9 @@ export function DataTable<TData>({
             </TableHeader>
             <TableBody>
               {showLoading ? (
-                // Show spinner when loading on first page
                 <TableRow>
                   <TableCell
-                    colSpan={table.getAllColumns().length}
+                    colSpan={table.getVisibleLeafColumns().length}
                     className="h-64 text-center"
                   >
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -134,10 +145,10 @@ export function DataTable<TData>({
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={table.getAllColumns().length}
+                    colSpan={table.getVisibleLeafColumns().length}
                     className="h-24 text-center text-muted-foreground"
                   >
-                    No tasks found.
+                    {emptyMessage}
                   </TableCell>
                 </TableRow>
               )}

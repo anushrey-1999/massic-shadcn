@@ -308,6 +308,18 @@ export function useToggleBusinessStatus() {
 
       const isCurrentlyActive = business.businessProfile?.IsActive;
       const businessId = business.businessProfile?.Id;
+      const businessUniqueId = business.businessProfile?.UniqueId;
+
+      // Old UI behavior: if unlinking, cancel subscription first (best-effort)
+      if (isCurrentlyActive) {
+        try {
+          if (businessUniqueId) {
+            await api.post(`/billing/businesses/${businessUniqueId}/cancel`, "node");
+          }
+        } catch {
+          // ignore: business might not have a subscription or cancellation might fail
+        }
+      }
 
       const payload: BusinessStatusPayload = {
         businessId: businessId!,

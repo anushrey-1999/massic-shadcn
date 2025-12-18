@@ -28,8 +28,18 @@ import {
   normalizeWebsiteUrl,
 } from "@/utils/utils";
 import { Button } from "@/components/ui/button";
-import { Link2Off, Unlink } from "lucide-react";
-import { BasicModal } from "@/components/molecules/BasicModal";
+import { Unlink } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useFetchBusinesses, useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
@@ -117,6 +127,7 @@ const ProfileTemplate = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [isUnlinkModalOpen, setIsUnlinkModalOpen] = useState(false);
+  const [isUnlinking, setIsUnlinking] = useState(false);
   const initialValuesRef = useRef<any>(null);
   const hasChangesRef = useRef(false);
   const rafIdRef = useRef<number | null>(null);
@@ -246,14 +257,14 @@ const ProfileTemplate = ({
     ];
     const brandToneSocial = (profileData as any).SocialBrandVoice
       ? (profileData as any).SocialBrandVoice.map((s: string) =>
-          s.toLowerCase().trim()
-        ).filter((s: string) => validOptions.includes(s))
+        s.toLowerCase().trim()
+      ).filter((s: string) => validOptions.includes(s))
       : [];
 
     const brandToneWeb = (profileData as any).WebBrandVoice
       ? (profileData as any).WebBrandVoice.map((s: string) =>
-          s.toLowerCase().trim()
-        ).filter((s: string) => validOptions.includes(s))
+        s.toLowerCase().trim()
+      ).filter((s: string) => validOptions.includes(s))
       : [];
 
     return {
@@ -277,8 +288,8 @@ const ProfileTemplate = ({
         return locationType === "products"
           ? "products"
           : locationType === "services"
-          ? "services"
-          : "products";
+            ? "services"
+            : "products";
       })() as "products" | "services" | "both",
       usps: usps,
       ctas: ctasList,
@@ -330,8 +341,8 @@ const ProfileTemplate = ({
             value.offerings === "products"
               ? "products"
               : value.offerings === "services"
-              ? "services"
-              : "products",
+                ? "services"
+                : "products",
           PrimaryLocation: {
             Location: location,
             Country: country,
@@ -340,30 +351,30 @@ const ProfileTemplate = ({
           USPs:
             value.usps && value.usps.trim()
               ? value.usps
-                  .split(",")
-                  ?.map((item: string) => item.trim())
-                  ?.filter((item: string) => item.length > 0)
+                .split(",")
+                ?.map((item: string) => item.trim())
+                ?.filter((item: string) => item.length > 0)
               : null,
           SellingPoints:
             value.usps && value.usps.trim()
               ? value.usps
-                  .split(",")
-                  ?.map((item: string) => item.trim())
-                  ?.filter((item: string) => item.length > 0)
+                .split(",")
+                ?.map((item: string) => item.trim())
+                ?.filter((item: string) => item.length > 0)
               : null, // Keep for backward compatibility
           BrandTerms:
             value.brandTerms && value.brandTerms.trim()
               ? value.brandTerms
-                  .split(",")
-                  ?.map((item: string) => item.trim())
-                  ?.filter((item: string) => item.length > 0)
+                .split(",")
+                ?.map((item: string) => item.trim())
+                ?.filter((item: string) => item.length > 0)
               : null,
           CTAs:
             value.ctas && value.ctas.length > 0
               ? (value.ctas || [])?.map((cta: any) => ({
-                  buttonText: cta.buttonText || "",
-                  url: cta.url || "",
-                }))
+                buttonText: cta.buttonText || "",
+                url: cta.url || "",
+              }))
               : null,
           CustomerPersonas: (value.stakeholders || [])?.map((s: any) => ({
             personName: s.name || "",
@@ -380,16 +391,16 @@ const ProfileTemplate = ({
           WebBrandVoice:
             value.brandToneWeb && value.brandToneWeb.length > 0
               ? value.brandToneWeb.map((v: string) => {
-                  // Convert lowercase to title case for business API
-                  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
-                })
+                // Convert lowercase to title case for business API
+                return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+              })
               : null,
           SocialBrandVoice:
             value.brandToneSocial && value.brandToneSocial.length > 0
               ? value.brandToneSocial.map((v: string) => {
-                  // Convert lowercase to title case for business API
-                  return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
-                })
+                // Convert lowercase to title case for business API
+                return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+              })
               : null,
         };
 
@@ -935,10 +946,10 @@ const ProfileTemplate = ({
       ? "Saving..."
       : "Save Changes"
     : isTriggeringWorkflow
-    ? "Triggering Workflow..."
-    : isWorkflowProcessing
-    ? "Workflow Processing..."
-    : "Confirm & Proceed to Strategy";
+      ? "Triggering Workflow..."
+      : isWorkflowProcessing
+        ? "Workflow Processing..."
+        : "Confirm & Proceed to Strategy";
 
   // Always use Save Changes handler when there are changes, even during workflow operations
   const handleButtonClick = hasChanges
@@ -951,10 +962,10 @@ const ProfileTemplate = ({
   const isButtonDisabled = hasChanges
     ? externalLoading || isSaving // Save Changes: only disable during initial loading or saving
     : externalLoading ||
-      isSaving ||
-      isTriggeringWorkflow ||
-      isWorkflowProcessing || // Disable if workflow is already processing
-      !externalJobDetails?.job_id; // Require job to exist before proceeding
+    isSaving ||
+    isTriggeringWorkflow ||
+    isWorkflowProcessing || // Disable if workflow is already processing
+    !externalJobDetails?.job_id; // Require job to exist before proceeding
 
   // Determine loading state and message
   const isLoading = externalLoading || isSaving || isTriggeringWorkflow;
@@ -964,6 +975,47 @@ const ProfileTemplate = ({
     if (externalLoading) return "Loading profile data...";
     return undefined;
   }, [isTriggeringWorkflow, isSaving, externalLoading]);
+
+  // Use the same API as Settings > Linked Businesses
+  const { data: linkedBusinessesData } = useFetchBusinesses();
+  const toggleBusinessStatusMutation = useToggleBusinessStatus();
+
+  const linkedBusiness = useMemo(() => {
+    const businesses = linkedBusinessesData?.businesses || [];
+    return businesses.find((b) => b.businessProfile?.UniqueId === businessId) || null;
+  }, [linkedBusinessesData?.businesses, businessId]);
+
+  const canUnlink = !!linkedBusiness?.businessProfile?.Id && linkedBusiness?.businessProfile?.IsActive === true;
+
+  const handleConfirmUnlink = useCallback(async () => {
+    if (!linkedBusiness) {
+      toast.error("Unable to unlink", {
+        description: "Linked business not found. Please try again from Settings.",
+      });
+      return;
+    }
+
+    if (!linkedBusiness.businessProfile?.Id) {
+      toast.error("Unable to unlink", {
+        description: "This business is not linked yet.",
+      });
+      return;
+    }
+
+    if (linkedBusiness.businessProfile.IsActive !== true) {
+      toast.info("Business is already unlinked");
+      setIsUnlinkModalOpen(false);
+      return;
+    }
+
+    setIsUnlinking(true);
+    try {
+      await toggleBusinessStatusMutation.mutateAsync({ business: linkedBusiness });
+      setIsUnlinkModalOpen(false);
+    } finally {
+      setIsUnlinking(false);
+    }
+  }, [linkedBusiness, toggleBusinessStatusMutation]);
 
   return (
     <div
@@ -1009,6 +1061,7 @@ const ProfileTemplate = ({
                 variant="destructive"
                 onClick={() => setIsUnlinkModalOpen(true)}
                 className="flex items-center gap-2"
+                disabled={!canUnlink || isUnlinking || toggleBusinessStatusMutation.isPending}
               >
                 <Unlink className="size-4" />
                 Unlink Business
@@ -1017,22 +1070,31 @@ const ProfileTemplate = ({
           </div>
         </div>
 
-        {/* Unlink Confirmation Modal */}
-        <BasicModal
-          open={isUnlinkModalOpen}
-          onOpenChange={setIsUnlinkModalOpen}
-          title="Are you sure want to unlink this business?"
-          description="This business will be removed from your dashboard, and Massic will stop collecting insights. You can reactivate it anytime later."
-          showCloseButton={false}
-          primaryButtonLabel="Unlink"
-          primaryButtonVariant="destructive"
-          primaryButtonIcon={Link2Off}
-          primaryButtonOnClick={() => {
-            // TODO: Implement unlink business logic here
-            setIsUnlinkModalOpen(false);
-            toast.success("Business unlinked successfully");
-          }}
-        />
+        {/* Unlink Confirmation Modal (shadcn) */}
+        <AlertDialog open={isUnlinkModalOpen} onOpenChange={setIsUnlinkModalOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure you want to unlink this business?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Unlinking this business will deactivate it, cancel any associated subscription, and remove it from your profile along with all linked accounts (GSC, GA4, GBP). This impacts your strategy and execution. Only do this if your business goals have significantly changed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isUnlinking || toggleBusinessStatusMutation.isPending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmUnlink}
+                  disabled={!canUnlink || isUnlinking || toggleBusinessStatusMutation.isPending}
+                >
+                  {isUnlinking || toggleBusinessStatusMutation.isPending ? "Unlinking..." : "Unlink"}
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </LoaderOverlay>
     </div>
   );

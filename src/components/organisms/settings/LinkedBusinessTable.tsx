@@ -18,6 +18,16 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Check, Link, Link2Off, Search, AlertCircle, Building2, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CustomSelect, type CustomSelectOption } from "@/components/molecules/settings/CustomSelect";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -161,6 +171,8 @@ export default function LinkedBusinessTable() {
   const [filter, setFilter] = useState("all");
   const [localBusinesses, setLocalBusinesses] = useState<LinkedBusiness[]>([]);
   const [loadingRowId, setLoadingRowId] = useState<string | null>(null);
+  const [confirmToggleOpen, setConfirmToggleOpen] = useState(false);
+  const [confirmToggleRow, setConfirmToggleRow] = useState<LinkedBusiness | null>(null);
 
   // API hooks
   const { data: businessesData, isLoading, refetch } = useFetchBusinesses();
@@ -244,6 +256,18 @@ export default function LinkedBusinessTable() {
     }
   };
 
+  const openToggleConfirm = (row: LinkedBusiness) => {
+    setConfirmToggleRow(row);
+    setConfirmToggleOpen(true);
+  };
+
+  const handleConfirmToggle = async () => {
+    if (!confirmToggleRow) return;
+    await handleToggleLink(confirmToggleRow);
+    setConfirmToggleOpen(false);
+    setConfirmToggleRow(null);
+  };
+
   const handleAcceptAll = async () => {
     const businessesToAccept = filteredData.filter((b) => !b.businessProfile?.Id && (b.siteUrl || b.displayName));
     if (businessesToAccept.length > 0) {
@@ -277,7 +301,7 @@ export default function LinkedBusinessTable() {
                     ? "border border-[#33848480] bg-[#2E7D3214]"
                     : "border border-[#D32F2F4D]"
                     }`}
-                  onClick={() => handleToggleLink(row.original)}
+                  onClick={() => openToggleConfirm(row.original)}
                 >
                   {isActive ? (
                     <Link className="h-4 w-4 text-green-600" />
@@ -392,7 +416,7 @@ export default function LinkedBusinessTable() {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <AlertCircle className="h-4 w-4 text-yellow-500 flex-shrink-0 cursor-help" />
+                            <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0 cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-[200px]">
                             <p className="text-sm">Multiple GA4 matches found ({(rowData.matchedGa4Multiple?.length || 0)} options). Click to select a different one.</p>
@@ -403,7 +427,7 @@ export default function LinkedBusinessTable() {
                         <p className="font-medium text-sm truncate">{getDisplayName()}</p>
                         <p className="text-xs text-muted-foreground truncate">ID: {getPropertyId()}</p>
                         <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-muted rounded border text-xs text-muted-foreground w-fit max-w-full">
-                          <Building2 className="h-3 w-3 flex-shrink-0" />
+                          <Building2 className="h-3 w-3 shrink-0" />
                           <span className="truncate">{getAccountName()} ({getAccountId()})</span>
                         </div>
                       </div>
@@ -438,7 +462,7 @@ export default function LinkedBusinessTable() {
                   <p className="font-medium text-sm truncate">{getDisplayName()}</p>
                   <p className="text-xs text-muted-foreground truncate">ID: {getPropertyId()}</p>
                   <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-muted rounded border text-xs text-muted-foreground w-fit max-w-full">
-                    <Building2 className="h-3 w-3 flex-shrink-0" />
+                    <Building2 className="h-3 w-3 shrink-0" />
                     <span className="truncate">{getAccountName()} ({getAccountId()})</span>
                   </div>
                 </div>
@@ -716,6 +740,46 @@ export default function LinkedBusinessTable() {
           </div>
         )}
       </CardContent>
+
+      {/* Confirm link/unlink (mirrors old UI warning) */}
+      <AlertDialog
+        open={confirmToggleOpen}
+        onOpenChange={(open) => {
+          setConfirmToggleOpen(open);
+          if (!open) setConfirmToggleRow(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmToggleRow?.businessProfile?.IsActive ? "Unlink Business" : "Link Business"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmToggleRow?.businessProfile?.IsActive
+                ? "Unlinking this business will deactivate it, cancel any associated subscription, and remove it from your profile along with all linked accounts (GSC, GA4, GBP). This impacts your strategy and execution. Only do this if your business goals have significantly changed."
+                : "Linking this business will add it and all linked accounts (GSC, GA4, GBP) to your profile. This impacts your strategy and execution. Only do this if your business goals have significantly changed."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={toggleStatusMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant={confirmToggleRow?.businessProfile?.IsActive ? "destructive" : "default"}
+                onClick={handleConfirmToggle}
+                disabled={toggleStatusMutation.isPending}
+              >
+                {toggleStatusMutation.isPending
+                  ? "Please wait..."
+                  : confirmToggleRow?.businessProfile?.IsActive
+                    ? "Unlink"
+                    : "Link"}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

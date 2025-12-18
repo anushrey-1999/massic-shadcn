@@ -173,3 +173,81 @@
     @apply bg-background text-foreground font-sans;
   }
 }
+
+@layer components {
+
+  /* Tailwind preflight resets headings to inherit; force hierarchy inside TipTap only. */
+  .tiptap-content {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .tiptap-content h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.25 !important;
+    font-weight: 600 !important;
+    margin: 0.75rem 0 !important;
+  }
+
+  .tiptap-content h2 {
+    font-size: 1.25rem !important;
+    line-height: 1.3 !important;
+    font-weight: 600 !important;
+    margin: 0.75rem 0 !important;
+  }
+
+  .tiptap-content h3 {
+    font-size: 1.125rem !important;
+    line-height: 1.35 !important;
+    font-weight: 600 !important;
+    margin: 0.75rem 0 !important;
+  }
+
+  .tiptap-content h4 {
+    font-size: 1rem !important;
+    line-height: 1.4 !important;
+    font-weight: 600 !important;
+    margin: 0.75rem 0 !important;
+  }
+
+  .tiptap-content p {
+    margin: 0.75rem 0 !important;
+  }
+
+  .tiptap-content ul {
+    list-style: disc !important;
+    padding-left: 1.5rem !important;
+    margin: 0.75rem 0 !important;
+  }
+
+  .tiptap-content ol {
+    list-style: decimal !important;
+    padding-left: 1.5rem !important;
+    margin: 0.75rem 0 !important;
+  }
+
+  .tiptap-content li {
+    margin: 0.25rem 0 !important;
+  }
+
+  .tiptap-content blockquote {
+    border-left: 2px solid var(--border) !important;
+    padding-left: 1rem !important;
+    margin: 0.75rem 0 !important;
+    font-style: italic !important;
+    color: var(--muted-foreground) !important;
+  }
+
+  .tiptap-content a {
+    text-decoration: underline !important;
+    text-underline-offset: 4px !important;
+  }
+
+  .tiptap-content strong {
+    font-weight: 600 !important;
+  }
+
+  .tiptap-content em {
+    font-style: italic !important;
+  }
+}

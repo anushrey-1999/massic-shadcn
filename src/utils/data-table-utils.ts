@@ -33,7 +33,7 @@ export function getCommonPinningStyles<TData>({
     right: isPinned === "right" ? `${column.getAfter("right")}px` : undefined,
     opacity: isPinned ? 0.97 : 1,
     position: isPinned ? "sticky" : "relative",
-    background: isPinned ? "var(--background)" : "var(--background)",
+    background: isPinned ? "var(--background)" : undefined,
     width: column.getSize(),
     zIndex: isPinned ? 1 : undefined,
   };
@@ -73,8 +73,8 @@ export function getValidFilters<TData>(
       (Array.isArray(filter.value)
         ? filter.value.length > 0
         : filter.value !== "" &&
-          filter.value !== null &&
-          filter.value !== undefined),
+        filter.value !== null &&
+        filter.value !== undefined),
   );
 }
 

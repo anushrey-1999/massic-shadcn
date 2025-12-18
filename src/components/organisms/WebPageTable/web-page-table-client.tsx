@@ -109,7 +109,7 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
 
   React.useEffect(() => {
     if (!jobExists || !webPageData || !webPageData.pageCount) return;
-    
+
     const pageCount = webPageData.pageCount;
     if (pageCount <= 1) return;
 
@@ -148,7 +148,7 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
       }
 
       const pagesToPrefetch = Math.min(2, pageCount - page);
-      
+
       for (let i = 1; i <= pagesToPrefetch; i++) {
         const nextPage = page + i;
         if (nextPage > pageCount) break;
@@ -230,6 +230,7 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
   return (
     <div className="relative h-full flex flex-col">
       <WebPageTable
+        businessId={businessId}
         data={webPageData?.data || []}
         pageCount={webPageData?.pageCount || 0}
         isLoading={webPageLoading && !webPageData}

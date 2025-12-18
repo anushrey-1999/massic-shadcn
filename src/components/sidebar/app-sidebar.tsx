@@ -175,7 +175,7 @@ export default function AppSidebar() {
     { label: 'Strategy', slug: 'strategy' },
     { label: 'Web', slug: 'web' },
     { label: 'Social', slug: 'social' },
-    { label: 'Actions', slug: 'actions' },
+    { label: 'Ads', slug: 'ads' },
     { label: 'Reviews', slug: 'reviews' },
     { label: 'Profile', slug: 'profile' },
   ]

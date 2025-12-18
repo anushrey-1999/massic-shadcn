@@ -35,6 +35,10 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   isLoading?: boolean;
   isFetching?: boolean;
   emptyMessage?: string;
+  onRowClick?: (row: TData) => void;
+  selectedRowId?: string | null;
+  showPagination?: boolean;
+  hideRowsPerPage?: boolean;
 }
 
 export function DataTable<TData>({
@@ -46,13 +50,17 @@ export function DataTable<TData>({
   isLoading = false,
   isFetching = false,
   emptyMessage = "No results found.",
+  onRowClick,
+  selectedRowId,
+  showPagination = true,
+  hideRowsPerPage = false,
   ...props
 }: DataTableProps<TData>) {
   const showLoading = isLoading && table.getRowModel().rows.length === 0;
   return (
     <div
       className={cn(
-        "flex h-full w-full flex-col gap-2.5",
+        "flex h-full w-full flex-col gap-2.5 overflow-hidden",
         className
       )}
       {...props}
@@ -75,8 +83,8 @@ export function DataTable<TData>({
           </div>
         )}
         <div className="h-full w-full overflow-y-auto overflow-x-auto">
-          <TableElement className="w-full" style={{ minWidth: '1000px' }}>
-            <TableHeader className="sticky top-0 z-10 ">
+          <TableElement className="w-full">
+            <TableHeader className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
@@ -118,37 +126,37 @@ export function DataTable<TData>({
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => {
-                  const rowMeta = row.original as { isSelected?: boolean; onClick?: () => void; [key: string]: any };
-                  const isSelected = rowMeta?.isSelected || false;
-                  const handleRowClick = rowMeta?.onClick;
+                  const isSelected = selectedRowId ? row.id === selectedRowId : row.getIsSelected();
                   return (
-                    <TableRow
-                      key={row.id}
-                      data-state={(isSelected || row.getIsSelected()) && "selected"}
-                      className={cn(
-                        handleRowClick && "cursor-pointer"
-                      )}
-                      onClick={handleRowClick}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          className={cn(
-                            "overflow-hidden",
-                            getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
-                          )}
-                          style={{
-                            width: cell.column.getSize(),
-                            ...getCommonPinningStyles({ column: cell.column }),
-                          }}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
+                  <TableRow
+                    key={row.id}
+                    data-state={isSelected && "selected"}
+                    className={cn(
+                      onRowClick && "cursor-pointer",
+                      "hover:bg-muted/70",
+                      isSelected && "bg-muted"
+                    )}
+                    onClick={() => onRowClick?.(row.original)}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          "overflow-hidden",
+                          getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
+                        )}
+                        style={{
+                          width: cell.column.getSize(),
+                          ...getCommonPinningStyles({ column: cell.column }),
+                        }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
                   );
                 })
               ) : (
@@ -167,12 +175,14 @@ export function DataTable<TData>({
       </div>
       
       {/* Pagination - Always visible, no scroll */}
-      <div className="shrink-0 flex flex-col gap-2.5">
-        <DataTablePagination table={table} pageSizeOptions={pageSizeOptions} />
-        {actionBar &&
-          table.getFilteredSelectedRowModel().rows.length > 0 &&
-          actionBar}
-      </div>
+      {showPagination && (
+        <div className="shrink-0 flex flex-col gap-2.5">
+          <DataTablePagination table={table} pageSizeOptions={pageSizeOptions} hideRowsPerPage={hideRowsPerPage} />
+          {actionBar &&
+            table.getFilteredSelectedRowModel().rows.length > 0 &&
+            actionBar}
+        </div>
+      )}
     </div>
   );
 }

@@ -39,6 +39,7 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   selectedRowId?: string | null;
   showPagination?: boolean;
   hideRowsPerPage?: boolean;
+  disableHorizontalScroll?: boolean;
 }
 
 export function DataTable<TData>({
@@ -54,6 +55,7 @@ export function DataTable<TData>({
   selectedRowId,
   showPagination = true,
   hideRowsPerPage = false,
+  disableHorizontalScroll = false,
   ...props
 }: DataTableProps<TData>) {
   const showLoading = isLoading && table.getRowModel().rows.length === 0;
@@ -82,8 +84,17 @@ export function DataTable<TData>({
             </div>
           </div>
         )}
-        <div className="h-full w-full overflow-y-auto overflow-x-auto">
-          <TableElement className="w-full table-fixed" style={{ minWidth: "1000px", tableLayout: "fixed" }}>
+        <div className={cn(
+          "h-full w-full overflow-y-auto",
+          disableHorizontalScroll ? "overflow-x-hidden" : "overflow-x-auto"
+        )}>
+          <TableElement 
+            className={cn(
+              "w-full",
+              disableHorizontalScroll ? "table-auto max-w-full" : "table-fixed"
+            )} 
+            style={disableHorizontalScroll ? {} : { minWidth: "1000px", tableLayout: "fixed" }}
+          >
             <TableHeader className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -95,7 +106,11 @@ export function DataTable<TData>({
                         "",
                         getAlignmentClass(header.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
                       )}
-                      style={{
+                      style={disableHorizontalScroll ? {
+                        minWidth: header.column.columnDef.minSize || header.getSize(),
+                        maxWidth: header.column.columnDef.maxSize,
+                        ...getCommonPinningStyles({ column: header.column }),
+                      } : {
                         width: header.getSize(),
                         minWidth: header.getSize(),
                         maxWidth: header.getSize(),
@@ -134,8 +149,7 @@ export function DataTable<TData>({
                     key={row.id}
                     data-state={isSelected && "selected"}
                     className={cn(
-                      onRowClick && "cursor-pointer",
-                      "hover:bg-muted/70",
+                      onRowClick && "cursor-pointer hover:bg-muted/70",
                       isSelected && "bg-muted"
                     )}
                     onClick={() => onRowClick?.(row.original)}
@@ -147,7 +161,11 @@ export function DataTable<TData>({
                           "overflow-hidden",
                           getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
                         )}
-                        style={{
+                        style={disableHorizontalScroll ? {
+                          minWidth: cell.column.columnDef.minSize || cell.column.getSize(),
+                          maxWidth: cell.column.columnDef.maxSize,
+                          ...getCommonPinningStyles({ column: cell.column }),
+                        } : {
                           width: cell.column.getSize(),
                           minWidth: cell.column.getSize(),
                           maxWidth: cell.column.getSize(),

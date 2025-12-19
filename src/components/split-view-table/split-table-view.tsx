@@ -232,6 +232,7 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
             showPagination={leftTableProps.showPagination !== false}
             hideRowsPerPage={leftTableProps.hideRowsPerPage}
             className="h-full"
+            disableHorizontalScroll={true}
           />
         </div>
         <div 
@@ -245,6 +246,7 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
             emptyMessage={rightEmptyMessage}
             showPagination={rightTableProps.showPagination !== false}
             className="h-full"
+            disableHorizontalScroll={true}
           />
         </div>
       </div>

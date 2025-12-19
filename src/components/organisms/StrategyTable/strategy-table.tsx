@@ -23,6 +23,7 @@ interface StrategyTableProps {
   isFetching?: boolean;
   search?: string;
   onSearchChange?: (value: string) => void;
+  onRowClick?: (row: StrategyRow) => void;
 }
 
 export function StrategyTable({
@@ -37,6 +38,7 @@ export function StrategyTable({
   isFetching = false,
   search = "",
   onSearchChange,
+  onRowClick,
 }: StrategyTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
@@ -80,6 +82,7 @@ export function StrategyTable({
       isFetching={isFetching}
       pageSizeOptions={[10, 30, 50, 100, 200]}
       emptyMessage="No strategy topics found. Try adjusting your filters or check back later."
+      onRowClick={onRowClick}
     >
       <DataTableAdvancedToolbar table={table}>
         {onSearchChange && (

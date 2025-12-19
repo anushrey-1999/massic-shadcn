@@ -105,7 +105,7 @@ export function DataTable<TData>({
                       key={header.id}
                       colSpan={header.colSpan}
                       className={cn(
-                        "bg-background",
+                        "",
                         getAlignmentClass(header.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
                       )}
                       style={{

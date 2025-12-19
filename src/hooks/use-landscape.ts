@@ -36,18 +36,13 @@ export function useLandscape(businessId: string) {
       
       if (response?.output_data?.landscapes) {
         landscapes = response.output_data.landscapes;
-      } else if (response?.landscapes) {
-        landscapes = response.landscapes;
       } else if (response?.output_data?.items) {
         // If landscapes is nested in items, try to find it
         const items = response.output_data.items;
-        if (Array.isArray(items) && items.length > 0 && items[0].landscapes) {
+        if (Array.isArray(items) && items.length > 0 && items[0]?.landscapes) {
           landscapes = items[0].landscapes;
         }
       }
-
-      console.log("Landscape API Response:", response);
-      console.log("Extracted landscapes:", landscapes);
 
       const flatRows = transformToTableRows(landscapes);
 

@@ -58,31 +58,34 @@ export function DigitalAdsTable({
   });
 
   return (
-    <DataTable 
-      table={table} 
-      isLoading={isLoading}
-      isFetching={isFetching}
-      pageSizeOptions={[10, 30, 50, 100, 200]}
-      emptyMessage="No digital ads opportunities found. Try adjusting your filters or check back later."
-      onRowClick={onRowClick}
-    >
-      <DataTableAdvancedToolbar table={table}>
-        {onSearchChange && (
-          <DataTableSearch
-            value={search}
-            onChange={onSearchChange}
-            placeholder="Search subtopics..."
+    <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
+      <DataTable 
+        table={table} 
+        isLoading={isLoading}
+        isFetching={isFetching}
+        pageSizeOptions={[10, 30, 50, 100, 200]}
+        emptyMessage="No digital ads opportunities found. Try adjusting your filters or check back later."
+        onRowClick={onRowClick}
+        disableHorizontalScroll={true}
+      >
+        <DataTableAdvancedToolbar table={table}>
+          {onSearchChange && (
+            <DataTableSearch
+              value={search}
+              onChange={onSearchChange}
+              placeholder="Search subtopics..."
+            />
+          )}
+          <DataTableSortList table={table} align="start" />
+          <DataTableFilterList
+            table={table}
+            shallow={shallow}
+            debounceMs={debounceMs}
+            throttleMs={throttleMs}
+            align="start"
           />
-        )}
-        <DataTableSortList table={table} align="start" />
-        <DataTableFilterList
-          table={table}
-          shallow={shallow}
-          debounceMs={debounceMs}
-          throttleMs={throttleMs}
-          align="start"
-        />
-      </DataTableAdvancedToolbar>
-    </DataTable>
+        </DataTableAdvancedToolbar>
+      </DataTable>
+    </div>
   );
 }

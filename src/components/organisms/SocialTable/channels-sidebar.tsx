@@ -90,6 +90,10 @@ function getChannelsTableColumns(
         const channel = row.original;
         const relevance = row.original.relevance;
 
+        if (channel.isAllChannels) {
+          return <div className="flex items-center"></div>;
+        }
+
         return (
           <div className="flex items-center">
             <RelevancePill score={relevance} />

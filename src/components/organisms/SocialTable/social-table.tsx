@@ -60,42 +60,45 @@ export function SocialTable({
   });
 
   return (
-    <div className="flex flex-col h-full w-full gap-2.5">
-      <div className="shrink-0">
-        <DataTableAdvancedToolbar table={table}>
-          {onSearchChange && (
-            <DataTableSearch
-              value={search}
-              onChange={onSearchChange}
-              placeholder="Search channels, campaigns..."
+    <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
+      <div className="flex flex-col h-full w-full gap-2.5">
+        <div className="shrink-0">
+          <DataTableAdvancedToolbar table={table}>
+            {onSearchChange && (
+              <DataTableSearch
+                value={search}
+                onChange={onSearchChange}
+                placeholder="Search channels, campaigns..."
+              />
+            )}
+            <DataTableSortList table={table} align="start" />
+            <DataTableFilterList
+              table={table}
+              shallow={shallow}
+              debounceMs={debounceMs}
+              throttleMs={throttleMs}
+              align="start"
             />
+          </DataTableAdvancedToolbar>
+        </div>
+        <div className="flex flex-1 min-h-0 gap-4">
+          {channelsSidebar && (
+            <div className="w-64 border border-border bg-background shrink-0 flex flex-col overflow-hidden h-[calc(100vh-14.6rem)] rounded-lg">
+              {channelsSidebar}
+            </div>
           )}
-          <DataTableSortList table={table} align="start" />
-          <DataTableFilterList
-            table={table}
-            shallow={shallow}
-            debounceMs={debounceMs}
-            throttleMs={throttleMs}
-            align="start"
-          />
-        </DataTableAdvancedToolbar>
-      </div>
-      <div className="flex flex-1 min-h-0 gap-4">
-        {channelsSidebar && (
-          <div className="w-64 border border-border bg-background shrink-0 flex flex-col overflow-hidden h-[calc(100vh-13rem)] rounded-lg">
-            {channelsSidebar}
+          <div className="flex-1 min-h-0 flex flex-col min-w-0">
+            <DataTable 
+              table={table} 
+              isLoading={isLoading}
+              isFetching={isFetching}
+              pageSizeOptions={[10, 30, 50, 100, 200]}
+              emptyMessage="No social campaigns found. Try adjusting your filters or check back later."
+              className="h-full"
+              onRowClick={onRowClick}
+              disableHorizontalScroll={true}
+            />
           </div>
-        )}
-        <div className="flex-1 min-h-0 flex flex-col">
-          <DataTable 
-            table={table} 
-            isLoading={isLoading}
-            isFetching={isFetching}
-            pageSizeOptions={[10, 30, 50, 100, 200]}
-            emptyMessage="No social campaigns found. Try adjusting your filters or check back later."
-            className="h-full"
-            onRowClick={onRowClick}
-          />
         </div>
       </div>
     </div>

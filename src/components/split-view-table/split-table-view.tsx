@@ -239,7 +239,6 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
             hideRowsPerPage={leftTableProps.hideRowsPerPage}
             disableHorizontalScroll={true}
             className="h-full"
-            disableHorizontalScroll={true}
           />
         </div>
         <div

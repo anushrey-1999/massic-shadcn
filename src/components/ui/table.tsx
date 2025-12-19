@@ -63,7 +63,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
       className={cn(
-        "border-b border-border/40 bg-background transition-colors hover:bg-muted/30 data-[state=selected]:bg-muted",
+        "border-b border-border/40 bg-background transition-colors data-[state=selected]:bg-muted",
         className
       )}
       {...props}
@@ -150,10 +150,10 @@ function DataTable<TData, TValue>({
   }, [onLoadMore, hasMore, isLoading])
 
   return (
-    <div className="relative">
+    <div className={cn("relative h-full flex flex-col", className?.replace("h-full", "").trim() || "")}>
       <div 
         ref={tableContainerRef} 
-        className={cn("relative w-full overflow-auto", className)}
+        className="relative w-full flex-1 min-h-0 overflow-auto"
       >
         <TableElement>
           <TableHeader>

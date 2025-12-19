@@ -4,20 +4,26 @@ import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useQueryState, parseAsInteger, parseAsString, parseAsJson } from "nuqs";
 import { StrategyTable } from "./strategy-table";
+import { StrategySplitView } from "./strategy-split-view";
+import type { StrategyClusterRow } from "./strategy-clusters-table-columns";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useStrategy } from "@/hooks/use-strategy";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
+import type { StrategyRow } from "@/types/strategy-types";
 
 interface StrategyTableClientProps {
   businessId: string;
 }
 
 export function StrategyTableClient({ businessId }: StrategyTableClientProps) {
+  const [isSplitView, setIsSplitView] = React.useState(false);
+  const [selectedTopicId, setSelectedTopicId] = React.useState<string | null>(null);
   // Read query parameters from URL
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
   const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
   const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
+  const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [sort] = useQueryState(
     "sort",
     parseAsJson<Array<{ id: string; desc: boolean }>>((value) => {
@@ -246,6 +252,62 @@ export function StrategyTableClient({ businessId }: StrategyTableClientProps) {
     );
   }
 
+  const handleRowClick = React.useCallback((row: StrategyRow) => {
+    setSelectedTopicId(row.id);
+    setIsSplitView(true);
+  }, []);
+
+  const handleBackToMain = React.useCallback(() => {
+    setIsSplitView(false);
+    setSelectedTopicId(null);
+  }, []);
+
+  const selectedTopic = React.useMemo(() => {
+    if (!selectedTopicId || !strategyData?.data) return null;
+    return strategyData.data.find(row => row.id === selectedTopicId) || null;
+  }, [selectedTopicId, strategyData?.data]);
+
+  const clustersData = React.useMemo((): StrategyClusterRow[] => {
+    if (!selectedTopic) return [];
+    
+    const clusters = selectedTopic.clusters || [];
+    if (!Array.isArray(clusters) || clusters.length === 0) return [];
+
+    return clusters.map((cluster: any, index: number) => {
+      const clusterName = cluster?.cluster || "";
+      const keywords = Array.isArray(cluster?.keywords) 
+        ? cluster.keywords.filter((k: any) => k && typeof k === 'string')
+        : [];
+      
+      return {
+        id: `${selectedTopicId}_${clusterName}_${index}`,
+        cluster: clusterName,
+        keywords: keywords,
+        topic: selectedTopic.topic,
+      };
+    });
+  }, [selectedTopic, selectedTopicId]);
+
+  if (isSplitView) {
+    return (
+      <div className="relative h-full flex flex-col">
+        <StrategySplitView
+          leftTableData={strategyData?.data || []}
+          clustersData={clustersData}
+          selectedTopicId={selectedTopicId}
+          onTopicSelect={setSelectedTopicId}
+          search={splitViewSearch}
+          onSearchChange={setSplitViewSearch}
+          onBack={handleBackToMain}
+          pageCount={strategyData?.pageCount || 0}
+          businessRelevanceRange={
+            countsData?.businessRelevanceRange || { min: 0, max: 1 }
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-full flex flex-col">
       <StrategyTable
@@ -265,6 +327,7 @@ export function StrategyTableClient({ businessId }: StrategyTableClientProps) {
         isFetching={strategyFetching}
         search={search}
         onSearchChange={setSearch}
+        onRowClick={handleRowClick}
       />
     </div>
   );

@@ -114,12 +114,10 @@ export function getStrategyTableColumns({
       ),
       cell: ({ row }) => {
         const clusters = row.original.clusters;
-        const clusterNames = clusters.map((cluster: any) => cluster.cluster);
+        const clusterCount = clusters.length;
         
         return (
-          <div className="max-w-full">
-            <ExpandablePills items={clusterNames} pillVariant="outline" />
-          </div>
+          <Typography variant="p">{clusterCount}</Typography>
         );
       },
       meta: {
@@ -142,12 +140,12 @@ export function getStrategyTableColumns({
       ),
       cell: ({ row }) => {
         const clusters = row.original.clusters;
-        const allKeywords = clusters.flatMap((cluster: any) => cluster.keywords || []);
+        const totalKeywords = clusters.reduce((sum: number, cluster: any) => {
+          return sum + (cluster.keywords?.length || 0);
+        }, 0);
         
         return (
-          <div className="max-w-full">
-            <ExpandablePills items={allKeywords} pillVariant="outline" />
-          </div>
+          <Typography variant="p">{totalKeywords}</Typography>
         );
       },
       meta: {

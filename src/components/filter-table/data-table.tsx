@@ -84,18 +84,16 @@ export function DataTable<TData>({
             </div>
           </div>
         )}
-        <div
-          className={cn(
-            "h-full w-full overflow-y-auto",
-            disableHorizontalScroll ? "overflow-x-hidden" : "overflow-x-auto",
-          )}
-        >
-          <TableElement
-            className="w-full table-fixed"
-            style={{
-              minWidth: disableHorizontalScroll ? undefined : "1000px",
-              tableLayout: "fixed",
-            }}
+        <div className={cn(
+          "h-full w-full overflow-y-auto",
+          disableHorizontalScroll ? "overflow-x-hidden" : "overflow-x-auto"
+        )}>
+          <TableElement 
+            className={cn(
+              "w-full",
+              disableHorizontalScroll ? "table-auto max-w-full" : "table-fixed"
+            )} 
+            style={disableHorizontalScroll ? {} : { minWidth: "1000px", tableLayout: "fixed" }}
           >
             <TableHeader className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (
@@ -108,7 +106,11 @@ export function DataTable<TData>({
                         "",
                         getAlignmentClass(header.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
                       )}
-                      style={{
+                      style={disableHorizontalScroll ? {
+                        minWidth: header.column.columnDef.minSize || header.getSize(),
+                        maxWidth: header.column.columnDef.maxSize,
+                        ...getCommonPinningStyles({ column: header.column }),
+                      } : {
                         width: header.getSize(),
                         minWidth: header.getSize(),
                         maxWidth: header.getSize(),
@@ -143,37 +145,40 @@ export function DataTable<TData>({
                 table.getRowModel().rows.map((row) => {
                   const isSelected = selectedRowId ? row.id === selectedRowId : row.getIsSelected();
                   return (
-                    <TableRow
-                      key={row.id}
-                      data-state={isSelected && "selected"}
-                      className={cn(
-                        onRowClick && "cursor-pointer",
-                        "hover:bg-muted/70",
-                        isSelected && "bg-muted"
-                      )}
-                      onClick={() => onRowClick?.(row.original)}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell
-                          key={cell.id}
-                          className={cn(
-                            "overflow-hidden",
-                            getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
-                          )}
-                          style={{
-                            width: cell.column.getSize(),
-                            minWidth: cell.column.getSize(),
-                            maxWidth: cell.column.getSize(),
-                            ...getCommonPinningStyles({ column: cell.column }),
-                          }}
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
+                  <TableRow
+                    key={row.id}
+                    data-state={isSelected && "selected"}
+                    className={cn(
+                      onRowClick && "cursor-pointer hover:bg-muted/70",
+                      isSelected && "bg-muted"
+                    )}
+                    onClick={() => onRowClick?.(row.original)}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          "overflow-hidden",
+                          getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
+                        )}
+                        style={disableHorizontalScroll ? {
+                          minWidth: cell.column.columnDef.minSize || cell.column.getSize(),
+                          maxWidth: cell.column.columnDef.maxSize,
+                          ...getCommonPinningStyles({ column: cell.column }),
+                        } : {
+                          width: cell.column.getSize(),
+                          minWidth: cell.column.getSize(),
+                          maxWidth: cell.column.getSize(),
+                          ...getCommonPinningStyles({ column: cell.column }),
+                        }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
                   );
                 })
               ) : (

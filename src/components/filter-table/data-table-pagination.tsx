@@ -32,34 +32,37 @@ export function DataTablePagination<TData>({
   return (
     <div
       className={cn(
-        "flex w-full flex-col-reverse items-center justify-end gap-4 p-1 sm:flex-row sm:gap-8",
+        "flex w-full flex-col gap-4 p-1 sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
       {...props}
     >
-      <div className="flex flex-col-reverse items-center gap-4 sm:flex-row sm:gap-6 lg:gap-8 min-w-0">
-        {!hideRowsPerPage && (
-          <div className="flex items-center space-x-2">
-            <p className="whitespace-nowrap font-medium text-sm">Rows per page</p>
-            <Select
-              value={`${table.getState().pagination.pageSize}`}
-              onValueChange={(value) => {
-                table.setPageSize(Number(value));
-              }}
+      {!hideRowsPerPage && (
+        <div className="flex items-center space-x-2 shrink-0">
+          <p className="whitespace-nowrap text-xs font-medium">Rows per page</p>
+          <Select
+            value={`${table.getState().pagination.pageSize}`}
+            onValueChange={(value) => {
+              table.setPageSize(Number(value));
+            }}
+          >
+            <SelectTrigger 
+              size="sm"
+              className="text-xs"
             >
-              <SelectTrigger className="h-8 w-24 data-size:h-8">
-                <SelectValue placeholder={table.getState().pagination.pageSize} />
-              </SelectTrigger>
-              <SelectContent side="top">
-                {pageSizeOptions.map((pageSize) => (
-                  <SelectItem key={pageSize} value={`${pageSize}`}>
-                    {pageSize}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+              <SelectValue placeholder={table.getState().pagination.pageSize} />
+            </SelectTrigger>
+            <SelectContent side="top">
+              {pageSizeOptions.map((pageSize) => (
+                <SelectItem key={pageSize} value={`${pageSize}`} className="text-xs">
+                  {pageSize}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <div className="flex items-center gap-2 shrink-0">
         <div className="flex shrink-0 items-center justify-center whitespace-nowrap font-medium text-sm">
           Page {table.getState().pagination.pageIndex + 1} of{" "}
           {table.getPageCount()}

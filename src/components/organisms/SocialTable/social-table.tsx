@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { DataTable } from "../../filter-table/index";
-import { DataTableAdvancedToolbar } from "../../filter-table/data-table-advanced-toolbar";
 import { DataTableFilterList } from "../../filter-table/data-table-filter-list";
 import { DataTableSortList } from "../../filter-table/data-table-sort-list";
 import { DataTableSearch } from "../../filter-table/data-table-search";
+import { DataTableViewOptions } from "../../filter-table/data-table-view-options";
 import type { SocialRow } from "@/types/social-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
@@ -63,23 +63,32 @@ export function SocialTable({
     <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
       <div className="flex flex-col h-full w-full gap-2.5">
         <div className="shrink-0">
-          <DataTableAdvancedToolbar table={table}>
-            {onSearchChange && (
-              <DataTableSearch
-                value={search}
-                onChange={onSearchChange}
-                placeholder="Search channels, campaigns..."
+          <div
+            role="toolbar"
+            aria-orientation="horizontal"
+            className="flex w-full items-start justify-between gap-2 p-1"
+          >
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              {onSearchChange && (
+                <DataTableSearch
+                  value={search}
+                  onChange={onSearchChange}
+                  placeholder="Search channels, campaigns..."
+                />
+              )}
+              <DataTableFilterList
+                table={table}
+                shallow={shallow}
+                debounceMs={debounceMs}
+                throttleMs={throttleMs}
+                align="start"
               />
-            )}
-            <DataTableSortList table={table} align="start" />
-            <DataTableFilterList
-              table={table}
-              shallow={shallow}
-              debounceMs={debounceMs}
-              throttleMs={throttleMs}
-              align="start"
-            />
-          </DataTableAdvancedToolbar>
+            </div>
+            <div className="flex items-center gap-2">
+              <DataTableSortList table={table} align="start" />
+              <DataTableViewOptions table={table} align="end" />
+            </div>
+          </div>
         </div>
         <div className="flex flex-1 min-h-0 gap-4">
           {channelsSidebar && (

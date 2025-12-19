@@ -210,12 +210,14 @@ export function DataTableFilterList<TData>({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            size="sm"
-            className="font-normal"
+            className={`h-9 font-normal ${
+              filters.length > 0
+                ? "min-w-9 px-2 gap-1.5"
+                : "w-9 p-0"
+            }`}
             onKeyDown={onTriggerKeyDown}
           >
-            <ListFilter className="text-muted-foreground" />
-            Filter
+            <ListFilter className="text-muted-foreground h-4 w-4" />
             {filters.length > 0 && (
               <Badge
                 variant="secondary"

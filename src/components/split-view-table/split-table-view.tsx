@@ -3,9 +3,9 @@
 import * as React from "react";
 import type { Table } from "@tanstack/react-table";
 import { DataTable } from "@/components/filter-table/index";
-import { DataTableAdvancedToolbar } from "@/components/filter-table/data-table-advanced-toolbar";
 import { DataTableFilterList } from "@/components/filter-table/data-table-filter-list";
 import { DataTableSearch } from "@/components/filter-table/data-table-search";
+import { DataTableViewOptions } from "@/components/filter-table/data-table-view-options";
 import { UnifiedSortList } from "./index";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -183,39 +183,48 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
     <div className="flex-1 min-h-0 flex flex-col">
       {/* Unified Toolbar - Controls both tables */}
       <div className="shrink-0 mb-4">
-        <DataTableAdvancedToolbar table={leftTable}>
-          {onBack && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="h-8 w-8 p-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          {onSearchChange && (
-            <DataTableSearch
-              value={search}
-              onChange={onSearchChange}
-              placeholder={searchPlaceholder}
+        <div
+          role="toolbar"
+          aria-orientation="horizontal"
+          className="flex w-full items-start justify-between gap-2 p-1"
+        >
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            {onBack && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBack}
+                className="h-8 w-8 p-0"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            {onSearchChange && (
+              <DataTableSearch
+                value={search}
+                onChange={onSearchChange}
+                placeholder={searchPlaceholder}
+              />
+            )}
+            {showFilters && (
+              <DataTableFilterList
+                table={leftTable}
+                shallow={leftTableHooks.shallow}
+                debounceMs={leftTableHooks.debounceMs}
+                throttleMs={leftTableHooks.throttleMs}
+                align="start"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <UnifiedSortList
+              leftTable={leftTable}
+              rightTable={rightTable}
+              columnMapping={columnMapping}
             />
-          )}
-          <UnifiedSortList
-            leftTable={leftTable}
-            rightTable={rightTable}
-            columnMapping={columnMapping}
-          />
-          {showFilters && (
-            <DataTableFilterList
-              table={leftTable}
-              shallow={leftTableHooks.shallow}
-              debounceMs={leftTableHooks.debounceMs}
-              throttleMs={leftTableHooks.throttleMs}
-              align="start"
-            />
-          )}
-        </DataTableAdvancedToolbar>
+            <DataTableViewOptions table={leftTable} align="end" />
+          </div>
+        </div>
       </div>
 
       {/* Tables */}

@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { DataTable } from "../../filter-table/index";
-import { DataTableAdvancedToolbar } from "../../filter-table/data-table-advanced-toolbar";
 import { DataTableFilterList } from "../../filter-table/data-table-filter-list";
 import { DataTableSortList } from "../../filter-table/data-table-sort-list";
 import { DataTableSearch } from "../../filter-table/data-table-search";
+import { DataTableViewOptions } from "../../filter-table/data-table-view-options";
 import type { AudienceRow } from "@/types/audience-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
@@ -79,23 +79,32 @@ export function AudienceTable({
         onRowClick={onRowClick}
         disableHorizontalScroll={true}
       >
-        <DataTableAdvancedToolbar table={table}>
-          {onSearchChange && (
-            <DataTableSearch
-              value={search}
-              onChange={onSearchChange}
-              placeholder="Search personas..."
+        <div
+          role="toolbar"
+          aria-orientation="horizontal"
+          className="flex w-full items-start justify-between gap-2 p-1"
+        >
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            {onSearchChange && (
+              <DataTableSearch
+                value={search}
+                onChange={onSearchChange}
+                placeholder="Search personas..."
+              />
+            )}
+            <DataTableFilterList
+              table={table}
+              shallow={shallow}
+              debounceMs={debounceMs}
+              throttleMs={throttleMs}
+              align="start"
             />
-          )}
-          <DataTableSortList table={table} align="start" />
-          <DataTableFilterList
-            table={table}
-            shallow={shallow}
-            debounceMs={debounceMs}
-            throttleMs={throttleMs}
-            align="start"
-          />
-        </DataTableAdvancedToolbar>
+          </div>
+          <div className="flex items-center gap-2">
+            <DataTableSortList table={table} align="start" />
+            <DataTableViewOptions table={table} align="end" />
+          </div>
+        </div>
       </DataTable>
     </div>
   );

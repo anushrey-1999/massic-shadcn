@@ -47,11 +47,9 @@ export function DataTableViewOptions<TData>({
           aria-label="Toggle columns"
           role="combobox"
           variant="outline"
-          size="sm"
-          className="ml-auto hidden h-8 font-normal lg:flex"
+          className="ml-auto hidden h-9 w-9 p-0 font-normal lg:flex"
         >
-          <Settings2 className="text-muted-foreground" />
-          View
+          <Settings2 className="text-muted-foreground h-4 w-4" />
         </Button>
       </PopoverTrigger>
       <PopoverContent 

@@ -132,7 +132,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
 
   React.useEffect(() => {
     if (!jobExists || !socialData || !socialData.pageCount) return;
-    
+
     const pageCount = socialData.pageCount;
     if (pageCount <= 1) return;
 
@@ -173,7 +173,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
       }
 
       const pagesToPrefetch = Math.min(2, pageCount - page);
-      
+
       for (let i = 1; i <= pagesToPrefetch; i++) {
         const nextPage = page + i;
         if (nextPage > pageCount) break;
@@ -341,6 +341,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     return (
       <div className="relative h-full flex flex-col">
         <TacticsTable
+          businessId={businessId}
           data={tacticsData?.data || []}
           pageCount={tacticsData?.pageCount || 0}
           isLoading={tacticsLoading && !tacticsData}

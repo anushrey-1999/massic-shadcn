@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { TacticRow } from "@/types/social-types";
 import { Tag, FileText, TrendingUp, Hash, CheckCircle2, Sparkles, Eye } from "lucide-react";
+import { SocialActionCell } from "./social-action-cell";
 
 interface GetTacticsTableColumnsProps {
   channelName?: string;
+  businessId?: string;
 }
 
 function extractRedditThreadPath(url: string): string {
@@ -32,7 +34,7 @@ function extractRedditThreadPath(url: string): string {
   }
 }
 
-export function getTacticsTableColumns({ channelName }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
+export function getTacticsTableColumns({ channelName, businessId }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
   const isReddit = channelName?.toLowerCase() === "reddit";
 
   if (isReddit) {
@@ -46,7 +48,7 @@ export function getTacticsTableColumns({ channelName }: GetTacticsTableColumnsPr
         cell: ({ row }) => {
           const url = row.original.url || "";
           const displayPath = extractRedditThreadPath(url);
-          
+
           if (!url || !displayPath) {
             return (
               <Typography variant="p" className="truncate text-muted-foreground">
@@ -157,6 +159,26 @@ export function getTacticsTableColumns({ channelName }: GetTacticsTableColumnsPr
         size: 200,
         minSize: 150,
         maxSize: 250,
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-sm font-semibold">Actions</div>,
+        cell: ({ row }) => {
+          if (!businessId) {
+            return (
+              <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled>
+                <Sparkles className="h-4 w-4" />
+              </Button>
+            );
+          }
+
+          return <SocialActionCell businessId={businessId} row={row.original} channelName={channelName} />;
+        },
+        enableColumnFilter: false,
+        enableSorting: false,
+        size: 100,
+        minSize: 100,
+        maxSize: 100,
       },
     ];
   }
@@ -312,17 +334,16 @@ export function getTacticsTableColumns({ channelName }: GetTacticsTableColumnsPr
     {
       id: "actions",
       header: () => <div className="text-sm font-semibold">Actions</div>,
-      cell: () => {
-        return (
-          <div className="flex items-center justify-center gap-2">
-            <Button size="sm" variant="default" className="h-8 w-8 p-0">
+      cell: ({ row }) => {
+        if (!businessId) {
+          return (
+            <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled>
               <Sparkles className="h-4 w-4" />
             </Button>
-            <Button size="sm" variant="outline" className="h-8 w-8 p-0">
-              <Eye className="h-4 w-4" />
-            </Button>
-          </div>
-        );
+          );
+        }
+
+        return <SocialActionCell businessId={businessId} row={row.original} channelName={channelName} />;
       },
       enableColumnFilter: false,
       enableSorting: false,

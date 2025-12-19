@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
+import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 
 interface PageProps {
   params: Promise<{
@@ -20,7 +21,19 @@ export default function BusinessAdsPage({ params }: PageProps) {
   }, [params])
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
+  const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const jobExists = jobDetails && jobDetails.job_id
+  
+  const businessName = profileData?.Name || profileData?.DisplayName || "Business"
+
+  const breadcrumbs = React.useMemo(
+    () => [
+      { label: "Home", href: "/" },
+      { label: businessName },
+      { label: "Ads" },
+    ],
+    [businessName]
+  )
 
   if (!businessId) {
     return (
@@ -30,16 +43,10 @@ export default function BusinessAdsPage({ params }: PageProps) {
     )
   }
 
-  if (jobLoading) {
+  if (jobLoading || profileDataLoading) {
     return (
       <div className="flex flex-col h-screen">
-        <PageHeader
-          breadcrumbs={[
-            { label: "Home", href: "/" },
-            { label: "Business", href: `/business/${businessId}` },
-            { label: "Ads" },
-          ]}
-        />
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex items-center justify-center flex-1">
           <p className="text-muted-foreground">Checking job status...</p>
         </div>
@@ -50,13 +57,7 @@ export default function BusinessAdsPage({ params }: PageProps) {
   if (!jobExists) {
     return (
       <div className="flex flex-col h-screen">
-        <PageHeader
-          breadcrumbs={[
-            { label: "Home", href: "/" },
-            { label: "Business", href: `/business/${businessId}` },
-            { label: "Ads" },
-          ]}
-        />
+        <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex items-center justify-center flex-1">
           <div className="text-center">
             <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
@@ -71,14 +72,8 @@ export default function BusinessAdsPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-screen">
-      <PageHeader
-        breadcrumbs={[
-          { label: "Home", href: "/" },
-          { label: "Business", href: `/business/${businessId}` },
-          { label: "Ads" },
-        ]}
-      />
-      <div className="container mx-auto flex-1 min-h-0 py-5 px-4 flex flex-col">
+      <PageHeader breadcrumbs={breadcrumbs} />
+      <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
         <Tabs defaultValue="digital" className="flex flex-col flex-1 min-h-0">
           <TabsList className="shrink-0">
             <TabsTrigger value="digital">Digital</TabsTrigger>

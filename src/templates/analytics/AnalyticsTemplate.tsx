@@ -21,12 +21,6 @@ const navItems = [
   { id: "reviews", label: "Reviews" },
 ]
 
-const breadcrumbs = [
-  { label: "Home" },
-  { label: "GSC Search Queries" },
-  { label: "Analytics" },
-]
-
 export function AnalyticsTemplate() {
   const [activeSection, setActiveSection] = useState("organic")
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriodValue>("3 months")
@@ -43,6 +37,17 @@ export function AnalyticsTemplate() {
     const profile = profiles.find((p) => p.UniqueId === id)
     return { businessProfile: profile || null }
   }, [pathname, profiles])
+
+  const businessName = businessProfile?.Name || businessProfile?.DisplayName || "Business"
+
+  const breadcrumbs = useMemo(
+    () => [
+      { label: "Home", href: "/" },
+      { label: businessName },
+      { label: "Analytics" },
+    ],
+    [businessName]
+  )
 
   const locations = useMemo(() => {
     if (!businessProfile?.Locations || businessProfile.Locations.length === 0) {

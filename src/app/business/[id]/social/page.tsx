@@ -6,6 +6,7 @@ import { SocialTableClient } from '@/components/organisms/SocialTable/social-tab
 import { ChannelsSidebar } from '@/components/organisms/SocialTable/channels-sidebar'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
+import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 
 interface PageProps {
   params: Promise<{
@@ -29,19 +30,22 @@ export default function BusinessSocialPage({ params }: PageProps) {
   }, [params])
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
+  const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const jobExists = jobDetails && jobDetails.job_id
+  
+  const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
   const breadcrumbs = React.useMemo(() => {
     const baseBreadcrumbs = [
       { label: "Home", href: "/" },
-      { label: "Business", href: businessId ? `/business/${businessId}` : undefined },
+      { label: businessName },
       { label: "Social" },
     ]
     if (campaignName) {
       baseBreadcrumbs.push({ label: campaignName })
     }
     return baseBreadcrumbs
-  }, [businessId, campaignName])
+  }, [businessName, campaignName])
 
   if (!businessId) {
     return (
@@ -51,7 +55,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
     )
   }
 
-  if (jobLoading) {
+  if (jobLoading || profileDataLoading) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader

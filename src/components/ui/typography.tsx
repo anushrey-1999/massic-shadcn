@@ -21,6 +21,7 @@ const typographyVariants = cva("", {
       large: "text-lg font-semibold",
       small: "text-sm font-medium leading-none",
       muted: "text-sm text-muted-foreground",
+      extraSmall: "text-[10px] font-medium text-foreground leading-[150%]",
     },
   },
   defaultVariants: {
@@ -69,6 +70,7 @@ const variantToElement: Record<
   lead: "p",
   large: "div",
   small: "small",
+  extraSmall: "span",
   muted: "p",
 }
 

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { Typography } from "./typography";
 
 interface RelevancePillProps {
   score: number;
@@ -31,14 +32,14 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 px-2 py-1 rounded-lg border bg-white",
+        "inline-flex items-center gap-2 px-2 py-[4.5px] rounded-lg border bg-white",
         className
       )}
     >
       <div className="flex items-end gap-0.5">
         {[1, 2, 3, 4].map((barIndex) => {
           const isFilled = barIndex <= barsToFill;
-          const heights = ["h-1.5", "h-2", "h-2.5", "h-3"];
+          const heights = ["h-1", "h-1.5", "h-2", "h-2.5"];
           
           return (
             <div
@@ -54,9 +55,12 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
           );
         })}
       </div>
-      <span className="text-xs font-semibold text-foreground">
+      <Typography
+        variant="extraSmall"
+        className="text-foreground leading-[150%]"
+      >
         {scorePercentage}
-      </span>
+      </Typography>
     </div>
   );
 }

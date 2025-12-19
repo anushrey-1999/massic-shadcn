@@ -1,7 +1,9 @@
 "use client"
 
 import React from 'react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page-table-client'
+import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOptimizationAnalysisTable'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 
@@ -77,8 +79,19 @@ export default function BusinessWebPage({ params }: PageProps) {
           { label: "Web" },
         ]}
       />
-      <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
-        <WebPageTableClient businessId={businessId} />
+      <div className="container mx-auto flex-1 min-h-0 py-5 px-4 flex flex-col">
+        <Tabs defaultValue="new-pages" className="flex flex-col flex-1 min-h-0">
+          <TabsList className="shrink-0">
+            <TabsTrigger value="new-pages">New Pages</TabsTrigger>
+            <TabsTrigger value="optimize">Optimize</TabsTrigger>
+          </TabsList>
+          <TabsContent value="new-pages" className="flex-1 min-h-0 mt-4 overflow-hidden">
+            <WebPageTableClient businessId={businessId} />
+          </TabsContent>
+          <TabsContent value="optimize" className="flex-1 min-h-0 mt-4 overflow-hidden">
+            <WebOptimizationAnalysisTableClient businessId={businessId} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

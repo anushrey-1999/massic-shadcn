@@ -61,6 +61,9 @@ interface SplitTableViewProps<TLeftData, TRightData> {
 
   // Back button
   onBack?: () => void;
+
+  // Whether to show filter list (FilterList writes to URL params)
+  showFilters?: boolean;
 }
 
 export const SplitTableView = React.memo(<TLeftData, TRightData>({
@@ -81,6 +84,7 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
   rightTableWidth = "65%",
   gap = "1rem",
   onBack,
+  showFilters = true,
 }: SplitTableViewProps<TLeftData, TRightData>) => {
   // Memoize searchable columns to avoid finding them on every render
   const leftSearchableColumn = React.useMemo(() => {
@@ -127,10 +131,10 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
     leftFilters.forEach((filter) => {
       const columnId = filter.id;
       const mappedColumnId = columnMapping[columnId];
-      
+
       // Only sync if there's an explicit mapping
       if (!mappedColumnId) return;
-      
+
       const rightColumn = rightTable.getColumn(mappedColumnId);
       if (rightColumn && rightColumn.getFilterValue() !== filter.value) {
         rightColumn.setFilterValue(filter.value);
@@ -154,12 +158,12 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
     const sort = leftSort[0];
     // Only sync if there's an explicit mapping in columnMapping
     const mappedColumnId = columnMapping[sort.id];
-    
+
     // Don't sync if there's no mapping - let UnifiedSortList handle independent sorting
     if (!mappedColumnId) return;
-    
+
     const rightColumn = rightTable.getColumn(mappedColumnId);
-    
+
     // Only proceed if the mapped column exists in the right table
     if (rightColumn) {
       const currentRightSort = rightTable.getState().sorting;
@@ -202,27 +206,29 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
             rightTable={rightTable}
             columnMapping={columnMapping}
           />
-          <DataTableFilterList
-            table={leftTable}
-            shallow={leftTableHooks.shallow}
-            debounceMs={leftTableHooks.debounceMs}
-            throttleMs={leftTableHooks.throttleMs}
-            align="start"
-          />
+          {showFilters && (
+            <DataTableFilterList
+              table={leftTable}
+              shallow={leftTableHooks.shallow}
+              debounceMs={leftTableHooks.debounceMs}
+              throttleMs={leftTableHooks.throttleMs}
+              align="start"
+            />
+          )}
         </DataTableAdvancedToolbar>
       </div>
 
       {/* Tables */}
-      <div 
+      <div
         className="flex-1 min-h-0 flex"
         style={{ gap, alignItems: 'stretch' }}
       >
-        <div 
+        <div
           className="flex flex-col shrink-0 h-full overflow-hidden"
           style={{ width: leftTableWidth, minWidth: 0, maxWidth: leftTableWidth }}
         >
-          <DataTable 
-            table={leftTable} 
+          <DataTable
+            table={leftTable}
             isLoading={false}
             isFetching={false}
             pageSizeOptions={leftTableProps.pageSizeOptions || [10, 30, 50, 100, 200]}
@@ -231,15 +237,16 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
             selectedRowId={leftTableProps.selectedRowId}
             showPagination={leftTableProps.showPagination !== false}
             hideRowsPerPage={leftTableProps.hideRowsPerPage}
+            disableHorizontalScroll={true}
             className="h-full"
             disableHorizontalScroll={true}
           />
         </div>
-        <div 
+        <div
           className="flex flex-col flex-1 min-w-0 h-full overflow-hidden"
         >
-          <DataTable 
-            table={rightTable} 
+          <DataTable
+            table={rightTable}
             isLoading={false}
             isFetching={false}
             pageSizeOptions={rightTableProps.pageSizeOptions || [10, 30, 50, 100, 200]}

@@ -39,6 +39,7 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   selectedRowId?: string | null;
   showPagination?: boolean;
   hideRowsPerPage?: boolean;
+  disableHorizontalScroll?: boolean;
 }
 
 export function DataTable<TData>({
@@ -54,6 +55,7 @@ export function DataTable<TData>({
   selectedRowId,
   showPagination = true,
   hideRowsPerPage = false,
+  disableHorizontalScroll = false,
   ...props
 }: DataTableProps<TData>) {
   const showLoading = isLoading && table.getRowModel().rows.length === 0;
@@ -82,8 +84,19 @@ export function DataTable<TData>({
             </div>
           </div>
         )}
-        <div className="h-full w-full overflow-y-auto overflow-x-auto">
-          <TableElement className="w-full table-fixed" style={{ minWidth: "1000px", tableLayout: "fixed" }}>
+        <div
+          className={cn(
+            "h-full w-full overflow-y-auto",
+            disableHorizontalScroll ? "overflow-x-hidden" : "overflow-x-auto",
+          )}
+        >
+          <TableElement
+            className="w-full table-fixed"
+            style={{
+              minWidth: disableHorizontalScroll ? undefined : "1000px",
+              tableLayout: "fixed",
+            }}
+          >
             <TableHeader className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -130,37 +143,37 @@ export function DataTable<TData>({
                 table.getRowModel().rows.map((row) => {
                   const isSelected = selectedRowId ? row.id === selectedRowId : row.getIsSelected();
                   return (
-                  <TableRow
-                    key={row.id}
-                    data-state={isSelected && "selected"}
-                    className={cn(
-                      onRowClick && "cursor-pointer",
-                      "hover:bg-muted/70",
-                      isSelected && "bg-muted"
-                    )}
-                    onClick={() => onRowClick?.(row.original)}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={cn(
-                          "overflow-hidden",
-                          getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
-                        )}
-                        style={{
-                          width: cell.column.getSize(),
-                          minWidth: cell.column.getSize(),
-                          maxWidth: cell.column.getSize(),
-                          ...getCommonPinningStyles({ column: cell.column }),
-                        }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+                    <TableRow
+                      key={row.id}
+                      data-state={isSelected && "selected"}
+                      className={cn(
+                        onRowClick && "cursor-pointer",
+                        "hover:bg-muted/70",
+                        isSelected && "bg-muted"
+                      )}
+                      onClick={() => onRowClick?.(row.original)}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            "overflow-hidden",
+                            getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
+                          )}
+                          style={{
+                            width: cell.column.getSize(),
+                            minWidth: cell.column.getSize(),
+                            maxWidth: cell.column.getSize(),
+                            ...getCommonPinningStyles({ column: cell.column }),
+                          }}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
                   );
                 })
               ) : (

@@ -16,7 +16,8 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
+import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
+import { cleanEscapedContent } from "@/utils/content-cleaner";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
@@ -47,10 +48,12 @@ function getType(row: WebPageRow): WebActionType {
 export function WebPageActionCell({ businessId, row }: { businessId: string; row: WebPageRow }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { startOutline } = useWebPageActions();
+  const { getContent, startFinal, startOutline } = useWebPageActions();
 
   const [open, setOpen] = React.useState(false);
-  const [workingAction, setWorkingAction] = React.useState<null | "outline" | "view">(null);
+  const [workingAction, setWorkingAction] = React.useState<null | "outline" | "final" | "view">(null);
+  const [contentLoading, setContentLoading] = React.useState(false);
+  const [content, setContent] = React.useState<WebActionResponse | null>(null);
   const action = getRowAction(row);
 
   const pageId = row.page_id;
@@ -78,22 +81,80 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       return;
     }
 
-    if (isGenerating) {
-      navigateToView("outline");
-      return;
-    }
-
     setOpen(true);
+    setContentLoading(true);
+    setContent(null);
+    try {
+      const data = await getContent(type, businessId, pageId);
+      setContent(data);
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        // 404 means nothing has been generated yet; show the "Generate Outline" state.
+        setContent(null);
+        return;
+      }
+
+      toast.error("Failed to load generation status.");
+      setOpen(false);
+    } finally {
+      setContentLoading(false);
+    }
   };
 
   const type = getType(row);
 
-  const status = (row.status || "").toString().toLowerCase();
+  const statusFromRow = (row.status || "").toString().toLowerCase();
+  const statusFromContent = (content?.status || "").toString().toLowerCase();
+  const status = statusFromContent || statusFromRow;
   const isGenerating = status === "pending" || status === "processing";
+
+  const outlineFromServer = cleanEscapedContent(content?.output_data?.page?.outline || "");
+  const finalFromServer =
+    type === "blog"
+      ? cleanEscapedContent(content?.output_data?.page?.blog?.blog_post || "")
+      : cleanEscapedContent(content?.output_data?.page?.page_content || "");
+
+  const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
+  const hasFinal = !!finalFromServer && finalFromServer.trim().length > 0;
 
   const handleViewAction = () => {
     setOpen(false);
     navigateToView();
+  };
+
+  const handleViewOutline = () => {
+    setOpen(false);
+    navigateToView("outline");
+  };
+
+  const handleGenerateFinal = async () => {
+    if (!pageId) return;
+    if (workingAction) return;
+    if (!hasOutline) {
+      toast.error("Please generate an outline first.");
+      return;
+    }
+
+    setWorkingAction("final");
+    try {
+      await startFinal(type, businessId, pageId);
+      queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
+      toast.success(type === "blog" ? "Final blog generation started." : "Final page generation started.");
+      setOpen(false);
+      navigateToView("final");
+    } catch (error: any) {
+      if (error?.response?.status === 403) {
+        toast.error(
+          type === "blog"
+            ? "You need more execution credits to generate blog content."
+            : "You need more execution credits to generate page content."
+        );
+      } else {
+        toast.error("Failed to start generation.");
+      }
+    } finally {
+      setWorkingAction(null);
+    }
   };
 
   const handleGenerateOutline = async () => {
@@ -102,11 +163,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
     if (workingAction) return;
     setWorkingAction("outline");
     try {
-      if (!VIEW_ACTION_STATUSES.has(status)) {
-        await startOutline(type, businessId, pageId);
-        queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
-        toast.success(type === "blog" ? "Blog outline generation started." : "Page outline generation started.");
-      }
+      await startOutline(type, businessId, pageId);
+      queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
+      toast.success(type === "blog" ? "Blog outline generation started." : "Page outline generation started.");
       setOpen(false);
       navigateToView("outline");
     } catch (error: any) {
@@ -129,6 +188,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
     action.label === "View" ? (type === "blog" ? "View Blog" : "View Page") : type === "blog" ? "Write Blog" : "Build Page";
   const viewButtonLabel = type === "blog" ? "View Blog" : "View Page";
   const actionTooltipLabel = action.label === "View" ? viewButtonLabel : type === "blog" ? "Generate Blog" : "Generate Page";
+
+  const generateOutlineLabel = type === "blog" ? "Generate Outline" : "Generate Outline";
+  const generateFinalLabel = type === "blog" ? "Generate Blog" : "Generate Page";
 
   return (
     <>
@@ -173,16 +235,31 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
           </div>
 
           <DialogFooter className="px-4 py-4">
-            {action.label === "View" ? (
+            {contentLoading ? (
+              <div className="flex w-full justify-center">
+                <Button type="button" disabled>
+                  Loading...
+                </Button>
+              </div>
+            ) : hasFinal ? (
               <div className="flex w-full justify-center">
                 <Button type="button" onClick={handleViewAction} disabled={isGenerating}>
                   {viewButtonLabel}
                 </Button>
               </div>
+            ) : hasOutline ? (
+              <div className="flex w-full justify-center gap-3">
+                <Button type="button" variant="outline" onClick={handleViewOutline} disabled={isGenerating}>
+                  View Outline
+                </Button>
+                <Button type="button" onClick={handleGenerateFinal} disabled={isGenerating || workingAction !== null}>
+                  {generateFinalLabel}
+                </Button>
+              </div>
             ) : (
               <div className="flex w-full justify-center">
                 <Button type="button" onClick={handleGenerateOutline} disabled={isGenerating || workingAction !== null}>
-                  {type === "blog" ? "Generate Blog" : "Generate Page"}
+                  {generateOutlineLabel}
                 </Button>
               </div>
             )}

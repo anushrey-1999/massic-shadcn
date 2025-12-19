@@ -3,6 +3,7 @@
 import React from 'react'
 import { StrategyTableClient } from '@/components/organisms/StrategyTable/strategy-table-client'
 import { AudienceTableClient } from '@/components/organisms/AudienceTable/audience-table-client'
+import { LandscapeTableClient } from '@/components/organisms/LandscapeTable/landscape-table-client'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
@@ -87,12 +88,16 @@ export default function BusinessStrategyPage({ params }: PageProps) {
             <TabsList className="shrink-0">
               <TabsTrigger value="strategy">Strategy</TabsTrigger>
               <TabsTrigger value="audience">Audience</TabsTrigger>
+              <TabsTrigger value="landscape">Landscape</TabsTrigger>
             </TabsList>
             <TabsContent value="strategy" className="flex-1 min-h-0 mt-4 overflow-hidden">
               <StrategyTableClient businessId={businessId} />
             </TabsContent>
             <TabsContent value="audience" className="flex-1 min-h-0 mt-4 overflow-hidden">
               <AudienceTableClient businessId={businessId} />
+            </TabsContent>
+            <TabsContent value="landscape" className="flex-1 min-h-0 mt-4 overflow-hidden">
+              <LandscapeTableClient businessId={businessId} />
             </TabsContent>
           </Tabs>
         </div>

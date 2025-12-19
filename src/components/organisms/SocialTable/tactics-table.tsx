@@ -16,6 +16,7 @@ import { ArrowLeft } from "lucide-react";
 interface TacticsTableProps {
   data: TacticRow[];
   pageCount: number;
+  businessId: string;
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -28,6 +29,7 @@ interface TacticsTableProps {
 export function TacticsTable({
   data,
   pageCount,
+  businessId,
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -39,8 +41,8 @@ export function TacticsTable({
   const enableAdvancedFilter = true;
 
   const columns = React.useMemo(
-    () => getTacticsTableColumns({ channelName }),
-    [channelName]
+    () => getTacticsTableColumns({ channelName, businessId }),
+    [channelName, businessId]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -92,9 +94,9 @@ export function TacticsTable({
         </DataTableAdvancedToolbar>
       </div>
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        <div className="h-full w-full [&>div]:overflow-x-hidden [&>div>div]:overflow-x-hidden [&_table]:!min-w-0 [&_table]:w-full">
-          <DataTable 
-            table={table} 
+        <div className="h-full w-full [&>div]:overflow-x-hidden [&>div>div]:overflow-x-hidden [&_table]:min-w-0! [&_table]:w-full">
+          <DataTable
+            table={table}
             isLoading={isLoading}
             isFetching={isFetching}
             pageSizeOptions={[10, 30, 50, 100, 200]}

@@ -60,3 +60,69 @@ export interface GetSocialSchema {
 export interface SocialCounts {
   [key: string]: any;
 }
+
+// Tactic detail item from API
+export interface TacticItem {
+  tactic?: string;
+  cluster_name?: string;
+  title?: string;
+  description?: string;
+  campaign_relevance?: number;
+  related_keywords?: string[];
+  status?: string;
+  url?: string;
+  id?: string;
+  [key: string]: any;
+}
+
+// Tactic row structure for table display
+export interface TacticRow {
+  id: string;
+  tactic: string;
+  cluster_name?: string;
+  title: string;
+  description: string;
+  campaign_relevance: number;
+  related_keywords: string[];
+  status: string;
+  url?: string;
+  [key: string]: any;
+}
+
+// API Response structure for tactics
+export interface TacticApiResponse {
+  status: "success" | "error";
+  metadata?: {
+    [key: string]: any;
+  };
+  output_data: {
+    items: TacticItem[];
+    pagination: {
+      page: number;
+      page_size: number;
+      fetched: number;
+      total_count?: number;
+      total_pages?: number;
+      status: "success" | "error";
+    };
+  };
+}
+
+// Schema for tactics fetching parameters
+export interface GetTacticsSchema {
+  business_id: string;
+  page: number;
+  perPage: number;
+  sort: Array<{ id: string; desc: boolean }>;
+  filters: Array<{
+    id: string;
+    value: string | string[];
+    variant: string;
+    operator: string;
+    filterId: string;
+  }>;
+  joinOperator: "and" | "or";
+  search?: string;
+  channel_name?: string;
+  campaign_name?: string;
+}

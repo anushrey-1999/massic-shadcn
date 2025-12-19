@@ -19,6 +19,10 @@ export default function BusinessSocialPage({ params }: PageProps) {
     "channel_name",
     parseAsString
   )
+  const [campaignName] = useQueryState(
+    "campaign_name",
+    parseAsString
+  )
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
@@ -26,6 +30,18 @@ export default function BusinessSocialPage({ params }: PageProps) {
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
   const jobExists = jobDetails && jobDetails.job_id
+
+  const breadcrumbs = React.useMemo(() => {
+    const baseBreadcrumbs = [
+      { label: "Home", href: "/" },
+      { label: "Business", href: businessId ? `/business/${businessId}` : undefined },
+      { label: "Social" },
+    ]
+    if (campaignName) {
+      baseBreadcrumbs.push({ label: campaignName })
+    }
+    return baseBreadcrumbs
+  }, [businessId, campaignName])
 
   if (!businessId) {
     return (
@@ -39,11 +55,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader
-          breadcrumbs={[
-            { label: "Home", href: "/" },
-            { label: "Business", href: `/business/${businessId}` },
-            { label: "Social" },
-          ]}
+          breadcrumbs={breadcrumbs}
         />
         <div className="flex items-center justify-center flex-1">
           <p className="text-muted-foreground">Checking job status...</p>
@@ -56,11 +68,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader
-          breadcrumbs={[
-            { label: "Home", href: "/" },
-            { label: "Business", href: `/business/${businessId}` },
-            { label: "Social" },
-          ]}
+          breadcrumbs={breadcrumbs}
         />
         <div className="flex items-center justify-center flex-1">
           <div className="text-center">
@@ -77,11 +85,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader
-        breadcrumbs={[
-          { label: "Home", href: "/" },
-          { label: "Business", href: `/business/${businessId}` },
-          { label: "Social" },
-        ]}
+        breadcrumbs={breadcrumbs}
       />
       <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
         <SocialTableClient
@@ -89,7 +93,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
           channelsSidebar={
             <ChannelsSidebar
               selectedChannel={selectedChannel || null}
-              onChannelSelect={(channel) => setSelectedChannel(channel || null)}
+              onChannelSelect={(channel) => setSelectedChannel(channel)}
             />
           }
         />

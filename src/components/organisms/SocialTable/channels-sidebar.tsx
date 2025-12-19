@@ -14,6 +14,8 @@ interface ChannelRow {
   icon: string | null;
   relevance: number;
   isAllChannels?: boolean;
+  isSelected?: boolean;
+  onClick?: () => void;
 }
 
 interface ChannelsSidebarProps {
@@ -130,7 +132,7 @@ export function ChannelsSidebar({
         ...row,
         isSelected,
         onClick: () => onChannelSelect(row.isAllChannels ? null : row.name),
-      } as ChannelRow & { isSelected: boolean; onClick: () => void };
+      };
     });
   }, [selectedChannel, onChannelSelect]);
 
@@ -163,13 +165,28 @@ export function ChannelsSidebar({
     );
   }
 
+  const handleRowClick = React.useCallback((row: ChannelRow) => {
+    if (row.onClick) {
+      row.onClick();
+    }
+  }, []);
+
+  const selectedRowId = React.useMemo(() => {
+    if (selectedChannel === null) {
+      return "all-channels";
+    }
+    return selectedChannel;
+  }, [selectedChannel]);
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
       <DataTable
         table={table}
         isLoading={false}
         emptyMessage="No channels found"
-        className="h-full gap-0 [&>div:last-child]:hidden [&>div:first-child]:border-0 [&>div:first-child]:rounded-none [&>div:first-child]:min-h-0 [&>div:first-child]:flex-1 [&>div:first-child>div>table]:min-w-0! [&>div:first-child>div>table]:w-full"
+        className=" gap-0 [&>div:last-child]:hidden [&>div:first-child]:border-0 [&>div:first-child]:rounded-none [&>div:first-child]:min-h-0 [&>div:first-child]:flex-1 [&>div:first-child>div>table]:min-w-0! [&>div:first-child>div>table]:w-full"
+        onRowClick={handleRowClick}
+        selectedRowId={selectedRowId}
       >
         {null}
       </DataTable>

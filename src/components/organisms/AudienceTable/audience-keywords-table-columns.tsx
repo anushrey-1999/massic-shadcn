@@ -12,7 +12,7 @@ export function getAudienceKeywordsTableColumns(): ColumnDef<AudienceUseCaseRow>
       id: "use_case_name",
       accessorKey: "use_case_name",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Use Case" />
+        <DataTableColumnHeader column={column} label="Use Case" disableHide={true} />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
@@ -34,7 +34,7 @@ export function getAudienceKeywordsTableColumns(): ColumnDef<AudienceUseCaseRow>
       id: "keywords",
       accessorFn: (row) => row.supporting_keywords,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Keywords" />
+        <DataTableColumnHeader column={column} label="Keywords" disableHide={true} />
       ),
       cell: ({ row }) => {
         const keywords = row.original.supporting_keywords || [];

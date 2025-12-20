@@ -52,9 +52,9 @@ export function getStrategyTableColumns({
       },
       enableColumnFilter: true,
       enableSorting: true,
-      size: 250,
-      minSize: 180,
-      maxSize: 350,
+      size: 400,
+      minSize: 250,
+      maxSize: 500,
     },
     {
       id: "business_relevance_score",
@@ -107,10 +107,34 @@ export function getStrategyTableColumns({
       maxSize: 140,
     },
     {
+      id: "total_search_volume",
+      accessorKey: "total_search_volume",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Volume" />
+      ),
+      cell: ({ cell }) => {
+        const volume = cell.getValue<number>();
+        return (
+          <Typography variant="p">{volume.toLocaleString()}</Typography>
+        );
+      },
+      meta: {
+        label: "Volume",
+        variant: "range",
+        range: [searchVolumeRange.min, searchVolumeRange.max],
+        icon: TrendingUp,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 130,
+      minSize: 110,
+      maxSize: 160,
+    },
+    {
       id: "cluster_names",
       accessorKey: "cluster_names",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Clusters" />
+        <DataTableColumnHeader column={column} label="Sub Topics" />
       ),
       cell: ({ row }) => {
         const clusters = row.original.clusters;
@@ -121,16 +145,16 @@ export function getStrategyTableColumns({
         );
       },
       meta: {
-        label: "Clusters",
-        placeholder: "Search clusters...",
+        label: "Sub Topics",
+        placeholder: "Search sub topics...",
         variant: "text",
         icon: Building2,
       },
       enableColumnFilter: true,
       enableSorting: false,
-      size: 180,
-      minSize: 150,
-      maxSize: 250,
+      size: 100,
+      minSize: 80,
+      maxSize: 150,
     },
     {
       id: "total_keywords",
@@ -155,33 +179,9 @@ export function getStrategyTableColumns({
       },
       enableColumnFilter: false,
       enableSorting: true,
-      size: 200,
-      minSize: 150,
-      maxSize: 300,
-    },
-    {
-      id: "total_search_volume",
-      accessorKey: "total_search_volume",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Search Volume" />
-      ),
-      cell: ({ cell }) => {
-        const volume = cell.getValue<number>();
-        return (
-          <Typography variant="p">{volume.toLocaleString()}</Typography>
-        );
-      },
-      meta: {
-        label: "Search Volume",
-        variant: "range",
-        range: [searchVolumeRange.min, searchVolumeRange.max],
-        icon: TrendingUp,
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 130,
-      minSize: 110,
-      maxSize: 160,
+      size: 100,
+      minSize: 80,
+      maxSize: 150,
     },
     {
       id: "offerings",

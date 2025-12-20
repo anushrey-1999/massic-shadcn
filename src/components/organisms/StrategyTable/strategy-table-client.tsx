@@ -14,9 +14,10 @@ import type { StrategyRow } from "@/types/strategy-types";
 
 interface StrategyTableClientProps {
   businessId: string;
+  onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
-export function StrategyTableClient({ businessId }: StrategyTableClientProps) {
+export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedTopicId, setSelectedTopicId] = React.useState<string | null>(null);
   // Read query parameters from URL
@@ -255,12 +256,14 @@ export function StrategyTableClient({ businessId }: StrategyTableClientProps) {
   const handleRowClick = React.useCallback((row: StrategyRow) => {
     setSelectedTopicId(row.id);
     setIsSplitView(true);
-  }, []);
+    onSplitViewChange?.(true);
+  }, [onSplitViewChange]);
 
   const handleBackToMain = React.useCallback(() => {
     setIsSplitView(false);
     setSelectedTopicId(null);
-  }, []);
+    onSplitViewChange?.(false);
+  }, [onSplitViewChange]);
 
   const selectedTopic = React.useMemo(() => {
     if (!selectedTopicId || !strategyData?.data) return null;

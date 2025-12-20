@@ -4,6 +4,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 import {
   TrendingUp,
   Users,
+  Hash,
+  FileText,
 } from "lucide-react";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { RelevancePill } from "@/components/ui/relevance-pill";
@@ -49,7 +51,7 @@ export function getAudienceTableColumns({
       id: "ars",
       accessorKey: "ars",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="ARS" />
+        <DataTableColumnHeader column={column} label="Relevance" />
       ),
       cell: ({ cell }) => {
         const score = cell.getValue<number>();
@@ -60,7 +62,7 @@ export function getAudienceTableColumns({
         );
       },
       meta: {
-        label: "ARS",
+        label: "Relevance",
         variant: "range",
         range: [arsRange.min, arsRange.max],
         icon: TrendingUp,
@@ -70,6 +72,67 @@ export function getAudienceTableColumns({
       size: 130,
       minSize: 110,
       maxSize: 160,
+    },
+    {
+      id: "use_cases",
+      accessorFn: (row) => row.use_cases?.length || 0,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Use Case" />
+      ),
+      cell: ({ row }) => {
+        const useCases = row.original.use_cases || [];
+        const count = useCases.length;
+        return (
+          <Typography variant="p">{count}</Typography>
+        );
+      },
+      meta: {
+        label: "Use Case",
+        variant: "number",
+        icon: FileText,
+      },
+      enableColumnFilter: false,
+      enableSorting: true,
+      size: 100,
+      minSize: 80,
+      maxSize: 150,
+    },
+    {
+      id: "keywords",
+      accessorFn: (row) => {
+        const useCases = row.use_cases || [];
+        return useCases.reduce((total: number, uc: any) => {
+          const keywords = Array.isArray(uc?.supporting_keywords) 
+            ? uc.supporting_keywords.filter((k: any) => k && typeof k === 'string')
+            : [];
+          return total + keywords.length;
+        }, 0);
+      },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Keywords" />
+      ),
+      cell: ({ row }) => {
+        const useCases = row.original.use_cases || [];
+        const totalKeywords = useCases.reduce((total: number, uc: any) => {
+          const keywords = Array.isArray(uc?.supporting_keywords) 
+            ? uc.supporting_keywords.filter((k: any) => k && typeof k === 'string')
+            : [];
+          return total + keywords.length;
+        }, 0);
+        return (
+          <Typography variant="p">{totalKeywords}</Typography>
+        );
+      },
+      meta: {
+        label: "Keywords",
+        variant: "number",
+        icon: Hash,
+      },
+      enableColumnFilter: false,
+      enableSorting: true,
+      size: 100,
+      minSize: 80,
+      maxSize: 150,
     },
   ];
 }

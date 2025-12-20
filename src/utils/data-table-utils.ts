@@ -8,6 +8,19 @@ import type {
   JoinOperator,
 } from "../types/data-table-types";
 
+/**
+ * Helper function to format size value - supports both numbers (pixels) and strings (relative units)
+ * @param size - Size value as number (pixels) or string (CSS unit like "50%", "20vw", "10rem")
+ * @returns Formatted size value ready for CSS
+ */
+export function formatSizeValue(size: number | string | undefined): string | number | undefined {
+  if (size === undefined) return undefined;
+  // If it's already a string (e.g., "50%", "20vw", "10rem"), return as-is
+  if (typeof size === "string") return size;
+  // If it's a number, return as-is (will be treated as pixels)
+  return size;
+}
+
 export function getCommonPinningStyles<TData>({
   column,
   withBorder = false,

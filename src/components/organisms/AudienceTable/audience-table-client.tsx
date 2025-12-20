@@ -13,9 +13,10 @@ import type { AudienceRow, AudienceUseCaseRow } from "@/types/audience-types";
 
 interface AudienceTableClientProps {
   businessId: string;
+  onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
-export function AudienceTableClient({ businessId }: AudienceTableClientProps) {
+export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedPersonaId, setSelectedPersonaId] = React.useState<string | null>(null);
   const [selectedUseCaseId, setSelectedUseCaseId] = React.useState<string | null>(null);
@@ -236,13 +237,15 @@ export function AudienceTableClient({ businessId }: AudienceTableClientProps) {
   const handleRowClick = React.useCallback((row: AudienceRow) => {
     setSelectedPersonaId(row.id);
     setIsSplitView(true);
-  }, []);
+    onSplitViewChange?.(true);
+  }, [onSplitViewChange]);
 
   const handleBackToMain = React.useCallback(() => {
     setIsSplitView(false);
     setSelectedPersonaId(null);
     setSelectedUseCaseId(null);
-  }, []);
+    onSplitViewChange?.(false);
+  }, [onSplitViewChange]);
 
   const handleUseCaseSelect = React.useCallback((useCaseId: string) => {
     setSelectedUseCaseId(useCaseId);

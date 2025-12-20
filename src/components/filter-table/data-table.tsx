@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../components/ui/table";
-import { getCommonPinningStyles } from "../../utils/data-table-utils";
+import { getCommonPinningStyles, formatSizeValue } from "../../utils/data-table-utils";
 import { cn } from "../../lib/utils";
 import { Loader2 } from "lucide-react";
 
@@ -40,6 +40,7 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   showPagination?: boolean;
   hideRowsPerPage?: boolean;
   disableHorizontalScroll?: boolean;
+  paginationAlign?: "left" | "right" | "between";
 }
 
 export function DataTable<TData>({
@@ -56,6 +57,7 @@ export function DataTable<TData>({
   showPagination = true,
   hideRowsPerPage = false,
   disableHorizontalScroll = false,
+  paginationAlign = "between",
   ...props
 }: DataTableProps<TData>) {
   const showLoading = isLoading && table.getRowModel().rows.length === 0;
@@ -107,13 +109,13 @@ export function DataTable<TData>({
                         getAlignmentClass(header.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
                       )}
                       style={disableHorizontalScroll ? {
-                        minWidth: header.column.columnDef.minSize || header.getSize(),
-                        maxWidth: header.column.columnDef.maxSize,
+                        minWidth: formatSizeValue(header.column.columnDef.minSize) || header.getSize(),
+                        maxWidth: formatSizeValue(header.column.columnDef.maxSize),
                         ...getCommonPinningStyles({ column: header.column }),
                       } : {
                         width: header.getSize(),
                         minWidth: header.getSize(),
-                        maxWidth: header.getSize(),
+                        maxWidth: formatSizeValue(header.column.columnDef.maxSize) || header.getSize(),
                         ...getCommonPinningStyles({ column: header.column }),
                       }}
                     >
@@ -162,13 +164,13 @@ export function DataTable<TData>({
                           getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
                         )}
                         style={disableHorizontalScroll ? {
-                          minWidth: cell.column.columnDef.minSize || cell.column.getSize(),
-                          maxWidth: cell.column.columnDef.maxSize,
+                          minWidth: formatSizeValue(cell.column.columnDef.minSize) || cell.column.getSize(),
+                          maxWidth: formatSizeValue(cell.column.columnDef.maxSize),
                           ...getCommonPinningStyles({ column: cell.column }),
                         } : {
                           width: cell.column.getSize(),
                           minWidth: cell.column.getSize(),
-                          maxWidth: cell.column.getSize(),
+                          maxWidth: formatSizeValue(cell.column.columnDef.maxSize) || cell.column.getSize(),
                           ...getCommonPinningStyles({ column: cell.column }),
                         }}
                       >
@@ -199,7 +201,7 @@ export function DataTable<TData>({
       {/* Pagination - Always visible, no scroll */}
       {showPagination && (
         <div className="shrink-0 flex flex-col gap-2.5">
-          <DataTablePagination table={table} pageSizeOptions={pageSizeOptions} hideRowsPerPage={hideRowsPerPage} />
+          <DataTablePagination table={table} pageSizeOptions={pageSizeOptions} hideRowsPerPage={hideRowsPerPage} align={paginationAlign} />
           {actionBar &&
             table.getFilteredSelectedRowModel().rows.length > 0 &&
             actionBar}

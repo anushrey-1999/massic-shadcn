@@ -15,7 +15,7 @@ export function getWebOptimizationSuggestionsColumns(): ColumnDef<WebOptimizatio
       id: "category",
       accessorKey: "category",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Category" />
+        <DataTableColumnHeader column={column} label="Category" disableHide={true} />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate" title={row.getValue("category") as string}>
@@ -37,7 +37,7 @@ export function getWebOptimizationSuggestionsColumns(): ColumnDef<WebOptimizatio
       id: "action",
       accessorKey: "action",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Action" />
+        <DataTableColumnHeader column={column} label="Action" disableHide={true} />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate" title={row.getValue("action") as string}>

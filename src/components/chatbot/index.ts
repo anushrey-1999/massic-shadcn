@@ -1,1 +1,2 @@
-export { ChatWidget } from "./chat-widget";
+export { ChatLauncher } from "./chat-launcher";
+export { ChatFullPage } from "./chat-full-page";

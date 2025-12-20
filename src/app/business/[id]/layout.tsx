@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChatWidget } from "@/components/chatbot/chat-widget";
+import { ChatLauncher } from "@/components/chatbot/chat-launcher";
 
 export default async function BusinessLayout({
   children,
@@ -9,11 +9,10 @@ export default async function BusinessLayout({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  
   return (
     <>
       {children}
-      <ChatWidget businessId={id} />
+      <ChatLauncher businessId={id} />
     </>
   );
 }

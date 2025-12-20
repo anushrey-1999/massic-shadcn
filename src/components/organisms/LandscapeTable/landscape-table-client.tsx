@@ -104,7 +104,7 @@ export function LandscapeTableClient({ businessId }: LandscapeTableClientProps) 
         <DataTableSearch
           value={search}
           onChange={setSearch}
-          placeholder="Search URLs and frequencies..."
+          placeholder="Search websites and frequencies..."
         />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">

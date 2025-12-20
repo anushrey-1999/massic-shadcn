@@ -12,7 +12,7 @@ export function getLandscapeTableColumns(): ColumnDef<LandscapeRow>[] {
       id: "url",
       accessorKey: "url",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="URL" disableHide={true} />
+        <DataTableColumnHeader column={column} label="Website" disableHide={true} />
       ),
       cell: ({ row }) => {
         const url = row.getValue("url") as string;
@@ -23,8 +23,8 @@ export function getLandscapeTableColumns(): ColumnDef<LandscapeRow>[] {
         );
       },
       meta: {
-        label: "URL",
-        placeholder: "Search URLs...",
+        label: "Website",
+        placeholder: "Search websites...",
         variant: "text",
         icon: Link,
       },

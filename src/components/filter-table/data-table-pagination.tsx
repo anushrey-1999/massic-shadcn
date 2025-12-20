@@ -72,7 +72,7 @@ export function DataTablePagination<TData>({
         </div>
       )}
       <div className="flex items-center gap-2 shrink-0">
-        <div className="flex shrink-0 items-center justify-center whitespace-nowrap font-medium text-sm">
+        <div className="flex shrink-0 items-center justify-center whitespace-nowrap font-medium text-xs">
           Page {table.getState().pagination.pageIndex + 1} of{" "}
           {table.getPageCount()}
         </div>

@@ -7,6 +7,7 @@ import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOp
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
+import { cn } from '@/lib/utils'
 
 interface PageProps {
   params: Promise<{
@@ -16,6 +17,7 @@ interface PageProps {
 
 export default function BusinessWebPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
+  const [isOptimizeSplitView, setIsOptimizeSplitView] = React.useState(false)
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
@@ -76,15 +78,17 @@ export default function BusinessWebPage({ params }: PageProps) {
       <PageHeader breadcrumbs={breadcrumbs} />
       <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
         <Tabs defaultValue="new-pages" className="flex flex-col flex-1 min-h-0">
-          <TabsList className="shrink-0">
-            <TabsTrigger value="new-pages">New Pages</TabsTrigger>
-            <TabsTrigger value="optimize">Optimize</TabsTrigger>
-          </TabsList>
-          <TabsContent value="new-pages" className="flex-1 min-h-0 mt-4 overflow-hidden">
+          {!isOptimizeSplitView && (
+            <TabsList className="shrink-0">
+              <TabsTrigger value="new-pages">New Pages</TabsTrigger>
+              <TabsTrigger value="optimize">Optimize</TabsTrigger>
+            </TabsList>
+          )}
+          <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
             <WebPageTableClient businessId={businessId} />
           </TabsContent>
-          <TabsContent value="optimize" className="flex-1 min-h-0 mt-4 overflow-hidden">
-            <WebOptimizationAnalysisTableClient businessId={businessId} />
+          <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+            <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
           </TabsContent>
         </Tabs>
       </div>

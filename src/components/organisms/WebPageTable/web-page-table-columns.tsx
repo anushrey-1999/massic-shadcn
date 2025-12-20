@@ -77,27 +77,6 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
       maxSize: 200,
     },
     {
-      id: "search_volume",
-      accessorKey: "search_volume",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Volume" />
-      ),
-      cell: ({ cell }) => {
-        const volume = cell.getValue<number>();
-        return <Typography variant="p">{formatVolume(volume || 0)}</Typography>;
-      },
-      meta: {
-        label: "Search Volume",
-        variant: "number",
-        icon: TrendingUp,
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 120,
-      minSize: 100,
-      maxSize: 150,
-    },
-    {
       id: "business_relevance_score",
       accessorKey: "business_relevance_score",
       header: ({ column }) => (
@@ -124,27 +103,67 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
       maxSize: 160,
     },
     {
-      id: "page_opportunity_score",
-      accessorKey: "page_opportunity_score",
+      id: "coverage",
+      accessorFn: () => 0,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Opp Score" />
+        <DataTableColumnHeader column={column} label="Coverage" />
+      ),
+      cell: () => {
+        return <Typography variant="p">0</Typography>;
+      },
+      meta: {
+        label: "Coverage",
+        variant: "number",
+        icon: BarChart3,
+      },
+      enableColumnFilter: false,
+      enableSorting: false,
+      size: 110,
+      minSize: 90,
+      maxSize: 140,
+    },
+    {
+      id: "search_volume",
+      accessorKey: "search_volume",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Volume" />
       ),
       cell: ({ cell }) => {
-        const score = cell.getValue<number>();
+        const volume = cell.getValue<number>();
+        return <Typography variant="p">{formatVolume(volume || 0)}</Typography>;
+      },
+      meta: {
+        label: "Search Volume",
+        variant: "number",
+        icon: TrendingUp,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 120,
+      minSize: 100,
+      maxSize: 150,
+    },
+    {
+      id: "priority",
+      accessorFn: () => null,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Priority" />
+      ),
+      cell: () => {
         return (
           <div className="flex items-center">
-            <RelevancePill score={score || 0} />
+            <RelevancePill score={0} />
           </div>
         );
       },
       meta: {
-        label: "Opportunity Score",
+        label: "Priority",
         variant: "range",
         range: [0, 1],
-        icon: BarChart3,
+        icon: TrendingUp,
       },
-      enableColumnFilter: true,
-      enableSorting: true,
+      enableColumnFilter: false,
+      enableSorting: false,
       size: 130,
       minSize: 110,
       maxSize: 160,
@@ -176,7 +195,7 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
       id: "supporting_keywords",
       accessorKey: "supporting_keywords",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Subtopics" />
+        <DataTableColumnHeader column={column} label="Sub Topics" />
       ),
       cell: ({ row }) => {
         const keywords = row.getValue<string[]>("supporting_keywords") || [];
@@ -187,8 +206,8 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
         );
       },
       meta: {
-        label: "Subtopics",
-        placeholder: "Search subtopics...",
+        label: "Sub Topics",
+        placeholder: "Search sub topics...",
         variant: "text",
         icon: Tag,
       },

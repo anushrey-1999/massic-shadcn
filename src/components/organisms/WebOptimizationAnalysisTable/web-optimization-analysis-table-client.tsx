@@ -14,6 +14,7 @@ import type { WebOptimizationSuggestionRow } from "./suggestions-table-columns";
 
 interface WebOptimizationAnalysisTableClientProps {
   businessId: string;
+  onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
 function toSuggestionRows(row: WebOptimizationAnalysisRow | null): WebOptimizationSuggestionRow[] {
@@ -77,7 +78,7 @@ function applyLocalSearch(rows: WebOptimizationAnalysisRow[], search: string): W
   });
 }
 
-export function WebOptimizationAnalysisTableClient({ businessId }: WebOptimizationAnalysisTableClientProps) {
+export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChange }: WebOptimizationAnalysisTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
@@ -115,12 +116,14 @@ export function WebOptimizationAnalysisTableClient({ businessId }: WebOptimizati
   const handleRowClick = React.useCallback((row: WebOptimizationAnalysisRow) => {
     setSelectedRowId(row.id);
     setIsSplitView(true);
-  }, []);
+    onSplitViewChange?.(true);
+  }, [onSplitViewChange]);
 
   const handleBackToMain = React.useCallback(() => {
     setIsSplitView(false);
     setSelectedRowId(null);
-  }, []);
+    onSplitViewChange?.(false);
+  }, [onSplitViewChange]);
 
   const handleLeftTableRowSelect = React.useCallback((rowId: string) => {
     setSelectedRowId(rowId);

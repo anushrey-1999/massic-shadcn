@@ -88,7 +88,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
-      className={cn("py-1.5 px-2 align-middle  [&:has([role=checkbox])]:pr-0 overflow-hidden", className)}
+      className={cn("py-1.5 px-2 align-middle text-left [&:has([role=checkbox])]:pr-0 overflow-hidden", className)}
       {...props}
     />
   )

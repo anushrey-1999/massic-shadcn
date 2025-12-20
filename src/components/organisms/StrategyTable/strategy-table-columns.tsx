@@ -107,6 +107,30 @@ export function getStrategyTableColumns({
       maxSize: 140,
     },
     {
+      id: "total_search_volume",
+      accessorKey: "total_search_volume",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Volume" />
+      ),
+      cell: ({ cell }) => {
+        const volume = cell.getValue<number>();
+        return (
+          <Typography variant="p">{volume.toLocaleString()}</Typography>
+        );
+      },
+      meta: {
+        label: "Volume",
+        variant: "range",
+        range: [searchVolumeRange.min, searchVolumeRange.max],
+        icon: TrendingUp,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 130,
+      minSize: 110,
+      maxSize: 160,
+    },
+    {
       id: "cluster_names",
       accessorKey: "cluster_names",
       header: ({ column }) => (
@@ -158,30 +182,6 @@ export function getStrategyTableColumns({
       size: 100,
       minSize: 80,
       maxSize: 150,
-    },
-    {
-      id: "total_search_volume",
-      accessorKey: "total_search_volume",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Search Volume" />
-      ),
-      cell: ({ cell }) => {
-        const volume = cell.getValue<number>();
-        return (
-          <Typography variant="p">{volume.toLocaleString()}</Typography>
-        );
-      },
-      meta: {
-        label: "Search Volume",
-        variant: "range",
-        range: [searchVolumeRange.min, searchVolumeRange.max],
-        icon: TrendingUp,
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 130,
-      minSize: 110,
-      maxSize: 160,
     },
     {
       id: "offerings",

@@ -1,17 +1,18 @@
 import * as React from "react";
-import { ChatWidget } from "@/components/chatbot/chat-widget";
+import { ChatLauncher } from "@/components/chatbot/chat-launcher";
 
-export default function BusinessLayout({
+export default async function BusinessLayout({
   children,
   params,
 }: {
   children: React.ReactNode;
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   return (
     <>
       {children}
-      <ChatWidget businessId={params.id} />
+      <ChatLauncher businessId={id} />
     </>
   );
 }

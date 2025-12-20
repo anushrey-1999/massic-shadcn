@@ -12,7 +12,7 @@ export function getKeywordsTableColumns(): ColumnDef<DigitalAdsKeyword>[] {
       id: "keyword",
       accessorKey: "keyword",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Keyword" />
+        <DataTableColumnHeader column={column} label="Keyword" disableHide={true} />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
@@ -34,7 +34,7 @@ export function getKeywordsTableColumns(): ColumnDef<DigitalAdsKeyword>[] {
       id: "cpc",
       accessorKey: "cpc",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Avg CPC" />
+        <DataTableColumnHeader column={column} label="Avg CPC" disableHide={true} />
       ),
       cell: ({ cell }) => {
         const cpc = cell.getValue<number>();
@@ -59,7 +59,7 @@ export function getKeywordsTableColumns(): ColumnDef<DigitalAdsKeyword>[] {
       id: "search_volume",
       accessorKey: "search_volume",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Volume" />
+        <DataTableColumnHeader column={column} label="Volume" disableHide={true} />
       ),
       cell: ({ cell }) => {
         const volume = cell.getValue<number>();
@@ -87,7 +87,7 @@ export function getKeywordsTableColumns(): ColumnDef<DigitalAdsKeyword>[] {
       id: "market_ease",
       accessorKey: "market_ease",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Market Ease" />
+        <DataTableColumnHeader column={column} label="Market Ease" disableHide={true} />
       ),
       cell: ({ cell }) => {
         const score = cell.getValue<number>();
@@ -112,7 +112,7 @@ export function getKeywordsTableColumns(): ColumnDef<DigitalAdsKeyword>[] {
       id: "opportunity_score",
       accessorKey: "opportunity_score",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Opp Score" />
+        <DataTableColumnHeader column={column} label="Opp Score" disableHide={true} />
       ),
       cell: ({ cell }) => {
         const score = cell.getValue<number>();

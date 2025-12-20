@@ -20,19 +20,28 @@ interface DataTablePaginationProps<TData> extends React.ComponentProps<"div"> {
   table: Table<TData>;
   pageSizeOptions?: number[];
   hideRowsPerPage?: boolean;
+  align?: "left" | "right" | "between";
 }
 
 export function DataTablePagination<TData>({
   table,
   pageSizeOptions = [10, 30, 50, 100],
   hideRowsPerPage = false,
+  align = "between",
   className,
   ...props
 }: DataTablePaginationProps<TData>) {
+  const alignClass = {
+    left: "sm:justify-start",
+    right: "sm:justify-end",
+    between: "sm:justify-between",
+  }[align];
+
   return (
     <div
       className={cn(
-        "flex w-full flex-col gap-4 p-1 sm:flex-row sm:items-center sm:justify-between",
+        "flex w-full flex-col gap-4 p-1 sm:flex-row sm:items-center",
+        alignClass,
         className,
       )}
       {...props}

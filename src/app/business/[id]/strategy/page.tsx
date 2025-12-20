@@ -9,6 +9,7 @@ import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 
 interface PageProps {
   params: Promise<{
@@ -18,6 +19,8 @@ interface PageProps {
 
 export default function BusinessStrategyPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
+  const [isStrategySplitView, setIsStrategySplitView] = React.useState(false)
+  const [isAudienceSplitView, setIsAudienceSplitView] = React.useState(false)
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
@@ -80,18 +83,20 @@ export default function BusinessStrategyPage({ params }: PageProps) {
         <PageHeader breadcrumbs={breadcrumbs} />
         <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
           <Tabs defaultValue="strategy" className="flex flex-col flex-1 min-h-0">
-            <TabsList className="shrink-0">
-              <TabsTrigger value="strategy">Strategy</TabsTrigger>
-              <TabsTrigger value="audience">Audience</TabsTrigger>
-              <TabsTrigger value="landscape">Landscape</TabsTrigger>
-            </TabsList>
-            <TabsContent value="strategy" className="flex-1 min-h-0 mt-4 overflow-hidden">
-              <StrategyTableClient businessId={businessId} />
+            {!(isStrategySplitView || isAudienceSplitView) && (
+              <TabsList className="shrink-0">
+                <TabsTrigger value="strategy">Strategy</TabsTrigger>
+                <TabsTrigger value="audience">Audience</TabsTrigger>
+                <TabsTrigger value="landscape">Landscape</TabsTrigger>
+              </TabsList>
+            )}
+            <TabsContent value="strategy" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
+              <StrategyTableClient businessId={businessId} onSplitViewChange={setIsStrategySplitView} />
             </TabsContent>
-            <TabsContent value="audience" className="flex-1 min-h-0 mt-4 overflow-hidden">
-              <AudienceTableClient businessId={businessId} />
+            <TabsContent value="audience" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
+              <AudienceTableClient businessId={businessId} onSplitViewChange={setIsAudienceSplitView} />
             </TabsContent>
-            <TabsContent value="landscape" className="flex-1 min-h-0 mt-4 overflow-hidden">
+            <TabsContent value="landscape" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
               <LandscapeTableClient businessId={businessId} />
             </TabsContent>
           </Tabs>

@@ -3,10 +3,7 @@
 import * as React from "react";
 import type { Table } from "@tanstack/react-table";
 import { DataTable } from "@/components/filter-table/index";
-import { DataTableFilterList } from "@/components/filter-table/data-table-filter-list";
 import { DataTableSearch } from "@/components/filter-table/data-table-search";
-import { DataTableViewOptions } from "@/components/filter-table/data-table-view-options";
-import { UnifiedSortList } from "./index";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
@@ -20,6 +17,7 @@ interface SplitTableViewProps<TLeftData, TRightData> {
     showPagination?: boolean;
     pageSizeOptions?: number[];
     hideRowsPerPage?: boolean;
+    paginationAlign?: "left" | "right" | "between";
   };
 
   // Right table props
@@ -191,7 +189,7 @@ export function SplitTableView<TLeftData, TRightData>({
   }, [leftTable.getState().sorting, rightTable, columnMapping]);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className="bg-white rounded-lg p-4 flex-1 min-h-0 flex flex-col">
       {/* Unified Toolbar - Controls both tables */}
       <div className="shrink-0 mb-4">
         <div
@@ -202,7 +200,7 @@ export function SplitTableView<TLeftData, TRightData>({
           <div className="flex flex-1 flex-wrap items-center gap-2">
             {onBack && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={onBack}
                 className="h-8 w-8 p-0"
@@ -217,23 +215,6 @@ export function SplitTableView<TLeftData, TRightData>({
                 placeholder={searchPlaceholder}
               />
             )}
-            {showFilters && (
-              <DataTableFilterList
-                table={leftTable}
-                shallow={leftTableHooks.shallow}
-                debounceMs={leftTableHooks.debounceMs}
-                throttleMs={leftTableHooks.throttleMs}
-                align="start"
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <UnifiedSortList
-              leftTable={leftTable}
-              rightTable={rightTable}
-              columnMapping={columnMapping}
-            />
-            <DataTableViewOptions table={leftTable} align="end" />
           </div>
         </div>
       </div>
@@ -257,6 +238,7 @@ export function SplitTableView<TLeftData, TRightData>({
             selectedRowId={leftTableProps.selectedRowId}
             showPagination={leftTableProps.showPagination !== false}
             hideRowsPerPage={leftTableProps.hideRowsPerPage}
+            paginationAlign={leftTableProps.paginationAlign || "right"}
             disableHorizontalScroll={true}
             className="h-full"
           />

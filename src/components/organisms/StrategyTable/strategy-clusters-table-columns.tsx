@@ -19,7 +19,7 @@ export function getStrategyClustersTableColumns(): ColumnDef<StrategyClusterRow>
       id: "cluster",
       accessorKey: "cluster",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Cluster" />
+        <DataTableColumnHeader column={column} label="Cluster" disableHide={true} />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
@@ -42,7 +42,7 @@ export function getStrategyClustersTableColumns(): ColumnDef<StrategyClusterRow>
       id: "keywords",
       accessorFn: (row) => row.keywords,
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Keywords" />
+        <DataTableColumnHeader column={column} label="Keywords" disableHide={true} />
       ),
       cell: ({ row }) => {
         const keywords = row.original.keywords || [];

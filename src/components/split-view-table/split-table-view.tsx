@@ -66,7 +66,7 @@ interface SplitTableViewProps<TLeftData, TRightData> {
   showFilters?: boolean;
 }
 
-export const SplitTableView = React.memo(<TLeftData, TRightData>({
+export function SplitTableView<TLeftData, TRightData>({
   leftTable,
   leftEmptyMessage = "No data found.",
   leftTableProps = {},
@@ -85,7 +85,7 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
   gap = "1rem",
   onBack,
   showFilters = true,
-}: SplitTableViewProps<TLeftData, TRightData>) => {
+}: SplitTableViewProps<TLeftData, TRightData>) {
   // Memoize searchable columns to avoid finding them on every render
   const leftSearchableColumn = React.useMemo(() => {
     if (searchColumnIds?.left) {
@@ -146,6 +146,7 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
   // Sync sorting between tables - only sync when there's an explicit column mapping
   // This prevents trying to sync left-only columns to the right table
   const isSyncingSort = React.useRef(false);
+  const lastSyncedLeftSort = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (isSyncingSort.current) {
       isSyncingSort.current = false;
@@ -153,9 +154,19 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
     }
 
     const leftSort = leftTable.getState().sorting;
-    if (leftSort.length === 0) return;
+    if (leftSort.length === 0) {
+      lastSyncedLeftSort.current = null;
+      return;
+    }
 
     const sort = leftSort[0];
+    const leftSortSignature = `${sort.id}:${sort.desc ? "desc" : "asc"}`;
+    if (lastSyncedLeftSort.current === leftSortSignature) return;
+
+    // Mark this left-sort as handled immediately so right-side user sorting
+    // doesn't get overwritten on re-renders.
+    lastSyncedLeftSort.current = leftSortSignature;
+
     // Only sync if there's an explicit mapping in columnMapping
     const mappedColumnId = columnMapping[sort.id];
 
@@ -267,6 +278,4 @@ export const SplitTableView = React.memo(<TLeftData, TRightData>({
       </div>
     </div>
   );
-}) as <TLeftData, TRightData>(
-  props: SplitTableViewProps<TLeftData, TRightData>
-) => React.ReactElement;
+}

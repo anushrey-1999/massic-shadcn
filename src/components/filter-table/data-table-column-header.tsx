@@ -60,7 +60,9 @@ export function DataTableColumnHeader<TData, TValue>({
             <DropdownMenuCheckboxItem
               className="relative pr-8 pl-2 [&>span:first-child]:right-2 [&>span:first-child]:left-auto [&_svg]:text-muted-foreground"
               checked={column.getIsSorted() === "asc"}
-              onClick={() => column.toggleSorting(false)}
+              onSelect={(e) => {
+                column.toggleSorting(false);
+              }}
             >
               <ChevronUp />
               Asc
@@ -68,7 +70,9 @@ export function DataTableColumnHeader<TData, TValue>({
             <DropdownMenuCheckboxItem
               className="relative pr-8 pl-2 [&>span:first-child]:right-2 [&>span:first-child]:left-auto [&_svg]:text-muted-foreground"
               checked={column.getIsSorted() === "desc"}
-              onClick={() => column.toggleSorting(true)}
+              onSelect={(e) => {
+                column.toggleSorting(true);
+              }}
             >
               <ChevronDown />
               Desc
@@ -76,7 +80,9 @@ export function DataTableColumnHeader<TData, TValue>({
             {column.getIsSorted() && (
               <DropdownMenuItem
                 className="pl-2 [&_svg]:text-muted-foreground"
-                onClick={() => column.clearSorting()}
+                onSelect={(e) => {
+                  column.clearSorting();
+                }}
               >
                 <X />
                 Reset
@@ -88,7 +94,9 @@ export function DataTableColumnHeader<TData, TValue>({
           <DropdownMenuCheckboxItem
             className="relative pr-8 pl-2 [&>span:first-child]:right-2 [&>span:first-child]:left-auto [&_svg]:text-muted-foreground"
             checked={!column.getIsVisible()}
-            onClick={() => column.toggleVisibility(false)}
+            onSelect={(e) => {
+              column.toggleVisibility(false);
+            }}
           >
             <EyeOff />
             Hide

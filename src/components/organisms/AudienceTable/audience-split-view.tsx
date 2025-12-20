@@ -4,6 +4,7 @@ import * as React from "react";
 import { SplitTableView } from "@/components/split-view-table";
 import type { AudienceRow, AudienceUseCaseRow } from "@/types/audience-types";
 import { useDataTable } from "@/hooks/use-data-table";
+import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { getPersonaSplitTableColumns } from "./persona-split-table-columns";
 import { getAudienceKeywordsTableColumns } from "./audience-keywords-table-columns";
 
@@ -73,16 +74,9 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
     return useCasesData;
   }, [selectedPersonaId, useCasesData]);
 
-  const {
-    table: keywordsTable,
-    shallow: keywordsShallow,
-    debounceMs: keywordsDebounceMs,
-    throttleMs: keywordsThrottleMs,
-  } = useDataTable({
+  const { table: keywordsTable } = useLocalDataTable({
     data: filteredUseCasesData,
     columns: keywordsColumns,
-    pageCount: 1,
-    enableAdvancedFilter,
     initialState: {
       sorting: [],
       pagination: {
@@ -91,8 +85,6 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
       },
     },
     getRowId: (originalRow: AudienceUseCaseRow) => originalRow.id,
-    shallow: false,
-    clearOnDefault: true,
   });
 
   const handlePersonaRowClick = React.useCallback(
@@ -138,15 +130,6 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
     [leftShallow, leftDebounceMs, leftThrottleMs]
   );
 
-  const rightTableHooks = React.useMemo(
-    () => ({
-      shallow: keywordsShallow,
-      debounceMs: keywordsDebounceMs,
-      throttleMs: keywordsThrottleMs,
-    }),
-    [keywordsShallow, keywordsDebounceMs, keywordsThrottleMs]
-  );
-
   return (
     <SplitTableView
       leftTable={leftTable}
@@ -160,7 +143,6 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
       searchPlaceholder="Search personas, use cases and keywords..."
       searchColumnIds={searchColumnIds}
       leftTableHooks={leftTableHooks}
-      rightTableHooks={rightTableHooks}
       leftTableWidth="35%"
       rightTableWidth="65%"
       onBack={onBack}

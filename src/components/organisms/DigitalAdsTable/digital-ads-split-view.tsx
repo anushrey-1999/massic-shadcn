@@ -4,6 +4,7 @@ import * as React from "react";
 import { SplitTableView } from "@/components/split-view-table";
 import type { DigitalAdsRow, DigitalAdsKeyword } from "@/types/digital-ads-types";
 import { useDataTable } from "@/hooks/use-data-table";
+import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { getSimplifiedTableColumns } from "./simplified-table-columns";
 import { getKeywordsTableColumns } from "./keywords-table-columns";
 
@@ -62,16 +63,9 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
     clearOnDefault: true,
   });
 
-  const {
-    table: keywordsTable,
-    shallow: keywordsShallow,
-    debounceMs: keywordsDebounceMs,
-    throttleMs: keywordsThrottleMs,
-  } = useDataTable({
+  const { table: keywordsTable } = useLocalDataTable({
     data: keywordsData,
     columns: keywordsColumns,
-    pageCount: 1,
-    enableAdvancedFilter,
     initialState: {
       sorting: [{ id: "opportunity_score", desc: true }],
       pagination: {
@@ -80,8 +74,6 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
       },
     },
     getRowId: (originalRow: DigitalAdsKeyword) => originalRow.keyword,
-    shallow: false,
-    clearOnDefault: true,
   });
 
   const handleRowClick = React.useCallback(
@@ -127,15 +119,6 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
     [leftShallow, leftDebounceMs, leftThrottleMs]
   );
 
-  const rightTableHooks = React.useMemo(
-    () => ({
-      shallow: keywordsShallow,
-      debounceMs: keywordsDebounceMs,
-      throttleMs: keywordsThrottleMs,
-    }),
-    [keywordsShallow, keywordsDebounceMs, keywordsThrottleMs]
-  );
-
   const columnMapping = React.useMemo(
     () => ({
       intent_cluster_opportunity_score: "opportunity_score",
@@ -156,7 +139,6 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
       searchPlaceholder="Search subtopics and keywords..."
       searchColumnIds={searchColumnIds}
       leftTableHooks={leftTableHooks}
-      rightTableHooks={rightTableHooks}
       columnMapping={columnMapping}
       leftTableWidth="30%"
       rightTableWidth="70%"

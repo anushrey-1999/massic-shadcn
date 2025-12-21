@@ -225,8 +225,8 @@ function UserTypeSelectionStep({
           onClick={() => setSelectedType("AGENCY")}
           disabled={isLoading}
           className={`w-full p-4 rounded-lg border-2 transition-all text-left ${selectedType === "AGENCY"
-              ? "border-primary bg-primary/5"
-              : "border-border hover:border-primary/50"
+            ? "border-primary bg-primary/5"
+            : "border-border hover:border-primary/50"
             } ${isLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
         >
           <div className="flex items-start gap-4">
@@ -247,8 +247,8 @@ function UserTypeSelectionStep({
           onClick={() => setSelectedType("BUSINESS")}
           disabled={isLoading}
           className={`w-full p-4 rounded-lg border-2 transition-all text-left ${selectedType === "BUSINESS"
-              ? "border-primary bg-primary/5"
-              : "border-border hover:border-primary/50"
+            ? "border-primary bg-primary/5"
+            : "border-border hover:border-primary/50"
             } ${isLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
         >
           <div className="flex items-start gap-4">
@@ -531,6 +531,7 @@ export default function SignupPage() {
         firstName: userSignupData.firstName,
         lastName: userSignupData.lastName,
         orgName: agencyData.agencyName,
+        website: agencyData.website,
         userType: "AGENCY",
         signupMethod: userSignupData.googleToken ? "GOOGLE" : "EMAIL",
         ...(userSignupData.googleToken && {
@@ -557,6 +558,7 @@ export default function SignupPage() {
         firstName: userSignupData.firstName,
         lastName: userSignupData.lastName,
         orgName: businessData.businessName,
+        website: businessData.website,
         userType: "BUSINESS",
         signupMethod: userSignupData.googleToken ? "GOOGLE" : "EMAIL",
         ...(userSignupData.googleToken && {

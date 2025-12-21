@@ -17,19 +17,67 @@ interface PageProps {
   }>
 }
 
-export default function BusinessStrategyPage({ params }: PageProps) {
-  const [businessId, setBusinessId] = React.useState<string>('')
+function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [isStrategySplitView, setIsStrategySplitView] = React.useState(false)
   const [isAudienceSplitView, setIsAudienceSplitView] = React.useState(false)
+
+  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
+  const jobExists = jobDetails && jobDetails.job_id
+
+  if (jobLoading) {
+    return (
+      <div className="flex items-center justify-center flex-1">
+        <p className="text-muted-foreground">Checking job status...</p>
+      </div>
+    )
+  }
+
+  if (!jobExists) {
+    return (
+      <div className="flex items-center justify-center flex-1">
+        <div className="text-center">
+          <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
+          <p className="text-muted-foreground">
+            Please create a job in the profile page to view strategy data.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
+      <Tabs defaultValue="strategy" className="flex flex-col flex-1 min-h-0">
+        {!(isStrategySplitView || isAudienceSplitView) && (
+          <TabsList className="shrink-0">
+            <TabsTrigger value="strategy">Strategy</TabsTrigger>
+            <TabsTrigger value="audience">Audience</TabsTrigger>
+            <TabsTrigger value="landscape">Landscape</TabsTrigger>
+          </TabsList>
+        )}
+        <TabsContent value="strategy" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
+          <StrategyTableClient businessId={businessId} onSplitViewChange={setIsStrategySplitView} />
+        </TabsContent>
+        <TabsContent value="audience" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
+          <AudienceTableClient businessId={businessId} onSplitViewChange={setIsAudienceSplitView} />
+        </TabsContent>
+        <TabsContent value="landscape" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
+          <LandscapeTableClient businessId={businessId} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
+export default function BusinessStrategyPage({ params }: PageProps) {
+  const [businessId, setBusinessId] = React.useState<string>('')
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
   }, [params])
 
-  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
-  const jobExists = jobDetails && jobDetails.job_id
-  
+
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
   const breadcrumbs = React.useMemo(
@@ -49,60 +97,24 @@ export default function BusinessStrategyPage({ params }: PageProps) {
     )
   }
 
-  if (jobLoading || profileDataLoading) {
+  if (profileDataLoading) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader breadcrumbs={breadcrumbs} />
         <div className="flex items-center justify-center flex-1">
-          <p className="text-muted-foreground">Checking job status...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!jobExists) {
-    return (
-      <div className="flex flex-col h-screen">
-        <PageHeader breadcrumbs={breadcrumbs} />
-        <div className="flex items-center justify-center flex-1">
-          <div className="text-center">
-            <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
-            <p className="text-muted-foreground">
-              Please create a job in the profile page to view strategy data.
-            </p>
-          </div>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <EntitlementsGuard entitlement="strategy" businessId={businessId}>
-      <div className="flex flex-col h-screen">
-
-        <PageHeader breadcrumbs={breadcrumbs} />
-        <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
-          <Tabs defaultValue="strategy" className="flex flex-col flex-1 min-h-0">
-            {!(isStrategySplitView || isAudienceSplitView) && (
-              <TabsList className="shrink-0">
-                <TabsTrigger value="strategy">Strategy</TabsTrigger>
-                <TabsTrigger value="audience">Audience</TabsTrigger>
-                <TabsTrigger value="landscape">Landscape</TabsTrigger>
-              </TabsList>
-            )}
-            <TabsContent value="strategy" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
-              <StrategyTableClient businessId={businessId} onSplitViewChange={setIsStrategySplitView} />
-            </TabsContent>
-            <TabsContent value="audience" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
-              <AudienceTableClient businessId={businessId} onSplitViewChange={setIsAudienceSplitView} />
-            </TabsContent>
-            <TabsContent value="landscape" className={cn("flex-1 min-h-0 overflow-hidden", !(isStrategySplitView || isAudienceSplitView) && "mt-4")}>
-              <LandscapeTableClient businessId={businessId} />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
-    </EntitlementsGuard>
+    <div className="flex flex-col h-screen">
+      <PageHeader breadcrumbs={breadcrumbs} />
+      <EntitlementsGuard entitlement="strategy" businessId={businessId}>
+        <StrategyEntitledContent businessId={businessId} />
+      </EntitlementsGuard>
+    </div>
 
   )
 }

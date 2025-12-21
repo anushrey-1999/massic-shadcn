@@ -21,6 +21,7 @@ export interface SubscribeParams {
 
 interface UseSubscriptionResult {
   loading: boolean;
+  isFetched: boolean;
   handleCreateAgencySubscription: (params: { business: any; planName: string }) => Promise<void>;
   handleAddBusinessToSubscription: (params: { business: any; planName: string }) => Promise<void>;
   handleChangePlan: (params: { business: any; planName: string; action: string; closeAllModals?: () => void }) => Promise<void>;
@@ -37,7 +38,12 @@ export const useSubscription = (): UseSubscriptionResult => {
   const [loading, setLoading] = useState(false);
 
   // -- Fetch Subscription Data --
-  const { data: subscriptionData, refetch: refetchSubscriptionQuery, isFetching: isRefetching } = useQuery({
+  const {
+    data: subscriptionData,
+    refetch: refetchSubscriptionQuery,
+    isFetching: isRefetching,
+    isFetched,
+  } = useQuery({
     queryKey: ["subscription", user?.uniqueId],
     queryFn: async () => {
       if (!user?.uniqueId) return null;
@@ -205,6 +211,7 @@ export const useSubscription = (): UseSubscriptionResult => {
 
   return {
     loading: loading || isRefetching,
+    isFetched,
     handleCreateAgencySubscription,
     handleAddBusinessToSubscription,
     handleChangePlan,

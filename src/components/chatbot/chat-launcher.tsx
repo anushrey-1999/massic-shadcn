@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { PlanModal } from "@/components/molecules/settings/PlanModal";
+import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 
 type Props = {
   businessId: string;
@@ -17,6 +19,17 @@ const PENDING_INPUT_KEY = "chatbot:pendingInput";
 
 export function ChatLauncher({ businessId, businessName }: Props) {
   const pathname = usePathname();
+
+  const [upgradeOpen, setUpgradeOpen] = React.useState(false);
+
+  const {
+    entitled,
+    gateLoading,
+    subscriptionLoading,
+    getCurrentPlan,
+    computedAlertMessage,
+    handleSubscribe,
+  } = useEntitlementGate({ entitlement: "aiChat", businessId });
 
   const derivedBusinessId = React.useMemo(() => {
     const match = pathname.match(/^\/business\/([^/]+)/);
@@ -38,6 +51,11 @@ export function ChatLauncher({ businessId, businessName }: Props) {
 
     if (!fullRoute) return;
 
+    if (!entitled) {
+      if (!gateLoading) setUpgradeOpen(true);
+      return;
+    }
+
     try {
       sessionStorage.setItem(PENDING_INPUT_KEY, text);
     } catch {
@@ -48,12 +66,25 @@ export function ChatLauncher({ businessId, businessName }: Props) {
     setUi("closed");
 
     window.location.assign(fullRoute);
-  }, [miniInput, fullRoute]);
+  }, [miniInput, fullRoute, entitled, gateLoading]);
 
   if (isOnFullRoute) return null;
 
   return (
     <>
+      <PlanModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        currentPlan={getCurrentPlan()}
+        showFooterButtons={true}
+        showAlertBar={true}
+        alertSeverity="error"
+        alertMessage={computedAlertMessage}
+        isDescription={false}
+        onSelectPlan={handleSubscribe}
+        loading={subscriptionLoading}
+      />
+
       {ui === "mini" ? (
         <div className="fixed bottom-24 right-6 z-50 w-[min(92vw,420px)]">
           <Card className="rounded-2xl border-border bg-card/95 shadow-lg backdrop-blur supports-backdrop-filter:bg-card/80">
@@ -104,7 +135,13 @@ export function ChatLauncher({ businessId, businessName }: Props) {
 
       <Button
         type="button"
-        onClick={() => setUi((prev) => (prev === "mini" ? "closed" : "mini"))}
+        onClick={() => {
+          if (!entitled) {
+            if (!gateLoading) setUpgradeOpen(true);
+            return;
+          }
+          setUi((prev) => (prev === "mini" ? "closed" : "mini"));
+        }}
         className={cn(
           "fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full p-0 shadow-lg",
           "bg-primary text-primary-foreground hover:bg-primary/90",

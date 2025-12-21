@@ -204,6 +204,7 @@ export interface SignupCredentials {
   firstName: string;
   lastName: string;
   orgName: string;
+  website: string;
   userType: "AGENCY" | "BUSINESS";
   signupMethod: "EMAIL" | "GOOGLE";
   googleToken?: string;

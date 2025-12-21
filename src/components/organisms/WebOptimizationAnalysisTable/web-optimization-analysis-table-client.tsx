@@ -4,7 +4,6 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
-import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { useWebOptimizationAnalysis } from "@/hooks/use-web-optimization-analysis";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
 import type { WebOptimizationAnalysisRow } from "@/types/web-optimization-analysis-types";
@@ -83,9 +82,6 @@ export function WebOptimizationAnalysisTableClient({ businessId }: WebOptimizati
   const [search, setSearch] = React.useState("");
   const [splitViewSearch, setSplitViewSearch] = React.useState("");
 
-  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
-  const jobExists = jobDetails && jobDetails.job_id;
-
   const { connectGoogleAccount } = useGoogleAccounts();
 
   const { fetchWebOptimizationAnalysisAll } = useWebOptimizationAnalysis();
@@ -104,7 +100,7 @@ export function WebOptimizationAnalysisTableClient({ businessId }: WebOptimizati
     placeholderData: (previousData) => previousData,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    enabled: !!businessId && !!jobExists && !jobLoading,
+    enabled: !!businessId,
   });
 
   const filteredRows = React.useMemo(
@@ -132,14 +128,6 @@ export function WebOptimizationAnalysisTableClient({ businessId }: WebOptimizati
   }, [selectedRowId, filteredRows]);
 
   const suggestions = React.useMemo(() => toSuggestionRows(selectedRow), [selectedRow]);
-
-  if (jobLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Checking job status...</p>
-      </div>
-    );
-  }
 
   if (isError) {
     if (isGoogleNotConnected(error)) {

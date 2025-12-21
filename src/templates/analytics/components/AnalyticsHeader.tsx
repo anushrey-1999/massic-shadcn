@@ -12,9 +12,19 @@ interface AnalyticsHeaderProps {
   breadcrumbs: BreadcrumbItem[]
   onDownload?: () => void
   onSettings?: () => void
+  trial?: {
+    remainingDays?: number
+  }
+  onUpgrade?: () => void
 }
 
-export function AnalyticsHeader({ breadcrumbs, onDownload, onSettings }: AnalyticsHeaderProps) {
+export function AnalyticsHeader({
+  breadcrumbs,
+  onDownload,
+  onSettings,
+  trial,
+  onUpgrade,
+}: AnalyticsHeaderProps) {
   return (
     <div className="bg-gray-50 flex items-center justify-between px-7 py-2 border-b border-border">
       <nav className="flex items-center gap-1 text-sm">
@@ -34,6 +44,26 @@ export function AnalyticsHeader({ breadcrumbs, onDownload, onSettings }: Analyti
         ))}
       </nav>
       <div className="flex items-center gap-2">
+        {trial ? (
+          <div className="inline-flex h-9 items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3">
+            <span className="text-xs font-medium text-foreground whitespace-nowrap">
+              You’re on a free trial
+            </span>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {typeof trial.remainingDays === "number" && trial.remainingDays >= 0
+                ? `${trial.remainingDays} day${trial.remainingDays === 1 ? "" : "s"} left`
+                : "Trial active"}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 whitespace-nowrap"
+              onClick={onUpgrade}
+            >
+              Upgrade
+            </Button>
+          </div>
+        ) : null}
         <Button
           className="gap-2 bg-emerald-700 hover:bg-emerald-800 text-white"
           onClick={onDownload}

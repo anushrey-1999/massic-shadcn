@@ -110,7 +110,8 @@ export function ProfileSettings() {
       logo: agencyInfo.logo || "",
     },
     validators: {
-      onChange: agencyFormSchema,
+      onBlur: agencyFormSchema,
+      onSubmit: agencyFormSchema,
     },
     onSubmit: async ({ value }) => {
       await updateAgencyMutation.mutateAsync({

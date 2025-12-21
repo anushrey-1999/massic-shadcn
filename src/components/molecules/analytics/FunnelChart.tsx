@@ -24,16 +24,16 @@ const LINE_OFFSET = 0
 const LINE_RATIOS = [0.37, 0.68] as const
 const SECTION_STYLES = [
   {
-    label: "text-xs font-medium text-muted-foreground",
-    value: "text-[30px] font-semibold leading-8 text-foreground",
+    label: "text-xs font-medium text-muted-foreground font-mono",
+    value: "text-3xl font-semibold leading-8 text-foreground",
   },
   {
-    label: "text-xs font-medium text-sky-500",
-    value: "text-[30px] font-semibold leading-8 text-sky-600",
+    label: "text-xs font-medium text-sky-500 font-mono",
+    value: "text-3xl font-semibold leading-8 text-sky-600",
   },
   {
-    label: "text-xs font-medium text-emerald-500",
-    value: "text-[30px] font-semibold leading-8 text-emerald-600",
+    label: "text-xs font-medium text-emerald-500 font-mono",
+    value: "text-3xl font-semibold leading-8 text-emerald-600",
   },
 ] as const
 
@@ -75,7 +75,7 @@ const formatValue = (value?: number) => {
 
 export function FunnelChart({ data, className }: FunnelChartProps) {
   return (
-    <div className={cn("relative w-full", className)} style={{ aspectRatio: "327 / 274" }}>
+    <div className={cn("relative w-full h-full", className)} style={{ aspectRatio: "327 / 274" }}>
       <svg
         viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
         className="absolute inset-0 h-full w-full"
@@ -102,7 +102,7 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
           />
         ))}
       </svg>
-      <div className="relative z-10 flex h-full flex-col items-center justify-between py-6 text-center">
+      <div className="relative z-10 flex h-full flex-col items-center justify-between py-8 text-center">
         {SECTION_STYLES.map((style, index) => (
           <div key={`${style.value}-${index}`} className="space-y-1">
             <p className={style.label}>{data[index]?.label ?? ""}</p>
@@ -120,12 +120,12 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
           <span
             key={`pill-${line.y}`}
             className={cn(
-              "absolute z-10 -translate-y-1/2 rounded-full  bg-white text-[11px] font-semibold leading-none",
+              "absolute z-10 -translate-y-1/2 text-muted-foreground rounded-full font-mono bg-white px-0.5 text-[10px] leading-none",
               pillColor
             )}
             style={{
               top: `${line.percentY}%`,
-              left: `calc(${line.percentX}% - 60px)`,
+              left: `calc(${line.percentX}% - 40px)`,
             }}
           >
             {percentage}

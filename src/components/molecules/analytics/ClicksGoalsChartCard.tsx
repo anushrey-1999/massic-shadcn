@@ -72,7 +72,7 @@ export function ClicksGoalsChartCard({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-[#E5E5E5] bg-white p-3" style={{ height }}>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-general-border bg-white p-3" style={{ height }}>
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -80,14 +80,14 @@ export function ClicksGoalsChartCard({
 
   if (!hasData || data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-[#E5E5E5] bg-white p-3" style={{ height }}>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-general-border bg-white p-3" style={{ height }}>
         <span className="text-muted-foreground text-sm">No GA4 data available</span>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-[#E5E5E5] bg-white p-3 overflow-hidden" style={{ height }}>
+    <div className="flex flex-col  bg-white overflow-hidden" style={{ height }}>
       <ChartLegend
         items={legendItems}
         onToggle={onLegendToggle}

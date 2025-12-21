@@ -68,6 +68,7 @@
   --color-general-muted-foreground: var(--general-muted-foreground);
   --color-chart-static-green: var(--chart-static-green);
   --color-general-border-three: var(--general-border-three);
+  --color-general-secondary-foreground: var(--general-secondary-foreground);
   /* Added by me  */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -119,6 +120,7 @@
   --general-muted-foreground: #737373;
   --chart-static-green: #016630;
   --general-border-three: #D4D4D4;
+  --general-secondary-foreground: #171717;
 }
 
 .dark {

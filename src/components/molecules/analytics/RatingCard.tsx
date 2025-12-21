@@ -31,10 +31,10 @@ export function RatingCard({
       )}
     >
       <div className="flex flex-col gap-1">
-        <span className="text-sm text-muted-foreground">{title}</span>
+        <span className="text-base text-general-secondary-foreground font-mono">{title}</span>
         <div className="flex items-center gap-2">
           {value !== undefined && (
-            <span className="text-2xl font-bold">{value}</span>
+            <span className="text-2xl font-semibold">{value}</span>
           )}
           {rating !== undefined && (
             <div className="flex items-center gap-0.5">

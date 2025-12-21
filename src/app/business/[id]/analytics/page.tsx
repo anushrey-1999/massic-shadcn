@@ -1,4 +1,4 @@
-import { AnalyticsTemplate } from "@/templates/analytics/AnalyticsTemplate"
+import { AnalyticsTemplate } from "@/components/templates/AnalyticsTemplate"
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 
 interface PageProps {

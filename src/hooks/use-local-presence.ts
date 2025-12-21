@@ -143,7 +143,7 @@ export function useLocalPresence(
       }))
 
       const metric: InteractionMetric = {
-        label: "Interactions",
+        label: "Total Interactions",
         value: totalInteractions.Total || "0",
         change: parsePercentageChange(totalInteractions.Diff || "0%", totalInteractions.Trend || "down"),
       }

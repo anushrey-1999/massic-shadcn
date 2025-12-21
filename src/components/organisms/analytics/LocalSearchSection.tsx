@@ -1,31 +1,35 @@
-"use client"
+"use client";
 
-import { useState, useMemo } from "react"
-import { usePathname } from "next/navigation"
-import { MapPin, Search, Loader2 } from "lucide-react"
-import { DataTable, type SortConfig } from "../components/DataTable"
-import { DataTableModal } from "../components/DataTableModal"
-import { InteractionsChartCard } from "../components/InteractionsChartCard"
+import { useState, useMemo } from "react";
+import { usePathname } from "next/navigation";
+import { MapPin, Search, Loader2, ChartNoAxesCombined } from "lucide-react";
+import { DataTable, type SortConfig } from "@/components/molecules/analytics/DataTable";
+import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
+import { InteractionsChartCard } from "@/components/molecules/analytics/InteractionsChartCard";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { useLocalPresence, type TimePeriodValue } from "@/hooks/use-local-presence"
-import { useBusinessStore } from "@/store/business-store"
+} from "@/components/ui/select";
+import {
+  useLocalPresence,
+  type TimePeriodValue,
+} from "@/hooks/use-local-presence";
+import { useBusinessStore } from "@/store/business-store";
+import { Typography } from "@/components/ui/typography";
 
 interface LocationOption {
-  value: string
-  label: string
+  value: string;
+  label: string;
 }
 
 interface LocalSearchSectionProps {
-  period?: TimePeriodValue
-  locations?: LocationOption[]
-  selectedLocation?: string
-  onLocationChange?: (location: string) => void
+  period?: TimePeriodValue;
+  locations?: LocationOption[];
+  selectedLocation?: string;
+  onLocationChange?: (location: string) => void;
 }
 
 export function LocalSearchSection({
@@ -34,18 +38,21 @@ export function LocalSearchSection({
   selectedLocation = "",
   onLocationChange,
 }: LocalSearchSectionProps) {
-  const pathname = usePathname()
-  const profiles = useBusinessStore((state) => state.profiles)
-  const [queriesModalOpen, setQueriesModalOpen] = useState(false)
-  const [sortConfig, setSortConfig] = useState<SortConfig>({ column: "searches", direction: "desc" })
+  const pathname = usePathname();
+  const profiles = useBusinessStore((state) => state.profiles);
+  const [queriesModalOpen, setQueriesModalOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    column: "searches",
+    direction: "desc",
+  });
 
   const { businessUniqueId } = useMemo(() => {
-    const match = pathname.match(/^\/business\/([^/]+)/)
-    if (!match) return { businessUniqueId: null }
+    const match = pathname.match(/^\/business\/([^/]+)/);
+    if (!match) return { businessUniqueId: null };
 
-    const id = match[1]
-    return { businessUniqueId: id }
-  }, [pathname])
+    const id = match[1];
+    return { businessUniqueId: id };
+  }, [pathname]);
 
   const {
     interactionsChartData,
@@ -54,49 +61,56 @@ export function LocalSearchSection({
     isLoading,
     hasInteractionsData,
     hasQueriesData,
-  } = useLocalPresence(businessUniqueId, period, selectedLocation)
+  } = useLocalPresence(businessUniqueId, period, selectedLocation);
 
   const tableData = useMemo(() => {
     const mapped = queriesData.map((item) => ({
       query: item.queries,
       searches: { value: item.searches.value },
-    }))
+    }));
 
     if (sortConfig.column === "searches") {
       return [...mapped].sort((a, b) => {
-        const aVal = a.searches.value
-        const bVal = b.searches.value
-        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal
-      })
+        const aVal = a.searches.value;
+        const bVal = b.searches.value;
+        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+      });
     }
 
-    return mapped
-  }, [queriesData, sortConfig])
+    return mapped;
+  }, [queriesData, sortConfig]);
 
   const handleSort = (column: string) => {
     setSortConfig((prev) => ({
       column,
-      direction: prev.column === column && prev.direction === "desc" ? "asc" : "desc",
-    }))
-  }
+      direction:
+        prev.column === column && prev.direction === "desc" ? "asc" : "desc",
+    }));
+  };
 
   if (locations.length === 0) {
     return (
       <div className="flex flex-col gap-7">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Local Search</h2>
+        <div className="flex items-center gap-2">
+          <MapPin className="h-8 w-8 text-general-foreground" />
+          <Typography variant="h2">Local Search</Typography>
         </div>
         <div className="flex items-center justify-center h-[200px] border rounded-lg bg-muted/20">
-          <p className="text-sm text-muted-foreground">No locations configured for this business</p>
+          <p className="text-sm text-muted-foreground">
+            No locations configured for this business
+          </p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold">Local Search</h2>
+        <div className="flex items-center gap-2">
+          <MapPin className="h-8 w-8 text-general-foreground" />
+          <Typography variant="h2">Local Search</Typography>
+        </div>
         <Select value={selectedLocation} onValueChange={onLocationChange}>
           <SelectTrigger className="w-[220px]">
             <SelectValue placeholder="Select location" />
@@ -111,7 +125,7 @@ export function LocalSearchSection({
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-8 border border-general-border rounded-lg p-3">
         {isLoading ? (
           <div className="flex items-center justify-center h-[300px] border rounded-lg">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -119,7 +133,7 @@ export function LocalSearchSection({
         ) : (
           <InteractionsChartCard
             icon={<MapPin className="h-4 w-4 text-muted-foreground" />}
-            title="Total Interactions"
+            title="Local interactions with your listing"
             legend={{
               color: "#3b82f6",
               label: interactionsMetric.label,
@@ -132,8 +146,7 @@ export function LocalSearchSection({
         )}
 
         <DataTable
-          icon={<Search className="h-4 w-4" />}
-          title="Top Queries"
+          title="Local searches to discover you"
           columns={[
             { key: "query", label: "Query", width: "w-[250px]" },
             { key: "searches", label: "Searches", sortable: true },
@@ -163,5 +176,5 @@ export function LocalSearchSection({
         onSort={handleSort}
       />
     </div>
-  )
+  );
 }

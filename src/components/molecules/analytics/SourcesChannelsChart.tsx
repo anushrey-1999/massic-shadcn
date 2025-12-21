@@ -29,31 +29,37 @@ interface SourcesChannelsChartProps {
 }
 
 const chartConfig = {
-  goals: { label: "Goals", color: "#059669" },
   sessions: { label: "Sessions", color: "#0374E5" },
+  goals: { label: "Goals", color: "#059669" },
 }
 
 export function SourcesChannelsChart({
   data,
   title = "Sources/Channels",
-  height = 365,
+  height = 320,
   isLoading = false,
   hasData = true,
 }: SourcesChannelsChartProps) {
   const renderLegend = (props: any) => {
     const { payload } = props
+    // Reorder to show Goals first, then Sessions
+    const orderedPayload = [...payload].sort((a, b) => {
+      if (a.dataKey === "goalsNorm") return -1
+      if (b.dataKey === "goalsNorm") return 1
+      return 0
+    })
     return (
       <div className="flex items-center justify-end gap-4">
-        {payload.map((entry: any, index: number) => (
+        {orderedPayload.map((entry: any, index: number) => (
           <div key={`item-${index}`} className="flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity">
             <div
               className={cn(
                 "h-2.5 w-2.5 rounded-[2px]",
-                entry.dataKey === "sessions" && "opacity-30"
+                entry.dataKey === "sessionsNorm" && "opacity-30"
               )}
               style={{ backgroundColor: entry.color }}
             />
-            <span className="text-center text-xs font-normal leading-[150%] tracking-[0.18px] text-[#737373]">
+            <span className="text-center text-xs font-normal leading-[150%] tracking-[0.18px] text-general-muted-foreground">
               {entry.value}
             </span>
           </div>
@@ -64,7 +70,7 @@ export function SourcesChannelsChart({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-[#E5E5E5] bg-white p-3" style={{ height }}>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-general-border bg-white p-3" style={{ height }}>
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -72,18 +78,14 @@ export function SourcesChannelsChart({
 
   if (!hasData || data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-[#E5E5E5] bg-white p-3" style={{ height }}>
+      <div className="flex flex-col items-center justify-center rounded-lg border border-general-border bg-white p-3" style={{ height }}>
         <span className="text-muted-foreground text-sm">No channel data available</span>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border border-[#E5E5E5] bg-white p-3" style={{ height }}>
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-medium leading-[150%] text-[#171717]">{title}</h3>
-      </div>
-
+    <div className="flex flex-col gap-2.5  bg-white" style={{ height }}>
       <div className="flex-1 min-h-0">
         <ChartContainer config={chartConfig} className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -91,7 +93,10 @@ export function SourcesChannelsChart({
               data={data}
               layout="vertical"
               margin={{ top: 0, right: 10, bottom: 10, left: 0 }}
+              barSize={34}
               barGap={-34}
+              barCategoryGap={16}
+              maxBarSize={34}
             >
               <XAxis type="number" hide domain={[0, 100]} />
               <YAxis
@@ -122,6 +127,9 @@ export function SourcesChannelsChart({
                     </div>
                   )
                 }}
+                cursor={false}
+                shared={true}
+                trigger="hover"
               />
               <Legend
                 content={renderLegend}
@@ -129,8 +137,23 @@ export function SourcesChannelsChart({
                 align="right"
                 wrapperStyle={{ paddingBottom: "10px" }}
               />
-              <Bar dataKey="sessionsNorm" radius={4} fill="#0374E5" opacity={0.3} name="Sessions" />
-              <Bar dataKey="goalsNorm" radius={4} fill="#059669" name="Goals" />
+              <Bar 
+                dataKey="sessionsNorm" 
+                radius={4} 
+                fill="#0374E5" 
+                opacity={0.3} 
+                name="Sessions"
+                isAnimationActive={false}
+                barSize={34}
+              />
+              <Bar 
+                dataKey="goalsNorm" 
+                radius={4} 
+                fill="#059669" 
+                name="Goals"
+                isAnimationActive={false}
+                barSize={34}
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartContainer>

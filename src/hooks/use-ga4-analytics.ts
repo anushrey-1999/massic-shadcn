@@ -493,8 +493,8 @@ export function useGA4Analytics(
 
     return channelsData.map((item) => ({
       ...item,
-      sessionsNorm: scaleValue(item.sessions),
       goalsNorm: scaleValue(item.goals),
+      sessionsNorm: scaleValue(item.sessions),
     }))
   }, [channelsData])
 

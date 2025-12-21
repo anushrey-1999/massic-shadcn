@@ -144,24 +144,24 @@ export function DataTable({
   const tableContent = (
     <>
       {isLoading ? (
-        <div className={cn("flex items-center justify-center border rounded-lg", variant === "card" ? "h-[200px]" : "h-full min-h-[300px]")}>
+        <div className={cn("flex items-center justify-center rounded-lg", variant === "card" ? "h-[200px]" : "h-full min-h-[300px]")}>
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : !hasData || data.length === 0 ? (
-        <div className={cn("flex items-center justify-center border rounded-lg text-muted-foreground text-sm", variant === "card" ? "h-[200px]" : "h-full min-h-[300px]")}>
+        <div className={cn("flex items-center justify-center rounded-lg text-muted-foreground text-sm", variant === "card" ? "h-[200px]" : "h-full min-h-[300px]")}>
           No data available
         </div>
       ) : (
         <div
           className={cn(
-            "rounded-lg border",
+            "rounded-lg border ",
             stickyHeader && maxHeight ? "overflow-auto" : "overflow-hidden",
           )}
           style={stickyHeader && maxHeight ? { maxHeight } : undefined}
         >
           <Table className={stickyHeader ? "overflow-visible" : undefined}>
             <TableElement>
-              <TableHeader className={cn(stickyHeader && "sticky top-0 z-10 bg-muted [&_tr]:border-b")}>
+              <TableHeader className={cn(stickyHeader && "sticky top-0 z-10 bg-muted")}>
                 <TableRow className="hover:bg-transparent">
                   {columns.map((col, index) => (
                     <TableHead
@@ -223,16 +223,14 @@ export function DataTable({
                                 <Badge
                                   variant="secondary"
                                   className={cn(
-                                    "gap-1 rounded-lg border-0 px-1.5 py-0.5 font-medium shrink-0",
+                                    "gap-1 rounded-lg text-general-muted-foreground border-0 px-1.5 py-[4.5px] font-medium shrink-0",
                                     styles.badge,
-                                    (cellValue as { change: number }).change > 0 && "bg-green-50 text-green-600",
-                                    (cellValue as { change: number }).change < 0 && "bg-red-50 text-red-600"
                                   )}
                                 >
                                   {(cellValue as { change: number }).change > 0 ? (
-                                    <TrendingUp className="h-3 w-3" />
+                                    <TrendingUp className="h-3 w-3 text-green-600" />
                                   ) : (cellValue as { change: number }).change < 0 ? (
-                                    <TrendingDown className="h-3 w-3" />
+                                    <TrendingDown className="h-3 w-3 text-red-600" />
                                   ) : null}
                                   {Math.abs((cellValue as { change: number }).change)}%
                                 </Badge>
@@ -268,23 +266,22 @@ export function DataTable({
   }
 
   return (
-    <Card className={cn("gap-2.5 p-3 shadow-none", className)}>
+    <Card className={cn("gap-2.5 p-0 shadow-none border-none rounded-none", className)}>
       <CardHeader className="p-0 gap-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            {icon && <span className="text-muted-foreground w-[26px]">{icon}</span>}
-            {title && <CardTitle className="text-base font-medium">{title}</CardTitle>}
+            {title && <CardTitle className="text-base font-normal font-mono  text-general-secondary-foreground">{title}</CardTitle>}
           </div>
           {showTabs && tabs && (
             <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="h-auto p-0.5">
+              <TabsList className="h-auto p-0.5 bg-primary-foreground ">
                 {tabs.map((tab, index) => (
                   <TabsTrigger
                     key={index}
                     value={tab.value || `tab-${index}`}
-                    className="min-h-5 min-w-5 px-1.5 py-0.5 cursor-pointer"
+                    className="px-1.5 py-0.5 cursor-pointer"
                   >
-                    {tab.icon && <span>{tab.icon}</span>}
+                    {tab.icon && <span className="text-[#525252]">{tab.icon}</span>}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -298,7 +295,7 @@ export function DataTable({
       </CardContent>
 
       {onArrowClick && (
-        <CardFooter className="justify-end p-0 pt-1">
+        <CardFooter className="justify-end p-0">
           <Button
             size="icon-sm"
             variant="secondary"

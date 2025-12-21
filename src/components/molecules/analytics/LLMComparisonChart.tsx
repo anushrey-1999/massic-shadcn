@@ -34,13 +34,13 @@ export function LLMComparisonChart({
 }: LLMComparisonChartProps) {
   if (isLoading) {
     return (
-      <div className="flex flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
+      <div className="flex flex-col rounded-lg bg-white">
         <Skeleton className="h-6 w-64 mb-4" />
         <div className="flex flex-col gap-3">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-8 w-8 rounded" />
-              <Skeleton className="h-8 flex-1 rounded" />
+              <Skeleton className="h-[38px] w-[38px] rounded" />
+              <Skeleton className="h-[38px] flex-1 rounded" />
               <Skeleton className="h-4 w-14" />
             </div>
           ))}
@@ -51,10 +51,9 @@ export function LLMComparisonChart({
 
   if (!hasData || data.length === 0) {
     return (
-      <div className="flex flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
-        <h3 className="mb-4 text-base font-medium leading-[150%] text-[#171717]">{title}</h3>
+      <div className="flex flex-col rounded-lg border border-general-border bg-white p-3">
         <div className="flex flex-1 items-center justify-center p-8">
-          <p className="text-sm text-[#737373]">No data available</p>
+          <p className="text-sm text-general-muted-foreground">No data available</p>
         </div>
       </div>
     )
@@ -63,9 +62,7 @@ export function LLMComparisonChart({
   const maxValue = Math.max(...data.map((d) => d.value), 1)
 
   return (
-    <div className="flex flex-col rounded-lg border border-[#E5E5E5] bg-white p-3">
-      <h3 className="mb-4 text-base font-medium leading-[150%] text-[#171717]">{title}</h3>
-
+    <div className="flex flex-col rounded-lg bg-white">
       <div className="flex flex-col gap-3">
         {data.map((item, index) => {
           const displayValue = item.rawValue ?? item.value
@@ -76,7 +73,7 @@ export function LLMComparisonChart({
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex h-8 w-8 items-center justify-center text-[#737373] cursor-pointer">
+                    <div className="flex h-[38px] w-[38px] items-center justify-center text-general-muted-foreground cursor-pointer">
                       {item.icon}
                     </div>
                   </TooltipTrigger>
@@ -87,7 +84,7 @@ export function LLMComparisonChart({
               </TooltipProvider>
               <div className="flex flex-1 items-center gap-2 group relative">
                 <div
-                  className="h-8 rounded min-w-1 relative cursor-pointer"
+                  className="h-[38px] rounded min-w-1 relative cursor-pointer"
                   style={{
                     width: barWidth > 0 ? `${barWidth}%` : '4px',
                     backgroundColor: item.value > 0 ? item.color : '#E5E5E5',

@@ -66,9 +66,9 @@ export function PositionDistributionCard({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2.5 rounded-lg border border-[#E5E5E5] bg-white p-3">
+      <div className="flex flex-col gap-2.5 rounded-lg  bg-white ">
         <div className="flex items-center gap-1">
-          <Eye className="h-[26px] w-[26px] stroke-[#D4D4D4] stroke-[1.5]" />
+          <Eye className="h-[26px] w-[26px] stroke-general-border-three stroke-[1.5]" />
           <span className="text-base font-medium text-[#171717]">{title}</span>
         </div>
         <div className="flex items-center justify-center h-[250px]">
@@ -80,9 +80,9 @@ export function PositionDistributionCard({
 
   if (!hasData) {
     return (
-      <div className="flex flex-col gap-2.5 rounded-lg border border-[#E5E5E5] bg-white p-3">
+      <div className="flex flex-col gap-2.5 rounded-lg border border-general-border bg-white p-3">
         <div className="flex items-center gap-1">
-          <Eye className="h-[26px] w-[26px] stroke-[#D4D4D4] stroke-[1.5]" />
+          <Eye className="h-[26px] w-[26px] stroke-general-border-three stroke-[1.5]" />
           <span className="text-base font-medium text-[#171717]">{title}</span>
         </div>
         <div className="flex items-center justify-center h-[250px] text-muted-foreground text-sm">
@@ -93,24 +93,23 @@ export function PositionDistributionCard({
   }
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg border border-[#E5E5E5] bg-white p-3">
+    <div className="flex flex-col gap-2.5 bg-white">
       <div className="flex items-center gap-1">
-        <Eye className="h-[26px] w-[26px] stroke-[#D4D4D4] stroke-[1.5]" />
-        <span className="text-base font-medium text-[#171717]">{title}</span>
+        <span className="text-base font-medium font-mono  text-general-secondary-foreground">{title}</span>
       </div>
 
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-4 gap-1.5 rounded-lg bg-[#F5F5F5] p-2">
+        <div className="grid grid-cols-4 gap-1.5 rounded-lg bg-foreground-light p-2 ">
           {positions.map((position, index) => (
             <label
               key={position.key || index}
-              className="flex flex-col gap-0.5 rounded px-1.5 py-1.5 bg-white cursor-pointer min-w-0"
+              className="flex justify-between gap-0.5 rounded px-1.5 py-1.5 bg-white cursor-pointer min-w-0"
             >
               <div className="flex items-center gap-1.5">
                 <Checkbox
                   checked={position.checked ?? true}
                   onCheckedChange={(checked) => onToggle?.(position.key, checked as boolean)}
-                  className="h-3.5 w-3.5 shrink-0 rounded border border-border data-[state=checked]:bg-[#0A0A0A] data-[state=checked]:border-[#0A0A0A] data-[state=unchecked]:bg-white cursor-pointer"
+                  className="h-4 w-4 shrink-0 rounded border border-border data-[state=checked]:bg-general-foreground data-[state=checked]:border-general-foreground data-[state=unchecked]:bg-white cursor-pointer"
                 />
                 <span
                   className="text-xs font-medium text-[#2563EB] tracking-[0.18px] truncate"
@@ -119,8 +118,8 @@ export function PositionDistributionCard({
                   {position.label}
                 </span>
               </div>
-              <div className="flex items-center justify-between pl-5">
-                <span className="font-mono text-base font-normal text-[#0A0A0A]">
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-mono text-base font-normal text-general-foreground">
                   {position.value}
                 </span>
                 <div className="flex items-center gap-0.5">
@@ -129,7 +128,7 @@ export function PositionDistributionCard({
                   ) : (
                     <TrendingDown className="h-3.5 w-3.5 text-[#DC2626]" />
                   )}
-                  <span className={`text-[11px] font-medium tracking-[0.15px] ${position.change >= 0 ? 'text-[#737373]' : 'text-[#DC2626]'}`}>
+                  <span className={`text-[11px] font-medium tracking-[0.15px] ${position.change >= 0 ? 'text-general-muted-foreground' : 'text-[#DC2626]'}`}>
                     {Math.abs(position.change)}%
                   </span>
                 </div>
@@ -138,7 +137,7 @@ export function PositionDistributionCard({
           ))}
         </div>
 
-        <div className="h-44">
+        <div className="h-51">
           <ChartContainer config={chartConfig} className="h-full w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>

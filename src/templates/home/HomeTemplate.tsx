@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { StatsBadge } from "@/templates/analytics/components/StatsBadge"
+import { StatsBadge } from "@/components/molecules/analytics/StatsBadge"
 import { useAuthStore } from "@/store/auth-store"
 import { useBusinessProfiles } from "@/hooks/use-business-profiles"
 import { useBusinessPreviews, type BusinessPreviewItem } from "@/hooks/use-business-previews"

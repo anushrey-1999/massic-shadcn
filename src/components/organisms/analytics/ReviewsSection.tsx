@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { usePathname } from "next/navigation"
 import { Loader2 } from "lucide-react"
-import { RatingCard } from "../components/RatingCard"
+import { RatingCard } from "@/components/molecules/analytics/RatingCard"
 import { useLocalPresence, type TimePeriodValue } from "@/hooks/use-local-presence"
 import { useBusinessStore } from "@/store/business-store"
 
@@ -38,7 +38,7 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
   if (!hasLocations) {
     return (
       <div className="flex flex-col gap-7">
-        <h2 className="text-base font-semibold">Reviews</h2>
+        {/* <h2 className="text-base font-semibold">Reviews</h2> */}
         <div className="flex items-center justify-center h-[120px] border rounded-lg bg-muted/20">
           <p className="text-sm text-muted-foreground">No locations configured for this business</p>
         </div>
@@ -49,7 +49,7 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
   if (isLoading) {
     return (
       <div className="flex flex-col gap-7">
-        <h2 className="text-base font-semibold">Reviews</h2>
+        {/* <h2 className="text-base font-semibold">Reviews</h2> */}
         <div className="flex items-center justify-center h-[120px] border rounded-lg">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -58,8 +58,8 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
   }
 
   return (
-    <div className="flex flex-col gap-7">
-      <h2 className="text-base font-semibold">Reviews</h2>
+    <div className="">
+      {/* <h2 className="text-base font-semibold">Reviews</h2> */}
 
       <div className="grid grid-cols-2 gap-4">
         <RatingCard

@@ -26,7 +26,7 @@ export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
       {items.map((item) => (
         <label
           key={item.key}
-          className="flex flex-1 items-center justify-center gap-2 py-2 px-3 bg-background rounded-md cursor-pointer"
+          className="flex flex-1 items-center justify-center gap-2 py-1 px-1.5 bg-background rounded-md cursor-pointer"
         >
           <Checkbox
             checked={item.checked ?? true}

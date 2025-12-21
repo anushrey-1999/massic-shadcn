@@ -44,11 +44,11 @@ export function AITrafficChartCard({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col rounded-lg border border-[#E5E5E5] bg-white">
+      <div className="flex flex-col rounded-lg bg-white">
         <Skeleton className="h-6 w-48 m-3" />
         <div className="flex items-center gap-2 p-2 bg-secondary m-2 rounded-lg">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="flex flex-1 flex-col gap-1 rounded-lg border border-[#E5E5E5] p-2 bg-white">
+            <div key={i} className="flex flex-1 flex-col gap-1 rounded-lg border border-general-border p-2 bg-white">
               <Skeleton className="h-3 w-16" />
               <Skeleton className="h-5 w-20" />
             </div>
@@ -63,25 +63,23 @@ export function AITrafficChartCard({
 
   if (!hasData) {
     return (
-      <div className="flex flex-col rounded-lg border border-[#E5E5E5] bg-white">
-        <h3 className="p-3 text-base font-medium leading-[150%] text-[#171717]">{title}</h3>
+      <div className="flex flex-col rounded-lg  bg-white">
+        <h3 className="p-3 text-base font-medium leading-[150%] text-general-secondary-foreground">{title}</h3>
         <div className="flex flex-1 items-center justify-center p-8">
-          <p className="text-sm text-[#737373]">No data available</p>
+          <p className="text-sm text-general-muted-foreground">No data available</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-[#E5E5E5] bg-white">
-      <h3 className="p-3 text-base font-medium leading-[150%] text-[#171717]">{title}</h3>
-
-      <div className="flex items-center gap-2 p-2 bg-secondary m-2 rounded-lg">
+    <div className="flex flex-col rounded-lg  bg-white">
+      <div className="flex items-center gap-2 p-2 bg-secondary rounded-lg">
         {metrics.map((metric, index) => (
-          <div key={index} className="flex flex-1 flex-col gap-1 rounded-lg border border-[#E5E5E5] p-2 bg-white">
-            <span className="text-xs font-normal text-[#737373]">{metric.label}</span>
-            <div className="flex items-center gap-1">
-              <span className="text-lg font-semibold text-[#171717]">{metric.value}</span>
+          <div key={index} className="flex flex-1 flex-col gap-0.5 rounded-lg p-1 bg-white">
+            <span className="text-xs font-normal text-general-muted-foreground">{metric.label}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-mono text-general-secondary-foreground">{metric.value}</span>
               <div className="flex items-center gap-0.5">
                 {metric.change >= 0 ? (
                   <TrendingUp className="h-3 w-3 text-[#16A34A]" />
@@ -89,8 +87,7 @@ export function AITrafficChartCard({
                   <TrendingDown className="h-3 w-3 text-[#DC2626]" />
                 )}
                 <span className={cn(
-                  "text-[10px] font-medium",
-                  metric.change >= 0 ? "text-[#16A34A]" : "text-[#DC2626]"
+                  "text-[10px] font-medium text-general-muted-foreground",
                 )}>
                   {metric.change >= 0 ? "+" : ""}{metric.change}%
                 </span>
@@ -100,7 +97,7 @@ export function AITrafficChartCard({
         ))}
       </div>
 
-      <div className="flex-1 p-3">
+      <div className="flex-1">
         <div style={{ height: chartHeight }}>
           <ChartContainer config={chartConfig} className="h-full w-full">
             <ResponsiveContainer width="100%" height="100%">

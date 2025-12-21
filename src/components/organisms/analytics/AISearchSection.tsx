@@ -2,8 +2,8 @@
 
 import { useMemo } from "react"
 import { usePathname } from "next/navigation"
-import { AITrafficChartCard } from "../components/AITrafficChartCard"
-import { LLMComparisonChart } from "../components/LLMComparisonChart"
+import { AITrafficChartCard } from "../../molecules/analytics/AITrafficChartCard"
+import { LLMComparisonChart } from "../../molecules/analytics/LLMComparisonChart"
 import { useAISearchAnalytics, type TimePeriodValue } from "@/hooks/use-ai-search-analytics"
 import { useBusinessStore } from "@/store/business-store"
 

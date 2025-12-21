@@ -13,6 +13,10 @@ import DiscoveryPerformanceSection from "@/components/organisms/analytics/Discov
 import SourcesSection from "@/components/organisms/analytics/SourcesSection";
 import ConversionSection from "@/components/organisms/analytics/ConversionSection";
 
+import { useBusinessProfileById } from "@/hooks/use-business-profiles";
+import { PlanModal } from "@/components/molecules/settings/PlanModal";
+import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
+
 const navItems = [
   { id: "discovery", label: "Discovery" },
   { id: "sources", label: "Sources" },
@@ -25,18 +29,41 @@ export function AnalyticsTemplate() {
   const [selectedPeriod, setSelectedPeriod] =
     useState<TimePeriodValue>("3 months");
   const [selectedLocation, setSelectedLocation] = useState("");
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
 
-  const { businessProfile } = useMemo(() => {
+  const { businessId, businessProfile } = useMemo(() => {
     const match = pathname.match(/^\/business\/([^/]+)/);
-    if (!match) return { businessProfile: null };
+    if (!match)
+      return { businessId: null as string | null, businessProfile: null };
 
     const id = match[1];
     const profile = profiles.find((p) => p.UniqueId === id);
-    return { businessProfile: profile || null };
+    return { businessId: id, businessProfile: profile || null };
   }, [pathname, profiles]);
+
+  const { profileData } = useBusinessProfileById(businessId);
+
+  const isTrialActive =
+    ((profileData as any)?.isTrialActive ??
+      (businessProfile as any)?.isTrialActive) === true;
+      
+  const remainingTrialDays =
+    typeof (profileData as any)?.remainingTrialDays === "number"
+      ? (profileData as any).remainingTrialDays
+      : typeof (businessProfile as any)?.remainingTrialDays === "number"
+      ? (businessProfile as any).remainingTrialDays
+      : undefined;
+
+  const { getCurrentPlan, computedAlertMessage, handleSubscribe, gateLoading } =
+    useEntitlementGate({
+      entitlement: "strategy",
+      businessId: businessId || undefined,
+      alertMessage:
+        "Free trial active. Upgrade anytime to unlock all features.",
+    });
 
   const businessName =
     businessProfile?.Name || businessProfile?.DisplayName || "Business";
@@ -134,9 +161,34 @@ export function AnalyticsTemplate() {
 
   return (
     <div className="flex flex-col min-h-screen scroll-smooth bg-background">
+      <PlanModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        currentPlan={isTrialActive ? "Free Trial" : getCurrentPlan()}
+        showFooterButtons={true}
+        showAlertBar={true}
+        alertSeverity="error"
+        alertMessage={computedAlertMessage}
+        isDescription={false}
+        onSelectPlan={handleSubscribe}
+        loading={gateLoading}
+      />
+
       {/* Sticky Header with Breadcrumb and Tabs */}
       <div className="sticky top-0 z-11 bg-foreground-light">
-        <PageHeader breadcrumbs={breadcrumbs} />
+        <PageHeader
+          trial={
+            isTrialActive
+              ? {
+                  remainingDays: remainingTrialDays,
+                }
+              : undefined
+          }
+          onUpgrade={() => {
+            if (!gateLoading) setUpgradeOpen(true);
+          }}
+          breadcrumbs={breadcrumbs}
+        />
         <NavigationTabs
           items={navItems}
           activeSection={activeSection}
@@ -152,11 +204,7 @@ export function AnalyticsTemplate() {
 
       {/* Scrollable Content */}
       <div className="container mx-auto flex flex-col gap-12 p-5">
-        <div
-          id="organic"
-          ref={organicRef}
-          className="scroll-mt-[200px]"
-        >
+        <div id="organic" ref={organicRef} className="scroll-mt-[200px]">
           <OrganicPerformanceSection period={selectedPeriod} />
         </div>
 

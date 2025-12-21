@@ -1,31 +1,44 @@
-"use client"
+"use client";
 
-import { ChevronRight, Download, Settings } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { ChevronRight, Download, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface BreadcrumbItem {
-  label: string
-  href?: string
+  label: string;
+  href?: string;
 }
 
 interface PageHeaderProps {
-  breadcrumbs: BreadcrumbItem[]
-  onDownload?: () => void
-  onSettings?: () => void
-  isButton?: boolean
+  breadcrumbs: BreadcrumbItem[];
+  onDownload?: () => void;
+  onSettings?: () => void;
+  isButton?: boolean;
+  trial?: {
+    remainingDays?: number;
+  };
+  onUpgrade?: () => void;
 }
 
-export function PageHeader({ breadcrumbs, onDownload, onSettings, isButton = false }: PageHeaderProps) {
+export function PageHeader({
+  breadcrumbs,
+  onDownload,
+  onSettings,
+  isButton = false,
+  trial,
+  onUpgrade,
+}: PageHeaderProps) {
   return (
     <div className="flex items-center justify-between px-7 py-4 border-b border-border">
       <nav className="flex items-center gap-1 text-sm">
         {breadcrumbs.map((item, index) => {
-          const isLast = index === breadcrumbs.length - 1
-          
+          const isLast = index === breadcrumbs.length - 1;
+
           return (
             <span key={index} className="flex items-center gap-1">
-              {index > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+              {index > 0 && (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
               {item.href && !isLast ? (
                 <Link
                   href={item.href}
@@ -34,30 +47,61 @@ export function PageHeader({ breadcrumbs, onDownload, onSettings, isButton = fal
                   {item.label}
                 </Link>
               ) : (
-                <span className={isLast ? "font-medium" : "text-muted-foreground"}>
+                <span
+                  className={isLast ? "font-medium" : "text-muted-foreground"}
+                >
                   {item.label}
                 </span>
               )}
             </span>
-          )
+          );
         })}
       </nav>
-      {isButton && (
-      <div className="flex items-center gap-2">
-        <Button
-          className="gap-2 bg-emerald-700 hover:bg-emerald-800 text-white"
-          onClick={onDownload}
+
+      {trial ? (
+        <div className="inline-flex h-9 items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3">
+          <span className="text-xs font-medium text-foreground whitespace-nowrap">
+            You're on a free trial
+          </span>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {typeof trial.remainingDays === "number" && trial.remainingDays >= 0
+              ? `${trial.remainingDays} day${
+                  trial.remainingDays === 1 ? "" : "s"
+                } left`
+              : "Trial active"}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 whitespace-nowrap"
+            onClick={onUpgrade}
           >
-          <Download className="h-4 w-4" />
-          Download Report
-        </Button>
-        <Button variant="outline" size="icon" className="border-border" onClick={onSettings}>
-          <Settings className="h-4 w-4" />
-        </Button>
-      </div>
-        )}
+            Upgrade
+          </Button>
+        </div>
+      ) : null}
+
+      {isButton && (
+        <div className="flex items-center gap-2">
+          <Button
+            className="gap-2 bg-emerald-700 hover:bg-emerald-800 text-white"
+            onClick={onDownload}
+          >
+            <Download className="h-4 w-4" />
+            Download Report
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="border-border"
+            onClick={onSettings}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
-export default PageHeader
+export default PageHeader;

@@ -15,17 +15,9 @@ import { cn } from "../../lib/utils";
 import { Loader2 } from "lucide-react";
 
 // Helper function to get alignment class from column meta
+// Always returns left alignment as per requirement
 function getAlignmentClass(meta?: { align?: "left" | "center" | "right" }): string {
-  const align = meta?.align;
-  switch (align) {
-    case "center":
-      return "text-center";
-    case "right":
-      return "text-right";
-    case "left":
-    default:
-      return "text-left";
-  }
+  return "text-left";
 }
 
 interface DataTableProps<TData> extends React.ComponentProps<"div"> {

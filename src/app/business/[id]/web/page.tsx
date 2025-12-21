@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/molecules/PageHeader'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
+import { cn } from '@/lib/utils'
 
 interface PageProps {
   params: Promise<{
@@ -45,6 +46,7 @@ function WebNewPagesTab({ businessId }: { businessId: string }) {
 
 export default function BusinessWebPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
+  const [isOptimizeSplitView, setIsOptimizeSplitView] = React.useState(false)
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
@@ -86,29 +88,29 @@ export default function BusinessWebPage({ params }: PageProps) {
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
       <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
-        <Tabs defaultValue="optimize" className="flex flex-col flex-1 min-h-0">
+        <Tabs defaultValue="new-pages" className="flex flex-col flex-1 min-h-0">
+        {!isOptimizeSplitView && (
           <TabsList className="shrink-0">
-            <TabsTrigger value="optimize">Optimize</TabsTrigger>
             <TabsTrigger value="new-pages">New Pages</TabsTrigger>
+            <TabsTrigger value="optimize">Optimize</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="optimize" className="flex-1 min-h-0 mt-4 overflow-hidden">
-            <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
-              <WebOptimizationAnalysisTableClient businessId={businessId} />
-            </EntitlementsGuard>
-          </TabsContent>
-
-          <TabsContent value="new-pages" className="flex-1 min-h-0 mt-4 overflow-hidden">
-            <EntitlementsGuard
-              entitlement="web"
-              businessId={businessId}
-              alertMessage="You're on Starter. Upgrade your plan to unlock Web."
-            >
-              <WebNewPagesTab businessId={businessId} />
-            </EntitlementsGuard>
-          </TabsContent>
-        </Tabs>
-      </div>
+        )}
+        <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+          <EntitlementsGuard
+            entitlement="web"
+            businessId={businessId}
+            alertMessage="You're on Starter. Upgrade your plan to unlock Web."
+          >
+            <WebNewPagesTab businessId={businessId} />
+          </EntitlementsGuard>
+        </TabsContent>
+        <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+          <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
+            <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
+          </EntitlementsGuard>
+        </TabsContent>
+      </Tabs>
     </div>
+  </div>
   )
 }

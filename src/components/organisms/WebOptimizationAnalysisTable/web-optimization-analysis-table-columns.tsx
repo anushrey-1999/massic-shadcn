@@ -108,21 +108,152 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
       id: "ops",
       accessorKey: "ops",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="OPS" />
+        <DataTableColumnHeader column={column} label="Priority" />
       ),
       cell: ({ cell }) => {
         const score = cell.getValue<number>() || 0;
         return (
-          <div className="flex items-center justify-end">
+          <div className="flex items-center">
             <RelevancePill score={score} />
           </div>
         );
       },
       meta: {
-        label: "OPS",
+        label: "Priority",
         variant: "range",
         range: [0, 1],
-        align: "right",
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 110,
+      minSize: 100,
+      maxSize: 140,
+    },
+    {
+      id: "impressions",
+      accessorKey: "impressions",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Impressions" />
+      ),
+      cell: ({ cell }) => (
+        <Typography variant="p" className="tabular-nums">
+          {formatNumber(cell.getValue<number>() || 0)}
+        </Typography>
+      ),
+      meta: {
+        label: "Impressions",
+        variant: "range",
+        range: [0, 100000000],
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 130,
+      minSize: 120,
+      maxSize: 160,
+    },
+    {
+      id: "clicks",
+      accessorKey: "clicks",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Clicks" />
+      ),
+      cell: ({ cell }) => (
+        <Typography variant="p" className="tabular-nums">
+          {formatNumber(cell.getValue<number>() || 0)}
+        </Typography>
+      ),
+      meta: {
+        label: "Clicks",
+        variant: "range",
+        range: [0, 100000000],
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 110,
+      minSize: 100,
+      maxSize: 140,
+    },
+    {
+      id: "avg_position",
+      accessorKey: "avg_position",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Avg. Pos" />
+      ),
+      cell: ({ cell }) => (
+        <Typography variant="p" className="tabular-nums">
+          {formatDecimal(cell.getValue<number>() || 0, 2)}
+        </Typography>
+      ),
+      meta: {
+        label: "Avg. Pos",
+        variant: "range",
+        range: [0, 100],
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 130,
+      minSize: 120,
+      maxSize: 160,
+    },
+    {
+      id: "ctr",
+      accessorKey: "ctr",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="CTR" />
+      ),
+      cell: ({ cell }) => (
+        <Typography variant="p" className="tabular-nums">
+          {formatPercent(cell.getValue<number>() || 0)}
+        </Typography>
+      ),
+      meta: {
+        label: "CTR",
+        variant: "range",
+        range: [0, 1],
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 110,
+      minSize: 100,
+      maxSize: 140,
+    },
+    {
+      id: "sessions",
+      accessorKey: "sessions",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Sessions" />
+      ),
+      cell: ({ cell }) => (
+        <Typography variant="p" className="tabular-nums">
+          {formatNumber(cell.getValue<number>() || 0)}
+        </Typography>
+      ),
+      meta: {
+        label: "Sessions",
+        variant: "range",
+        range: [0, 100000000],
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 120,
+      minSize: 110,
+      maxSize: 150,
+    },
+    {
+      id: "goals",
+      accessorKey: "goals",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Goals" />
+      ),
+      cell: ({ cell }) => (
+        <Typography variant="p" className="tabular-nums">
+          {formatNumber(cell.getValue<number>() || 0)}
+        </Typography>
+      ),
+      meta: {
+        label: "Goals",
+        variant: "range",
+        range: [0, 100000000],
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -139,7 +270,7 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
       cell: ({ cell }) => {
         const count = cell.getValue<number>() || 0;
         return (
-          <Typography variant="p" className="tabular-nums text-right">
+          <Typography variant="p" className="tabular-nums">
             {formatNumber(count)}
           </Typography>
         );
@@ -153,144 +284,6 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
       enableSorting: true,
       size: 120,
       minSize: 110,
-      maxSize: 140,
-    },
-    {
-      id: "impressions",
-      accessorKey: "impressions",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Impressions" />
-      ),
-      cell: ({ cell }) => (
-        <Typography variant="p" className="tabular-nums text-right">
-          {formatNumber(cell.getValue<number>() || 0)}
-        </Typography>
-      ),
-      meta: {
-        label: "Impressions",
-        variant: "range",
-        range: [0, 100000000],
-        align: "right",
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 130,
-      minSize: 120,
-      maxSize: 160,
-    },
-    {
-      id: "clicks",
-      accessorKey: "clicks",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Clicks" />
-      ),
-      cell: ({ cell }) => (
-        <Typography variant="p" className="tabular-nums text-right">
-          {formatNumber(cell.getValue<number>() || 0)}
-        </Typography>
-      ),
-      meta: {
-        label: "Clicks",
-        variant: "range",
-        range: [0, 100000000],
-        align: "right",
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 110,
-      minSize: 100,
-      maxSize: 140,
-    },
-    {
-      id: "avg_position",
-      accessorKey: "avg_position",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Avg position" />
-      ),
-      cell: ({ cell }) => (
-        <Typography variant="p" className="tabular-nums text-right">
-          {formatDecimal(cell.getValue<number>() || 0, 2)}
-        </Typography>
-      ),
-      meta: {
-        label: "Avg position",
-        variant: "range",
-        range: [0, 100],
-        align: "right",
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 130,
-      minSize: 120,
-      maxSize: 160,
-    },
-    {
-      id: "ctr",
-      accessorKey: "ctr",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="CTR" />
-      ),
-      cell: ({ cell }) => (
-        <Typography variant="p" className="tabular-nums text-right">
-          {formatPercent(cell.getValue<number>() || 0)}
-        </Typography>
-      ),
-      meta: {
-        label: "CTR",
-        variant: "range",
-        range: [0, 1],
-        align: "right",
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 110,
-      minSize: 100,
-      maxSize: 140,
-    },
-    {
-      id: "sessions",
-      accessorKey: "sessions",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Sessions" />
-      ),
-      cell: ({ cell }) => (
-        <Typography variant="p" className="tabular-nums text-right">
-          {formatNumber(cell.getValue<number>() || 0)}
-        </Typography>
-      ),
-      meta: {
-        label: "Sessions",
-        variant: "range",
-        range: [0, 100000000],
-        align: "right",
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 120,
-      minSize: 110,
-      maxSize: 150,
-    },
-    {
-      id: "goals",
-      accessorKey: "goals",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Goals" />
-      ),
-      cell: ({ cell }) => (
-        <Typography variant="p" className="tabular-nums text-right">
-          {formatNumber(cell.getValue<number>() || 0)}
-        </Typography>
-      ),
-      meta: {
-        label: "Goals",
-        variant: "range",
-        range: [0, 100000000],
-        align: "right",
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 110,
-      minSize: 100,
       maxSize: 140,
     },
   ];

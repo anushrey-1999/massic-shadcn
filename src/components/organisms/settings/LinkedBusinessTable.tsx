@@ -691,7 +691,7 @@ export default function LinkedBusinessTable() {
                     <TableCell className="text-sm text-[#00000061] font-medium">
                       {totalGbps} total
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell>
                       <Button
                         onClick={handleAcceptAll}
                         disabled={filter === "unmatched" || filteredData.length === 0 || isMutating}

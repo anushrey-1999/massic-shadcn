@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { Home, LineChart, Settings, Bell, LogOut, Plus, Search, ChevronRight } from 'lucide-react'
+import React, { useEffect, useState, useMemo } from 'react'
+import { Home, LineChart, Settings, Bell, LogOut, Plus, Search, ChevronRight, X } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -154,6 +155,10 @@ export default function AppSidebar() {
   } = useBusinessProfiles()
 
   const setExpandedBusinessId = useBusinessStore((state) => state.setExpandedBusinessId)
+  
+  // Search state
+  const [isSearchMode, setIsSearchMode] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const navItems = [
     {
@@ -179,6 +184,16 @@ export default function AppSidebar() {
     { label: 'Reviews', slug: 'reviews' },
     { label: 'Profile', slug: 'profile' },
   ]
+
+  // Filter businesses based on search query
+  const filteredProfiles = useMemo(() => {
+    if (!searchQuery.trim()) return profiles
+    
+    return profiles.filter(business => 
+      (business.Name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (business.DisplayName?.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
+  }, [profiles, searchQuery])
 
   const isBusinessRoute = pathname.startsWith('/business/')
 
@@ -206,6 +221,15 @@ export default function AppSidebar() {
     if (open) {
       router.push(`/business/${uniqueId}/analytics`)
     }
+  }
+
+  const handleSearchClick = () => {
+    setIsSearchMode(true)
+  }
+
+  const handleSearchClose = () => {
+    setIsSearchMode(false)
+    setSearchQuery('')
   }
 
 
@@ -274,26 +298,49 @@ export default function AppSidebar() {
 
           <SidebarGroup className="px-0 flex-1 flex flex-col overflow-hidden border-t border-general-border py-3">
             <div className="relative flex items-center justify-between shrink-0 py-2">
-              <SidebarGroupLabel className="px-0 flex-1 text-xs text-general-muted-foreground">
-                Businesses
-              </SidebarGroupLabel>
-              <div className="flex items-center gap-2 ml-auto">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => router.push('/create-business')}
-                  className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
-                >
-                  <Search className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              {isSearchMode ? (
+                <div className="flex items-center gap-2 flex-1">
+                  <Input
+                    placeholder="Search businesses..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 h-8 text-sm"
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleSearchClose}
+                    className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <SidebarGroupLabel className="px-0 flex-1 text-xs text-general-muted-foreground">
+                    Businesses
+                  </SidebarGroupLabel>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => router.push('/create-business')}
+                      className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleSearchClick}
+                      className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
             <SidebarGroupContent className="flex-1 overflow-y-auto px-0 py-0">
               <SidebarMenu className="gap-1">
@@ -308,14 +355,14 @@ export default function AppSidebar() {
                       </SidebarMenuItem>
                     ))}
                   </>
-                ) : profiles.length === 0 ? (
+                ) : filteredProfiles.length === 0 ? (
                   <SidebarMenuItem>
                     <div className=" text-sm text-muted-foreground">
-                      No businesses found
+                      {searchQuery ? 'No matching businesses found' : 'No businesses found'}
                     </div>
                   </SidebarMenuItem>
                 ) : (
-                  profiles.map((business) => {
+                  filteredProfiles.map((business) => {
                     const isOpen = expandedBusinessId === business.UniqueId
                     const hasActiveSubItem = businessSubItems.some((subItem) => {
                       const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`

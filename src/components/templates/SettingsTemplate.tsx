@@ -1,22 +1,34 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/organisms/settings/ProfileSettings";
 import { BillingSettings } from "@/components/organisms/settings/BillingSettings";
 import { TeamSettings } from "@/components/organisms/settings/TeamSettings";
+import { PageHeader } from "@/components/molecules/PageHeader";
+import { ReceiptText, Settings, Users } from "lucide-react";
 
 const SettingsTemplate = () => {
+  const breadcrumbs = useMemo(
+    () => [
+      { label: "Home", href: "/" },
+      { label: "Settings" },
+    ],
+    []
+  );
+
   return (
-    <div className="bg-muted min-h-screen p-8">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-semibold mb-8">Settings</h1>
-        
-        <Tabs defaultValue="profile" className="w-full">
+    <div className="bg-muted min-h-screen">
+      <div className="sticky top-0 z-11 bg-foreground-light">
+        <PageHeader breadcrumbs={breadcrumbs} />
+      </div>
+      <div className="p-7">
+        <div className="max-w-6xl mx-auto">
+          <Tabs defaultValue="profile" className="w-full">
           <TabsList>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="billing">Billing</TabsTrigger>
-            <TabsTrigger value="team">Team</TabsTrigger>
+            <TabsTrigger value="profile"><Settings /> Profile</TabsTrigger>
+            <TabsTrigger value="billing"><ReceiptText /> Billing</TabsTrigger>
+            <TabsTrigger value="team"><Users /> Team</TabsTrigger>
           </TabsList>
           
           <TabsContent value="profile" className="mt-6">
@@ -31,6 +43,7 @@ const SettingsTemplate = () => {
             <TeamSettings />
           </TabsContent>
         </Tabs>
+        </div>
       </div>
     </div>
   );

@@ -136,11 +136,11 @@ export function DataTable<TData>({
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => {
+                table.getRowModel().rows.map((row, index) => {
                   const isSelected = selectedRowId ? row.id === selectedRowId : row.getIsSelected();
                   return (
                   <TableRow
-                    key={row.id}
+                    key={`${row.id}-${index}`}
                     data-state={isSelected && "selected"}
                     className={cn(
                       onRowClick && "cursor-pointer hover:bg-muted/70",

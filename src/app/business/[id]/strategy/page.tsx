@@ -5,6 +5,7 @@ import { StrategyTableClient } from '@/components/organisms/StrategyTable/strate
 import { AudienceTableClient } from '@/components/organisms/AudienceTable/audience-table-client'
 import { LandscapeTableClient } from '@/components/organisms/LandscapeTable/landscape-table-client'
 import { PageHeader } from '@/components/molecules/PageHeader'
+import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
@@ -77,8 +78,12 @@ export default function BusinessStrategyPage({ params }: PageProps) {
   }, [params])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
+  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
+  const workflowStatus = jobDetails?.workflow_status?.status
+  const showContent = workflowStatus === "success"
+  const showBanner = workflowStatus === "processing" || workflowStatus === "error"
 
   const breadcrumbs = React.useMemo(
     () => [
@@ -97,7 +102,7 @@ export default function BusinessStrategyPage({ params }: PageProps) {
     )
   }
 
-  if (profileDataLoading) {
+  if (profileDataLoading || jobLoading) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader breadcrumbs={breadcrumbs} />
@@ -111,9 +116,16 @@ export default function BusinessStrategyPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <EntitlementsGuard entitlement="strategy" businessId={businessId}>
-        <StrategyEntitledContent businessId={businessId} />
-      </EntitlementsGuard>
+      {showBanner && (
+        <div className="container mx-auto px-5 pt-5">
+          <WorkflowStatusBanner businessId={businessId} />
+        </div>
+      )}
+      {showContent && (
+        <EntitlementsGuard entitlement="strategy" businessId={businessId}>
+          <StrategyEntitledContent businessId={businessId} />
+        </EntitlementsGuard>
+      )}
     </div>
 
   )

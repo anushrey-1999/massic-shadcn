@@ -9,6 +9,7 @@ import { useLogout } from '@/hooks/use-auth'
 import { useBusinessProfiles } from '@/hooks/use-business-profiles'
 import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
+import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
 import { toast } from 'sonner'
 import {
   Sidebar,
@@ -159,6 +160,9 @@ export default function AppSidebar() {
   // Search state
   const [isSearchMode, setIsSearchMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  
+  // Scroll blur effect hook
+  const { handleScroll, blurEffectClassName, blurEffectStyle } = useScrollBlurEffect({ fadeZone: 60 })
 
   const navItems = [
     {
@@ -342,7 +346,8 @@ export default function AppSidebar() {
                 </>
               )}
             </div>
-            <SidebarGroupContent className="flex-1 overflow-y-auto px-0 py-0">
+            <div className="relative flex-1 overflow-hidden">
+              <SidebarGroupContent className="flex-1 overflow-y-auto px-0 py-0 h-full" onScroll={handleScroll}>
               <SidebarMenu className="gap-1">
                 {sidebarDataLoading ? (
                   <>
@@ -423,7 +428,13 @@ export default function AppSidebar() {
                   })
                 )}
               </SidebarMenu>
-            </SidebarGroupContent>
+              </SidebarGroupContent>
+              {/* Blur fade effect at bottom */}
+              <div 
+                className={blurEffectClassName}
+                style={blurEffectStyle}
+              />
+            </div>
           </SidebarGroup>
         </SidebarContent>
         {/* <SidebarSeparator /> */}

@@ -3,6 +3,7 @@
 import { ChevronRight, Download, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Typography } from "../ui/typography";
 
 interface BreadcrumbItem {
   label: string;
@@ -29,7 +30,7 @@ export function PageHeader({
   onUpgrade,
 }: PageHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-7 py-4 border-b border-border">
+    <div className="flex items-center justify-between px-7 py-3 border-b border-border">
       <nav className="flex items-center gap-1 text-sm">
         {breadcrumbs.map((item, index) => {
           const isLast = index === breadcrumbs.length - 1;
@@ -37,18 +38,18 @@ export function PageHeader({
           return (
             <span key={index} className="flex items-center gap-1">
               {index > 0 && (
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <Typography variant="p" className="text-general-border-three px-0.5">/</Typography>
               )}
               {item.href && !isLast ? (
                 <Link
                   href={item.href}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-general-muted-foreground hover:text-general-foreground transition-colors "
                 >
                   {item.label}
                 </Link>
               ) : (
                 <span
-                  className={isLast ? "font-medium" : "text-muted-foreground"}
+                  className={isLast ? "font-medium text-general-foreground" : "text-general-muted-foreground"}
                 >
                   {item.label}
                 </span>

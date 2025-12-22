@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page-table-client'
 import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOptimizationAnalysisTable'
 import { PageHeader } from '@/components/molecules/PageHeader'
+import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
@@ -53,8 +54,11 @@ export default function BusinessWebPage({ params }: PageProps) {
   }, [params])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
+  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
+  const workflowStatus = jobDetails?.workflow_status?.status
+  const showContent = workflowStatus === "success"
 
   const breadcrumbs = React.useMemo(
     () => [
@@ -73,7 +77,7 @@ export default function BusinessWebPage({ params }: PageProps) {
     )
   }
 
-  if (profileDataLoading) {
+  if (profileDataLoading || jobLoading) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader breadcrumbs={breadcrumbs} />
@@ -88,29 +92,32 @@ export default function BusinessWebPage({ params }: PageProps) {
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
       <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
-        <Tabs defaultValue="new-pages" className="flex flex-col flex-1 min-h-0">
-        {!isOptimizeSplitView && (
-          <TabsList className="shrink-0">
-            <TabsTrigger value="new-pages">New Pages</TabsTrigger>
-            <TabsTrigger value="optimize">Optimize</TabsTrigger>
-          </TabsList>
-        )}
-        <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
-          <EntitlementsGuard
-            entitlement="web"
-            businessId={businessId}
-            alertMessage="You're on Starter. Upgrade your plan to unlock Web."
-          >
-            <WebNewPagesTab businessId={businessId} />
-          </EntitlementsGuard>
-        </TabsContent>
-        <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
-          <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
-            <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
-          </EntitlementsGuard>
-        </TabsContent>
-      </Tabs>
+        <WorkflowStatusBanner businessId={businessId} />
+        {showContent ? (
+          <Tabs defaultValue="new-pages" className="flex flex-col flex-1 min-h-0">
+            {!isOptimizeSplitView && (
+              <TabsList className="shrink-0">
+                <TabsTrigger value="new-pages">New Pages</TabsTrigger>
+                <TabsTrigger value="optimize">Optimize</TabsTrigger>
+              </TabsList>
+            )}
+            <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+              <EntitlementsGuard
+                entitlement="web"
+                businessId={businessId}
+                alertMessage="You're on Starter. Upgrade your plan to unlock Web."
+              >
+                <WebNewPagesTab businessId={businessId} />
+              </EntitlementsGuard>
+            </TabsContent>
+            <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+              <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
+                <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
+              </EntitlementsGuard>
+            </TabsContent>
+          </Tabs>
+        ) : null}
+      </div>
     </div>
-  </div>
   )
 }

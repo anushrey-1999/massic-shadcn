@@ -221,6 +221,7 @@ function createFormDataAxiosInstance() {
 
 /**
  * Get job details by business ID
+ * Automatically polls every 20 seconds when workflow status is "processing" or "pending"
  */
 export function useJobByBusinessId(businessId: string | null) {
   return useQuery<JobDetails | null>({
@@ -251,6 +252,15 @@ export function useJobByBusinessId(businessId: string | null) {
     gcTime: 30 * 60 * 1000, // 30 minutes
     refetchOnMount: true, // Refetch on mount if data is stale (within 30 seconds)
     refetchOnWindowFocus: true, // Refetch on window focus if data is stale
+    refetchInterval: (query) => {
+      // Poll every 20 seconds when workflow is processing or pending
+      const data = query.state.data;
+      const workflowStatus = data?.workflow_status?.status;
+      if (workflowStatus === "processing") {
+        return 20000; // 20 seconds
+      }
+      return false; // Stop polling when success or error
+    },
     retry: (failureCount, error: any) => {
       // Don't retry on 404 (job doesn't exist)
       if (error?.response?.status === 404) {

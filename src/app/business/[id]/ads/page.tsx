@@ -3,6 +3,7 @@
 import React from 'react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/molecules/PageHeader'
+import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
@@ -67,8 +68,12 @@ export default function BusinessAdsPage({ params }: PageProps) {
   }, [params])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
+  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
+  const workflowStatus = jobDetails?.workflow_status?.status
+  const showContent = workflowStatus === "success"
+  const showBanner = workflowStatus === "processing" || workflowStatus === "error"
 
   const breadcrumbs = React.useMemo(
     () => [
@@ -87,7 +92,7 @@ export default function BusinessAdsPage({ params }: PageProps) {
     )
   }
 
-  if (profileDataLoading) {
+  if (profileDataLoading || jobLoading) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader breadcrumbs={breadcrumbs} />
@@ -101,13 +106,18 @@ export default function BusinessAdsPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <EntitlementsGuard
-        entitlement="ads"
-        businessId={businessId}
-        alertMessage="You're on Starter. Upgrade your plan to unlock Ads."
-      >
-        <AdsEntitledContent businessId={businessId} />
-      </EntitlementsGuard>
+      <div className="container mx-auto px-5 pt-5">
+        <WorkflowStatusBanner businessId={businessId} />
+      </div>
+      {showContent && (
+        <EntitlementsGuard
+          entitlement="ads"
+          businessId={businessId}
+          alertMessage="You're on Starter. Upgrade your plan to unlock Ads."
+        >
+          <AdsEntitledContent businessId={businessId} />
+        </EntitlementsGuard>
+      )}
     </div>
   )
 }

@@ -176,9 +176,6 @@ export function ProfileSettings() {
                       </div>
                     )}
                   </div>
-                  <div className="flex-1">
-                    <h2 className="text-lg font-semibold">{businessName}</h2>
-                  </div>
                 </div>
               )}
             />

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { renderLightMarkdown } from "./markdown";
 import type { ChatMessage, PanelPayload } from "./types";
 import { sendChatbotMessage, simulateStreamingResponse } from "./chatbot-api";
+import { Loader2 } from "lucide-react";
 
 type Props = {
   businessId?: string;
@@ -41,6 +42,23 @@ function safeParseJson(value: string | null): PersistedChat | null {
   } catch {
     return null;
   }
+}
+
+function ThinkingBubble() {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%] rounded-2xl bg-muted px-3 py-2 text-left text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Thinking…</span>
+        </div>
+        <div className="mt-2 space-y-2">
+          <div className="h-2 w-36 rounded bg-background/60 animate-pulse" />
+          <div className="h-2 w-52 rounded bg-background/60 animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ChatWidget({ businessId, businessName }: Props) {
@@ -262,8 +280,19 @@ export function ChatWidget({ businessId, businessName }: Props) {
                       </div>
                     ) : null}
 
-                    {messages.map((m) => {
+                    {messages.map((m, idx) => {
                       const isCallout = Boolean(m.callout);
+
+                      const isLoadingPlaceholder =
+                        isLoading &&
+                        m.role === "assistant" &&
+                        (m.content || "").trim().length === 0 &&
+                        !isCallout &&
+                        idx === messages.length - 1;
+
+                      if (isLoadingPlaceholder) {
+                        return <ThinkingBubble key={m.id} />;
+                      }
                       return (
                         <div
                           key={m.id}
@@ -299,14 +328,6 @@ export function ChatWidget({ businessId, businessName }: Props) {
                         </div>
                       );
                     })}
-
-                    {isLoading ? (
-                      <div className="flex justify-start">
-                        <div className="rounded-2xl bg-muted px-3 py-2 text-sm text-muted-foreground">
-                          …
-                        </div>
-                      </div>
-                    ) : null}
 
                     {error ? (
                       <div className="flex justify-start">

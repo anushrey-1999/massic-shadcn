@@ -25,29 +25,6 @@ function SocialEntitledContent({
   selectedChannel: string | null
   onChannelSelect: (channel: string | null) => void
 }) {
-  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
-  const jobExists = jobDetails && jobDetails.job_id
-
-  if (jobLoading) {
-    return (
-      <div className="flex items-center justify-center flex-1">
-        <p className="text-muted-foreground">Checking job status...</p>
-      </div>
-    )
-  }
-
-  if (!jobExists) {
-    return (
-      <div className="flex items-center justify-center flex-1">
-        <div className="text-center">
-          <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
-          <p className="text-muted-foreground">
-            Please create a job in the profile page to view social data.
-          </p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
@@ -85,7 +62,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
   const workflowStatus = jobDetails?.workflow_status?.status
   const showContent = workflowStatus === "success"
-  const showBanner = workflowStatus === "processing" || workflowStatus === "error"
+  const showBanner = workflowStatus === "processing" || workflowStatus === "error" || !jobDetails
 
   const breadcrumbs = React.useMemo(() => {
     const baseBreadcrumbs = [
@@ -130,7 +107,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
           <WorkflowStatusBanner businessId={businessId} />
         </div>
       )}
-      {showContent && (
+      {showContent && jobDetails && (
         <EntitlementsGuard
           entitlement="content"
           businessId={businessId}

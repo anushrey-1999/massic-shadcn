@@ -88,7 +88,7 @@ function NavItem({ href, icon: Icon, label, isActive }: NavItemProps) {
         <SidebarMenuButton
           asChild
           isActive={isActive}
-          className="py-4.5 pl-4 cursor-pointer"
+          className="py-4 pl-3 cursor-pointer"
         >
           <Link href={href}>
             <Icon className="h-5 w-5" />
@@ -119,7 +119,7 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick }: FooterActi
           <SidebarMenuButton
             onClick={onClick}
             isActive={isActive}
-            className="py-4.5 pl-4 cursor-pointer w-full"
+            className="py-4 pl-3 cursor-pointer w-full"
           >
             <Icon className="h-5 w-5" />
             <span>{label}</span>
@@ -128,7 +128,7 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick }: FooterActi
           <SidebarMenuButton
             asChild
             isActive={isActive}
-            className="py-4.5 pl-4 cursor-pointer"
+            className="py-4 pl-4 cursor-pointer"
           >
             <Link href={href!}>
               <Icon className="h-5 w-5" />
@@ -249,16 +249,16 @@ export default function AppSidebar() {
 
   return (
     <>
-      <Sidebar collapsible="none" className="h-screen bg-white">
-        <SidebarHeader className="border-b border-sidebar-border shrink-0">
-          <div className="px-4 py-4.5">
+      <Sidebar collapsible="none" className="h-screen bg-white px-4 py-3">
+        <SidebarHeader className="shrink-0 pb-3">
+          <div className="">
             <h1 className="text-lg font-semibold text-foreground">Massic</h1>
           </div>
         </SidebarHeader>
-        <SidebarContent className="flex-1 flex flex-col overflow-hidden">
-          <SidebarGroup className="px-1 shrink-0">
+        <SidebarContent className="flex-1 flex flex-col overflow-hidden px-0 gap-0">
+          <SidebarGroup className="px-0 shrink-0 py-0 pb-3">
             <SidebarGroupContent>
-              <SidebarMenu className="gap-1">
+              <SidebarMenu className="gap-2">
                 {navItems.map((item) => (
                   <NavItem
                     key={item.href}
@@ -272,36 +272,36 @@ export default function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          <SidebarSeparator className="shrink-0" />
-
-          <SidebarGroup className="px-1 flex-1 flex flex-col overflow-hidden">
-            <div className="relative flex items-center justify-between px-4 py-2 shrink-0">
-              <SidebarGroupLabel className="px-0 flex-1">
+          <SidebarGroup className="px-0 flex-1 flex flex-col overflow-hidden border-t border-general-border py-3">
+            <div className="relative flex items-center justify-between shrink-0 py-2">
+              <SidebarGroupLabel className="px-0 flex-1 text-xs text-general-muted-foreground">
                 Businesses
               </SidebarGroupLabel>
               <div className="flex items-center gap-2 ml-auto">
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => router.push('/create-business')}
-                  className="text-sidebar-foreground ring-sidebar-ring bg-sidebar-accent hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground flex aspect-square w-6 items-center justify-center rounded-md p-0 outline-hidden transition-colors focus-visible:ring-2 cursor-pointer"
+                  className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="text-sidebar-foreground ring-sidebar-ring bg-sidebar-accent hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground flex aspect-square w-6 items-center justify-center rounded-md p-0 outline-hidden transition-colors focus-visible:ring-2 cursor-pointer"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
                 >
                   <Search className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </div>
             </div>
-            <SidebarGroupContent className="flex-1 overflow-y-auto">
+            <SidebarGroupContent className="flex-1 overflow-y-auto px-0 py-0">
               <SidebarMenu className="gap-1">
                 {sidebarDataLoading ? (
                   <>
                     {[1, 2, 3].map((i) => (
                       <SidebarMenuItem key={i}>
-                        <div className="flex items-center gap-2 py-4.5 pl-4">
+                        <div className="flex items-center gap-2 ">
                           <Skeleton className="h-4 w-4 rounded-xs" />
                           <Skeleton className="h-4 w-24" />
                         </div>
@@ -310,7 +310,7 @@ export default function AppSidebar() {
                   </>
                 ) : profiles.length === 0 ? (
                   <SidebarMenuItem>
-                    <div className="py-4 pl-4 text-sm text-muted-foreground">
+                    <div className=" text-sm text-muted-foreground">
                       No businesses found
                     </div>
                   </SidebarMenuItem>
@@ -335,7 +335,7 @@ export default function AppSidebar() {
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton
                                 isActive={hasActiveSubItem}
-                                className="py-4.5 pl-4 group/business w-full justify-between cursor-pointer overflow-hidden"
+                                className="py-4 pl-3 group/business w-full justify-between cursor-pointer overflow-hidden rounded-md"
                               >
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                   <BusinessIcon website={business.Website} name={business.Name} />
@@ -346,7 +346,7 @@ export default function AppSidebar() {
                             </CollapsibleTrigger>
                           </div>
                           <CollapsibleContent>
-                            <SidebarMenuSub className="ml-5 border-l-2 border-sidebar-border">
+                            <SidebarMenuSub className="ml-5 border-l-2 border-general-border mt-2">
                               {businessSubItems.map((subItem) => {
                                 const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
                                 const isActive = pathname === subItemHref
@@ -355,7 +355,11 @@ export default function AppSidebar() {
                                     <SidebarMenuSubButton
                                       asChild
                                       isActive={isActive}
-                                      className="cursor-pointer py-4"
+                                      className={`cursor-pointer py-4 ${
+                                        isActive 
+                                          ? 'text-general-unofficial-foreground-alt' 
+                                          : 'text-general-muted-foreground hover:text-general-unofficial-foreground-alt'
+                                      }`}
                                     >
                                       <Link href={subItemHref}>
                                         <span className="pl-2">{subItem.label}</span>
@@ -375,12 +379,12 @@ export default function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarSeparator />
-        <SidebarFooter className="px-1 py-5 shrink-0">
-          <div className="mb-1 px-4">
-            <p className="text-sm font-medium text-foreground">{userName}</p>
+        {/* <SidebarSeparator /> */}
+        <SidebarFooter className="px-0 pt-3 pb-0 shrink-0 border-t border-general-border">
+          <div className="mb-1">
+            <p className="text-sm font-medium text-general-muted-foreground">{userName}</p>
           </div>
-          <SidebarMenu className="gap-1">
+          <SidebarMenu className="">
             {footerItems.map((item) => (
               <FooterAction
                 key={item.label}

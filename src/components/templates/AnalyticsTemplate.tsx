@@ -7,7 +7,6 @@ import { LocalSearchSection } from "@/components/organisms/analytics/LocalSearch
 import { ReviewsSection } from "@/components/organisms/analytics/ReviewsSection";
 import { NavigationTabs, PeriodSelector } from "../molecules/analytics";
 import { PageHeader } from "@/components/molecules/PageHeader";
-import { WorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanner";
 import { TIME_PERIODS, type TimePeriodValue } from "@/hooks/use-gsc-analytics";
 import { useBusinessStore } from "@/store/business-store";
 import DiscoveryPerformanceSection from "@/components/organisms/analytics/DiscoveryPerformanceSection";
@@ -15,7 +14,6 @@ import SourcesSection from "@/components/organisms/analytics/SourcesSection";
 import ConversionSection from "@/components/organisms/analytics/ConversionSection";
 
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
-import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 
@@ -47,11 +45,6 @@ export function AnalyticsTemplate() {
   }, [pathname, profiles]);
 
   const { profileData } = useBusinessProfileById(businessId);
-  const { data: jobDetails } = useJobByBusinessId(businessId || null);
-
-  const workflowStatus = jobDetails?.workflow_status?.status;
-  const showContent = workflowStatus === "success";
-  const showBanner = workflowStatus === "processing" || workflowStatus === "error";
 
   const isTrialActive =
     ((profileData as any)?.isTrialActive ??
@@ -196,26 +189,21 @@ export function AnalyticsTemplate() {
           }}
           breadcrumbs={breadcrumbs}
         />
-        {showContent && (
-          <NavigationTabs
-            items={navItems}
-            activeSection={activeSection}
-            onSectionChange={setActiveSection}
-            periodSelector={
-              <PeriodSelector
-                value={selectedPeriod}
-                onValueChange={setSelectedPeriod}
-              />
-            }
-          />
-        )}
+        <NavigationTabs
+          items={navItems}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          periodSelector={
+            <PeriodSelector
+              value={selectedPeriod}
+              onValueChange={setSelectedPeriod}
+            />
+          }
+        />
       </div>
 
       {/* Scrollable Content */}
       <div className="container mx-auto flex flex-col gap-12 p-5">
-        {businessId && showBanner && <WorkflowStatusBanner businessId={businessId} />}
-        {showContent && (
-          <>
             <div id="organic" ref={organicRef} className="scroll-mt-[200px]">
               <OrganicPerformanceSection period={selectedPeriod} />
             </div>
@@ -261,8 +249,6 @@ export function AnalyticsTemplate() {
                 selectedLocation={selectedLocation}
               />
             </div>
-          </>
-        )}
       </div>
     </div>
   );

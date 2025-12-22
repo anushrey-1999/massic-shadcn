@@ -202,7 +202,7 @@ export function BillingSettings() {
       {
         accessorKey: "Name",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} label="Business Name" />
+          <DataTableColumnHeader column={column} label="Business Name" disableHide />
         ),
         enableSorting: true,
         cell: ({ row }) => {
@@ -222,7 +222,7 @@ export function BillingSettings() {
             : "No Plan";
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} label="Plan" />
+          <DataTableColumnHeader column={column} label="Plan" disableHide />
         ),
         enableSorting: true,
         cell: ({ row }) => {

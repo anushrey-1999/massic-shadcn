@@ -15,8 +15,28 @@ export function WorkflowStatusBanner({ businessId, className }: WorkflowStatusBa
   
   const workflowStatus = jobDetails?.workflow_status?.status
 
-  if (isLoading || !workflowStatus) {
+  if (isLoading) {
     return null
+  }
+
+  // Show message when no job exists
+  if (!jobDetails || !workflowStatus) {
+    return (
+      <div className={cn(
+        "bg-yellow-50 border border-yellow-200 text-yellow-900 px-4 py-3 rounded-lg mb-4",
+        className
+      )}>
+        <p className="text-sm">
+          No Job found, Please create one from{' '}
+          <Link 
+            href={`/business/${businessId}/profile`}
+            className="underline font-medium hover:text-yellow-700"
+          >
+            Profile Page
+          </Link>
+        </p>
+      </div>
+    )
   }
 
   if (workflowStatus === "processing") {

@@ -1,16 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, ArrowLeft, Gem } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface CreditModalProps {
@@ -60,30 +56,32 @@ export function CreditModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent
-        className="max-w-md bg-transparent border-none p-0 gap-3"
+        className="max-w-md bg-transparent border-none p-0 gap-3 shadow-none"
         showCloseButton={false}
       >
-        <DialogTitle className="sr-only">Purchase Execution Credits</DialogTitle>
-        <div className="flex justify-end">
+        <DialogTitle className="sr-only">
+          Purchase Execution Credits
+        </DialogTitle>
+        <div className="flex">
           <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-full bg-white hover:bg-[#DADBDD]"
+            variant="outline"
+            className="bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-md flex items-center gap-2"
             onClick={onClose}
           >
-            <X className="h-4 w-4 text-[#4A4A4A]" />
+            <ArrowLeft className="h-4 w-4" />
+            Back
           </Button>
         </div>
 
-        <div className="bg-[#F6F8F8] rounded-xl p-1.5">
-          <div className="border border-[#338484] rounded-xl p-4 bg-white">
+        <div className="rounded-lg p-6 bg-white">
+          <div className="">
             {/* Current Credits Balance */}
-            <div className="mb-4 p-3 rounded-lg bg-[#F0F8F8] border border-[#E0F0F0]">
-              <p className="text-sm font-medium text-[#0F4343]">
+            <div className="mb-4 p-3 rounded-lg bg-[#F0F8F8] ">
+              <p className="text-sm font-medium text-general-primary">
                 Current Balance: {currentBalance} credits
               </p>
               {autoTopupEnabled && (
-                <p className="text-xs text-[#338484] mt-1">
+                <p className="text-xs text-general-primary mt-1">
                   Auto-topup enabled (threshold: {autoTopupThreshold} credits)
                 </p>
               )}
@@ -99,16 +97,19 @@ export function CreditModal({
             )}
 
             <div className="flex justify-between items-start mb-2">
-              <div>
-                <h3 className="text-2xl font-semibold text-[#0F4343]">
-                  {totalCredits} Execution Credits
-                </h3>
-                <p className="text-xl font-semibold text-[#338484] mt-1">
+              <div className="flex items-center gap-2 justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Gem />
+                  <h3 className="text-2xl font-semibold text-general-foreground">
+                    {totalCredits} Execution Credits
+                  </h3>
+                </div>
+                <p className="text-base font-mono text-general-muted-foreground">
                   ${totalPrice}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <Label htmlFor="quantity" className="text-sm font-medium text-[#0F4343]">
                   Quantity:
                 </Label>
@@ -121,38 +122,40 @@ export function CreditModal({
                   onChange={handleQuantityChange}
                   className="w-16 text-center"
                 />
-              </div>
+              </div> */}
             </div>
 
-            <Separator className="my-3 bg-[#00000014]" />
+            <Separator className="my-3 bg-general-border" />
 
-            <div className="flex gap-2 flex-wrap mb-2">
+            <div className="flex gap-2 flex-wrap">
               <Badge
                 variant="outline"
-                className="text-[#0F4343] text-xs border-[#0F4343]"
+                className="text-general-foreground text-[10px] px-2 py-[4.5px]"
               >
-                PROPOSALS
+                Pitches
+              </Badge>
+        
+              <Badge
+                variant="outline"
+                className="text-general-foreground text-[10px] px-2 py-[4.5px]"
+              >
+                Content 
               </Badge>
               <Badge
                 variant="outline"
-                className="text-[#0F4343] text-xs border-[#0F4343]"
+                className="text-general-foreground text-[10px] px-2 py-[4.5px]"
               >
-                CONTENT
-              </Badge>
-              <Badge
-                variant="outline"
-                className="text-[#0F4343] text-xs border-[#0F4343]"
-              >
-                REVIEWS
+                Reviews
               </Badge>
             </div>
 
-            <p className="text-sm text-[#000000DE] mb-1">
-              Need more than your plan's monthly limits? Add Execution Credits to scale output instantly.
+            <p className="text-sm text-primary py-4">
+            Need extra content or campaigns this month? Use Execution Credits to instantly scale blogs and posts.
             </p>
-            <p className="text-xs text-[#666666] mb-4">
-              Credits are workspace-wide, don't expire, and can be used by any business in your agency.
-            </p>
+            {/* <p className="text-xs text-[#666666] mb-4">
+              Credits are workspace-wide, don't expire, and can be used by any
+              business in your agency.
+            </p> */}
 
             <div className="flex flex-col gap-2">
               {[
@@ -162,12 +165,12 @@ export function CreditModal({
               ].map((row) => (
                 <div
                   key={row.text}
-                  className="flex justify-between items-center p-2.5 rounded-lg bg-[#EDEFF0] text-[#0F4343]"
+                  className="flex justify-between items-center p-3 rounded-lg bg-foreground-light "
                 >
-                  <span className="text-sm font-bold text-[#000000DE]">
+                  <span className="text-base font-medium text-general-foreground">
                     {row.text}
                   </span>
-                  <span className="text-sm text-[#022622]">{row.credits}</span>
+                  <span className="text-base font-mono text-general-muted-foreground">{row.credits}</span>
                 </div>
               ))}
             </div>
@@ -176,12 +179,13 @@ export function CreditModal({
               <Button
                 onClick={handlePurchaseCredits}
                 disabled={loading}
-                className="bg-[#0F4343] hover:bg-[#0C3636] text-white min-w-[120px]"
+                variant="default"
+                className="w-full"
               >
                 {loading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  `Buy ${totalCredits} Credits`
+                  `Buy Credits`
                 )}
               </Button>
             </div>
@@ -191,4 +195,3 @@ export function CreditModal({
     </Dialog>
   );
 }
-

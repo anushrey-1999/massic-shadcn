@@ -59,6 +59,7 @@ const defaultPlansData: PlanData[] = [
       { text: "AI traffic tracking from major LLMs" },
       { text: "Local SEO visibility & review monitoring" },
     ],
+    iconName: "ChartLine",
     isGradient: false,
   },
   {
@@ -73,6 +74,7 @@ const defaultPlansData: PlanData[] = [
       { text: "Web strategy (page recommendations + deep content plan)" },
       { text: "Social strategy (platform-specific campaign planning)" },
     ],
+    iconName: "Puzzle",
     isGradient: false,
   },
   {
@@ -91,6 +93,7 @@ const defaultPlansData: PlanData[] = [
       },
       { text: "Review campaigns: monitor, generate, and respond" },
     ],
+    iconName: "Zap",
     isRecommended: true,
     isGradient: true,
   },

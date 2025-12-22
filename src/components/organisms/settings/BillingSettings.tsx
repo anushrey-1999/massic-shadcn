@@ -12,6 +12,17 @@ import { useBusinessStore, BusinessProfile } from "@/store/business-store";
 import { useSubscription, SubscribeParams } from "@/hooks/use-subscription";
 import { Loader2 } from "lucide-react";
 
+const toTitleCasePlan = (planType?: string) => {
+  if (!planType) return "";
+  return planType.charAt(0).toUpperCase() + planType.slice(1).toLowerCase();
+};
+
+const formatTrialLabel = (remainingTrialDays?: number) => {
+  if (!remainingTrialDays || remainingTrialDays <= 0) return null;
+  const dayLabel = remainingTrialDays === 1 ? "day" : "days";
+  return `Trial: ${remainingTrialDays} ${dayLabel} remaining`;
+};
+
 // Helper to calculate linked businesses count for plans
 const getLinkedCount = (profiles: BusinessProfile[], planName: string) => {
   return profiles.filter(p =>
@@ -167,7 +178,7 @@ export function BillingSettings() {
           // However, useSubscription is called at top level. We can assume 'loading' and 'handleSubscribeToPlan' came from it.
           // Let's get 'data' from useSubscription in the component and add it to dependencies.
 
-          const isWhitelisted = subscriptionData?.whitelisted === true || subscriptionData?.status === 'whitelisted';
+          const isWhitelisted = subscriptionData?.whitelisted === true || subscriptionData?.status === "whitelisted";
 
           if (isWhitelisted) {
             return (
@@ -182,24 +193,36 @@ export function BillingSettings() {
             );
           }
 
-          const planName = row.original.SubscriptionItems?.plan_type
-            ? row.original.SubscriptionItems.plan_type.charAt(0).toUpperCase() + row.original.SubscriptionItems.plan_type.slice(1)
-            : "No Plan";
+          const subscriptionStatus = row.original.SubscriptionItems?.status;
+          const subscriptionPlanType = row.original.SubscriptionItems?.plan_type;
+
+          const hasActiveSubscription =
+            subscriptionStatus === "active" && typeof subscriptionPlanType === "string" && subscriptionPlanType.length > 0;
+
+          const planName = hasActiveSubscription ? toTitleCasePlan(subscriptionPlanType) : "No Plan";
+
+          const trialLabel =
+            planName === "No Plan" && row.original.isTrialActive
+              ? formatTrialLabel(row.original.remainingTrialDays)
+              : null;
 
           return (
             <div className="flex items-center gap-3">
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-green-600">{planName}</span>
-                {row.original.SubscriptionItems?.status === 'active' &&
-                  <span className="text-xs text-muted-foreground">Active</span>
-                }
+                {hasActiveSubscription && (
+                  <span className="text-xs text-muted-foreground">Current plan</span>
+                )}
+                {!hasActiveSubscription && trialLabel && (
+                  <span className="text-xs text-blue-600">{trialLabel}</span>
+                )}
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handleManagePlan(row.original.UniqueId)}
               >
-                Manage
+                {planName === "No Plan" ? "Subscribe" : "Manage"}
               </Button>
             </div>
           );

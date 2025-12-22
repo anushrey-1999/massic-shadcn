@@ -130,7 +130,7 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick }: FooterActi
           <SidebarMenuButton
             asChild
             isActive={isActive}
-            className="py-4 pl-4 cursor-pointer"
+            className="py-4 pl-3 cursor-pointer"
           >
             <Link href={href!}>
               <Icon className="h-5 w-5" />

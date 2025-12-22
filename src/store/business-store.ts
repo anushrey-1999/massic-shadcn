@@ -15,6 +15,10 @@ export interface BusinessProfile {
   ProductsServices?: string[];
   LocationType?: string;
   Locations?: BusinessLocation[];
+  isTrialActive?: boolean;
+  remainingTrialDays?: number;
+  TrialStartDate?: string;
+  TrialEndDate?: string;
   CustomerPersonas?: { personName: string; personDescription: string }[] | null;
   SellingPoints?: string[] | null;
   USPs?: string[] | null;

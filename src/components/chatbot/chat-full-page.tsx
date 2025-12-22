@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { renderLightMarkdown } from "./markdown";
 import type { ChatMessage, PanelPayload } from "./types";
 import { sendChatbotMessage, simulateStreamingResponse } from "./chatbot-api";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 
 type UiMode = "full" | "split";
@@ -42,6 +42,23 @@ function safeParseJson(value: string | null): PersistedChat | null {
     return JSON.parse(value) as PersistedChat;
   } catch {
     return null;
+  }
+}
+
+function persistChatSnapshot(
+  businessId: string,
+  conversationId: string | null,
+  messages: ChatMessage[]
+) {
+  if (typeof window === "undefined") return;
+  const payload: PersistedChat = {
+    conversationId,
+    messages: messages.slice(-60),
+  };
+  try {
+    localStorage.setItem(storageKey(businessId), JSON.stringify(payload));
+  } catch {
+    // ignore
   }
 }
 
@@ -76,6 +93,24 @@ function PanelView({ panel }: { panel: PanelPayload | null }) {
           ))}
         </TableBody>
       </Table>
+    </div>
+  );
+}
+
+function ThinkingBubble() {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%] rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-sm">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Thinking…</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="h-2 w-48 rounded bg-muted/60 animate-pulse" />
+          <div className="h-2 w-64 rounded bg-muted/60 animate-pulse" />
+          <div className="h-2 w-40 rounded bg-muted/60 animate-pulse" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -176,7 +211,11 @@ export function ChatFullPage({ businessId }: { businessId: string }) {
     streamCleanupRef.current?.();
     streamCleanupRef.current = null;
 
-    setMessages((prev) => [...prev, userMessage, botPlaceholder]);
+    setMessages((prev) => {
+      const next = [...prev, userMessage, botPlaceholder];
+      persistChatSnapshot(businessId, conversationId, next);
+      return next;
+    });
     setIsLoading(true);
     setError(null);
 
@@ -235,18 +274,55 @@ export function ChatFullPage({ businessId }: { businessId: string }) {
   };
 
   React.useEffect(() => {
-    try {
-      const pending = sessionStorage.getItem(PENDING_INPUT_KEY);
-      if (pending) {
-        sessionStorage.removeItem(PENDING_INPUT_KEY);
-        sendInPlace(pending);
+    let cancelled = false;
+
+    const run = async () => {
+      let pendingRaw: string | null = null;
+      try {
+        pendingRaw = sessionStorage.getItem(PENDING_INPUT_KEY);
+      } catch {
+        pendingRaw = null;
       }
-    } catch {
-      // ignore
-    }
-    // Intentionally run once on mount
+
+      const pending = pendingRaw?.trim();
+      if (!pending) return;
+
+      try {
+        const persisted = safeParseJson(localStorage.getItem(storageKey(businessId)));
+        const alreadyQueued = Boolean(
+          persisted?.messages?.some(
+            (m) => m.role === "user" && (m.content || "").trim() === pending
+          )
+        );
+        if (alreadyQueued) {
+          try {
+            sessionStorage.removeItem(PENDING_INPUT_KEY);
+          } catch {
+            // ignore
+          }
+          return;
+        }
+      } catch {
+        // ignore
+      }
+
+      if (cancelled) return;
+      await sendInPlace(pending);
+      try {
+        sessionStorage.removeItem(PENDING_INPUT_KEY);
+      } catch {
+        // ignore
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally do not depend on sendInPlace to avoid re-sending.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [businessId]);
 
   const backHref = `/business/${businessId}/analytics`;
 
@@ -275,8 +351,19 @@ export function ChatFullPage({ businessId }: { businessId: string }) {
           <ScrollArea className="flex-1 h-full">
             <div className="space-y-4 px-4 py-5 sm:px-6 pb-8">
 
-              {messages.map((m) => {
+              {messages.map((m, idx) => {
                 const isCallout = Boolean(m.callout);
+
+                const isLoadingPlaceholder =
+                  isLoading &&
+                  m.role === "assistant" &&
+                  (m.content || "").trim().length === 0 &&
+                  !isCallout &&
+                  idx === messages.length - 1;
+
+                if (isLoadingPlaceholder) {
+                  return <ThinkingBubble key={m.id} />;
+                }
 
                 return (
                   <div
@@ -314,14 +401,6 @@ export function ChatFullPage({ businessId }: { businessId: string }) {
                   </div>
                 );
               })}
-
-              {isLoading ? (
-                <div className="flex justify-start">
-                  <div className="rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                    …
-                  </div>
-                </div>
-              ) : null}
 
               {error ? (
                 <div className="flex justify-start">

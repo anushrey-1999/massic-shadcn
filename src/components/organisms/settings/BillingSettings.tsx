@@ -30,6 +30,17 @@ import { useSubscription, SubscribeParams } from "@/hooks/use-subscription";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { Typography } from "@/components/ui/typography";
 
+const toTitleCasePlan = (planType?: string) => {
+  if (!planType) return "";
+  return planType.charAt(0).toUpperCase() + planType.slice(1).toLowerCase();
+};
+
+const formatTrialLabel = (remainingTrialDays?: number) => {
+  if (!remainingTrialDays || remainingTrialDays <= 0) return null;
+  const dayLabel = remainingTrialDays === 1 ? "day" : "days";
+  return `Trial: ${remainingTrialDays} ${dayLabel} remaining`;
+};
+
 // Helper to calculate linked businesses count for plans
 const getLinkedCount = (profiles: BusinessProfile[], planName: string) => {
   return profiles
@@ -221,7 +232,7 @@ export function BillingSettings() {
           if (isWhitelisted) return "Whitelisted";
           return row.SubscriptionItems?.plan_type
             ? row.SubscriptionItems.plan_type.charAt(0).toUpperCase() +
-                row.SubscriptionItems.plan_type.slice(1)
+            row.SubscriptionItems.plan_type.slice(1)
             : "No Plan";
         },
         header: ({ column }) => (
@@ -254,43 +265,35 @@ export function BillingSettings() {
             );
           }
 
-          const planName = row.original.SubscriptionItems?.plan_type
-            ? row.original.SubscriptionItems.plan_type.charAt(0).toUpperCase() +
-              row.original.SubscriptionItems.plan_type.slice(1)
-            : "No Plan";
+          const subscriptionStatus = row.original.SubscriptionItems?.status;
+          const subscriptionPlanType = row.original.SubscriptionItems?.plan_type;
+
+          const hasActiveSubscription =
+            subscriptionStatus === "active" && typeof subscriptionPlanType === "string" && subscriptionPlanType.length > 0;
+
+          const planName = hasActiveSubscription ? toTitleCasePlan(subscriptionPlanType) : "No Plan";
+
+          const trialLabel =
+            planName === "No Plan" && row.original.isTrialActive
+              ? formatTrialLabel(row.original.remainingTrialDays)
+              : null;
 
           return (
-            // <div className="flex items-center gap-3">
-            //   <div className="flex flex-col gap-1">
-            //     <span className="text-sm font-medium text-green-600">
-            //       {planName}
-            //     </span>
-            //     {row.original.SubscriptionItems?.status === "active" && (
-            //       <span className="text-xs text-muted-foreground">Active</span>
-            //     )}
-            //   </div>
-            //   <Button
-            //     variant="outline"
-            //     size="sm"
-            //     onClick={() => handleManagePlan(row.original.UniqueId)}
-            //   >
-            //     Manage
-            //   </Button>
-            // </div>
-
-            <div
-              onClick={() => handleManagePlan(row.original.UniqueId)}
-              className="border border-general-border rounded-lg px-2 py-[5.5px] flex items-center justify-between"
-            >
-              <Typography
-                variant="p"
-                className={`leading-none ${
-                  planName === "Growth" ? "text-green-600" : ""
-                }`}
+            <div className="flex items-center gap-3">
+              <div
+                onClick={() => handleManagePlan(row.original.UniqueId)}
+                className="border border-general-border rounded-lg px-2 py-[5.5px] flex items-center justify-between"
               >
-                {planName}
-              </Typography>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                <Typography
+                  variant="p"
+                  className={`leading-none ${planName === "Growth" ? "text-green-600" : ""
+                    }`}
+                >
+                  {planName}
+                  {trialLabel ?` ${trialLabel}` : ''}
+                </Typography>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
             </div>
           );
         },

@@ -369,10 +369,121 @@ function SidebarSeparator({
 }
 
 function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
+  const { isMobile, openMobile, state } = useSidebar()
+  const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const rafRef = React.useRef<number | null>(null)
+
+  const findScrollableContainer = React.useCallback(
+    (activeEl: HTMLElement, root: HTMLElement): HTMLElement => {
+      // Prefer an ancestor that actually scrolls (common in app sidebars where
+      // SidebarContent itself is overflow-hidden and an inner section scrolls).
+      const isScrollable = (el: HTMLElement) => {
+        const style = window.getComputedStyle(el)
+        const overflowY = style.overflowY
+        return (
+          (overflowY === "auto" || overflowY === "scroll") &&
+          el.scrollHeight > el.clientHeight
+        )
+      }
+
+      let current: HTMLElement | null = activeEl
+      while (current && current !== root) {
+        if (isScrollable(current)) return current
+        current = current.parentElement
+      }
+
+      if (isScrollable(root)) return root
+      return root
+    },
+    []
+  )
+
+  const scrollActiveIntoView = React.useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    // On mobile, only scroll when the sheet is open.
+    // On desktop, the sidebar may be visible even if state is "collapsed"
+    // (e.g. collapsible="none"), so don't gate on state.
+    if (isMobile && !openMobile) return
+
+    const activeEls = container.querySelectorAll<HTMLElement>(
+      '[data-active="true"]'
+    )
+    const activeEl = activeEls.length
+      ? activeEls[activeEls.length - 1]
+      : null
+    if (!activeEl) return
+
+    const scrollContainer = findScrollableContainer(activeEl, container)
+
+    const padding = 8
+    const containerRect = scrollContainer.getBoundingClientRect()
+    const elRect = activeEl.getBoundingClientRect()
+
+    const currentScrollTop = scrollContainer.scrollTop
+    const elTop = elRect.top - containerRect.top + currentScrollTop
+    const elBottom = elRect.bottom - containerRect.top + currentScrollTop
+
+    const visibleTop = currentScrollTop + padding
+    const visibleBottom =
+      currentScrollTop + scrollContainer.clientHeight - padding
+
+    if (elTop < visibleTop) {
+      scrollContainer.scrollTo({ top: Math.max(0, elTop - padding), behavior: "auto" })
+      return
+    }
+
+    if (elBottom > visibleBottom) {
+      scrollContainer.scrollTo({
+        top: Math.max(0, elBottom - scrollContainer.clientHeight + padding),
+        behavior: "auto",
+      })
+    }
+  }, [isMobile, openMobile, state])
+
+  const scheduleScroll = React.useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+    }
+
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      scrollActiveIntoView()
+    })
+  }, [scrollActiveIntoView])
+
+  React.useEffect(() => {
+    scheduleScroll()
+
+    const container = containerRef.current
+    if (!container) return
+
+    const observer = new MutationObserver(() => {
+      scheduleScroll()
+    })
+
+    observer.observe(container, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["data-active", "data-state", "aria-current", "aria-expanded"],
+    })
+
+    return () => {
+      observer.disconnect()
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+    }
+  }, [scheduleScroll])
+
   return (
     <div
       data-slot="sidebar-content"
       data-sidebar="content"
+      ref={containerRef}
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
         className

@@ -69,25 +69,44 @@ export function simulateStreamingResponse(
   onDelta: (delta: string) => void,
   onFinish: (finalMessage: ChatMessage) => void
 ): () => void {
-  const text = response.message;
-  const chunks = text.match(/.{1,3}/g) || [text];
-  let index = 0;
+  const text = response.message || "";
+  let offset = 0;
+
+  // Faster, smoother streaming:
+  // - update roughly once per frame
+  // - emit bigger chunks so long responses finish quickly
+  const intervalMs = 16;
+  const targetCharsPerSecond = 1400;
+  const chunkSize = Math.max(
+    8,
+    Math.min(48, Math.ceil((targetCharsPerSecond * intervalMs) / 1000))
+  );
+
+  const finish = () => {
+    onFinish({
+      id: `assistant-${Date.now()}`,
+      role: "assistant",
+      content: text,
+      callout: response.callout,
+    });
+  };
+
+  if (!text) {
+    finish();
+    return () => { };
+  }
 
   const streamInterval = setInterval(() => {
-    if (index >= chunks.length) {
+    if (offset >= text.length) {
       clearInterval(streamInterval);
-      onFinish({
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: text,
-        callout: response.callout,
-      });
+      finish();
       return;
     }
 
-    onDelta(chunks[index]);
-    index++;
-  }, 25);
+    const next = text.slice(offset, offset + chunkSize);
+    offset += chunkSize;
+    onDelta(next);
+  }, intervalMs);
 
   return () => clearInterval(streamInterval);
 }

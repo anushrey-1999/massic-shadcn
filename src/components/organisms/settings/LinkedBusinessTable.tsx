@@ -4,9 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -15,9 +13,28 @@ import {
 } from "@/components/ui/table";
 import { flexRender } from "@tanstack/react-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Check, Link, Link2Off, Search, AlertCircle, Building2, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Check,
+  Link,
+  Link2Off,
+  Search,
+  AlertCircle,
+  Building2,
+  Loader2,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +45,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CustomSelect, type CustomSelectOption } from "@/components/molecules/settings/CustomSelect";
+import {
+  CustomSelect,
+  type CustomSelectOption,
+} from "@/components/molecules/settings/CustomSelect";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   useFetchBusinesses,
@@ -39,6 +59,7 @@ import {
   type GA4Property,
   type GBPLocation,
 } from "@/hooks/use-linked-businesses";
+import { Typography } from "@/components/ui/typography";
 
 const FILTERS = [
   { label: "All", value: "all" },
@@ -92,76 +113,6 @@ interface BusinessData {
   noLocation?: boolean;
 }
 
-// Dummy data
-const dummyBusinesses: BusinessData[] = [
-  {
-    id: "1",
-    displayName: "example.com",
-    siteUrl: "https://example.com",
-    matchedGa4Multiple: [
-      {
-        displayName: "example.com - GA4",
-        propertyId: "400010430",
-        accountName: "Example Account",
-        accountId: "987654321",
-      },
-      {
-        displayName: "Example Property 2 - GA4",
-        propertyId: "400010431",
-        accountName: "Example Account 2",
-        accountId: "987654322",
-      },
-    ],
-    selectedGa4: {
-      displayName: "example.com - GA4",
-      propertyId: "400010430",
-      accountName: "Example Account",
-      accountId: "987654321",
-    },
-    gbps: [
-      { title: "Main Location", locationId: "LOC001", location: "New York" },
-      { title: "Branch Location", locationId: "LOC002", location: "Los Angeles" },
-    ],
-    selectedGbp: [
-      { title: "Main Location", locationId: "LOC001", location: "New York", label: "Main Location (LOC001)" },
-    ],
-    businessProfile: {
-      Id: "BP001",
-      IsActive: true,
-    },
-  },
-  {
-    id: "2",
-    displayName: "test-site.com",
-    siteUrl: "https://test-site.com",
-    matchedGa4Multiple: [
-      {
-        displayName: "test-site.com - GA4",
-        propertyId: "259727439",
-        accountName: "Test Account",
-        accountId: "111111111",
-      },
-    ],
-    gbps: [
-      { title: "Test Location", locationId: "LOC003", location: "Chicago" },
-      { title: "Test Location 2", locationId: "LOC004", location: "Boston" },
-    ],
-    selectedGbp: [],
-    businessProfile: {
-      Id: "BP002",
-      IsActive: false,
-    },
-  },
-  {
-    id: "3",
-    displayName: "demo-site.com",
-    siteUrl: "https://demo-site.com",
-    gbps: [],
-    selectedGbp: [],
-    noLocation: true,
-  },
-];
-
 const removeScDomainPrefix = (url: string) => {
   return url.replace(/^sc-domain:/, "");
 };
@@ -172,7 +123,8 @@ export default function LinkedBusinessTable() {
   const [localBusinesses, setLocalBusinesses] = useState<LinkedBusiness[]>([]);
   const [loadingRowId, setLoadingRowId] = useState<string | null>(null);
   const [confirmToggleOpen, setConfirmToggleOpen] = useState(false);
-  const [confirmToggleRow, setConfirmToggleRow] = useState<LinkedBusiness | null>(null);
+  const [confirmToggleRow, setConfirmToggleRow] =
+    useState<LinkedBusiness | null>(null);
 
   // API hooks
   const { data: businessesData, isLoading, refetch } = useFetchBusinesses();
@@ -193,7 +145,10 @@ export default function LinkedBusinessTable() {
   // Filter logic
   const filteredData = useMemo<LinkedBusiness[]>(() => {
     return localBusinesses.filter((row) => {
-      if (search && !row.displayName?.toLowerCase().includes(search.toLowerCase())) {
+      if (
+        search &&
+        !row.displayName?.toLowerCase().includes(search.toLowerCase())
+      ) {
         return false;
       }
       if (filter === "matched") return !!row.matchedGa4;
@@ -202,14 +157,14 @@ export default function LinkedBusinessTable() {
     });
   }, [search, localBusinesses, filter]);
 
-
-
   const handleGa4Change = (siteUrl: string, propertyId: string) => {
     setLocalBusinesses((prev) =>
       prev.map((b) => {
         if (b.siteUrl === siteUrl) {
-          const selectedGa4 = b.matchedGa4Multiple?.find((ga4) => ga4.propertyId === propertyId) ||
-            unmatchedGa4.find((ga4) => ga4.propertyId === propertyId);
+          const selectedGa4 =
+            b.matchedGa4Multiple?.find(
+              (ga4) => ga4.propertyId === propertyId
+            ) || unmatchedGa4.find((ga4) => ga4.propertyId === propertyId);
           return { ...b, selectedGa4 };
         }
         return b;
@@ -221,7 +176,8 @@ export default function LinkedBusinessTable() {
     setLocalBusinesses((prev) =>
       prev.map((b) => {
         if (b.siteUrl === siteUrl) {
-          const hasNoLocation = selectedLocationIds.includes("no-location-exist");
+          const hasNoLocation =
+            selectedLocationIds.includes("no-location-exist");
           if (hasNoLocation) {
             return { ...b, selectedGbp: [], noLocation: true };
           }
@@ -269,13 +225,18 @@ export default function LinkedBusinessTable() {
   };
 
   const handleAcceptAll = async () => {
-    const businessesToAccept = filteredData.filter((b) => !b.businessProfile?.Id && (b.siteUrl || b.displayName));
+    const businessesToAccept = filteredData.filter(
+      (b) => !b.businessProfile?.Id && (b.siteUrl || b.displayName)
+    );
     if (businessesToAccept.length > 0) {
       await createBusinessMutation.mutateAsync(businessesToAccept);
     }
   };
 
-  const isMutating = createBusinessMutation.isPending || linkPropertyMutation.isPending || toggleStatusMutation.isPending;
+  const isMutating =
+    createBusinessMutation.isPending ||
+    linkPropertyMutation.isPending ||
+    toggleStatusMutation.isPending;
 
   const columns = useMemo<ColumnDef<LinkedBusiness>[]>(
     () => [
@@ -297,10 +258,11 @@ export default function LinkedBusinessTable() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 cursor-pointer ${isActive
-                    ? "border border-[#33848480] bg-[#2E7D3214]"
-                    : "border border-[#D32F2F4D]"
-                    }`}
+                  className={`h-9 w-9 cursor-pointer ${
+                    isActive
+                      ? "border border-[#33848480] bg-[#2E7D3214]"
+                      : "border border-[#D32F2F4D]"
+                  }`}
                   onClick={() => openToggleConfirm(row.original)}
                 >
                   {isActive ? (
@@ -330,7 +292,8 @@ export default function LinkedBusinessTable() {
         header: "GA4",
         cell: ({ row }) => {
           const rowData = row.original;
-          const hasMultipleMatches = (rowData.matchedGa4Multiple?.length ?? 0) > 1;
+          const hasMultipleMatches =
+            (rowData.matchedGa4Multiple?.length ?? 0) > 1;
           const hasUnmatchedData = unmatchedGa4.length > 0;
           const hasLinkedData = rowData.linkedPropertyId || rowData.matchedGa4;
 
@@ -359,7 +322,9 @@ export default function LinkedBusinessTable() {
             return (
               <Select
                 value={selectedPropertyId || undefined}
-                onValueChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
+                onValueChange={(value) =>
+                  handleGa4Change(rowData.siteUrl || "", value)
+                }
               >
                 <SelectTrigger className="w-full max-w-[300px] h-10 cursor-pointer">
                   <SelectValue placeholder="choose option">
@@ -373,7 +338,9 @@ export default function LinkedBusinessTable() {
                         </span>
                       </div>
                     ) : (
-                      <span className="text-muted-foreground">choose option</span>
+                      <span className="text-muted-foreground">
+                        choose option
+                      </span>
                     )}
                   </SelectValue>
                 </SelectTrigger>
@@ -389,7 +356,9 @@ export default function LinkedBusinessTable() {
                         </span>
                         <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-muted rounded border text-xs text-muted-foreground">
                           <Building2 className="h-3 w-3" />
-                          <span>{ga4.accountName} ({ga4.accountId})</span>
+                          <span>
+                            {ga4.accountName} ({ga4.accountId})
+                          </span>
                         </div>
                       </div>
                     </SelectItem>
@@ -404,12 +373,15 @@ export default function LinkedBusinessTable() {
             // If multiple matches, wrap card in a Select dropdown
             if (hasMultipleMatches) {
               const ga4Options = rowData.matchedGa4Multiple || [];
-              const selectedPropertyId = rowData.selectedGa4?.propertyId || getPropertyId() || "";
+              const selectedPropertyId =
+                rowData.selectedGa4?.propertyId || getPropertyId() || "";
 
               return (
                 <Select
                   value={selectedPropertyId || undefined}
-                  onValueChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
+                  onValueChange={(value) =>
+                    handleGa4Change(rowData.siteUrl || "", value)
+                  }
                 >
                   <SelectTrigger className="w-full max-w-[300px] h-auto py-2 border-yellow-300 bg-yellow-50/50 cursor-pointer">
                     <div className="flex items-center gap-2 w-full">
@@ -419,16 +391,26 @@ export default function LinkedBusinessTable() {
                             <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0 cursor-help" />
                           </TooltipTrigger>
                           <TooltipContent side="top" className="max-w-[200px]">
-                            <p className="text-sm">Multiple GA4 matches found ({(rowData.matchedGa4Multiple?.length || 0)} options). Click to select a different one.</p>
+                            <p className="text-sm">
+                              Multiple GA4 matches found (
+                              {rowData.matchedGa4Multiple?.length || 0}{" "}
+                              options). Click to select a different one.
+                            </p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                       <div className="min-w-0 flex-1 text-left">
-                        <p className="font-medium text-sm truncate">{getDisplayName()}</p>
-                        <p className="text-xs text-muted-foreground truncate">ID: {getPropertyId()}</p>
+                        <p className="font-medium text-sm truncate">
+                          {getDisplayName()}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          ID: {getPropertyId()}
+                        </p>
                         <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-muted rounded border text-xs text-muted-foreground w-fit max-w-full">
                           <Building2 className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{getAccountName()} ({getAccountId()})</span>
+                          <span className="truncate">
+                            {getAccountName()} ({getAccountId()})
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -445,7 +427,9 @@ export default function LinkedBusinessTable() {
                           </span>
                           <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-muted rounded border text-xs text-muted-foreground">
                             <Building2 className="h-3 w-3" />
-                            <span>{ga4.accountName} ({ga4.accountId})</span>
+                            <span>
+                              {ga4.accountName} ({ga4.accountId})
+                            </span>
                           </div>
                         </div>
                       </SelectItem>
@@ -459,11 +443,17 @@ export default function LinkedBusinessTable() {
             return (
               <div className="max-w-[300px] overflow-hidden">
                 <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{getDisplayName()}</p>
-                  <p className="text-xs text-muted-foreground truncate">ID: {getPropertyId()}</p>
+                  <p className="font-medium text-sm truncate">
+                    {getDisplayName()}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    ID: {getPropertyId()}
+                  </p>
                   <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-muted rounded border text-xs text-muted-foreground w-fit max-w-full">
                     <Building2 className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{getAccountName()} ({getAccountId()})</span>
+                    <span className="truncate">
+                      {getAccountName()} ({getAccountId()})
+                    </span>
                   </div>
                 </div>
               </div>
@@ -478,21 +468,34 @@ export default function LinkedBusinessTable() {
         header: "GBPs",
         cell: ({ row }) => {
           const rowData = row.original;
-          const rowIdx = filteredData.findIndex((b) => b.siteUrl === rowData.siteUrl);
-          const selectedGbps = localBusinesses[rowIdx]?.selectedGbp || rowData.selectedGbp || [];
+          const rowIdx = filteredData.findIndex(
+            (b) => b.siteUrl === rowData.siteUrl
+          );
+          const selectedGbps =
+            localBusinesses[rowIdx]?.selectedGbp || rowData.selectedGbp || [];
           const selectedLocationIds = selectedGbps.map((gbp) => gbp.locationId);
-          const hasNoLocation = localBusinesses[rowIdx]?.noLocation ?? rowData.noLocation ?? false;
+          const hasNoLocation =
+            localBusinesses[rowIdx]?.noLocation ?? rowData.noLocation ?? false;
 
           // Create options from allGBP, filtering out already selected by other businesses
-          const availableGbps = allGBP.filter((gbp) =>
-            !localBusinesses.some((business, i) =>
-              i !== rowIdx && business.selectedGbp?.some((selected) => selected.location === gbp.location)
-            )
+          const availableGbps = allGBP.filter(
+            (gbp) =>
+              !localBusinesses.some(
+                (business, i) =>
+                  i !== rowIdx &&
+                  business.selectedGbp?.some(
+                    (selected) => selected.location === gbp.location
+                  )
+              )
           );
 
           // Create options including "No locations exist"
           const gbpOptions: CustomSelectOption[] = [
-            { value: "no-location-exist", label: "No locations exist", locationId: "no-location-exist" },
+            {
+              value: "no-location-exist",
+              label: "No locations exist",
+              locationId: "no-location-exist",
+            },
             ...availableGbps.map((gbp) => ({
               value: gbp.locationId,
               label: `${gbp.title} (${gbp.locationId})`,
@@ -534,7 +537,11 @@ export default function LinkedBusinessTable() {
             if (!hasBusinessProfile) return false;
             // If there's a selectedGa4 and it differs from linkedPropertyId
             if (rowData.selectedGa4 && rowData.linkedPropertyId) {
-              return rowData.selectedGa4.propertyId !== (rowData.linkedPropertyId.PropertyId || rowData.linkedPropertyId.propertyId);
+              return (
+                rowData.selectedGa4.propertyId !==
+                (rowData.linkedPropertyId.PropertyId ||
+                  rowData.linkedPropertyId.propertyId)
+              );
             }
             // If there's a selectedGa4 but no linkedPropertyId, it means user selected one for the first time
             if (rowData.selectedGa4 && !rowData.linkedPropertyId) {
@@ -545,13 +552,12 @@ export default function LinkedBusinessTable() {
 
           // Check if GBP has been edited (compare current selection with backend locations)
           const checkGbpEdited = () => {
-
             if (!hasBusinessProfile) return false;
 
             // Check NoLocationExist status change
-            const backendNoLocationExist = rowData.businessProfile?.NoLocationExist === true;
+            const backendNoLocationExist =
+              rowData.businessProfile?.NoLocationExist === true;
             const currentNoLocation = rowData.noLocation === true;
-
 
             if (backendNoLocationExist !== currentNoLocation) return true;
 
@@ -562,8 +568,11 @@ export default function LinkedBusinessTable() {
             const selectedGbpLocations = (rowData.selectedGbp || [])
               .filter((gbp: any) => !gbp.isNoLocationOption)
               .map((gbp: any) => gbp.location);
-            const businessLocations = rowData.businessProfile?.Locations?.map((loc: any) => loc.Name) || [];
-            if (selectedGbpLocations.length !== businessLocations.length) return true;
+            const businessLocations =
+              rowData.businessProfile?.Locations?.map((loc: any) => loc.Name) ||
+              [];
+            if (selectedGbpLocations.length !== businessLocations.length)
+              return true;
 
             const selectedSet = new Set(selectedGbpLocations);
             for (const loc of businessLocations) {
@@ -608,15 +617,23 @@ export default function LinkedBusinessTable() {
     [filteredData, allGBP, localBusinesses, unmatchedGa4]
   );
 
-  const totalActive = filteredData.filter((row) => row.businessProfile?.IsActive).length;
+  const totalActive = filteredData.filter(
+    (row) => row.businessProfile?.IsActive
+  ).length;
   const totalBusinesses = filteredData.length;
-  const totalGa4 = filteredData.filter((row) => row.matchedGa4 || row.linkedPropertyId).length;
-  const totalGbps = filteredData.filter((row) => (row.gbps?.length ?? 0) > 0 || row.noLocation).length;
+  const totalGa4 = filteredData.filter(
+    (row) => row.matchedGa4 || row.linkedPropertyId
+  ).length;
+  const totalGbps = filteredData.filter(
+    (row) => (row.gbps?.length ?? 0) > 0 || row.noLocation
+  ).length;
 
   return (
-    <Card>
+    <Card variant="profileCard" className="p-4 bg-white border-none">
       <CardHeader>
-        <CardTitle>Linked Businesses</CardTitle>
+        <CardTitle className="pb-6">
+          <Typography variant="h4">Linked Businesses</Typography>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Search Bar */}
@@ -638,8 +655,8 @@ export default function LinkedBusinessTable() {
                 tab.value === "all"
                   ? localBusinesses.length
                   : tab.value === "matched"
-                    ? localBusinesses.filter((b) => b.matchedGa4).length
-                    : localBusinesses.filter((b) => !b.matchedGa4).length;
+                  ? localBusinesses.filter((b) => b.matchedGa4).length
+                  : localBusinesses.filter((b) => !b.matchedGa4).length;
               return (
                 <TabsTrigger key={tab.value} value={tab.value}>
                   {tab.label} • {count}
@@ -654,7 +671,9 @@ export default function LinkedBusinessTable() {
           <div className="border rounded-lg p-8">
             <div className="flex flex-col items-center justify-center space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Loading businesses...</p>
+              <p className="text-sm text-muted-foreground">
+                Loading businesses...
+              </p>
             </div>
           </div>
         ) : (
@@ -669,11 +688,11 @@ export default function LinkedBusinessTable() {
                         {typeof column.header === "string"
                           ? column.header
                           : column.header
-                            ? flexRender(column.header, {
+                          ? flexRender(column.header, {
                               column: { id: column.id as string },
                               header: column.header,
                             } as any)
-                            : null}
+                          : null}
                       </TableHead>
                     ))}
                   </TableRow>
@@ -694,7 +713,11 @@ export default function LinkedBusinessTable() {
                     <TableCell>
                       <Button
                         onClick={handleAcceptAll}
-                        disabled={filter === "unmatched" || filteredData.length === 0 || isMutating}
+                        disabled={
+                          filter === "unmatched" ||
+                          filteredData.length === 0 ||
+                          isMutating
+                        }
                         className="bg-[#0F4343] hover:bg-[#0F4343]/90 text-white w-full"
                       >
                         {createBusinessMutation.isPending ? (
@@ -710,7 +733,10 @@ export default function LinkedBusinessTable() {
                 <TableBody>
                   {filteredData.length === 0 ? (
                     <TableRow key="no-results">
-                      <TableCell colSpan={columns.length} className="h-24 text-center">
+                      <TableCell
+                        colSpan={columns.length}
+                        className="h-24 text-center"
+                      >
                         No results.
                       </TableCell>
                     </TableRow>
@@ -721,7 +747,8 @@ export default function LinkedBusinessTable() {
                           const cellContext = {
                             row: { original: row, id: row.id },
                             column: { id: column.id as string },
-                            getValue: () => row[column.id as keyof LinkedBusiness],
+                            getValue: () =>
+                              row[column.id as keyof LinkedBusiness],
                           };
                           return (
                             <TableCell key={column.id as string}>
@@ -752,7 +779,9 @@ export default function LinkedBusinessTable() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmToggleRow?.businessProfile?.IsActive ? "Unlink Business" : "Link Business"}
+              {confirmToggleRow?.businessProfile?.IsActive
+                ? "Unlink Business"
+                : "Link Business"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmToggleRow?.businessProfile?.IsActive
@@ -766,15 +795,19 @@ export default function LinkedBusinessTable() {
             </AlertDialogCancel>
             <AlertDialogAction asChild>
               <Button
-                variant={confirmToggleRow?.businessProfile?.IsActive ? "destructive" : "default"}
+                variant={
+                  confirmToggleRow?.businessProfile?.IsActive
+                    ? "destructive"
+                    : "default"
+                }
                 onClick={handleConfirmToggle}
                 disabled={toggleStatusMutation.isPending}
               >
                 {toggleStatusMutation.isPending
                   ? "Please wait..."
                   : confirmToggleRow?.businessProfile?.IsActive
-                    ? "Unlink"
-                    : "Link"}
+                  ? "Unlink"
+                  : "Link"}
               </Button>
             </AlertDialogAction>
           </AlertDialogFooter>

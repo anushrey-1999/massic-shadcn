@@ -4,16 +4,27 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useForm } from "@tanstack/react-form";
 import * as z from "zod";
 import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { GenericInput } from "@/components/ui/generic-input";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, ImageIcon } from "lucide-react";
 import { useBusinessStore } from "@/store/business-store";
 import LinkedBusinessTable from "./LinkedBusinessTable";
-import { useAgencyInfo, useUpdateAgencyInfo, useUploadLogo } from "@/hooks/use-agency-settings";
+import {
+  useAgencyInfo,
+  useUpdateAgencyInfo,
+  useUploadLogo,
+} from "@/hooks/use-agency-settings";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
+import { Typography } from "@/components/ui/typography";
 
 const agencyFormSchema = z.object({
   agencyName: z.string().min(1, "Agency Name is required"),
@@ -41,11 +52,7 @@ function GoogleConnectButton() {
   const { connectGoogleAccount } = useGoogleAccounts();
 
   return (
-    <Button
-      variant="outline"
-      className="w-full"
-      onClick={connectGoogleAccount}
-    >
+    <Button variant="outline" className="w-full" onClick={connectGoogleAccount}>
       <svg
         className="h-4 w-4 mr-2"
         viewBox="0 0 24 24"
@@ -82,7 +89,11 @@ export function ProfileSettings() {
 
   // Use agencyDetails from API or fallback to empty
   const linkedGoogleAccounts: GoogleAccount[] = useMemo(() => {
-    if (Array.isArray(agencyDetails) && agencyDetails.length > 0 && agencyDetails[0]?.AuthId) {
+    if (
+      Array.isArray(agencyDetails) &&
+      agencyDetails.length > 0 &&
+      agencyDetails[0]?.AuthId
+    ) {
       return agencyDetails.map((agency: any) => ({
         email: agency.DisplayName || agency.email || "",
         profileImage: undefined,
@@ -93,7 +104,11 @@ export function ProfileSettings() {
     return [];
   }, [agencyDetails]);
 
-  const businessName = profileDataByUniqueID?.Name || profileDataByUniqueID?.DisplayName || agencyInfo.name || "Your Agency";
+  const businessName =
+    profileDataByUniqueID?.Name ||
+    profileDataByUniqueID?.DisplayName ||
+    agencyInfo.name ||
+    "Your Agency";
 
   const getInitials = (email: string) => {
     return email.charAt(0).toUpperCase();
@@ -146,103 +161,159 @@ export function ProfileSettings() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Agency Info</CardTitle>
+      <Card variant="profileCard" className="p-4 bg-white border-none">
+        <CardHeader className="pb-6">
+          <CardTitle>
+            <Typography variant="h4">Agency Info</Typography>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               agencyForm.handleSubmit();
             }}
-            className="space-y-4"
           >
-            {/* Logo and Business Name Display */}
-            <agencyForm.Field
-              name="logo"
-              children={(logoField) => (
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="relative">
-                    {logoField.state.value ? (
-                      <img
-                        src={logoField.state.value}
-                        alt="Agency Logo"
-                        className="h-12 w-12 rounded-lg object-cover border"
-                      />
-                    ) : (
-                      <div className="h-12 w-12 rounded-lg bg-muted border flex items-center justify-center">
-                        <span className="text-xs text-muted-foreground">Logo</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            />
-
-            <agencyForm.Field
-              name="agencyName"
-              children={(field) => (
-                <GenericInput<AgencyFormData>
-                  formField={field}
-                  type="input"
-                  label="Agency Name"
+            <div className="flex gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                {/* Agency Name */}
+                <agencyForm.Field
+                  name="agencyName"
+                  children={(field) => (
+                    <Card variant="profileCard">
+                      <CardContent>
+                        <GenericInput<AgencyFormData>
+                          formField={field}
+                          type="input"
+                          inputVariant="noBorder"
+                          label="Agency Name"
+                          required={true}
+                          placeholder="Provide the name of your agency"
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
                 />
-              )}
-            />
 
-            <agencyForm.Field
-              name="agencyWebsite"
-              children={(field) => (
-                <GenericInput<AgencyFormData>
-                  formField={field}
-                  type="url"
-                  label="Agency Website"
+                {/* Agency Website */}
+                <agencyForm.Field
+                  name="agencyWebsite"
+                  children={(field) => (
+                    <Card variant="profileCard">
+                      <CardContent>
+                        <GenericInput<AgencyFormData>
+                          formField={field}
+                          type="url"
+                          inputVariant="noBorder"
+                          label="Agency Website"
+                          required={true}
+                          placeholder="Provide the official url of your agency website"
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
                 />
-              )}
-            />
 
-            <agencyForm.Field
-              name="emailAddress"
-              children={(field) => (
-                <GenericInput<AgencyFormData>
-                  formField={field}
-                  type="email"
-                  label="Email Address"
-                  disabled={true}
+                {/* Email Address */}
+                <agencyForm.Field
+                  name="emailAddress"
+                  children={(field) => (
+                    <Card variant="profileCard">
+                      <CardContent>
+                        <GenericInput<AgencyFormData>
+                          formField={field}
+                          type="email"
+                          inputVariant="noBorder"
+                          label="Email Address"
+                          disabled={true}
+                          placeholder="Provide the primary contact email for your agency"
+                        />
+                      </CardContent>
+                    </Card>
+                  )}
                 />
-              )}
-            />
+              </div>
 
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isUploadingLogo}
-                onClick={() => {
-                  const fileInput = document.createElement("input");
-                  fileInput.type = "file";
-                  fileInput.accept = "image/*";
-                  fileInput.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0];
-                    if (file) {
-                      handleLogoUpload(file);
-                    }
-                  };
-                  fileInput.click();
-                }}
-              >
-                {isUploadingLogo ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4 mr-2" />
-                )}
-                {isUploadingLogo ? "Uploading..." : "Upload Logo"}
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-              >
+              <div className="shrink-0">
+                {/* Logo */}
+                <agencyForm.Field
+                  name="logo"
+                  children={(logoField) => (
+                    <Card variant="profileCard">
+                      <CardContent>
+                        <div
+                          onClick={() => {
+                            if (!isUploadingLogo) {
+                              const fileInput = document.createElement("input");
+                              fileInput.type = "file";
+                              fileInput.accept =
+                                "image/png,image/jpeg,image/jpg";
+                              fileInput.onchange = (e) => {
+                                const file = (e.target as HTMLInputElement)
+                                  .files?.[0];
+                                if (file) {
+                                  handleLogoUpload(file);
+                                }
+                              };
+                              fileInput.click();
+                            }
+                          }}
+                          className={`
+                          relative w-[182px] h-[182px] rounded-lg border-2 border-dashed 
+                          border-muted bg-muted/30 flex flex-col items-center justify-center 
+                          cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/50
+                          ${
+                            isUploadingLogo
+                              ? "opacity-50 cursor-not-allowed"
+                              : ""
+                          }
+                        `}
+                        >
+                          {logoField.state.value ? (
+                            <>
+                              <img
+                                src={logoField.state.value}
+                                alt="Agency Logo"
+                                className="absolute inset-0 w-full h-full rounded-lg object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/40 rounded-lg flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                {isUploadingLogo ? (
+                                  <Loader2 className="h-8 w-8 text-white animate-spin" />
+                                ) : (
+                                  <>
+                                    <Upload className="h-8 w-8 text-white mb-2" />
+                                    <span className="text-sm text-white font-medium">
+                                      Replace
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {isUploadingLogo ? (
+                                <Loader2 className="h-12 w-12 text-muted-foreground animate-spin mb-4" />
+                              ) : (
+                                <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
+                              )}
+                              <span className="text-sm font-medium text-muted-foreground mb-1">
+                                Upload Thumbnail
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                .png, .jpeg, .jpg
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6 pt-6 border-t">
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -257,23 +328,32 @@ export function ProfileSettings() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Linked Google Accounts</CardTitle>
+      <Card variant="profileCard" className="p-4 bg-white border-none">
+        <CardHeader className="pb-6 flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between">
+            <Typography variant="h4">Linked Google Accounts</Typography>
+          </CardTitle>
+          <div className="flex flex-col gap-3">
+            <GoogleConnectButton />
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 ">
             {/* Linked Accounts List */}
-            <div className="lg:col-span-2 space-y-3">
+            <div className="lg:col-span-1 space-y-3">
               {linkedGoogleAccounts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No Google accounts linked yet. Click "Add Account" to connect your first Google account.
+                <p className="text-sm text-muted-foreground text-center">
+                  No Google accounts linked yet. Click "Add Account" to connect
+                  your first Google account.
                 </p>
               ) : (
                 linkedGoogleAccounts.map((account, index) => (
-                  <div key={index} className="p-3 rounded-lg border bg-card">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-blue-500 border flex items-center justify-center overflow-hidden">
+                  <div
+                    key={index}
+                    className="p-3 rounded-lg border border-general-border bg-card"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full  border flex items-center justify-center overflow-hidden">
                         {account.profileImage ? (
                           <img
                             src={account.profileImage}
@@ -281,26 +361,20 @@ export function ProfileSettings() {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <span className="text-white text-xs font-semibold">
+                          <span className="text-xs font-semibold">
                             {getInitials(account.email)}
                           </span>
                         )}
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium">{account.email}</p>
+                        <p className="text-base font-mono text-general-unofficial-foreground-alt">
+                          {account.email}
+                        </p>
                       </div>
                     </div>
                   </div>
                 ))
               )}
-            </div>
-
-            {/* Add Account Section */}
-            <div className="flex flex-col gap-3">
-              <GoogleConnectButton />
-              <p className="text-xs text-muted-foreground">
-                Connect additional Google accounts to view all your sites in a single dashboard.
-              </p>
             </div>
           </div>
         </CardContent>
@@ -310,4 +384,3 @@ export function ProfileSettings() {
     </div>
   );
 }
-

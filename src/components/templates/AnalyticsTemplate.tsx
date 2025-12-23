@@ -16,6 +16,7 @@ import ConversionSection from "@/components/organisms/analytics/ConversionSectio
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
+import { usePrefetchAnalyticsPages } from "@/hooks/use-prefetch-analytics-pages";
 
 const navItems = [
   { id: "discovery", label: "Discovery" },
@@ -45,6 +46,19 @@ export function AnalyticsTemplate() {
   }, [pathname, profiles]);
 
   const { profileData } = useBusinessProfileById(businessId);
+  const { prefetchPage1 } = usePrefetchAnalyticsPages(businessId);
+
+  useEffect(() => {
+    if (businessId) {
+      let cleanup: (() => void) | undefined;
+      prefetchPage1().then((cleanupFn) => {
+        cleanup = cleanupFn;
+      });
+      return () => {
+        if (cleanup) cleanup();
+      };
+    }
+  }, [businessId, prefetchPage1]);
 
   const isTrialActive =
     ((profileData as any)?.isTrialActive ??

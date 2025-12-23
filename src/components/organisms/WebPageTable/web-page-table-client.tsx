@@ -100,8 +100,10 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
         joinOperator: (joinOperator || "and") as "and" | "or",
       });
     },
-    staleTime: 1000 * 60,
+    staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh longer
+    gcTime: 1000 * 60 * 15, // 15 minutes - keep in cache longer
     placeholderData: (previousData) => previousData,
+    refetchOnMount: false, // Don't refetch if data exists in cache
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading,
@@ -142,7 +144,8 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
                 joinOperator: (joinOperator || "and") as "and" | "or",
               });
             },
-            staleTime: 1000 * 60,
+            staleTime: 1000 * 60 * 5, // 5 minutes
+            gcTime: 1000 * 60 * 15, // 15 minutes
           });
         }
       }
@@ -180,7 +183,8 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
               joinOperator: (joinOperator || "and") as "and" | "or",
             });
           },
-          staleTime: 1000 * 60,
+          staleTime: 1000 * 60 * 5, // 5 minutes
+          gcTime: 1000 * 60 * 15, // 15 minutes
         });
       }
     };

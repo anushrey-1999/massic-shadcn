@@ -14,7 +14,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
             // Cached data is kept for 15 minutes by default
             gcTime: 15 * 60 * 1000,
             // Refetch whenever the user returns to the tab/window
-            refetchOnWindowFocus: "always",
+            refetchOnWindowFocus: false,
             // Don't refetch on mount if data is fresh
             refetchOnMount: false,
             // Refetch when network reconnects (good for offline support)

@@ -277,14 +277,14 @@ export default function AppSidebar() {
 
   return (
     <>
-      <Sidebar collapsible="none" className="h-screen bg-white px-4 py-3">
-        <SidebarHeader className="shrink-0 pb-3">
+      <Sidebar collapsible="none" className="h-screen bg-white py-3">
+        <SidebarHeader className="shrink-0 pb-3 px-4">
           <div className="">
             <h1 className="text-lg font-semibold text-foreground">Massic</h1>
           </div>
         </SidebarHeader>
-        <SidebarContent className="flex-1 flex flex-col overflow-hidden px-0 gap-0">
-          <SidebarGroup className="px-0 shrink-0 py-0 pb-3">
+        <SidebarContent className="flex-1 flex flex-col overflow-hidden gap-0">
+          <SidebarGroup className="shrink-0 py-0 pb-3 px-4">
             <SidebarGroupContent>
               <SidebarMenu className="gap-2">
                 {navItems.map((item) => (
@@ -300,8 +300,8 @@ export default function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          <SidebarGroup className="px-0 flex-1 flex flex-col overflow-hidden border-t border-general-border py-3">
-            <div className="relative flex items-center justify-between shrink-0 py-2">
+          <SidebarGroup className="flex-1 flex flex-col overflow-hidden border-t border-general-border py-3 p-0">
+            <div className="relative flex items-center justify-between shrink-0 py-2 px-4">
               {isSearchMode ? (
                 <div className="flex items-center gap-2 flex-1">
                   <Input
@@ -322,7 +322,7 @@ export default function AppSidebar() {
                 </div>
               ) : (
                 <>
-                  <SidebarGroupLabel className="px-0 flex-1 text-xs text-general-muted-foreground">
+                  <SidebarGroupLabel className="flex-1 text-xs text-general-muted-foreground">
                     Businesses
                   </SidebarGroupLabel>
                   <div className="flex items-center gap-2 ml-auto">
@@ -347,8 +347,8 @@ export default function AppSidebar() {
               )}
             </div>
             <div className="relative flex-1 overflow-hidden">
-              <SidebarGroupContent className="flex-1 overflow-y-auto px-0 py-0 h-full" onScroll={handleScroll}>
-              <SidebarMenu className="gap-1">
+              <SidebarGroupContent className="flex-1 overflow-y-auto py-0 h-full px-0" onScroll={handleScroll}>
+              <SidebarMenu className="gap-1 px-4 pb-3">
                 {sidebarDataLoading ? (
                   <>
                     {[1, 2, 3].map((i) => (
@@ -438,7 +438,7 @@ export default function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
         {/* <SidebarSeparator /> */}
-        <SidebarFooter className="px-0 pt-3 pb-0 shrink-0 border-t border-general-border">
+        <SidebarFooter className="pt-3 pb-0 shrink-0 border-t border-general-border px-4">
           <div className="mb-1">
             <p className="text-sm font-medium text-general-muted-foreground">{userName}</p>
           </div>

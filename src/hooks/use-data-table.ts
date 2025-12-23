@@ -9,6 +9,7 @@ import {
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  InitialTableState,
   type PaginationState,
   type RowSelectionState,
   type SortingState,
@@ -51,6 +52,7 @@ interface UseDataTableProps<TData>
     | "manualFiltering"
     | "manualPagination"
     | "manualSorting"
+    | "initialState"
   >,
   Required<Pick<TableOptions<TData>, "pageCount">> {
   initialState?: Omit<Partial<TableState>, "sorting"> & {
@@ -219,17 +221,22 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     [prioritizeLastChangedSort, tableSorting, setSorting],
   );
 
-  const resolvedInitialState = React.useMemo(() => {
-    if (!initialState) return initialState;
-    if (!initialState.sorting) return initialState;
+  const resolvedInitialState = React.useMemo((): InitialTableState | undefined => {
+    if (!initialState) return undefined;
+    
+    const { sorting, ...rest } = initialState;
+    
+    if (!sorting) {
+      return rest as InitialTableState;
+    }
 
     return {
-      ...initialState,
-      sorting: initialState.sorting.map((sort) => ({
+      ...rest,
+      sorting: sorting.map((sort) => ({
         id: sort.field,
         desc: sort.desc,
       })),
-    };
+    } as InitialTableState;
   }, [initialState]);
 
   const filterableColumns = React.useMemo(() => {

@@ -28,7 +28,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       page: 1,
       perPage: 100,
       search: undefined,
-      sort: [] as Array<{ id: string; desc: boolean }>,
+      sort: [] as Array<{ field: string; desc: boolean }>,
       filters: [] as Array<{
         id: string;
         value: string | string[];

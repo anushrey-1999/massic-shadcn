@@ -3,7 +3,6 @@
 import React from 'react'
 import { useQueryState, parseAsString } from 'nuqs'
 import { SocialTableClient } from '@/components/organisms/SocialTable/social-table-client'
-import { ChannelsSidebar } from '@/components/organisms/SocialTable/channels-sidebar'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
@@ -28,15 +27,7 @@ function SocialEntitledContent({
 
   return (
     <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
-      <SocialTableClient
-        businessId={businessId}
-        channelsSidebar={
-          <ChannelsSidebar
-            selectedChannel={selectedChannel}
-            onChannelSelect={onChannelSelect}
-          />
-        }
-      />
+      <SocialTableClient businessId={businessId} />
     </div>
   )
 }

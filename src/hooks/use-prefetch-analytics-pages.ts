@@ -146,7 +146,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
         JSON.stringify(defaultParams.sort),
         JSON.stringify(defaultParams.filters),
         defaultParams.joinOperator,
-        null,
+        "all",
       ];
 
       const socialCached = queryClient.getQueryData(socialQueryKey);
@@ -158,6 +158,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
               return fetchSocial({
                 business_id: businessId,
                 ...defaultParams,
+                channel_name: "all",
               });
             },
             staleTime: 1000 * 60 * 5, // 5 minutes

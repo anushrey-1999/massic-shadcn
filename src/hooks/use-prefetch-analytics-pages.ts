@@ -203,16 +203,33 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       if (isCancelled) return;
       const webOptimizationQueryKey = ["web-optimization-analysis-all", businessId];
       const webOptimizationCached = queryClient.getQueryData(webOptimizationQueryKey);
+      
+      // Check if there's an error state in the query
+      const queryState = queryClient.getQueryState(webOptimizationQueryKey);
+      const hasError = queryState?.error;
+      if (hasError) {
+        const error = hasError as any;
+        const status = error?.response?.status || error?.status;
+        if (status === 400 || status === 404) {
+          return; // Don't prefetch if we already have a 400/404 error
+        }
+      }
+      
       if (!webOptimizationCached) {
-        await queryClient.prefetchQuery({
-          queryKey: webOptimizationQueryKey,
-          queryFn: async () => {
-            return fetchWebOptimizationAnalysisAll(businessId);
-          },
-          staleTime: 1000 * 60 * 5, // 5 minutes
-          gcTime: 1000 * 60 * 15, // 15 minutes
-          retry: false, // Disable retries completely for prefetch
-        });
+        try {
+          await queryClient.prefetchQuery({
+            queryKey: webOptimizationQueryKey,
+            queryFn: async () => {
+              return fetchWebOptimizationAnalysisAll(businessId);
+            },
+            staleTime: 1000 * 60 * 5, // 5 minutes
+            gcTime: 1000 * 60 * 15, // 15 minutes
+            retry: false, // Disable retries completely for prefetch
+          });
+        } catch (error: any) {
+          // Error is already handled by React Query, no need to set it manually
+          // The query will be in error state and won't refetch due to retry: false
+        }
       }
     }, 3000); // 3 seconds delay
     timeoutIds.push(batch3Timeout);

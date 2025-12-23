@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useWebOptimizationAnalysis } from "@/hooks/use-web-optimization-analysis";
@@ -87,6 +87,18 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
 
   const { fetchWebOptimizationAnalysisAll } = useWebOptimizationAnalysis();
 
+  const queryClient = useQueryClient();
+  const queryKey = React.useMemo(() => ["web-optimization-analysis-all", businessId], [businessId]);
+  
+  // Check if query has a 400/404 error state
+  const queryState = queryClient.getQueryState(queryKey);
+  const has400Or404Error = React.useMemo(() => {
+    if (!queryState?.error) return false;
+    const error = queryState.error as any;
+    const status = error?.response?.status || error?.status;
+    return status === 400 || status === 404;
+  }, [queryState?.error]);
+
   const {
     data: allRows,
     isLoading,
@@ -95,7 +107,7 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
     error,
     refetch,
   } = useQuery({
-    queryKey: ["web-optimization-analysis-all", businessId],
+    queryKey,
     queryFn: async () => {
       return fetchWebOptimizationAnalysisAll(businessId);
     },
@@ -104,7 +116,8 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
     retry: false, // Disable retries completely - stop on 400/404 errors
     refetchOnMount: false, // Don't refetch on mount if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus
-    enabled: !!businessId,
+    refetchOnReconnect: false, // Don't refetch on network reconnect
+    enabled: !!businessId && !has400Or404Error, // Disable query if we have a 400/404 error
   });
 
   const filteredRows = React.useMemo(

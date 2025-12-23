@@ -4,15 +4,20 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { flexRender } from "@tanstack/react-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header";
+import { useLocalDataTable } from "@/hooks/use-local-data-table";
+import { flexRender } from "@tanstack/react-table";
+import { cn } from "@/lib/utils";
+import TextWithPill from "@/components/molecules/TextWithPill";
+import {
+  TableElement,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -34,6 +39,8 @@ import {
   AlertCircle,
   Building2,
   Loader2,
+  ChevronDown,
+  Link2,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -242,14 +249,28 @@ export default function LinkedBusinessTable() {
     () => [
       {
         id: "status",
-        header: "Status",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Status" />
+        ),
+        enableSorting: true,
+        accessorFn: (row) => row.businessProfile?.IsActive ? "active" : "inactive",
+        meta: {
+          align: "left",
+        },
         cell: ({ row }) => {
+          if ((row.original as any).isSummary) {
+            return (
+              <div className="text-xs font-mono text-general-muted-foreground">
+                {totalActive} total
+              </div>
+            );
+          }
           const isActive = row.original.businessProfile?.IsActive;
           const rowId = row.original.siteUrl || row.original.id;
           const isRowLoading = loadingRowId === rowId;
 
           return (
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-start">
               {isRowLoading ? (
                 <div className="h-9 w-9 flex items-center justify-center">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -260,15 +281,15 @@ export default function LinkedBusinessTable() {
                   size="icon"
                   className={`h-9 w-9 cursor-pointer ${
                     isActive
-                      ? "border border-[#33848480] bg-[#2E7D3214]"
-                      : "border border-[#D32F2F4D]"
+                      ? "bg-[#2E6A56] text-white"
+                      : "border border-[#DC2626] bg-[#FEF2F2]"
                   }`}
                   onClick={() => openToggleConfirm(row.original)}
                 >
                   {isActive ? (
-                    <Link className="h-4 w-4 text-green-600" />
+                    <Link2 className="h-4.5 w-4.5 " />
                   ) : (
-                    <Link2Off className="h-4 w-4 text-red-600" />
+                    <Link2Off className="h-4.5 w-4.5 text-red-600" />
                   )}
                 </Button>
               )}
@@ -278,8 +299,19 @@ export default function LinkedBusinessTable() {
       },
       {
         id: "gsc",
-        header: "GSC",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="GSC" />
+        ),
+        enableSorting: true,
+        accessorFn: (row) => removeScDomainPrefix(row.displayName || ""),
         cell: ({ row }) => {
+          if ((row.original as any).isSummary) {
+            return (
+              <div className="text-xs font-mono text-general-muted-foreground">
+                {totalBusinesses} total
+              </div>
+            );
+          }
           return (
             <div className="max-w-[300px] truncate">
               {removeScDomainPrefix(row.original.displayName)}
@@ -289,8 +321,25 @@ export default function LinkedBusinessTable() {
       },
       {
         id: "ga4",
-        header: "GA4",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="GA4" />
+        ),
+        enableSorting: true,
+        accessorFn: (row) => {
+          const getDisplayName = () =>
+            row.selectedGa4?.displayName ??
+            row.linkedPropertyId?.displayName ??
+            row.matchedGa4?.displayName;
+          return getDisplayName() || "Not Found";
+        },
         cell: ({ row }) => {
+          if ((row.original as any).isSummary) {
+            return (
+              <div className="text-xs font-mono text-general-muted-foreground">
+                {totalGa4} total
+              </div>
+            );
+          }
           const rowData = row.original;
           const hasMultipleMatches =
             (rowData.matchedGa4Multiple?.length ?? 0) > 1;
@@ -318,6 +367,7 @@ export default function LinkedBusinessTable() {
           // Case 1: No linked data but unmatched GA4 available - show dropdown to select
           if (!hasLinkedData && hasUnmatchedData) {
             const selectedPropertyId = rowData.selectedGa4?.propertyId || "";
+            const selectedGa4 = rowData.selectedGa4 || unmatchedGa4.find(ga4 => ga4.propertyId === selectedPropertyId);
 
             return (
               <Select
@@ -326,40 +376,34 @@ export default function LinkedBusinessTable() {
                   handleGa4Change(rowData.siteUrl || "", value)
                 }
               >
-                <SelectTrigger className="w-full max-w-[300px] h-10 cursor-pointer">
-                  <SelectValue placeholder="choose option">
-                    {rowData.selectedGa4 ? (
-                      <div className="flex flex-col items-start text-left">
-                        <span className="font-medium text-sm">
-                          {rowData.selectedGa4.displayName}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          ID: {rowData.selectedGa4.propertyId}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">
-                        choose option
-                      </span>
-                    )}
-                  </SelectValue>
+                <SelectTrigger className="w-full max-w-[300px] h-auto py-1.5 px-2  border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
+                  {selectedGa4 ? (
+                    <div className="flex items-center justify-between w-full gap-2 ">
+                      <TextWithPill
+                        displayName={selectedGa4.displayName || selectedGa4.propertyDisplayName || ""}
+                        propertyId={selectedGa4.propertyId}
+                        accountName={selectedGa4.accountName}
+                        accountId={selectedGa4.accountId}
+                      />
+                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-muted-foreground font-normal text-xs">Select GA4</span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </div>
+                  )}
                 </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
+                <SelectContent className="max-h-[500px]">
                   {unmatchedGa4.map((ga4, i) => (
-                    <SelectItem key={i} value={ga4.propertyId}>
-                      <div className="flex flex-col gap-1 py-1">
-                        <span className="font-medium text-sm">
-                          {ga4.displayName || ga4.propertyDisplayName}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          ID: {ga4.propertyId}
-                        </span>
-                        <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-muted rounded border text-xs text-muted-foreground">
-                          <Building2 className="h-3 w-3" />
-                          <span>
-                            {ga4.accountName} ({ga4.accountId})
-                          </span>
-                        </div>
+                    <SelectItem key={i} value={ga4.propertyId} className="cursor-pointer">
+                      <div className="flex flex-col gap-1 py-1.5">
+                        <TextWithPill
+                          displayName={ga4.displayName || ga4.propertyDisplayName || ""}
+                          propertyId={ga4.propertyId}
+                          accountName={ga4.accountName}
+                          accountId={ga4.accountId}
+                        />
                       </div>
                     </SelectItem>
                   ))}
@@ -375,6 +419,7 @@ export default function LinkedBusinessTable() {
               const ga4Options = rowData.matchedGa4Multiple || [];
               const selectedPropertyId =
                 rowData.selectedGa4?.propertyId || getPropertyId() || "";
+              const currentGa4 = rowData.selectedGa4 || rowData.matchedGa4 || rowData.linkedPropertyId;
 
               return (
                 <Select
@@ -383,54 +428,27 @@ export default function LinkedBusinessTable() {
                     handleGa4Change(rowData.siteUrl || "", value)
                   }
                 >
-                  <SelectTrigger className="w-full max-w-[300px] h-auto py-2 border-yellow-300 bg-yellow-50/50 cursor-pointer">
-                    <div className="flex items-center gap-2 w-full">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0 cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-[200px]">
-                            <p className="text-sm">
-                              Multiple GA4 matches found (
-                              {rowData.matchedGa4Multiple?.length || 0}{" "}
-                              options). Click to select a different one.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      <div className="min-w-0 flex-1 text-left">
-                        <p className="font-medium text-sm truncate">
-                          {getDisplayName()}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          ID: {getPropertyId()}
-                        </p>
-                        <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-muted rounded border text-xs text-muted-foreground w-fit max-w-full">
-                          <Building2 className="h-3 w-3 shrink-0" />
-                          <span className="truncate">
-                            {getAccountName()} ({getAccountId()})
-                          </span>
-                        </div>
-                      </div>
+                  <SelectTrigger className="w-full max-w-[300px] py-1.5 px-2  border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden min-h-[60px]">
+                    <div className="flex items-center justify-between w-full gap-1 ">
+                      <TextWithPill
+                        displayName={getDisplayName() || ""}
+                        propertyId={getPropertyId()}
+                        accountName={getAccountName()}
+                        accountId={getAccountId()}
+                      />
+                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                     </div>
                   </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
+                  <SelectContent className="max-h-[500px]">
                     {ga4Options.map((ga4, i) => (
-                      <SelectItem key={i} value={ga4.propertyId}>
-                        <div className="flex flex-col gap-1 py-1">
-                          <span className="font-medium text-sm">
-                            {ga4.displayName || ga4.propertyDisplayName}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            ID: {ga4.propertyId}
-                          </span>
-                          <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-muted rounded border text-xs text-muted-foreground">
-                            <Building2 className="h-3 w-3" />
-                            <span>
-                              {ga4.accountName} ({ga4.accountId})
-                            </span>
-                          </div>
+                      <SelectItem key={i} value={ga4.propertyId} className="cursor-pointer">
+                        <div className="flex flex-col gap-1 py-1.5 ">
+                          <TextWithPill
+                            displayName={ga4.displayName || ga4.propertyDisplayName || ""}
+                            propertyId={ga4.propertyId}
+                            accountName={ga4.accountName}
+                            accountId={ga4.accountId}
+                          />
                         </div>
                       </SelectItem>
                     ))}
@@ -439,22 +457,16 @@ export default function LinkedBusinessTable() {
               );
             }
 
-            // Single match - show static card (no dropdown needed)
+            // Single match - show as selectable card (can still be changed if needed)
             return (
               <div className="max-w-[300px] overflow-hidden">
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">
-                    {getDisplayName()}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    ID: {getPropertyId()}
-                  </p>
-                  <div className="flex items-center gap-1 mt-1 px-2 py-1 bg-muted rounded border text-xs text-muted-foreground w-fit max-w-full">
-                    <Building2 className="h-3 w-3 shrink-0" />
-                    <span className="truncate">
-                      {getAccountName()} ({getAccountId()})
-                    </span>
-                  </div>
+                <div className="flex flex-col gap-1 py-1.5 px-2 border border-general-border rounded-md">
+                  <TextWithPill
+                    displayName={getDisplayName() || ""}
+                    propertyId={getPropertyId()}
+                    accountName={getAccountName()}
+                    accountId={getAccountId()}
+                  />
                 </div>
               </div>
             );
@@ -465,8 +477,22 @@ export default function LinkedBusinessTable() {
       },
       {
         id: "gbps",
-        header: "GBPs",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="GBPs" />
+        ),
+        enableSorting: true,
+        accessorFn: (row) => {
+          const selectedGbps = row.selectedGbp || row.gbps || [];
+          return selectedGbps.length > 0 ? selectedGbps.map(g => g.title || g.location).join(", ") : (row.noLocation ? "No locations exist" : "");
+        },
         cell: ({ row }) => {
+          if ((row.original as any).isSummary) {
+            return (
+              <div className="text-xs font-mono text-general-muted-foreground">
+                {totalGbps} total
+              </div>
+            );
+          }
           const rowData = row.original;
           const rowIdx = filteredData.findIndex(
             (b) => b.siteUrl === rowData.siteUrl
@@ -527,7 +553,29 @@ export default function LinkedBusinessTable() {
       {
         id: "actions",
         header: "Suggested Matches",
+        enableSorting: false,
         cell: ({ row }) => {
+          if ((row.original as any).isSummary) {
+            return (
+              <Button
+                onClick={handleAcceptAll}
+                value={'default'}
+                disabled={
+                  filter === "unmatched" ||
+                  filteredData.length === 0 ||
+                  isMutating
+                }
+                className="w-full"
+              >
+                {createBusinessMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-2" />
+                )}
+                Accept all
+              </Button>
+            );
+          }
           const rowData = row.original;
           const hasBusinessProfile = !!rowData.businessProfile?.Id;
           const hasGsc = !!rowData.siteUrl || !!rowData.displayName;
@@ -587,7 +635,6 @@ export default function LinkedBusinessTable() {
             return (
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => handleSaveChanges(rowData)}
                 className="w-full"
               >
@@ -600,7 +647,7 @@ export default function LinkedBusinessTable() {
             return (
               <Button
                 variant="outline"
-                size="sm"
+              
                 onClick={() => handleAccept(rowData)}
                 className="w-full"
               >
@@ -614,8 +661,63 @@ export default function LinkedBusinessTable() {
         },
       },
     ],
-    [filteredData, allGBP, localBusinesses, unmatchedGa4]
+    [allGBP, localBusinesses, unmatchedGa4, loadingRowId]
   );
+
+  // Create summary row data
+  const summaryRow = useMemo(() => ({
+    id: "summary",
+    displayName: "",
+    siteUrl: "",
+    isSummary: true,
+  } as LinkedBusiness & { isSummary: boolean }), []);
+
+  // Add summary row as first row
+  const tableData = useMemo(() => {
+    return [summaryRow, ...filteredData];
+  }, [summaryRow, filteredData]);
+
+  const { table } = useLocalDataTable({
+    data: tableData,
+    columns,
+    getRowId: (row) => {
+      if ((row as any).isSummary) return "summary";
+      return (row as LinkedBusiness).siteUrl || (row as LinkedBusiness).id || String(Math.random());
+    },
+    initialState: {
+      pagination: {
+        pageIndex: 0,
+        pageSize: 100,
+      },
+    },
+  });
+
+  // Create a table proxy that always returns summary row first
+  const sortingState = table.getState().sorting;
+  const tableWithFixedSummary = useMemo(() => {
+    const originalGetRowModel = table.getRowModel.bind(table);
+    return {
+      ...table,
+      getRowModel: () => {
+        // Get the current sorted rows from the table
+        const originalModel = originalGetRowModel();
+        const originalRows = originalModel.rows;
+        
+        // Separate summary row from other rows
+        const summaryRow = originalRows.find((row) => (row.original as any).isSummary);
+        const otherRows = originalRows.filter((row) => !(row.original as any).isSummary);
+        
+        // Always put summary row first, then the sorted other rows
+        const sortedRows = summaryRow ? [summaryRow, ...otherRows] : originalRows;
+        
+        return {
+          ...originalModel,
+          rows: sortedRows,
+          flatRows: sortedRows,
+        };
+      },
+    };
+  }, [table, sortingState]);
 
   const totalActive = filteredData.filter(
     (row) => row.businessProfile?.IsActive
@@ -636,8 +738,29 @@ export default function LinkedBusinessTable() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+
+
+        {/* Filter Tabs */}
+        <Tabs value={filter} onValueChange={setFilter} >
+          <TabsList className="bg-general-border rounded-lg">
+            {FILTERS.map((tab) => {
+              const count =
+                tab.value === "all"
+                  ? localBusinesses.length
+                  : tab.value === "matched"
+                  ? localBusinesses.filter((b) => b.matchedGa4).length
+                  : localBusinesses.filter((b) => !b.matchedGa4).length;
+              return (
+                <TabsTrigger key={tab.value} value={tab.value} className="font-normal">
+                  {tab.label} • {count}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </Tabs>
+
         {/* Search Bar */}
-        <div className="relative">
+        <div className="relative w-1/3">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search Business Name"
@@ -647,24 +770,6 @@ export default function LinkedBusinessTable() {
           />
         </div>
 
-        {/* Filter Tabs */}
-        <Tabs value={filter} onValueChange={setFilter}>
-          <TabsList>
-            {FILTERS.map((tab) => {
-              const count =
-                tab.value === "all"
-                  ? localBusinesses.length
-                  : tab.value === "matched"
-                  ? localBusinesses.filter((b) => b.matchedGa4).length
-                  : localBusinesses.filter((b) => !b.matchedGa4).length;
-              return (
-                <TabsTrigger key={tab.value} value={tab.value}>
-                  {tab.label} • {count}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </Tabs>
 
         {/* Loading State */}
         {isLoading ? (
@@ -677,92 +782,69 @@ export default function LinkedBusinessTable() {
             </div>
           </div>
         ) : (
-          /* Table */
           <div className="border rounded-lg overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full caption-bottom text-sm">
+              <TableElement>
                 <TableHeader>
-                  <TableRow>
-                    {columns.map((column) => (
-                      <TableHead key={column.id as string}>
-                        {typeof column.header === "string"
-                          ? column.header
-                          : column.header
-                          ? flexRender(column.header, {
-                              column: { id: column.id as string },
-                              header: column.header,
-                            } as any)
-                          : null}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                  {/* Summary Row */}
-                  <TableRow className="bg-[#FAFBFB]">
-                    <TableCell className="text-sm text-[#00000061] font-medium border-r border-[#00000014]">
-                      {totalActive} total
-                    </TableCell>
-                    <TableCell className="text-sm text-[#00000061] font-medium">
-                      {totalBusinesses} total
-                    </TableCell>
-                    <TableCell className="text-sm text-[#00000061] font-medium">
-                      {totalGa4} total
-                    </TableCell>
-                    <TableCell className="text-sm text-[#00000061] font-medium">
-                      {totalGbps} total
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        onClick={handleAcceptAll}
-                        disabled={
-                          filter === "unmatched" ||
-                          filteredData.length === 0 ||
-                          isMutating
-                        }
-                        className="bg-[#0F4343] hover:bg-[#0F4343]/90 text-white w-full"
-                      >
-                        {createBusinessMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Check className="h-4 w-4 mr-2" />
-                        )}
-                        Accept all
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                  {tableWithFixedSummary.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          colSpan={header.colSpan}
+                          className="p-0"
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
                 </TableHeader>
                 <TableBody>
-                  {filteredData.length === 0 ? (
-                    <TableRow key="no-results">
+                  {tableWithFixedSummary.getRowModel().rows?.length ? (
+                    tableWithFixedSummary.getRowModel().rows.map((row) => {
+                      const isSummary = (row.original as any).isSummary;
+                      return (
+                        <TableRow
+                          key={row.id}
+                          className={cn(
+                            isSummary && "bg-foreground-light"
+                          )}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <TableCell
+                              key={cell.id}
+                              className={cn(
+                                "px-2 py-1.5",
+                           
+                              )}
+                            >
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext()
+                              )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
                       <TableCell
-                        colSpan={columns.length}
-                        className="h-24 text-center"
+                        colSpan={tableWithFixedSummary.getVisibleLeafColumns().length}
+                        className="h-24 text-center text-muted-foreground"
                       >
                         No results.
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    filteredData.map((row, index) => (
-                      <TableRow key={row.id ? `${row.id}-${index}` : index}>
-                        {columns.map((column) => {
-                          const cellContext = {
-                            row: { original: row, id: row.id },
-                            column: { id: column.id as string },
-                            getValue: () =>
-                              row[column.id as keyof LinkedBusiness],
-                          };
-                          return (
-                            <TableCell key={column.id as string}>
-                              {column.cell
-                                ? flexRender(column.cell, cellContext as any)
-                                : null}
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    ))
                   )}
                 </TableBody>
-              </table>
+              </TableElement>
             </div>
           </div>
         )}

@@ -75,14 +75,14 @@ export function CustomSelect({
     <Badge
       key={option.value}
       variant="secondary"
-      className="text-xs flex items-center gap-1 max-w-[200px]"
+      className="text-xs flex items-center gap-1 max-w-[200px] bg-foreground-light"
       onClick={(e) => e.stopPropagation()}
       title={option.label}
     >
-      <span className="truncate max-w-[160px]">{option.label}</span>
+      <span className="truncate max-w-[160px] font-normal text-[10px] text-general-secondary-foreground">{option.label}</span>
       <span
         onClick={(e) => handleRemove(option.value, e)}
-        className="hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center flex-shrink-0"
+        className="hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center shrink-0"
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -93,7 +93,7 @@ export function CustomSelect({
           }
         }}
       >
-        <X className="h-3 w-3" />
+        <X className="h-2 w-2" />
       </span>
     </Badge>
   );
@@ -104,7 +104,7 @@ export function CustomSelect({
         <Button
           variant="outline"
           type="button"
-          className={`w-full justify-start min-h-10 h-auto ${className}`}
+          className={`w-full justify-start min-h-9 h-auto px-2 py-1.5 ${className}`}
           style={{ maxWidth }}
           onClick={() => {
             if (!open) {
@@ -112,7 +112,7 @@ export function CustomSelect({
             }
           }}
         >
-          <div className="flex flex-wrap gap-1 w-full items-center py-0.5">
+          <div className="flex flex-wrap gap-1 w-full items-center py-0.5 ">
             {selectedOptions.length > 0 ? (
               <>
                 {selectedOptions.map((option) =>
@@ -126,7 +126,7 @@ export function CustomSelect({
                 )}
               </>
             ) : (
-              <span className="text-muted-foreground">{placeholder}</span>
+              <span className="text-muted-foreground text-xs font-normal">{placeholder}</span>
             )}
             <ChevronDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
           </div>
@@ -172,7 +172,7 @@ export function CustomSelect({
                         {isSelected && <Check className="h-4 w-4" />}
                       </div>
                       <span
-                        className="overflow-hidden text-ellipsis whitespace-nowrap block max-w-[calc(100%-30px)]"
+                        className="overflow-hidden text-ellipsis whitespace-nowrap block max-w-[calc(100%-30px)] text-xs"
                         title={option.label}
                       >
                         {option.label}

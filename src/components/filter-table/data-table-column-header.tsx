@@ -33,7 +33,7 @@ export function DataTableColumnHeader<TData, TValue>({
     <button
       type="button"
       className={cn(
-        "flex h-full w-full items-center justify-between gap-2 rounded-none px-2 py-1.5 text-left transition-colors",
+        "flex h-full w-full items-center justify-between gap-2 rounded-none px-2 py-[7.5px] text-left transition-colors",
         "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         sortState && "bg-accent text-foreground",
         "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",

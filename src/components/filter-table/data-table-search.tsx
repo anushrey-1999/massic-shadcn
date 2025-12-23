@@ -23,8 +23,10 @@ export function DataTableSearch({
   className,
 }: DataTableSearchProps) {
   const [localValue, setLocalValue] = React.useState(value);
+  const isFocusedRef = React.useRef(false);
 
   React.useEffect(() => {
+    if (isFocusedRef.current) return;
     setLocalValue(value);
   }, [value]);
 
@@ -33,6 +35,10 @@ export function DataTableSearch({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setLocalValue(newValue);
+    if (debounceMs <= 0) {
+      onChange(newValue);
+      return;
+    }
     debouncedOnChange(newValue);
   };
 
@@ -48,6 +54,13 @@ export function DataTableSearch({
         type="text"
         value={localValue}
         onChange={handleChange}
+        onFocus={() => {
+          isFocusedRef.current = true;
+        }}
+        onBlur={() => {
+          isFocusedRef.current = false;
+          setLocalValue(value);
+        }}
         placeholder={placeholder}
         className="pl-9 pr-9"
       />

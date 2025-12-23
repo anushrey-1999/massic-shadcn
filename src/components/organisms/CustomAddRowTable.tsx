@@ -38,16 +38,28 @@ export interface CustomAddRowTableProps<T = Record<string, any>> {
   addButtonText?: string;
   className?: string;
   emptyRowData?: T;
+  onValidationChange?: (hasErrors: boolean) => void;
 }
 
 // URL validation helper
 const isValidUrl = (url: string): boolean => {
   if (!url || url.trim() === "") return true; // Empty is valid (optional field)
+  const trimmedUrl = url.trim();
+  
+  // Try with protocol first
   try {
-    new URL(url);
+    new URL(trimmedUrl);
     return true;
   } catch {
-    return false;
+    // If that fails, try adding https:// prefix
+    try {
+      new URL(`https://${trimmedUrl}`);
+      // Basic validation: should contain at least one dot and valid characters
+      const urlPattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}(\/.*)?$/;
+      return urlPattern.test(trimmedUrl);
+    } catch {
+      return false;
+    }
   }
 };
 
@@ -87,9 +99,70 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   addButtonText = "Add Product/Service",
   className,
   emptyRowData,
+  onValidationChange,
 }: CustomAddRowTableProps<T>) {
   // Error state: { rowIndex: { fieldKey: errorMessage } }
   const [errors, setErrors] = useState<Record<number, Record<string, string>>>({});
+  // Track which fields have been touched/interacted with
+  const [touched, setTouched] = useState<Record<number, Record<string, boolean>>>({});
+  const prevDataLengthRef = React.useRef(data.length);
+  const tableId = React.useId();
+
+  // Auto-focus the first field of the newly added row
+  React.useEffect(() => {
+    if (data.length > prevDataLengthRef.current) {
+      const lastRowIndex = data.length - 1;
+      const firstColumn = columns[0];
+      if (firstColumn) {
+        // Use a small timeout to ensure DOM is updated
+        setTimeout(() => {
+          const inputId = `table-input-${tableId}-${lastRowIndex}-${firstColumn.key}`;
+          const element = document.getElementById(inputId);
+          if (element) {
+            element.focus();
+          }
+        }, 0);
+      }
+    }
+    prevDataLengthRef.current = data.length;
+  }, [data.length, columns, tableId]);
+
+  // Clean up touched state when rows are deleted
+  React.useEffect(() => {
+    const maxRowIndex = data.length - 1;
+    setTouched((prev) => {
+      const cleaned: Record<number, Record<string, boolean>> = {};
+      Object.keys(prev).forEach((key) => {
+        const idx = parseInt(key);
+        if (idx <= maxRowIndex) {
+          cleaned[idx] = prev[idx];
+        }
+      });
+      return cleaned;
+    });
+  }, [data.length]);
+
+  // Validate all fields (including untouched) for parent callback
+  // This ensures Save button is disabled even if errors aren't displayed
+  React.useEffect(() => {
+    if (onValidationChange) {
+      const allErrors: Record<number, Record<string, string>> = {};
+      data.forEach((row, rowIndex) => {
+        const rowErrors: Record<string, string> = {};
+        columns.forEach((column) => {
+          const error = validateField(row[column.key], column.validation);
+          if (error) {
+            rowErrors[column.key] = error;
+          }
+        });
+        if (Object.keys(rowErrors).length > 0) {
+          allErrors[rowIndex] = rowErrors;
+        }
+      });
+      const hasErrors = Object.keys(allErrors).length > 0;
+      onValidationChange(hasErrors);
+    }
+  }, [data, columns, onValidationChange]);
 
   // Validate all fields in a row
   const validateRow = (rowIndex: number, row: T) => {
@@ -124,7 +197,50 @@ export function CustomAddRowTable<T extends Record<string, any>>({
       onRowChange(rowIndex, field, value);
     }
 
-    // Validate on change
+    // Mark field as touched when user starts typing and validate
+    setTouched((prev) => {
+      const newTouched = { ...prev };
+      if (!newTouched[rowIndex]) {
+        newTouched[rowIndex] = {};
+      }
+      newTouched[rowIndex][field] = true;
+      
+      // Validate immediately after marking as touched
+      const column = columns.find((col) => col.key === field);
+      const error = validateField(value, column?.validation);
+
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        if (!newErrors[rowIndex]) {
+          newErrors[rowIndex] = {};
+        }
+        if (error) {
+          newErrors[rowIndex][field] = error;
+        } else {
+          delete newErrors[rowIndex][field];
+          if (Object.keys(newErrors[rowIndex]).length === 0) {
+            delete newErrors[rowIndex];
+          }
+        }
+        return newErrors;
+      });
+      
+      return newTouched;
+    });
+  };
+
+  const handleBlur = (rowIndex: number, field: string, value: any) => {
+    // Mark field as touched when user leaves the field
+    setTouched((prev) => {
+      const newTouched = { ...prev };
+      if (!newTouched[rowIndex]) {
+        newTouched[rowIndex] = {};
+      }
+      newTouched[rowIndex][field] = true;
+      return newTouched;
+    });
+
+    // Validate on blur
     const column = columns.find((col) => col.key === field);
     const error = validateField(value, column?.validation);
 
@@ -178,30 +294,45 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                     <TableRow className="border-b border-general-border">
                       {columns.map((column) => {
                         const fieldError = rowErrors[column.key];
-                        const isInvalid = !!fieldError;
+                        const isTouched = touched[rowIndex]?.[column.key] || false;
+                        const isInvalid = isTouched && !!fieldError;
                         return (
                           <TableCell key={column.key} className="p-2">
                             <div className="flex flex-col gap-1">
                               {column.render ? (
                                 column.render(row[column.key], row, rowIndex)
                               ) : onRowChange ? (
-                                <Input
-                                  variant="noBorder"
-                                  value={row[column.key] || ""}
-                                  onChange={(e) =>
-                                    handleRowChange(
-                                      rowIndex,
-                                      column.key,
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="Enter value"
-                                  className={cn(
-                                    "w-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
-                                    isInvalid && "aria-invalid"
-                                  )}
-                                  aria-invalid={isInvalid}
-                                />
+                                    <Input
+                                      id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                                      variant="noBorder"
+                                      value={row[column.key] || ""}
+                                      onChange={(e) =>
+                                        handleRowChange(
+                                          rowIndex,
+                                          column.key,
+                                          e.target.value
+                                        )
+                                      }
+                                      onBlur={(e) =>
+                                        handleBlur(
+                                          rowIndex,
+                                          column.key,
+                                          e.target.value
+                                        )
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          onAddRow();
+                                        }
+                                      }}
+                                      placeholder="Enter value"
+                                      className={cn(
+                                        "w-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
+                                        isInvalid && "aria-invalid"
+                                      )}
+                                      aria-invalid={isInvalid}
+                                    />
                               ) : (
                                 row[column.key] || "Enter value"
                               )}

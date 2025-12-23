@@ -1068,11 +1068,26 @@ const ProfileTemplate = ({
     ? handleSaveChanges
     : handleConfirmAndProceed;
 
+  // Check if CTAs have validation errors
+  const hasCtaValidationErrors = useStore(form.store, (state: any) => {
+    const ctasMeta = state.fieldMeta?.ctas;
+    return ctasMeta?.hasValidationErrors === true;
+  });
+
+  // Check if offerings have validation errors
+  const hasOfferingsValidationErrors = useStore(form.store, (state: any) => {
+    const offeringsMeta = state.fieldMeta?.offeringsList;
+    return offeringsMeta?.hasValidationErrors === true;
+  });
+
+  // Combine all validation errors
+  const hasAnyValidationErrors = hasCtaValidationErrors || hasOfferingsValidationErrors;
+
   // Disable button logic:
-  // - For "Save Changes": only disable if loading or saving (NOT during workflow triggering)
+  // - For "Save Changes": disable if loading, saving, or has any validation errors
   // - For "Confirm & Proceed": disable if loading, saving, triggering, workflow processing, or no job exists
   const isButtonDisabled = hasChanges
-    ? externalLoading || isSaving // Save Changes: only disable during initial loading or saving
+    ? externalLoading || isSaving || hasAnyValidationErrors // Save Changes: disable during loading, saving, or validation errors
     : externalLoading ||
     isSaving ||
     isTriggeringWorkflow ||

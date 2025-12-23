@@ -54,6 +54,17 @@ export const OfferingsForm = ({
   const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
   const website = useStore(form.store, (state: any) => state.values?.website || "");
 
+  // Track offerings validation errors
+  const [hasOfferingsErrors, setHasOfferingsErrors] = React.useState(false);
+
+  // Update form field when offerings validation errors change
+  React.useEffect(() => {
+    form.setFieldMeta('offeringsList', (prev: any) => ({
+      ...prev,
+      hasValidationErrors: hasOfferingsErrors,
+    }));
+  }, [hasOfferingsErrors, form]);
+
   // Offerings extractor hook
   const {
     startExtraction,
@@ -249,6 +260,7 @@ export const OfferingsForm = ({
                 </FieldLabel>
               </CardTitle>
               <Button
+                type="button"
                 variant="outline"
                 onClick={handleFetchOfferings}
                 disabled={isExtracting || !website}
@@ -275,6 +287,7 @@ export const OfferingsForm = ({
               onRowChange={handleRowChange}
               onDeleteRow={handleDeleteRow}
               addButtonText="Add Product/Service"
+              onValidationChange={setHasOfferingsErrors}
             />
           </CardContent>
         </Card>

@@ -39,6 +39,17 @@ export const ContentCuesForm = ({
   const ctasData = useStore(form.store, (state: any) => (state.values?.ctas || []) as CTARow[]);
   const stakeholdersData = useStore(form.store, (state: any) => (state.values?.stakeholders || []) as StakeholderRow[]);
 
+  // Track CTA validation errors
+  const [hasCtaErrors, setHasCtaErrors] = React.useState(false);
+
+  // Update form field when CTA validation errors change
+  React.useEffect(() => {
+    form.setFieldMeta('ctas', (prev: any) => ({
+      ...prev,
+      hasValidationErrors: hasCtaErrors,
+    }));
+  }, [hasCtaErrors, form]);
+
   // Own column definitions
   const ctaColumns: Column<CTARow>[] = useMemo(() => [
     { key: "buttonText", label: "Button Text", validation: { required: true } },
@@ -125,6 +136,7 @@ export const ContentCuesForm = ({
               onRowChange={handleCTARowChange}
               onDeleteRow={handleCTADeleteRow}
               addButtonText="Add Button"
+              onValidationChange={setHasCtaErrors}
             />
           </CardContent>
         </Card>
@@ -159,7 +171,7 @@ export const ContentCuesForm = ({
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
-                What is the tone of your brand's content? Select upto 3 per channel.
+                What is the tone of your brand's content?<span className="text-general-muted-foreground pl-1">Select upto 3 per channel.</span>
               </FieldLabel>
             </CardTitle>
           </CardHeader>
@@ -320,10 +332,7 @@ export const ContentCuesForm = ({
                 />
               )}
             />
-             <div className="mt-4 flex items-center gap-2 text-destructive text-sm">
-                    <AlertCircle className="h-4 w-4 text-destructive" />
-                    <span>You can only select upto 3 options each.</span>
-                  </div>
+         
           </CardContent>
         </Card>
 

@@ -128,11 +128,11 @@ export function getSocialTableColumns({}: GetSocialTableColumnsProps = {}): Colu
         <DataTableColumnHeader column={column} label="Tactics" />
       ),
       cell: ({ row }) => {
-        const tactics = row.getValue<string[]>("tactics") || [];
+        const totalClusters = row.original.total_clusters ?? 0;
         return (
-          <div className="max-w-full">
-            <ExpandablePills items={tactics} pillVariant="outline" />
-          </div>
+          <Typography variant="p" className="truncate">
+            {totalClusters}
+          </Typography>
         );
       },
       meta: {

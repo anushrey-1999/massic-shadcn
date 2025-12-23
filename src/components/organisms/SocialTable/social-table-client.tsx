@@ -7,6 +7,7 @@ import { SocialTable } from "./social-table";
 import { TacticsTable } from "./tactics-table";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
+import { ChannelsSidebar } from "./channels-sidebar";
 import { useSocial } from "@/hooks/use-social";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { SocialRow } from "@/types/social-types";
@@ -66,20 +67,30 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     "campaign_name",
     parseAsString
   );
+  
+  // Store the channel from the clicked row (for tactics view) without changing URL state
+  const [selectedRowChannel, setSelectedRowChannel] = React.useState<string | null>(null);
 
-  const isDetailView = React.useMemo(() => !!(channelName && campaignName), [channelName, campaignName]);
+  const isDetailView = React.useMemo(() => {
+    // Use selectedRowChannel if available (from clicked row), otherwise use channelName from URL
+    const effectiveChannel = selectedRowChannel || channelName;
+    return !!(effectiveChannel && campaignName);
+  }, [selectedRowChannel, channelName, campaignName]);
 
   React.useEffect(() => {
     if (search && page !== 1) {
       setPage(1);
     }
-  }, [search, page, setPage]);
+  }, [search, setPage]);
 
+  const prevChannelNameRef = React.useRef<string | null>(channelName);
   React.useEffect(() => {
-    if (channelName && page !== 1) {
+    // Only reset page if channelName actually changed (not just if it exists)
+    if (prevChannelNameRef.current !== channelName && channelName !== null && page !== 1) {
       setPage(1);
     }
-  }, [channelName, page, setPage]);
+    prevChannelNameRef.current = channelName;
+  }, [channelName, setPage]);
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
@@ -87,6 +98,8 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
   const { fetchSocial, fetchSocialCounts, fetchTactics } = useSocial(businessId);
   const queryClient = useQueryClient();
 
+  const effectiveChannelName = channelName || "all";
+  
   const queryKey = React.useMemo(
     () => [
       "social",
@@ -97,9 +110,9 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
       JSON.stringify(sort),
       JSON.stringify(filters),
       joinOperator,
-      channelName || null,
+      effectiveChannelName,
     ],
-    [businessId, page, perPage, search, sort, filters, joinOperator, channelName]
+    [businessId, page, perPage, search, sort, filters, joinOperator, effectiveChannelName]
   );
 
   const {
@@ -120,7 +133,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
         sort: sort || [],
         filters: filters || [],
         joinOperator: (joinOperator || "and") as "and" | "or",
-        channel_name: channelName || undefined,
+        channel_name: effectiveChannelName,
       });
     },
     staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh longer
@@ -131,6 +144,42 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading,
   });
+
+  const { data: channelsData } = useQuery({
+    queryKey: ["social-channels-list", businessId],
+    queryFn: async () => {
+      return fetchSocial({
+        business_id: businessId,
+        page: 1,
+        perPage: 100,
+        search: undefined,
+        sort: [],
+        filters: [],
+        joinOperator: "and",
+        channel_name: undefined,
+      });
+    },
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
+    refetchOnMount: false,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    enabled: !!businessId && !!jobExists && !jobLoading,
+  });
+
+  const channelRows = React.useMemo(() => {
+    const items = channelsData?.data || [];
+    const seen = new Set<string>();
+    const rows: Array<{ name: string; relevance: number; icon?: string | null }> = [];
+    for (const item of items) {
+      const name = item.channel_name || "";
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      const relevance = item.channel_relevance ?? item.campaign_relevance ?? 0;
+      rows.push({ name, relevance, icon: null });
+    }
+    return rows;
+  }, [channelsData]);
 
   // Prefetch pages 2 and 3 when page 1 is already cached (from Analytics prefetch)
   React.useEffect(() => {
@@ -145,7 +194,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
       JSON.stringify([]),
       JSON.stringify([]),
       "and",
-      null,
+      "all",
     ];
 
     const page1Data = queryClient.getQueryData(page1QueryKey) as any;
@@ -161,7 +210,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
             JSON.stringify([]),
             JSON.stringify([]),
             "and",
-            null,
+            "all",
           ];
 
           const cached = queryClient.getQueryData(nextPageQueryKey);
@@ -177,7 +226,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
                   sort: [],
                   filters: [],
                   joinOperator: "and",
-                  channel_name: undefined,
+                  channel_name: "all",
                 });
               },
               staleTime: 1000 * 60 * 5, // 5 minutes
@@ -208,7 +257,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
           JSON.stringify(sort),
           JSON.stringify(filters),
           joinOperator,
-          channelName || null,
+          effectiveChannelName,
         ];
 
         const prevCached = queryClient.getQueryData(prevQueryKey);
@@ -224,7 +273,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
                 sort: sort || [],
                 filters: filters || [],
                 joinOperator: (joinOperator || "and") as "and" | "or",
-                channel_name: channelName || undefined,
+                channel_name: effectiveChannelName,
               });
             },
             staleTime: 1000 * 60 * 5, // 5 minutes
@@ -248,7 +297,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
           JSON.stringify(sort),
           JSON.stringify(filters),
           joinOperator,
-          channelName || null,
+          effectiveChannelName,
         ];
 
         const cachedData = queryClient.getQueryData(prefetchQueryKey);
@@ -265,7 +314,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
               sort: sort || [],
               filters: filters || [],
               joinOperator: (joinOperator || "and") as "and" | "or",
-              channel_name: channelName || undefined,
+              channel_name: effectiveChannelName,
             });
           },
           staleTime: 1000 * 60 * 5, // 5 minutes
@@ -275,7 +324,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     };
 
     prefetchPages();
-  }, [socialData, page, perPage, search, sort, filters, joinOperator, channelName, businessId, queryClient, fetchSocial, jobExists]);
+  }, [socialData, page, perPage, search, sort, filters, joinOperator, effectiveChannelName, businessId, queryClient, fetchSocial, jobExists]);
 
   const {
     data: countsData,
@@ -293,6 +342,9 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     enabled: false,
   });
 
+  // Use selectedRowChannel for tactics if available, otherwise use channelName from URL
+  const tacticsChannel = selectedRowChannel || channelName;
+  
   const tacticsQueryKey = React.useMemo(
     () => [
       "tactics",
@@ -303,10 +355,10 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
       JSON.stringify([]),
       JSON.stringify([]),
       "and",
-      channelName || null,
+      tacticsChannel || null,
       campaignName || null,
     ],
-    [businessId, tacticsPage, perPage, tacticsSearch, channelName, campaignName]
+    [businessId, tacticsPage, perPage, tacticsSearch, tacticsChannel, campaignName]
   );
 
   const {
@@ -319,7 +371,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
   } = useQuery({
     queryKey: tacticsQueryKey,
     queryFn: async () => {
-      if (!channelName || !campaignName) {
+      if (!tacticsChannel || !campaignName) {
         return { data: [], pageCount: 0 };
       }
       return fetchTactics({
@@ -330,7 +382,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
         sort: [],
         filters: [],
         joinOperator: "and" as "and" | "or",
-        channel_name: channelName || undefined,
+        channel_name: tacticsChannel || undefined,
         campaign_name: campaignName || undefined,
       });
     },
@@ -338,22 +390,33 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     placeholderData: (previousData) => previousData,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    enabled: !!businessId && !!jobExists && !jobLoading && isDetailView && !!channelName && !!campaignName,
+    enabled: !!businessId && !!jobExists && !jobLoading && isDetailView && !!tacticsChannel && !!campaignName,
   });
 
   const handleRowClick = React.useCallback((row: SocialRow) => {
+    // Store the row's channel for tactics view (without changing URL state)
+    // This preserves the user's selected channel in the sidebar
     if (row.channel_name) {
-      setChannelName(row.channel_name);
+      setSelectedRowChannel(row.channel_name);
     }
     if (row.campaign_name) {
       setCampaignName(row.campaign_name);
     }
     setTacticsPage(1);
     setTacticsSearch("");
-  }, [setChannelName, setCampaignName, setTacticsPage, setTacticsSearch]);
+  }, [setCampaignName, setTacticsPage, setTacticsSearch]);
+
+  const onChannelSelect = React.useCallback((channel: string | null) => {
+    setChannelName(channel);
+    setCampaignName(null);
+    setPage(1);
+  }, [setChannelName, setCampaignName, setPage]);
 
   const handleBackToMain = React.useCallback(() => {
+    // Clear campaignName and selectedRowChannel to return to main view
+    // channelName from URL state is preserved, so user returns to the same channel they were viewing
     setCampaignName(null);
+    setSelectedRowChannel(null);
     setTacticsPage(1);
     setTacticsSearch("");
   }, [setCampaignName, setTacticsPage, setTacticsSearch]);
@@ -411,11 +474,21 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
           search={tacticsSearch}
           onSearchChange={setTacticsSearch}
           onBack={handleBackToMain}
-          channelName={channelName || undefined}
+          channelName={tacticsChannel || undefined}
         />
       </div>
     );
   }
+
+  const sidebarNode =
+    channelsSidebar ||
+    (
+      <ChannelsSidebar
+        selectedChannel={channelName || null}
+        onChannelSelect={onChannelSelect}
+        channels={channelRows}
+      />
+    );
 
   return (
     <div className="relative h-full flex flex-col">
@@ -426,7 +499,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
         isFetching={socialFetching}
         search={search}
         onSearchChange={setSearch}
-        channelsSidebar={channelsSidebar}
+        channelsSidebar={sidebarNode}
         onRowClick={handleRowClick}
       />
     </div>

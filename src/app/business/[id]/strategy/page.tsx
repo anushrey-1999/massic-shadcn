@@ -77,9 +77,9 @@ export default function BusinessStrategyPage({ params }: PageProps) {
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Strategy" },
+      { label: "Strategy", href: `/business/${businessId}/strategy` },
     ],
-    [businessName]
+    [businessName, businessId]
   )
 
   if (!businessId) {

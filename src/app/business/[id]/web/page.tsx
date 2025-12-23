@@ -75,9 +75,9 @@ export default function BusinessWebPage({ params }: PageProps) {
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Web" },
+      { label: "Web", href: `/business/${businessId}/web` },
     ],
-    [businessName]
+    [businessName, businessId]
   )
 
   if (!businessId) {
@@ -103,16 +103,16 @@ export default function BusinessWebPage({ params }: PageProps) {
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
       <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
-        <WorkflowStatusBanner businessId={businessId} />
-        {showContent ? (
-          <Tabs defaultValue="new-pages" onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
-            {!isOptimizeSplitView && (
-              <TabsList className="shrink-0">
-                <TabsTrigger value="new-pages">New Pages</TabsTrigger>
-                <TabsTrigger value="optimize">Optimize</TabsTrigger>
-              </TabsList>
-            )}
-            <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+        <Tabs defaultValue="new-pages" onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
+          {!isOptimizeSplitView && (
+            <TabsList className="shrink-0">
+              <TabsTrigger value="new-pages">New Pages</TabsTrigger>
+              <TabsTrigger value="optimize">Optimize</TabsTrigger>
+            </TabsList>
+          )}
+          <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
+            <WorkflowStatusBanner businessId={businessId} />
+            {showContent ? (
               <EntitlementsGuard
                 entitlement="web"
                 businessId={businessId}
@@ -120,14 +120,14 @@ export default function BusinessWebPage({ params }: PageProps) {
               >
                 <WebNewPagesTab businessId={businessId} />
               </EntitlementsGuard>
-            </TabsContent>
-            <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
-              <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
-                <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
-              </EntitlementsGuard>
-            </TabsContent>
-          </Tabs>
-        ) : null}
+            ) : null}
+          </TabsContent>
+          <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+            <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
+              <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
+            </EntitlementsGuard>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

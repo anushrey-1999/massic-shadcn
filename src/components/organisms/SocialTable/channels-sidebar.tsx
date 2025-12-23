@@ -4,8 +4,9 @@ import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import Image from "next/image";
 import { RelevancePill } from "@/components/ui/relevance-pill";
-import { useDataTable } from "@/hooks/use-data-table";
+import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { DataTable } from "../../filter-table/index";
+import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { cn } from "@/lib/utils";
 
 interface ChannelRow {
@@ -21,6 +22,7 @@ interface ChannelRow {
 interface ChannelsSidebarProps {
   selectedChannel: string | null;
   onChannelSelect: (channel: string | null) => void;
+  channels?: Array<{ name: string; relevance: number; icon?: string | null }>;
 }
 
 const STATIC_CHANNELS = [
@@ -58,7 +60,9 @@ function getChannelsTableColumns(
     {
       id: "channel",
       accessorKey: "name",
-      header: () => <div className="text-sm font-semibold">Channel</div>,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Channel" />
+      ),
       cell: ({ row }) => {
         const channel = row.original;
         const iconPath = channel.icon || (channel.isAllChannels ? null : getChannelIcon(channel.name));
@@ -81,11 +85,24 @@ function getChannelsTableColumns(
       enableSorting: true,
       enableColumnFilter: false,
       size: 150,
+      sortingFn: (rowA, rowB) => {
+        // Always keep "All Channels" at the top
+        if (rowA.original.isAllChannels) return -1;
+        if (rowB.original.isAllChannels) return 1;
+        // Then sort by name
+        const a = rowA.original.name.toLowerCase();
+        const b = rowB.original.name.toLowerCase();
+        if (a < b) return -1;
+        if (a > b) return 1;
+        return 0;
+      },
     },
     {
       id: "relevance",
       accessorKey: "relevance",
-      header: () => <div className="text-sm font-semibold">Relevance</div>,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Relevance" />
+      ),
       cell: ({ row }) => {
         const channel = row.original;
         const relevance = row.original.relevance;
@@ -100,9 +117,18 @@ function getChannelsTableColumns(
           </div>
         );
       },
-      enableSorting: false,
+      enableSorting: true,
       enableColumnFilter: false,
       size: 130,
+      sortingFn: (rowA, rowB) => {
+        // Always keep "All Channels" at the top
+        if (rowA.original.isAllChannels) return -1;
+        if (rowB.original.isAllChannels) return 1;
+        // Then sort by relevance
+        const a = rowA.original.relevance;
+        const b = rowB.original.relevance;
+        return a - b;
+      },
     },
   ];
 }
@@ -110,6 +136,7 @@ function getChannelsTableColumns(
 export function ChannelsSidebar({
   selectedChannel,
   onChannelSelect,
+  channels,
 }: ChannelsSidebarProps) {
   const tableData = React.useMemo<ChannelRow[]>(() => {
     const allChannelsRow: ChannelRow = {
@@ -120,11 +147,14 @@ export function ChannelsSidebar({
       isAllChannels: true,
     };
 
-    const channelRows: ChannelRow[] = STATIC_CHANNELS.map((channel) => ({
+    const sourceChannels =
+      Array.isArray(channels) && channels.length > 0 ? channels : STATIC_CHANNELS;
+
+    const channelRows: ChannelRow[] = sourceChannels.map((channel) => ({
       id: channel.name,
       name: channel.name,
-      icon: channel.icon,
-      relevance: channel.relevance,
+      icon: channel.icon || null,
+      relevance: channel.relevance ?? 0,
       isAllChannels: false,
     }));
 
@@ -138,27 +168,25 @@ export function ChannelsSidebar({
         onClick: () => onChannelSelect(row.isAllChannels ? null : row.name),
       };
     });
-  }, [selectedChannel, onChannelSelect]);
+  }, [selectedChannel, onChannelSelect, channels]);
 
   const columns = React.useMemo(
     () => getChannelsTableColumns(selectedChannel, onChannelSelect),
     [selectedChannel, onChannelSelect]
   );
 
-  const { table } = useDataTable({
+  const { table } = useLocalDataTable({
     data: tableData,
     columns,
-    pageCount: 1,
-    enableAdvancedFilter: false,
     initialState: {
+      sorting: [{ id: "relevance", desc: true }], // Default sort by relevance descending
       pagination: {
         pageIndex: 0,
         pageSize: 1000,
       },
     },
     getRowId: (originalRow: ChannelRow) => originalRow.id,
-    shallow: false,
-    clearOnDefault: true,
+    globalFilterFn: undefined,
   });
 
   if (tableData.length === 0) {
@@ -182,10 +210,38 @@ export function ChannelsSidebar({
     return selectedChannel;
   }, [selectedChannel]);
 
+  // Create a table proxy that always returns "All Channels" first
+  // This needs to be recreated when sorting state changes, so we use the sorting state as a dependency
+  const sortingState = table.getState().sorting;
+  const tableWithFixedRows = React.useMemo(() => {
+    const originalGetRowModel = table.getRowModel.bind(table);
+    return {
+      ...table,
+      getRowModel: () => {
+        // Get the current sorted rows from the table
+        const originalModel = originalGetRowModel();
+        const originalRows = originalModel.rows;
+        
+        // Separate "All Channels" from other rows
+        const allChannelsRow = originalRows.find((row) => row.original.isAllChannels);
+        const otherRows = originalRows.filter((row) => !row.original.isAllChannels);
+        
+        // Always put "All Channels" first, then the sorted other rows
+        const sortedRows = allChannelsRow ? [allChannelsRow, ...otherRows] : originalRows;
+        
+        return {
+          ...originalModel,
+          rows: sortedRows,
+          flatRows: sortedRows,
+        };
+      },
+    };
+  }, [table, sortingState]);
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden">
       <DataTable
-        table={table}
+        table={tableWithFixedRows as typeof table}
         isLoading={false}
         emptyMessage="No channels found"
         className=" gap-0 [&>div:last-child]:hidden [&>div:first-child]:border-0 [&>div:first-child]:rounded-none [&>div:first-child]:min-h-0 [&>div:first-child]:flex-1 [&>div:first-child>div>table]:min-w-0! [&>div:first-child>div>table]:w-full"

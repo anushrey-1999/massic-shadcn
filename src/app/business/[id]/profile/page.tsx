@@ -13,19 +13,19 @@ export default function BusinessProfilePage() {
   const businessId = params?.id as string
 
   // Fetch business profile data
-  const { 
-    profileData, 
-    profileDataLoading, 
-    refetchProfile 
+  const {
+    profileData,
+    profileDataLoading,
+    refetchProfile
   } = useBusinessProfileById(businessId || null)
 
   // Check job existence on page load - only used for offerings data
   // Business API is source of truth for all other fields
   // React Query automatically fetches job details when component mounts
-  const { 
-    data: jobDetails, 
+  const {
+    data: jobDetails,
     isLoading: jobDetailsLoading,
-    refetch: refetchJob 
+    refetch: refetchJob
   } = useJobByBusinessId(businessId || null)
 
   // Fetch locations using React Query (limited to 1000 for performance)
@@ -36,26 +36,26 @@ export default function BusinessProfilePage() {
   const prevLocationOptionsRef = useRef<typeof locationOptions>([])
   const prevLocationsLoadingRef = useRef(locationsLoading)
   const prevBusinessIdRef = useRef(businessId)
-  
+
   useEffect(() => {
     // Only update if locationOptions actually changed (deep comparison)
-    const optionsChanged = 
+    const optionsChanged =
       prevLocationOptionsRef.current.length !== locationOptions.length ||
-      prevLocationOptionsRef.current.some((opt, idx) => 
+      prevLocationOptionsRef.current.some((opt, idx) =>
         opt.value !== locationOptions[idx]?.value || opt.label !== locationOptions[idx]?.label
       )
-    
+
     if (optionsChanged) {
       setLocationOptions(locationOptions)
       prevLocationOptionsRef.current = locationOptions
     }
-    
+
     // Only update loading state if it actually changed
     if (prevLocationsLoadingRef.current !== locationsLoading) {
       setLocationsLoading(locationsLoading)
       prevLocationsLoadingRef.current = locationsLoading
     }
-    
+
     // Only update business ID if it changed
     if (prevBusinessIdRef.current !== businessId) {
       setCurrentBusinessId(businessId || null)
@@ -81,7 +81,7 @@ export default function BusinessProfilePage() {
       // Step 1: Check if job exists and if user has filled offerings
       const jobExists = jobDetails && jobDetails.job_id
       // Check if offerings list exists and has at least one offering with a name
-      const hasOfferings = formValues?.offeringsList && 
+      const hasOfferings = formValues?.offeringsList &&
         formValues.offeringsList.length > 0 &&
         formValues.offeringsList.some((offering: any) => offering?.name?.trim())
 
@@ -107,13 +107,13 @@ export default function BusinessProfilePage() {
             ...businessPayload,
             CTAs: Array.isArray(ctasArray) && ctasArray.length > 0
               ? {
-                  value: JSON.stringify(
-                    ctasArray.map((cta: any) => ({
-                      buttonText: cta.buttonText || "",
-                      url: cta.url || "",
-                    }))
-                  ),
-                }
+                value: JSON.stringify(
+                  ctasArray.map((cta: any) => ({
+                    buttonText: cta.buttonText || "",
+                    url: cta.url || "",
+                  }))
+                ),
+              }
               : null,
           }
 
@@ -133,7 +133,7 @@ export default function BusinessProfilePage() {
         // If user fills offerings and saves → CREATE job
         if (hasOfferings && formValues) {
           console.log("No job exists but user added offerings - creating job")
-          
+
           // Convert offeringsList to Offering[] format
           const offerings: Offering[] = (formValues.offeringsList || []).map((offering: any) => ({
             name: offering.name || "",
@@ -147,13 +147,13 @@ export default function BusinessProfilePage() {
             ...businessPayload,
             CTAs: Array.isArray(ctasArray) && ctasArray.length > 0
               ? {
-                  value: JSON.stringify(
-                    ctasArray.map((cta: any) => ({
-                      buttonText: cta.buttonText || "",
-                      url: cta.url || "",
-                    }))
-                  ),
-                }
+                value: JSON.stringify(
+                  ctasArray.map((cta: any) => ({
+                    buttonText: cta.buttonText || "",
+                    url: cta.url || "",
+                  }))
+                ),
+              }
               : null,
           }
 
@@ -203,7 +203,8 @@ export default function BusinessProfilePage() {
   ])
 
   return (
-    <ProfileTemplate 
+    <ProfileTemplate
+      key={`${businessId}-${profileData ? "ready" : "loading"}`}
       businessId={businessId}
       profileData={profileData}
       jobDetails={jobDetails}

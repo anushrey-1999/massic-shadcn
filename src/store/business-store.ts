@@ -12,6 +12,10 @@ export interface BusinessProfile {
   Website?: string;
   Description?: string;
   UserDefinedBusinessDescription?: string;
+  AOV?: number | null;
+  LTV?: number | null;
+  BrandTerms?: string[] | null;
+  RecurringFlag?: "yes" | "no" | "partial" | string | null;
   ProductsServices?: string[];
   LocationType?: string;
   Locations?: BusinessLocation[];
@@ -68,7 +72,7 @@ interface ProfileFormState {
   // Location options
   locationOptions: LocationOption[];
   locationsLoading: boolean;
-  
+
   // UI state
   activeSection: string;
   currentBusinessId: string | null;
@@ -79,7 +83,7 @@ interface BusinessState {
   error: string | null;
   expandedBusinessId: string | null;
   profileDataByUniqueID: BusinessProfile | null;
-  
+
   // Profile form state
   profileForm: ProfileFormState;
 
@@ -89,14 +93,14 @@ interface BusinessState {
   setError: (error: string | null) => void;
   setExpandedBusinessId: (id: string | null) => void;
   setProfileDataByUniqueID: (data: BusinessProfile | null) => void;
-  
+
   // Profile form actions
   setLocationOptions: (options: LocationOption[]) => void;
   setLocationsLoading: (loading: boolean) => void;
-  
+
   setActiveSection: (section: string) => void;
   setCurrentBusinessId: (id: string | null) => void;
-  
+
   // Reset profile form state
   resetProfileForm: () => void;
 }
@@ -124,7 +128,7 @@ export const useBusinessStore = create<BusinessState>()((set) => ({
   setExpandedBusinessId: (id) => set({ expandedBusinessId: id }),
 
   setProfileDataByUniqueID: (data) => set({ profileDataByUniqueID: data }),
-  
+
   // Profile form actions
   setLocationOptions: (options) => set((state) => {
     // Only update if options actually changed
@@ -135,7 +139,7 @@ export const useBusinessStore = create<BusinessState>()((set) => ({
       profileForm: { ...state.profileForm, locationOptions: options }
     };
   }),
-  
+
   setLocationsLoading: (loading) => set((state) => {
     // Only update if loading state actually changed
     if (state.profileForm.locationsLoading === loading) {
@@ -145,14 +149,14 @@ export const useBusinessStore = create<BusinessState>()((set) => ({
       profileForm: { ...state.profileForm, locationsLoading: loading }
     };
   }),
-  
+
   setActiveSection: (section) => set((state) => ({
     profileForm: { ...state.profileForm, activeSection: section }
   })),
-  
+
   setCurrentBusinessId: (id) => set((state) => ({
     profileForm: { ...state.profileForm, currentBusinessId: id }
   })),
-  
+
   resetProfileForm: () => set({ profileForm: initialProfileFormState }),
 }));

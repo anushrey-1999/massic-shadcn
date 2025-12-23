@@ -26,9 +26,9 @@ export default function BusinessReviewsPage({ params }: PageProps) {
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Reviews" },
+      { label: "Reviews", href: `/business/${businessId}/reviews` },
     ],
-    [businessName]
+    [businessName, businessId]
   )
 
   if (!businessId) {

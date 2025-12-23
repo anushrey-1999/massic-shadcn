@@ -22,9 +22,9 @@ const StrategyTemplate = ({ businessId }: StrategyTemplateProps) => {
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Strategy" },
+      { label: "Strategy", href: `/business/${businessId}/strategy` },
     ],
-    [businessName]
+    [businessName, businessId]
   )
 
   return (

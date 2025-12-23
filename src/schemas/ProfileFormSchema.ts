@@ -14,8 +14,8 @@ export const businessInfoSchema = z.object({
   primaryLocation: z.string().min(1, "Primary Location is required"),
   serviceType: z.enum(["physical", "online"]),
   recurringRevenue: z.string().optional(),
-  avgOrderValue: z.string(),
-  lifetimeValue: z.string(),
+  avgOrderValue: z.union([z.string(), z.number()]).optional(),
+  lifetimeValue: z.union([z.string(), z.number()]).optional(),
   offerings: z.enum(["products", "services", "both"]),
   offeringsList: z
     .array(

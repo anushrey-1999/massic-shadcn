@@ -280,9 +280,52 @@ const ProfileTemplate = ({
         const objective = profileData.BusinessObjective?.toLowerCase();
         return objective === "local" ? "physical" : "online";
       })() as "physical" | "online",
-      recurringRevenue: "",
-      avgOrderValue: "",
-      lifetimeValue: "",
+      recurringRevenue: (() => {
+        const normalize = (raw: unknown): "yes" | "no" | "partial" | "" => {
+          if (raw === null || raw === undefined) return "";
+          if (raw === true) return "yes";
+          if (raw === false) return "no";
+
+          const s = String(raw).trim().toLowerCase();
+          if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
+          if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
+          if (s === "partial" || s === "partially") return "partial";
+          return "";
+        };
+
+        const recurringFromBusiness =
+          (profileData as any).RecurringFlag ??
+          (profileData as any).recurring_flag ??
+          (profileData as any).recurringFlag ??
+          (profileData as any).RecurringRevenue ??
+          (profileData as any).recurringRevenue;
+        const recurringFromJob =
+          (jobDetails as any)?.recurring_flag ??
+          (jobDetails as any)?.recurringFlag ??
+          (jobDetails as any)?.recurring_revenue;
+
+        return normalize(recurringFromBusiness ?? recurringFromJob);
+      })(),
+      avgOrderValue: (() => {
+        const aovFromBusiness = (profileData as any).AOV ?? (profileData as any).aov;
+        const aovFromJob = (jobDetails as any)?.aov;
+        const aov = aovFromBusiness ?? aovFromJob;
+        return typeof aov === "number" && Number.isFinite(aov)
+          ? String(aov)
+          : aov
+            ? String(aov)
+            : "";
+      })(),
+      lifetimeValue: (() => {
+        const ltvFromBusiness = (profileData as any).LTV ?? (profileData as any).ltv;
+        const ltvFromJob = (jobDetails as any)?.ltv;
+        const ltv = ltvFromBusiness ?? ltvFromJob;
+        return typeof ltv === "number" && Number.isFinite(ltv)
+          ? String(ltv)
+          : ltv
+            ? String(ltv)
+            : "";
+      })(),
       offerings: (() => {
         const locationType = profileData.LocationType?.toLowerCase();
         return locationType === "products"
@@ -293,7 +336,30 @@ const ProfileTemplate = ({
       })() as "products" | "services" | "both",
       usps: usps,
       ctas: ctasList,
-      brandTerms: "",
+      brandTerms: (() => {
+        const brandTermsFromBusiness =
+          (profileData as any).BrandTerms ?? (profileData as any).brand_terms;
+        const brandTermsFromJob = (jobDetails as any)?.brand_terms;
+        const brandTerms = brandTermsFromBusiness ?? brandTermsFromJob;
+
+        if (Array.isArray(brandTerms)) {
+          return brandTerms.map((t) => String(t).trim()).filter(Boolean).join(", ");
+        }
+        if (typeof brandTerms === "string") {
+          // Job API may send JSON string
+          try {
+            const parsed = JSON.parse(brandTerms);
+            if (Array.isArray(parsed)) {
+              return parsed.map((t) => String(t).trim()).filter(Boolean).join(", ");
+            }
+          } catch {
+            // ignore
+          }
+          return brandTerms;
+        }
+
+        return "";
+      })(),
       stakeholders: stakeholdersList,
       locations: locationsList,
       competitors: competitorsList,
@@ -369,6 +435,17 @@ const ProfileTemplate = ({
                 ?.map((item: string) => item.trim())
                 ?.filter((item: string) => item.length > 0)
               : null,
+          RecurringFlag: value.recurringRevenue && value.recurringRevenue.trim()
+            ? value.recurringRevenue.trim().toLowerCase()
+            : null,
+          AOV: (() => {
+            const num = Number.parseFloat(String(value.avgOrderValue || "").trim());
+            return Number.isFinite(num) ? num : null;
+          })(),
+          LTV: (() => {
+            const num = Number.parseFloat(String(value.lifetimeValue || "").trim());
+            return Number.isFinite(num) ? num : null;
+          })(),
           CTAs:
             value.ctas && value.ctas.length > 0
               ? (value.ctas || [])?.map((cta: any) => ({
@@ -435,6 +512,41 @@ const ProfileTemplate = ({
 
   // Track job details to detect changes
   const lastJobDetailsRef = useRef<string | null>(null);
+
+  // Ensure recurring revenue flag is always hydrated (select needs exact yes|no|partial)
+  // This is intentionally separate from the broader mapping logic to avoid edge cases
+  // where the form doesn't rehydrate due to caching/heuristics.
+  useEffect(() => {
+    if (isSaving) return;
+
+    const normalize = (raw: unknown): "yes" | "no" | "partial" | "" => {
+      if (raw === null || raw === undefined) return "";
+      if (raw === true) return "yes";
+      if (raw === false) return "no";
+
+      const s = String(raw).trim().toLowerCase();
+      if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
+      if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
+      if (s === "partial" || s === "partially") return "partial";
+      return "";
+    };
+
+    const recurringFromBusiness = externalProfileData
+      ? (externalProfileData as any).RecurringFlag ??
+      (externalProfileData as any).recurring_flag ??
+      (externalProfileData as any).recurringFlag ??
+      (externalProfileData as any).RecurringRevenue ??
+      (externalProfileData as any).recurringRevenue
+      : undefined;
+    const recurringFromJob = (externalJobDetails as any)?.recurring_flag ??
+      (externalJobDetails as any)?.recurringFlag ??
+      (externalJobDetails as any)?.recurring_revenue;
+
+    const nextValue = normalize(recurringFromBusiness ?? recurringFromJob);
+    if ((form.state.values as any)?.recurringRevenue !== nextValue) {
+      form.setFieldValue("recurringRevenue" as any, nextValue as any);
+    }
+  }, [externalProfileData, externalJobDetails, form, isSaving]);
 
   // Update form when external profile data or job details change
   // Job details only affect offerings, but we still need to update when job is created/updated
@@ -768,9 +880,9 @@ const ProfileTemplate = ({
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Profile" },
+      { label: "Profile", href: `/business/${businessId}/profile` },
     ],
-    [businessName]
+    [businessName, businessId]
   );
 
   // Cache scroll container ref

@@ -36,6 +36,12 @@ export function useSocial(businessId: string) {
       campaign_name: item.campaign_name || "",
       campaign_relevance: item.campaign_relevance || 0,
       tactics: item.tactics || [],
+      total_clusters:
+        typeof item.total_clusters === "number"
+          ? item.total_clusters
+          : Array.isArray(item.tactics)
+            ? item.tactics.length
+            : 0,
       ...item,
     }));
   }, []);

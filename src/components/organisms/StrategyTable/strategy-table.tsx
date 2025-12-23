@@ -66,6 +66,7 @@ export function StrategyTable({
       },
       columnVisibility: {
         offerings: false,
+        cluster_names: false,
       },
     },
     queryKeys,

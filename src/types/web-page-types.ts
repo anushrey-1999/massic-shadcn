@@ -24,6 +24,8 @@ export interface WebPageRow {
   search_volume: number;
   business_relevance_score: number;
   page_opportunity_score: number;
+  sub_topics_count: number;
+  coverage?: number;
   status: string;
   supporting_keywords: string[];
   page_id?: string;

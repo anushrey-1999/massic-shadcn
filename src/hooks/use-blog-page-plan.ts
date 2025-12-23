@@ -24,6 +24,9 @@ export function useBlogPagePlan(businessId: string) {
   const transformToTableRows = useCallback((items: WebPageItem[]): WebPageRow[] => {
     return items.map((item, index) => ({
       id: item.page_id || item.keyword || `web-page-${index}`,
+      sub_topics_count: Array.isArray(item.supporting_keywords)
+        ? item.supporting_keywords.length
+        : 0,
       ...item,
     }));
   }, []);

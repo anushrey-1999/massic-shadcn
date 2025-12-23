@@ -170,10 +170,36 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     }));
   }, [sorting]);
 
+  const prioritizeLastChangedSort = React.useCallback(
+    (prev: SortingState, next: SortingState): SortingState => {
+      if (next.length <= 1) return next;
+
+      let changedId: string | undefined;
+
+      if (next.length > prev.length) {
+        changedId = next.find((s) => !prev.some((p) => p.id === s.id))?.id;
+      } else if (next.length === prev.length) {
+        changedId = next.find((n) => {
+          const p = prev.find((p) => p.id === n.id);
+          return !p || p.desc !== n.desc;
+        })?.id;
+      }
+
+      if (!changedId) return next;
+
+      const changedSort = next.find((s) => s.id === changedId);
+      if (!changedSort) return next;
+
+      return [changedSort, ...next.filter((s) => s.id !== changedId)];
+    },
+    [],
+  );
+
   const onSortingChange = React.useCallback(
     (updaterOrValue: Updater<SortingState>) => {
       if (typeof updaterOrValue === "function") {
-        const newSorting = updaterOrValue(tableSorting);
+        const nextSorting = updaterOrValue(tableSorting);
+        const newSorting = prioritizeLastChangedSort(tableSorting, nextSorting);
         setSorting(
           newSorting.map((sort) => ({
             field: sort.id as Extract<keyof TData, string>,
@@ -181,15 +207,16 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
           })),
         );
       } else {
+        const newSorting = prioritizeLastChangedSort(tableSorting, updaterOrValue);
         setSorting(
-          updaterOrValue.map((sort) => ({
+          newSorting.map((sort) => ({
             field: sort.id as Extract<keyof TData, string>,
             desc: sort.desc,
           })),
         );
       }
     },
-    [tableSorting, setSorting],
+    [prioritizeLastChangedSort, tableSorting, setSorting],
   );
 
   const resolvedInitialState = React.useMemo(() => {

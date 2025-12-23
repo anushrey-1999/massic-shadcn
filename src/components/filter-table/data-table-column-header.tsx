@@ -33,7 +33,10 @@ export function DataTableColumnHeader<TData, TValue>({
     <button
       type="button"
       className={cn(
-        "-ml-1.5 flex h-8 items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent focus:outline-none focus:ring-1 focus:ring-ring [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
+        "flex h-full w-full items-center justify-between gap-2 rounded-none px-2 py-1.5 text-left transition-colors",
+        "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        sortState && "bg-accent text-foreground",
+        "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
         className,
       )}
       aria-sort={
@@ -55,14 +58,16 @@ export function DataTableColumnHeader<TData, TValue>({
         toggleSorting?.(event);
       }}
     >
-      {label}
-      {sortState === "desc" ? (
-        <ChevronDown />
-      ) : sortState === "asc" ? (
-        <ChevronUp />
-      ) : (
-        <ChevronsUpDown />
-      )}
+      <span className="min-w-0 truncate">{label}</span>
+      <span className={cn(sortState && "[&_svg]:text-foreground")}>
+        {sortState === "desc" ? (
+          <ChevronDown />
+        ) : sortState === "asc" ? (
+          <ChevronUp />
+        ) : (
+          <ChevronsUpDown />
+        )}
+      </span>
     </button>
   );
 }

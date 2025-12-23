@@ -193,27 +193,32 @@ function DataTable<TData, TValue>({
                   }
 
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className={cn(canSort && "p-0")}>
                       {canSort ? (
                         <button
+                          type="button"
                           onClick={onHeaderSortClick}
-                          className="flex items-center gap-2  transition-opacity cursor-pointer"
+                          className={cn(
+                            "flex h-full w-full items-center justify-between gap-2 px-2 py-1 text-left transition-colors",
+                            "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            sortState && "bg-accent"
+                          )}
                         >
-                          {headerContent}
-                          <div className="flex items-center">
+                          <span className="min-w-0 truncate">{headerContent}</span>
+                          <span className="flex shrink-0 items-center">
                             <MoveUp
-                              className={`h-4 w-3 ${sortState === "asc"
-                                  ? "text-black"
-                                  : "text-muted-foreground"
-                                }`}
+                              className={cn(
+                                "h-4 w-3",
+                                sortState === "asc" ? "text-foreground" : "text-muted-foreground"
+                              )}
                             />
                             <MoveDown
-                              className={`h-4 w-3 -ml-0.5 ${sortState === "desc"
-                                  ? "text-black"
-                                  : "text-muted-foreground"
-                                }`}
+                              className={cn(
+                                "h-4 w-3 -ml-0.5",
+                                sortState === "desc" ? "text-foreground" : "text-muted-foreground"
+                              )}
                             />
-                          </div>
+                          </span>
                         </button>
                       ) : (
                         headerContent

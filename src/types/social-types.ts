@@ -5,6 +5,7 @@ export interface SocialItem {
   campaign_name?: string;
   campaign_relevance?: number;
   tactics?: string[];
+  total_clusters?: number;
   id?: string;
   [key: string]: any;
 }
@@ -16,6 +17,7 @@ export interface SocialRow {
   campaign_name: string;
   campaign_relevance: number;
   tactics: string[];
+  total_clusters: number;
   [key: string]: any;
 }
 

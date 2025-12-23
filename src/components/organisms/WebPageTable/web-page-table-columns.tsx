@@ -104,12 +104,13 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
     },
     {
       id: "coverage",
-      accessorFn: () => 0,
+      accessorKey: "coverage",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Coverage" />
       ),
-      cell: () => {
-        return <Typography variant="p">0</Typography>;
+      cell: ({ cell }) => {
+        const coverage = cell.getValue<number>();
+        return <Typography variant="p">{coverage ?? 0}</Typography>;
       },
       meta: {
         label: "Coverage",
@@ -117,7 +118,7 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
         icon: BarChart3,
       },
       enableColumnFilter: false,
-      enableSorting: false,
+      enableSorting: true,
       size: 110,
       minSize: 90,
       maxSize: 140,
@@ -144,15 +145,16 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
       maxSize: 150,
     },
     {
-      id: "priority",
-      accessorFn: () => null,
+      id: "page_opportunity_score",
+      accessorKey: "page_opportunity_score",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Priority" />
       ),
-      cell: () => {
+      cell: ({ cell }) => {
+        const score = cell.getValue<number>();
         return (
           <div className="flex items-center">
-            <RelevancePill score={0} />
+            <RelevancePill score={score || 0} />
           </div>
         );
       },
@@ -163,7 +165,7 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
         icon: TrendingUp,
       },
       enableColumnFilter: false,
-      enableSorting: false,
+      enableSorting: true,
       size: 130,
       minSize: 110,
       maxSize: 160,
@@ -192,13 +194,13 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
       maxSize: 150,
     },
     {
-      id: "supporting_keywords",
-      accessorKey: "supporting_keywords",
+      id: "sub_topics_count",
+      accessorKey: "sub_topics_count",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Sub Topics" />
       ),
       cell: ({ row }) => {
-        const keywords = row.getValue<string[]>("supporting_keywords") || [];
+        const keywords = row.original.supporting_keywords || [];
         return (
           <div className="max-w-full">
             <ExpandablePills items={keywords} pillVariant="outline" />
@@ -208,11 +210,11 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
       meta: {
         label: "Sub Topics",
         placeholder: "Search sub topics...",
-        variant: "text",
+        variant: "number",
         icon: Tag,
       },
       enableColumnFilter: false,
-      enableSorting: false,
+      enableSorting: true,
       size: 250,
       minSize: 200,
       maxSize: 350,

@@ -25,6 +25,7 @@ export interface StrategyRow {
   offerings: string[];
   clusters: StrategyCluster[]; // All clusters for this topic
   cluster_names: string; // Comma-separated cluster names
+  sub_topics_count: number; // Count of clusters (sub topics)
   total_keywords: number; // Total count of all keywords
   total_search_volume: number; // Sum of all cluster search volumes
 }

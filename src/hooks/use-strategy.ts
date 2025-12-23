@@ -60,6 +60,7 @@ export function useStrategy(businessId: string) {
         offerings: topic.offerings || [],
         clusters: clusters,
         cluster_names: clusterNames,
+        sub_topics_count: clusters.length,
         total_keywords: totalKeywords,
         total_search_volume: totalSearchVolume,
       });

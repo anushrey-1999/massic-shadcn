@@ -139,10 +139,8 @@ export function getStrategyTableColumns({
       cell: ({ row }) => {
         const clusters = row.original.clusters;
         const clusterCount = clusters.length;
-        
-        return (
-          <Typography variant="p">{clusterCount}</Typography>
-        );
+
+        return <Typography variant="p">{clusterCount}</Typography>;
       },
       meta: {
         label: "Sub Topics",
@@ -152,6 +150,22 @@ export function getStrategyTableColumns({
       },
       enableColumnFilter: true,
       enableSorting: false,
+      size: 100,
+      minSize: 80,
+      maxSize: 150,
+    },
+    {
+      id: "sub_topics_count",
+      accessorKey: "sub_topics_count",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Sub Topics" />
+      ),
+      cell: ({ cell }) => {
+        const count = cell.getValue<number>();
+        return <Typography variant="p">{count}</Typography>;
+      },
+      enableColumnFilter: false,
+      enableSorting: true,
       size: 100,
       minSize: 80,
       maxSize: 150,
@@ -167,7 +181,7 @@ export function getStrategyTableColumns({
         const totalKeywords = clusters.reduce((sum: number, cluster: any) => {
           return sum + (cluster.keywords?.length || 0);
         }, 0);
-        
+
         return (
           <Typography variant="p">{totalKeywords}</Typography>
         );
@@ -191,7 +205,7 @@ export function getStrategyTableColumns({
       ),
       cell: ({ row }) => {
         const offerings = row.getValue<string[]>("offerings");
-        
+
         return (
           <div className="max-w-full">
             <ExpandablePills items={offerings || []} pillVariant="outline" />

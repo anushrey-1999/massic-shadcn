@@ -62,12 +62,14 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
     parseAsString.withDefault("and")
   );
 
-  // Reset to page 1 when search changes
+  // Reset to page 1 only when the search term actually changes.
+  // (Avoid forcing page back to 1 when user paginates while search is active.)
+  const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
-    if (search && page !== 1) {
-      setPage(1);
-    }
-  }, [search, page, setPage]);
+    if (previousSearchRef.current === search) return;
+    previousSearchRef.current = search;
+    setPage(1);
+  }, [search, setPage]);
 
   // Check if job exists - strategy API should only be called when job exists
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
@@ -76,6 +78,31 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
   // Get the useStrategy hook
   const { fetchStrategy, fetchStrategyCounts } = useStrategy(businessId);
   const queryClient = useQueryClient();
+
+  const hasActiveSearchOrFilters = React.useMemo(() => {
+    const hasSearch = (search || "").trim().length > 0;
+    const hasFilters = Array.isArray(filters) && filters.length > 0;
+    return hasSearch || hasFilters;
+  }, [search, filters]);
+
+  React.useEffect(() => {
+    if (!hasActiveSearchOrFilters) return;
+
+    queryClient.cancelQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        if (!Array.isArray(key)) return false;
+        if (key[0] !== "strategy") return false;
+        if (key[1] !== businessId) return false;
+
+        const keyPage = typeof key[2] === "number" ? key[2] : Number(key[2]);
+        const keySearch = typeof key[4] === "string" ? key[4] : "";
+
+        // Cancel forward-page prefetches that were started in the default (no-search) state.
+        return keySearch === "" && Number.isFinite(keyPage) && keyPage > 1;
+      },
+    });
+  }, [hasActiveSearchOrFilters, businessId, queryClient]);
 
   // Optimize query key serialization for better caching
   const queryKey = React.useMemo(
@@ -181,7 +208,11 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
   React.useEffect(() => {
     // Only prefetch if job exists and we have data (don't wait for loading to finish)
     if (!jobExists || !strategyData || !strategyData.pageCount) return;
-    
+    console.log(hasActiveSearchOrFilters, "hasActiveSearchOrFilters");
+
+    // No prefetching at all when search/filters are active.
+    if (hasActiveSearchOrFilters) return;
+
     const pageCount = strategyData.pageCount;
     if (pageCount <= 1) return; // No pages to prefetch if only 1 page
 
@@ -224,7 +255,7 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
 
       // Prefetch next 2 pages (or remaining pages if less than 2)
       const pagesToPrefetch = Math.min(2, pageCount - page);
-      
+
       for (let i = 1; i <= pagesToPrefetch; i++) {
         const nextPage = page + i;
         if (nextPage > pageCount) break;
@@ -266,7 +297,7 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
 
     // Run prefetch asynchronously
     prefetchPages();
-  }, [strategyData, page, perPage, search, sort, filters, joinOperator, businessId, queryClient, fetchStrategy, jobExists]);
+  }, [strategyData, page, perPage, search, sort, filters, joinOperator, businessId, queryClient, fetchStrategy, jobExists, hasActiveSearchOrFilters]);
 
   // Fetch counts and ranges (these don't depend on filters)
   // DISABLED: Backend doesn't have a separate counts endpoint yet
@@ -331,16 +362,16 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
 
   const clustersData = React.useMemo((): StrategyClusterRow[] => {
     if (!selectedTopic) return [];
-    
+
     const clusters = selectedTopic.clusters || [];
     if (!Array.isArray(clusters) || clusters.length === 0) return [];
 
     return clusters.map((cluster: any, index: number) => {
       const clusterName = cluster?.cluster || "";
-      const keywords = Array.isArray(cluster?.keywords) 
+      const keywords = Array.isArray(cluster?.keywords)
         ? cluster.keywords.filter((k: any) => k && typeof k === 'string')
         : [];
-      
+
       return {
         id: `${selectedTopicId}_${clusterName}_${index}`,
         cluster: clusterName,

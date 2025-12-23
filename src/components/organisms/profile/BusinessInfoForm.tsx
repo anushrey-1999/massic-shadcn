@@ -19,8 +19,8 @@ type BusinessInfoFormData = {
   primaryLocation: string;
   serviceType: "physical" | "online";
   recurringRevenue: string;
-  avgOrderValue: string;
-  lifetimeValue: string;
+  avgOrderValue: string | number;
+  lifetimeValue: string | number;
   offerings: "products" | "services" | "both";
   offeringsList?: Array<{
     name: string;
@@ -33,7 +33,7 @@ interface BusinessInfoFormProps {
   form: any; // TanStack Form instance
 }
 
-export const BusinessInfoForm = React.memo(({ 
+export const BusinessInfoForm = React.memo(({
   form
 }: BusinessInfoFormProps) => {
   // Own Zustand selectors - isolated selector for better performance

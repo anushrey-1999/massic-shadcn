@@ -19,6 +19,10 @@ export interface BusinessProfilePayload {
   Name?: string;
   Description?: string;
   UserDefinedBusinessDescription?: string;
+  AOV?: number | string | null;
+  LTV?: number | string | null;
+  BrandTerms?: string[] | null;
+  RecurringFlag?: string | null;
   PrimaryLocation?: {
     Location?: string;
     Country?: string;
@@ -95,8 +99,8 @@ function mapBusinessProfilePayloadToJobFormData(
   formDataPayload.append(
     "user_defined_business_description",
     businessProfilePayload.UserDefinedBusinessDescription ||
-      businessProfilePayload.Description ||
-      ""
+    businessProfilePayload.Description ||
+    ""
   );
   formDataPayload.append(
     "serve",
@@ -177,6 +181,28 @@ function mapBusinessProfilePayloadToJobFormData(
   );
 
   formDataPayload.append("trigger_workflow", "False");
+
+  // Extra business metrics fields (python API expects snake_case)
+  const aov = (businessProfilePayload as any).AOV ?? (businessProfilePayload as any).aov;
+  const ltv = (businessProfilePayload as any).LTV ?? (businessProfilePayload as any).ltv;
+  const recurringFlag = (businessProfilePayload as any).RecurringFlag ?? (businessProfilePayload as any).recurring_flag;
+  const brandTerms = (businessProfilePayload as any).BrandTerms ?? (businessProfilePayload as any).brand_terms;
+
+  if (aov !== undefined && aov !== null && String(aov).trim() !== "") {
+    formDataPayload.append("aov", String(aov));
+  }
+  if (ltv !== undefined && ltv !== null && String(ltv).trim() !== "") {
+    formDataPayload.append("ltv", String(ltv));
+  }
+  if (typeof recurringFlag === "string" && recurringFlag.trim()) {
+    formDataPayload.append("recurring_flag", recurringFlag.trim().toLowerCase());
+  }
+  if (Array.isArray(brandTerms)) {
+    formDataPayload.append(
+      "brand_terms",
+      JSON.stringify(brandTerms.map((t) => String(t).trim()).filter((t) => t.length > 0))
+    );
+  }
 
   // Handle offerings CSV - always send a CSV file with headers and at least one row (required by API)
   // Simple CSV generation without external library

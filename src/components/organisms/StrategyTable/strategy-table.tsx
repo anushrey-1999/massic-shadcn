@@ -60,7 +60,6 @@ export function StrategyTable({
     pageCount,
     enableAdvancedFilter,
     initialState: {
-      sorting: [{ id: "business_relevance_score", desc: true }],
       pagination: {
         pageIndex: 0,
         pageSize: 100,

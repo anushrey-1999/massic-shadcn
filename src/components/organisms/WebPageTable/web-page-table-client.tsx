@@ -19,9 +19,9 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
   const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
   const [sort] = useQueryState(
     "sort",
-    parseAsJson<Array<{ id: string; desc: boolean }>>((value) => {
+    parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{ id: string; desc: boolean }>;
+        return value as Array<{ field: string; desc: boolean }>;
       }
       return null;
     }).withDefault([])
@@ -54,17 +54,42 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
     parseAsString.withDefault("and")
   );
 
+  const hasActiveSearchOrFilters = React.useMemo(() => {
+    const hasSearch = (search || "").trim().length > 0;
+    const hasFilters = Array.isArray(filters) && filters.length > 0;
+    return hasSearch || hasFilters;
+  }, [search, filters]);
+
+  const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
-    if (search && page !== 1) {
-      setPage(1);
-    }
-  }, [search, page, setPage]);
+    if (previousSearchRef.current === search) return;
+    previousSearchRef.current = search;
+    setPage(1);
+  }, [search, setPage]);
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
 
   const { fetchWebPages, fetchWebPageCounts } = useBlogPagePlan(businessId);
   const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    if (!hasActiveSearchOrFilters) return;
+
+    queryClient.cancelQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        if (!Array.isArray(key)) return false;
+        if (key[0] !== "web-page") return false;
+        if (key[1] !== businessId) return false;
+
+        const keyPage = typeof key[2] === "number" ? key[2] : Number(key[2]);
+        const keySearch = typeof key[4] === "string" ? key[4] : "";
+
+        return keySearch === "" && Number.isFinite(keyPage) && keyPage > 1;
+      },
+    });
+  }, [hasActiveSearchOrFilters, businessId, queryClient]);
 
   const queryKey = React.useMemo(
     () => [
@@ -111,6 +136,8 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
 
   React.useEffect(() => {
     if (!jobExists || !webPageData || !webPageData.pageCount) return;
+
+    if (hasActiveSearchOrFilters) return;
 
     const pageCount = webPageData.pageCount;
     if (pageCount <= 1) return;
@@ -190,7 +217,7 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
     };
 
     prefetchPages();
-  }, [webPageData, page, perPage, search, sort, filters, joinOperator, businessId, queryClient, fetchWebPages, jobExists]);
+  }, [webPageData, page, perPage, search, sort, filters, joinOperator, businessId, queryClient, fetchWebPages, jobExists, hasActiveSearchOrFilters]);
 
   const {
     data: countsData,

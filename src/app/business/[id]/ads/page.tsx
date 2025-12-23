@@ -8,6 +8,7 @@ import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
+import { usePathname, useRouter } from 'next/navigation'
 
 interface PageProps {
   params: Promise<{
@@ -18,6 +19,16 @@ interface PageProps {
 function AdsEntitledContent({ businessId }: { businessId: string }) {
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
   const jobExists = jobDetails && jobDetails.job_id
+
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const handleTabChange = React.useCallback(
+    () => {
+      router.replace(pathname)
+    },
+    [router, pathname]
+  )
 
   if (jobLoading) {
     return (
@@ -42,7 +53,7 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
 
   return (
     <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
-      <Tabs defaultValue="digital" className="flex flex-col flex-1 min-h-0">
+      <Tabs defaultValue="digital" onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
         <TabsList className="shrink-0">
           <TabsTrigger value="digital">Digital</TabsTrigger>
           <TabsTrigger value="tv-radio">TV & Radio</TabsTrigger>

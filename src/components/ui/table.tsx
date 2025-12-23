@@ -124,6 +124,7 @@ function DataTable<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
+    enableSortingRemoval: false,
     state: {
       sorting,
     },
@@ -151,8 +152,8 @@ function DataTable<TData, TValue>({
 
   return (
     <div className={cn("relative h-full flex flex-col", className?.replace("h-full", "").trim() || "")}>
-      <div 
-        ref={tableContainerRef} 
+      <div
+        ref={tableContainerRef}
         className="relative w-full flex-1 min-h-0 overflow-auto"
       >
         <TableElement>
@@ -166,32 +167,51 @@ function DataTable<TData, TValue>({
                     ? null
                     : flexRender(header.column.columnDef.header, header.getContext())
 
+                  const onHeaderSortClick = () => {
+                    const tableInstance = header.getContext().table
+                    const currentSorting = tableInstance.getState().sorting
+                    const columnId = header.column.id
+                    const existingIndex = currentSorting.findIndex(
+                      (sort) => sort.id === columnId
+                    )
+
+                    if (existingIndex === -1) {
+                      tableInstance.setSorting([
+                        ...currentSorting,
+                        { id: columnId, desc: false },
+                      ])
+                      return
+                    }
+
+                    tableInstance.setSorting(
+                      currentSorting.map((sort) =>
+                        sort.id === columnId
+                          ? { ...sort, desc: !sort.desc }
+                          : sort
+                      )
+                    )
+                  }
+
                   return (
                     <TableHead key={header.id}>
                       {canSort ? (
                         <button
-                          onClick={() =>
-                            header.column.toggleSorting(
-                              header.column.getIsSorted() === "asc"
-                            )
-                          }
+                          onClick={onHeaderSortClick}
                           className="flex items-center gap-2  transition-opacity cursor-pointer"
                         >
                           {headerContent}
                           <div className="flex items-center">
                             <MoveUp
-                              className={`h-4 w-3 ${
-                                sortState === "asc"
+                              className={`h-4 w-3 ${sortState === "asc"
                                   ? "text-black"
                                   : "text-muted-foreground"
-                              }`}
+                                }`}
                             />
                             <MoveDown
-                              className={`h-4 w-3 -ml-0.5 ${
-                                sortState === "desc"
+                              className={`h-4 w-3 -ml-0.5 ${sortState === "desc"
                                   ? "text-black"
                                   : "text-muted-foreground"
-                              }`}
+                                }`}
                             />
                           </div>
                         </button>

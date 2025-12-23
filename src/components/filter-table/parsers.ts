@@ -9,7 +9,7 @@ import type {
 } from "../../types/data-table-types";
 
 const sortingItemSchema = z.object({
-  id: z.string(),
+  field: z.string(),
   desc: z.boolean(),
 });
 
@@ -30,7 +30,10 @@ export const getSortingStateParser = <TData>(
 
         if (!result.success) return null;
 
-        if (validKeys && result.data.some((item) => !validKeys.has(item.id))) {
+        if (
+          validKeys &&
+          result.data.some((item) => !validKeys.has(item.field))
+        ) {
           return null;
         }
 
@@ -44,7 +47,7 @@ export const getSortingStateParser = <TData>(
       a.length === b.length &&
       a.every(
         (item, index) =>
-          item.id === b[index]?.id && item.desc === b[index]?.desc,
+          item.field === b[index]?.field && item.desc === b[index]?.desc,
       ),
   });
 };

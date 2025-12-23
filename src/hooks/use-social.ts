@@ -68,10 +68,7 @@ export function useSocial(businessId: string) {
       }
 
       if (params.sort && params.sort.length > 0) {
-        const sortBy = params.sort[0].id;
-        const sortOrder = params.sort[0].desc ? "desc" : "asc";
-        queryParams.append("sort_by", sortBy);
-        queryParams.append("sort_order", sortOrder);
+        queryParams.append("sort", JSON.stringify(params.sort));
       }
 
       if (params.channel_name) {
@@ -89,7 +86,7 @@ export function useSocial(businessId: string) {
         const flatRows = transformToTableRows(items);
 
         const pagination = response?.output_data?.pagination;
-        
+
         let pageCount = 0;
         if (pagination?.total_pages) {
           pageCount = pagination.total_pages;
@@ -127,7 +124,7 @@ export function useSocial(businessId: string) {
       });
 
       const items = response?.output_data?.items || [];
-      
+
       return {
         // Will be populated based on actual filter needs
       };
@@ -148,7 +145,7 @@ export function useSocial(businessId: string) {
       const uniqueChannels = Array.from(
         new Set(items.map((item: SocialItem) => item.channel_name).filter(Boolean))
       ).sort() as string[];
-      
+
       return uniqueChannels;
     } catch (error) {
       console.error("Error fetching channels:", error);
@@ -169,10 +166,7 @@ export function useSocial(businessId: string) {
       }
 
       if (params.sort && params.sort.length > 0) {
-        const sortBy = params.sort[0].id;
-        const sortOrder = params.sort[0].desc ? "desc" : "asc";
-        queryParams.append("sort_by", sortBy);
-        queryParams.append("sort_order", sortOrder);
+        queryParams.append("sort", JSON.stringify(params.sort));
       }
 
       if (params.channel_name) {
@@ -194,7 +188,7 @@ export function useSocial(businessId: string) {
         const flatRows = transformToTacticRows(items);
 
         const pagination = response?.output_data?.pagination;
-        
+
         let pageCount = 0;
         if (pagination?.total_pages) {
           pageCount = pagination.total_pages;

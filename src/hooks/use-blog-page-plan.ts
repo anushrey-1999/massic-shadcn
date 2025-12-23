@@ -41,10 +41,7 @@ export function useBlogPagePlan(businessId: string) {
       }
 
       if (params.sort && params.sort.length > 0) {
-        const sortBy = params.sort[0].id;
-        const sortOrder = params.sort[0].desc ? "desc" : "asc";
-        queryParams.append("sort_by", sortBy);
-        queryParams.append("sort_order", sortOrder);
+        queryParams.append("sort", JSON.stringify(params.sort));
       }
 
       const endpoint = `/client/create-blog-page-plan?${queryParams.toString()}`;
@@ -58,7 +55,7 @@ export function useBlogPagePlan(businessId: string) {
         const flatRows = transformToTableRows(items);
 
         const pagination = response?.output_data?.pagination;
-        
+
         let pageCount = 0;
         if (pagination?.total_pages) {
           pageCount = pagination.total_pages;
@@ -96,7 +93,7 @@ export function useBlogPagePlan(businessId: string) {
       });
 
       const items = response?.output_data?.items || [];
-      
+
       return {
         // Will be populated based on actual filter needs
       };

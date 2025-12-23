@@ -47,7 +47,6 @@ export function SocialTable({
     pageCount,
     enableAdvancedFilter,
     initialState: {
-      sorting: [{ id: "campaign_relevance", desc: true }],
       pagination: {
         pageIndex: 0,
         pageSize: 100,
@@ -97,8 +96,8 @@ export function SocialTable({
             </div>
           )}
           <div className="flex-1 min-h-0 flex flex-col min-w-0">
-            <DataTable 
-              table={table} 
+            <DataTable
+              table={table}
               isLoading={isLoading}
               isFetching={isFetching}
               pageSizeOptions={[10, 30, 50, 100, 200]}

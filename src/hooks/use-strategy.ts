@@ -35,7 +35,7 @@ export function useStrategy(businessId: string) {
 
     topics.forEach((topic) => {
       const clusters = topic.clusters || [];
-      
+
       // Calculate total keywords and search volume across all clusters
       const totalKeywords = clusters.reduce(
         (sum: number, cluster: any) => sum + (cluster.keywords?.length || 0),
@@ -45,7 +45,7 @@ export function useStrategy(businessId: string) {
         (sum: number, cluster: any) => sum + (cluster.total_search_volume || 0),
         0
       );
-      
+
       // Create comma-separated cluster names
       const clusterNames = clusters
         .map((cluster: any) => cluster.cluster)
@@ -92,10 +92,7 @@ export function useStrategy(businessId: string) {
 
       // Add sort parameters
       if (params.sort && params.sort.length > 0) {
-        const sortBy = params.sort[0].id;
-        const sortOrder = params.sort[0].desc ? "desc" : "asc";
-        queryParams.append("sort_by", sortBy);
-        queryParams.append("sort_order", sortOrder);
+        queryParams.append("sort", JSON.stringify(params.sort));
       }
 
       // Note: Backend API spec mentions filters support, but structure not fully defined
@@ -115,7 +112,7 @@ export function useStrategy(businessId: string) {
 
         // Get page count from pagination data
         const pagination = response?.output_data?.pagination;
-        
+
         // Use total_pages from API if available, otherwise calculate from total_count
         let pageCount = 0;
         if (pagination?.total_pages) {
@@ -164,7 +161,7 @@ export function useStrategy(businessId: string) {
       });
 
       const items = response?.output_data?.items || [];
-      
+
       // Calculate counts from data
       const offeringCounts: Record<string, number> = {};
       let minRelevance = Infinity;

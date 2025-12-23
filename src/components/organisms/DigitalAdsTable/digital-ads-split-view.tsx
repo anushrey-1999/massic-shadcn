@@ -52,7 +52,6 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
     pageCount: pageCount,
     enableAdvancedFilter,
     initialState: {
-      sorting: [{ id: "intent_cluster_opportunity_score", desc: true }],
       pagination: {
         pageIndex: 0,
         pageSize: 100,

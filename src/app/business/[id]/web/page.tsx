@@ -10,6 +10,7 @@ import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { cn } from '@/lib/utils'
+import { usePathname, useRouter } from 'next/navigation'
 
 interface PageProps {
   params: Promise<{
@@ -48,6 +49,16 @@ function WebNewPagesTab({ businessId }: { businessId: string }) {
 export default function BusinessWebPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [isOptimizeSplitView, setIsOptimizeSplitView] = React.useState(false)
+
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const handleTabChange = React.useCallback(
+    () => {
+      router.replace(pathname)
+    },
+    [router, pathname]
+  )
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
@@ -94,7 +105,7 @@ export default function BusinessWebPage({ params }: PageProps) {
       <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
         <WorkflowStatusBanner businessId={businessId} />
         {showContent ? (
-          <Tabs defaultValue="new-pages" className="flex flex-col flex-1 min-h-0">
+          <Tabs defaultValue="new-pages" onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
             {!isOptimizeSplitView && (
               <TabsList className="shrink-0">
                 <TabsTrigger value="new-pages">New Pages</TabsTrigger>

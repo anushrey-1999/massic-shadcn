@@ -45,7 +45,6 @@ export function DigitalAdsTable({
     pageCount,
     enableAdvancedFilter,
     initialState: {
-      sorting: [{ id: "business_relevance_score", desc: true }],
       pagination: {
         pageIndex: 0,
         pageSize: 100,
@@ -59,8 +58,8 @@ export function DigitalAdsTable({
 
   return (
     <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
-      <DataTable 
-        table={table} 
+      <DataTable
+        table={table}
         isLoading={isLoading}
         isFetching={isFetching}
         pageSizeOptions={[10, 30, 50, 100, 200]}

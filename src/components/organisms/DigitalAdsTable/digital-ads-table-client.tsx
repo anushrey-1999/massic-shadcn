@@ -24,9 +24,9 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
   const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [sort] = useQueryState(
     "sort",
-    parseAsJson<Array<{ id: string; desc: boolean }>>((value) => {
+    parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{ id: string; desc: boolean }>;
+        return value as Array<{ field: string; desc: boolean }>;
       }
       return null;
     }).withDefault([])
@@ -59,17 +59,42 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
     parseAsString.withDefault("and")
   );
 
+  const hasActiveSearchOrFilters = React.useMemo(() => {
+    const hasSearch = (search || "").trim().length > 0;
+    const hasFilters = Array.isArray(filters) && filters.length > 0;
+    return hasSearch || hasFilters;
+  }, [search, filters]);
+
+  const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
-    if (search && page !== 1) {
-      setPage(1);
-    }
-  }, [search, page, setPage]);
+    if (previousSearchRef.current === search) return;
+    previousSearchRef.current = search;
+    setPage(1);
+  }, [search, setPage]);
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
 
   const { fetchDigitalAds } = useDigitalAds(businessId);
   const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    if (!hasActiveSearchOrFilters) return;
+
+    queryClient.cancelQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        if (!Array.isArray(key)) return false;
+        if (key[0] !== "digital-ads") return false;
+        if (key[1] !== businessId) return false;
+
+        const keyPage = typeof key[2] === "number" ? key[2] : Number(key[2]);
+        const keySearch = typeof key[4] === "string" ? key[4] : "";
+
+        return keySearch === "" && Number.isFinite(keyPage) && keyPage > 1;
+      },
+    });
+  }, [hasActiveSearchOrFilters, businessId, queryClient]);
 
   const queryKey = React.useMemo(
     () => [
@@ -116,7 +141,9 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
 
   React.useEffect(() => {
     if (!jobExists || !digitalAdsData || !digitalAdsData.pageCount) return;
-    
+
+    if (hasActiveSearchOrFilters) return;
+
     const pageCount = digitalAdsData.pageCount;
     if (pageCount <= 1) return;
 
@@ -156,7 +183,7 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
       }
 
       const pagesToPrefetch = Math.min(2, pageCount - page);
-      
+
       for (let i = 1; i <= pagesToPrefetch; i++) {
         const nextPage = page + i;
         if (nextPage > pageCount) break;
@@ -195,7 +222,7 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
     };
 
     prefetchPages();
-  }, [digitalAdsData, page, perPage, search, sort, filters, joinOperator, businessId, queryClient, fetchDigitalAds, jobExists]);
+  }, [digitalAdsData, page, perPage, search, sort, filters, joinOperator, businessId, queryClient, fetchDigitalAds, jobExists, hasActiveSearchOrFilters]);
 
   if (jobLoading) {
     return (

@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
-import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
+import React, { useState, useMemo, useCallback } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/table";
+import { DataTable } from "@/components/filter-table";
+import { DataTableSearch } from "@/components/filter-table/data-table-search";
+import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -16,6 +17,15 @@ import {
 } from "@/components/ui/dialog";
 import { Trash2, Loader2, UserPlus } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getSortedRowModel,
+  getPaginationRowModel,
+  type SortingState,
+  type ColumnFiltersState,
+} from "@tanstack/react-table";
 import { useTeamSettings, TeamMember } from "@/hooks/use-team-settings";
 
 // Removed unused schema
@@ -24,6 +34,10 @@ import { useTeamSettings, TeamMember } from "@/hooks/use-team-settings";
 
 export function TeamSettings() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = React.useState(false);
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  
   const { teamMembers, isLoadingTeamData, inviteMember, isInviting, removeMember, isRemoving } = useTeamSettings();
 
   const [emailChips, setEmailChips] = React.useState<string[]>([]);
@@ -89,11 +103,14 @@ export function TeamSettings() {
     }
   };
 
-  const columns: ColumnDef<TeamMember>[] = React.useMemo(
+  const columns = useMemo<ColumnDef<TeamMember>[]>(
     () => [
       {
         accessorKey: "userName",
-        header: "User",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="User" disableHide />
+        ),
+        enableSorting: true,
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             {row.original.logo ? (
@@ -109,14 +126,20 @@ export function TeamSettings() {
       },
       {
         accessorKey: "email",
-        header: "Email",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Email" disableHide />
+        ),
+        enableSorting: true,
         cell: ({ row }) => (
           <div className="text-muted-foreground">{row.getValue("email")}</div>
         ),
       },
       {
         accessorKey: "roleName",
-        header: "Role",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Role" disableHide />
+        ),
+        enableSorting: true,
         cell: ({ row }) => (
           <Badge variant="secondary">
             {row.getValue("roleName") || "Member"}
@@ -145,31 +168,76 @@ export function TeamSettings() {
     [isRemoving]
   );
 
+  const table = useReactTable({
+    data: teamMembers,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+      globalFilter,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: (row, columnId, filterValue) => {
+      const search = filterValue.toLowerCase();
+      const userName = row.original.userName?.toLowerCase() || "";
+      const email = row.original.email?.toLowerCase() || "";
+      const roleName = row.original.roleName?.toLowerCase() || "";
+      return userName.includes(search) || email.includes(search) || roleName.includes(search);
+    },
+    initialState: {
+      pagination: {
+        pageSize: 100,
+      },
+    },
+  });
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Team Members</CardTitle>
-          <CardDescription>
-            Manage your team members and their permissions.
-          </CardDescription>
-          <CardAction>
-            <Button onClick={() => setIsInviteDialogOpen(true)}>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Invite Member
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {isLoadingTeamData ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <DataTable columns={columns} data={teamMembers} />
-          )}
-        </CardContent>
-      </Card>
+    <div className="flex gap-5 bg-white p-4 rounded-lg h-[calc(100vh-12rem)]">
+      <div className="flex-1 h-full overflow-auto">
+        <Card className="border-none shadow-none py-0">
+          <CardContent className="p-0">
+            {isLoadingTeamData && teamMembers.length === 0 ? (
+              <div className="flex justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : (
+              <DataTable
+                table={table}
+                isLoading={isLoadingTeamData}
+                emptyMessage="No team members found."
+                disableHorizontalScroll={true}
+                className="h-[calc(100vh-14rem)]"
+              >
+                <div
+                  role="toolbar"
+                  aria-orientation="horizontal"
+                  className="flex w-full items-start justify-between gap-2 p-1"
+                >
+                  <div className="flex flex-1 flex-wrap items-center gap-2">
+                    <DataTableSearch
+                      value={globalFilter}
+                      onChange={setGlobalFilter}
+                      placeholder="Search members, emails, roles..."
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => setIsInviteDialogOpen(true)}>
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Invite Member
+                    </Button>
+                  </div>
+                </div>
+              </DataTable>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
         <DialogContent className="sm:max-w-md">

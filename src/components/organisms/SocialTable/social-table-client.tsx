@@ -123,12 +123,72 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
         channel_name: channelName || undefined,
       });
     },
-    staleTime: 1000 * 60,
+    staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh longer
+    gcTime: 1000 * 60 * 15, // 15 minutes - keep in cache longer
     placeholderData: (previousData) => previousData,
+    refetchOnMount: false, // Don't refetch if data exists in cache
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading,
   });
+
+  // Prefetch pages 2 and 3 when page 1 is already cached (from Analytics prefetch)
+  React.useEffect(() => {
+    if (!jobExists || !businessId || page !== 1) return;
+
+    const page1QueryKey = [
+      "social",
+      businessId,
+      1,
+      perPage,
+      "",
+      JSON.stringify([]),
+      JSON.stringify([]),
+      "and",
+      null,
+    ];
+
+    const page1Data = queryClient.getQueryData(page1QueryKey) as any;
+    if (page1Data?.pageCount && page1Data.pageCount > 1) {
+      const prefetchNextPages = async () => {
+        for (let nextPage = 2; nextPage <= Math.min(3, page1Data.pageCount); nextPage++) {
+          const nextPageQueryKey = [
+            "social",
+            businessId,
+            nextPage,
+            perPage,
+            "",
+            JSON.stringify([]),
+            JSON.stringify([]),
+            "and",
+            null,
+          ];
+
+          const cached = queryClient.getQueryData(nextPageQueryKey);
+          if (!cached) {
+            queryClient.prefetchQuery({
+              queryKey: nextPageQueryKey,
+              queryFn: async () => {
+                return fetchSocial({
+                  business_id: businessId,
+                  page: nextPage,
+                  perPage,
+                  search: undefined,
+                  sort: [],
+                  filters: [],
+                  joinOperator: "and",
+                  channel_name: undefined,
+                });
+              },
+              staleTime: 1000 * 60 * 5, // 5 minutes
+              gcTime: 1000 * 60 * 15, // 15 minutes
+            });
+          }
+        }
+      };
+      prefetchNextPages();
+    }
+  }, [businessId, jobExists, page, perPage, queryClient, fetchSocial]);
 
   React.useEffect(() => {
     if (!jobExists || !socialData || !socialData.pageCount) return;
@@ -167,7 +227,8 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
                 channel_name: channelName || undefined,
               });
             },
-            staleTime: 1000 * 60,
+            staleTime: 1000 * 60 * 5, // 5 minutes
+            gcTime: 1000 * 60 * 15, // 15 minutes
           });
         }
       }
@@ -207,7 +268,8 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
               channel_name: channelName || undefined,
             });
           },
-          staleTime: 1000 * 60,
+          staleTime: 1000 * 60 * 5, // 5 minutes
+          gcTime: 1000 * 60 * 15, // 15 minutes
         });
       }
     };

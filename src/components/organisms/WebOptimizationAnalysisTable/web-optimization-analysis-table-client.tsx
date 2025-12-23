@@ -96,11 +96,14 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
     refetch,
   } = useQuery({
     queryKey: ["web-optimization-analysis-all", businessId],
-    queryFn: async () => fetchWebOptimizationAnalysisAll(businessId),
+    queryFn: async () => {
+      return fetchWebOptimizationAnalysisAll(businessId);
+    },
     staleTime: 1000 * 60,
     placeholderData: (previousData) => previousData,
-    retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retry: false, // Disable retries completely - stop on 400/404 errors
+    refetchOnMount: false, // Don't refetch on mount if data exists
+    refetchOnWindowFocus: false, // Don't refetch on window focus
     enabled: !!businessId,
   });
 

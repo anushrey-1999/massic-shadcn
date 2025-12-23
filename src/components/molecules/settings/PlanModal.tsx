@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, ArrowLeft } from "lucide-react";
 import { LongPlanCard, PlanFeature } from "./LongPlanCard";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ export interface PlanData {
   tags: string[];
   description: string;
   features: PlanFeature[];
+  iconName?: string;
   isRecommended?: boolean;
   isGradient?: boolean;
 }
@@ -55,6 +56,7 @@ const defaultPlansData: PlanData[] = [
       { text: "AI traffic tracking from major LLMs" },
       { text: "Local SEO visibility & review monitoring" },
     ],
+    iconName: "ChartLine",
     isGradient: false,
   },
   {
@@ -71,6 +73,7 @@ const defaultPlansData: PlanData[] = [
       },
       { text: "Social strategy (platform-specific campaign planning)" },
     ],
+    iconName: "Puzzle",
     isGradient: false,
   },
   {
@@ -89,6 +92,7 @@ const defaultPlansData: PlanData[] = [
       },
       { text: "Review campaigns: monitor, generate, and respond" },
     ],
+    iconName: "Zap",
     isRecommended: true,
     isGradient: true,
   },
@@ -113,7 +117,7 @@ export function PlanModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent 
-        className="bg-transparent border-none p-0 gap-3"
+        className="bg-transparent border-none p-0 gap-3 shadow-none"
         showCloseButton={false}
         style={{
           width: '90vw',
@@ -121,14 +125,14 @@ export function PlanModal({
         }}
       >
         <DialogTitle className="sr-only">Select a Plan</DialogTitle>
-        <div className="flex justify-end">
+        <div className="flex">
           <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-full bg-white hover:bg-[#DADBDD]"
+            variant="outline"
+            className="bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-md flex items-center gap-2"
             onClick={onClose}
           >
-            <X className="h-4 w-4 text-[#4A4A4A]" />
+            <ArrowLeft className="h-4 w-4" />
+            Back
           </Button>
         </div>
 
@@ -146,7 +150,7 @@ export function PlanModal({
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[#F6F8F8] rounded-xl p-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-transparent  rounded-xl ">
           {plans.map((plan) => (
             <LongPlanCard
               key={plan.name}
@@ -155,6 +159,7 @@ export function PlanModal({
               tags={plan.tags}
               description={plan.description}
               features={plan.features}
+              iconName={plan.iconName}
               isRecommended={plan.isRecommended}
               isGradient={plan.isGradient}
               currentPlan={currentPlan}

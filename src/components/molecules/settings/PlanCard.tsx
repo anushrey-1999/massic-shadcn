@@ -70,8 +70,8 @@ export function PlanCard({
               {planName}
             </h3>
             {isRecommended && (
-              <Badge className="bg-linear-to-r from-[#2E6A56] to-[#56A48A] text-white text-[10px] font-normal uppercase px-1.5 py-0.5 rounded-lg">
-                RECOMMENDED
+              <Badge className="bg-linear-to-r from-[#2E6A56] to-[#56A48A] text-white text-[10px] font-medium px-2 py-[4.5px] rounded-lg">
+                Recommended!
               </Badge>
             )}
           </div>

@@ -11,6 +11,7 @@ import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { usePathname, useRouter } from 'next/navigation'
 
 interface PageProps {
   params: Promise<{
@@ -22,10 +23,20 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [isStrategySplitView, setIsStrategySplitView] = React.useState(false)
   const [isAudienceSplitView, setIsAudienceSplitView] = React.useState(false)
 
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const handleTabChange = React.useCallback(
+    () => {
+      router.replace(pathname)
+    },
+    [router, pathname]
+  )
+
 
   return (
     <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
-      <Tabs defaultValue="strategy" className="flex flex-col flex-1 min-h-0">
+      <Tabs defaultValue="strategy" onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
         {!(isStrategySplitView || isAudienceSplitView) && (
           <TabsList className="shrink-0">
             <TabsTrigger value="strategy">Strategy</TabsTrigger>

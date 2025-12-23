@@ -26,9 +26,9 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
   const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [sort] = useQueryState(
     "sort",
-    parseAsJson<Array<{ id: string; desc: boolean }>>((value) => {
+    parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{ id: string; desc: boolean }>;
+        return value as Array<{ field: string; desc: boolean }>;
       }
       return null;
     }).withDefault([])
@@ -116,7 +116,7 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
 
   React.useEffect(() => {
     if (!jobExists || !audienceData || !audienceData.pageCount) return;
-    
+
     const pageCount = audienceData.pageCount;
     if (pageCount <= 1) return;
 
@@ -155,7 +155,7 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
       }
 
       const pagesToPrefetch = Math.min(2, pageCount - page);
-      
+
       for (let i = 1; i <= pagesToPrefetch; i++) {
         const nextPage = page + i;
         if (nextPage > pageCount) break;
@@ -258,16 +258,16 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
 
   const useCasesData = React.useMemo((): AudienceUseCaseRow[] => {
     if (!selectedPersona) return [];
-    
+
     const useCases = selectedPersona.use_cases || [];
     if (!Array.isArray(useCases) || useCases.length === 0) return [];
 
     return useCases.map((uc: any, index: number) => {
       const useCaseName = uc?.use_case_name || "";
-      const keywords = Array.isArray(uc?.supporting_keywords) 
+      const keywords = Array.isArray(uc?.supporting_keywords)
         ? uc.supporting_keywords.filter((k: any) => k && typeof k === 'string')
         : [];
-      
+
       return {
         id: `${selectedPersonaId}_${useCaseName}_${index}`,
         use_case_name: useCaseName,

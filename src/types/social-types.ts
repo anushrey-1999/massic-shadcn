@@ -5,6 +5,7 @@ export interface SocialItem {
   campaign_name?: string;
   campaign_relevance?: number;
   tactics?: string[];
+  total_clusters?: number;
   id?: string;
   [key: string]: any;
 }
@@ -16,6 +17,7 @@ export interface SocialRow {
   campaign_name: string;
   campaign_relevance: number;
   tactics: string[];
+  total_clusters: number;
   [key: string]: any;
 }
 
@@ -43,7 +45,7 @@ export interface GetSocialSchema {
   business_id: string;
   page: number;
   perPage: number;
-  sort: Array<{ id: string; desc: boolean }>;
+  sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{
     id: string;
     value: string | string[];
@@ -113,7 +115,7 @@ export interface GetTacticsSchema {
   business_id: string;
   page: number;
   perPage: number;
-  sort: Array<{ id: string; desc: boolean }>;
+  sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{
     id: string;
     value: string | string[];

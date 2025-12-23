@@ -1,4 +1,4 @@
-import type { ColumnSort, Row, RowData } from "@tanstack/react-table";
+import type { Row, RowData } from "@tanstack/react-table";
 import type { DataTableConfig } from "../components/filter-table/data-table-config";
 import type { FilterItemSchema } from "../components/filter-table/parsers";
 
@@ -40,8 +40,9 @@ export type FilterOperator = DataTableConfig["operators"][number];
 export type FilterVariant = DataTableConfig["filterVariants"][number];
 export type JoinOperator = DataTableConfig["joinOperators"][number];
 
-export interface ExtendedColumnSort<TData> extends Omit<ColumnSort, "id"> {
-  id: Extract<keyof TData, string>;
+export interface ExtendedColumnSort<TData> {
+  field: Extract<keyof TData, string>;
+  desc: boolean;
 }
 
 export interface ExtendedColumnFilter<TData> extends FilterItemSchema {

@@ -169,24 +169,45 @@ export function DataTable({
                       className={cn(
                         styles.header,
                         col.width,
-                        index === 0 && (cellSize === "sm" ? "w-60" : "min-w-[300px]")
+                        index === 0 && (cellSize === "sm" ? "w-60" : "min-w-[300px]"),
+                        col.sortable && "p-0"
                       )}
                     >
-                      <div
-                        className={cn(
-                          "flex items-center gap-2 transition-colors duration-150",
-                          col.sortable && "cursor-pointer hover:text-foreground select-none"
-                        )}
-                        onClick={() => col.sortable && handleSort(col.key)}
-                      >
-                        <span className={cn(
-                          "font-medium tracking-wide text-muted-foreground",
-                          cellSize === "md" ? "text-xs font-semibold uppercase" : "text-xs"
-                        )}>
-                          {col.label}
-                        </span>
-                        {col.sortable && getSortIcon(col.key)}
-                      </div>
+                      {col.sortable ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSort(col.key)}
+                          className={cn(
+                            "flex h-full w-full items-center justify-between gap-2 px-4 py-2 text-left transition-colors",
+                            "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            sortConfig?.column === col.key && "bg-accent"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "min-w-0 truncate font-medium tracking-wide text-muted-foreground",
+                              cellSize === "md" ? "text-xs font-semibold uppercase" : "text-xs",
+                              sortConfig?.column === col.key && "text-foreground"
+                            )}
+                          >
+                            {col.label}
+                          </span>
+                          <span className={cn(sortConfig?.column === col.key && "text-foreground")}>
+                            {getSortIcon(col.key)}
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "font-medium tracking-wide text-muted-foreground",
+                              cellSize === "md" ? "text-xs font-semibold uppercase" : "text-xs"
+                            )}
+                          >
+                            {col.label}
+                          </span>
+                        </div>
+                      )}
                     </TableHead>
                   ))}
                 </TableRow>

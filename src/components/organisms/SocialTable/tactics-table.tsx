@@ -51,7 +51,6 @@ export function TacticsTable({
     pageCount,
     enableAdvancedFilter,
     initialState: {
-      sorting: [{ id: "campaign_relevance", desc: true }],
       pagination: {
         pageIndex: 0,
         pageSize: 100,

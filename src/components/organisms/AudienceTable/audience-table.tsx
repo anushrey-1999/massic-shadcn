@@ -56,7 +56,6 @@ export function AudienceTable({
     pageCount,
     enableAdvancedFilter,
     initialState: {
-      sorting: [{ id: "ars", desc: true }],
       pagination: {
         pageIndex: 0,
         pageSize: 100,
@@ -70,8 +69,8 @@ export function AudienceTable({
 
   return (
     <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
-      <DataTable 
-        table={table} 
+      <DataTable
+        table={table}
         isLoading={isLoading}
         isFetching={isFetching}
         pageSizeOptions={[10, 30, 50, 100, 200]}

@@ -42,7 +42,7 @@ export interface GetAudienceSchema {
   business_id: string;
   page: number;
   perPage: number;
-  sort: Array<{ id: string; desc: boolean }>;
+  sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{
     id: string;
     value: string | string[];

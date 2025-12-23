@@ -58,7 +58,6 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
     pageCount: pageCount,
     enableAdvancedFilter,
     initialState: {
-      sorting: [{ id: "ars", desc: true }],
       pagination: {
         pageIndex: 0,
         pageSize: 100,

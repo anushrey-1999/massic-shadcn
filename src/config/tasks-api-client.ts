@@ -40,7 +40,7 @@ function transformPostToTask(post: any, index: number): Task {
 export interface GetTasksSchema {
   page: number;
   perPage: number;
-  sort: Array<{ id: string; desc: boolean }>;
+  sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{
     id: string;
     value: string | string[];
@@ -80,14 +80,14 @@ export async function fetchTasks(params: GetTasksSchema): Promise<{
   // Fetch all posts from DummyJSON (we'll filter/paginate client-side for now)
   // In production, you'd want server-side filtering/pagination
   const response = await fetch(`${DUMMYJSON_BASE_URL}/posts?limit=1000&skip=0`);
-  
+
   if (!response.ok) {
     throw new Error("Failed to fetch tasks from DummyJSON API");
   }
 
   const postsData = await response.json();
   const posts = postsData.posts || [];
-  
+
   // Transform posts to tasks
   let filteredTasks = posts.map((post: any, index: number) => transformPostToTask(post, index));
 
@@ -112,16 +112,16 @@ export async function fetchTasks(params: GetTasksSchema): Promise<{
       estimatedHours:
         params.estimatedHours.length > 0
           ? ([params.estimatedHours[0], params.estimatedHours[1]] as [
-              number?,
-              number?
-            ])
+            number?,
+            number?
+          ])
           : undefined,
       createdAt:
         params.createdAt.length > 0
           ? ([
-              params.createdAt[0] ? new Date(params.createdAt[0]) : undefined,
-              params.createdAt[1] ? new Date(params.createdAt[1]) : undefined,
-            ] as [Date?, Date?])
+            params.createdAt[0] ? new Date(params.createdAt[0]) : undefined,
+            params.createdAt[1] ? new Date(params.createdAt[1]) : undefined,
+          ] as [Date?, Date?])
           : undefined,
     };
 
@@ -130,7 +130,11 @@ export async function fetchTasks(params: GetTasksSchema): Promise<{
 
   // Apply sorting (generic)
   if (params.sort.length > 0) {
-    filteredTasks = tableSort(filteredTasks, params.sort as any);
+    const sortBy = params.sort.map((sort) => ({
+      id: sort.field as keyof Task,
+      desc: sort.desc,
+    }));
+    filteredTasks = tableSort(filteredTasks, sortBy);
   }
 
   // Apply pagination (generic)
@@ -166,14 +170,14 @@ export async function fetchTaskCounts(): Promise<{
 }> {
   // Fetch posts from DummyJSON
   const response = await fetch(`${DUMMYJSON_BASE_URL}/posts?limit=1000&skip=0`);
-  
+
   if (!response.ok) {
     throw new Error("Failed to fetch task counts from DummyJSON API");
   }
 
   const postsData = await response.json();
   const posts = postsData.posts || [];
-  
+
   // Transform posts to tasks for counting
   const allTasks = posts.map((post: any, index: number) => transformPostToTask(post, index));
 

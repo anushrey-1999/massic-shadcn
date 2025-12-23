@@ -11,7 +11,7 @@ import type { SocialRow } from "@/types/social-types";
 
 function getChannelIcon(channelName: string): string | null {
   if (!channelName) return null;
-  
+
   const normalized = channelName.toLowerCase().trim();
   const iconMap: Record<string, string> = {
     facebook: "/icons/facebook.png",
@@ -23,7 +23,7 @@ function getChannelIcon(channelName: string): string | null {
     tiktok: "/icons/tiktok.png",
     reddit: "/icons/reddit.png",
   };
-  
+
   return iconMap[normalized] || null;
 }
 
@@ -31,7 +31,7 @@ interface GetSocialTableColumnsProps {
   [key: string]: any;
 }
 
-export function getSocialTableColumns({}: GetSocialTableColumnsProps = {}): ColumnDef<SocialRow>[] {
+export function getSocialTableColumns({ }: GetSocialTableColumnsProps = {}): ColumnDef<SocialRow>[] {
   return [
     {
       id: "channel_name",
@@ -42,7 +42,7 @@ export function getSocialTableColumns({}: GetSocialTableColumnsProps = {}): Colu
       cell: ({ row }) => {
         const channelName = row.getValue<string>("channel_name") || "";
         const iconPath = getChannelIcon(channelName);
-        
+
         return (
           <div className="flex items-center gap-2">
             {iconPath && (
@@ -122,8 +122,8 @@ export function getSocialTableColumns({}: GetSocialTableColumnsProps = {}): Colu
       maxSize: 160,
     },
     {
-      id: "tactics",
-      accessorKey: "tactics",
+      id: "total_clusters",
+      accessorKey: "total_clusters",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Tactics" />
       ),
@@ -138,11 +138,11 @@ export function getSocialTableColumns({}: GetSocialTableColumnsProps = {}): Colu
       meta: {
         label: "Tactics",
         placeholder: "Search tactics...",
-        variant: "text",
+        variant: "number",
         icon: Tag,
       },
       enableColumnFilter: false,
-      enableSorting: false,
+      enableSorting: true,
       size: 250,
       minSize: 200,
       maxSize: 350,

@@ -15,9 +15,9 @@ export function TasksTableClient() {
   const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(10));
   const [sort] = useQueryState(
     "sort",
-    parseAsJson<Array<{ id: string; desc: boolean }>>((value) => {
+    parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{ id: string; desc: boolean }>;
+        return value as Array<{ field: string; desc: boolean }>;
       }
       return null;
     }).withDefault([])
@@ -58,9 +58,9 @@ export function TasksTableClient() {
 
   // Fetch tasks data with improved error handling
   // Using client-side fetch function (can be easily replaced with real API call)
-  const { 
-    data: tasksData, 
-    isLoading: tasksLoading, 
+  const {
+    data: tasksData,
+    isLoading: tasksLoading,
     isFetching: tasksFetching,
     isError: tasksError,
     error: tasksErrorData,
@@ -90,7 +90,7 @@ export function TasksTableClient() {
 
   // Fetch counts and ranges (these don't depend on filters)
   // Using client-side fetch function (can be easily replaced with real API call)
-  const { 
+  const {
     data: countsData,
     isError: countsError,
     error: countsErrorData,

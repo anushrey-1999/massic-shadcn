@@ -44,15 +44,15 @@ const THROTTLE_MS = 50;
 
 interface UseDataTableProps<TData>
   extends Omit<
-      TableOptions<TData>,
-      | "state"
-      | "pageCount"
-      | "getCoreRowModel"
-      | "manualFiltering"
-      | "manualPagination"
-      | "manualSorting"
-    >,
-    Required<Pick<TableOptions<TData>, "pageCount">> {
+    TableOptions<TData>,
+    | "state"
+    | "pageCount"
+    | "getCoreRowModel"
+    | "manualFiltering"
+    | "manualPagination"
+    | "manualSorting"
+  >,
+  Required<Pick<TableOptions<TData>, "pageCount">> {
   initialState?: Omit<Partial<TableState>, "sorting"> & {
     sorting?: ExtendedColumnSort<TData>[];
   };
@@ -160,20 +160,77 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     sortKey,
     getSortingStateParser<TData>(columnIds)
       .withOptions(queryStateOptions)
-      .withDefault(initialState?.sorting ?? []),
+      .withDefault([]),
+  );
+
+  const tableSorting: SortingState = React.useMemo(() => {
+    return (sorting ?? []).map((sort) => ({
+      id: sort.field,
+      desc: sort.desc,
+    }));
+  }, [sorting]);
+
+  const prioritizeLastChangedSort = React.useCallback(
+    (prev: SortingState, next: SortingState): SortingState => {
+      if (next.length <= 1) return next;
+
+      let changedId: string | undefined;
+
+      if (next.length > prev.length) {
+        changedId = next.find((s) => !prev.some((p) => p.id === s.id))?.id;
+      } else if (next.length === prev.length) {
+        changedId = next.find((n) => {
+          const p = prev.find((p) => p.id === n.id);
+          return !p || p.desc !== n.desc;
+        })?.id;
+      }
+
+      if (!changedId) return next;
+
+      const changedSort = next.find((s) => s.id === changedId);
+      if (!changedSort) return next;
+
+      return [changedSort, ...next.filter((s) => s.id !== changedId)];
+    },
+    [],
   );
 
   const onSortingChange = React.useCallback(
     (updaterOrValue: Updater<SortingState>) => {
       if (typeof updaterOrValue === "function") {
-        const newSorting = updaterOrValue(sorting);
-        setSorting(newSorting as ExtendedColumnSort<TData>[]);
+        const nextSorting = updaterOrValue(tableSorting);
+        const newSorting = prioritizeLastChangedSort(tableSorting, nextSorting);
+        setSorting(
+          newSorting.map((sort) => ({
+            field: sort.id as Extract<keyof TData, string>,
+            desc: sort.desc,
+          })),
+        );
       } else {
-        setSorting(updaterOrValue as ExtendedColumnSort<TData>[]);
+        const newSorting = prioritizeLastChangedSort(tableSorting, updaterOrValue);
+        setSorting(
+          newSorting.map((sort) => ({
+            field: sort.id as Extract<keyof TData, string>,
+            desc: sort.desc,
+          })),
+        );
       }
     },
-    [sorting, setSorting],
+    [prioritizeLastChangedSort, tableSorting, setSorting],
   );
+
+  const resolvedInitialState = React.useMemo(() => {
+    if (!initialState) return initialState;
+    if (!initialState.sorting) return initialState;
+
+    return {
+      ...initialState,
+      sorting: initialState.sorting.map((sort) => ({
+        id: sort.field,
+        desc: sort.desc,
+      })),
+    };
+  }, [initialState]);
 
   const filterableColumns = React.useMemo(() => {
     if (enableAdvancedFilter) return [];
@@ -270,11 +327,13 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   const table = useReactTable({
     ...tableProps,
     columns,
-    initialState,
+    initialState: resolvedInitialState,
     pageCount,
+    enableSortingRemoval: false,
+    isMultiSortEvent: () => true,
     state: {
       pagination,
-      sorting,
+      sorting: tableSorting,
       columnVisibility,
       rowSelection,
       columnFilters,

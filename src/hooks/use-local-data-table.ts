@@ -53,6 +53,8 @@ export function useLocalDataTable<TData>(props: UseLocalDataTableProps<TData>) {
       columnFilters,
     },
     initialState,
+    enableSortingRemoval: false,
+    isMultiSortEvent: () => false,
     defaultColumn: {
       ...tableProps.defaultColumn,
       enableColumnFilter: false,

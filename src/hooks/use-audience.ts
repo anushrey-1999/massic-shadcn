@@ -24,7 +24,7 @@ export function useAudience(businessId: string) {
     // Track used IDs to ensure uniqueness
     const usedIds = new Set<string>();
     let counter = 0;
-    
+
     return items.map((item, index) => {
       // Extract use_case_name from use_cases array (array of objects with use_case_name property)
       let useCaseNames: string[] = [];
@@ -34,35 +34,35 @@ export function useAudience(businessId: string) {
           .filter((name: any) => name && typeof name === 'string');
       } else if (item.use_case_name) {
         // Fallback: if use_case_name is already an array of strings
-        useCaseNames = Array.isArray(item.use_case_name) 
+        useCaseNames = Array.isArray(item.use_case_name)
           ? item.use_case_name.filter((name: any) => name && typeof name === 'string')
           : [item.use_case_name].filter((name: any) => name && typeof name === 'string');
       }
-      
+
       // Try to use existing ID first, but ensure it's unique
       let uniqueId = item.id;
-      
+
       // If no ID or ID is already used, generate a new one
       if (!uniqueId || usedIds.has(uniqueId)) {
         // Create a unique ID by combining persona_name with use_case_name, ars, and a counter
         const persona = (item.persona_name || "").replace(/\s+/g, "_").substring(0, 50);
         const useCasesStr = useCaseNames.sort().join("|").replace(/\s+/g, "_").substring(0, 100);
         const ars = item.ars ?? 0;
-        
+
         // Use counter instead of index for better stability across sorts
         const uniqueCounter = counter++;
-        
+
         // Combine persona, use cases, ars, and counter to ensure uniqueness
         uniqueId = `${persona}_${useCasesStr}_${ars}_${uniqueCounter}`;
-        
+
         // If still duplicate (shouldn't happen with counter), append more uniqueness
         if (usedIds.has(uniqueId)) {
           uniqueId = `${uniqueId}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
         }
       }
-      
+
       usedIds.add(uniqueId);
-      
+
       return {
         id: uniqueId,
         persona_name: item.persona_name || "",
@@ -90,10 +90,7 @@ export function useAudience(businessId: string) {
       }
 
       if (params.sort && params.sort.length > 0) {
-        const sortBy = params.sort[0].id;
-        const sortOrder = params.sort[0].desc ? "desc" : "asc";
-        queryParams.append("sort_by", sortBy);
-        queryParams.append("sort_order", sortOrder);
+        queryParams.append("sort", JSON.stringify(params.sort));
       }
 
       const endpoint = `/client/audience?${queryParams.toString()}`;
@@ -107,7 +104,7 @@ export function useAudience(businessId: string) {
         const flatRows = transformToTableRows(items);
 
         const pagination = response?.output_data?.pagination;
-        
+
         let pageCount = 0;
         if (pagination?.total_pages) {
           pageCount = pagination.total_pages;
@@ -145,7 +142,7 @@ export function useAudience(businessId: string) {
       });
 
       const items = response?.output_data?.items || [];
-      
+
       const personaCounts: Record<string, number> = {};
       const useCaseCounts: Record<string, number> = {};
       let minArs = Infinity;

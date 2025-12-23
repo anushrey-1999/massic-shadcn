@@ -124,6 +124,7 @@ function DataTable<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
+    enableSortingRemoval: false,
     state: {
       sorting,
     },
@@ -151,8 +152,8 @@ function DataTable<TData, TValue>({
 
   return (
     <div className={cn("relative h-full flex flex-col", className?.replace("h-full", "").trim() || "")}>
-      <div 
-        ref={tableContainerRef} 
+      <div
+        ref={tableContainerRef}
         className="relative w-full flex-1 min-h-0 overflow-auto"
       >
         <TableElement>
@@ -166,34 +167,58 @@ function DataTable<TData, TValue>({
                     ? null
                     : flexRender(header.column.columnDef.header, header.getContext())
 
+                  const onHeaderSortClick = () => {
+                    const tableInstance = header.getContext().table
+                    const currentSorting = tableInstance.getState().sorting
+                    const columnId = header.column.id
+                    const existingIndex = currentSorting.findIndex(
+                      (sort) => sort.id === columnId
+                    )
+
+                    if (existingIndex === -1) {
+                      tableInstance.setSorting([
+                        ...currentSorting,
+                        { id: columnId, desc: false },
+                      ])
+                      return
+                    }
+
+                    tableInstance.setSorting(
+                      currentSorting.map((sort) =>
+                        sort.id === columnId
+                          ? { ...sort, desc: !sort.desc }
+                          : sort
+                      )
+                    )
+                  }
+
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className={cn(canSort && "p-0")}>
                       {canSort ? (
                         <button
-                          onClick={() =>
-                            header.column.toggleSorting(
-                              header.column.getIsSorted() === "asc"
-                            )
-                          }
-                          className="flex items-center gap-2  transition-opacity cursor-pointer"
+                          type="button"
+                          onClick={onHeaderSortClick}
+                          className={cn(
+                            "flex h-full w-full items-center justify-between gap-2 px-2 py-1 text-left transition-colors",
+                            "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            sortState && "bg-accent"
+                          )}
                         >
-                          {headerContent}
-                          <div className="flex items-center">
+                          <span className="min-w-0 truncate">{headerContent}</span>
+                          <span className="flex shrink-0 items-center">
                             <MoveUp
-                              className={`h-4 w-3 ${
-                                sortState === "asc"
-                                  ? "text-black"
-                                  : "text-muted-foreground"
-                              }`}
+                              className={cn(
+                                "h-4 w-3",
+                                sortState === "asc" ? "text-foreground" : "text-muted-foreground"
+                              )}
                             />
                             <MoveDown
-                              className={`h-4 w-3 -ml-0.5 ${
-                                sortState === "desc"
-                                  ? "text-black"
-                                  : "text-muted-foreground"
-                              }`}
+                              className={cn(
+                                "h-4 w-3 -ml-0.5",
+                                sortState === "desc" ? "text-foreground" : "text-muted-foreground"
+                              )}
                             />
-                          </div>
+                          </span>
                         </button>
                       ) : (
                         headerContent

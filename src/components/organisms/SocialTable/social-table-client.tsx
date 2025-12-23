@@ -25,9 +25,9 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
   const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
   const [sort] = useQueryState(
     "sort",
-    parseAsJson<Array<{ id: string; desc: boolean }>>((value) => {
+    parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{ id: string; desc: boolean }>;
+        return value as Array<{ field: string; desc: boolean }>;
       }
       return null;
     }).withDefault([])
@@ -77,26 +77,58 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     return !!(effectiveChannel && campaignName);
   }, [selectedRowChannel, channelName, campaignName]);
 
+  const hasActiveSearchOrFilters = React.useMemo(() => {
+    const hasSearch = (search || "").trim().length > 0;
+    const hasFilters = Array.isArray(filters) && filters.length > 0;
+    const hasChannel = (channelName || "").trim().length > 0;
+    return hasSearch || hasFilters || hasChannel;
+  }, [search, filters, channelName]);
+
+  const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
-    if (search && page !== 1) {
-      setPage(1);
-    }
+    if (previousSearchRef.current === search) return;
+    previousSearchRef.current = search;
+    setPage(1);
   }, [search, setPage]);
 
-  const prevChannelNameRef = React.useRef<string | null>(channelName);
+  const previousChannelNameRef = React.useRef(channelName);
   React.useEffect(() => {
-    // Only reset page if channelName actually changed (not just if it exists)
-    if (prevChannelNameRef.current !== channelName && channelName !== null && page !== 1) {
-      setPage(1);
-    }
-    prevChannelNameRef.current = channelName;
+    if (previousChannelNameRef.current === channelName) return;
+    previousChannelNameRef.current = channelName;
+    setPage(1);
   }, [channelName, setPage]);
+
+  const previousTacticsSearchRef = React.useRef(tacticsSearch);
+  React.useEffect(() => {
+    if (previousTacticsSearchRef.current === tacticsSearch) return;
+    previousTacticsSearchRef.current = tacticsSearch;
+    setTacticsPage(1);
+  }, [tacticsSearch, setTacticsPage]);
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
 
   const { fetchSocial, fetchSocialCounts, fetchTactics } = useSocial(businessId);
   const queryClient = useQueryClient();
+
+  React.useEffect(() => {
+    if (!hasActiveSearchOrFilters) return;
+
+    queryClient.cancelQueries({
+      predicate: (query) => {
+        const key = query.queryKey;
+        if (!Array.isArray(key)) return false;
+        if (key[0] !== "social") return false;
+        if (key[1] !== businessId) return false;
+
+        const keyPage = typeof key[2] === "number" ? key[2] : Number(key[2]);
+        const keySearch = typeof key[4] === "string" ? key[4] : "";
+        const keyChannel = key[8] ?? null;
+
+        return keySearch === "" && keyChannel === null && Number.isFinite(keyPage) && keyPage > 1;
+      },
+    });
+  }, [hasActiveSearchOrFilters, businessId, queryClient]);
 
   const effectiveChannelName = channelName || "all";
   
@@ -185,6 +217,8 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
   React.useEffect(() => {
     if (!jobExists || !businessId || page !== 1) return;
 
+    if (hasActiveSearchOrFilters) return;
+
     const page1QueryKey = [
       "social",
       businessId,
@@ -237,10 +271,12 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
       };
       prefetchNextPages();
     }
-  }, [businessId, jobExists, page, perPage, queryClient, fetchSocial]);
+  }, [businessId, jobExists, page, perPage, queryClient, fetchSocial, hasActiveSearchOrFilters]);
 
   React.useEffect(() => {
     if (!jobExists || !socialData || !socialData.pageCount) return;
+
+    if (hasActiveSearchOrFilters) return;
 
     const pageCount = socialData.pageCount;
     if (pageCount <= 1) return;
@@ -324,7 +360,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     };
 
     prefetchPages();
-  }, [socialData, page, perPage, search, sort, filters, joinOperator, effectiveChannelName, businessId, queryClient, fetchSocial, jobExists]);
+  }, [socialData, page, perPage, search, sort, filters, joinOperator, effectiveChannelName, channelName, businessId, queryClient, fetchSocial, jobExists, hasActiveSearchOrFilters]);
 
   const {
     data: countsData,

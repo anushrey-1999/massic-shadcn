@@ -27,9 +27,9 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
   const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [sort] = useQueryState(
     "sort",
-    parseAsJson<Array<{ id: string; desc: boolean }>>((value) => {
+    parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{ id: string; desc: boolean }>;
+        return value as Array<{ field: string; desc: boolean }>;
       }
       return null;
     }).withDefault([])

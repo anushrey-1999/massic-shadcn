@@ -82,43 +82,69 @@ export function DataTable<TData>({
           "h-full w-full overflow-y-auto",
           disableHorizontalScroll ? "overflow-x-hidden" : "overflow-x-auto"
         )}>
-          <TableElement 
+          <TableElement
             className={cn(
               "w-full",
               disableHorizontalScroll ? "table-auto max-w-full" : "table-fixed"
-            )} 
+            )}
             style={disableHorizontalScroll ? {} : { minWidth: "1000px", tableLayout: "fixed" }}
           >
             <TableHeader className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead
-                      key={header.id}
-                      colSpan={header.colSpan}
-                      className={cn(
-                        "",
-                        getAlignmentClass(header.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
-                      )}
-                      style={disableHorizontalScroll ? {
-                        minWidth: formatSizeValue(header.column.columnDef.minSize) || header.getSize(),
-                        maxWidth: formatSizeValue(header.column.columnDef.maxSize),
-                        ...getCommonPinningStyles({ column: header.column }),
-                      } : {
-                        width: header.getSize(),
-                        minWidth: header.getSize(),
-                        maxWidth: formatSizeValue(header.column.columnDef.maxSize) || header.getSize(),
-                        ...getCommonPinningStyles({ column: header.column }),
-                      }}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
+                  {headerGroup.headers.map((header) => {
+                    const canSort = header.column.getCanSort();
+                    const sortState = header.column.getIsSorted();
+
+                    return (
+                      <TableHead
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        className={cn(
+                          getAlignmentClass(
+                            header.column.columnDef.meta as
+                            | { align?: "left" | "center" | "right" }
+                            | undefined,
+                          ),
+                          canSort && "p-0",
+                          sortState && "bg-accent",
                         )}
-                    </TableHead>
-                  ))}
+                        style={
+                          disableHorizontalScroll
+                            ? {
+                              minWidth:
+                                formatSizeValue(
+                                  header.column.columnDef.minSize,
+                                ) || header.getSize(),
+                              maxWidth: formatSizeValue(
+                                header.column.columnDef.maxSize,
+                              ),
+                              ...getCommonPinningStyles({
+                                column: header.column,
+                              }),
+                            }
+                            : {
+                              width: header.getSize(),
+                              minWidth: header.getSize(),
+                              maxWidth:
+                                formatSizeValue(
+                                  header.column.columnDef.maxSize,
+                                ) || header.getSize(),
+                              ...getCommonPinningStyles({
+                                column: header.column,
+                              }),
+                            }
+                        }
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               ))}
             </TableHeader>
@@ -139,40 +165,40 @@ export function DataTable<TData>({
                 table.getRowModel().rows.map((row, index) => {
                   const isSelected = selectedRowId ? row.id === selectedRowId : row.getIsSelected();
                   return (
-                  <TableRow
-                    key={`${row.id}-${index}`}
-                    data-state={isSelected && "selected"}
-                    className={cn(
-                      onRowClick && "cursor-pointer hover:bg-muted/70",
-                      isSelected && "bg-muted"
-                    )}
-                    onClick={() => onRowClick?.(row.original)}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={cn(
-                          "overflow-hidden",
-                          getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
-                        )}
-                        style={disableHorizontalScroll ? {
-                          minWidth: formatSizeValue(cell.column.columnDef.minSize) || cell.column.getSize(),
-                          maxWidth: formatSizeValue(cell.column.columnDef.maxSize),
-                          ...getCommonPinningStyles({ column: cell.column }),
-                        } : {
-                          width: cell.column.getSize(),
-                          minWidth: cell.column.getSize(),
-                          maxWidth: formatSizeValue(cell.column.columnDef.maxSize) || cell.column.getSize(),
-                          ...getCommonPinningStyles({ column: cell.column }),
-                        }}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+                    <TableRow
+                      key={`${row.id}-${index}`}
+                      data-state={isSelected && "selected"}
+                      className={cn(
+                        onRowClick && "cursor-pointer hover:bg-muted/70",
+                        isSelected && "bg-muted"
+                      )}
+                      onClick={() => onRowClick?.(row.original)}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            "overflow-hidden",
+                            getAlignmentClass(cell.column.columnDef.meta as { align?: "left" | "center" | "right" } | undefined)
+                          )}
+                          style={disableHorizontalScroll ? {
+                            minWidth: formatSizeValue(cell.column.columnDef.minSize) || cell.column.getSize(),
+                            maxWidth: formatSizeValue(cell.column.columnDef.maxSize),
+                            ...getCommonPinningStyles({ column: cell.column }),
+                          } : {
+                            width: cell.column.getSize(),
+                            minWidth: cell.column.getSize(),
+                            maxWidth: formatSizeValue(cell.column.columnDef.maxSize) || cell.column.getSize(),
+                            ...getCommonPinningStyles({ column: cell.column }),
+                          }}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
                   );
                 })
               ) : (

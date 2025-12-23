@@ -41,10 +41,7 @@ export function useDigitalAds(businessId: string) {
       }
 
       if (params.sort && params.sort.length > 0) {
-        const sortBy = params.sort[0].id;
-        const sortOrder = params.sort[0].desc ? "desc" : "asc";
-        queryParams.append("sort_by", sortBy);
-        queryParams.append("sort_order", sortOrder);
+        queryParams.append("sort", JSON.stringify(params.sort));
       }
 
       const endpoint = `/client/digital-ads-opportunity-scorer?${queryParams.toString()}`;
@@ -58,7 +55,7 @@ export function useDigitalAds(businessId: string) {
         const flatRows = transformToTableRows(items);
 
         const pagination = response?.output_data?.pagination;
-        
+
         let pageCount = 0;
         if (pagination?.total_pages) {
           pageCount = pagination.total_pages;

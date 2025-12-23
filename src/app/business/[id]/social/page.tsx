@@ -59,13 +59,13 @@ export default function BusinessSocialPage({ params }: PageProps) {
     const baseBreadcrumbs = [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Social" },
+      { label: "Social", href: `/business/${businessId}/social` },
     ]
     if (campaignName) {
       baseBreadcrumbs.push({ label: campaignName })
     }
     return baseBreadcrumbs
-  }, [businessName, campaignName])
+  }, [businessName, businessId, campaignName])
 
   if (!businessId) {
     return (

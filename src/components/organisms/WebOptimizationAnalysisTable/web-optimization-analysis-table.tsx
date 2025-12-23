@@ -70,7 +70,7 @@ export function WebOptimizationAnalysisTable({
           pageSizeOptions={[10, 30, 50, 100, 200]}
           emptyMessage="No optimization opportunities found. Try adjusting your filters or check back later."
           onRowClick={onRowClick}
-          disableHorizontalScroll={true}
+          disableHorizontalScroll={false}
           className="h-full"
         />
       </div>

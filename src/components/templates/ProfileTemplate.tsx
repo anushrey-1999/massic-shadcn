@@ -880,9 +880,9 @@ const ProfileTemplate = ({
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Profile" },
+      { label: "Profile", href: `/business/${businessId}/profile` },
     ],
-    [businessName]
+    [businessName, businessId]
   );
 
   // Cache scroll container ref

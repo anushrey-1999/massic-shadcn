@@ -79,9 +79,9 @@ export default function BusinessAdsPage({ params }: PageProps) {
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Ads" },
+      { label: "Ads", href: `/business/${businessId}/ads` },
     ],
-    [businessName]
+    [businessName, businessId]
   )
 
   if (!businessId) {

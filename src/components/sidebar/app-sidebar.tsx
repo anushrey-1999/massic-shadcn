@@ -263,11 +263,11 @@ export default function AppSidebar() {
       icon: Settings,
       label: 'Settings',
     },
-    {
-      href: '/notifications',
-      icon: Bell,
-      label: 'Notifications',
-    },
+    // {
+    //   href: '/notifications',
+    //   icon: Bell,
+    //   label: 'Notifications',
+    // },
     {
       icon: LogOut,
       label: 'Logout',

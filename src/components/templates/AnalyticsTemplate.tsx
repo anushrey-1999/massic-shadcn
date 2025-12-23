@@ -86,9 +86,9 @@ export function AnalyticsTemplate() {
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Analytics" },
+      { label: "Analytics", href: businessId ? `/business/${businessId}/analytics` : undefined },
     ],
-    [businessName]
+    [businessName, businessId]
   );
 
   const locations = useMemo(() => {

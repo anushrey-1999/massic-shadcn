@@ -26,6 +26,11 @@ export function useStrategy(businessId: string) {
     platform,
   });
 
+  // Hook for fetching full data from download URL
+  const downloadApi = useApi<any>({
+    platform,
+  });
+
   /**
    * Transform nested API response to table rows
    * One row per topic with all clusters and keywords
@@ -232,14 +237,69 @@ export function useStrategy(businessId: string) {
     }
   }, [businessId, strategyApi]);
 
+  /**
+   * Fetch full dataset from download URL
+   */
+  const fetchFullDataFromDownloadUrl = useCallback(
+    async (businessId: string) => {
+      try {
+        // First, fetch the initial response to get the download_url
+        const endpoint = `/client/topic-strategy-builder?business_id=${businessId}&page=1&page_size=100`;
+        const response = await strategyApi.execute(endpoint, {
+          method: "GET",
+        });
+
+        const downloadUrl = (response?.output_data as any)?.download_url;
+
+        if (!downloadUrl) {
+          console.error("No download_url found in response");
+          return null;
+        }
+
+        // Fetch data from the download URL
+        const downloadResponse = await fetch(downloadUrl);
+        
+        if (!downloadResponse.ok) {
+          throw new Error(`Failed to fetch from download URL: ${downloadResponse.statusText}`);
+        }
+
+        const fullData = await downloadResponse.json();
+
+        console.log('Downloaded full data structure:', fullData);
+
+        // Transform the full dataset to table rows
+        // The download URL returns data with 'topics' at root level, not nested
+        const items = fullData?.topics || fullData?.output_data?.items || fullData?.items || [];
+        
+        console.log('Extracted items for transformation:', items.length, 'topics');
+        
+        const transformedRows = transformToTableRows(items);
+
+        console.log('Transformed rows:', transformedRows.length);
+
+        return {
+          data: transformedRows,
+          rawData: fullData,
+          metadata: fullData?.metadata || response?.metadata,
+        };
+      } catch (error) {
+        console.error("Error fetching full data from download URL:", error);
+        throw error;
+      }
+    },
+    [strategyApi, transformToTableRows]
+  );
+
   return {
     fetchStrategy,
     fetchStrategyCounts,
-    loading: strategyApi.loading || countsApi.loading,
-    error: strategyApi.error || countsApi.error,
+    fetchFullDataFromDownloadUrl,
+    loading: strategyApi.loading || countsApi.loading || downloadApi.loading,
+    error: strategyApi.error || countsApi.error || downloadApi.error,
     reset: () => {
       strategyApi.reset();
       countsApi.reset();
+      downloadApi.reset();
     },
   };
 }

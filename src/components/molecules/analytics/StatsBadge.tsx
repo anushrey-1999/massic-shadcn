@@ -20,7 +20,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
       ? "text-emerald-600"
       : isNegative
         ? "text-red-600"
-        : "text-muted-foreground"
+        : "text-general-muted-foreground"
 
     return (
       <span
@@ -68,7 +68,7 @@ export function TrendBadge({ label, variant = "default", className }: TrendBadge
   return (
     <span
       className={cn(
-        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-foreground-light",
+        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium leading-none",
         variant === "critical" && " text-red-600",
         variant === "positive" && "bg-emerald-100 text-emerald-600",
         variant === "default" && "bg-gray-100 text-gray-600",

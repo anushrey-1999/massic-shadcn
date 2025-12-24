@@ -1,3 +1,5 @@
+import type { ExtendedColumnFilter } from "./data-table-types";
+
 export interface DigitalAdsKeyword {
   keyword: string;
   search_volume: number;
@@ -63,13 +65,7 @@ export interface GetDigitalAdsSchema {
   page: number;
   perPage: number;
   sort: Array<{ field: string; desc: boolean }>;
-  filters: Array<{
-    id: string;
-    value: string | string[];
-    variant: string;
-    operator: string;
-    filterId: string;
-  }>;
+  filters: ExtendedColumnFilter<DigitalAdsRow>[];
   joinOperator: "and" | "or";
   search?: string;
 }

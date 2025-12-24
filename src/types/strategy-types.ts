@@ -1,3 +1,5 @@
+import type { ExtendedColumnFilter } from "./data-table-types";
+
 // Strategy data types based on Backend API Specification
 
 export interface StrategyTopic {
@@ -58,11 +60,7 @@ export interface GetStrategySchema {
   page: number;
   perPage: number;
   sort: Array<{ field: string; desc: boolean }>;
-  filters: Array<{
-    field: string;
-    value: string | string[];
-    operator: string;
-  }>;
+  filters: ExtendedColumnFilter<StrategyTopic>[];
   joinOperator: "and" | "or";
   offerings?: string; // Backend supports offerings as string filter
   search?: string;

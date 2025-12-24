@@ -29,13 +29,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       perPage: 100,
       search: undefined,
       sort: [] as Array<{ field: string; desc: boolean }>,
-      filters: [] as Array<{
-        id: string;
-        value: string | string[];
-        variant: string;
-        operator: string;
-        filterId: string;
-      }>,
+      filters: [] as any[],
       joinOperator: "and" as "and" | "or",
     };
 
@@ -204,7 +198,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       if (isCancelled) return;
       const webOptimizationQueryKey = ["web-optimization-analysis-all", businessId];
       const webOptimizationCached = queryClient.getQueryData(webOptimizationQueryKey);
-      
+
       // Check if there's an error state in the query
       const queryState = queryClient.getQueryState(webOptimizationQueryKey);
       const hasError = queryState?.error;
@@ -215,7 +209,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
           return; // Don't prefetch if we already have a 400/404 error
         }
       }
-      
+
       if (!webOptimizationCached) {
         try {
           await queryClient.prefetchQuery({

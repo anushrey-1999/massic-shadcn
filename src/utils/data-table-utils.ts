@@ -151,7 +151,7 @@ export function tableApplyAdvancedFilters<TData>(
 
   return data.filter((item) => {
     const results = filters.map((filter) => {
-      const value = item[filter.id as keyof TData];
+      const value = item[filter.field as keyof TData];
 
       switch (filter.operator) {
         case "iLike":

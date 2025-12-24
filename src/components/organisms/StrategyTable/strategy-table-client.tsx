@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useStrategy } from "@/hooks/use-strategy";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import type { StrategyRow } from "@/types/strategy-types";
+import type { StrategyRow, StrategyTopic } from "@/types/strategy-types";
+import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface StrategyTableClientProps {
   businessId: string;
@@ -36,19 +37,9 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
   );
   const [filters] = useQueryState(
     "filters",
-    parseAsJson<
-      Array<{
-        field: string;
-        value: string | string[];
-        operator: string;
-      }>
-    >((value) => {
+    parseAsJson<ExtendedColumnFilter<StrategyTopic>[]>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{
-          field: string;
-          value: string | string[];
-          operator: string;
-        }>;
+        return value as ExtendedColumnFilter<StrategyTopic>[];
       }
       return null;
     }).withDefault([])

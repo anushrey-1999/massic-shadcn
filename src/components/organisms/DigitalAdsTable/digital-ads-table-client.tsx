@@ -10,6 +10,7 @@ import { AlertCircle, ArrowLeft } from "lucide-react";
 import { useDigitalAds } from "@/hooks/use-digital-ads";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { DigitalAdsRow } from "@/types/digital-ads-types";
+import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface DigitalAdsTableClientProps {
   businessId: string;
@@ -33,23 +34,9 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
   );
   const [filters] = useQueryState(
     "filters",
-    parseAsJson<
-      Array<{
-        id: string;
-        value: string | string[];
-        variant: string;
-        operator: string;
-        filterId: string;
-      }>
-    >((value) => {
+    parseAsJson<ExtendedColumnFilter<DigitalAdsRow>[]>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{
-          id: string;
-          value: string | string[];
-          variant: string;
-          operator: string;
-          filterId: string;
-        }>;
+        return value as ExtendedColumnFilter<DigitalAdsRow>[];
       }
       return null;
     }).withDefault([])

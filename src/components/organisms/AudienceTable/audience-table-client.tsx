@@ -10,7 +10,7 @@ import { AlertCircle } from "lucide-react";
 import { useAudience } from "@/hooks/use-audience";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { AudienceRow, AudienceUseCaseRow } from "@/types/audience-types";
-import type { ExtendedColumnFilter } from "@/components/filter-table/data-table-types";
+import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface AudienceTableClientProps {
   businessId: string;
@@ -36,9 +36,9 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
   );
   const [filters] = useQueryState(
     "filters",
-    parseAsJson<ExtendedColumnFilter[]>((value) => {
+    parseAsJson<ExtendedColumnFilter<AudienceRow>[]>((value) => {
       if (Array.isArray(value)) {
-        return value as ExtendedColumnFilter[];
+        return value as ExtendedColumnFilter<AudienceRow>[];
       }
       return null;
     }).withDefault([])

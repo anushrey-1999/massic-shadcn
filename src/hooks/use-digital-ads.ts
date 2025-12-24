@@ -46,38 +46,18 @@ export function useDigitalAds(businessId: string) {
       }
 
       if (params.filters && params.filters.length > 0) {
-        const modifiedFilters = params.filters
-          .map((filter) => {
-            const isOfferingFilter =
-              filter.id === "offerings" ||
-              filter.filterId === "offerings" ||
-              filter.field === "offerings";
-
-            if (isOfferingFilter) {
-              return {
-                field: "offerings",
-                value: filter.value,
-                operator: filter.operator,
-              };
-            }
-
-            const fallbackField = (filter as any).field ?? filter.id ?? filter.filterId ?? "";
-            if (!fallbackField) return null;
-
-            return {
-              field: fallbackField,
-              value: filter.value,
-              operator: filter.operator,
-            };
-          })
-          .filter(Boolean);
+        const modifiedFilters = params.filters.map((filter) => ({
+          field: filter.field,
+          value: filter.value,
+          operator: filter.operator,
+        }));
 
         if (modifiedFilters.length > 0) {
           queryParams.append("filters", JSON.stringify(modifiedFilters));
         }
 
         const offeringFilter = modifiedFilters.find(
-          (f) => (f as any).field === "offerings"
+          (f) => f.field === "offerings"
         ) as { value: string | string[] } | undefined;
 
         if (offeringFilter) {

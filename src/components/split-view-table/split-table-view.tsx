@@ -24,6 +24,8 @@ interface SplitTableViewProps<TLeftData, TRightData> {
   rightTable: Table<TRightData>;
   rightEmptyMessage?: string;
   rightTableProps?: {
+    onRowClick?: (row: TRightData) => void;
+    selectedRowId?: string | null;
     showPagination?: boolean;
     pageSizeOptions?: number[];
   };
@@ -75,14 +77,14 @@ export function SplitTableView<TLeftData, TRightData>({
   onSearchChange,
   searchPlaceholder = "Search...",
   searchColumnIds,
-  leftTableHooks = {},
-  rightTableHooks = {},
+  leftTableHooks: _leftTableHooks = {},
+  rightTableHooks: _rightTableHooks = {},
   columnMapping = {},
   leftTableWidth = "35%",
   rightTableWidth = "65%",
   gap = "1rem",
   onBack,
-  showFilters = true,
+  showFilters: _showFilters = true,
 }: SplitTableViewProps<TLeftData, TRightData>) {
   // Memoize searchable columns to avoid finding them on every render
   const leftSearchableColumn = React.useMemo(() => {
@@ -139,7 +141,7 @@ export function SplitTableView<TLeftData, TRightData>({
       }
     });
     isSyncingFilters.current = false;
-  }, [leftTable.getState().columnFilters, rightTable, columnMapping]);
+  }, [leftTable, rightTable, columnMapping]);
 
   // Sync sorting between tables - only sync when there's an explicit column mapping
   // This prevents trying to sync left-only columns to the right table
@@ -186,7 +188,7 @@ export function SplitTableView<TLeftData, TRightData>({
         isSyncingSort.current = false;
       }
     }
-  }, [leftTable.getState().sorting, rightTable, columnMapping]);
+  }, [leftTable, rightTable, columnMapping]);
 
   return (
     <div className="bg-white rounded-lg p-4 flex-1 min-h-0 flex flex-col">
@@ -245,6 +247,7 @@ export function SplitTableView<TLeftData, TRightData>({
         </div>
         <div
           className="flex flex-col flex-1 min-w-0 h-full overflow-hidden"
+          style={{ width: rightTableWidth, minWidth: 0, maxWidth: rightTableWidth }}
         >
           <DataTable
             table={rightTable}
@@ -252,6 +255,8 @@ export function SplitTableView<TLeftData, TRightData>({
             isFetching={false}
             pageSizeOptions={rightTableProps.pageSizeOptions || [10, 30, 50, 100, 200]}
             emptyMessage={rightEmptyMessage}
+            onRowClick={rightTableProps.onRowClick}
+            selectedRowId={rightTableProps.selectedRowId}
             showPagination={rightTableProps.showPagination !== false}
             className="h-full"
             disableHorizontalScroll={true}

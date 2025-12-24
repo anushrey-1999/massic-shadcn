@@ -10,15 +10,20 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useStrategy } from "@/hooks/use-strategy";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import type { StrategyRow, StrategyTopic } from "@/types/strategy-types";
+import type { StrategyCluster, StrategyRow, StrategyTopic } from "@/types/strategy-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface StrategyTableClientProps {
   businessId: string;
   onSplitViewChange?: (isSplitView: boolean) => void;
+  toolbarRightPrefix?: React.ReactNode;
 }
 
-export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyTableClientProps) {
+export function StrategyTableClient({
+  businessId,
+  onSplitViewChange,
+  toolbarRightPrefix,
+}: StrategyTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedTopicId, setSelectedTopicId] = React.useState<string | null>(null);
   // Read query parameters from URL
@@ -60,7 +65,7 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
 
   // Check if job exists - strategy API should only be called when job exists
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
-  const jobExists = jobDetails && jobDetails.job_id;
+  const jobExists = !!jobDetails?.job_id;
 
   // Get the useStrategy hook
   const { fetchStrategy, fetchStrategyCounts } = useStrategy(businessId);
@@ -151,10 +156,13 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
       "and",
     ];
 
-    const page1Data = queryClient.getQueryData(page1QueryKey) as any;
-    if (page1Data?.pageCount && page1Data.pageCount > 1) {
+    const page1Data = queryClient.getQueryData(page1QueryKey) as
+      | { pageCount?: number }
+      | undefined;
+    const pageCount = page1Data?.pageCount;
+    if (typeof pageCount === "number" && pageCount > 1) {
       const prefetchNextPages = async () => {
-        for (let nextPage = 2; nextPage <= Math.min(3, page1Data.pageCount); nextPage++) {
+        for (let nextPage = 2; nextPage <= Math.min(3, pageCount); nextPage++) {
           const nextPageQueryKey = [
             "strategy",
             businessId,
@@ -289,12 +297,7 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
   // Fetch counts and ranges (these don't depend on filters)
   // DISABLED: Backend doesn't have a separate counts endpoint yet
   // We'll use default values for now
-  const {
-    data: countsData,
-    isError: countsError,
-    error: countsErrorData,
-    refetch: refetchCounts,
-  } = useQuery({
+  const { data: countsData } = useQuery({
     queryKey: ["strategy-counts", businessId],
     queryFn: async () => {
       return fetchStrategyCounts();
@@ -308,10 +311,51 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
   // Get offerings from job details
   const offerings = React.useMemo(() => {
     if (!jobDetails?.offerings) return [];
-    return jobDetails.offerings.map((offering: any) => {
+    return (jobDetails.offerings as Array<{ name?: string; offering?: string }>).map((offering) => {
       return offering.name || offering.offering || "";
     }).filter((name: string) => name.length > 0);
   }, [jobDetails]);
+
+  const handleRowClick = React.useCallback(
+    (row: StrategyRow) => {
+      setSelectedTopicId(row.id);
+      setIsSplitView(true);
+      onSplitViewChange?.(true);
+    },
+    [onSplitViewChange]
+  );
+
+  const handleBackToMain = React.useCallback(() => {
+    setIsSplitView(false);
+    setSelectedTopicId(null);
+    onSplitViewChange?.(false);
+  }, [onSplitViewChange]);
+
+  const selectedTopic = React.useMemo(() => {
+    if (!selectedTopicId || !strategyData?.data) return null;
+    return strategyData.data.find((row) => row.id === selectedTopicId) || null;
+  }, [selectedTopicId, strategyData?.data]);
+
+  const clustersData = React.useMemo((): StrategyClusterRow[] => {
+    if (!selectedTopic) return [];
+
+    const clusters = selectedTopic.clusters || [];
+    if (!Array.isArray(clusters) || clusters.length === 0) return [];
+
+    return clusters.map((cluster: StrategyCluster, index: number) => {
+      const clusterName = cluster?.cluster || "";
+      const keywords = Array.isArray(cluster?.keywords)
+        ? cluster.keywords.filter((k) => k && typeof k === "string")
+        : [];
+
+      return {
+        id: `${selectedTopicId}_${clusterName}_${index}`,
+        cluster: clusterName,
+        keywords,
+        topic: selectedTopic.topic,
+      };
+    });
+  }, [selectedTopic, selectedTopicId]);
 
   // Create offering counts for filter options (all have count of 0 since we don't have real counts)
   const offeringCounts = React.useMemo(() => {
@@ -346,44 +390,6 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
       </div>
     );
   }
-
-  const handleRowClick = React.useCallback((row: StrategyRow) => {
-    setSelectedTopicId(row.id);
-    setIsSplitView(true);
-    onSplitViewChange?.(true);
-  }, [onSplitViewChange]);
-
-  const handleBackToMain = React.useCallback(() => {
-    setIsSplitView(false);
-    setSelectedTopicId(null);
-    onSplitViewChange?.(false);
-  }, [onSplitViewChange]);
-
-  const selectedTopic = React.useMemo(() => {
-    if (!selectedTopicId || !strategyData?.data) return null;
-    return strategyData.data.find(row => row.id === selectedTopicId) || null;
-  }, [selectedTopicId, strategyData?.data]);
-
-  const clustersData = React.useMemo((): StrategyClusterRow[] => {
-    if (!selectedTopic) return [];
-
-    const clusters = selectedTopic.clusters || [];
-    if (!Array.isArray(clusters) || clusters.length === 0) return [];
-
-    return clusters.map((cluster: any, index: number) => {
-      const clusterName = cluster?.cluster || "";
-      const keywords = Array.isArray(cluster?.keywords)
-        ? cluster.keywords.filter((k: any) => k && typeof k === 'string')
-        : [];
-
-      return {
-        id: `${selectedTopicId}_${clusterName}_${index}`,
-        cluster: clusterName,
-        keywords: keywords,
-        topic: selectedTopic.topic,
-      };
-    });
-  }, [selectedTopic, selectedTopicId]);
 
   if (isSplitView) {
     return (
@@ -425,6 +431,7 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
         search={search}
         onSearchChange={setSearch}
         onRowClick={handleRowClick}
+        toolbarRightPrefix={toolbarRightPrefix}
       />
     </div>
   );

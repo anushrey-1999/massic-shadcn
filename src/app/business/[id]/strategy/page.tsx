@@ -20,6 +20,7 @@ import {
 } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
+import { CircleDot, List } from "lucide-react";
 
 interface PageProps {
 	params: Promise<{
@@ -65,9 +66,15 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 			onValueChange={(value) => setStrategyView(value as "list" | "bubble")}
 			className="shrink-0"
 		>
-			<TabsList>
-				<TabsTrigger value="list">List View</TabsTrigger>
-				<TabsTrigger value="bubble">Bubble View</TabsTrigger>
+			<TabsList className="">
+				<TabsTrigger value="list">
+          <List />
+          List
+          </TabsTrigger>
+				<TabsTrigger value="bubble">
+           <CircleDot />
+           Map
+           </TabsTrigger>
 			</TabsList>
 		</Tabs>
 	);
@@ -86,7 +93,6 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 							<TabsTrigger value="audience">Audience</TabsTrigger>
 							<TabsTrigger value="landscape">Landscape</TabsTrigger>
 						</TabsList>
-						{primaryTab === "strategy" ? strategyViewTabs : null}
 					</div>
 				)}
 				<TabsContent
@@ -96,15 +102,12 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 						!(isStrategySplitView || isAudienceSplitView) && "mt-4",
 					)}
 				>
-					{(isStrategySplitView || isAudienceSplitView) ? (
-						<div className="shrink-0 mb-4">{strategyViewTabs}</div>
-					) : null}
-
 					{strategyView === "list" ? (
 						<div className="flex-1 min-h-0 overflow-hidden">
 							<StrategyTableClient
 								businessId={businessId}
 								onSplitViewChange={setIsStrategySplitView}
+								toolbarRightPrefix={strategyViewTabs}
 							/>
 						</div>
 					) : (
@@ -152,13 +155,16 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 											</div>
 										</div>
 
-										<Typography
-											variant="p"
-											className="text-base font-mono text-general-muted-foreground"
-										>
-											{fullData.data.length} total topic
-											{fullData.data.length === 1 ? "" : "s"}
-										</Typography>
+										<div className="flex items-center gap-4">
+											<Typography
+												variant="p"
+												className="text-base font-mono text-general-muted-foreground"
+											>
+												{fullData.data.length} total topic
+												{fullData.data.length === 1 ? "" : "s"}
+											</Typography>
+											{strategyViewTabs}
+										</div>
 									</div>
 									<div className="flex-1 min-h-0">
 										<StrategyBubbleChart data={fullData.data} />

@@ -29,9 +29,11 @@ export const StrategySplitView = React.memo(function StrategySplitView({
   onSearchChange,
   onBack,
   pageCount = 1,
-  businessRelevanceRange = { min: 0, max: 1 },
+  businessRelevanceRange: _businessRelevanceRange = { min: 0, max: 1 },
 }: StrategySplitViewProps) {
   const enableAdvancedFilter = true;
+
+  const [expandedClusterRowId, setExpandedClusterRowId] = React.useState<string | null>(null);
 
   const leftColumns = React.useMemo(
     () => getStrategySplitTableColumns(),
@@ -39,8 +41,12 @@ export const StrategySplitView = React.memo(function StrategySplitView({
   );
 
   const clustersColumns = React.useMemo(
-    () => getStrategyClustersTableColumns(),
-    []
+    () =>
+      getStrategyClustersTableColumns({
+        expandedRowId: expandedClusterRowId,
+        onExpandedRowChange: setExpandedClusterRowId,
+      }),
+    [expandedClusterRowId]
   );
 
   const {
@@ -68,6 +74,14 @@ export const StrategySplitView = React.memo(function StrategySplitView({
     if (!selectedTopicId) return [];
     return clustersData;
   }, [selectedTopicId, clustersData]);
+
+  React.useEffect(() => {
+    if (selectedTopicId === null) {
+      setExpandedClusterRowId(null);
+      return;
+    }
+    setExpandedClusterRowId(null);
+  }, [selectedTopicId]);
 
   const { table: clustersTable } = useLocalDataTable({
     data: filteredClustersData,
@@ -102,6 +116,9 @@ export const StrategySplitView = React.memo(function StrategySplitView({
 
   const rightTableProps = React.useMemo(
     () => ({
+      onRowClick: (row: StrategyClusterRow) => {
+        setExpandedClusterRowId((prev) => (prev === row.id ? null : row.id));
+      },
       showPagination: false,
       pageSizeOptions,
     }),

@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth-store'
 import { useBusinessProfiles } from '@/hooks/use-business-profiles'
-import { HomeTemplate } from '@/templates/home/HomeTemplate'
+import { HomeTemplate } from '@/components/templates/HomeTemplate'
 
 const SINGLE_BUSINESS_ROLE_ID = 4
 

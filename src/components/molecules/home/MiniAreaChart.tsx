@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useRef, useEffect, useId } from "react"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Area, AreaChart, XAxis, YAxis } from "recharts"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,12 +17,18 @@ export type PreviewGraph = {
 }
 
 const miniChartConfig: ChartConfig = {
-  impressionsNorm: { label: "Impressions", color: "#9CA3AF" },
+  impressionsNorm: { label: "Impressions", color: "#4B5563" },
   clicksNorm: { label: "Clicks", color: "#2563EB" },
   goalsNorm: { label: "Goals", color: "#059669" },
 }
 
 export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const impressionsGradientId = useId()
+  const clicksGradientId = useId()
+  const goalsGradientId = useId()
+
   const data = useMemo(() => {
     const rows = graph?.rows || []
     return rows.map((row) => ({
@@ -52,8 +58,8 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
 
     const logMax = Math.log10(globalMax + 1)
     const scaleValue = (value: number): number => {
-      if (!value) return 0
-      return (Math.log10(value + 1) / logMax) * 100
+      if (!value) return 2
+      return Math.max(2, (Math.log10(value + 1) / logMax) * 100)
     }
 
     return data.map((point) => ({
@@ -64,6 +70,30 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
     }))
   }, [data])
 
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleWheel = (e: globalThis.WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -0.1 : 0.1
+      setZoomLevel((prev) => Math.max(0.5, Math.min(3, prev + delta)))
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => container.removeEventListener('wheel', handleWheel)
+  }, [])
+
+  const visibleData = useMemo(() => {
+    if (zoomLevel === 1) return normalizedData
+    
+    const totalPoints = normalizedData.length
+    const visiblePoints = Math.max(2, Math.floor(totalPoints / zoomLevel))
+    const startIndex = Math.floor((totalPoints - visiblePoints) / 2)
+    
+    return normalizedData.slice(startIndex, startIndex + visiblePoints)
+  }, [normalizedData, zoomLevel])
+
   if (data.length === 0) {
     return (
       <div className="h-[115px] flex items-center justify-center">
@@ -73,9 +103,26 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
   }
 
   return (
-    <div className="h-[115px] w-full">
+    <div 
+      ref={containerRef}
+      className="h-[115px] w-full"
+    >
       <ChartContainer config={miniChartConfig} className="h-full w-full">
-        <AreaChart data={normalizedData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <AreaChart data={visibleData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={impressionsGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#4B5563" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#4B5563" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id={clicksGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2563EB" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id={goalsGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#059669" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#059669" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <XAxis dataKey="date" hide />
           <YAxis hide />
           <ChartTooltip
@@ -113,24 +160,24 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
             type="monotone"
             dataKey="impressionsNorm"
             stroke="var(--color-impressionsNorm)"
-            fill="transparent"
-            strokeWidth={1.5}
+            fill={`url(#${impressionsGradientId})`}
+            strokeWidth={1}
             dot={false}
           />
           <Area
             type="monotone"
             dataKey="goalsNorm"
             stroke="var(--color-goalsNorm)"
-            fill="transparent"
-            strokeWidth={1.5}
+            fill={`url(#${goalsGradientId})`}
+            strokeWidth={1}
             dot={false}
           />
           <Area
             type="monotone"
             dataKey="clicksNorm"
             stroke="var(--color-clicksNorm)"
-            fill="transparent"
-            strokeWidth={1.5}
+            fill={`url(#${clicksGradientId})`}
+            strokeWidth={1}
             dot={false}
           />
         </AreaChart>

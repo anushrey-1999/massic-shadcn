@@ -10,6 +10,7 @@ import { AlertCircle } from "lucide-react";
 import { useAudience } from "@/hooks/use-audience";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { AudienceRow, AudienceUseCaseRow } from "@/types/audience-types";
+import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface AudienceTableClientProps {
   businessId: string;
@@ -35,31 +36,14 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
   );
   const [filters] = useQueryState(
     "filters",
-    parseAsJson<
-      Array<{
-        id: string;
-        value: string | string[];
-        variant: string;
-        operator: string;
-        filterId: string;
-      }>
-    >((value) => {
+    parseAsJson<ExtendedColumnFilter<AudienceRow>[]>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{
-          id: string;
-          value: string | string[];
-          variant: string;
-          operator: string;
-          filterId: string;
-        }>;
+        return value as ExtendedColumnFilter<AudienceRow>[];
       }
       return null;
     }).withDefault([])
   );
-  const [joinOperator] = useQueryState(
-    "joinOperator",
-    parseAsString.withDefault("and")
-  );
+  const [joinOperator] = useQueryState("joinOperator", parseAsString.withDefault("and"));
 
   React.useEffect(() => {
     if (search && page !== 1) {
@@ -69,6 +53,21 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
+
+  const offerings = React.useMemo(() => {
+    if (!jobDetails || !jobDetails.offerings) return [];
+    return jobDetails.offerings
+      .map((o) => o.name || o.offering)
+      .filter(Boolean) as string[];
+  }, [jobDetails]);
+
+  const offeringCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    offerings.forEach((offering) => {
+      counts[offering] = 0;
+    });
+    return counts;
+  }, [offerings]);
 
   const { fetchAudience, fetchAudienceCounts } = useAudience(businessId);
   const queryClient = useQueryClient();
@@ -305,6 +304,7 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
         personaCounts={countsData?.personaCounts || {}}
         arsRange={countsData?.arsRange || { min: 0, max: 1 }}
         useCaseCounts={countsData?.useCaseCounts || {}}
+        offeringCounts={offeringCounts}
         isLoading={audienceLoading && !audienceData}
         isFetching={audienceFetching}
         search={search}

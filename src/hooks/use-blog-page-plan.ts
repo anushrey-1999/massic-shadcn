@@ -28,6 +28,7 @@ export function useBlogPagePlan(businessId: string) {
         ? item.supporting_keywords.length
         : 0,
       ...item,
+      offerings: item.offerings || [],
     }));
   }, []);
 
@@ -45,6 +46,29 @@ export function useBlogPagePlan(businessId: string) {
 
       if (params.sort && params.sort.length > 0) {
         queryParams.append("sort", JSON.stringify(params.sort));
+      }
+
+      if (params.filters && params.filters.length > 0) {
+        queryParams.append("filters", JSON.stringify(params.filters));
+      }
+
+      if (params.filters && params.filters.length > 0 && params.joinOperator) {
+        queryParams.append("joinOperator", params.joinOperator);
+      }
+
+      const offeringFilter = params.filters?.find((filter) => {
+        return filter.id === "offerings" || filter.filterId === "offerings";
+      });
+
+      if (offeringFilter) {
+        const values = Array.isArray(offeringFilter.value)
+          ? offeringFilter.value
+          : [offeringFilter.value];
+        const offeringsValue = values.filter(Boolean).join(",");
+
+        if (offeringsValue) {
+          queryParams.append("offerings", offeringsValue);
+        }
       }
 
       const endpoint = `/client/create-blog-page-plan?${queryParams.toString()}`;

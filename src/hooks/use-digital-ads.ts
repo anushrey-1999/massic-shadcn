@@ -25,6 +25,7 @@ export function useDigitalAds(businessId: string) {
       comp_sum: item.comp_sum || 0,
       business_relevance_score: item.business_relevance_score || 0,
       keywords: item.keywords || [],
+      offerings: item.offerings || [],
     }));
   }, []);
 
@@ -42,6 +43,36 @@ export function useDigitalAds(businessId: string) {
 
       if (params.sort && params.sort.length > 0) {
         queryParams.append("sort", JSON.stringify(params.sort));
+      }
+
+      if (params.filters && params.filters.length > 0) {
+        const modifiedFilters = params.filters.map((filter) => ({
+          field: filter.field,
+          value: filter.value,
+          operator: filter.operator,
+        }));
+
+        if (modifiedFilters.length > 0) {
+          queryParams.append("filters", JSON.stringify(modifiedFilters));
+        }
+
+        const offeringFilter = modifiedFilters.find(
+          (f) => f.field === "offerings"
+        ) as { value: string | string[] } | undefined;
+
+        if (offeringFilter) {
+          const values = Array.isArray(offeringFilter.value)
+            ? offeringFilter.value
+            : [offeringFilter.value];
+          const offeringsValue = values.filter(Boolean).join(",");
+          if (offeringsValue) {
+            queryParams.append("offerings", offeringsValue);
+          }
+        }
+      }
+
+      if (params.filters && params.filters.length > 0 && params.joinOperator) {
+        queryParams.append("joinOperator", params.joinOperator);
       }
 
       const endpoint = `/client/digital-ads-opportunity-scorer?${queryParams.toString()}`;

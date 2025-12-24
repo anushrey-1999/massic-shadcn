@@ -17,6 +17,7 @@ interface AudienceTableProps {
   personaCounts?: Record<string, number>;
   arsRange?: { min: number; max: number };
   useCaseCounts?: Record<string, number>;
+  offeringCounts?: Record<string, number>;
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -31,6 +32,7 @@ export function AudienceTable({
   personaCounts = {},
   arsRange = { min: 0, max: 1 },
   useCaseCounts = {},
+  offeringCounts = {},
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -46,8 +48,9 @@ export function AudienceTable({
         personaCounts,
         arsRange,
         useCaseCounts,
+        offeringCounts,
       }),
-    [personaCounts, arsRange, useCaseCounts]
+    [personaCounts, arsRange, useCaseCounts, offeringCounts]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -59,6 +62,9 @@ export function AudienceTable({
       pagination: {
         pageIndex: 0,
         pageSize: 100,
+      },
+      columnVisibility: {
+        offerings: false,
       },
     },
     queryKeys,

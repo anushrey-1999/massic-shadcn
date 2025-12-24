@@ -53,11 +53,9 @@ export const getSortingStateParser = <TData>(
 };
 
 const filterItemSchema = z.object({
-  id: z.string(),
+  field: z.string(),
   value: z.union([z.string(), z.array(z.string())]),
-  variant: z.enum(dataTableConfig.filterVariants),
   operator: z.enum(dataTableConfig.operators),
-  filterId: z.string(),
 });
 
 export type FilterItemSchema = z.infer<typeof filterItemSchema>;
@@ -79,7 +77,7 @@ export const getFiltersStateParser = <TData>(
 
         if (!result.success) return null;
 
-        if (validKeys && result.data.some((item) => !validKeys.has(item.id))) {
+        if (validKeys && result.data.some((item) => !validKeys.has(item.field))) {
           return null;
         }
 
@@ -93,9 +91,8 @@ export const getFiltersStateParser = <TData>(
       a.length === b.length &&
       a.every(
         (filter, index) =>
-          filter.id === b[index]?.id &&
+          filter.field === b[index]?.field &&
           filter.value === b[index]?.value &&
-          filter.variant === b[index]?.variant &&
           filter.operator === b[index]?.operator,
       ),
   });

@@ -14,10 +14,12 @@ declare module "@tanstack/react-table" {
     placeholder?: string;
     variant?: FilterVariant;
     options?: Option[];
+    operators?: Array<{ label: string; value: FilterOperator }>;
     range?: [number, number];
     unit?: string;
     icon?: React.FC<React.SVGProps<SVGSVGElement>>;
     align?: "left" | "center" | "right"; // Column alignment (default: "left")
+    closeOnSelect?: boolean; // Close faceted dropdown on select (for multiSelect)
   }
 }
 
@@ -46,7 +48,7 @@ export interface ExtendedColumnSort<TData> {
 }
 
 export interface ExtendedColumnFilter<TData> extends FilterItemSchema {
-  id: Extract<keyof TData, string>;
+  field: Extract<keyof TData, string>;
 }
 
 export interface DataTableRowAction<TData> {

@@ -67,7 +67,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     "campaign_name",
     parseAsString
   );
-  
+
   // Store the channel from the clicked row (for tactics view) without changing URL state
   const [selectedRowChannel, setSelectedRowChannel] = React.useState<string | null>(null);
 
@@ -131,7 +131,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
   }, [hasActiveSearchOrFilters, businessId, queryClient]);
 
   const effectiveChannelName = channelName || "all";
-  
+
   const queryKey = React.useMemo(
     () => [
       "social",
@@ -378,9 +378,25 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     enabled: false,
   });
 
+  const offerings = React.useMemo(() => {
+    if (!jobDetails?.offerings) return [] as string[];
+
+    return jobDetails.offerings
+      .map((offering: any) => offering.name || offering.offering || "")
+      .filter((name: string) => name.length > 0);
+  }, [jobDetails]);
+
+  const offeringCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    offerings.forEach((offering: string) => {
+      counts[offering] = 0;
+    });
+    return counts;
+  }, [offerings]);
+
   // Use selectedRowChannel for tactics if available, otherwise use channelName from URL
   const tacticsChannel = selectedRowChannel || channelName;
-  
+
   const tacticsQueryKey = React.useMemo(
     () => [
       "tactics",
@@ -388,13 +404,12 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
       tacticsPage,
       perPage,
       tacticsSearch || "",
-      JSON.stringify([]),
-      JSON.stringify([]),
-      "and",
+      JSON.stringify(filters),
+      joinOperator,
       tacticsChannel || null,
       campaignName || null,
     ],
-    [businessId, tacticsPage, perPage, tacticsSearch, tacticsChannel, campaignName]
+    [businessId, tacticsPage, perPage, tacticsSearch, filters, joinOperator, tacticsChannel, campaignName]
   );
 
   const {
@@ -416,8 +431,8 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
         perPage,
         search: tacticsSearch || undefined,
         sort: [],
-        filters: [],
-        joinOperator: "and" as "and" | "or",
+        filters: filters || [],
+        joinOperator: (joinOperator || "and") as "and" | "or",
         channel_name: tacticsChannel || undefined,
         campaign_name: campaignName || undefined,
       });
@@ -531,6 +546,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
       <SocialTable
         data={socialData?.data || []}
         pageCount={socialData?.pageCount || 0}
+        offeringCounts={offeringCounts}
         isLoading={socialLoading && !socialData}
         isFetching={socialFetching}
         search={search}

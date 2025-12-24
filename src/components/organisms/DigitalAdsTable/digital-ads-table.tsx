@@ -14,6 +14,7 @@ import { getDigitalAdsTableColumns } from "./digital-ads-table-columns";
 interface DigitalAdsTableProps {
   data: DigitalAdsRow[];
   pageCount: number;
+  offeringCounts?: Record<string, number>;
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -25,6 +26,7 @@ interface DigitalAdsTableProps {
 export function DigitalAdsTable({
   data,
   pageCount,
+  offeringCounts = {},
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -35,8 +37,8 @@ export function DigitalAdsTable({
   const enableAdvancedFilter = true;
 
   const columns = React.useMemo(
-    () => getDigitalAdsTableColumns(),
-    []
+    () => getDigitalAdsTableColumns({ offeringCounts }),
+    [offeringCounts]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -48,6 +50,9 @@ export function DigitalAdsTable({
       pagination: {
         pageIndex: 0,
         pageSize: 100,
+      },
+      columnVisibility: {
+        offerings: false,
       },
     },
     queryKeys,

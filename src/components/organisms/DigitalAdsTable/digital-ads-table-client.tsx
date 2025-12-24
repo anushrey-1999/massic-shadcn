@@ -10,6 +10,7 @@ import { AlertCircle, ArrowLeft } from "lucide-react";
 import { useDigitalAds } from "@/hooks/use-digital-ads";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { DigitalAdsRow } from "@/types/digital-ads-types";
+import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface DigitalAdsTableClientProps {
   businessId: string;
@@ -33,23 +34,9 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
   );
   const [filters] = useQueryState(
     "filters",
-    parseAsJson<
-      Array<{
-        id: string;
-        value: string | string[];
-        variant: string;
-        operator: string;
-        filterId: string;
-      }>
-    >((value) => {
+    parseAsJson<ExtendedColumnFilter<DigitalAdsRow>[]>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{
-          id: string;
-          value: string | string[];
-          variant: string;
-          operator: string;
-          filterId: string;
-        }>;
+        return value as ExtendedColumnFilter<DigitalAdsRow>[];
       }
       return null;
     }).withDefault([])
@@ -77,6 +64,22 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
 
   const { fetchDigitalAds } = useDigitalAds(businessId);
   const queryClient = useQueryClient();
+
+  const offerings = React.useMemo(() => {
+    if (!jobDetails?.offerings) return [] as string[];
+
+    return jobDetails.offerings
+      .map((offering: any) => offering.name || offering.offering || "")
+      .filter((name: string) => name.length > 0);
+  }, [jobDetails]);
+
+  const offeringCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    offerings.forEach((offering: string) => {
+      counts[offering] = 0;
+    });
+    return counts;
+  }, [offerings]);
 
   React.useEffect(() => {
     if (!hasActiveSearchOrFilters) return;
@@ -292,6 +295,7 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
       <DigitalAdsTable
         data={digitalAdsData?.data || []}
         pageCount={digitalAdsData?.pageCount || 0}
+        offeringCounts={offeringCounts}
         isLoading={digitalAdsLoading && !digitalAdsData}
         isFetching={digitalAdsFetching}
         search={search}

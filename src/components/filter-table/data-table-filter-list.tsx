@@ -51,7 +51,6 @@ import { dataTableConfig } from "./data-table-config";
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback";
 import { getDefaultFilterOperator, getFilterOperators } from "@/utils/data-table-utils";
 import { formatDate } from "@/lib/format";
-import { generateId } from "@/lib/id";
 import { getFiltersStateParser } from "./parsers";
 import { cn } from "@/lib/utils";
 import type {
@@ -102,16 +101,22 @@ export function DataTableFilterList<TData>({
         throttleMs,
       }),
   );
-  const debouncedSetFilters = useDebouncedCallback(setFilters, debounceMs);
 
   const [draftFilters, setDraftFilters] = React.useState<
     ExtendedColumnFilter<TData>[]
   >([]);
 
-  const allFilters = React.useMemo(
-    () => [...filters, ...draftFilters],
-    [filters, draftFilters],
+  // Track fields that should be removed from URL on next sync (e.g., when changing a filter's field)
+  const [fieldsToRemove, setFieldsToRemove] = React.useState<Set<string>>(
+    () => new Set(),
   );
+
+  // Combine filters - draftFilters override URL filters for the same field
+  const allFilters = React.useMemo(() => {
+    const draftFields = new Set(draftFilters.map((f) => f.field));
+    const appliedFilters = filters.filter((f) => !draftFields.has(f.field));
+    return [...appliedFilters, ...draftFilters];
+  }, [filters, draftFilters]);
 
   const isActiveFilterValue = React.useCallback(
     (value: string | string[]) => {
@@ -131,85 +136,201 @@ export function DataTableFilterList<TData>({
     }),
   );
 
+  const usedFields = React.useMemo(
+    () =>
+      new Set<Extract<keyof TData, string>>(allFilters.map((filter) => filter.field)),
+    [allFilters],
+  );
+
+  const hasAvailableFields = React.useMemo(
+    () => columns.some((column) => !usedFields.has(column.id as Extract<keyof TData, string>)),
+    [columns, usedFields],
+  );
+
+  const getOperatorsForField = React.useCallback(
+    (fieldId: string) => {
+      const column = columns.find((col) => col.id === fieldId);
+      const columnMeta = column?.columnDef.meta;
+      const operators = columnMeta?.operators || getFilterOperators(columnMeta?.variant ?? "text");
+      const defaultOperator =
+        operators[0]?.value || getDefaultFilterOperator(columnMeta?.variant ?? "text");
+      return { operators, defaultOperator };
+    },
+    [columns],
+  );
+
   const onFilterAdd = React.useCallback(() => {
     const column = columns[0];
 
     if (!column) return;
 
-    // IMPORTANT: Do not commit anything to the URL yet.
-    // Create a local draft filter; it will be committed only once a value is provided.
+    const columnMeta = column.columnDef.meta;
+    const operators = columnMeta?.operators || getFilterOperators(columnMeta?.variant ?? "text");
+    const defaultOperator = operators[0]?.value || getDefaultFilterOperator(columnMeta?.variant ?? "text");
+
+    if (allFilters.length === 0) {
+      setDraftFilters((prev) => [
+        ...prev,
+        {
+          field: column.id as Extract<keyof TData, string>,
+          value: "",
+          operator: defaultOperator,
+        } as ExtendedColumnFilter<TData>,
+      ]);
+      return;
+    }
+
+    if (!hasAvailableFields) return;
+
+    const fallbackOperator = getDefaultFilterOperator("text");
+
     setDraftFilters((prev) => [
       ...prev,
       {
-        id: column.id as Extract<keyof TData, string>,
+        field: "" as Extract<keyof TData, string>,
         value: "",
-        variant: column.columnDef.meta?.variant ?? "text",
-        operator: getDefaultFilterOperator(
-          column.columnDef.meta?.variant ?? "text",
-        ),
-        filterId: generateId({ length: 8 }),
-      },
+        operator: fallbackOperator,
+      } as ExtendedColumnFilter<TData>,
     ]);
-  }, [columns]);
+  }, [allFilters.length, columns, hasAvailableFields]);
 
   const onFilterUpdate = React.useCallback(
     (
-      filterId: string,
-      updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>,
+      field: string,
+      updates: Partial<ExtendedColumnFilter<TData>>,
     ) => {
-      // Update drafts first (no URL changes until value becomes active).
+      // Check if this is a field change (changing which column is being filtered)
+      const isFieldChange = updates.field && updates.field !== field;
+
+      if (isFieldChange) {
+        if (updates.field && usedFields.has(updates.field)) {
+          return;
+        }
+      }
+
+      if (isFieldChange) {
+        // For field changes, update the draft filter with the new field
+        setDraftFilters((prevDrafts) => {
+          const index = prevDrafts.findIndex((f) => f.field === field);
+          if (index !== -1) {
+            const next = [...prevDrafts];
+            const { defaultOperator } = updates.field
+              ? getOperatorsForField(updates.field)
+              : { defaultOperator: prevDrafts[index].operator };
+            next[index] = {
+              ...prevDrafts[index],
+              ...updates,
+              operator: updates.field ? defaultOperator : prevDrafts[index].operator,
+              value: updates.field ? "" : prevDrafts[index].value,
+            } as ExtendedColumnFilter<TData>;
+            return next;
+          }
+
+          // If it's in applied filters, move it to drafts with new field
+          const appliedIndex = filters.findIndex((f) => f.field === field);
+          if (appliedIndex !== -1) {
+            // Mark the old field for removal and add updated draft with new field
+            setFieldsToRemove((prev) => {
+              const next = new Set(prev);
+              next.add(field);
+              return next;
+            });
+            const { defaultOperator } = updates.field
+              ? getOperatorsForField(updates.field)
+              : { defaultOperator: filters[appliedIndex].operator };
+            return [
+              ...prevDrafts,
+              {
+                ...filters[appliedIndex],
+                ...updates,
+                operator: updates.field ? defaultOperator : filters[appliedIndex].operator,
+                value: updates.field ? "" : filters[appliedIndex].value,
+              } as ExtendedColumnFilter<TData>,
+            ];
+          }
+
+          return prevDrafts;
+        });
+        return;
+      }
+
+      // For value/operator changes, update in drafts first
       setDraftFilters((prevDrafts) => {
-        const index = prevDrafts.findIndex((f) => f.filterId === filterId);
-        if (index === -1) return prevDrafts;
-
-        const nextDraft = {
-          ...prevDrafts[index],
-          ...updates,
-        } as ExtendedColumnFilter<TData>;
-
-        // If the draft has an active value, commit it to the URL.
-        if (isActiveFilterValue(nextDraft.value)) {
-          debouncedSetFilters((prevApplied) => [...prevApplied, nextDraft]);
-          return prevDrafts.filter((f) => f.filterId !== filterId);
+        const index = prevDrafts.findIndex((f) => f.field === field);
+        if (index !== -1) {
+          const next = [...prevDrafts];
+          next[index] = {
+            ...prevDrafts[index],
+            ...updates,
+          } as ExtendedColumnFilter<TData>;
+          return next;
         }
 
-        const next = [...prevDrafts];
-        next[index] = nextDraft;
-        return next;
-      });
-
-      // Then update applied filters (URL-backed).
-      debouncedSetFilters((prevApplied) => {
-        const index = prevApplied.findIndex((f) => f.filterId === filterId);
-        if (index === -1) return prevApplied;
-
-        const nextApplied = {
-          ...prevApplied[index],
-          ...updates,
-        } as ExtendedColumnFilter<TData>;
-
-        // If the applied filter becomes empty, remove it from URL and keep it as a draft.
-        if (!isActiveFilterValue(nextApplied.value)) {
-          setDraftFilters((prevDrafts) => {
-            if (prevDrafts.some((f) => f.filterId === filterId)) return prevDrafts;
-            return [...prevDrafts, nextApplied];
-          });
-          return prevApplied.filter((f) => f.filterId !== filterId);
+        // If it's in applied filters, move to drafts for editing
+        const appliedFilter = filters.find((f) => f.field === field);
+        if (appliedFilter) {
+          return [
+            ...prevDrafts,
+            {
+              ...appliedFilter,
+              ...updates,
+            } as ExtendedColumnFilter<TData>,
+          ];
         }
 
-        const next = [...prevApplied];
-        next[index] = nextApplied;
-        return next;
+        return prevDrafts;
       });
     },
-    [debouncedSetFilters, isActiveFilterValue],
+    [columns, filters, setFilters, usedFields],
   );
 
-  const onFilterRemove = React.useCallback(
-    (filterId: string) => {
-      setDraftFilters((prev) => prev.filter((f) => f.filterId !== filterId));
+  // Sync draft filters to URL when they have active values
+  const syncFiltersToUrl = React.useCallback(() => {
+    const activeFilters = draftFilters.filter((f) => isActiveFilterValue(f.value));
+    if (activeFilters.length === 0 && draftFilters.length > 0) return;
 
-      const updatedFilters = filters.filter((filter) => filter.filterId !== filterId);
+    // Get applied filters that aren't being edited
+    const draftFields = new Set(draftFilters.map((f) => f.field));
+    // Exclude applied filters that are being edited (same field) or explicitly marked for removal
+    const unchangedApplied = filters.filter(
+      (f) => !draftFields.has(f.field) && !fieldsToRemove.has(f.field),
+    );
+
+    // Combine and update URL
+    const newFilters = [...unchangedApplied, ...activeFilters];
+
+    // Only update if there's a real change
+    const currentJson = JSON.stringify(filters);
+    const newJson = JSON.stringify(newFilters);
+    if (currentJson !== newJson) {
+      void setFilters(newFilters.length > 0 ? newFilters : null);
+      // Clear pending removals after successful sync
+      if (fieldsToRemove.size > 0) {
+        setFieldsToRemove(new Set());
+      }
+    }
+
+    // Keep empty drafts in draft state, remove synced ones
+    setDraftFilters((prev) =>
+      prev.filter((f) => !isActiveFilterValue(f.value))
+    );
+  }, [draftFilters, filters, setFilters, isActiveFilterValue, fieldsToRemove]);
+
+  // Debounced sync to URL
+  const debouncedSyncToUrl = useDebouncedCallback(syncFiltersToUrl, debounceMs);
+
+  // Trigger sync when draft filters change
+  React.useEffect(() => {
+    if (draftFilters.some((f) => isActiveFilterValue(f.value))) {
+      debouncedSyncToUrl();
+    }
+  }, [draftFilters, debouncedSyncToUrl, isActiveFilterValue]);
+
+  const onFilterRemove = React.useCallback(
+    (field: string) => {
+      setDraftFilters((prev) => prev.filter((f) => f.field !== field));
+
+      const updatedFilters = filters.filter((filter) => filter.field !== field);
       void setFilters(updatedFilters);
       requestAnimationFrame(() => {
         addButtonRef.current?.focus();
@@ -256,7 +377,7 @@ export function DataTableFilterList<TData>({
         allFilters.length > 0
       ) {
         event.preventDefault();
-        onFilterRemove(allFilters[allFilters.length - 1]?.filterId ?? "");
+        onFilterRemove(allFilters[allFilters.length - 1]?.field ?? "");
       }
     },
     [allFilters, onFilterRemove],
@@ -268,8 +389,8 @@ export function DataTableFilterList<TData>({
         <Button
           variant="outline"
           className={`h-9 font-normal ${filters.length > 0
-              ? "min-w-9 px-2 gap-1.5"
-              : "w-9 p-0"
+            ? "min-w-9 px-2 gap-1.5"
+            : "w-9 p-0"
             }`}
           onKeyDown={onTriggerKeyDown}
         >
@@ -310,13 +431,15 @@ export function DataTableFilterList<TData>({
           <ul className="flex max-h-[300px] flex-col gap-2 overflow-y-auto p-1">
             {allFilters.map((filter, index) => (
               <DataTableFilterItem<TData>
-                key={filter.filterId}
+                key={`${filter.field}-${index}`}
                 filter={filter}
                 index={index}
-                filterItemId={`${id}-filter-${filter.filterId}`}
+                filterItemId={`${id}-filter-${filter.field}-${index}`}
                 joinOperator={joinOperator}
                 setJoinOperator={setJoinOperator}
                 columns={columns}
+                usedFields={usedFields}
+                getOperatorsForField={getOperatorsForField}
                 onFilterUpdate={onFilterUpdate}
                 onFilterRemove={onFilterRemove}
               />
@@ -329,6 +452,7 @@ export function DataTableFilterList<TData>({
             className="rounded"
             ref={addButtonRef}
             onClick={onFilterAdd}
+            disabled={columns.length === 0 || (allFilters.length > 0 && !hasAvailableFields)}
           >
             Add filter
           </Button>
@@ -355,11 +479,13 @@ interface DataTableFilterItemProps<TData> {
   joinOperator: JoinOperator;
   setJoinOperator: (value: JoinOperator) => void;
   columns: Column<TData>[];
+  usedFields: Set<Extract<keyof TData, string>>;
+  getOperatorsForField: (fieldId: string) => { operators: { value: FilterOperator; label: string }[]; defaultOperator: FilterOperator };
   onFilterUpdate: (
-    filterId: string,
-    updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>,
+    field: string,
+    updates: Partial<ExtendedColumnFilter<TData>>,
   ) => void;
-  onFilterRemove: (filterId: string) => void;
+  onFilterRemove: (field: string) => void;
 }
 
 function DataTableFilterItem<TData>({
@@ -369,6 +495,8 @@ function DataTableFilterItem<TData>({
   joinOperator,
   setJoinOperator,
   columns,
+  usedFields,
+  getOperatorsForField,
   onFilterUpdate,
   onFilterRemove,
 }: DataTableFilterItemProps<TData>) {
@@ -376,7 +504,22 @@ function DataTableFilterItem<TData>({
   const [showOperatorSelector, setShowOperatorSelector] = React.useState(false);
   const [showValueSelector, setShowValueSelector] = React.useState(false);
 
-  const column = columns.find((column) => column.id === filter.id);
+  // Local state for text input to prevent UI jank
+  const [localTextValue, setLocalTextValue] = React.useState(
+    typeof filter.value === "string" ? filter.value : ""
+  );
+  const debouncedUpdateRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Sync local text value when filter.value changes externally
+  React.useEffect(() => {
+    if (typeof filter.value === "string") {
+      setLocalTextValue(filter.value);
+    }
+  }, [filter.value]);
+
+  const column = columns.find((column) => column.id === filter.field);
+  const isFieldSelected = Boolean(column);
+  const columnVariant = column?.columnDef.meta?.variant ?? "text";
 
   const joinOperatorListboxId = `${filterItemId}-join-operator-listbox`;
   const fieldListboxId = `${filterItemId}-field-listbox`;
@@ -384,7 +527,35 @@ function DataTableFilterItem<TData>({
   const inputId = `${filterItemId}-input`;
 
   const columnMeta = column?.columnDef.meta;
-  const filterOperators = getFilterOperators(filter.variant);
+  const filterOperators = columnMeta?.operators || getFilterOperators(columnVariant);
+
+  // Handle text input changes with debouncing
+  const handleTextInputChange = React.useCallback(
+    (value: string) => {
+      // Update local state immediately for smooth UI
+      setLocalTextValue(value);
+
+      // Clear existing timeout
+      if (debouncedUpdateRef.current) {
+        clearTimeout(debouncedUpdateRef.current);
+      }
+
+      // Debounce the actual filter update
+      debouncedUpdateRef.current = setTimeout(() => {
+        onFilterUpdate(filter.field, { value });
+      }, 500);
+    },
+    [onFilterUpdate, filter.field]
+  );
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (debouncedUpdateRef.current) {
+        clearTimeout(debouncedUpdateRef.current);
+      }
+    };
+  }, []);
 
   const onItemKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLLIElement>) => {
@@ -401,19 +572,17 @@ function DataTableFilterItem<TData>({
 
       if (REMOVE_FILTER_SHORTCUTS.includes(event.key.toLowerCase())) {
         event.preventDefault();
-        onFilterRemove(filter.filterId);
+        onFilterRemove(filter.field);
       }
     },
     [
-      filter.filterId,
+      filter.field,
       showFieldSelector,
       showOperatorSelector,
       showValueSelector,
       onFilterRemove,
     ],
   );
-
-  if (!column) return null;
 
   return (
     <li
@@ -464,7 +633,7 @@ function DataTableFilterItem<TData>({
             className="w-32 justify-between rounded font-normal"
           >
             <span className="truncate">
-              {columns.find((column) => column.id === filter.id)?.columnDef
+              {columns.find((column) => column.id === filter.field)?.columnDef
                 .meta?.label ?? "Select field"}
             </span>
             <ChevronsUpDown className="opacity-50" />
@@ -491,34 +660,41 @@ function DataTableFilterItem<TData>({
             <CommandList>
               <CommandEmpty>No fields found.</CommandEmpty>
               <CommandGroup>
-                {columns.map((column) => (
-                  <CommandItem
-                    key={column.id}
-                    value={`${column.id} ${column.columnDef.meta?.label ?? ""}`}
-                    onSelect={() => {
-                      onFilterUpdate(filter.filterId, {
-                        id: column.id as Extract<keyof TData, string>,
-                        variant: column.columnDef.meta?.variant ?? "text",
-                        operator: getDefaultFilterOperator(
-                          column.columnDef.meta?.variant ?? "text",
-                        ),
-                        value: "",
-                      });
+                {columns.map((column) => {
+                  const isFieldUsedElsewhere =
+                    usedFields.has(column.id as Extract<keyof TData, string>) &&
+                    column.id !== filter.field;
 
-                      setShowFieldSelector(false);
-                    }}
-                  >
-                    <span className="truncate">
-                      {column.columnDef.meta?.label}
-                    </span>
-                    <Check
-                      className={cn(
-                        "ml-auto",
-                        column.id === filter.id ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                  </CommandItem>
-                ))}
+                  return (
+                    <CommandItem
+                      key={column.id}
+                      value={`${column.id} ${column.columnDef.meta?.label ?? ""}`}
+                      disabled={isFieldUsedElsewhere}
+                      onSelect={() => {
+                        if (isFieldUsedElsewhere) return;
+                        const { defaultOperator } = getOperatorsForField(column.id as string);
+
+                        onFilterUpdate(filter.field, {
+                          field: column.id as Extract<keyof TData, string>,
+                          operator: defaultOperator,
+                          value: "",
+                        });
+
+                        setShowFieldSelector(false);
+                      }}
+                    >
+                      <span className="truncate">
+                        {column.columnDef.meta?.label}
+                      </span>
+                      <Check
+                        className={cn(
+                          "ml-auto",
+                          column.id === filter.field ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             </CommandList>
           </Command>
@@ -528,8 +704,9 @@ function DataTableFilterItem<TData>({
         open={showOperatorSelector}
         onOpenChange={setShowOperatorSelector}
         value={filter.operator}
+        disabled={!isFieldSelected}
         onValueChange={(value: FilterOperator) =>
-          onFilterUpdate(filter.filterId, {
+          onFilterUpdate(filter.field, {
             operator: value,
             value:
               value === "isEmpty" || value === "isNotEmpty"
@@ -564,7 +741,10 @@ function DataTableFilterItem<TData>({
           inputId,
           column,
           columnMeta,
+          isFieldSelected,
           onFilterUpdate,
+          localTextValue,
+          handleTextInputChange,
           showValueSelector,
           setShowValueSelector,
         })}
@@ -574,7 +754,7 @@ function DataTableFilterItem<TData>({
         variant="outline"
         size="icon"
         className="size-8 rounded"
-        onClick={() => onFilterRemove(filter.filterId)}
+        onClick={() => onFilterRemove(filter.field)}
       >
         <Trash2 />
       </Button>
@@ -587,21 +767,39 @@ function onFilterInputRender<TData>({
   inputId,
   column,
   columnMeta,
+  isFieldSelected,
   onFilterUpdate,
+  localTextValue,
+  handleTextInputChange,
   showValueSelector,
   setShowValueSelector,
 }: {
   filter: ExtendedColumnFilter<TData>;
   inputId: string;
-  column: Column<TData>;
+  column: Column<TData> | undefined;
   columnMeta?: ColumnMeta<TData, unknown>;
+  isFieldSelected: boolean;
   onFilterUpdate: (
-    filterId: string,
-    updates: Partial<Omit<ExtendedColumnFilter<TData>, "filterId">>,
+    field: string,
+    updates: Partial<ExtendedColumnFilter<TData>>,
   ) => void;
+  localTextValue: string;
+  handleTextInputChange: (value: string) => void;
   showValueSelector: boolean;
   setShowValueSelector: (value: boolean) => void;
 }) {
+  if (!column || !columnMeta || !isFieldSelected) {
+    return (
+      <Input
+        id={inputId}
+        disabled
+        aria-label="Select a field to filter"
+        className="h-8 w-full rounded"
+        placeholder="Select a field first"
+      />
+    );
+  }
+
   if (filter.operator === "isEmpty" || filter.operator === "isNotEmpty") {
     return (
       <div
@@ -615,12 +813,12 @@ function onFilterInputRender<TData>({
     );
   }
 
-  switch (filter.variant) {
+  switch (columnMeta?.variant) {
     case "text":
     case "number":
     case "range": {
       if (
-        (filter.variant === "range" && filter.operator === "isBetween") ||
+        (columnMeta?.variant === "range" && filter.operator === "isBetween") ||
         filter.operator === "isBetween"
       ) {
         return (
@@ -634,25 +832,19 @@ function onFilterInputRender<TData>({
       }
 
       const isNumber =
-        filter.variant === "number" || filter.variant === "range";
+        columnMeta?.variant === "number" || columnMeta?.variant === "range";
 
       return (
         <Input
           id={inputId}
-          type={isNumber ? "number" : filter.variant}
+          type={isNumber ? "number" : "text"}
           aria-label={`${columnMeta?.label} filter value`}
           aria-describedby={`${inputId}-description`}
           inputMode={isNumber ? "numeric" : undefined}
           placeholder={columnMeta?.placeholder ?? "Enter a value..."}
           className="h-8 w-full rounded"
-          defaultValue={
-            typeof filter.value === "string" ? filter.value : undefined
-          }
-          onChange={(event) =>
-            onFilterUpdate(filter.filterId, {
-              value: event.target.value,
-            })
-          }
+          value={localTextValue}
+          onChange={(event) => handleTextInputChange(event.target.value)}
         />
       );
     }
@@ -668,7 +860,7 @@ function onFilterInputRender<TData>({
           onOpenChange={setShowValueSelector}
           value={filter.value}
           onValueChange={(value) =>
-            onFilterUpdate(filter.filterId, {
+            onFilterUpdate(filter.field, {
               value,
             })
           }
@@ -693,7 +885,7 @@ function onFilterInputRender<TData>({
     case "multiSelect": {
       const inputListboxId = `${inputId}-listbox`;
 
-      const multiple = filter.variant === "multiSelect";
+      const multiple = columnMeta?.variant === "multiSelect";
       const selectedValues = multiple
         ? Array.isArray(filter.value)
           ? filter.value
@@ -708,9 +900,12 @@ function onFilterInputRender<TData>({
           onOpenChange={setShowValueSelector}
           value={selectedValues || []}
           onValueChange={(value) => {
-            onFilterUpdate(filter.filterId, {
+            onFilterUpdate(filter.field, {
               value: value || [],
             });
+            if (columnMeta?.closeOnSelect) {
+              setShowValueSelector(false);
+            }
           }}
           multiple={multiple}
         >
@@ -816,7 +1011,7 @@ function onFilterInputRender<TData>({
                     }
                 }
                 onSelect={(date) => {
-                  onFilterUpdate(filter.filterId, {
+                  onFilterUpdate(filter.field, {
                     value: date
                       ? [
                         (date.from?.getTime() ?? "").toString(),
@@ -836,7 +1031,7 @@ function onFilterInputRender<TData>({
                   dateValue[0] ? new Date(Number(dateValue[0])) : undefined
                 }
                 onSelect={(date) => {
-                  onFilterUpdate(filter.filterId, {
+                  onFilterUpdate(filter.field, {
                     value: (date?.getTime() ?? "").toString(),
                   });
                 }}

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { FileText, Tag, TrendingUp, BarChart3 } from "lucide-react";
+import { FileText, Tag, TrendingUp, BarChart3, Building2 } from "lucide-react";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { RelevancePill } from "@/components/ui/relevance-pill";
@@ -27,9 +27,10 @@ function formatVolume(volume: number): string {
 
 interface GetWebPageTableColumnsProps {
   businessId: string;
+  offeringCounts?: Record<string, number>;
 }
 
-export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
+export function getWebPageTableColumns({ businessId, offeringCounts = {} }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
   return [
     {
       id: "keyword",
@@ -72,6 +73,41 @@ export function getWebPageTableColumns({ businessId }: GetWebPageTableColumnsPro
       },
       enableColumnFilter: true,
       enableSorting: true,
+      size: 150,
+      minSize: 120,
+      maxSize: 200,
+    },
+    {
+      id: "offerings",
+      accessorKey: "offerings",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Offerings" />
+      ),
+      cell: ({ row }) => {
+        const offerings = row.getValue<string[]>("offerings") || [];
+
+        return (
+          <div className="max-w-full">
+            <ExpandablePills items={offerings} pillVariant="outline" />
+          </div>
+        );
+      },
+      meta: {
+        label: "Offerings",
+        variant: "multiSelect",
+        options: Object.keys(offeringCounts).map((offering) => ({
+          label: offering,
+          value: offering,
+        })),
+        operators: [
+          { label: "Has any of", value: "inArray" as const },
+        ],
+        icon: Building2,
+        closeOnSelect: true,
+      },
+      enableColumnFilter: true,
+      enableSorting: false,
+      enableHiding: false,
       size: 150,
       minSize: 120,
       maxSize: 200,

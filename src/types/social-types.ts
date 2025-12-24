@@ -18,6 +18,7 @@ export interface SocialRow {
   campaign_relevance: number;
   tactics: string[];
   total_clusters: number;
+  offerings?: string[];
   [key: string]: any;
 }
 
@@ -56,6 +57,7 @@ export interface GetSocialSchema {
   joinOperator: "and" | "or";
   search?: string;
   channel_name?: string;
+  offerings?: string;
 }
 
 // Counts for filter options
@@ -126,5 +128,6 @@ export interface GetTacticsSchema {
   joinOperator: "and" | "or";
   search?: string;
   channel_name?: string;
+  offerings?: string;
   campaign_name?: string;
 }

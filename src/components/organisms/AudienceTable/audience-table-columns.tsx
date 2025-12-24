@@ -6,6 +6,7 @@ import {
   Users,
   Hash,
   FileText,
+  Target,
 } from "lucide-react";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { RelevancePill } from "@/components/ui/relevance-pill";
@@ -16,12 +17,14 @@ interface GetAudienceTableColumnsProps {
   personaCounts?: Record<string, number>;
   arsRange?: { min: number; max: number };
   useCaseCounts?: Record<string, number>;
+  offeringCounts?: Record<string, number>;
 }
 
 export function getAudienceTableColumns({
   personaCounts = {},
   arsRange = { min: 0, max: 1 },
   useCaseCounts = {},
+  offeringCounts = {},
 }: GetAudienceTableColumnsProps): ColumnDef<AudienceRow>[] {
   return [
     {
@@ -46,6 +49,37 @@ export function getAudienceTableColumns({
       size: 250,
       minSize: 180,
       maxSize: 350,
+    },
+    {
+      id: "offerings",
+      accessorKey: "offerings",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Offerings" />
+      ),
+      cell: ({ row }) => {
+        const offerings = row.getValue("offerings") as string[] | undefined;
+        return (
+          <Typography variant="p">
+            {offerings && offerings.length > 0 ? offerings.join(", ") : "-"}
+          </Typography>
+        );
+      },
+      meta: {
+        label: "Offerings",
+        variant: "multiSelect",
+        options: Object.keys(offeringCounts).map((offering) => ({
+          label: offering,
+          value: offering,
+        })),
+        icon: Target,
+        operators: [{ label: "Has any of", value: "inArray" }],
+        closeOnSelect: true,
+      },
+      enableColumnFilter: true,
+      enableSorting: false,
+      size: 180,
+      minSize: 150,
+      maxSize: 250,
     },
     {
       id: "ars",
@@ -102,7 +136,7 @@ export function getAudienceTableColumns({
       accessorFn: (row) => {
         const useCases = row.use_cases || [];
         return useCases.reduce((total: number, uc: any) => {
-          const keywords = Array.isArray(uc?.supporting_keywords) 
+          const keywords = Array.isArray(uc?.supporting_keywords)
             ? uc.supporting_keywords.filter((k: any) => k && typeof k === 'string')
             : [];
           return total + keywords.length;
@@ -114,7 +148,7 @@ export function getAudienceTableColumns({
       cell: ({ row }) => {
         const useCases = row.original.use_cases || [];
         const totalKeywords = useCases.reduce((total: number, uc: any) => {
-          const keywords = Array.isArray(uc?.supporting_keywords) 
+          const keywords = Array.isArray(uc?.supporting_keywords)
             ? uc.supporting_keywords.filter((k: any) => k && typeof k === 'string')
             : [];
           return total + keywords.length;

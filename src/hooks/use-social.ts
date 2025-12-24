@@ -36,6 +36,7 @@ export function useSocial(businessId: string) {
       campaign_name: item.campaign_name || "",
       campaign_relevance: item.campaign_relevance || 0,
       tactics: item.tactics || [],
+      offerings: item.offerings || [],
       total_clusters:
         typeof item.total_clusters === "number"
           ? item.total_clusters
@@ -63,6 +64,13 @@ export function useSocial(businessId: string) {
 
   const fetchSocial = useCallback(
     async (params: GetSocialSchema) => {
+      const getField = (filter: GetSocialSchema["filters"][number]) => {
+        if ("field" in filter && typeof (filter as { field?: string }).field === "string") {
+          return (filter as { field?: string }).field;
+        }
+        return undefined;
+      };
+
       const queryParams = new URLSearchParams({
         business_id: params.business_id,
         page: params.page.toString(),
@@ -75,6 +83,45 @@ export function useSocial(businessId: string) {
 
       if (params.sort && params.sort.length > 0) {
         queryParams.append("sort", JSON.stringify(params.sort));
+      }
+
+      if (params.filters && params.filters.length > 0) {
+        const modifiedFilters = params.filters
+          .map((filter) => {
+            const field = getField(filter);
+            const isOfferingFilter =
+              filter.id === "offerings" ||
+              filter.filterId === "offerings" ||
+              field === "offerings" ||
+              filter.id === "channel_offerings" ||
+              field === "channel_offerings";
+
+            if (isOfferingFilter) {
+              return {
+                field: "channel_offerings",
+                value: filter.value,
+                operator: filter.operator,
+              };
+            }
+
+            const fallbackField = field ?? filter.id ?? filter.filterId ?? "";
+            if (!fallbackField) return null;
+
+            return {
+              field: fallbackField,
+              value: filter.value,
+              operator: filter.operator,
+            };
+          })
+          .filter((filter): filter is { field: string; value: typeof params.filters[number]["value"]; operator: typeof params.filters[number]["operator"] } => Boolean(filter));
+
+        if (modifiedFilters.length > 0) {
+          queryParams.append("filters", JSON.stringify(modifiedFilters));
+        }
+      }
+
+      if (params.filters && params.filters.length > 0 && params.joinOperator) {
+        queryParams.append("joinOperator", params.joinOperator);
       }
 
       if (params.channel_name) {
@@ -131,12 +178,24 @@ export function useSocial(businessId: string) {
 
       const items = response?.output_data?.items || [];
 
+      const offeringCounts: Record<string, number> = {};
+      items.forEach((item: any) => {
+        if (item.offerings && Array.isArray(item.offerings)) {
+          item.offerings.forEach((offering: string) => {
+            if (!offering) return;
+            offeringCounts[offering] = (offeringCounts[offering] || 0) + 1;
+          });
+        }
+      });
+
       return {
-        // Will be populated based on actual filter needs
+        offeringCounts,
       };
     } catch (error) {
       console.error("Error fetching social counts:", error);
-      return {};
+      return {
+        offeringCounts: {},
+      };
     }
   }, [businessId, socialApi]);
 
@@ -161,6 +220,13 @@ export function useSocial(businessId: string) {
 
   const fetchTactics = useCallback(
     async (params: GetTacticsSchema) => {
+      const getField = (filter: GetTacticsSchema["filters"][number]) => {
+        if ("field" in filter && typeof (filter as { field?: string }).field === "string") {
+          return (filter as { field?: string }).field;
+        }
+        return undefined;
+      };
+
       const queryParams = new URLSearchParams({
         business_id: params.business_id,
         page: params.page.toString(),
@@ -173,6 +239,45 @@ export function useSocial(businessId: string) {
 
       if (params.sort && params.sort.length > 0) {
         queryParams.append("sort", JSON.stringify(params.sort));
+      }
+
+      if (params.filters && params.filters.length > 0) {
+        const modifiedFilters = params.filters
+          .map((filter) => {
+            const field = getField(filter);
+            const isOfferingFilter =
+              filter.id === "offerings" ||
+              filter.filterId === "offerings" ||
+              field === "offerings" ||
+              filter.id === "channel_offerings" ||
+              field === "channel_offerings";
+
+            if (isOfferingFilter) {
+              return {
+                field: "channel_offerings",
+                value: filter.value,
+                operator: filter.operator,
+              };
+            }
+
+            const fallbackField = field ?? filter.id ?? filter.filterId ?? "";
+            if (!fallbackField) return null;
+
+            return {
+              field: fallbackField,
+              value: filter.value,
+              operator: filter.operator,
+            };
+          })
+          .filter((filter): filter is { field: string; value: typeof params.filters[number]["value"]; operator: typeof params.filters[number]["operator"] } => Boolean(filter));
+
+        if (modifiedFilters.length > 0) {
+          queryParams.append("filters", JSON.stringify(modifiedFilters));
+        }
+      }
+
+      if (params.filters && params.filters.length > 0 && params.joinOperator) {
+        queryParams.append("joinOperator", params.joinOperator);
       }
 
       if (params.channel_name) {

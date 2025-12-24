@@ -44,8 +44,8 @@ export function DataTableRangeFilter<TData>({
       return Number.isNaN(numValue)
         ? ""
         : numValue.toLocaleString(undefined, {
-            maximumFractionDigits: 0,
-          });
+          maximumFractionDigits: 0,
+        });
     },
     [],
   );
@@ -72,12 +72,12 @@ export function DataTableRangeFilter<TData>({
             ? numValue >= min && numValue <= (Number(otherValue) || max)
             : numValue <= max && numValue >= (Number(otherValue) || min)))
       ) {
-        onFilterUpdate(filter.filterId, {
+        onFilterUpdate(filter.field, {
           value: isMin ? [value, otherValue] : [otherValue, value],
         });
       }
     },
-    [filter.filterId, filter.value, min, max, onFilterUpdate],
+    [filter.field, filter.value, min, max, onFilterUpdate],
   );
 
   return (

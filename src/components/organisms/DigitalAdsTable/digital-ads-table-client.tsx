@@ -78,6 +78,22 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
   const { fetchDigitalAds } = useDigitalAds(businessId);
   const queryClient = useQueryClient();
 
+  const offerings = React.useMemo(() => {
+    if (!jobDetails?.offerings) return [] as string[];
+
+    return jobDetails.offerings
+      .map((offering: any) => offering.name || offering.offering || "")
+      .filter((name: string) => name.length > 0);
+  }, [jobDetails]);
+
+  const offeringCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    offerings.forEach((offering: string) => {
+      counts[offering] = 0;
+    });
+    return counts;
+  }, [offerings]);
+
   React.useEffect(() => {
     if (!hasActiveSearchOrFilters) return;
 
@@ -292,6 +308,7 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
       <DigitalAdsTable
         data={digitalAdsData?.data || []}
         pageCount={digitalAdsData?.pageCount || 0}
+        offeringCounts={offeringCounts}
         isLoading={digitalAdsLoading && !digitalAdsData}
         isFetching={digitalAdsFetching}
         search={search}

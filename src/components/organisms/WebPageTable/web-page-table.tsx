@@ -15,6 +15,7 @@ interface WebPageTableProps {
   businessId: string;
   data: WebPageRow[];
   pageCount: number;
+  offeringCounts?: Record<string, number>;
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -26,6 +27,7 @@ export function WebPageTable({
   businessId,
   data,
   pageCount,
+  offeringCounts = {},
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -35,8 +37,8 @@ export function WebPageTable({
   const enableAdvancedFilter = true;
 
   const columns = React.useMemo(
-    () => getWebPageTableColumns({ businessId }),
-    [businessId]
+    () => getWebPageTableColumns({ businessId, offeringCounts }),
+    [businessId, offeringCounts]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -48,6 +50,9 @@ export function WebPageTable({
       pagination: {
         pageIndex: 0,
         pageSize: 100,
+      },
+      columnVisibility: {
+        offerings: false,
       },
     },
     queryKeys,

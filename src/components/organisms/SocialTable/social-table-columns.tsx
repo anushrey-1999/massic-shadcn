@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Share2, Tag, TrendingUp, Megaphone } from "lucide-react";
+import { Share2, Tag, TrendingUp, Megaphone, Building2 } from "lucide-react";
 import Image from "next/image";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { ExpandablePills } from "@/components/ui/expandable-pills";
@@ -28,10 +28,10 @@ function getChannelIcon(channelName: string): string | null {
 }
 
 interface GetSocialTableColumnsProps {
-  [key: string]: any;
+  offeringCounts?: Record<string, number>;
 }
 
-export function getSocialTableColumns({ }: GetSocialTableColumnsProps = {}): ColumnDef<SocialRow>[] {
+export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableColumnsProps = {}): ColumnDef<SocialRow>[] {
   return [
     {
       id: "channel_name",
@@ -146,6 +146,41 @@ export function getSocialTableColumns({ }: GetSocialTableColumnsProps = {}): Col
       size: 250,
       minSize: 200,
       maxSize: 350,
+    },
+    {
+      id: "offerings",
+      accessorKey: "offerings",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Offerings" />
+      ),
+      cell: ({ row }) => {
+        const offerings = row.getValue<string[]>("offerings") || [];
+
+        return (
+          <div className="max-w-full">
+            <ExpandablePills items={offerings} pillVariant="outline" />
+          </div>
+        );
+      },
+      meta: {
+        label: "Offerings",
+        variant: "multiSelect",
+        options: Object.keys(offeringCounts).map((offering) => ({
+          label: offering,
+          value: offering,
+        })),
+        operators: [
+          { label: "Has any of", value: "inArray" as const },
+        ],
+        icon: Building2,
+        closeOnSelect: true,
+      },
+      enableColumnFilter: true,
+      enableSorting: false,
+      enableHiding: false,
+      size: 150,
+      minSize: 120,
+      maxSize: 200,
     },
   ];
 }

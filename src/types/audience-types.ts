@@ -4,6 +4,7 @@ export interface AudienceRow {
   ars: number;
   use_case_name: string[];
   use_cases?: UseCase[];
+  offerings?: string[];
   [key: string]: any;
 }
 
@@ -44,11 +45,9 @@ export interface GetAudienceSchema {
   perPage: number;
   sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{
-    id: string;
-    value: string | string[];
-    variant: string;
+    field: string;
+    value: string | number | string[];
     operator: string;
-    filterId: string;
   }>;
   joinOperator: "and" | "or";
   offerings?: string;

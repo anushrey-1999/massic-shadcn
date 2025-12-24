@@ -5,8 +5,14 @@ import { DataTableColumnHeader } from "../../filter-table/data-table-column-head
 import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { DigitalAdsRow } from "@/types/digital-ads-types";
 import { Typography } from "@/components/ui/typography";
+import { ExpandablePills } from "@/components/ui/expandable-pills";
+import { Building2 } from "lucide-react";
 
-export function getDigitalAdsTableColumns(): ColumnDef<DigitalAdsRow>[] {
+interface GetDigitalAdsTableColumnsProps {
+  offeringCounts?: Record<string, number>;
+}
+
+export function getDigitalAdsTableColumns({ offeringCounts = {} }: GetDigitalAdsTableColumnsProps = {}): ColumnDef<DigitalAdsRow>[] {
   return [
     {
       id: "cluster",
@@ -88,8 +94,8 @@ export function getDigitalAdsTableColumns(): ColumnDef<DigitalAdsRow>[] {
       ),
       cell: ({ cell }) => {
         const volume = cell.getValue<number>();
-        const formatted = volume >= 10000 
-          ? volume >= 1000000 
+        const formatted = volume >= 10000
+          ? volume >= 1000000
             ? `${(volume / 1000000).toFixed(1)}M`
             : `${(volume / 1000).toFixed(1)}K`
           : volume.toLocaleString();
@@ -153,6 +159,41 @@ export function getDigitalAdsTableColumns(): ColumnDef<DigitalAdsRow>[] {
       size: 130,
       minSize: 110,
       maxSize: 160,
+    },
+    {
+      id: "offerings",
+      accessorKey: "offerings",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Offerings" />
+      ),
+      cell: ({ row }) => {
+        const offerings = row.getValue<string[]>("offerings") || [];
+
+        return (
+          <div className="max-w-full">
+            <ExpandablePills items={offerings} pillVariant="outline" />
+          </div>
+        );
+      },
+      meta: {
+        label: "Offerings",
+        variant: "multiSelect",
+        options: Object.keys(offeringCounts).map((offering) => ({
+          label: offering,
+          value: offering,
+        })),
+        operators: [
+          { label: "Has any of", value: "inArray" as const },
+        ],
+        icon: Building2,
+        closeOnSelect: true,
+      },
+      enableColumnFilter: true,
+      enableSorting: false,
+      enableHiding: false,
+      size: 150,
+      minSize: 120,
+      maxSize: 200,
     },
   ];
 }

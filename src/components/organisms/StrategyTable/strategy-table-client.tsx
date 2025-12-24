@@ -38,20 +38,16 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
     "filters",
     parseAsJson<
       Array<{
-        id: string;
+        field: string;
         value: string | string[];
-        variant: string;
         operator: string;
-        filterId: string;
       }>
     >((value) => {
       if (Array.isArray(value)) {
         return value as Array<{
-          id: string;
+          field: string;
           value: string | string[];
-          variant: string;
           operator: string;
-          filterId: string;
         }>;
       }
       return null;
@@ -318,6 +314,23 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
     enabled: false, // Disabled until backend provides a counts endpoint
   });
 
+  // Get offerings from job details
+  const offerings = React.useMemo(() => {
+    if (!jobDetails?.offerings) return [];
+    return jobDetails.offerings.map((offering: any) => {
+      return offering.name || offering.offering || "";
+    }).filter((name: string) => name.length > 0);
+  }, [jobDetails]);
+
+  // Create offering counts for filter options (all have count of 0 since we don't have real counts)
+  const offeringCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    offerings.forEach((offering: string) => {
+      counts[offering] = 0;
+    });
+    return counts;
+  }, [offerings]);
+
   // Show loading state while checking job
   if (jobLoading) {
     return (
@@ -406,7 +419,7 @@ export function StrategyTableClient({ businessId, onSplitViewChange }: StrategyT
       <StrategyTable
         data={strategyData?.data || []}
         pageCount={strategyData?.pageCount || 0}
-        offeringCounts={countsData?.offeringCounts || {}}
+        offeringCounts={offeringCounts}
         businessRelevanceRange={
           countsData?.businessRelevanceRange || { min: 0, max: 1 }
         }

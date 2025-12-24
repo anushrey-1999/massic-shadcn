@@ -30,6 +30,7 @@ export interface DigitalAdsRow {
   comp_sum: number;
   business_relevance_score: number;
   keywords: DigitalAdsKeyword[];
+  offerings?: string[];
 }
 
 export interface DigitalAdsApiResponse {

@@ -96,9 +96,15 @@ export function useStrategy(businessId: string) {
         queryParams.append("sort", JSON.stringify(params.sort));
       }
 
-      // Note: Backend API spec mentions filters support, but structure not fully defined
-      // For now, we'll handle advanced filters on client side after fetching
-      // In future, backend can support filter parameters
+      // Add filters if provided
+      if (params.filters && params.filters.length > 0) {
+        queryParams.append("filters", JSON.stringify(params.filters));
+      }
+
+      // Add join operator if filters exist
+      if (params.filters && params.filters.length > 0 && params.joinOperator) {
+        queryParams.append("joinOperator", params.joinOperator);
+      }
 
       const endpoint = `/client/topic-strategy-builder?${queryParams.toString()}`;
 

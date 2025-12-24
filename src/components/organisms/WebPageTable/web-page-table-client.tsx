@@ -235,6 +235,22 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
     enabled: false,
   });
 
+  const offerings = React.useMemo(() => {
+    if (!jobDetails?.offerings) return [] as string[];
+
+    return jobDetails.offerings
+      .map((offering: any) => offering.name || offering.offering || "")
+      .filter((name: string) => name.length > 0);
+  }, [jobDetails]);
+
+  const offeringCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    offerings.forEach((offering: string) => {
+      counts[offering] = 0;
+    });
+    return counts;
+  }, [offerings]);
+
   if (jobLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -264,6 +280,7 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
         businessId={businessId}
         data={webPageData?.data || []}
         pageCount={webPageData?.pageCount || 0}
+        offeringCounts={offeringCounts}
         isLoading={webPageLoading && !webPageData}
         isFetching={webPageFetching}
         search={search}

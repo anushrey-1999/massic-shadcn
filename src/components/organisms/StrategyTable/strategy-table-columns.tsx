@@ -215,12 +215,15 @@ export function getStrategyTableColumns({
       meta: {
         label: "Offerings",
         variant: "multiSelect",
-        options: Object.entries(offeringCounts).map(([offering, count]) => ({
+        options: Object.keys(offeringCounts).map((offering) => ({
           label: offering,
           value: offering,
-          count,
         })),
+        operators: [
+          { label: "Has any of", value: "inArray" as const },
+        ],
         icon: Building2,
+        closeOnSelect: true,
       },
       enableColumnFilter: true,
       enableSorting: false,

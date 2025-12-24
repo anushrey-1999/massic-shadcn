@@ -14,6 +14,7 @@ import { getSocialTableColumns } from "./social-table-columns";
 interface SocialTableProps {
   data: SocialRow[];
   pageCount: number;
+  offeringCounts?: Record<string, number>;
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -26,6 +27,7 @@ interface SocialTableProps {
 export function SocialTable({
   data,
   pageCount,
+  offeringCounts = {},
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -37,8 +39,8 @@ export function SocialTable({
   const enableAdvancedFilter = true;
 
   const columns = React.useMemo(
-    () => getSocialTableColumns({}),
-    []
+    () => getSocialTableColumns({ offeringCounts }),
+    [offeringCounts]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -50,6 +52,9 @@ export function SocialTable({
       pagination: {
         pageIndex: 0,
         pageSize: 100,
+      },
+      columnVisibility: {
+        offerings: false,
       },
     },
     queryKeys,

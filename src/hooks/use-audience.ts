@@ -93,6 +93,14 @@ export function useAudience(businessId: string) {
         queryParams.append("sort", JSON.stringify(params.sort));
       }
 
+      if (params.filters && params.filters.length > 0) {
+        queryParams.append("filters", JSON.stringify(params.filters));
+      }
+
+      if (params.joinOperator) {
+        queryParams.append("joinOperator", params.joinOperator);
+      }
+
       const endpoint = `/client/audience?${queryParams.toString()}`;
 
       try {

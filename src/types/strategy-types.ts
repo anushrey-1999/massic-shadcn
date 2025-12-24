@@ -59,11 +59,9 @@ export interface GetStrategySchema {
   perPage: number;
   sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{
-    id: string;
+    field: string;
     value: string | string[];
-    variant: string;
     operator: string;
-    filterId: string;
   }>;
   joinOperator: "and" | "or";
   offerings?: string; // Backend supports offerings as string filter

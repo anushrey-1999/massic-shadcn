@@ -398,7 +398,7 @@ export default function AppSidebar() {
                             </CollapsibleTrigger>
                           </div>
                           <CollapsibleContent>
-                            <SidebarMenuSub className="ml-5 border-l-2 border-general-border mt-2">
+                            <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
                               {businessSubItems.map((subItem) => {
                                 const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
                                 const isActive = pathname === subItemHref

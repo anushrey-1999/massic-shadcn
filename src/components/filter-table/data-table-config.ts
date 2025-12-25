@@ -6,6 +6,8 @@ export const dataTableConfig = {
   ],
   numericOperators: [
     { label: "Is", value: "eq" as const },
+    { label: "Is less than or equal to", value: "lte" as const },
+    { label: "Is greater than or equal to", value: "gte" as const },
   ],
   dateOperators: [
     { label: "Is", value: "eq" as const },

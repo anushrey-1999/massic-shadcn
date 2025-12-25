@@ -90,7 +90,16 @@ export function useAudience(businessId: string) {
       }
 
       if (params.sort && params.sort.length > 0) {
-        queryParams.append("sort", JSON.stringify(params.sort));
+        const mappedSort = params.sort.map(sortItem => {
+          let field = sortItem.field;
+          if (field === 'use_cases') {
+            field = 'total_use_case_count';
+          } else if (field === 'keywords') {
+            field = 'total_supporting_keywords_count';
+          }
+          return { ...sortItem, field };
+        });
+        queryParams.append("sort", JSON.stringify(mappedSort));
       }
 
       if (params.filters && params.filters.length > 0) {

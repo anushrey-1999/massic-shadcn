@@ -136,12 +136,12 @@ export function getTacticsTableColumns({ channelName, businessId }: GetTacticsTa
       },
       {
         id: "related_keywords",
-        accessorKey: "related_keywords",
+        accessorFn: (row) => (row.related_keywords || []).length,
         header: ({ column }) => (
           <DataTableColumnHeader column={column} label="Keywords" />
         ),
         cell: ({ row }) => {
-          const keywords = row.getValue<string[]>("related_keywords") || [];
+          const keywords = row.original.related_keywords || [];
           return (
             <div className="max-w-full">
               <ExpandablePills items={keywords} pillVariant="outline" />
@@ -155,7 +155,7 @@ export function getTacticsTableColumns({ channelName, businessId }: GetTacticsTa
           icon: Hash,
         },
         enableColumnFilter: false,
-        enableSorting: false,
+        enableSorting: true,
         size: 200,
         minSize: 150,
         maxSize: 250,
@@ -281,12 +281,12 @@ export function getTacticsTableColumns({ channelName, businessId }: GetTacticsTa
     },
     {
       id: "related_keywords",
-      accessorKey: "related_keywords",
+      accessorFn: (row) => (row.related_keywords || []).length,
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Keywords" />
       ),
       cell: ({ row }) => {
-        const keywords = row.getValue<string[]>("related_keywords") || [];
+        const keywords = row.original.related_keywords || [];
         return (
           <div className="max-w-full">
             <ExpandablePills items={keywords} pillVariant="outline" />
@@ -300,7 +300,7 @@ export function getTacticsTableColumns({ channelName, businessId }: GetTacticsTa
         icon: Hash,
       },
       enableColumnFilter: false,
-      enableSorting: false,
+      enableSorting: true,
       size: 170,
       minSize: 140,
       maxSize: 200,

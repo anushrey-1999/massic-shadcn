@@ -2,22 +2,18 @@
 
 import * as React from "react";
 import { DataTable } from "../../filter-table/index";
-import { DataTableFilterList } from "../../filter-table/data-table-filter-list";
 import { DataTableSortList } from "../../filter-table/data-table-sort-list";
 import { DataTableSearch } from "../../filter-table/data-table-search";
 import { DataTableViewOptions } from "../../filter-table/data-table-view-options";
 import type { TacticRow } from "@/types/social-types";
-import { useDataTable } from "@/hooks/use-data-table";
-import type { QueryKeys } from "@/types/data-table-types";
+import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { getTacticsTableColumns } from "./tactics-table-columns";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
 interface TacticsTableProps {
   data: TacticRow[];
-  pageCount: number;
   businessId: string;
-  queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
   search?: string;
@@ -28,9 +24,7 @@ interface TacticsTableProps {
 
 export function TacticsTable({
   data,
-  pageCount,
   businessId,
-  queryKeys,
   isLoading = false,
   isFetching = false,
   search = "",
@@ -38,28 +32,21 @@ export function TacticsTable({
   onBack,
   channelName,
 }: TacticsTableProps) {
-  const enableAdvancedFilter = true;
-
   const columns = React.useMemo(
     () => getTacticsTableColumns({ channelName, businessId }),
     [channelName, businessId]
   );
 
-  const { table, shallow, debounceMs, throttleMs } = useDataTable({
+  const { table } = useLocalDataTable({
     data,
     columns,
-    pageCount,
-    enableAdvancedFilter,
     initialState: {
       pagination: {
         pageIndex: 0,
-        pageSize: 100,
+        pageSize: 500,
       },
     },
-    queryKeys,
     getRowId: (originalRow: TacticRow) => originalRow.id,
-    shallow: false,
-    clearOnDefault: true,
   });
 
   return (
@@ -84,16 +71,10 @@ export function TacticsTable({
               <DataTableSearch
                 value={search}
                 onChange={onSearchChange}
+                debounceMs={300}
                 placeholder="Search tactics, titles, descriptions..."
               />
             )}
-            <DataTableFilterList
-              table={table}
-              shallow={shallow}
-              debounceMs={debounceMs}
-              throttleMs={throttleMs}
-              align="start"
-            />
           </div>
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
@@ -107,8 +88,8 @@ export function TacticsTable({
             table={table}
             isLoading={isLoading}
             isFetching={isFetching}
-            pageSizeOptions={[10, 30, 50, 100, 200]}
-            emptyMessage="No tactics found. Try adjusting your filters or check back later."
+            emptyMessage="No tactics found. Try adjusting your search or check back later."
+            showPagination={false}
             className="h-full [&>div]:overflow-x-hidden [&>div>div]:overflow-x-hidden"
           />
         </div>

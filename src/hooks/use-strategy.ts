@@ -98,7 +98,16 @@ export function useStrategy(businessId: string) {
 
       // Add sort parameters
       if (params.sort && params.sort.length > 0) {
-        queryParams.append("sort", JSON.stringify(params.sort));
+        const mappedSort = params.sort.map(sortItem => {
+          let field = sortItem.field;
+          if (field === 'sub_topics_count') {
+            field = 'total_cluster_count';
+          } else if (field === 'total_keywords') {
+            field = 'total_cluster_keyword_count';
+          }
+          return { ...sortItem, field };
+        });
+        queryParams.append("sort", JSON.stringify(mappedSort));
       }
 
       // Add filters if provided
@@ -258,7 +267,7 @@ export function useStrategy(businessId: string) {
 
         // Fetch data from the download URL
         const downloadResponse = await fetch(downloadUrl);
-        
+
         if (!downloadResponse.ok) {
           throw new Error(`Failed to fetch from download URL: ${downloadResponse.statusText}`);
         }
@@ -270,9 +279,9 @@ export function useStrategy(businessId: string) {
         // Transform the full dataset to table rows
         // The download URL returns data with 'topics' at root level, not nested
         const items = fullData?.topics || fullData?.output_data?.items || fullData?.items || [];
-        
+
         console.log('Extracted items for transformation:', items.length, 'topics');
-        
+
         const transformedRows = transformToTableRows(items);
 
         console.log('Transformed rows:', transformedRows.length);

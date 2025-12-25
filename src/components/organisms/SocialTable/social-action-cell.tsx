@@ -112,24 +112,27 @@ export function SocialActionCell({
 
       const latestStatus = (contentQuery.data?.status || "").toString();
       if (campaignClusterId && latestStatus) {
+        // Silently update the tactics data with the latest status without showing loading
         queryClient.setQueriesData(
-          { queryKey: ["tactics", businessId] },
+          { queryKey: ["tactics-all", businessId] },
           (oldData: any) => {
-            if (!oldData || !Array.isArray(oldData.data)) return oldData;
+            if (!Array.isArray(oldData)) return oldData;
 
-            const nextRows = (oldData.data as TacticRow[]).map((r) => {
+            const nextRows = (oldData as TacticRow[]).map((r) => {
               const id = getCampaignClusterId(r);
               if (id !== campaignClusterId) return r;
               return { ...r, status: latestStatus };
             });
 
-            return { ...oldData, data: nextRows };
+            return nextRows;
           }
         );
-      }
 
-      if (campaignClusterId) {
-        queryClient.invalidateQueries({ queryKey: ["social-action-content", businessId, campaignClusterId] });
+        // Refetch content in background without showing loading state
+        queryClient.refetchQueries({
+          queryKey: ["social-action-content", businessId, campaignClusterId],
+          type: "inactive",
+        });
       }
     },
     [businessId, campaignClusterId, contentQuery.data?.status, queryClient]

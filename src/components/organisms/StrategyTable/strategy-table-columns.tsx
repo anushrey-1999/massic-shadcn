@@ -164,6 +164,9 @@ export function getStrategyTableColumns({
         const count = cell.getValue<number>();
         return <Typography variant="p">{count}</Typography>;
       },
+      meta: {
+        label: "Sub Topics",
+      },
       enableColumnFilter: false,
       enableSorting: true,
       size: 100,

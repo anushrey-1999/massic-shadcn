@@ -45,7 +45,14 @@ export function useBlogPagePlan(businessId: string) {
       }
 
       if (params.sort && params.sort.length > 0) {
-        queryParams.append("sort", JSON.stringify(params.sort));
+        const mappedSort = params.sort.map(sortItem => {
+          let field = sortItem.field;
+          if (field === 'sub_topics_count') {
+            field = 'total_supporting_keywords_count';
+          }
+          return { ...sortItem, field };
+        });
+        queryParams.append("sort", JSON.stringify(mappedSort));
       }
 
       if (params.filters && params.filters.length > 0) {

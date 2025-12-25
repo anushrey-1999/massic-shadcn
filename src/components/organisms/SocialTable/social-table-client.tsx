@@ -18,8 +18,7 @@ interface SocialTableClientProps {
 }
 
 export function SocialTableClient({ businessId, channelsSidebar }: SocialTableClientProps) {
-  const [tacticsPage, setTacticsPage] = useQueryState("tacticsPage", parseAsInteger.withDefault(1));
-  const [tacticsSearch, setTacticsSearch] = useQueryState("tacticsSearch", parseAsString.withDefault(""));
+  const [tacticsSearch, setTacticsSearch] = React.useState("");
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
   const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
   const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
@@ -97,13 +96,6 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     previousChannelNameRef.current = channelName;
     setPage(1);
   }, [channelName, setPage]);
-
-  const previousTacticsSearchRef = React.useRef(tacticsSearch);
-  React.useEffect(() => {
-    if (previousTacticsSearchRef.current === tacticsSearch) return;
-    previousTacticsSearchRef.current = tacticsSearch;
-    setTacticsPage(1);
-  }, [tacticsSearch, setTacticsPage]);
 
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
@@ -399,21 +391,16 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
 
   const tacticsQueryKey = React.useMemo(
     () => [
-      "tactics",
+      "tactics-all",
       businessId,
-      tacticsPage,
-      perPage,
-      tacticsSearch || "",
-      JSON.stringify(filters),
-      joinOperator,
       tacticsChannel || null,
       campaignName || null,
     ],
-    [businessId, tacticsPage, perPage, tacticsSearch, filters, joinOperator, tacticsChannel, campaignName]
+    [businessId, tacticsChannel, campaignName]
   );
 
   const {
-    data: tacticsData,
+    data: allTacticsData,
     isLoading: tacticsLoading,
     isFetching: tacticsFetching,
     isError: tacticsError,
@@ -423,19 +410,20 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     queryKey: tacticsQueryKey,
     queryFn: async () => {
       if (!tacticsChannel || !campaignName) {
-        return { data: [], pageCount: 0 };
+        return [];
       }
-      return fetchTactics({
+      const result = await fetchTactics({
         business_id: businessId,
-        page: tacticsPage,
-        perPage,
-        search: tacticsSearch || undefined,
+        page: 1,
+        perPage: 500,
+        search: undefined,
         sort: [],
-        filters: filters || [],
-        joinOperator: (joinOperator || "and") as "and" | "or",
+        filters: [],
+        joinOperator: "and",
         channel_name: tacticsChannel || undefined,
         campaign_name: campaignName || undefined,
       });
+      return result?.data || [];
     },
     staleTime: 1000 * 60,
     placeholderData: (previousData) => previousData,
@@ -443,6 +431,32 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading && isDetailView && !!tacticsChannel && !!campaignName,
   });
+
+  const filteredTacticsData = React.useMemo(() => {
+    const rows = allTacticsData || [];
+    const term = (tacticsSearch || "").trim().toLowerCase();
+    if (!term) return rows;
+
+    return rows.filter((row) => {
+      // Check tactic/cluster_name
+      if ((row.tactic || row.cluster_name || "").toLowerCase().includes(term)) return true;
+      // Check title
+      if ((row.title || "").toLowerCase().includes(term)) return true;
+      // Check description
+      if ((row.description || "").toLowerCase().includes(term)) return true;
+      // Check format
+      if ((row.format || "").toLowerCase().includes(term)) return true;
+      // Check post_type
+      if ((row.post_type || "").toLowerCase().includes(term)) return true;
+      // Check campaign_relevance as string
+      if ((row.campaign_relevance || "").toString().includes(term)) return true;
+      // Check related_keywords
+      if (Array.isArray(row.related_keywords)) {
+        return row.related_keywords.some((k) => (k || "").toLowerCase().includes(term));
+      }
+      return false;
+    });
+  }, [allTacticsData, tacticsSearch]);
 
   const handleRowClick = React.useCallback((row: SocialRow) => {
     // Store the row's channel for tactics view (without changing URL state)
@@ -453,9 +467,8 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     if (row.campaign_name) {
       setCampaignName(row.campaign_name);
     }
-    setTacticsPage(1);
     setTacticsSearch("");
-  }, [setCampaignName, setTacticsPage, setTacticsSearch]);
+  }, [setCampaignName]);
 
   const onChannelSelect = React.useCallback((channel: string | null) => {
     setChannelName(channel);
@@ -468,9 +481,8 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
     // channelName from URL state is preserved, so user returns to the same channel they were viewing
     setCampaignName(null);
     setSelectedRowChannel(null);
-    setTacticsPage(1);
     setTacticsSearch("");
-  }, [setCampaignName, setTacticsPage, setTacticsSearch]);
+  }, [setCampaignName]);
 
   if (jobLoading) {
     return (
@@ -518,9 +530,8 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
       <div className="relative h-full flex flex-col">
         <TacticsTable
           businessId={businessId}
-          data={tacticsData?.data || []}
-          pageCount={tacticsData?.pageCount || 0}
-          isLoading={tacticsLoading && !tacticsData}
+          data={filteredTacticsData || []}
+          isLoading={tacticsLoading && !allTacticsData}
           isFetching={tacticsFetching}
           search={tacticsSearch}
           onSearchChange={setTacticsSearch}

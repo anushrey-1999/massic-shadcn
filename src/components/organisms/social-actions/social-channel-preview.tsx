@@ -575,6 +575,9 @@ export function SocialChannelPreview({
   if (ch.includes("linkedin")) return <LinkedInPostPreview content={content} />;
   if (ch.includes("facebook")) return <FacebookPostPreview content={content} />;
   if (ch.includes("reddit")) {
+    const postTitle = (content.post_title || content.title || "").toString();
+    const postBody = (content.post_body || content.post || content.caption || "").toString();
+
     return (
       <PhoneShell className="max-w-[420px] border border-border">
         <div className="flex items-center gap-2 p-4">
@@ -586,8 +589,18 @@ export function SocialChannelPreview({
           </div>
           <MoreHorizontal className="h-5 w-5 text-muted-foreground/40" />
         </div>
-        <div className="px-4 pb-4">
-          <p className="whitespace-pre-wrap text-[15px] leading-5 text-foreground">{(content.post || content.caption || "-").toString()}</p>
+        <div className="px-4 pb-4 flex flex-col gap-3">
+          {postTitle && (
+            <h3 className="text-[16px] leading-6 font-semibold text-foreground hover:text-primary cursor-pointer">
+              {postTitle}
+            </h3>
+          )}
+          {postBody && (
+            <p className="whitespace-pre-wrap text-[14px] leading-5 text-foreground/80">{postBody}</p>
+          )}
+          {!postTitle && !postBody && (
+            <p className="text-[14px] leading-5 text-muted-foreground">-</p>
+          )}
         </div>
       </PhoneShell>
     );

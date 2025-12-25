@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Separator } from '@/components/ui/separator'
 import {
   Dialog,
   DialogContent,
@@ -302,8 +303,12 @@ export default function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          <SidebarGroup className="flex-1 flex flex-col overflow-hidden border-t border-general-border py-3 p-0">
-            <div className="relative flex items-center justify-between shrink-0 py-2 px-4">
+          <div className="px-4">
+            <Separator className="bg-general-border" />
+          </div>
+
+          <SidebarGroup className="flex-1 flex flex-col overflow-hidden py-3 p-0">
+            <div className="relative flex items-center justify-between shrink-0 py-3 px-4">
               {isSearchMode ? (
                 <div className="flex items-center gap-2 flex-1">
                   <Input
@@ -388,7 +393,7 @@ export default function AppSidebar() {
                                   <BusinessIcon website={business.Website} name={business.Name} />
                                   <span className="truncate font-medium" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
                                 </div>
-                                <ChevronRight className={`shrink-0 ml-auto h-4 w-4 text-general-border opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
+                                <ChevronRight className={`shrink-0 ml-auto h-4 w-4 text-general-border-three opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
                               </SidebarMenuButton>
                             </CollapsibleTrigger>
                           </div>
@@ -433,7 +438,11 @@ export default function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
         {/* <SidebarSeparator /> */}
-        <SidebarFooter className="pt-3 pb-0 shrink-0 border-t border-general-border px-4">
+        <div className="px-4">
+          <Separator className="bg-general-border" />
+        </div>
+
+        <SidebarFooter className="pt-3 pb-0 shrink-0 px-4">
           <div className="mb-1">
             <p className="text-sm font-medium text-general-muted-foreground">{userName}</p>
           </div>

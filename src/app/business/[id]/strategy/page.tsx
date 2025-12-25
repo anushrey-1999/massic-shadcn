@@ -20,6 +20,7 @@ import {
 } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
+import { CircleDot, List } from "lucide-react";
 
 interface PageProps {
 	params: Promise<{
@@ -28,6 +29,9 @@ interface PageProps {
 }
 
 function StrategyEntitledContent({ businessId }: { businessId: string }) {
+	const [primaryTab, setPrimaryTab] = React.useState<
+		"strategy" | "audience" | "landscape"
+	>("strategy");
 	const [isStrategySplitView, setIsStrategySplitView] = React.useState(false);
 	const [isAudienceSplitView, setIsAudienceSplitView] = React.useState(false);
 	const [strategyView, setStrategyView] = React.useState<"list" | "bubble">(
@@ -51,23 +55,45 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 		staleTime: 5 * 60 * 1000, // Cache for 5 minutes
 	});
 
-	const handleTabChange = React.useCallback(() => {
+	const handlePrimaryTabChange = React.useCallback((value: string) => {
+		setPrimaryTab(value as "strategy" | "audience" | "landscape");
 		router.replace(pathname);
 	}, [router, pathname]);
+
+	const strategyViewTabs = (
+		<Tabs
+			value={strategyView}
+			onValueChange={(value) => setStrategyView(value as "list" | "bubble")}
+			className="shrink-0"
+		>
+			<TabsList className="">
+				<TabsTrigger value="list">
+          <List />
+          List
+          </TabsTrigger>
+				<TabsTrigger value="bubble">
+           <CircleDot />
+           Map
+           </TabsTrigger>
+			</TabsList>
+		</Tabs>
+	);
 
 	return (
 		<div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
 			<Tabs
-				defaultValue="strategy"
-				onValueChange={handleTabChange}
+				value={primaryTab}
+				onValueChange={handlePrimaryTabChange}
 				className="flex flex-col flex-1 min-h-0"
 			>
 				{!(isStrategySplitView || isAudienceSplitView) && (
-					<TabsList className="shrink-0">
-						<TabsTrigger value="strategy">Strategy</TabsTrigger>
-						<TabsTrigger value="audience">Audience</TabsTrigger>
-						<TabsTrigger value="landscape">Landscape</TabsTrigger>
-					</TabsList>
+					<div className="shrink-0 flex items-center justify-between gap-4">
+						<TabsList>
+							<TabsTrigger value="strategy">Strategy</TabsTrigger>
+							<TabsTrigger value="audience">Audience</TabsTrigger>
+							<TabsTrigger value="landscape">Landscape</TabsTrigger>
+						</TabsList>
+					</div>
 				)}
 				<TabsContent
 					value="strategy"
@@ -76,31 +102,16 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 						!(isStrategySplitView || isAudienceSplitView) && "mt-4",
 					)}
 				>
-					<Tabs
-						defaultValue="list"
-						value={strategyView}
-						onValueChange={(value) =>
-							setStrategyView(value as "list" | "bubble")
-						}
-						className="flex flex-col flex-1 min-h-0"
-					>
-						<TabsList className="shrink-0 mb-4">
-							<TabsTrigger value="list">List View</TabsTrigger>
-							<TabsTrigger value="bubble">Bubble View</TabsTrigger>
-						</TabsList>
-						<TabsContent
-							value="list"
-							className="flex-1 min-h-0 overflow-hidden mt-0"
-						>
+					{strategyView === "list" ? (
+						<div className="flex-1 min-h-0 overflow-hidden">
 							<StrategyTableClient
 								businessId={businessId}
 								onSplitViewChange={setIsStrategySplitView}
+								toolbarRightPrefix={strategyViewTabs}
 							/>
-						</TabsContent>
-						<TabsContent
-							value="bubble"
-							className="flex-1 min-h-0 overflow-hidden mt-0"
-						>
+						</div>
+					) : (
+						<div className="flex-1 min-h-0 overflow-hidden">
 							{isLoadingFullData && (
 								<div className="flex items-center justify-center h-full">
 									<p className="text-muted-foreground">Loading full data...</p>
@@ -144,21 +155,24 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 											</div>
 										</div>
 
-										<Typography
-											variant="p"
-											className="text-base font-mono text-general-muted-foreground"
-										>
-											{fullData.data.length} total topic
-											{fullData.data.length === 1 ? "" : "s"}
-										</Typography>
+										<div className="flex items-center gap-4">
+											<Typography
+												variant="p"
+												className="text-base font-mono text-general-muted-foreground"
+											>
+												{fullData.data.length} total topic
+												{fullData.data.length === 1 ? "" : "s"}
+											</Typography>
+											{strategyViewTabs}
+										</div>
 									</div>
 									<div className="flex-1 min-h-0">
 										<StrategyBubbleChart data={fullData.data} />
 									</div>
 								</Card>
 							)}
-						</TabsContent>
-					</Tabs>
+						</div>
+					)}
 				</TabsContent>
 				<TabsContent
 					value="audience"

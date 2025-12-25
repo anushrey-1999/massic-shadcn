@@ -13,7 +13,16 @@ export interface StrategyClusterRow {
   topic: string;
 }
 
-export function getStrategyClustersTableColumns(): ColumnDef<StrategyClusterRow>[] {
+interface StrategyClustersColumnsOptions {
+  expandedRowId?: string | null;
+  onExpandedRowChange?: (rowId: string | null) => void;
+}
+
+export function getStrategyClustersTableColumns(
+  options: StrategyClustersColumnsOptions = {}
+): ColumnDef<StrategyClusterRow>[] {
+  const { expandedRowId = null, onExpandedRowChange } = options;
+
   return [
     {
       id: "cluster",
@@ -46,9 +55,20 @@ export function getStrategyClustersTableColumns(): ColumnDef<StrategyClusterRow>
       ),
       cell: ({ row }) => {
         const keywords = row.original.keywords || [];
+        const rowId = row.original.id;
+        const isExpanded = !!expandedRowId && expandedRowId === rowId;
+
         return (
           <div className="max-w-full">
-            <ExpandablePills items={keywords} pillVariant="outline" />
+            <ExpandablePills
+              items={keywords}
+              pillVariant="outline"
+              expanded={isExpanded}
+              onExpandedChange={(next) => {
+                if (!onExpandedRowChange) return;
+                onExpandedRowChange(next ? rowId : null);
+              }}
+            />
           </div>
         );
       },

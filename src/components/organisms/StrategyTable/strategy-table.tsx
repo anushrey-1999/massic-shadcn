@@ -24,6 +24,7 @@ interface StrategyTableProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   onRowClick?: (row: StrategyRow) => void;
+  toolbarRightPrefix?: React.ReactNode;
 }
 
 export function StrategyTable({
@@ -39,6 +40,7 @@ export function StrategyTable({
   search = "",
   onSearchChange,
   onRowClick,
+  toolbarRightPrefix,
 }: StrategyTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
@@ -111,6 +113,7 @@ export function StrategyTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
+               {toolbarRightPrefix}
           </div>
         </div>
       </DataTable>

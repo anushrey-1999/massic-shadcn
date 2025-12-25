@@ -94,7 +94,7 @@ function NavItem({ href, icon: Icon, label, isActive }: NavItemProps) {
         >
           <Link href={href}>
             <Icon className="h-5 w-5" />
-            <span>{label}</span>
+            <span className="font-medium">{label}</span>
           </Link>
         </SidebarMenuButton>
       </div>
@@ -108,9 +108,10 @@ interface FooterActionProps {
   label: string
   isActive: boolean
   onClick?: () => void
+  className?: string
 }
 
-function FooterAction({ href, icon: Icon, label, isActive, onClick }: FooterActionProps) {
+function FooterAction({ href, icon: Icon, label, isActive, onClick, className }: FooterActionProps) {
   return (
     <SidebarMenuItem>
       <div className="relative">
@@ -121,7 +122,7 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick }: FooterActi
           <SidebarMenuButton
             onClick={onClick}
             isActive={isActive}
-            className="py-4 pl-3 cursor-pointer w-full"
+            className={`py-4 pl-3 cursor-pointer w-full ${className ?? ''}`}
           >
             <Icon className="h-5 w-5" />
             <span>{label}</span>
@@ -130,7 +131,7 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick }: FooterActi
           <SidebarMenuButton
             asChild
             isActive={isActive}
-            className="py-4 pl-3 cursor-pointer"
+            className={`py-4 pl-3 cursor-pointer ${className ?? ''}`}
           >
             <Link href={href!}>
               <Icon className="h-5 w-5" />
@@ -272,6 +273,7 @@ export default function AppSidebar() {
       icon: LogOut,
       label: 'Logout',
       onClick: handleLogout,
+      className: 'text-general-muted-foreground',
     },
   ]
 
@@ -369,10 +371,6 @@ export default function AppSidebar() {
                 ) : (
                   filteredProfiles.map((business) => {
                     const isOpen = expandedBusinessId === business.UniqueId
-                    const hasActiveSubItem = businessSubItems.some((subItem) => {
-                      const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
-                      return pathname === subItemHref
-                    })
                     return (
                       <Collapsible
                         key={business.UniqueId}
@@ -381,19 +379,16 @@ export default function AppSidebar() {
                       >
                         <SidebarMenuItem>
                           <div className="relative">
-                            {hasActiveSubItem && (
-                              <div className="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white rounded-r-full z-10" />
-                            )}
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton
-                                isActive={hasActiveSubItem}
+                                isActive={false}
                                 className="py-4 pl-3 group/business w-full justify-between cursor-pointer overflow-hidden rounded-md"
                               >
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                   <BusinessIcon website={business.Website} name={business.Name} />
-                                  <span className="truncate" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
+                                  <span className="truncate font-medium" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
                                 </div>
-                                <ChevronRight className={`shrink-0 ml-auto h-4 w-4 opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
+                                <ChevronRight className={`shrink-0 ml-auto h-4 w-4 text-general-border opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
                               </SidebarMenuButton>
                             </CollapsibleTrigger>
                           </div>
@@ -408,13 +403,13 @@ export default function AppSidebar() {
                                       asChild
                                       isActive={isActive}
                                       className={`cursor-pointer py-4 ${
-                                        isActive 
-                                          ? 'text-general-unofficial-foreground-alt' 
+                                        isActive
+                                          ? 'bg-sidebar-accent text-general-unofficial-foreground-alt'
                                           : 'text-general-muted-foreground hover:text-general-unofficial-foreground-alt'
                                       }`}
                                     >
                                       <Link href={subItemHref}>
-                                        <span className="pl-2">{subItem.label}</span>
+                                        <span className="">{subItem.label}</span>
                                       </Link>
                                     </SidebarMenuSubButton>
                                   </SidebarMenuSubItem>
@@ -451,6 +446,7 @@ export default function AppSidebar() {
                 label={item.label}
                 isActive={item.href ? pathname === item.href : false}
                 onClick={item.onClick}
+                className={item.className}
               />
             ))}
           </SidebarMenu>

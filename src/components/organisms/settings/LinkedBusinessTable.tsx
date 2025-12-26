@@ -381,9 +381,9 @@ export default function LinkedBusinessTable() {
                   handleGa4Change(rowData.siteUrl || "", value)
                 }
               >
-                <SelectTrigger className="w-full max-w-[300px] h-auto py-1.5 px-2  border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
+                <SelectTrigger className="w-full max-w-[300px] min-h-10 h-auto! whitespace-normal! items-center! px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
                   {selectedGa4 ? (
-                    <div className="flex items-center justify-between w-full gap-2 ">
+                    <div className="flex items-center justify-between w-full gap-2">
                       <TextWithPill
                         displayName={selectedGa4.displayName || selectedGa4.propertyDisplayName || ""}
                         propertyId={selectedGa4.propertyId}
@@ -456,9 +456,9 @@ export default function LinkedBusinessTable() {
                     handleGa4Change(rowData.siteUrl || "", value)
                   }
                 >
-                  <SelectTrigger className="w-full max-w-[300px] py-1.5 px-2  border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden min-h-[60px]">
+                  <SelectTrigger className="w-full max-w-[300px] min-h-10 h-auto! whitespace-normal! items-center! px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
                     {displayGa4 ? (
-                      <div className="flex items-center justify-between w-full gap-1 ">
+                       <div className="flex items-center justify-between w-full gap-1">
                         <TextWithPill
                           displayName={displayGa4.displayName || displayGa4.propertyDisplayName || ""}
                           propertyId={displayGa4.propertyId || (displayGa4 as any).PropertyId}

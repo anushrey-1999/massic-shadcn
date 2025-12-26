@@ -75,7 +75,7 @@ export function MetricCard({
         className
       )}
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col">
         <div className="flex items-center gap-2 leading-[150%]">
           {/* {icon && <span className="text-muted-foreground">{icon}</span>} */}
           {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
@@ -98,7 +98,7 @@ export function MetricCard({
           )}
         </div>
       </div>
-      {sparklineData && (
+      {/* {sparklineData && (
         <div className="h-8 w-[100px]">
           <svg
             viewBox="0 0 100 32"
@@ -113,7 +113,7 @@ export function MetricCard({
             />
           </svg>
         </div>
-      )}
+      )} */}
     </div>
   )
 }

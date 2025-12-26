@@ -22,11 +22,11 @@ interface ChartLegendProps {
 
 export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
   return (
-    <div className={cn("flex items-center gap-4 p-2 rounded-lg bg-foreground-light", className)}>
+    <div className={cn("flex items-center gap-4 ", className)}>
       {items.map((item) => (
         <label
           key={item.key}
-          className="flex items-center justify-center px-1.5 py-1 bg-white rounded-md cursor-pointer flex-1"
+          className="flex items-center justify-center px-2 py-2 bg-foreground-light rounded-md cursor-pointer"
         >
           <Checkbox
             checked={item.checked ?? true}

@@ -292,7 +292,7 @@ export function OrganicPerformanceSection({
         </div>
 
         {/* Area Chart with Funnel */}
-        <div className="grid grid-cols-[minmax(0,1fr)_300px] rounded-lg overflow-hidden bg-white border border-general-border">
+        <div className="grid grid-cols-[minmax(0,1fr)_400px] rounded-lg overflow-hidden bg-white border border-general-border">
           <div className="p-3 pr-8 border-r border-general-border">
             {isLoading ? (
               <div className="flex items-center justify-center h-[218px]">
@@ -463,7 +463,7 @@ export function OrganicPerformanceSection({
             )}
           </div>
 
-          <div className="bg-p-3">
+          <div className="h-full px-7 py-3">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

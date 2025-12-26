@@ -80,7 +80,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 	);
 
 	return (
-		<div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
+		<div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
 			<Tabs
 				value={primaryTab}
 				onValueChange={handlePrimaryTabChange}
@@ -255,7 +255,7 @@ export default function BusinessStrategyPage({ params }: PageProps) {
 		<div className="flex flex-col h-screen">
 			<PageHeader breadcrumbs={breadcrumbs} />
 			{showBanner && (
-				<div className="container mx-auto px-5 pt-5">
+				<div className="w-full max-w-[1224px] px-5 pt-5">
 					<WorkflowStatusBanner businessId={businessId} />
 				</div>
 			)}

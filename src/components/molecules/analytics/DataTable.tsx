@@ -12,7 +12,6 @@ import {
   TableCell,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardHeader, CardContent, CardFooter, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
@@ -266,20 +265,26 @@ export function DataTable({
                                 </TooltipContent>
                               </Tooltip>
                               {(cellValue as { change?: number }).change !== undefined && (
-                                <Badge
-                                  variant="secondary"
+                                <span
                                   className={cn(
-                                    "gap-1 rounded-lg text-general-muted-foreground border-0 px-1.5 py-[4.5px] font-medium shrink-0",
+                                    "inline-flex items-center gap-1 font-medium shrink-0",
                                     styles.badge,
+                                    (cellValue as { change: number }).change > 0
+                                      ? "text-emerald-600"
+                                      : (cellValue as { change: number }).change < 0
+                                        ? "text-red-600"
+                                        : "text-general-muted-foreground",
                                   )}
                                 >
                                   {(cellValue as { change: number }).change > 0 ? (
-                                    <TrendingUp className="h-3 w-3 text-green-600" />
+                                    // <TrendingUp className="h-2 w-2" /> 
+                                    <span className="-mr-0.5">+</span>
                                   ) : (cellValue as { change: number }).change < 0 ? (
-                                    <TrendingDown className="h-3 w-3 text-red-600" />
+                                    // <TrendingDown className="h-2 w-2" />
+                                    <span className="-mr-0.5">-</span>
                                   ) : null}
                                   {Math.abs((cellValue as { change: number }).change)}%
-                                </Badge>
+                                </span>
                               )}
                             </div>
                           ) : (

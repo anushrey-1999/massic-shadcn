@@ -50,13 +50,13 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
   const [topSourcesModalOpen, setTopSourcesModalOpen] = useState(false);
 
   return (
-    <div className="flex flex-col px-7">
+    <div className="flex flex-col px-7 pb-10">
       <div className="flex items-center gap-2 px-6 py-5 bg-[#0A0A0A0D] rounded-lg">
         <ListChecks className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Sources</Typography>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 py-10 ">
+      <div className="grid grid-cols-2 gap-6 pt-6 ">
         <DataTable
           icon={<Eye className="h-6 w-6" />}
           title="Sources that drive the most conversion"

@@ -17,23 +17,23 @@ const VIEWBOX_WIDTH = 327
 const VIEWBOX_HEIGHT = 274
 const TOP_Y = 12
 const BOTTOM_Y = VIEWBOX_HEIGHT - 12
-const TOP_INSET = 44
-const BOTTOM_INSET = 108
+const TOP_INSET = 20
+const BOTTOM_INSET = 90
 const CORNER_RADIUS = 16
 const LINE_OFFSET = 0
 const LINE_RATIOS = [0.37, 0.68] as const
 const SECTION_STYLES = [
   {
-    label: "text-xs font-medium text-muted-foreground font-mono",
-    value: "text-3xl font-semibold leading-8 text-foreground",
+    label: "text-xs font-medium text-muted-foreground",
+    value: "text-2xl font-semibold leading-8 text-foreground",
   },
   {
-    label: "text-xs font-medium text-sky-500 font-mono",
-    value: "text-3xl font-semibold leading-8 text-sky-600",
+    label: "text-xs font-medium text-sky-500",
+    value: "text-2xl font-semibold leading-8 text-sky-600",
   },
   {
-    label: "text-xs font-medium text-emerald-500 font-mono",
-    value: "text-3xl font-semibold leading-8 text-emerald-600",
+    label: "text-xs font-medium text-emerald-500",
+    value: "text-2xl font-semibold leading-8 text-emerald-600",
   },
 ] as const
 
@@ -104,7 +104,7 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
       </svg>
       <div className="relative z-10 flex h-full flex-col items-center justify-between py-8 text-center">
         {SECTION_STYLES.map((style, index) => (
-          <div key={`${style.value}-${index}`} className="space-y-1">
+          <div key={`${style.value}-${index}`} className="">
             <p className={style.label}>{data[index]?.label ?? ""}</p>
             <p className={style.value}>{formatValue(data[index]?.value)}</p>
           </div>
@@ -115,17 +115,17 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
         if (!percentage) {
           return null
         }
-        const pillColor = index === 0 ? "border-slate-200 text-slate-600" : "border-emerald-200 text-emerald-600"
+        const pillColor = index === 0 ? "border-slate-200 text-general-foreground" : "border-emerald-200 text-general-foreground"
         return (
           <span
             key={`pill-${line.y}`}
             className={cn(
-              "absolute z-10 -translate-y-1/2 text-muted-foreground rounded-full font-mono bg-white px-0.5 text-[10px] leading-none",
+              "absolute z-10 -translate-y-1/2 text-general-foreground rounded-full font-mono bg-white px-0.5 text-base leading-none",
               pillColor
             )}
             style={{
               top: `${line.percentY}%`,
-              left: `calc(${line.percentX}% - 40px)`,
+              left: `calc(${line.percentX}% - 50px)`,
             }}
           >
             {percentage}

@@ -48,7 +48,7 @@ export default function WebUnifiedPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-dvh overflow-hidden">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <div className="container mx-auto flex-1 min-h-0 py-5 px-4 overflow-hidden flex flex-col">
+      <div className="w-full max-w-[1224px] flex-1 min-h-0 py-5 px-4 overflow-hidden flex flex-col">
         <WebPageView businessId={businessId} pageId={pageId} />
       </div>
     </div>

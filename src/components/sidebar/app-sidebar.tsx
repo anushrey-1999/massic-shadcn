@@ -84,21 +84,16 @@ interface NavItemProps {
 function NavItem({ href, icon: Icon, label, isActive }: NavItemProps) {
   return (
     <SidebarMenuItem>
-      <div className="relative">
-        {isActive && (
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white rounded-r-full z-10" />
-        )}
-        <SidebarMenuButton
-          asChild
-          isActive={isActive}
-          className="py-4 pl-3 cursor-pointer"
-        >
-          <Link href={href}>
-            <Icon className="h-5 w-5" />
-            <span className="font-medium">{label}</span>
-          </Link>
-        </SidebarMenuButton>
-      </div>
+      <SidebarMenuButton
+        asChild
+        isActive={isActive}
+        className="py-4 pl-3 cursor-pointer hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+      >
+        <Link href={href}>
+          <Icon className="h-5 w-5" />
+          <span className="font-medium text-general-unofficial-foreground-alt">{label}</span>
+        </Link>
+      </SidebarMenuButton>
     </SidebarMenuItem>
   )
 }
@@ -113,34 +108,33 @@ interface FooterActionProps {
 }
 
 function FooterAction({ href, icon: Icon, label, isActive, onClick, className }: FooterActionProps) {
+  const isLogout = label === 'Logout'
+  const labelClassName = isLogout
+    ? 'transition-colors group-hover:text-general-unofficial-foreground-alt'
+    : 'text-general-unofficial-foreground-alt'
   return (
     <SidebarMenuItem>
-      <div className="relative">
-        {isActive && (
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white rounded-r-full z-10" />
-        )}
-        {onClick ? (
-          <SidebarMenuButton
-            onClick={onClick}
-            isActive={isActive}
-            className={`py-4 pl-3 cursor-pointer w-full ${className ?? ''}`}
-          >
+      {onClick ? (
+        <SidebarMenuButton
+          onClick={onClick}
+          isActive={isActive}
+          className={`group py-4 pl-3 cursor-pointer w-full hover:bg-general-border data-[active=true]:bg-general-border ${className ?? ''}`}
+        >
+          <Icon className="h-5 w-5" />
+          <span className={labelClassName}>{label}</span>
+        </SidebarMenuButton>
+      ) : (
+        <SidebarMenuButton
+          asChild
+          isActive={isActive}
+          className={`group py-4 pl-3 cursor-pointer hover:bg-general-border data-[active=true]:bg-general-border ${className ?? ''}`}
+        >
+          <Link href={href!}>
             <Icon className="h-5 w-5" />
-            <span>{label}</span>
-          </SidebarMenuButton>
-        ) : (
-          <SidebarMenuButton
-            asChild
-            isActive={isActive}
-            className={`py-4 pl-3 cursor-pointer ${className ?? ''}`}
-          >
-            <Link href={href!}>
-              <Icon className="h-5 w-5" />
-              <span>{label}</span>
-            </Link>
-          </SidebarMenuButton>
-        )}
-      </div>
+            <span className={labelClassName}>{label}</span>
+          </Link>
+        </SidebarMenuButton>
+      )}
     </SidebarMenuItem>
   )
 }
@@ -280,7 +274,7 @@ export default function AppSidebar() {
 
   return (
     <>
-      <Sidebar collapsible="none" className="h-screen bg-white py-3">
+      <Sidebar collapsible="none" className="h-screen bg-foreground-light py-3">
         <SidebarHeader className="shrink-0 pb-3 px-4">
           <div className="">
             <h1 className="text-lg font-semibold text-foreground">Massic</h1>
@@ -391,7 +385,7 @@ export default function AppSidebar() {
                               >
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
                                   <BusinessIcon website={business.Website} name={business.Name} />
-                                  <span className="truncate font-medium" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
+                                  <span className="truncate font-medium text-general-unofficial-foreground-alt" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
                                 </div>
                                 <ChevronRight className={`shrink-0 ml-auto h-4 w-4 text-general-border-three opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
                               </SidebarMenuButton>
@@ -407,14 +401,10 @@ export default function AppSidebar() {
                                     <SidebarMenuSubButton
                                       asChild
                                       isActive={isActive}
-                                      className={`cursor-pointer py-4 ${
-                                        isActive
-                                          ? 'bg-sidebar-accent text-general-unofficial-foreground-alt'
-                                          : 'text-general-muted-foreground hover:text-general-unofficial-foreground-alt'
-                                      }`}
+                                      className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
                                     >
                                       <Link href={subItemHref}>
-                                        <span className="">{subItem.label}</span>
+                                        <span>{subItem.label}</span>
                                       </Link>
                                     </SidebarMenuSubButton>
                                   </SidebarMenuSubItem>

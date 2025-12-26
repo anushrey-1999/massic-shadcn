@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { Eye, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -63,6 +64,45 @@ export function PositionDistributionCard({
     pos11_20: 0.5,
     pos20_plus: 0.3,
   }
+
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const [zoomCenter, setZoomCenter] = useState<number | null>(null)
+  const chartRef = useRef<HTMLDivElement>(null)
+
+  const zoomedChartData = useMemo(() => {
+    if (zoomLevel <= 1 || zoomCenter === null || chartData.length === 0) return chartData
+    const totalPoints = chartData.length
+    const visiblePoints = Math.max(2, Math.floor(totalPoints / zoomLevel))
+    const halfVisible = Math.floor(visiblePoints / 2)
+    let startIndex = Math.max(0, zoomCenter - halfVisible)
+    let endIndex = Math.min(totalPoints - 1, zoomCenter + halfVisible)
+    return chartData.slice(startIndex, endIndex + 1)
+  }, [chartData, zoomLevel, zoomCenter])
+
+  useEffect(() => {
+    const element = chartRef.current
+    if (!element) return
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const rect = element.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const relativeX = x / rect.width
+      const dataIndex = Math.floor(relativeX * chartData.length)
+      setZoomCenter(Math.max(0, Math.min(chartData.length - 1, dataIndex)))
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+      setZoomLevel((prev) => Math.max(1, Math.min(prev * zoomFactor, chartData.length / 2)))
+    }
+
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => element.removeEventListener('wheel', handleWheel)
+  }, [chartData.length])
+
+  const handleDoubleClick = useCallback(() => {
+    setZoomLevel(1)
+    setZoomCenter(null)
+  }, [])
 
   if (isLoading) {
     return (
@@ -137,10 +177,14 @@ export function PositionDistributionCard({
           ))}
         </div>
 
-        <div className="h-51">
+        <div
+          ref={chartRef}
+          className="h-51 cursor-grab active:cursor-grabbing"
+          onDoubleClick={handleDoubleClick}
+        >
           <ChartContainer config={chartConfig} className="h-full w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+              <AreaChart data={zoomedChartData} margin={{ top: 0, right: 0, left: 20, bottom: 20 }}>
                 <defs>
                   <linearGradient id="fillPos1_3_dist" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#2563EB" stopOpacity={0.2} />
@@ -165,6 +209,7 @@ export function PositionDistributionCard({
                   axisLine={false}
                   tick={{ fontSize: 10, fill: "#737373", fontFamily: "Geist" }}
                   dy={8}
+                  interval={zoomedChartData.length <= 7 ? 0 : zoomedChartData.length <= 14 ? 1 : zoomedChartData.length <= 30 ? Math.floor(zoomedChartData.length / 8) : zoomedChartData.length <= 90 ? Math.floor(zoomedChartData.length / 10) : Math.floor(zoomedChartData.length / 12)}
                 />
                 <YAxis hide domain={[0, 100]} />
                 <ChartTooltip
@@ -194,7 +239,7 @@ export function PositionDistributionCard({
                 />
                 {visibleLines.pos20_plus && (
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="pos20_plusNorm"
                     stroke="#2563EB"
                     fill="url(#fillPos20_plus_dist)"
@@ -205,7 +250,7 @@ export function PositionDistributionCard({
                 )}
                 {visibleLines.pos11_20 && (
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="pos11_20Norm"
                     stroke="#2563EB"
                     fill="url(#fillPos11_20_dist)"
@@ -216,7 +261,7 @@ export function PositionDistributionCard({
                 )}
                 {visibleLines.pos4_10 && (
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="pos4_10Norm"
                     stroke="#2563EB"
                     fill="url(#fillPos4_10_dist)"
@@ -227,7 +272,7 @@ export function PositionDistributionCard({
                 )}
                 {visibleLines.pos1_3 && (
                   <Area
-                    type="monotone"
+                    type="linear"
                     dataKey="pos1_3Norm"
                     stroke="#2563EB"
                     fill="url(#fillPos1_3_dist)"

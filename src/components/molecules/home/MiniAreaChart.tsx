@@ -86,11 +86,11 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
 
   const visibleData = useMemo(() => {
     if (zoomLevel === 1) return normalizedData
-    
+
     const totalPoints = normalizedData.length
     const visiblePoints = Math.max(2, Math.floor(totalPoints / zoomLevel))
     const startIndex = Math.floor((totalPoints - visiblePoints) / 2)
-    
+
     return normalizedData.slice(startIndex, startIndex + visiblePoints)
   }, [normalizedData, zoomLevel])
 
@@ -103,7 +103,7 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className="h-[115px] w-full"
     >
@@ -157,7 +157,7 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
             }
           />
           <Area
-            type="monotone"
+            type="linear"
             dataKey="impressionsNorm"
             stroke="var(--color-impressionsNorm)"
             fill={`url(#${impressionsGradientId})`}
@@ -165,7 +165,7 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
             dot={false}
           />
           <Area
-            type="monotone"
+            type="linear"
             dataKey="goalsNorm"
             stroke="var(--color-goalsNorm)"
             fill={`url(#${goalsGradientId})`}
@@ -173,7 +173,7 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
             dot={false}
           />
           <Area
-            type="monotone"
+            type="linear"
             dataKey="clicksNorm"
             stroke="var(--color-clicksNorm)"
             fill={`url(#${clicksGradientId})`}

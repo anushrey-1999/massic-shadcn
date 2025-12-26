@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import {
   ChartContainer,
@@ -33,8 +33,47 @@ export function InteractionsChartCard({
   data,
   dataKey,
   strokeColor = "#3b82f6",
-  chartHeight = 200,
+  chartHeight = 220,
 }: InteractionsChartCardProps) {
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomCenter, setZoomCenter] = useState<number | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  const zoomedData = useMemo(() => {
+    if (zoomLevel <= 1 || zoomCenter === null || data.length === 0) return data;
+    const totalPoints = data.length;
+    const visiblePoints = Math.max(2, Math.floor(totalPoints / zoomLevel));
+    const halfVisible = Math.floor(visiblePoints / 2);
+    let startIndex = Math.max(0, zoomCenter - halfVisible);
+    let endIndex = Math.min(totalPoints - 1, zoomCenter + halfVisible);
+    return data.slice(startIndex, endIndex + 1);
+  }, [data, zoomLevel, zoomCenter]);
+
+  useEffect(() => {
+    const element = chartRef.current;
+    if (!element) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = element.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const relativeX = x / rect.width;
+      const dataIndex = Math.floor(relativeX * data.length);
+      setZoomCenter(Math.max(0, Math.min(data.length - 1, dataIndex)));
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      setZoomLevel((prev) => Math.max(1, Math.min(prev * zoomFactor, data.length / 2)));
+    };
+
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => element.removeEventListener('wheel', handleWheel);
+  }, [data.length]);
+
+  const handleDoubleClick = useCallback(() => {
+    setZoomLevel(1);
+    setZoomCenter(null);
+  }, []);
+
   const chartConfig = {
     [dataKey]: { label: legend.label, color: strokeColor },
   };
@@ -56,12 +95,17 @@ export function InteractionsChartCard({
           </div>
         </div>
       </div>
-      <div className="" style={{ height: chartHeight }}>
+      <div
+        ref={chartRef}
+        className="cursor-grab active:cursor-grabbing"
+        style={{ height: chartHeight }}
+        onDoubleClick={handleDoubleClick}
+      >
         <ChartContainer config={chartConfig} className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
-              data={data}
-              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+              data={zoomedData}
+              margin={{ top: 10, right: 10, left: 20, bottom: 25 }}
             >
               <defs>
                 <linearGradient
@@ -84,11 +128,12 @@ export function InteractionsChartCard({
                 tickLine={false}
                 axisLine={false}
                 tick={{ fontSize: 12, fill: "#9ca3af" }}
+                interval={zoomedData.length <= 7 ? 0 : zoomedData.length <= 14 ? 1 : zoomedData.length <= 30 ? Math.floor(zoomedData.length / 8) : zoomedData.length <= 90 ? Math.floor(zoomedData.length / 10) : Math.floor(zoomedData.length / 12)}
               />
               <YAxis hide />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Area
-                type="monotone"
+                type="linear"
                 dataKey={dataKey}
                 stroke={strokeColor}
                 fill={`url(#fill${dataKey})`}

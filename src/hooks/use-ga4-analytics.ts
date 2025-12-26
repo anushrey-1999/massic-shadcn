@@ -455,46 +455,48 @@ export function useGA4Analytics(
   const normalizedChartData = useMemo(() => {
     if (chartData.length === 0) return []
 
-    const maxSessions = Math.max(...chartData.map((d) => d.sessions || 0))
-    const maxGoals = Math.max(...chartData.map((d) => d.goals || 0))
-    const globalMax = Math.max(maxSessions, maxGoals)
+    const sessionsValues = chartData.map((d) => d.sessions || 0)
+    const goalsValues = chartData.map((d) => d.goals || 0)
 
-    if (globalMax === 0) return chartData.map((point) => ({ ...point, sessionsNorm: 0, goalsNorm: 0 }))
+    const minSessions = Math.min(...sessionsValues)
+    const maxSessions = Math.max(...sessionsValues)
+    const minGoals = Math.min(...goalsValues)
+    const maxGoals = Math.max(...goalsValues)
 
-    const scaleValue = (value: number): number => {
-      if (value === 0) return 0
-      const logMax = Math.log10(globalMax + 1)
-      const logValue = Math.log10(value + 1)
-      return (logValue / logMax) * 100
+    const scaleValueToBand = (value: number, min: number, max: number, bandStart: number, bandEnd: number): number => {
+      if (max === min) return (bandStart + bandEnd) / 2
+      const normalized = (value - min) / (max - min)
+      return bandStart + normalized * (bandEnd - bandStart)
     }
 
     return chartData.map((point) => ({
       ...point,
-      sessionsNorm: scaleValue(point.sessions),
-      goalsNorm: scaleValue(point.goals),
+      sessionsNorm: scaleValueToBand(point.sessions, minSessions, maxSessions, 50, 100),
+      goalsNorm: scaleValueToBand(point.goals, minGoals, maxGoals, 0, 50),
     }))
   }, [chartData])
 
   const normalizedChannelsData = useMemo(() => {
     if (channelsData.length === 0) return []
 
-    const maxSessions = Math.max(...channelsData.map((d) => d.sessions || 0))
-    const maxGoals = Math.max(...channelsData.map((d) => d.goals || 0))
-    const globalMax = Math.max(maxSessions, maxGoals)
+    const sessionsValues = channelsData.map((d) => d.sessions || 0)
+    const goalsValues = channelsData.map((d) => d.goals || 0)
 
-    if (globalMax === 0) return channelsData.map((item) => ({ ...item, sessionsNorm: 0, goalsNorm: 0 }))
+    const minSessions = Math.min(...sessionsValues)
+    const maxSessions = Math.max(...sessionsValues)
+    const minGoals = Math.min(...goalsValues)
+    const maxGoals = Math.max(...goalsValues)
 
-    const scaleValue = (value: number): number => {
-      if (value === 0) return 0
-      const logMax = Math.log10(globalMax + 1)
-      const logValue = Math.log10(value + 1)
-      return (logValue / logMax) * 100
+    const scaleValueToBand = (value: number, min: number, max: number, bandStart: number, bandEnd: number): number => {
+      if (max === min) return (bandStart + bandEnd) / 2
+      const normalized = (value - min) / (max - min)
+      return bandStart + normalized * (bandEnd - bandStart)
     }
 
     return channelsData.map((item) => ({
       ...item,
-      goalsNorm: scaleValue(item.goals),
-      sessionsNorm: scaleValue(item.sessions),
+      goalsNorm: scaleValueToBand(item.goals, minGoals, maxGoals, 0, 50),
+      sessionsNorm: scaleValueToBand(item.sessions, minSessions, maxSessions, 50, 100),
     }))
   }, [channelsData])
 

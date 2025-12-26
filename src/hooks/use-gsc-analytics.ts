@@ -335,25 +335,28 @@ export function useGSCAnalytics(
   const normalizedChartData = useMemo(() => {
     if (chartData.length === 0) return []
 
-    const maxImpressions = Math.max(...chartData.map((d) => d.impressions || 0))
-    const maxClicks = Math.max(...chartData.map((d) => d.clicks || 0))
-    const maxGoals = Math.max(...chartData.map((d) => d.goals || 0))
-    const globalMax = Math.max(maxImpressions, maxClicks, maxGoals)
+    const impressionsValues = chartData.map((d) => d.impressions || 0)
+    const clicksValues = chartData.map((d) => d.clicks || 0)
+    const goalsValues = chartData.map((d) => d.goals || 0)
 
-    if (globalMax === 0) return chartData.map((point) => ({ ...point, impressionsNorm: 0, clicksNorm: 0, goalsNorm: 0 }))
+    const minImpressions = Math.min(...impressionsValues)
+    const maxImpressions = Math.max(...impressionsValues)
+    const minClicks = Math.min(...clicksValues)
+    const maxClicks = Math.max(...clicksValues)
+    const minGoals = Math.min(...goalsValues)
+    const maxGoals = Math.max(...goalsValues)
 
-    const scaleValue = (value: number, max: number): number => {
-      if (max === 0 || value === 0) return 0
-      const logMax = Math.log10(globalMax + 1)
-      const logValue = Math.log10(value + 1)
-      return (logValue / logMax) * 100
+    const scaleValueToBand = (value: number, min: number, max: number, bandStart: number, bandEnd: number): number => {
+      if (max === min) return (bandStart + bandEnd) / 2
+      const normalized = (value - min) / (max - min)
+      return bandStart + normalized * (bandEnd - bandStart)
     }
 
     return chartData.map((point) => ({
       ...point,
-      impressionsNorm: scaleValue(point.impressions, maxImpressions),
-      clicksNorm: scaleValue(point.clicks, maxClicks),
-      goalsNorm: scaleValue(point.goals || 0, maxGoals),
+      impressionsNorm: scaleValueToBand(point.impressions, minImpressions, maxImpressions, 60, 100),
+      clicksNorm: scaleValueToBand(point.clicks, minClicks, maxClicks, 30, 70),
+      goalsNorm: scaleValueToBand(point.goals || 0, minGoals, maxGoals, 0, 40),
     }))
   }, [chartData])
 

@@ -91,7 +91,7 @@ export function AreaChart({
       areaComponents.push(
         <Area
           key={key}
-          type="monotone"
+          type="linear"
           dataKey={key}
           stackId={stacked ? "a" : undefined}
           stroke={color}
@@ -123,18 +123,18 @@ export function AreaChart({
     // If zoomed in with mouse wheel
     if (enableZoom && zoomLevel > 1 && zoomCenter !== null) {
       const totalDataPoints = chartData.length
-      
+
       // Calculate visible points - ensure at least 2 points are always shown
       const minPoints = 2
       const maxPoints = totalDataPoints
       const visiblePoints = Math.max(minPoints, Math.min(maxPoints, Math.floor(totalDataPoints / zoomLevel)))
-      
+
       const halfVisible = Math.floor(visiblePoints / 2)
-      
+
       // Calculate start and end indices centered on zoom center
       let startIndex = Math.max(0, zoomCenter - halfVisible)
       let endIndex = Math.min(totalDataPoints - 1, zoomCenter + halfVisible)
-      
+
       // Ensure we always have at least minPoints
       if (endIndex - startIndex + 1 < minPoints) {
         if (startIndex === 0) {
@@ -147,43 +147,43 @@ export function AreaChart({
           endIndex = Math.min(totalDataPoints - 1, startIndex + minPoints - 1)
         }
       }
-      
+
       // Ensure we don't go beyond array bounds
       startIndex = Math.max(0, Math.min(startIndex, totalDataPoints - minPoints))
       endIndex = Math.max(minPoints - 1, Math.min(endIndex, totalDataPoints - 1))
-      
+
       const sliced = chartData.slice(startIndex, endIndex + 1)
-      
+
       // Safety check: always return at least some data
       if (sliced.length === 0) {
         return chartData
       }
-      
+
       return sliced
     }
-    
+
     return chartData
   }, [chartData, enableZoom, zoomLevel, zoomCenter])
 
   // Handle mouse wheel zoom
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (!enableZoom) return
-    
+
     e.preventDefault()
-    
+
     // Get the chart container and calculate mouse position relative to chart
     const container = e.currentTarget
     const rect = container.getBoundingClientRect()
     const x = e.clientX - rect.left
     const chartWidth = rect.width - 60 // Account for margins
     const relativeX = x / chartWidth
-    
+
     // Calculate which data point the mouse is over
     const dataIndex = Math.floor(relativeX * chartData.length)
     const centerIndex = Math.max(0, Math.min(chartData.length - 1, dataIndex))
-    
+
     setZoomCenter(centerIndex)
-    
+
     // Zoom in on scroll up, zoom out on scroll down
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
     setZoomLevel((prev) => {
@@ -203,8 +203,8 @@ export function AreaChart({
   }
 
   return (
-    <div 
-      className="w-full" 
+    <div
+      className="w-full"
       style={{ height: `${height}px` }}
       onWheel={handleWheel}
       onDoubleClick={handleDoubleClick}
@@ -234,6 +234,7 @@ export function AreaChart({
             tick={{ fill: "#9ca3af" }}
             tickLine={{ stroke: "#9ca3af" }}
             axisLine={{ stroke: "#9ca3af" }}
+            interval={displayData.length <= 7 ? 0 : displayData.length <= 14 ? 1 : displayData.length <= 30 ? Math.floor(displayData.length / 8) : displayData.length <= 90 ? Math.floor(displayData.length / 10) : Math.floor(displayData.length / 12)}
           />
           <YAxis
             tick={{ fill: "hsl(var(--muted-foreground))" }}

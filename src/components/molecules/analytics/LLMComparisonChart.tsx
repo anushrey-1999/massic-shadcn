@@ -62,7 +62,7 @@ export function LLMComparisonChart({
   const maxValue = Math.max(...data.map((d) => d.value), 1)
 
   return (
-    <div className="flex flex-col rounded-lg bg-white">
+    <div className="flex flex-col bg-white justify-center">
       <div className="flex flex-col gap-3">
         {data.map((item, index) => {
           const displayValue = item.rawValue ?? item.value

@@ -120,12 +120,12 @@ export function OrganicPerformanceSection({
   const chartLegendWithIcons = useMemo(() => {
     const iconConfig: Record<string, { icon: React.ReactNode; color: string }> =
       {
-        impressions: { icon: <Eye className="h-4 w-4" />, color: "#6b7280" },
+        impressions: { icon: <Eye className="h-6 w-6" />, color: "#6b7280" },
         clicks: {
-          icon: <MousePointerClick className="h-4 w-4" />,
+          icon: <MousePointerClick className="h-6 w-6 rotate-90" />,
           color: "#2563eb",
         },
-        goals: { icon: <Target className="h-4 w-4" />, color: "#059669" },
+        goals: { icon: <Target className="h-6 w-6" />, color: "#059669" },
       };
     return chartLegendItems.map((item) => ({
       ...item,
@@ -137,7 +137,7 @@ export function OrganicPerformanceSection({
 
 
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-6">
 
       {/* Alert Bars */}
       <div className="flex gap-6">
@@ -211,9 +211,9 @@ export function OrganicPerformanceSection({
         businessName={businessName}
       />
 
-      <div className="border border-general-border bg-foreground-light p-3 rounded-lg flex flex-col gap-3">
+      <div className="flex flex-col gap-6">
         {/* Metric Cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 bg-white p-2 rounded-lg border border-general-border">
           {metricCards.length > 0 ? (
             metricCards.map((card) => (
               <MetricCard
@@ -241,10 +241,10 @@ export function OrganicPerformanceSection({
         </div>
 
         {/* Area Chart with Funnel */}
-        <div className="grid grid-cols-[1fr_327px] rounded-lg overflow-hidden">
-          <div className="bg-card p-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_300px] rounded-lg overflow-hidden bg-white border border-general-border">
+          <div className="p-3 pr-8 border-r border-general-border">
             {isLoading ? (
-              <div className="flex items-center justify-center h-[290px]">
+              <div className="flex items-center justify-center h-[218px]">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : hasData ? (
@@ -254,7 +254,7 @@ export function OrganicPerformanceSection({
                   items={chartLegendWithIcons}
                   onToggle={handleLegendToggle}
                 />
-                <div className="h-[210px]">
+                <div className="h-[218px]">
                   <ChartContainer
                     config={chartConfig}
                     className="h-full w-full"
@@ -401,7 +401,7 @@ export function OrganicPerformanceSection({
             )}
           </div>
 
-          <div className="bg-card p-3">
+          <div className="bg-p-3">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

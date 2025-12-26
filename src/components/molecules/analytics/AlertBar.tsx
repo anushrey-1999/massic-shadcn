@@ -52,8 +52,8 @@ export function AlertBar({
       onClick={!isLoading ? onClick : undefined}
       disabled={isLoading}
       className={cn(
-        "w-full flex items-center justify-between rounded-lg border border-border bg-card p-3 transition-all",
-        !isLoading && "hover:bg-accent/50 cursor-pointer",
+        "w-full flex items-center justify-between rounded-lg border border-general-border bg-card p-3 transition-all",
+        !isLoading && "hover:bg-general-primary-foreground cursor-pointer",
         isLoading && "opacity-70 cursor-default",
         className
       )}
@@ -62,7 +62,7 @@ export function AlertBar({
         {icon && <div className="text-muted-foreground">{icon}</div>}
         <Typography
           variant="p"
-          className="font-mono mt-0"
+          className="font-medium mt-0"
         >
           {title}
         </Typography>

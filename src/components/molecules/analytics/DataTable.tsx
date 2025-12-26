@@ -99,22 +99,22 @@ export function DataTable({
     const isDesc = sortConfig?.direction === "desc"
 
     return (
-      <span className="relative inline-flex items-center justify-center w-4 h-4">
+      <span className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center align-middle">
         <ArrowUp
           className={cn(
-            "h-4 w-4 absolute transition-all duration-200 ease-in-out",
+            "absolute inset-0 m-auto h-4 w-4 transition-all duration-200 ease-in-out",
             isActive && !isDesc ? "opacity-100 text-foreground" : "opacity-0"
           )}
         />
         <ArrowDown
           className={cn(
-            "h-4 w-4 absolute transition-all duration-200 ease-in-out",
+            "absolute inset-0 m-auto h-4 w-4 transition-all duration-200 ease-in-out",
             isActive && isDesc ? "opacity-100 text-foreground" : "opacity-0"
           )}
         />
         <ArrowUpDown
           className={cn(
-            "h-4 w-4 absolute transition-all duration-200 ease-in-out",
+            "absolute inset-0 m-auto h-4 w-4 transition-all duration-200 ease-in-out",
             !isActive ? "opacity-50 text-muted-foreground" : "opacity-0"
           )}
         />
@@ -127,19 +127,24 @@ export function DataTable({
       header: "h-[33px] px-2 py-[7.5px]",
       cell: "h-10 max-h-10 px-2 py-1",
       text: "text-xs",
-      truncate: "max-w-[150px]",
+      truncate: "max-w-[250px]",
       badge: "text-[10px]",
     },
     md: {
-      header: "h-11 px-4 py-2",
+      header: "h-11 px-2 py-2",
       cell: "h-11 px-4 py-2",
       text: "text-sm",
-      truncate: "max-w-[280px]",
+      truncate: "max-w-[380px]",
       badge: "text-[11px]",
     },
   }
 
   const styles = cellStyles[cellSize]
+
+  const isThreeColumnLayout = columns.length === 3
+  const firstColumnWidth = cellSize === "sm" ? "w-[28rem]" : "min-w-[30rem]"
+  const otherColumnWidth = cellSize === "sm" ? "w-24" : "w-32"
+  const firstColumnTruncate = cellSize === "sm" ? "max-w-[15rem]" : "max-w-[28rem]"
 
   const tableContent = (
     <>
@@ -154,23 +159,24 @@ export function DataTable({
       ) : (
         <div
           className={cn(
-            "rounded-lg border ",
+            "border-b border-general-border ",
             stickyHeader && maxHeight ? "overflow-auto" : "overflow-hidden",
           )}
           style={stickyHeader && maxHeight ? { maxHeight } : undefined}
         >
           <Table className={stickyHeader ? "overflow-visible" : undefined}>
             <TableElement>
-              <TableHeader className={cn(stickyHeader && "sticky top-0 z-10 bg-muted")}>
-                <TableRow className="hover:bg-transparent">
+              <TableHeader className="bg-foreground-light">
+                <TableRow className="bg-foreground-light hover:bg-transparent">
                   {columns.map((col, index) => (
                     <TableHead
                       key={col.key}
                       className={cn(
+                        sortConfig?.column === col.key ? "bg-general-primary-foreground" : "bg-foreground-light",
+                        stickyHeader && "sticky top-0 z-10",
                         styles.header,
-                        col.width,
-                        index === 0 && (cellSize === "sm" ? "w-60" : "min-w-[300px]"),
-                        col.sortable && "p-0"
+                        isThreeColumnLayout && !col.width && (index === 0 ? firstColumnWidth : otherColumnWidth),
+                        col.width
                       )}
                     >
                       {col.sortable ? (
@@ -178,29 +184,36 @@ export function DataTable({
                           type="button"
                           onClick={() => handleSort(col.key)}
                           className={cn(
-                            "flex h-full w-full items-center justify-between gap-2 px-4 py-2 text-left transition-colors",
+                            "flex h-full w-full items-center justify-start text-left transition-colors",
                             "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                            sortConfig?.column === col.key && "bg-accent"
+                            sortConfig?.column === col.key && "bg-general-primary-foreground hover:bg-general-primary-foreground"
                           )}
                         >
-                          <span
-                            className={cn(
-                              "min-w-0 truncate font-medium tracking-wide text-muted-foreground",
-                              cellSize === "md" ? "text-xs font-semibold uppercase" : "text-xs",
-                              sortConfig?.column === col.key && "text-foreground"
-                            )}
-                          >
-                            {col.label}
-                          </span>
-                          <span className={cn(sortConfig?.column === col.key && "text-foreground")}>
-                            {getSortIcon(col.key)}
+                          <span className="inline-flex min-w-0 items-center justify-start gap-1.5">
+                            <span
+                              className={cn(
+                                "min-w-0 truncate font-medium leading-none tracking-wide text-general-muted-foreground",
+                                cellSize === "md" ? "text-xs font-semibold uppercase" : "text-xs",
+                                sortConfig?.column === col.key && "text-foreground"
+                              )}
+                            >
+                              {col.label}
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-flex shrink-0 items-center justify-center",
+                                sortConfig?.column === col.key && "text-foreground"
+                              )}
+                            >
+                              {getSortIcon(col.key)}
+                            </span>
                           </span>
                         </button>
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex w-full items-center justify-start gap-1">
                           <span
                             className={cn(
-                              "font-medium tracking-wide text-muted-foreground",
+                              "font-medium tracking-wide text-general-muted-foreground",
                               cellSize === "md" ? "text-xs font-semibold uppercase" : "text-xs"
                             )}
                           >
@@ -220,19 +233,31 @@ export function DataTable({
                       cellSize === "sm" ? "h-10 max-h-10" : "h-11 border-b border-border/40 transition-colors hover:bg-muted/30"
                     )}
                   >
-                    {columns.map((col) => {
+                    {columns.map((col, colIndex) => {
                       const cellValue = row[col.key]
                       const isObject = typeof cellValue === "object" && cellValue !== null
                       const displayValue = isObject
                         ? String((cellValue as { value: string | number }).value)
                         : String(cellValue)
+
+                      const truncateClass =
+                        isThreeColumnLayout && colIndex === 0
+                          ? firstColumnTruncate
+                          : styles.truncate
+
                       return (
-                        <TableCell key={col.key} className={styles.cell}>
+                        <TableCell
+                          key={col.key}
+                          className={cn(
+                            styles.cell,
+                            isThreeColumnLayout && !col.width && (colIndex === 0 ? firstColumnWidth : otherColumnWidth)
+                          )}
+                        >
                           {isObject ? (
                             <div className="flex items-center gap-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className={cn(styles.text, "text-foreground truncate block cursor-default", styles.truncate)}>
+                                  <span className={cn(styles.text, "text-foreground truncate block cursor-default", truncateClass)}>
                                     {(cellValue as { value: string | number }).value}
                                   </span>
                                 </TooltipTrigger>
@@ -260,7 +285,7 @@ export function DataTable({
                           ) : (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span className={cn(styles.text, "text-foreground truncate block cursor-default", styles.truncate)}>
+                                <span className={cn(styles.text, "text-foreground truncate block cursor-default", truncateClass)}>
                                   {cellValue}
                                 </span>
                               </TooltipTrigger>
@@ -287,15 +312,15 @@ export function DataTable({
   }
 
   return (
-    <Card className={cn("gap-2.5 p-0 shadow-none border-none rounded-none", className)}>
+    <Card className={cn("p-0 shadow-none border border-general-border rounded-lg flex flex-col gap-0", className)}>
       <CardHeader className="p-0 gap-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            {title && <CardTitle className="text-base font-normal font-mono  text-general-secondary-foreground">{title}</CardTitle>}
+        <div className="flex items-center justify-between p-2 border-b border-general-border-four">
+          <div className="flex items-center gap-1 ">
+            {title && <CardTitle className="text-base font-medium text-general-secondary-foreground">{title}</CardTitle>}
           </div>
           {showTabs && tabs && (
             <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="h-auto p-0.5 bg-primary-foreground ">
+              <TabsList className="h-auto p-0.5 bg-primary-foreground">
                 {tabs.map((tab, index) => (
                   <TabsTrigger
                     key={index}
@@ -316,7 +341,7 @@ export function DataTable({
       </CardContent>
 
       {onArrowClick && (
-        <CardFooter className="justify-end p-0">
+        <CardFooter className="justify-end px-2 py-1.5">
           <Button
             size="icon-sm"
             variant="secondary"

@@ -61,17 +61,18 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
     <div className="">
       {/* <h2 className="text-base font-semibold">Reviews</h2> */}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-6">
+         <RatingCard
+          title="All Time Reviews"
+          value={reviewsData.allTimeReviews.value}
+          change={reviewsData.allTimeReviews.change}
+        />
+
         <RatingCard
           title={`Ratings Past ${period}`}
           rating={Math.round(reviewsData.avgRating.value)}
           maxRating={5}
           change={reviewsData.avgRating.change}
-        />
-        <RatingCard
-          title="All Time Reviews"
-          value={reviewsData.allTimeReviews.value}
-          change={reviewsData.allTimeReviews.change}
         />
       </div>
     </div>

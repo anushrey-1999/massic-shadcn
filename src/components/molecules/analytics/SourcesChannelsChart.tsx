@@ -40,6 +40,14 @@ export function SourcesChannelsChart({
   isLoading = false,
   hasData = true,
 }: SourcesChannelsChartProps) {
+  const BAR_SIZE = 34
+  const CATEGORY_GAP = 16
+  const CHART_CHROME_HEIGHT = 60
+  const computedHeight = Math.max(
+    height,
+    data.length * (BAR_SIZE + CATEGORY_GAP) + CHART_CHROME_HEIGHT
+  )
+
   const renderLegend = (props: any) => {
     const { payload } = props
     // Reorder to show Goals first, then Sessions
@@ -70,7 +78,10 @@ export function SourcesChannelsChart({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-general-border bg-white p-3" style={{ height }}>
+      <div
+        className="flex flex-col items-center justify-center rounded-lg border border-general-border bg-white p-3"
+        style={{ minHeight: height }}
+      >
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -78,14 +89,20 @@ export function SourcesChannelsChart({
 
   if (!hasData || data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-general-border bg-white p-3" style={{ height }}>
+      <div
+        className="flex flex-col items-center justify-center rounded-lg border border-general-border bg-white p-3"
+        style={{ minHeight: height }}
+      >
         <span className="text-muted-foreground text-sm">No channel data available</span>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-2.5  bg-white" style={{ height }}>
+    <div
+      className="flex flex-col gap-2.5 rounded-lg p-3 border border-general-border bg-white"
+      style={{ minHeight: height, height: computedHeight }}
+    >
       <div className="flex-1 min-h-0">
         <ChartContainer config={chartConfig} className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -93,10 +110,10 @@ export function SourcesChannelsChart({
               data={data}
               layout="vertical"
               margin={{ top: 0, right: 10, bottom: 10, left: 0 }}
-              barSize={34}
-              barGap={-34}
-              barCategoryGap={16}
-              maxBarSize={34}
+              barSize={BAR_SIZE}
+              barGap={-BAR_SIZE}
+              barCategoryGap={CATEGORY_GAP}
+              maxBarSize={BAR_SIZE}
             >
               <XAxis type="number" hide domain={[0, 100]} />
               <YAxis
@@ -144,7 +161,7 @@ export function SourcesChannelsChart({
                 opacity={0.3} 
                 name="Sessions"
                 isAnimationActive={false}
-                barSize={34}
+                barSize={BAR_SIZE}
               />
               <Bar 
                 dataKey="goalsNorm" 
@@ -152,7 +169,7 @@ export function SourcesChannelsChart({
                 fill="#059669" 
                 name="Goals"
                 isAnimationActive={false}
-                barSize={34}
+                barSize={BAR_SIZE}
               />
             </BarChart>
           </ResponsiveContainer>

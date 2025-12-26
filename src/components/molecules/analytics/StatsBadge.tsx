@@ -35,7 +35,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
           ) : (
             <TrendingDown className={cn("h-3 w-3", iconColor)} />
           ))}
-        <span>{Math.abs(value)}%</span>
+        <span className="font-medium">{Math.abs(value)}%</span>
       </span>
     )
   }
@@ -43,7 +43,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 bg-foreground-light text-general-muted-foreground text-xs px-1.5 py-[4.5px] rounded-lg",
+        "inline-flex items-center gap-1 text-general-muted-foreground text-xs ",
         className
       )}
     >
@@ -53,7 +53,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
         ) : (
           <TrendingDown className="h-3 w-3 text-red-600" />
         ))}
-      <span>{Math.abs(value)}%</span>
+      <span className="font-medium">{Math.abs(value)}%</span>
     </span>
   )
 }

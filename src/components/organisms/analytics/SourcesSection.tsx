@@ -1,7 +1,7 @@
 "use client";
 
 import { Typography } from "@/components/ui/typography";
-import { ListChecks, Eye, Star, TrendingUp, TrendingDown } from "lucide-react";
+import { ListChecks, Eye, Star, TrendingUp, TrendingDown, ListOrdered } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
@@ -50,19 +50,19 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
   const [topSourcesModalOpen, setTopSourcesModalOpen] = useState(false);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col px-7">
+      <div className="flex items-center gap-2 px-6 py-5 bg-[#0A0A0A0D] rounded-lg">
         <ListChecks className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Sources</Typography>
       </div>
 
-      <div className="grid grid-cols-2 gap-8 border border-general-border p-3 rounded-lg">
+      <div className="grid grid-cols-2 gap-6 py-10 ">
         <DataTable
           icon={<Eye className="h-6 w-6" />}
           title="Sources that drive the most conversion"
           showTabs
           tabs={[
-            { icon: <Star className="h-4 w-4" />, value: "popular" },
+            { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
             { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
             { icon: <TrendingDown className="h-4 w-4" />, value: "decaying" },
           ]}
@@ -100,7 +100,7 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         title="Sources that drive the most conversion"
         icon={<Eye className="h-4 w-4" />}
         tabs={[
-          { icon: <Star className="h-4 w-4" />, value: "popular", label: "Popular" },
+          { icon: <ListOrdered className="h-4 w-4" />, value: "popular", label: "Popular" },
           { icon: <TrendingUp className="h-4 w-4" />, value: "growing", label: "Growing" },
           { icon: <TrendingDown className="h-4 w-4" />, value: "decaying", label: "Decaying" },
         ]}

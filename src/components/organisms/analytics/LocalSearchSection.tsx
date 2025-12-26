@@ -7,18 +7,10 @@ import { DataTable, type SortConfig } from "@/components/molecules/analytics/Dat
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
 import { InteractionsChartCard } from "@/components/molecules/analytics/InteractionsChartCard";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   useLocalPresence,
   type TimePeriodValue,
 } from "@/hooks/use-local-presence";
 import { useBusinessStore } from "@/store/business-store";
-import { Typography } from "@/components/ui/typography";
 
 interface LocationOption {
   value: string;
@@ -29,14 +21,12 @@ interface LocalSearchSectionProps {
   period?: TimePeriodValue;
   locations?: LocationOption[];
   selectedLocation?: string;
-  onLocationChange?: (location: string) => void;
 }
 
 export function LocalSearchSection({
   period = "3 months",
   locations = [],
   selectedLocation = "",
-  onLocationChange,
 }: LocalSearchSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -90,42 +80,17 @@ export function LocalSearchSection({
 
   if (locations.length === 0) {
     return (
-      <div className="flex flex-col gap-7">
-        <div className="flex items-center gap-2">
-          <MapPin className="h-8 w-8 text-general-foreground" />
-          <Typography variant="h2">Local Search</Typography>
-        </div>
-        <div className="flex items-center justify-center h-[200px] border rounded-lg bg-muted/20">
-          <p className="text-sm text-muted-foreground">
-            No locations configured for this business
-          </p>
-        </div>
+      <div className="flex items-center justify-center h-[200px] border rounded-lg bg-muted/20">
+        <p className="text-sm text-muted-foreground">
+          No locations configured for this business
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <MapPin className="h-8 w-8 text-general-foreground" />
-          <Typography variant="h2">Local Search</Typography>
-        </div>
-        <Select value={selectedLocation} onValueChange={onLocationChange}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Select location" />
-          </SelectTrigger>
-          <SelectContent>
-            {locations.map((location) => (
-              <SelectItem key={location.value} value={location.value}>
-                {location.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-8 border border-general-border rounded-lg p-3">
+    <>
+      <div className="grid grid-cols-2 gap-6">
         {isLoading ? (
           <div className="flex items-center justify-center h-[300px] border rounded-lg">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -175,6 +140,6 @@ export function LocalSearchSection({
         sortConfig={sortConfig}
         onSort={handleSort}
       />
-    </div>
+    </>
   );
 }

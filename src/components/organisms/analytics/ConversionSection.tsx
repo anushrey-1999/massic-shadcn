@@ -7,6 +7,7 @@ import {
   Star,
   TrendingUp,
   TrendingDown,
+  ListOrdered,
 } from "lucide-react";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
@@ -87,20 +88,20 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
   const [topPagesModalOpen, setTopPagesModalOpen] = useState(false);
 
   return (
-    <div className="">
-      <div className="flex items-center gap-2 mb-6">
+    <div className="px-7">
+      <div className="flex items-center gap-2 px-6 py-5 bg-[#0A0A0A0D] rounded-lg">
         <ChartNoAxesCombined className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Conversions</Typography>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-8 border border-general-border p-3 rounded-lg">
+      <div className="flex flex-col gap-6 py-10">
+        <div className="grid grid-cols-2 gap-6 ">
           <DataTable
             icon={<Eye className="h-6 w-6" />}
             title="Your tracked CTAs"
             showTabs
             tabs={[
-              { icon: <Star className="h-4 w-4" />, value: "popular" },
+              { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
               { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
               { icon: <TrendingDown className="h-4 w-4" />, value: "decaying" },
             ]}
@@ -151,13 +152,13 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-8 border border-general-border p-3 rounded-lg">
+        <div className="grid grid-cols-2 gap-6  ">
           <DataTable
             icon={<Eye className="h-6 w-6" />}
             title="Where conversions happen"
             showTabs
             tabs={[
-              { icon: <Star className="h-4 w-4" />, value: "popular" },
+              { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
               { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
               { icon: <TrendingDown className="h-4 w-4" />, value: "decaying" },
             ]}
@@ -193,7 +194,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
             title=""
             showTabs
             tabs={[
-              { icon: <Star className="h-4 w-4" />, value: "popular" },
+              { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
               { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
               { icon: <TrendingDown className="h-4 w-4" />, value: "decaying" },
             ]}
@@ -232,7 +233,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
         icon={<Eye className="h-4 w-4" />}
         tabs={[
           {
-            icon: <Star className="h-4 w-4" />,
+            icon: <ListOrdered className="h-4 w-4" />,
             value: "popular",
             label: "Popular",
           },
@@ -274,7 +275,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
         icon={<Eye className="h-4 w-4" />}
         tabs={[
           {
-            icon: <Star className="h-4 w-4" />,
+            icon: <ListOrdered className="h-4 w-4" />,
             value: "popular",
             label: "Popular",
           },
@@ -318,7 +319,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
         icon={<Eye className="h-4 w-4" />}
         tabs={[
           {
-            icon: <Star className="h-4 w-4" />,
+            icon: <ListOrdered className="h-4 w-4" />,
             value: "popular",
             label: "Popular",
           },

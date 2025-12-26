@@ -17,6 +17,15 @@ import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 import { usePrefetchAnalyticsPages } from "@/hooks/use-prefetch-analytics-pages";
+import { MapPin } from "lucide-react";
+import { Typography } from "@/components/ui/typography";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const navItems = [
   { id: "discovery", label: "Discovery" },
@@ -63,7 +72,7 @@ export function AnalyticsTemplate() {
   const isTrialActive =
     ((profileData as any)?.isTrialActive ??
       (businessProfile as any)?.isTrialActive) === true;
-      
+
   const remainingTrialDays =
     typeof (profileData as any)?.remainingTrialDays === "number"
       ? (profileData as any).remainingTrialDays
@@ -86,7 +95,10 @@ export function AnalyticsTemplate() {
     () => [
       { label: "Home", href: "/" },
       { label: businessName },
-      { label: "Analytics", href: businessId ? `/business/${businessId}/analytics` : undefined },
+      {
+        label: "Analytics",
+        href: businessId ? `/business/${businessId}/analytics` : undefined,
+      },
     ],
     [businessName, businessId]
   );
@@ -174,7 +186,7 @@ export function AnalyticsTemplate() {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen scroll-smooth bg-background">
+    <div className="flex flex-col min-h-screen scroll-smooth ">
       <PlanModal
         open={upgradeOpen}
         onClose={() => setUpgradeOpen(false)}
@@ -217,52 +229,82 @@ export function AnalyticsTemplate() {
       </div>
 
       {/* Scrollable Content */}
-      <div className="container mx-auto flex flex-col gap-12 p-5">
-            <div id="organic" ref={organicRef} className="scroll-mt-[200px]">
-              <OrganicPerformanceSection period={selectedPeriod} />
+      <div className="container mx-auto flex flex-col">
+        <div
+          id="organic"
+          ref={organicRef}
+          className="scroll-mt-[200px] p-7 pb-10"
+        >
+          <OrganicPerformanceSection period={selectedPeriod} />
+        </div>
+
+        <div
+          id="discovery"
+          ref={sectionRefs.discovery}
+          className="scroll-mt-[200px]"
+        >
+          <DiscoveryPerformanceSection period={selectedPeriod} />
+        </div>
+
+        <div
+          id="sources"
+          ref={sectionRefs.sources}
+          className="scroll-mt-[200px]"
+        >
+          <SourcesSection period={selectedPeriod} />
+        </div>
+
+        <div
+          id="conversion"
+          ref={sectionRefs.conversion}
+          className="scroll-mt-[200px]"
+        >
+          <ConversionSection period={selectedPeriod} />
+        </div>
+
+        <div
+          id="local-search"
+          ref={sectionRefs["local-search"]}
+          className="scroll-mt-[200px] px-7"
+        >
+          <div className="flex items-center justify-between bg-[#0A0A0A0D] px-6 py-5 rounded-lg">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-8 w-8 text-general-foreground" />
+              <Typography variant="h2">Local Search</Typography>
             </div>
 
-            <div
-              id="discovery"
-              ref={sectionRefs.discovery}
-              className="scroll-mt-[200px]"
-            >
-              <DiscoveryPerformanceSection period={selectedPeriod} />
-            </div>
+            {locations.length > 0 ? (
+              <Select
+                value={selectedLocation}
+                onValueChange={setSelectedLocation}
+              >
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map((location) => (
+                    <SelectItem key={location.value} value={location.value}>
+                      {location.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+          </div>
 
-            <div
-              id="sources"
-              ref={sectionRefs.sources}
-              className="scroll-mt-[200px]"
-            >
-              <SourcesSection period={selectedPeriod} />
-            </div>
+          <div className="py-10 flex flex-col gap-6">
+            <LocalSearchSection
+              period={selectedPeriod}
+              locations={locations}
+              selectedLocation={selectedLocation}
+            />
 
-            <div
-              id="conversion"
-              ref={sectionRefs.conversion}
-              className="scroll-mt-[200px]"
-            >
-              <ConversionSection period={selectedPeriod} />
-            </div>
-
-            <div
-              id="local-search"
-              ref={sectionRefs["local-search"]}
-              className="scroll-mt-[200px] flex flex-col gap-4"
-            >
-              <LocalSearchSection
-                period={selectedPeriod}
-                locations={locations}
-                selectedLocation={selectedLocation}
-                onLocationChange={setSelectedLocation}
-              />
-
-              <ReviewsSection
-                period={selectedPeriod}
-                selectedLocation={selectedLocation}
-              />
-            </div>
+            <ReviewsSection
+              period={selectedPeriod}
+              selectedLocation={selectedLocation}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

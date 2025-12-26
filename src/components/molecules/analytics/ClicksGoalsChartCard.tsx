@@ -1,6 +1,6 @@
 "use client"
 
-import { MousePointerClick, Target, Loader2 } from "lucide-react"
+import { MousePointerClick, Target, Loader2, SquareMousePointer } from "lucide-react"
 import {
   AreaChart,
   Area,
@@ -54,7 +54,7 @@ export function ClicksGoalsChartCard({
   const legendItems = [
     {
       key: "sessions",
-      icon: <MousePointerClick className="h-4 w-4" />,
+      icon: <SquareMousePointer className="h-6 w-6 rotate-90" />,
       value: String(clicksMetric.value),
       change: clicksMetric.change,
       color: "#2563EB",
@@ -62,7 +62,7 @@ export function ClicksGoalsChartCard({
     },
     {
       key: "goals",
-      icon: <Target className="h-4 w-4" />,
+      icon: <Target className="h-6 w-6" />,
       value: String(goalsMetric.value),
       change: goalsMetric.change,
       color: "#059669",
@@ -87,11 +87,11 @@ export function ClicksGoalsChartCard({
   }
 
   return (
-    <div className="flex flex-col  bg-white overflow-hidden" style={{ height }}>
+    <div className="flex flex-col  bg-white overflow-hidden border border-general-border p-3 rounded-lg" style={{ height }}>
       <ChartLegend
         items={legendItems}
         onToggle={onLegendToggle}
-        className="mb-2 shrink-0"
+        className="shrink-0"
       />
 
       <div className="flex-1 min-h-0 w-full">

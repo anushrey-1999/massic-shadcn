@@ -68,7 +68,7 @@ export function PositionDistributionCard({
     return (
       <div className="flex flex-col gap-2.5 rounded-lg  bg-white ">
         <div className="flex items-center gap-1">
-          <Eye className="h-[26px] w-[26px] stroke-general-border-three stroke-[1.5]" />
+          {/* <Eye className="h-[26px] w-[26px] stroke-general-border-three stroke-[1.5]" /> */}
           <span className="text-base font-medium text-[#171717]">{title}</span>
         </div>
         <div className="flex items-center justify-center h-[250px]">
@@ -82,7 +82,7 @@ export function PositionDistributionCard({
     return (
       <div className="flex flex-col gap-2.5 rounded-lg border border-general-border bg-white p-3">
         <div className="flex items-center gap-1">
-          <Eye className="h-[26px] w-[26px] stroke-general-border-three stroke-[1.5]" />
+          {/* <Eye className="h-[26px] w-[26px] stroke-general-border-three stroke-[1.5]" /> */}
           <span className="text-base font-medium text-[#171717]">{title}</span>
         </div>
         <div className="flex items-center justify-center h-[250px] text-muted-foreground text-sm">
@@ -93,12 +93,12 @@ export function PositionDistributionCard({
   }
 
   return (
-    <div className="flex flex-col gap-2.5 bg-white">
-      <div className="flex items-center gap-1">
-        <span className="text-base font-medium font-mono  text-general-secondary-foreground">{title}</span>
+    <div className="flex flex-col bg-white rounded-lg border border-general-border">
+      <div className="flex items-center gap-1 p-2 border-b border-general-border-four">
+        <span className="text-base font-medium text-general-secondary-foreground">{title}</span>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 p-2">
         <div className="grid grid-cols-4 gap-1.5 rounded-lg bg-foreground-light p-2 ">
           {positions.map((position, index) => (
             <label

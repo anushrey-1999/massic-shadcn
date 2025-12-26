@@ -30,7 +30,7 @@ export function MetricCard({
     return (
       <div
         className={cn(
-          "flex flex-col items-center justify-center rounded-lg bg-card p-3 h-[88px] gap-2",
+          "flex flex-col items-center justify-center bg-card h-[88px] gap-2",
           className
         )}
       >
@@ -44,7 +44,7 @@ export function MetricCard({
     return (
       <div
         className={cn(
-          "flex items-center justify-center rounded-lg bg-card p-4 text-muted-foreground text-sm",
+          "flex items-center justify-center rounded-lg p-3 bg-card text-muted-foreground text-sm",
           className
         )}
       >
@@ -57,7 +57,7 @@ export function MetricCard({
     return (
       <div
         className={cn(
-          "flex items-center justify-center rounded-lg bg-card p-4 text-muted-foreground text-sm",
+          "flex items-center justify-center rounded-lg p-3 text-muted-foreground text-sm",
           className
         )}
       >
@@ -71,21 +71,21 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "flex items-center justify-between rounded-lg bg-card p-3 flex-1",
+        "flex items-center gap-10 bg-card p-3 flex-1",
         className
       )}
     >
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 leading-[150%]">
           {/* {icon && <span className="text-muted-foreground">{icon}</span>} */}
-          {label && <span className="text-base font-mono leading-[150%]">{label}</span>}
+          {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
         </div>
         <div className="flex items-center gap-1">
-          {value && <span className="text-3xl font-semibold">{value}</span>}
+          {value && <span className="text-3xl font-semibold text-general-unofficial-foreground-alt">{value}</span>}
           {change !== undefined && (
             <div
               className={cn(
-                "flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded"
+                "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
               )}
             >
               {isPositive ? (
@@ -93,7 +93,7 @@ export function MetricCard({
               ) : (
                 <TrendingDown className="h-3 w-3 text-red-600" />
               )}
-              <span>{Math.abs(change)}%</span>
+              <span className="font-medium text-general-muted-foreground">{Math.abs(change)}%</span>
             </div>
           )}
         </div>

@@ -22,11 +22,11 @@ interface ChartLegendProps {
 
 export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
   return (
-    <div className={cn("flex items-center gap-2 p-2 bg-muted/50 rounded-lg", className)}>
+    <div className={cn("flex items-center gap-4 p-2 rounded-lg bg-foreground-light", className)}>
       {items.map((item) => (
         <label
           key={item.key}
-          className="flex flex-1 items-center justify-center gap-2 py-1 px-1.5 bg-background rounded-md cursor-pointer"
+          className="flex items-center justify-center px-1.5 py-1 bg-white rounded-md cursor-pointer flex-1"
         >
           <Checkbox
             checked={item.checked ?? true}
@@ -35,9 +35,9 @@ export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
             }
             className="cursor-pointer"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pl-4 pr-2 flex-1 justify-center">
             <div className="flex items-center gap-1.5">
-              <span style={item.color ? { color: item.color } : undefined} className={item.color ? undefined : "text-muted-foreground"}>{item.icon}</span>
+              <span style={item.color ? { color: item.color } : undefined} className={item.color ? undefined : "text-muted-foreground w-6 h-6"}>{item.icon}</span>
               <span
                 className="font-semibold leading-[120%] tracking-[-0.02em]"
                 style={{
@@ -73,7 +73,7 @@ interface PositionLegendProps {
 
 export function PositionLegend({ items, onToggle, className }: PositionLegendProps) {
   return (
-    <div className={cn("flex items-center gap-4 p-2 border-b border-border", className)}>
+    <div className={cn("flex items-center gap-4 p-2", className)}>
       {items.map((item) => (
         <div key={item.key} className="flex items-center gap-2">
           <Checkbox
@@ -88,9 +88,11 @@ export function PositionLegend({ items, onToggle, className }: PositionLegendPro
               } as React.CSSProperties
             }
           />
+          <div className="flex">
           <span className="text-sm">{item.label}</span>
           <span className="text-sm font-medium">{item.value}</span>
           <StatsBadge value={item.change} />
+          </div>
         </div>
       ))}
     </div>

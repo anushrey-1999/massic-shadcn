@@ -2,7 +2,14 @@
 
 import { Typography } from "@/components/ui/typography";
 import { TimePeriodValue } from "@/hooks/use-gsc-analytics";
-import { Search, Eye, Star, TrendingUp, TrendingDown } from "lucide-react";
+import {
+  Search,
+  Eye,
+  Star,
+  TrendingUp,
+  TrendingDown,
+  ListOrdered,
+} from "lucide-react";
 import Image from "next/image";
 import React, { useMemo, useState } from "react";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
@@ -209,8 +216,6 @@ const DiscoveryPerformanceSection = ({
       return colorMap[normalized] || fallbackColor;
     };
 
-    console.log("🔍 Raw normalizedSourcesData:", normalizedSourcesData);
-
     const mappedData = normalizedSourcesData
       .map((source) => {
         const icon = getIconForSource(source.name);
@@ -242,7 +247,6 @@ const DiscoveryPerformanceSection = ({
         return aOrder - bOrder;
       });
 
-    console.log("✅ Final llmDataWithIcons:", mappedData);
     return mappedData;
   }, [normalizedSourcesData]);
 
@@ -251,20 +255,20 @@ const DiscoveryPerformanceSection = ({
   const [topQueriesModalOpen, setTopQueriesModalOpen] = useState(false);
 
   return (
-    <div className="">
-      <div className="flex items-center gap-2 mb-6">
+    <div className="px-7">
+      <div className="flex items-center gap-2 bg-[#0A0A0A0D] px-6 py-5 rounded-lg">
         <Search className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Discovery</Typography>
       </div>
 
-      <div className="flex flex-col gap-4">
-        <div className="border border-general-border rounded-lg p-3 ">
-          <div className="grid grid-cols-2 gap-8">
+      <div className="flex flex-col gap-6 py-10">
+        <div className="">
+          <div className="grid grid-cols-2 gap-6">
             <DataTable
               title="Content people are seeing"
               showTabs
               tabs={[
-                { icon: <Star className="h-4 w-4" />, value: "popular" },
+                { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
                 { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
                 {
                   icon: <TrendingDown className="h-4 w-4" />,
@@ -297,10 +301,10 @@ const DiscoveryPerformanceSection = ({
 
             <DataTable
               icon={<></>}
-              title=""
+              title="Content people are seeing"
               showTabs
               tabs={[
-                { icon: <Star className="h-4 w-4" />, value: "popular" },
+                { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
                 { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
                 {
                   icon: <TrendingDown className="h-4 w-4" />,
@@ -334,14 +338,14 @@ const DiscoveryPerformanceSection = ({
         </div>
 
         {/* Second Row */}
-        <div className="border border-general-border rounded-lg p-3">
-          <div className="grid grid-cols-2 gap-8">
+        <div className="">
+          <div className="grid grid-cols-2 gap-6">
             <DataTable
               icon={<Eye className="h-4 w-4" />}
               title="Searches to discover you"
               showTabs
               tabs={[
-                { icon: <Star className="h-4 w-4" />, value: "popular" },
+                { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
                 { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
                 {
                   icon: <TrendingDown className="h-4 w-4" />,
@@ -383,15 +387,18 @@ const DiscoveryPerformanceSection = ({
         </div>
 
         {/* AI Search Section */}
-        <div className="border border-general-border rounded-lg p-3 flex flex-col gap-2.5">
+        <div className="border border-general-border rounded-lg flex flex-col bg-white">
+          <div className="p-2 border-b border-general-border-four">
+
           <Typography
             variant="p"
-            className="font-mono text-general-secondary-foreground"
-          >
+            className="text-base font-medium text-general-secondary-foreground"
+            >
             AI Search
           </Typography>
+            </div>
 
-          <div className="grid grid-cols-2 gap-9 ">
+          <div className="grid grid-cols-2 gap-6 px-6 py-3">
             <AITrafficChartCard
               title="AI Search Traffic Over Time"
               metrics={metricsForCard}
@@ -418,7 +425,7 @@ const DiscoveryPerformanceSection = ({
         icon={<Eye className="h-4 w-4" />}
         tabs={[
           {
-            icon: <Star className="h-4 w-4" />,
+            icon: <ListOrdered className="h-4 w-4" />,
             value: "popular",
             label: "Popular",
           },
@@ -461,7 +468,7 @@ const DiscoveryPerformanceSection = ({
         icon={<Eye className="h-4 w-4" />}
         tabs={[
           {
-            icon: <Star className="h-4 w-4" />,
+            icon: <ListOrdered className="h-4 w-4" />,
             value: "popular",
             label: "Popular",
           },
@@ -504,7 +511,7 @@ const DiscoveryPerformanceSection = ({
         icon={<Eye className="h-4 w-4" />}
         tabs={[
           {
-            icon: <Star className="h-4 w-4" />,
+            icon: <ListOrdered className="h-4 w-4" />,
             value: "popular",
             label: "Popular",
           },

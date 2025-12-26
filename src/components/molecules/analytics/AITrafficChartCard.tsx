@@ -34,7 +34,7 @@ export function AITrafficChartCard({
   data,
   dataKey = "traffic",
   strokeColor = "#3b82f6",
-  chartHeight = 180,
+  chartHeight = 233,
   isLoading = false,
   hasData = true,
 }: AITrafficChartCardProps) {
@@ -44,7 +44,7 @@ export function AITrafficChartCard({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col rounded-lg bg-white">
+      <div className="flex flex-col bg-white">
         <Skeleton className="h-6 w-48 m-3" />
         <div className="flex items-center gap-2 p-2 bg-secondary m-2 rounded-lg">
           {[1, 2, 3].map((i) => (
@@ -73,13 +73,13 @@ export function AITrafficChartCard({
   }
 
   return (
-    <div className="flex flex-col rounded-lg  bg-white">
-      <div className="flex items-center gap-2 p-2 bg-secondary rounded-lg">
+    <div className="flex flex-col rounded-lg gap-4  bg-white">
+      <div className="flex items-center gap-4">
         {metrics.map((metric, index) => (
-          <div key={index} className="flex flex-1 flex-col gap-0.5 rounded-lg p-1 bg-white">
-            <span className="text-xs font-normal text-general-muted-foreground">{metric.label}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-mono text-general-secondary-foreground">{metric.value}</span>
+          <div key={index} className="flex flex-1 flex-col gap-1 rounded-lg p-2 bg-foreground-light">
+            <span className="text-xs font-medium text-general-muted-foreground">{metric.label}</span>
+            <div className="flex items-center gap-2 justify-between">
+              <span className="text-base text-general-foreground font-medium">{metric.value}</span>
               <div className="flex items-center gap-0.5">
                 {metric.change >= 0 ? (
                   <TrendingUp className="h-3 w-3 text-[#16A34A]" />

@@ -184,7 +184,7 @@ export function PositionDistributionCard({
         >
           <ChartContainer config={chartConfig} className="h-full w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={zoomedChartData} margin={{ top: 0, right: 0, left: 20, bottom: 20 }}>
+              <AreaChart data={zoomedChartData} margin={{ top: 0, right: 0, left: 20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="fillPos1_3_dist" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#2563EB" stopOpacity={0.2} />
@@ -243,7 +243,7 @@ export function PositionDistributionCard({
                     dataKey="pos20_plusNorm"
                     stroke="#2563EB"
                     fill="url(#fillPos20_plus_dist)"
-                    strokeWidth={1.5}
+                    strokeWidth={1}
                     opacity={0.3}
                     name="Pos 20+"
                   />
@@ -254,7 +254,7 @@ export function PositionDistributionCard({
                     dataKey="pos11_20Norm"
                     stroke="#2563EB"
                     fill="url(#fillPos11_20_dist)"
-                    strokeWidth={1.5}
+                    strokeWidth={1}
                     opacity={0.5}
                     name="Pos 11-20"
                   />
@@ -265,7 +265,7 @@ export function PositionDistributionCard({
                     dataKey="pos4_10Norm"
                     stroke="#2563EB"
                     fill="url(#fillPos4_10_dist)"
-                    strokeWidth={1.5}
+                    strokeWidth={1}
                     opacity={0.7}
                     name="Pos 4-10"
                   />
@@ -276,7 +276,7 @@ export function PositionDistributionCard({
                     dataKey="pos1_3Norm"
                     stroke="#2563EB"
                     fill="url(#fillPos1_3_dist)"
-                    strokeWidth={1.5}
+                    strokeWidth={1}
                     name="Pos 1-3"
                   />
                 )}

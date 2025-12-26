@@ -215,17 +215,19 @@ export function AnalyticsTemplate() {
           }}
           breadcrumbs={breadcrumbs}
         />
-        <NavigationTabs
-          items={navItems}
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          periodSelector={
-            <PeriodSelector
-              value={selectedPeriod}
-              onValueChange={setSelectedPeriod}
-            />
-          }
-        />
+        <div className="container mx-auto px-7"> 
+          <NavigationTabs
+            items={navItems}
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+            periodSelector={
+              <PeriodSelector
+                value={selectedPeriod}
+                onValueChange={setSelectedPeriod}
+              />
+            }
+          />
+        </div>
       </div>
 
       {/* Scrollable Content */}

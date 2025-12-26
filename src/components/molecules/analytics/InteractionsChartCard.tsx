@@ -33,7 +33,7 @@ export function InteractionsChartCard({
   data,
   dataKey,
   strokeColor = "#3b82f6",
-  chartHeight = 220,
+  chartHeight = 190,
 }: InteractionsChartCardProps) {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomCenter, setZoomCenter] = useState<number | null>(null);

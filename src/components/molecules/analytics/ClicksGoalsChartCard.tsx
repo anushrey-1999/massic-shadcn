@@ -1,6 +1,7 @@
 "use client"
 
-import { MousePointerClick, Target, Loader2, SquareMousePointer } from "lucide-react"
+import { Target, Loader2, SquareMousePointer } from "lucide-react"
+import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import {
   AreaChart,
   Area,
@@ -45,12 +46,51 @@ export function ClicksGoalsChartCard({
   clicksMetric,
   goalsMetric,
   data,
-  height = 335,
+  height = 355,
   isLoading = false,
   hasData = true,
   visibleLines,
   onLegendToggle,
 }: ClicksGoalsChartCardProps) {
+  const [zoomLevel, setZoomLevel] = useState(1)
+  const [zoomCenter, setZoomCenter] = useState<number | null>(null)
+  const chartRef = useRef<HTMLDivElement>(null)
+
+  const zoomedData = useMemo(() => {
+    if (zoomLevel <= 1 || zoomCenter === null || data.length === 0) return data
+    const totalPoints = data.length
+    const visiblePoints = Math.max(2, Math.floor(totalPoints / zoomLevel))
+    const halfVisible = Math.floor(visiblePoints / 2)
+    let startIndex = Math.max(0, zoomCenter - halfVisible)
+    let endIndex = Math.min(totalPoints - 1, zoomCenter + halfVisible)
+    return data.slice(startIndex, endIndex + 1)
+  }, [data, zoomLevel, zoomCenter])
+
+  useEffect(() => {
+    const element = chartRef.current
+    if (!element) return
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const rect = element.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const relativeX = x / rect.width
+      const dataIndex = Math.floor(relativeX * data.length)
+      setZoomCenter(Math.max(0, Math.min(data.length - 1, dataIndex)))
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+      setZoomLevel((prev) => Math.max(1, Math.min(prev * zoomFactor, data.length / 2)))
+    }
+
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => element.removeEventListener('wheel', handleWheel)
+  }, [data.length])
+
+  const handleDoubleClick = useCallback(() => {
+    setZoomLevel(1)
+    setZoomCenter(null)
+  }, [])
+
   const legendItems = [
     {
       key: "sessions",
@@ -94,10 +134,14 @@ export function ClicksGoalsChartCard({
         className="shrink-0"
       />
 
-      <div className="flex-1 min-h-0 w-full">
+      <div
+        ref={chartRef}
+        className="flex-1 min-h-0 w-full cursor-grab active:cursor-grabbing"
+        onDoubleClick={handleDoubleClick}
+      >
         <ChartContainer config={chartConfig} className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <AreaChart data={zoomedData} margin={{ top: 10, right: 10, left: 20, bottom: 25 }}>
               <defs>
                 <linearGradient id="fillSessions" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#2563EB" stopOpacity={0.2} />
@@ -113,6 +157,7 @@ export function ClicksGoalsChartCard({
                 tickLine={false}
                 axisLine={false}
                 tick={{ fontSize: 10, fill: "#737373" }}
+                interval={zoomedData.length <= 7 ? 0 : zoomedData.length <= 14 ? 1 : zoomedData.length <= 30 ? Math.floor(zoomedData.length / 8) : zoomedData.length <= 90 ? Math.floor(zoomedData.length / 10) : Math.floor(zoomedData.length / 12)}
               />
               <YAxis hide domain={[0, 100]} />
               <ChartTooltip
@@ -138,7 +183,7 @@ export function ClicksGoalsChartCard({
               />
               {visibleLines.sessions && (
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="sessionsNorm"
                   stroke="#2563EB"
                   fill="url(#fillSessions)"
@@ -148,7 +193,7 @@ export function ClicksGoalsChartCard({
               )}
               {visibleLines.goals && (
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="goalsNorm"
                   stroke="#059669"
                   fill="url(#fillGoals)"

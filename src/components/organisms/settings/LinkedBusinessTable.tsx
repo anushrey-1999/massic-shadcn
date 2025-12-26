@@ -41,6 +41,7 @@ import {
   Loader2,
   ChevronDown,
   Link2,
+  X,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -164,15 +165,20 @@ export default function LinkedBusinessTable() {
     });
   }, [search, localBusinesses, filter]);
 
-  const handleGa4Change = (siteUrl: string, propertyId: string) => {
+  const handleGa4Change = (siteUrl: string, propertyId: string | null) => {
     setLocalBusinesses((prev) =>
       prev.map((b) => {
         if (b.siteUrl === siteUrl) {
+          if (propertyId === null) {
+            // Clear selection and set flag to indicate explicit clear
+            return { ...b, selectedGa4: undefined, ga4Cleared: true };
+          }
           const selectedGa4 =
             b.matchedGa4Multiple?.find(
               (ga4) => ga4.propertyId === propertyId
             ) || unmatchedGa4.find((ga4) => ga4.propertyId === propertyId);
-          return { ...b, selectedGa4 };
+          // When selecting, clear the ga4Cleared flag
+          return { ...b, selectedGa4, ga4Cleared: false };
         }
         return b;
       })
@@ -279,11 +285,10 @@ export default function LinkedBusinessTable() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`h-9 w-9 cursor-pointer ${
-                    isActive
+                  className={`h-9 w-9 cursor-pointer ${isActive
                       ? "bg-[#2E6A56] text-white"
                       : "border border-[#DC2626] bg-[#FEF2F2]"
-                  }`}
+                    }`}
                   onClick={() => openToggleConfirm(row.original)}
                 >
                   {isActive ? (
@@ -385,7 +390,25 @@ export default function LinkedBusinessTable() {
                         accountName={selectedGa4.accountName}
                         accountId={selectedGa4.accountId}
                       />
-                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center cursor-pointer pointer-events-auto"
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleGa4Change(rowData.siteUrl || "", null);
+                          }}
+                        >
+                          <X className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                        </div>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between w-full">
@@ -417,9 +440,14 @@ export default function LinkedBusinessTable() {
             // If multiple matches, wrap card in a Select dropdown
             if (hasMultipleMatches) {
               const ga4Options = rowData.matchedGa4Multiple || [];
-              const selectedPropertyId =
-                rowData.selectedGa4?.propertyId || getPropertyId() || "";
-              const currentGa4 = rowData.selectedGa4 || rowData.matchedGa4 || rowData.linkedPropertyId;
+              const isCleared = rowData.ga4Cleared === true;
+
+              // Only show selected value if not cleared
+              const displayGa4 = isCleared ? null : (rowData.selectedGa4 || rowData.matchedGa4 || rowData.linkedPropertyId);
+              const selectedPropertyId = isCleared ? "" : (rowData.selectedGa4?.propertyId || getPropertyId() || "");
+
+              // Show X button if there's a displayed value (either selectedGa4 or default matchedGa4)
+              const showClearButton = !isCleared && (rowData.selectedGa4 || rowData.matchedGa4);
 
               return (
                 <Select
@@ -429,15 +457,42 @@ export default function LinkedBusinessTable() {
                   }
                 >
                   <SelectTrigger className="w-full max-w-[300px] py-1.5 px-2  border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden min-h-[60px]">
-                    <div className="flex items-center justify-between w-full gap-1 ">
-                      <TextWithPill
-                        displayName={getDisplayName() || ""}
-                        propertyId={getPropertyId()}
-                        accountName={getAccountName()}
-                        accountId={getAccountId()}
-                      />
-                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
+                    {displayGa4 ? (
+                      <div className="flex items-center justify-between w-full gap-1 ">
+                        <TextWithPill
+                          displayName={displayGa4.displayName || displayGa4.propertyDisplayName || ""}
+                          propertyId={displayGa4.propertyId || (displayGa4 as any).PropertyId}
+                          accountName={displayGa4.accountName}
+                          accountId={displayGa4.accountId}
+                        />
+                        <div className="flex items-center gap-1 shrink-0">
+                          {showClearButton && (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center cursor-pointer pointer-events-auto"
+                              onPointerDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleGa4Change(rowData.siteUrl || "", null);
+                              }}
+                            >
+                              <X className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                            </div>
+                          )}
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-muted-foreground font-normal text-xs">Select GA4</span>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      </div>
+                    )}
                   </SelectTrigger>
                   <SelectContent className="max-h-[500px]">
                     {ga4Options.map((ga4, i) => (
@@ -583,16 +638,24 @@ export default function LinkedBusinessTable() {
           // Check if GA4 has been edited (user selected a different GA4 than what's saved)
           const checkGa4Edited = () => {
             if (!hasBusinessProfile) return false;
-            // If there's a selectedGa4 and it differs from linkedPropertyId
-            if (rowData.selectedGa4 && rowData.linkedPropertyId) {
-              return (
-                rowData.selectedGa4.propertyId !==
-                (rowData.linkedPropertyId.PropertyId ||
-                  rowData.linkedPropertyId.propertyId)
-              );
+
+            // Determine the original GA4 property ID (from linkedPropertyId or matchedGa4)
+            const originalGa4Id = rowData.linkedPropertyId?.PropertyId ||
+              rowData.linkedPropertyId?.propertyId ||
+              rowData.matchedGa4?.propertyId;
+
+            // If GA4 was cleared and there was an original, it's a change
+            if (rowData.ga4Cleared && originalGa4Id) {
+              return true;
             }
-            // If there's a selectedGa4 but no linkedPropertyId, it means user selected one for the first time
-            if (rowData.selectedGa4 && !rowData.linkedPropertyId) {
+
+            // If there's a selectedGa4, compare with original
+            if (rowData.selectedGa4 && originalGa4Id) {
+              return rowData.selectedGa4.propertyId !== originalGa4Id;
+            }
+
+            // If there's a selectedGa4 but no original, it means user selected one for the first time
+            if (rowData.selectedGa4 && !originalGa4Id) {
               return true;
             }
             return false;
@@ -647,7 +710,7 @@ export default function LinkedBusinessTable() {
             return (
               <Button
                 variant="outline"
-              
+
                 onClick={() => handleAccept(rowData)}
                 className="w-full"
               >
@@ -702,14 +765,14 @@ export default function LinkedBusinessTable() {
         // Get the current sorted rows from the table
         const originalModel = originalGetRowModel();
         const originalRows = originalModel.rows;
-        
+
         // Separate summary row from other rows
         const summaryRow = originalRows.find((row) => (row.original as any).isSummary);
         const otherRows = originalRows.filter((row) => !(row.original as any).isSummary);
-        
+
         // Always put summary row first, then the sorted other rows
         const sortedRows = summaryRow ? [summaryRow, ...otherRows] : originalRows;
-        
+
         return {
           ...originalModel,
           rows: sortedRows,
@@ -748,8 +811,8 @@ export default function LinkedBusinessTable() {
                 tab.value === "all"
                   ? localBusinesses.length
                   : tab.value === "matched"
-                  ? localBusinesses.filter((b) => b.matchedGa4).length
-                  : localBusinesses.filter((b) => !b.matchedGa4).length;
+                    ? localBusinesses.filter((b) => b.matchedGa4).length
+                    : localBusinesses.filter((b) => !b.matchedGa4).length;
               return (
                 <TabsTrigger key={tab.value} value={tab.value} className="font-normal">
                   {tab.label} • {count}
@@ -797,9 +860,9 @@ export default function LinkedBusinessTable() {
                           {header.isPlaceholder
                             ? null
                             : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
                         </TableHead>
                       ))}
                     </TableRow>
@@ -821,7 +884,7 @@ export default function LinkedBusinessTable() {
                               key={cell.id}
                               className={cn(
                                 "px-2 py-1.5",
-                           
+
                               )}
                             >
                               {flexRender(
@@ -888,8 +951,8 @@ export default function LinkedBusinessTable() {
                 {toggleStatusMutation.isPending
                   ? "Please wait..."
                   : confirmToggleRow?.businessProfile?.IsActive
-                  ? "Unlink"
-                  : "Link"}
+                    ? "Unlink"
+                    : "Link"}
               </Button>
             </AlertDialogAction>
           </AlertDialogFooter>

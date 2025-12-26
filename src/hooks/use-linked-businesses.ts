@@ -45,6 +45,7 @@ export interface LinkedBusiness {
   gbps?: GBPLocation[];
   businessProfile?: BusinessProfile;
   noLocation?: boolean;
+  ga4Cleared?: boolean;
 }
 
 export interface FetchBusinessesResponse {

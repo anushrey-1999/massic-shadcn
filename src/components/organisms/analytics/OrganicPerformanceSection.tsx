@@ -31,7 +31,7 @@ import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 
 const METRIC_ICONS: Record<string, React.ReactNode> = {
   "topic-coverage": <Target className="h-5 w-5" />,
@@ -107,6 +107,10 @@ export function OrganicPerformanceSection({
     goals: true,
   });
 
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomCenter, setZoomCenter] = useState<number | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
   const handleLegendToggle = useCallback((key: string, checked: boolean) => {
     setVisibleLines((prev) => {
       const checkedCount = Object.values(prev).filter(Boolean).length;
@@ -135,6 +139,53 @@ export function OrganicPerformanceSection({
     }));
   }, [chartLegendItems, visibleLines]);
 
+  const zoomedChartData = useMemo(() => {
+    if (zoomLevel <= 1 || zoomCenter === null || normalizedChartData.length === 0) {
+      return normalizedChartData;
+    }
+    const totalPoints = normalizedChartData.length;
+    const visiblePoints = Math.max(2, Math.floor(totalPoints / zoomLevel));
+    const halfVisible = Math.floor(visiblePoints / 2);
+    let startIndex = Math.max(0, zoomCenter - halfVisible);
+    let endIndex = Math.min(totalPoints - 1, zoomCenter + halfVisible);
+    if (endIndex - startIndex + 1 < 2) {
+      if (startIndex === 0) endIndex = Math.min(totalPoints - 1, 1);
+      else startIndex = Math.max(0, totalPoints - 2);
+    }
+    return normalizedChartData.slice(startIndex, endIndex + 1);
+  }, [normalizedChartData, zoomLevel, zoomCenter]);
+
+  useEffect(() => {
+    const element = chartContainerRef.current;
+    if (!element) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = element.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const chartWidth = rect.width - 20;
+      const relativeX = x / chartWidth;
+      const dataIndex = Math.floor(relativeX * normalizedChartData.length);
+      const centerIndex = Math.max(0, Math.min(normalizedChartData.length - 1, dataIndex));
+      setZoomCenter(centerIndex);
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      setZoomLevel((prev) => {
+        const newZoom = prev * zoomFactor;
+        const maxZoom = normalizedChartData.length / 2;
+        return Math.max(1, Math.min(newZoom, maxZoom));
+      });
+    };
+
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => element.removeEventListener('wheel', handleWheel);
+  }, [normalizedChartData.length]);
+
+  const handleChartDoubleClick = useCallback(() => {
+    setZoomLevel(1);
+    setZoomCenter(null);
+  }, []);
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -161,24 +212,24 @@ export function OrganicPerformanceSection({
           badges={
             trafficData
               ? [
-                  {
-                    count: 1,
-                    type:
-                      trafficData.direction === "up"
-                        ? "positive"
-                        : trafficData.severity === "high"
+                {
+                  count: 1,
+                  type:
+                    trafficData.direction === "up"
+                      ? "positive"
+                      : trafficData.severity === "high"
                         ? "critical"
                         : "warning",
-                    label:
-                      trafficData.direction === "down"
-                        ? `${Math.abs(trafficData.delta_pct * 100).toFixed(
-                            0
-                          )}% Drop`
-                        : `${Math.abs(trafficData.delta_pct * 100).toFixed(
-                            0
-                          )}% Increase`,
-                  },
-                ]
+                  label:
+                    trafficData.direction === "down"
+                      ? `${Math.abs(trafficData.delta_pct * 100).toFixed(
+                        0
+                      )}% Drop`
+                      : `${Math.abs(trafficData.delta_pct * 100).toFixed(
+                        0
+                      )}% Increase`,
+                },
+              ]
               : []
           }
           isLoading={isLoadingTraffic}
@@ -254,15 +305,19 @@ export function OrganicPerformanceSection({
                   items={chartLegendWithIcons}
                   onToggle={handleLegendToggle}
                 />
-                <div className="h-[218px]">
+                <div
+                  className="h-[218px] cursor-grab active:cursor-grabbing"
+                  ref={chartContainerRef}
+                  onDoubleClick={handleChartDoubleClick}
+                >
                   <ChartContainer
                     config={chartConfig}
                     className="h-full w-full"
                   >
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
-                        data={normalizedChartData}
-                        margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                        data={zoomedChartData}
+                        margin={{ top: 0, right: 0, left: 20, bottom: 0 }}
                       >
                         <defs>
                           <linearGradient
@@ -325,8 +380,15 @@ export function OrganicPerformanceSection({
                           tickLine={false}
                           axisLine={false}
                           tick={{ fontSize: 12, fill: "#9ca3af" }}
+                          tickMargin={8}
+                          interval={zoomedChartData.length <= 7 ? 0 : zoomedChartData.length <= 14 ? 1 : zoomedChartData.length <= 30 ? Math.floor(zoomedChartData.length / 8) : zoomedChartData.length <= 90 ? Math.floor(zoomedChartData.length / 10) : Math.floor(zoomedChartData.length / 12)}
                         />
-                        <YAxis hide domain={[0, 100]} />
+                        <YAxis
+                          hide
+                          allowDataOverflow
+                          domain={["dataMin", "dataMax"]}
+                          padding={{ top: 0, bottom: 0 }}
+                        />
                         <ChartTooltip
                           content={({ active, payload, label }) => {
                             if (!active || !payload?.length) return null;
@@ -361,31 +423,31 @@ export function OrganicPerformanceSection({
                         />
                         {visibleLines.impressions && (
                           <Area
-                            type="monotone"
+                            type="linear"
                             dataKey="impressionsNorm"
                             stroke="#6b7280"
                             fill="url(#fillImpressions)"
-                            strokeWidth={2}
+                            strokeWidth={1}
                             name="Impressions"
                           />
                         )}
                         {visibleLines.clicks && (
                           <Area
-                            type="monotone"
+                            type="linear"
                             dataKey="clicksNorm"
                             stroke="#2563eb"
                             fill="url(#fillClicks)"
-                            strokeWidth={2}
+                            strokeWidth={1}
                             name="Clicks"
                           />
                         )}
                         {visibleLines.goals && (
                           <Area
-                            type="monotone"
+                            type="linear"
                             dataKey="goalsNorm"
                             stroke="#059669"
                             fill="url(#fillGoals)"
-                            strokeWidth={2}
+                            strokeWidth={1}
                             name="Goals"
                           />
                         )}

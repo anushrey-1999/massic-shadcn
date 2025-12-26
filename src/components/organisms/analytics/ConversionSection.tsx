@@ -191,7 +191,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
 
           <DataTable
             icon={<Eye className="h-6 w-6" />}
-            title=""
+            title="Where conversions happen"
             showTabs
             tabs={[
               { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },

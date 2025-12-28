@@ -113,6 +113,7 @@ export function StrategyBubbleChart({
             type: "keyword" as const,
             value: 1,
             data: {
+              coverage: cluster.intent_cluster_topic_coverage,
               keywordsCount: 1,
             },
           })),
@@ -127,26 +128,37 @@ export function StrategyBubbleChart({
   const getColor = useCallback((node: PackedNode) => {
     const palette = BUSINESS_RELEVANCE_PALETTE;
 
-    const normalizeScore = (scoreRaw?: number) => {
-      const score = scoreRaw ?? 0;
-      if (!Number.isFinite(score)) return 0;
-      if (score <= 1) return Math.max(0, Math.min(1, score));
-      if (score <= 100) return Math.max(0, Math.min(1, score / 100));
+    const normalizeCoverage = (coverageRaw?: number) => {
+      const coverage = coverageRaw ?? 0;
+      if (!Number.isFinite(coverage)) return 0;
+      if (coverage <= 1) return Math.max(0, Math.min(1, coverage));
+      if (coverage <= 100) return Math.max(0, Math.min(1, coverage / 100));
       return 1;
     };
 
-    const topicNode =
+    const clusterAncestor =
+      node.data.type === "cluster"
+        ? node
+        : node.ancestors().find((a): a is PackedNode => a.data.type === "cluster") ??
+          null;
+
+    const topicAncestor =
       node.data.type === "topic"
         ? node
-        : node
-            .ancestors()
-            .find((a): a is PackedNode => a.data.type === "topic") ?? null;
+        : node.ancestors().find((a): a is PackedNode => a.data.type === "topic") ??
+          null;
 
-    const score = normalizeScore(topicNode?.data.data?.relevanceScore);
-    const index = Math.max(
-      0,
-      Math.min(palette.length - 1, Math.round(score * (palette.length - 1)))
-    );
+    const coverageRaw =
+      node.data.type === "topic"
+        ? node.data.data?.coverage
+        : node.data.type === "cluster"
+          ? node.data.data?.coverage
+          : node.data.type === "keyword"
+            ? node.data.data?.coverage ?? clusterAncestor?.data.data?.coverage
+            : topicAncestor?.data.data?.coverage;
+
+    const coverage = normalizeCoverage(coverageRaw);
+    const index = Math.max(0, Math.min(palette.length - 1, Math.round(coverage * (palette.length - 1))));
 
     return palette[index];
   }, []);

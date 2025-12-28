@@ -20,7 +20,7 @@ import {
 } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
-import { CircleDot, List } from "lucide-react";
+import { CircleDot, List, Loader2 } from "lucide-react";
 
 interface PageProps {
 	params: Promise<{
@@ -112,65 +112,73 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 						</div>
 					) : (
 						<div className="flex-1 min-h-0 overflow-hidden">
-							{isLoadingFullData && (
-								<div className="flex items-center justify-center h-full">
-									<p className="text-muted-foreground">Loading full data...</p>
-								</div>
-							)}
-							{fullDataError && (
-								<div className="flex items-center justify-center h-full">
-									<p className="text-destructive">
-										Error loading data: {String(fullDataError)}
-									</p>
-								</div>
-							)}
-							{fullData?.data && (
-								<Card className="h-full w-full p-4 rounded-lg border-none shadow-none flex flex-col gap-3">
-									<div className="flex items-center justify-between">
-										<div>
-											<Typography
-												variant="p"
-												className="font-mono mb-2 text-base text-general-muted-foreground"
-											>
-												Topic Coverage
-											</Typography>
-											<div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
-												<div className="absolute inset-0 flex">
-													{BUSINESS_RELEVANCE_PALETTE.map((color) => (
-														<div
-																key={color}
-															className="h-full flex-1 shadow-inner"
-															style={{ backgroundColor: color }}
-														/>
-													))}
-												</div>
-												<div className="absolute inset-0 flex items-center justify-between px-3">
-													<span className="text-[10px] font-medium text-general-muted-foreground">
-														Low
-													</span>
-													<span className="text-[10px] font-medium text-general-muted-foreground">
-														High
-													</span>
-												</div>
+							<Card className="h-full w-full p-4 rounded-lg border-none shadow-none flex flex-col gap-3">
+								<div className="flex items-center justify-between">
+									<div>
+										<Typography
+											variant="p"
+											className="font-mono mb-2 text-base text-general-muted-foreground"
+										>
+											Topic Coverage
+										</Typography>
+										<div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
+											<div className="absolute inset-0 flex">
+												{BUSINESS_RELEVANCE_PALETTE.map((color) => (
+													<div
+														key={color}
+														className="h-full flex-1 shadow-inner"
+														style={{ backgroundColor: color }}
+													/>
+												))}
+											</div>
+											<div className="absolute inset-0 flex items-center justify-between px-3">
+												<span className="text-[10px] font-medium text-general-muted-foreground">
+													Low
+												</span>
+												<span className="text-[10px] font-medium text-general-muted-foreground">
+													High
+												</span>
 											</div>
 										</div>
+									</div>
 
-										<div className="flex items-center gap-4">
-											<Typography
-												variant="p"
-												className="text-base font-mono text-general-muted-foreground"
-											>
-												{fullData.data.length} total topic
-												{fullData.data.length === 1 ? "" : "s"}
-											</Typography>
-											{strategyViewTabs}
+									<div className="flex items-center gap-4">
+										<Typography
+											variant="p"
+											className="text-base font-mono text-general-muted-foreground"
+										>
+											{fullData?.data
+												? `${fullData.data.length} total topic${fullData.data.length === 1 ? "" : "s"}`
+												: isLoadingFullData
+													? "Loading.."
+													: "No data"}
+										</Typography>
+										{strategyViewTabs}
+									</div>
+								</div>
+								<div className="flex-1 min-h-0">
+									{isLoadingFullData ? (
+										<div className="flex items-center justify-center h-full">
+											<div className="flex items-center gap-2 text-muted-foreground">
+												<Loader2 className="h-4 w-4 animate-spin" />
+												<span>Loading..</span>
+											</div>
 										</div>
-									</div>
-									<div className="flex-1 min-h-0">
+									) : fullDataError ? (
+										<div className="flex items-center justify-center h-full">
+											<p className="text-destructive">
+												Error loading data: {String(fullDataError)}
+											</p>
+										</div>
+									) : fullData?.data ? (
 										<StrategyBubbleChart data={fullData.data} />
-									</div>
-								</Card>
-							)}
+									) : (
+										<div className="flex items-center justify-center h-full">
+											<p className="text-muted-foreground">No data available.</p>
+										</div>
+									)}
+								</div>
+							</Card>
 						</div>
 					)}
 				</TabsContent>

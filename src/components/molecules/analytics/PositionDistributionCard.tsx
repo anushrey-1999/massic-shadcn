@@ -106,13 +106,13 @@ export function PositionDistributionCard({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2.5 rounded-lg  bg-white ">
-        <div className="flex items-center gap-1">
+      <div className="flex flex-col gap-2.5 rounded-lg  bg-white">
+        <div className="flex items-center gap-1 p-2 border-b border-general-border-four">
           {/* <Eye className="h-[26px] w-[26px] stroke-general-border-three stroke-[1.5]" /> */}
           <span className="text-base font-medium text-[#171717]">{title}</span>
         </div>
         <div className="flex items-center justify-center h-[250px]">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       </div>
     )
@@ -120,8 +120,8 @@ export function PositionDistributionCard({
 
   if (!hasData) {
     return (
-      <div className="flex flex-col gap-2.5 rounded-lg border border-general-border bg-white p-3">
-        <div className="flex items-center gap-1">
+      <div className="flex flex-col gap-2.5 rounded-lg border border-general-border bg-white">
+        <div className="flex items-center gap-1 p-2 border-b border-general-border-four">
           {/* <Eye className="h-[26px] w-[26px] stroke-general-border-three stroke-[1.5]" /> */}
           <span className="text-base font-medium text-[#171717]">{title}</span>
         </div>

@@ -33,7 +33,7 @@ export function InteractionsChartCard({
   data,
   dataKey,
   strokeColor = "#3b82f6",
-  chartHeight = 220,
+  chartHeight = 200,
 }: InteractionsChartCardProps) {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomCenter, setZoomCenter] = useState<number | null>(null);
@@ -79,13 +79,13 @@ export function InteractionsChartCard({
   };
 
   return (
-    <div className=" bg-white rounded-lg border border-general-border flex flex-col gap-2">
-      <div className="text-base text-general-secondary-foreground border-b border-general-border-four w-full p-2 font-medium">
+    <div className=" bg-white rounded-lg border border-general-border flex flex-col justify-between">
+      <div className="text-base text-general-secondary-foreground border-b border-general-border-four w-full p-2 font-medium mb-2">
         {title}
       </div>
 
-      <div className="p-2 flex flex-col gap-2">
-        <div className="flex items-center gap-4 ">
+      <div className="px-2 flex flex-col gap-2">
+        <div className="flex items-center gap-4">
           <div className="">
             <div className="bg-foreground-light rounded-lg p-2 flex flex-col gap-1">
               <span className="text-sm text-general-muted-foreground font-medium">
@@ -101,7 +101,7 @@ export function InteractionsChartCard({
       </div>
       <div
         ref={chartRef}
-        className="cursor-grab active:cursor-grabbing"
+        className="cursor-grab active:cursor-grabbing px-2"
         style={{ height: chartHeight }}
         onDoubleClick={handleDoubleClick}
       >

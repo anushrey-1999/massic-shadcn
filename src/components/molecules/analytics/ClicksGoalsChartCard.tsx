@@ -46,7 +46,7 @@ export function ClicksGoalsChartCard({
   clicksMetric,
   goalsMetric,
   data,
-  height = 355,
+  height = 320,
   isLoading = false,
   hasData = true,
   visibleLines,

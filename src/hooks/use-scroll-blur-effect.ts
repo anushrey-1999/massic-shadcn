@@ -30,7 +30,7 @@ export function useScrollBlurEffect(options: UseScrollBlurEffectOptions = {}) {
   }, [fadeZone])
 
   // Default blur effect styling
-  const blurEffectClassName = `absolute bottom-0 left-0 right-0 ${height} bg-gradient-to-t from-white/80 via-slate-50/30 via-blue-50/5 to-transparent backdrop-blur-[0.6px] pointer-events-none dark:from-sidebar-background/85 dark:via-slate-900/20 dark:via-blue-950/5 transition-opacity duration-200 ease-out ${className}`.trim()
+  const blurEffectClassName = `absolute bottom-0 left-0 right-0 ${height} bg-gradient-to-t from-foreground-light via-foreground-light/70 to-transparent backdrop-blur-[0.6px] pointer-events-none dark:from-sidebar-background/85 dark:via-sidebar-background/60 transition-opacity duration-200 ease-out ${className}`.trim()
 
   const blurEffectStyle = { opacity: blurOpacity }
 

@@ -26,7 +26,7 @@ function SocialEntitledContent({
 }) {
 
   return (
-    <div className="container mx-auto flex-1 min-h-0 py-5 px-4">
+    <div className="w-full max-w-[1224px] flex-1 min-h-0 py-5 px-4">
       <SocialTableClient businessId={businessId} />
     </div>
   )
@@ -94,7 +94,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
         breadcrumbs={breadcrumbs}
       />
       {showBanner && (
-        <div className="container mx-auto px-5 pt-5">
+        <div className="w-full max-w-[1224px] px-5 pt-5">
           <WorkflowStatusBanner businessId={businessId} />
         </div>
       )}

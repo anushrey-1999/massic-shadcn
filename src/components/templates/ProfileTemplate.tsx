@@ -1153,7 +1153,7 @@ const ProfileTemplate = ({
     >
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         {/* Sticky Page Header */}
-        <div className="sticky top-0 z-10 bg-background">
+        <div className="sticky top-0 z-10">
           <PageHeader breadcrumbs={breadcrumbs} />
         </div>
 

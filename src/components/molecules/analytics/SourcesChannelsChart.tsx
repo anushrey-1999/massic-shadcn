@@ -43,10 +43,29 @@ export function SourcesChannelsChart({
   const BAR_SIZE = 34
   const CATEGORY_GAP = 16
   const CHART_CHROME_HEIGHT = 60
+  const Y_AXIS_WIDTH = 90
+  const Y_LABEL_LEFT_PADDING = 15
   const computedHeight = Math.max(
     height,
     data.length * (BAR_SIZE + CATEGORY_GAP) + CHART_CHROME_HEIGHT
   )
+
+  const renderCategoryTick = (props: any) => {
+    const { x, y, payload } = props
+    return (
+      <text
+        x={x}
+        y={y}
+        dx={-(Y_AXIS_WIDTH - Y_LABEL_LEFT_PADDING)}
+        textAnchor="start"
+        dominantBaseline="central"
+        fontSize={10}
+        fill="#737373"
+      >
+        {payload?.value}
+      </text>
+    )
+  }
 
   const renderLegend = (props: any) => {
     const { payload } = props
@@ -104,12 +123,12 @@ export function SourcesChannelsChart({
       style={{ minHeight: height, height: computedHeight }}
     >
       <div className="flex-1 min-h-0">
-        <ChartContainer config={chartConfig} className="h-full w-full">
+        <ChartContainer config={chartConfig} className="h-full w-full justify-start aspect-auto">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
               layout="vertical"
-              margin={{ top: 0, right: 10, bottom: 10, left: 0 }}
+              margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
               barSize={BAR_SIZE}
               barGap={-BAR_SIZE}
               barCategoryGap={CATEGORY_GAP}
@@ -121,8 +140,8 @@ export function SourcesChannelsChart({
                 dataKey="name"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 10, fill: "#737373", textAnchor: "end" }}
-                width={90}
+                tick={renderCategoryTick}
+                width={Y_AXIS_WIDTH}
               />
               <ChartTooltip
                 content={({ active, payload, label }) => {
@@ -152,7 +171,7 @@ export function SourcesChannelsChart({
                 content={renderLegend}
                 verticalAlign="top"
                 align="right"
-                wrapperStyle={{ paddingBottom: "10px" }}
+                wrapperStyle={{ paddingBottom: "0px" }}
               />
               <Bar 
                 dataKey="sessionsNorm" 

@@ -79,7 +79,7 @@ export function CustomSelect({
       onClick={(e) => e.stopPropagation()}
       title={option.label}
     >
-      <span className="truncate max-w-[160px] font-normal text-[10px] text-general-secondary-foreground">{option.label}</span>
+      <span className="truncate max-w-40 font-normal text-[10px] text-general-secondary-foreground">{option.label}</span>
       <span
         onClick={(e) => handleRemove(option.value, e)}
         className="hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center shrink-0"
@@ -104,7 +104,7 @@ export function CustomSelect({
         <Button
           variant="outline"
           type="button"
-          className={`w-full justify-start min-h-9 h-auto px-2 py-1.5 ${className}`}
+          className={`w-full justify-start min-h-10 h-auto px-2 py-1.5 ${className}`}
           style={{ maxWidth }}
           onClick={() => {
             if (!open) {
@@ -164,7 +164,7 @@ export function CustomSelect({
                       className="cursor-pointer flex items-center overflow-hidden"
                     >
                       <div
-                        className={`mr-2 flex h-4 w-4 items-center justify-center rounded-sm border flex-shrink-0 ${isSelected
+                        className={`mr-2 flex h-4 w-4 items-center justify-center rounded-sm border shrink-0 ${isSelected
                           ? "bg-primary text-primary-foreground"
                           : "opacity-50"
                           }`}

@@ -187,7 +187,8 @@ export function HomeTemplate() {
 	};
 
 	return (
-		<div className="bg-muted py-7 px-5 flex flex-col gap-5 min-h-full">
+		<div className="bg-muted min-h-full">
+			<div className="w-full max-w-[1224px] py-7 px-5 flex flex-col gap-5 min-h-full">
 			<div className="flex items-center justify-between gap-4">
 				<h1 className="text-3xl font-semibold tracking-tight">
 					Hi, {greetingName}
@@ -356,6 +357,7 @@ export function HomeTemplate() {
 					</div>
 				</Card>
 			)}
+			</div>
 		</div>
 	);
 }

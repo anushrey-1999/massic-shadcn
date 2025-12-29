@@ -102,7 +102,7 @@ export default function BusinessWebPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <div className="container mx-auto flex-1 min-h-0 p-5 flex flex-col">
+      <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
         <Tabs defaultValue="new-pages" onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
           {!isOptimizeSplitView && (
             <TabsList className="shrink-0">

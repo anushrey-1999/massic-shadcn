@@ -215,21 +215,23 @@ export function AnalyticsTemplate() {
           }}
           breadcrumbs={breadcrumbs}
         />
-        <NavigationTabs
-          items={navItems}
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          periodSelector={
-            <PeriodSelector
-              value={selectedPeriod}
-              onValueChange={setSelectedPeriod}
-            />
-          }
-        />
+        <div className="w-full max-w-[1224px] px-7">
+          <NavigationTabs
+            items={navItems}
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+            periodSelector={
+              <PeriodSelector
+                value={selectedPeriod}
+                onValueChange={setSelectedPeriod}
+              />
+            }
+          />
+        </div>
       </div>
 
       {/* Scrollable Content */}
-      <div className="container mx-auto flex flex-col">
+      <div className="w-full max-w-[1224px] flex flex-col">
         <div
           id="organic"
           ref={organicRef}
@@ -265,7 +267,7 @@ export function AnalyticsTemplate() {
         <div
           id="local-search"
           ref={sectionRefs["local-search"]}
-          className="scroll-mt-[200px] px-7"
+          className="scroll-mt-[200px] px-7 pb-10"
         >
           <div className="flex items-center justify-between bg-[#0A0A0A0D] px-6 py-5 rounded-lg">
             <div className="flex items-center gap-2">
@@ -292,7 +294,7 @@ export function AnalyticsTemplate() {
             ) : null}
           </div>
 
-          <div className="py-10 flex flex-col gap-6">
+          <div className="pt-6 flex flex-col gap-6">
             <LocalSearchSection
               period={selectedPeriod}
               locations={locations}

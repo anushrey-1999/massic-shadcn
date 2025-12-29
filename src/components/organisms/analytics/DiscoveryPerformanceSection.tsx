@@ -255,13 +255,13 @@ const DiscoveryPerformanceSection = ({
   const [topQueriesModalOpen, setTopQueriesModalOpen] = useState(false);
 
   return (
-    <div className="px-7">
+    <div className="px-7 pb-10">
       <div className="flex items-center gap-2 bg-[#0A0A0A0D] px-6 py-5 rounded-lg">
         <Search className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Discovery</Typography>
       </div>
 
-      <div className="flex flex-col gap-6 py-10">
+      <div className="flex flex-col gap-6 pt-6">
         <div className="">
           <div className="grid grid-cols-2 gap-6">
             <DataTable

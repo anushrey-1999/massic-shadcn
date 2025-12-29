@@ -44,7 +44,7 @@ export function NavigationTabs({
   }
 
   return (
-    <div className="flex items-center justify-between px-7 py-4 bg-background border-b border-[#0000000D]">
+    <div className="flex items-center justify-between px-7 py-4 bg-background rounded-bl-lg rounded-br-lg">
       <div className="flex items-center bg-primary-foreground rounded-xl   p-1">
         {items.map((item) => (
           <button

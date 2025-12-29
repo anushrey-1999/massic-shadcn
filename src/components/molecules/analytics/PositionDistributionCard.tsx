@@ -23,12 +23,10 @@ interface PositionItem {
 interface ChartDataPoint {
   date: string
   pos1_3: number
-  pos4_10: number
-  pos11_20: number
+  pos4_20: number
   pos20_plus: number
   pos1_3Norm?: number
-  pos4_10Norm?: number
-  pos11_20Norm?: number
+  pos4_20Norm?: number
   pos20_plusNorm?: number
 }
 
@@ -46,22 +44,20 @@ export function PositionDistributionCard({
   title = "How you rank",
   positions,
   chartData,
-  visibleLines = { pos1_3: true, pos4_10: true, pos11_20: true, pos20_plus: true },
+  visibleLines = { pos1_3: true, pos4_20: true, pos20_plus: true },
   onToggle,
   isLoading = false,
   hasData = true,
 }: PositionDistributionCardProps) {
   const chartConfig = {
     pos1_3: { label: "Pos 1-3", color: "#2563EB" },
-    pos4_10: { label: "Pos 4-10", color: "#2563EB" },
-    pos11_20: { label: "Pos 11-20", color: "#2563EB" },
+    pos4_20: { label: "Pos 4-20", color: "#2563EB" },
     pos20_plus: { label: "Pos 20+", color: "#2563EB" },
   }
 
   const opacityMap: Record<string, number> = {
     pos1_3: 1,
-    pos4_10: 0.7,
-    pos11_20: 0.5,
+    pos4_20: 0.6,
     pos20_plus: 0.3,
   }
 
@@ -139,7 +135,7 @@ export function PositionDistributionCard({
       </div>
 
       <div className="flex flex-col gap-4 p-2">
-        <div className="grid grid-cols-4 gap-1.5 rounded-lg bg-foreground-light p-2 ">
+        <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-foreground-light p-2 ">
           {positions.map((position, index) => (
             <label
               key={position.key || index}
@@ -190,11 +186,7 @@ export function PositionDistributionCard({
                     <stop offset="0%" stopColor="#2563EB" stopOpacity={0.2} />
                     <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="fillPos4_10_dist" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2563EB" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="fillPos11_20_dist" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="fillPos4_20_dist" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#2563EB" stopOpacity={0.2} />
                     <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
                   </linearGradient>
@@ -223,11 +215,8 @@ export function PositionDistributionCard({
                           {visibleLines.pos1_3 && (
                             <p className="text-blue-600">Pos 1-3: {data?.pos1_3?.toLocaleString()}</p>
                           )}
-                          {visibleLines.pos4_10 && (
-                            <p className="text-blue-600/70">Pos 4-10: {data?.pos4_10?.toLocaleString()}</p>
-                          )}
-                          {visibleLines.pos11_20 && (
-                            <p className="text-blue-600/50">Pos 11-20: {data?.pos11_20?.toLocaleString()}</p>
+                          {visibleLines.pos4_20 && (
+                            <p className="text-blue-600/60">Pos 4-20: {data?.pos4_20?.toLocaleString()}</p>
                           )}
                           {visibleLines.pos20_plus && (
                             <p className="text-blue-600/30">Pos 20+: {data?.pos20_plus?.toLocaleString()}</p>
@@ -248,26 +237,15 @@ export function PositionDistributionCard({
                     name="Pos 20+"
                   />
                 )}
-                {visibleLines.pos11_20 && (
+                {visibleLines.pos4_20 && (
                   <Area
                     type="linear"
-                    dataKey="pos11_20Norm"
+                    dataKey="pos4_20Norm"
                     stroke="#2563EB"
-                    fill="url(#fillPos11_20_dist)"
+                    fill="url(#fillPos4_20_dist)"
                     strokeWidth={1}
-                    opacity={0.5}
-                    name="Pos 11-20"
-                  />
-                )}
-                {visibleLines.pos4_10 && (
-                  <Area
-                    type="linear"
-                    dataKey="pos4_10Norm"
-                    stroke="#2563EB"
-                    fill="url(#fillPos4_10_dist)"
-                    strokeWidth={1}
-                    opacity={0.7}
-                    name="Pos 4-10"
+                    opacity={0.6}
+                    name="Pos 4-20"
                   />
                 )}
                 {visibleLines.pos1_3 && (

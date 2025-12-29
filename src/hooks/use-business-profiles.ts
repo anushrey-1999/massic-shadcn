@@ -153,7 +153,7 @@ export function useCreateBusiness() {
       // Map form data to API payload structure
       const payload = {
         userUniqueId,
-        accountUniqueId: "",
+        accountUniqueId: null,
         businesses: [
           {
             name: formData.businessName,
@@ -208,7 +208,7 @@ export function useCreateBusiness() {
 
       // Refetch using the same query function (reusing fetchBusinessProfiles)
       const updatedProfiles = await fetchBusinessProfiles(userUniqueId);
-      
+
       // Update the store
       const { setBusinessProfiles } = useBusinessStore.getState();
       setBusinessProfiles(updatedProfiles);
@@ -267,10 +267,10 @@ export function useUpdateBusinessProfile(businessUniqueId: string | null) {
         UniqueId: businessUniqueId,
       };
 
-      const response = await api.post<{ 
+      const response = await api.post<{
         status?: number;
-        err?: boolean; 
-        data?: string; 
+        err?: boolean;
+        data?: string;
         message?: string;
         response?: {
           data?: {
@@ -284,8 +284,8 @@ export function useUpdateBusinessProfile(businessUniqueId: string | null) {
       );
 
       // Check for errors - API might return status 200 with err: true, or status !== 200
-      const hasError = response.err === true || 
-                      (response.status !== undefined && response.status !== 200);
+      const hasError = response.err === true ||
+        (response.status !== undefined && response.status !== 200);
 
       if (hasError) {
         const errorMessage =

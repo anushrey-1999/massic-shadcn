@@ -5,8 +5,6 @@ import { decodeJwt, isTokenExpired } from "@/utils/jwt";
 import { useAuthStore } from "@/store/auth-store";
 
 export type ApiPlatform = "node" | "python" | "dotnet";
-console.log(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID, ')')
-console.log(Cookies.get('token'), 'from use api', decodeJwt(Cookies.get('token') || ''))
 // Refresh only when close to expiry (standard SaaS behavior)
 const REFRESH_WINDOW_SECONDS = 60 * 10 * 60; // 10 minutes
 const REFRESH_COOLDOWN_MS = 60 * 1000; // at most once per minute
@@ -47,8 +45,8 @@ async function refreshNodeAccessToken(currentToken: string): Promise<string | nu
 function getBaseURLByPlatform(platform: ApiPlatform): string {
   switch (platform) {
     case "node":
-      return process.env.NEXT_PUBLIC_NODE_API_URL || "https://seedmain.seedinternaldev.xyz/api/1";
-      // return 'http://localhost:4922/api/1'
+      // return process.env.NEXT_PUBLIC_NODE_API_URL || "https://seedmain.seedinternaldev.xyz/api/1";
+      return 'http://localhost:4922/api/1'
 
     case "python":
       return process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v1";

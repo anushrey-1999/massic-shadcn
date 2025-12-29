@@ -15,9 +15,10 @@ import type { SocialRow } from "@/types/social-types";
 interface SocialTableClientProps {
   businessId: string;
   channelsSidebar?: React.ReactNode;
+  toolbarRightPrefix?: React.ReactNode;
 }
 
-export function SocialTableClient({ businessId, channelsSidebar }: SocialTableClientProps) {
+export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPrefix }: SocialTableClientProps) {
   const [tacticsSearch, setTacticsSearch] = React.useState("");
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
   const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
@@ -564,6 +565,7 @@ export function SocialTableClient({ businessId, channelsSidebar }: SocialTableCl
         onSearchChange={setSearch}
         channelsSidebar={sidebarNode}
         onRowClick={handleRowClick}
+        toolbarRightPrefix={toolbarRightPrefix}
       />
     </div>
   );

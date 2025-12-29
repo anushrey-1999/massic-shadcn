@@ -22,6 +22,7 @@ interface SocialTableProps {
   onSearchChange?: (value: string) => void;
   channelsSidebar?: React.ReactNode;
   onRowClick?: (row: SocialRow) => void;
+  toolbarRightPrefix?: React.ReactNode;
 }
 
 export function SocialTable({
@@ -35,6 +36,7 @@ export function SocialTable({
   onSearchChange,
   channelsSidebar,
   onRowClick,
+  toolbarRightPrefix,
 }: SocialTableProps) {
   const enableAdvancedFilter = true;
 
@@ -91,6 +93,7 @@ export function SocialTable({
             <div className="flex items-center gap-2">
               <DataTableSortList table={table} align="start" />
               <DataTableViewOptions table={table} align="end" />
+              {toolbarRightPrefix}
             </div>
           </div>
         </div>

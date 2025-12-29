@@ -77,8 +77,8 @@ export function AnalyticsTemplate() {
     typeof (profileData as any)?.remainingTrialDays === "number"
       ? (profileData as any).remainingTrialDays
       : typeof (businessProfile as any)?.remainingTrialDays === "number"
-      ? (businessProfile as any).remainingTrialDays
-      : undefined;
+        ? (businessProfile as any).remainingTrialDays
+        : undefined;
 
   const { getCurrentPlan, computedAlertMessage, handleSubscribe, gateLoading } =
     useEntitlementGate({
@@ -219,8 +219,8 @@ export function AnalyticsTemplate() {
           trial={
             isTrialActive
               ? {
-                  remainingDays: remainingTrialDays,
-                }
+                remainingDays: remainingTrialDays,
+              }
               : undefined
           }
           onUpgrade={() => {
@@ -297,8 +297,11 @@ export function AnalyticsTemplate() {
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
                 <SelectContent>
-                  {locations.map((location) => (
-                    <SelectItem key={location.value} value={location.value}>
+                  {locations.map((location, index) => (
+                    <SelectItem
+                      key={`${location.value}-${index}`}
+                      value={location.value}
+                    >
                       {location.label}
                     </SelectItem>
                   ))}

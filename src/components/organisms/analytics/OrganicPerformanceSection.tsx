@@ -27,6 +27,7 @@ import {
   type TableFilterType,
 } from "@/hooks/use-gsc-analytics";
 import { useGapAnalysis } from "@/hooks/use-gap-analysis";
+import { useBrandedNonBranded } from "@/hooks/use-branded-nonbranded";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
 import { useBusinessStore } from "@/store/business-store";
@@ -37,6 +38,8 @@ const METRIC_ICONS: Record<string, React.ReactNode> = {
   "topic-coverage": <Target className="h-5 w-5" />,
   "visibility-relevance": <Eye className="h-5 w-5" />,
   "engagement-relevance": <MousePointerClick className="h-5 w-5" />,
+  branded: <Star className="h-5 w-5" />,
+  "non-branded": <TrendingUp className="h-5 w-5" />,
 };
 
 interface OrganicPerformanceSectionProps {
@@ -84,6 +87,14 @@ export function OrganicPerformanceSection({
   } = useGapAnalysis(businessUniqueId);
 
   const {
+    brandedCard,
+    nonBrandedCard,
+    status: brandedStatus,
+    statusMessage: brandedStatusMessage,
+    isLoading: isLoadingBranded,
+  } = useBrandedNonBranded(businessUniqueId, website, period);
+
+  const {
     goalData,
     criticalCount,
     warningCount,
@@ -123,14 +134,14 @@ export function OrganicPerformanceSection({
 
   const chartLegendWithIcons = useMemo(() => {
     const iconConfig: Record<string, { icon: React.ReactNode; color: string }> =
-      {
-        impressions: { icon: <Eye className="h-6 w-6" />, color: "#6b7280" },
-        clicks: {
-          icon: <MousePointerClick className="h-6 w-6 rotate-90" />,
-          color: "#2563eb",
-        },
-        goals: { icon: <Target className="h-6 w-6" />, color: "#059669" },
-      };
+    {
+      impressions: { icon: <Eye className="h-6 w-6" />, color: "#6b7280" },
+      clicks: {
+        icon: <MousePointerClick className="h-6 w-6 rotate-90" />,
+        color: "#2563eb",
+      },
+      goals: { icon: <Target className="h-6 w-6" />, color: "#059669" },
+    };
     return chartLegendItems.map((item) => ({
       ...item,
       icon: iconConfig[item.key]?.icon || <Eye className="h-4 w-4" />,
@@ -264,7 +275,8 @@ export function OrganicPerformanceSection({
 
       <div className="flex flex-col gap-6">
         {/* Metric Cards */}
-        <div className="grid grid-cols-3 bg-white p-2 rounded-lg border border-general-border">
+        <div className="grid grid-cols-5 bg-white p-2 rounded-lg border border-general-border">
+          {/* Gap analysis cards (3 columns) */}
           {metricCards.length > 0 ? (
             metricCards.map((card) => (
               <MetricCard
@@ -280,7 +292,7 @@ export function OrganicPerformanceSection({
           ) : metricsStatus === "loading" ? (
             <>
               {[1, 2, 3].map((i) => (
-                <MetricCard key={i} isLoading={true} />
+                <MetricCard key={`gap-loading-${i}`} isLoading={true} />
               ))}
             </>
           ) : (
@@ -288,6 +300,42 @@ export function OrganicPerformanceSection({
               className="col-span-3"
               emptyMessage={metricsStatusMessage || "No performance data available"}
             />
+          )}
+
+          {/* Branded / Non-branded cards (2 columns) */}
+          {brandedStatus === "success" ? (
+            <>
+              <MetricCard
+                key={brandedCard.key}
+                icon={METRIC_ICONS[brandedCard.key] || <Star className="h-5 w-5" />}
+                label={brandedCard.title}
+                value={brandedCard.percentage}
+                change={brandedCard.change}
+                sparklineData={brandedCard.sparklineData}
+                isLoading={isLoadingBranded}
+              />
+              <MetricCard
+                key={nonBrandedCard.key}
+                icon={
+                  METRIC_ICONS[nonBrandedCard.key] || <TrendingUp className="h-5 w-5" />
+                }
+                label={nonBrandedCard.title}
+                value={nonBrandedCard.percentage}
+                change={nonBrandedCard.change}
+                sparklineData={nonBrandedCard.sparklineData}
+                isLoading={isLoadingBranded}
+              />
+            </>
+          ) : brandedStatus === "loading" ? (
+            <>
+              <MetricCard key="branded-loading" isLoading={true} />
+              <MetricCard key="nonbranded-loading" isLoading={true} />
+            </>
+          ) : (
+            <>
+              <MetricCard emptyMessage={brandedStatusMessage} />
+              <MetricCard emptyMessage={brandedStatusMessage} />
+            </>
           )}
         </div>
 

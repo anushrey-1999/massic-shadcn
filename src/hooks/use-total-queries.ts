@@ -5,9 +5,10 @@ import type { TimePeriodValue } from "@/hooks/use-gsc-analytics"
 
 interface CardValue {
   Item: string
-  Tag: string
-  Trend: "up" | "down" | "neutral"
-  Previous: string
+  Tag?: string
+  Trend?: "up" | "down" | "neutral"
+  Previous?: string
+  Total?: string
   Percentage: string
   Diff: string
 }
@@ -15,8 +16,7 @@ interface CardValue {
 interface TimeSeriesData {
   Date: string
   Pos1_3: number
-  Pos4_10: number
-  Pos11_20: number
+  Pos4_20: number
   Pos20_Plus: number
 }
 
@@ -38,8 +38,7 @@ export interface PositionCardData {
 export interface PositionChartData {
   date: string
   pos1_3: number
-  pos4_10: number
-  pos11_20: number
+  pos4_20: number
   pos20_plus: number
 }
 
@@ -69,8 +68,7 @@ export function useTotalQueries(
 ) {
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     pos1_3: true,
-    pos4_10: true,
-    pos11_20: true,
+    pos4_20: true,
     pos20_plus: true,
   })
 
@@ -134,21 +132,12 @@ export function useTotalQueries(
         })
       }
 
-      if (output["Pos4_10"]) {
+      if (output["Pos4_20"]) {
         cards.push({
-          key: "pos4_10",
-          label: "Pos 4-10",
-          value: parseInt(output["Pos4_10"].Diff?.replace(/[^0-9-]/g, "") || "0", 10) || 0,
-          change: parsePercentageChange(output["Pos4_10"].Percentage),
-        })
-      }
-
-      if (output["Pos11_20"]) {
-        cards.push({
-          key: "pos11_20",
-          label: "Pos 11-20",
-          value: parseInt(output["Pos11_20"].Diff?.replace(/[^0-9-]/g, "") || "0", 10) || 0,
-          change: parsePercentageChange(output["Pos11_20"].Percentage),
+          key: "pos4_20",
+          label: "Pos 4-20",
+          value: parseInt(output["Pos4_20"].Diff?.replace(/[^0-9-]/g, "") || "0", 10) || 0,
+          change: parsePercentageChange(output["Pos4_20"].Percentage),
         })
       }
 
@@ -178,8 +167,7 @@ export function useTotalQueries(
       return parsed.map((row) => ({
         date: formatDate(row.Date ?? ""),
         pos1_3: row.Pos1_3 ?? 0,
-        pos4_10: row.Pos4_10 ?? 0,
-        pos11_20: row.Pos11_20 ?? 0,
+        pos4_20: row.Pos4_20 ?? 0,
         pos20_plus: row.Pos20_Plus ?? 0,
       }))
     } catch {
@@ -191,13 +179,11 @@ export function useTotalQueries(
     if (chartData.length === 0) return []
 
     const maxPos1_3 = Math.max(...chartData.map((d) => d.pos1_3 || 0))
-    const maxPos4_10 = Math.max(...chartData.map((d) => d.pos4_10 || 0))
-    const maxPos11_20 = Math.max(...chartData.map((d) => d.pos11_20 || 0))
+    const maxPos4_20 = Math.max(...chartData.map((d) => d.pos4_20 || 0))
     const maxPos20_plus = Math.max(...chartData.map((d) => d.pos20_plus || 0))
 
     const minPos1_3 = Math.min(...chartData.map((d) => d.pos1_3 || 0))
-    const minPos4_10 = Math.min(...chartData.map((d) => d.pos4_10 || 0))
-    const minPos11_20 = Math.min(...chartData.map((d) => d.pos11_20 || 0))
+    const minPos4_20 = Math.min(...chartData.map((d) => d.pos4_20 || 0))
     const minPos20_plus = Math.min(...chartData.map((d) => d.pos20_plus || 0))
 
     const scaleValue = (value: number, min: number, max: number, baseOffset: number): number => {
@@ -210,9 +196,8 @@ export function useTotalQueries(
     return chartData.map((point) => ({
       ...point,
       pos1_3Norm: scaleValue(point.pos1_3, minPos1_3, maxPos1_3, 5),
-      pos4_10Norm: scaleValue(point.pos4_10, minPos4_10, maxPos4_10, 25),
-      pos11_20Norm: scaleValue(point.pos11_20, minPos11_20, maxPos11_20, 45),
-      pos20_plusNorm: scaleValue(point.pos20_plus, minPos20_plus, maxPos20_plus, 70),
+      pos4_20Norm: scaleValue(point.pos4_20, minPos4_20, maxPos4_20, 40),
+      pos20_plusNorm: scaleValue(point.pos20_plus, minPos20_plus, maxPos20_plus, 75),
     }))
   }, [chartData])
 

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FieldError } from "@/components/ui/field";
+import { isValidWebsiteUrl } from "@/utils/utils";
 
 export interface ColumnValidation {
   required?: boolean;
@@ -39,29 +40,8 @@ export interface CustomAddRowTableProps<T = Record<string, any>> {
   className?: string;
   emptyRowData?: T;
   onValidationChange?: (hasErrors: boolean) => void;
+  showErrorsWithoutTouch?: boolean;
 }
-
-// URL validation helper
-const isValidUrl = (url: string): boolean => {
-  if (!url || url.trim() === "") return true; // Empty is valid (optional field)
-  const trimmedUrl = url.trim();
-  
-  // Try with protocol first
-  try {
-    new URL(trimmedUrl);
-    return true;
-  } catch {
-    // If that fails, try adding https:// prefix
-    try {
-      new URL(`https://${trimmedUrl}`);
-      // Basic validation: should contain at least one dot and valid characters
-      const urlPattern = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}(\/.*)?$/;
-      return urlPattern.test(trimmedUrl);
-    } catch {
-      return false;
-    }
-  }
-};
 
 // Validation helper
 const validateField = (
@@ -78,7 +58,7 @@ const validateField = (
   }
 
   // URL validation
-  if (validation.url && stringValue && !isValidUrl(stringValue)) {
+  if (validation.url && stringValue && !isValidWebsiteUrl(stringValue)) {
     return "Please enter a valid URL";
   }
 
@@ -100,6 +80,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   className,
   emptyRowData,
   onValidationChange,
+  showErrorsWithoutTouch = false,
 }: CustomAddRowTableProps<T>) {
   // Error state: { rowIndex: { fieldKey: errorMessage } }
   const [errors, setErrors] = useState<Record<number, Record<string, string>>>({});
@@ -145,24 +126,39 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   // Validate all fields (including untouched) for parent callback
   // This ensures Save button is disabled even if errors aren't displayed
   React.useEffect(() => {
-    if (onValidationChange) {
-      const allErrors: Record<number, Record<string, string>> = {};
-      data.forEach((row, rowIndex) => {
-        const rowErrors: Record<string, string> = {};
-        columns.forEach((column) => {
-          const error = validateField(row[column.key], column.validation);
-          if (error) {
-            rowErrors[column.key] = error;
-          }
-        });
-        if (Object.keys(rowErrors).length > 0) {
-          allErrors[rowIndex] = rowErrors;
+    const allErrors: Record<number, Record<string, string>> = {};
+    data.forEach((row, rowIndex) => {
+      const rowErrors: Record<string, string> = {};
+      columns.forEach((column) => {
+        const error = validateField(row[column.key], column.validation);
+        if (error) {
+          rowErrors[column.key] = error;
         }
       });
-      const hasErrors = Object.keys(allErrors).length > 0;
-      onValidationChange(hasErrors);
+      if (Object.keys(rowErrors).length > 0) {
+        allErrors[rowIndex] = rowErrors;
+      }
+    });
+
+    const hasErrors = Object.keys(allErrors).length > 0;
+    onValidationChange?.(hasErrors);
+
+    if (showErrorsWithoutTouch) {
+      setErrors(allErrors);
+      setTouched((prev) => {
+        const nextTouched: Record<number, Record<string, boolean>> = { ...prev };
+        Object.keys(allErrors).forEach((rowKey) => {
+          const rowIndex = Number(rowKey);
+          const rowErrors = allErrors[rowIndex] || {};
+          if (!nextTouched[rowIndex]) nextTouched[rowIndex] = {};
+          Object.keys(rowErrors).forEach((fieldKey) => {
+            nextTouched[rowIndex][fieldKey] = true;
+          });
+        });
+        return nextTouched;
+      });
     }
-  }, [data, columns, onValidationChange]);
+  }, [data, columns, onValidationChange, showErrorsWithoutTouch]);
 
   // Validate all fields in a row
   const validateRow = (rowIndex: number, row: T) => {
@@ -205,6 +201,11 @@ export function CustomAddRowTable<T extends Record<string, any>>({
       }
       newTouched[rowIndex][field] = true;
       
+      const nextRow = {
+        ...(data[rowIndex] || ({} as T)),
+        [field]: value,
+      } as T;
+
       // Validate immediately after marking as touched
       const column = columns.find((col) => col.key === field);
       const error = validateField(value, column?.validation);
@@ -242,6 +243,10 @@ export function CustomAddRowTable<T extends Record<string, any>>({
 
     // Validate on blur
     const column = columns.find((col) => col.key === field);
+    const nextRow = {
+      ...(data[rowIndex] || ({} as T)),
+      [field]: value,
+    } as T;
     const error = validateField(value, column?.validation);
 
     setErrors((prev) => {
@@ -304,6 +309,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                               ) : onRowChange ? (
                                     <Input
                                       id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                                      type={column.validation?.url ? "url" : "text"}
                                       variant="noBorder"
                                       value={row[column.key] || ""}
                                       onChange={(e) =>

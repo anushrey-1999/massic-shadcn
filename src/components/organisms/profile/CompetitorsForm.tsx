@@ -29,9 +29,18 @@ export const CompetitorsForm = ({
   // Component will only re-render when these fields change
   const competitorsData = useStore(form.store, (state: any) => (state.values?.competitors || []) as CompetitorRow[]);
 
+  const [hasCompetitorErrors, setHasCompetitorErrors] = React.useState(false);
+
+  React.useEffect(() => {
+    form.setFieldMeta('competitors', (prev: any) => ({
+      ...prev,
+      hasValidationErrors: hasCompetitorErrors,
+    }));
+  }, [hasCompetitorErrors, form]);
+
   // Own column definitions
   const competitorsColumns: Column<CompetitorRow>[] = useMemo(() => [
-    { key: "url", label: "URL of competitor website", validation: { required: false } },
+    { key: "url", label: "URL of competitor website", validation: { required: false, url: true } },
   ], []);
 
   // Own handlers - encapsulated logic
@@ -74,6 +83,8 @@ export const CompetitorsForm = ({
               onRowChange={handleRowChange}
               onDeleteRow={handleDeleteRow}
               addButtonText="Add URL"
+              onValidationChange={setHasCompetitorErrors}
+              showErrorsWithoutTouch={hasCompetitorErrors}
             />
           </CardContent>
         </Card>

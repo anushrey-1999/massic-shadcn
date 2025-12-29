@@ -12,7 +12,6 @@ import { Typography } from "@/components/ui/typography";
 import { FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
-import { AlertCircle } from "lucide-react";
 import { CTARow, StakeholderRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 
@@ -137,6 +136,7 @@ export const ContentCuesForm = ({
               onDeleteRow={handleCTADeleteRow}
               addButtonText="Add Button"
               onValidationChange={setHasCtaErrors}
+              showErrorsWithoutTouch={hasCtaErrors}
             />
           </CardContent>
         </Card>

@@ -11,6 +11,7 @@ import { GenericInput } from "@/components/ui/generic-input";
 import { Typography } from "@/components/ui/typography";
 import { useBusinessStore } from "@/store/business-store";
 import { useShallow } from "zustand/react/shallow";
+import { useStore } from "@tanstack/react-form";
 
 type BusinessInfoFormData = {
   website: string;
@@ -36,6 +37,9 @@ interface BusinessInfoFormProps {
 export const BusinessInfoForm = React.memo(({
   form
 }: BusinessInfoFormProps) => {
+  const websiteValue = useStore(form.store, (state: any) => state.values?.website || "");
+  const isWebsiteLocked = String(websiteValue || "").trim().length > 0;
+
   // Own Zustand selectors - isolated selector for better performance
   const { locationOptions, locationsLoading } = useBusinessStore(
     useShallow((state) => ({
@@ -63,12 +67,12 @@ export const BusinessInfoForm = React.memo(({
               <GenericInput<BusinessInfoFormData>
                 form={form as any}
                 fieldName="website"
-                type="input"
+                type="url"
                 inputVariant="noBorder"
                 label="Website"
                 required={true}
                 placeholder="Provide the official url of your business website"
-                disabled={true}
+                disabled={isWebsiteLocked}
               />
             </CardContent>
           </Card>

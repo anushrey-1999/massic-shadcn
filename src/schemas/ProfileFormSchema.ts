@@ -48,7 +48,9 @@ export const businessInfoSchema = z.object({
         url: z
           .string()
           .min(1, "URL is required")
-          .url("Please enter a valid URL"),
+          .refine((val) => isValidWebsiteUrl(val), {
+            message: "Please enter a valid URL",
+          }),
       })
     )
     .optional(),
@@ -73,7 +75,16 @@ export const businessInfoSchema = z.object({
   competitors: z
     .array(
       z.object({
-        url: z.string().optional(),
+        url: z
+          .string()
+          .optional()
+          .refine(
+            (val) => {
+              if (!val || val.trim() === "") return true;
+              return isValidWebsiteUrl(val);
+            },
+            { message: "Please enter a valid URL" }
+          ),
       })
     )
     .optional(),

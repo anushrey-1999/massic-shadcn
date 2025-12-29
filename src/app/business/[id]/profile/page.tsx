@@ -80,10 +80,16 @@ export default function BusinessProfilePage() {
     try {
       // Step 1: Check if job exists and if user has filled offerings
       const jobExists = jobDetails && jobDetails.job_id
-      // Check if offerings list exists and has at least one offering with a name
-      const hasOfferings = formValues?.offeringsList &&
-        formValues.offeringsList.length > 0 &&
-        formValues.offeringsList.some((offering: any) => offering?.name?.trim())
+      const normalizedOfferings: Offering[] = Array.isArray(formValues?.offeringsList)
+        ? (formValues.offeringsList as any[])
+          .filter((offering) => Boolean(offering?.name?.trim()))
+          .map((offering: any) => ({
+            name: offering.name || "",
+            description: offering.description || "",
+            link: offering.link || "",
+          }))
+        : []
+      const hasOfferings = normalizedOfferings.length > 0
 
       // Step 2: ALWAYS update Business Profile API first (source of truth)
       // Remove offerings from payload (offerings are only in job API, not business API)
@@ -94,12 +100,7 @@ export default function BusinessProfilePage() {
       if (jobExists) {
         // Job exists - ALWAYS update both APIs to keep them in sync
         if (formValues) {
-          // Convert offeringsList to Offering[] format
-          const offerings: Offering[] = (formValues.offeringsList || []).map((offering: any) => ({
-            name: offering.name || "",
-            description: offering.description || "",
-            link: offering.link || "",
-          }))
+          const offerings = normalizedOfferings
 
           // Convert CTAs array to the format expected by job API ({ value: JSON.stringify(...) })
           const ctasArray = businessPayload.CTAs || []
@@ -132,14 +133,7 @@ export default function BusinessProfilePage() {
         // If user changes other fields but offerings are empty → NO job creation
         // If user fills offerings and saves → CREATE job
         if (hasOfferings && formValues) {
-          console.log("No job exists but user added offerings - creating job")
-
-          // Convert offeringsList to Offering[] format
-          const offerings: Offering[] = (formValues.offeringsList || []).map((offering: any) => ({
-            name: offering.name || "",
-            description: offering.description || "",
-            link: offering.link || "",
-          }))
+          const offerings = normalizedOfferings
 
           // Convert CTAs array to the format expected by job API ({ value: JSON.stringify(...) })
           const ctasArray = businessPayload.CTAs || []
@@ -168,9 +162,6 @@ export default function BusinessProfilePage() {
           await refetchJob()
         } else {
           // No job exists and no offerings filled - only update business API
-          console.log(
-            "No job exists and no offerings - only business profile updated (no job created)"
-          )
         }
       }
 

@@ -17,6 +17,7 @@ interface ProfileSidebarProps {
   buttonText?: string;
   onButtonClick?: () => void;
   buttonDisabled?: boolean;
+  buttonHelperText?: string;
 }
 
 export function ProfileSidebar({
@@ -27,9 +28,10 @@ export function ProfileSidebar({
   buttonText = "Confirm & Proceed to Strategy",
   onButtonClick,
   buttonDisabled = false,
+  buttonHelperText,
 }: ProfileSidebarProps) {
   return (
-    <div className="flex flex-col gap-2 sticky top-[80px]">
+    <div className="flex flex-col gap-2 sticky top-20">
       {/* Section Navigation */}
       <Card className="w-[250px] shrink-0 h-fit bg-white border border-general-border shadow-none rounded-lg py-0 overflow-hidden">
         <CardContent className="p-0">
@@ -75,6 +77,9 @@ export function ProfileSidebar({
           >
             {buttonText}
           </Button>
+          {buttonDisabled && buttonHelperText ? (
+            <p className="mt-2 text-xs text-destructive">{buttonHelperText}</p>
+          ) : null}
         </CardContent>
       </Card>
     </div>

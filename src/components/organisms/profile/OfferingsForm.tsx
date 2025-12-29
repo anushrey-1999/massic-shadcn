@@ -288,6 +288,7 @@ export const OfferingsForm = ({
               onDeleteRow={handleDeleteRow}
               addButtonText="Add Product/Service"
               onValidationChange={setHasOfferingsErrors}
+                showErrorsWithoutTouch={hasOfferingsErrors}
             />
           </CardContent>
         </Card>

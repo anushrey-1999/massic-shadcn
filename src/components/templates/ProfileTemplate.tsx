@@ -128,6 +128,7 @@ const ProfileTemplate = ({
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [isUnlinkModalOpen, setIsUnlinkModalOpen] = useState(false);
   const [isUnlinking, setIsUnlinking] = useState(false);
+  const [showSubmitErrors, setShowSubmitErrors] = useState(false);
   const initialValuesRef = useRef<any>(null);
   const hasChangesRef = useRef(false);
   const rafIdRef = useRef<number | null>(null);
@@ -211,8 +212,8 @@ const ProfileTemplate = ({
     // ALL OTHER FIELDS come from business API (source of truth)
     const ctasList = parseArrayField((profileData as any).CTAs).map(
       (cta: any): CTARow => ({
-        buttonText: cta.buttonText || "",
-        url: cta.url || "",
+        buttonText: cta?.buttonText || "",
+        url: cta?.url || "",
       })
     );
 
@@ -377,12 +378,8 @@ const ProfileTemplate = ({
     externalJobDetails || null // Only used for offerings if job exists
   );
 
-  const form = useForm({
-    defaultValues,
-    validators: {
-      onChange: businessInfoSchema as any,
-    },
-    onSubmit: async ({ value }) => {
+  const saveProfileValues = useCallback(
+    async (value: BusinessInfoFormData) => {
       if (!onUpdateProfile) {
         console.warn("onUpdateProfile not provided");
         return;
@@ -401,8 +398,7 @@ const ProfileTemplate = ({
           Name: value.businessName,
           Website: normalizeWebsiteUrl(cleanWebsiteUrl(value.website)),
           UserDefinedBusinessDescription: value.businessDescription,
-          BusinessObjective:
-            value.serviceType === "physical" ? "local" : "online",
+          BusinessObjective: value.serviceType === "physical" ? "local" : "online",
           LocationType:
             value.offerings === "products"
               ? "products"
@@ -435,9 +431,10 @@ const ProfileTemplate = ({
                 ?.map((item: string) => item.trim())
                 ?.filter((item: string) => item.length > 0)
               : null,
-          RecurringFlag: value.recurringRevenue && value.recurringRevenue.trim()
-            ? value.recurringRevenue.trim().toLowerCase()
-            : null,
+          RecurringFlag:
+            value.recurringRevenue && value.recurringRevenue.trim()
+              ? value.recurringRevenue.trim().toLowerCase()
+              : null,
           AOV: (() => {
             const num = Number.parseFloat(String(value.avgOrderValue || "").trim());
             return Number.isFinite(num) ? num : null;
@@ -449,8 +446,16 @@ const ProfileTemplate = ({
           CTAs:
             value.ctas && value.ctas.length > 0
               ? (value.ctas || [])?.map((cta: any) => ({
-                buttonText: cta.buttonText || "",
-                url: cta.url || "",
+                buttonText: String(cta?.buttonText || ""),
+                url: (() => {
+                  const raw = String(cta?.url || "");
+                  const cleaned = raw.replace(/^sc-domain:/i, "").trim();
+                  if (!cleaned) return "";
+                  if (/^https?:\/\//i.test(cleaned)) {
+                    return cleaned.replace(/^http:\/\//i, "https://");
+                  }
+                  return `https://${cleaned}`;
+                })(),
               }))
               : null,
           CustomerPersonas: (value.stakeholders || [])?.map((s: any) => ({
@@ -495,11 +500,26 @@ const ProfileTemplate = ({
         // Update initial values after successful save
         initialValuesRef.current = JSON.stringify(value);
       } catch (error) {
-        console.error("Failed to save profile:", error);
         // Error toast is handled by the mutation
       } finally {
         setIsSaving(false);
       }
+    },
+    [
+      businessId,
+      externalProfileData,
+      onUpdateProfile,
+      setIsSaving,
+    ]
+  );
+
+  const form = useForm({
+    defaultValues,
+    validators: {
+      onChange: businessInfoSchema as any,
+    },
+    onSubmit: async ({ value }) => {
+      await saveProfileValues(value as BusinessInfoFormData);
     },
   });
 
@@ -807,8 +827,25 @@ const ProfileTemplate = ({
 
   // Handle Save Changes - memoized to prevent re-renders
   const handleSaveChanges = useCallback(async () => {
-    await form.handleSubmit();
-  }, [form]);
+    setShowSubmitErrors(true);
+
+    // Force field-level errors to render (GenericInput only shows errors when touched/has value)
+    const values = form.state.values as Record<string, unknown>;
+    Object.keys(values).forEach((key) => {
+      form.setFieldMeta(key as any, (prev: any) => ({
+        ...prev,
+        isTouched: true,
+      }));
+    });
+
+    const parsed = businessInfoSchema.safeParse(form.state.values);
+    if (!parsed.success) {
+      toast.error("Please fix the highlighted fields before saving.");
+      return;
+    }
+
+    await saveProfileValues(parsed.data as BusinessInfoFormData);
+  }, [form, saveProfileValues]);
 
   // Handle Confirm & Proceed - trigger workflow API and navigate to strategy
   const handleConfirmAndProceed = useCallback(async () => {
@@ -1080,8 +1117,13 @@ const ProfileTemplate = ({
     return offeringsMeta?.hasValidationErrors === true;
   });
 
+  const hasSchemaValidationErrors = useMemo(() => {
+    return !businessInfoSchema.safeParse(formValues).success;
+  }, [formValues]);
+
   // Combine all validation errors
-  const hasAnyValidationErrors = hasCtaValidationErrors || hasOfferingsValidationErrors;
+  const hasAnyValidationErrors =
+    hasSchemaValidationErrors || hasCtaValidationErrors || hasOfferingsValidationErrors;
 
   // Disable button logic:
   // - For "Save Changes": disable if loading, saving, or has any validation errors
@@ -1093,6 +1135,43 @@ const ProfileTemplate = ({
     isTriggeringWorkflow ||
     isWorkflowProcessing || // Disable if workflow is already processing
     !externalJobDetails?.job_id; // Require job to exist before proceeding
+
+  const buttonHelperText = useMemo(() => {
+    if (!isButtonDisabled) return undefined;
+
+    if (hasChanges) {
+      if (externalLoading) return "Please wait for the profile to finish loading.";
+      if (isSaving) return "Saving in progress.";
+      if (hasAnyValidationErrors) return "Fix the highlighted fields to enable saving.";
+      return "Unable to save right now.";
+    }
+
+    if (!externalJobDetails?.job_id) return "Add offerings first to proceed to Strategy.";
+    if (isWorkflowProcessing) return "Workflow is already processing.";
+    if (isTriggeringWorkflow) return "Triggering workflow...";
+    if (externalLoading) return "Please wait for the profile to finish loading.";
+    if (isSaving) return "Saving in progress.";
+    return "Unable to proceed right now.";
+  }, [
+    isButtonDisabled,
+    hasChanges,
+    externalLoading,
+    isSaving,
+    hasAnyValidationErrors,
+    externalJobDetails?.job_id,
+    isWorkflowProcessing,
+    isTriggeringWorkflow,
+  ]);
+
+  const handlePrimaryButtonClick = useCallback(async () => {
+    try {
+      await handleButtonClick();
+    } catch (e) {
+      toast.error("Something went wrong. Please try again.");
+    }
+  }, [
+    handleButtonClick,
+  ]);
 
   // Determine loading state and message
   const isLoading = externalLoading || isSaving || isTriggeringWorkflow;
@@ -1168,8 +1247,9 @@ const ProfileTemplate = ({
             onSectionClick={handleSectionClick}
             completionPercentage={completionPercentage}
             buttonText={buttonText}
-            onButtonClick={handleButtonClick}
+            onButtonClick={handlePrimaryButtonClick}
             buttonDisabled={isButtonDisabled}
+            buttonHelperText={buttonHelperText}
           />
           {/* Loader overlay only on the right panel (form content) */}
 

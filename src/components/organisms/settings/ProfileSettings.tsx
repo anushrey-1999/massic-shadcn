@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { GenericInput } from "@/components/ui/generic-input";
-import { Upload, Loader2, ImageIcon } from "lucide-react";
+import { Upload, Loader2, ImageIcon, Trash2 } from "lucide-react";
 import { useBusinessStore } from "@/store/business-store";
 import LinkedBusinessTable from "./LinkedBusinessTable";
 import {
@@ -25,6 +25,17 @@ import {
 } from "@/hooks/use-agency-settings";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
 import { Typography } from "@/components/ui/typography";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useUnlinkGoogleAccount } from "@/hooks/use-unlink-google-account";
 
 const agencyFormSchema = z.object({
   agencyName: z.string().min(1, "Agency Name is required"),
@@ -86,6 +97,10 @@ export function ProfileSettings() {
   const { agencyInfo, agencyDetails } = useAgencyInfo();
   const updateAgencyMutation = useUpdateAgencyInfo();
   const uploadLogoMutation = useUploadLogo();
+  const unlinkGoogleAccount = useUnlinkGoogleAccount();
+
+  const [unlinkDialogOpen, setUnlinkDialogOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<GoogleAccount | null>(null);
 
   // Use agencyDetails from API or fallback to empty
   const linkedGoogleAccounts: GoogleAccount[] = useMemo(() => {
@@ -262,11 +277,10 @@ export function ProfileSettings() {
                           relative w-[182px] h-[182px] rounded-lg border-2 border-dashed 
                           border-muted bg-muted/30 flex flex-col items-center justify-center 
                           cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/50
-                          ${
-                            isUploadingLogo
+                          ${isUploadingLogo
                               ? "opacity-50 cursor-not-allowed"
                               : ""
-                          }
+                            }
                         `}
                         >
                           {logoField.state.value ? (
@@ -371,6 +385,22 @@ export function ProfileSettings() {
                           {account.email}
                         </p>
                       </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={!account.AuthId || unlinkGoogleAccount.isPending}
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => {
+                          if (!account.AuthId) return;
+                          setSelectedAccount(account);
+                          setUnlinkDialogOpen(true);
+                        }}
+                        aria-label="Unlink Google account"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))
@@ -379,6 +409,46 @@ export function ProfileSettings() {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={unlinkDialogOpen}
+        onOpenChange={(open) => {
+          setUnlinkDialogOpen(open);
+          if (!open) setSelectedAccount(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlink Google account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will disconnect the Google account and deactivate its linked business profiles. You can reconnect later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unlinkGoogleAccount.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!selectedAccount?.AuthId || unlinkGoogleAccount.isPending}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!selectedAccount?.AuthId) return;
+                try {
+                  await unlinkGoogleAccount.mutateAsync({ authId: selectedAccount.AuthId });
+                  toast.success("Google account unlinked");
+                  setUnlinkDialogOpen(false);
+                  setSelectedAccount(null);
+                } catch (error: any) {
+                  toast.error("Failed to unlink Google account", {
+                    description: error?.message || "Please try again later.",
+                    descriptionClassName: "text-destructive-foreground/90",
+                  });
+                }
+              }}
+            >
+              {unlinkGoogleAccount.isPending ? "Unlinking..." : "Unlink"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <LinkedBusinessTable />
     </div>

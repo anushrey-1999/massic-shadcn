@@ -14,6 +14,27 @@ import type {
   TacticItem,
 } from "@/types/social-types";
 
+function parseDownloadPayload(text: string): unknown {
+  const trimmed = (text || "").replace(/^\uFEFF/, "").trim();
+  if (!trimmed) return null;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Some download URLs return NDJSON (one JSON object per line)
+    const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+      if (lines.length <= 1) return { rawText: trimmed };
+
+
+    try {
+      return lines.map((line) => JSON.parse(line));
+    } catch {
+      return { rawText: trimmed };
+    }
+  }
+
+}
 export function useSocial(businessId: string) {
   const platform: ApiPlatform = "python";
 
@@ -26,6 +47,10 @@ export function useSocial(businessId: string) {
   });
 
   const tacticsApi = useApi<TacticApiResponse>({
+    platform,
+  });
+
+  const downloadApi = useApi<any>({
     platform,
   });
 
@@ -162,7 +187,6 @@ export function useSocial(businessId: string) {
           metadata: response?.metadata,
         };
       } catch (error) {
-        console.error("Error fetching social data:", error);
         throw error;
       }
     },
@@ -192,7 +216,6 @@ export function useSocial(businessId: string) {
         offeringCounts,
       };
     } catch (error) {
-      console.error("Error fetching social counts:", error);
       return {
         offeringCounts: {},
       };
@@ -213,10 +236,58 @@ export function useSocial(businessId: string) {
 
       return uniqueChannels;
     } catch (error) {
-      console.error("Error fetching channels:", error);
       return [];
     }
   }, [businessId, socialApi]);
+
+
+  const fetchChannelAnalyzerDownloadUrl = useCallback(
+    async (businessId: string) => {
+      const endpoint = `/client/channel-analyzer?business_id=${businessId}&page=1&page_size=100`;
+      const response = await socialApi.execute(endpoint, { method: "GET" });
+      return (response?.output_data as any)?.download_url as string | undefined;
+    },
+    [socialApi]
+  );
+
+  const fetchDownloadPayloadFromUrl = useCallback(async (downloadUrl: string) => {
+    const downloadResponse = await fetch(downloadUrl);
+    if (!downloadResponse.ok) {
+      throw new Error(
+        `Failed to fetch from download URL: ${downloadResponse.statusText}`
+      );
+    }
+
+    const contentType = downloadResponse.headers.get("content-type") || "";
+    const downloadText = await downloadResponse.text();
+    const parsed = parseDownloadPayload(downloadText);
+
+    return {
+      data: parsed,
+      rawText:
+        parsed && typeof parsed === "object" && "rawText" in (parsed as any)
+          ? (parsed as any).rawText
+          : undefined,
+      metadata: (parsed as any)?.metadata,
+    };
+  }, []);
+
+  const fetchFullDataFromDownloadUrl = useCallback(
+    async (businessId: string) => {
+      try {
+        const downloadUrl = await fetchChannelAnalyzerDownloadUrl(businessId);
+        if (!downloadUrl) {
+          return null;
+        }
+
+        const payload = await fetchDownloadPayloadFromUrl(downloadUrl);
+        return payload;
+      } catch (error) {
+        throw error;
+      }
+    },
+    [fetchChannelAnalyzerDownloadUrl, fetchDownloadPayloadFromUrl]
+  );
 
   const fetchTactics = useCallback(
     async (params: GetTacticsSchema) => {
@@ -322,7 +393,6 @@ export function useSocial(businessId: string) {
           metadata: response?.metadata,
         };
       } catch (error) {
-        console.error("Error fetching tactics data:", error);
         throw error;
       }
     },
@@ -334,12 +404,21 @@ export function useSocial(businessId: string) {
     fetchSocialCounts,
     fetchChannels,
     fetchTactics,
-    loading: socialApi.loading || countsApi.loading || tacticsApi.loading,
-    error: socialApi.error || countsApi.error || tacticsApi.error,
+    fetchChannelAnalyzerDownloadUrl,
+    fetchDownloadPayloadFromUrl,
+    fetchFullDataFromDownloadUrl,
+    loading:
+      socialApi.loading ||
+      countsApi.loading ||
+      tacticsApi.loading ||
+      downloadApi.loading,
+    error:
+      socialApi.error || countsApi.error || tacticsApi.error || downloadApi.error,
     reset: () => {
       socialApi.reset();
       countsApi.reset();
       tacticsApi.reset();
+      downloadApi.reset();
     },
   };
 }

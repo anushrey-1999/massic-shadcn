@@ -86,8 +86,6 @@ export function StrategyBubbleChart({
   }, []);
 
   const hierarchyData = useMemo(() => {
-    console.log('Building hierarchy from data:', data.length, 'topics');
-    
     const root: HierarchyNode = {
       name: "Topics",
       type: "root",
@@ -120,8 +118,6 @@ export function StrategyBubbleChart({
         })),
       })),
     };
-
-    console.log('Hierarchy built:', root);
     return root;
   }, [data]);
 

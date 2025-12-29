@@ -9,6 +9,24 @@ interface LocationsResponse {
   locations: string[];
 }
 
+function toTitleCase(input: string) {
+  const normalized = input
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  return normalized.replace(/(^|[\s-])[a-z]/g, (match) => match.toUpperCase());
+}
+
+function formatLocationLabel(location: string) {
+  const parts = location
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return parts.map(toTitleCase).join(", ");
+}
+
 export function useLocations(country: string = "us") {
   const {
     data: locations = [],
@@ -58,7 +76,7 @@ export function useLocations(country: string = "us") {
   const locationOptions = useMemo(() => {
     const options = limitedLocations.map((location) => ({
       value: location,
-      label: location,
+      label: formatLocationLabel(location),
     }));
 
     // Add placeholder option at the beginning

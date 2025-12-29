@@ -8,11 +8,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import { renderLightMarkdown } from "./markdown";
 import type { ChatMessage, PanelPayload } from "./types";
 import { sendChatbotMessage, simulateStreamingResponse } from "./chatbot-api";
-import { BarChart3, X, Loader2 } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 import type { AnchorRect } from "./ask-massic-overlay-provider";
 
 type UiMode = "full" | "split";
@@ -426,11 +427,19 @@ export function AskMassicOverlay({
                   <div className="space-y-4 px-5 py-5 pb-7">
                     {showHero ? (
                       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-                        <BarChart3 className="h-10 w-10 text-primary" />
-                        <div className="mt-6 text-4xl font-semibold tracking-tight text-primary">
+                        <Image
+                          src="/massic-logo-green.svg"
+                          alt="Massic"
+                          width={40}
+                          height={40}
+                        />
+                        <Typography
+                          variant="h2"
+                          className="mt-2.5 bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent"
+                        >
                           Ask Massic anything.
-                        </div>
-                        <div className="mt-4 max-w-xl text-lg text-muted-foreground">
+                        </Typography>
+                        <div className="mt-1 max-w-xl text-base text-general-muted-foreground">
                           Tell me what you want to grow. I'll handle the rest.
                         </div>
                       </div>

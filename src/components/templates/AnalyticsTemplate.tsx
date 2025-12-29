@@ -108,15 +108,28 @@ export function AnalyticsTemplate() {
       return [];
     }
     return businessProfile.Locations.map((loc, index) => ({
-      value: loc.Name,
+      value: `${loc.Name}__${index}`,
+      name: loc.Name,
       label: `${loc.DisplayName} - ${index + 1}`,
     }));
   }, [businessProfile]);
 
   useEffect(() => {
-    if (locations.length > 0 && !selectedLocation) {
+    if (locations.length === 0) {
+      if (selectedLocation) setSelectedLocation("");
+      return;
+    }
+
+    const exists = locations.some((loc) => loc.value === selectedLocation);
+    if (!exists) {
       setSelectedLocation(locations[0].value);
     }
+  }, [locations, selectedLocation]);
+
+  const selectedLocationName = useMemo(() => {
+    if (!selectedLocation) return "";
+    const match = locations.find((loc) => loc.value === selectedLocation);
+    return match?.name || "";
   }, [locations, selectedLocation]);
 
   const organicRef = useRef<HTMLDivElement>(null);
@@ -298,12 +311,12 @@ export function AnalyticsTemplate() {
             <LocalSearchSection
               period={selectedPeriod}
               locations={locations}
-              selectedLocation={selectedLocation}
+              selectedLocation={selectedLocationName}
             />
 
             <ReviewsSection
               period={selectedPeriod}
-              selectedLocation={selectedLocation}
+              selectedLocation={selectedLocationName}
             />
           </div>
         </div>

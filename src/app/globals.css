@@ -66,6 +66,7 @@
   --color-general-unofficial-outline: var(--general-unofficial-outline);
   --color-schemes-on-surface: var(--schemes-on-surface);
   --color-general-primary: var(--general-primary);
+  --color-general-primary-gradient-to: var(--general-primary-gradient-to);
   --color-general-muted-foreground: var(--general-muted-foreground);
   --color-chart-static-green: var(--chart-static-green);
   --color-general-border-three: var(--general-border-three);
@@ -121,6 +122,7 @@
   --general-unofficial-outline: #0000000D;
   --schemes-on-surface: #171D1A;
   --general-primary: #2E6A56;
+  --general-primary-gradient-to: #56A48A;
   --general-muted-foreground: #737373;
   --chart-static-green: #016630;
   --general-border-three: #D4D4D4;
@@ -170,6 +172,7 @@
   --schemes-on-surface: #FAFAFA;
   --general-primary: #2E6A56;
   --general-muted-foreground: #A3A3A3;
+  --general-primary-gradient-to: #56A48A;
   --general-border-three: #D4D4D4;
   --general-unofficial-foreground-alt: #404040;
 }

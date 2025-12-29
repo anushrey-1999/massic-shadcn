@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChatLauncher } from "@/components/chatbot/chat-launcher";
+import { BusinessShell } from "./business-shell";
 
 export default async function BusinessLayout({
   children,
@@ -10,9 +10,6 @@ export default async function BusinessLayout({
 }) {
   const { id } = await params;
   return (
-    <>
-      {children}
-      <ChatLauncher businessId={id} />
-    </>
+    <BusinessShell businessId={id}>{children}</BusinessShell>
   );
 }

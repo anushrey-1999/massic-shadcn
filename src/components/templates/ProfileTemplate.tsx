@@ -1154,11 +1154,14 @@ const ProfileTemplate = ({
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         {/* Sticky Page Header */}
         <div className="sticky top-0 z-10">
-          <PageHeader breadcrumbs={breadcrumbs} />
+          <PageHeader
+            breadcrumbs={breadcrumbs}
+            showAskMassic={Boolean(externalJobDetails?.job_id)}
+          />
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex gap-6 p-7 items-start">
+        <div className="w-full max-w-[1224px] mx-auto flex gap-6 p-7 items-start">
           <ProfileSidebar
             sections={sections}
             activeSection={activeSection}

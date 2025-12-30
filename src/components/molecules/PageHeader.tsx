@@ -11,8 +11,9 @@ import { useParams } from "next/navigation";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 
 interface BreadcrumbItem {
-  label: string;
+  label?: string;
   href?: string;
+  icon?: React.ReactNode;
 }
 
 interface PageHeaderProps {
@@ -76,7 +77,13 @@ export function PageHeader({
                     href={item.href}
                     className="text-general-muted-foreground hover:text-general-foreground transition-colors "
                   >
-                    {item.label}
+                    {item.icon ? (
+                      <span className="inline-flex items-center text-general-muted-foreground">
+                        {item.icon}
+                      </span>
+                    ) : (
+                      item.label
+                    )}
                   </Link>
                 ) : (
                   <span
@@ -86,7 +93,13 @@ export function PageHeader({
                         : "text-general-muted-foreground"
                     }
                   >
-                    {item.label}
+                    {item.icon ? (
+                      <span className="inline-flex items-center">
+                        {item.icon}
+                      </span>
+                    ) : (
+                      item.label
+                    )}
                   </span>
                 )}
               </span>
@@ -102,10 +115,9 @@ export function PageHeader({
               </span>
               <span className="text-xs text-muted-foreground whitespace-nowrap">
                 {typeof trial.remainingDays === "number" &&
-                trial.remainingDays >= 0
-                  ? `${trial.remainingDays} day${
-                      trial.remainingDays === 1 ? "" : "s"
-                    } left`
+                  trial.remainingDays >= 0
+                  ? `${trial.remainingDays} day${trial.remainingDays === 1 ? "" : "s"
+                  } left`
                   : "Trial active"}
               </span>
               <Button
@@ -130,13 +142,13 @@ export function PageHeader({
                 askMassic.open(
                   rect
                     ? {
-                        top: rect.top,
-                        left: rect.left,
-                        right: rect.right,
-                        bottom: rect.bottom,
-                        width: rect.width,
-                        height: rect.height,
-                      }
+                      top: rect.top,
+                      left: rect.left,
+                      right: rect.right,
+                      bottom: rect.bottom,
+                      width: rect.width,
+                      height: rect.height,
+                    }
                     : undefined
                 );
               }}

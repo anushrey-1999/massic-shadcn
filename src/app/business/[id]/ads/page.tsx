@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
+import { TvRadioAdsTableClient } from '@/components/organisms/TvRadioAdsTable'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
@@ -62,9 +63,7 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
           <DigitalAdsTableClient businessId={businessId} />
         </TabsContent>
         <TabsContent value="tv-radio" className="flex-1 min-h-0 mt-4">
-          <div className="p-4">
-            <p className="text-muted-foreground">TV & Radio ads content</p>
-          </div>
+          <TvRadioAdsTableClient businessId={businessId} />
         </TabsContent>
       </Tabs>
     </div>

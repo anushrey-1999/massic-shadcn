@@ -143,6 +143,10 @@ export function useEntitlementGate({
   }, [business]);
 
   const computedAlertMessage = React.useMemo(() => {
+    if (isWhitelisted) {
+      return "Your agency has unlimited access.";
+    }
+
     if (alertMessage) return alertMessage;
 
     const current = getCurrentPlan();
@@ -169,7 +173,7 @@ export function useEntitlementGate({
     }
 
     return `You're on ${current}. Upgrade your plan to access this feature.`;
-  }, [alertMessage, entitlement, getCurrentPlan, planType, remainingTrialDays]);
+  }, [alertMessage, entitlement, getCurrentPlan, isWhitelisted, planType, remainingTrialDays]);
 
   const handleSubscribe = React.useCallback(
     async (planName: string, action: "UPGRADE" | "DOWNGRADE" | "SUBSCRIBE") => {

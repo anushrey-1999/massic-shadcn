@@ -271,32 +271,68 @@ export default function LinkedBusinessTable() {
               </div>
             );
           }
+          const isPendingAcceptance =
+            !row.original.businessProfile?.Id &&
+            !!(row.original.siteUrl || row.original.displayName);
           const isActive = row.original.businessProfile?.IsActive;
           const rowId = row.original.siteUrl || row.original.id;
           const isRowLoading = loadingRowId === rowId;
 
+          const disableToggle = isPendingAcceptance || isRowLoading;
+          const nextActionLabel = isActive ? "Unlink" : "Link";
+          const tooltipText = disableToggle
+            ? "Accept this business to enable linking/unlinking."
+            : `${nextActionLabel} business`;
+
           return (
-            <div className="flex items-center justify-start">
+            <div
+              className={cn(
+                "flex items-center justify-start",
+                disableToggle ? "cursor-not-allowed" : ""
+              )}
+            >
               {isRowLoading ? (
                 <div className="h-9 w-9 flex items-center justify-center">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`h-9 w-9 cursor-pointer ${isActive
-                      ? "bg-[#2E6A56] text-white"
-                      : "border border-[#DC2626] bg-[#FEF2F2]"
-                    }`}
-                  onClick={() => openToggleConfirm(row.original)}
-                >
-                  {isActive ? (
-                    <Link2 className="h-4.5 w-4.5 " />
-                  ) : (
-                    <Link2Off className="h-4.5 w-4.5 text-red-600" />
-                  )}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {/* Wrap disabled button so tooltip still triggers */}
+                      <span className={cn(disableToggle ? "cursor-not-allowed" : "")}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={disableToggle}
+                          className={cn(
+                            "h-9 w-9 disabled:cursor-not-allowed disabled:opacity-60",
+                            disableToggle ? "cursor-not-allowed" : "cursor-pointer",
+                            disableToggle
+                              ? "border border-border bg-muted text-muted-foreground"
+                              : isActive
+                                ? "bg-[#2E6A56] text-white"
+                                : "border border-[#DC2626] bg-[#FEF2F2]"
+                          )}
+                          onClick={() => {
+                            if (disableToggle) return;
+                            openToggleConfirm(row.original);
+                          }}
+                        >
+                          {isActive ? (
+                            <Link2 className="h-4.5 w-4.5 " />
+                          ) : (
+                            <Link2Off className="h-4.5 w-4.5 text-red-600" />
+                          )}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{tooltipText}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           );

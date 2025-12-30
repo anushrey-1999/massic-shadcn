@@ -80,13 +80,19 @@ export function AnalyticsTemplate() {
         ? (businessProfile as any).remainingTrialDays
         : undefined;
 
-  const { getCurrentPlan, computedAlertMessage, handleSubscribe, gateLoading } =
+  const { getCurrentPlan, computedAlertMessage, handleSubscribe, gateLoading, subscriptionData } =
     useEntitlementGate({
       entitlement: "strategy",
       businessId: businessId || undefined,
       alertMessage:
         "Free trial active. Upgrade anytime to unlock all features.",
     });
+
+  const isWhitelisted =
+    (subscriptionData as any)?.whitelisted === true ||
+    (subscriptionData as any)?.status === "whitelisted";
+
+  const showTrialBanner = isTrialActive && !isWhitelisted;
 
   const businessName =
     businessProfile?.Name || businessProfile?.DisplayName || "Business";
@@ -203,7 +209,7 @@ export function AnalyticsTemplate() {
       <PlanModal
         open={upgradeOpen}
         onClose={() => setUpgradeOpen(false)}
-        currentPlan={isTrialActive ? "Free Trial" : getCurrentPlan()}
+        currentPlan={isWhitelisted ? "Whitelisted" : showTrialBanner ? "Free Trial" : getCurrentPlan()}
         showFooterButtons={true}
         showAlertBar={true}
         alertSeverity="error"
@@ -217,7 +223,7 @@ export function AnalyticsTemplate() {
       <div className="sticky top-0 z-11 bg-foreground-light">
         <PageHeader
           trial={
-            isTrialActive
+            showTrialBanner
               ? {
                 remainingDays: remainingTrialDays,
               }

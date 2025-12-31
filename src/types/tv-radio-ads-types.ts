@@ -1,4 +1,4 @@
-import type { ExtendedColumnFilter } from "./data-table-types";
+import type { FilterOperator } from "./data-table-types";
 
 export type TvRadioChannel = "TV" | "Radio";
 
@@ -98,12 +98,18 @@ export interface TvRadioAdsApiResponse {
   };
 }
 
+export interface TvRadioApiFilter {
+  field: string;
+  value: string | string[];
+  operator: FilterOperator;
+}
+
 export interface GetTvRadioAdsSchema {
   business_id: string;
   page: number;
   perPage: number;
   sort: Array<{ field: string; desc: boolean }>;
-  filters: ExtendedColumnFilter<TvRadioAdConceptRow>[];
+  filters: TvRadioApiFilter[];
   joinOperator: "and" | "or";
   search?: string;
 }

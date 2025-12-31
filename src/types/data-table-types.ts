@@ -18,6 +18,7 @@ declare module "@tanstack/react-table" {
     range?: [number, number];
     unit?: string;
     icon?: React.FC<React.SVGProps<SVGSVGElement>>;
+    apiField?: string;
     align?: "left" | "center" | "right"; // Column alignment (default: "left")
     closeOnSelect?: boolean; // Close faceted dropdown on select (for multiSelect)
   }

@@ -91,9 +91,35 @@ export function DataTableFilterList<TData>({
       .filter((column) => column.columnDef.enableColumnFilter);
   }, [table]);
 
+  const filterFieldMapper = React.useMemo(() => {
+    const idToQueryField = new Map<string, string>();
+    const queryFieldToId = new Map<string, string>();
+    const validQueryFields = new Set<string>();
+
+    for (const column of columns) {
+      const id = column.id;
+      const queryField = column.columnDef.meta?.apiField ?? id;
+      idToQueryField.set(id, queryField);
+      validQueryFields.add(id);
+      validQueryFields.add(queryField);
+      if (!queryFieldToId.has(queryField)) {
+        queryFieldToId.set(queryField, id);
+      }
+    }
+
+    return {
+      validQueryFields: Array.from(validQueryFields),
+      toQueryField: (field: string) => idToQueryField.get(field) ?? field,
+      fromQueryField: (field: string) => queryFieldToId.get(field) ?? field,
+    };
+  }, [columns]);
+
   const [filters, setFilters] = useQueryState(
     table.options.meta?.queryKeys?.filters ?? "filters",
-    getFiltersStateParser<TData>(columns.map((field) => field.id))
+    getFiltersStateParser<TData>(filterFieldMapper.validQueryFields, {
+      toQueryField: filterFieldMapper.toQueryField,
+      fromQueryField: filterFieldMapper.fromQueryField,
+    })
       .withDefault([])
       .withOptions({
         clearOnDefault: true,

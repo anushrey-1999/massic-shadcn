@@ -158,9 +158,37 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     );
   }, [columns]);
 
+  const sortFieldMapper = React.useMemo(() => {
+    const idToQueryField = new Map<string, string>();
+    const queryFieldToId = new Map<string, string>();
+    const validQueryFields = new Set<string>();
+
+    for (const column of columns) {
+      const id = column.id;
+      if (!id) continue;
+
+      const queryField = column.meta?.apiField ?? id;
+      idToQueryField.set(id, queryField);
+      validQueryFields.add(id);
+      validQueryFields.add(queryField);
+      if (!queryFieldToId.has(queryField)) {
+        queryFieldToId.set(queryField, id);
+      }
+    }
+
+    return {
+      validQueryFields,
+      toQueryField: (field: string) => idToQueryField.get(field) ?? field,
+      fromQueryField: (field: string) => queryFieldToId.get(field) ?? field,
+    };
+  }, [columns]);
+
   const [sorting, setSorting] = useQueryState(
     sortKey,
-    getSortingStateParser<TData>(columnIds)
+    getSortingStateParser<TData>(sortFieldMapper.validQueryFields, {
+      toQueryField: sortFieldMapper.toQueryField,
+      fromQueryField: sortFieldMapper.fromQueryField,
+    })
       .withOptions(queryStateOptions)
       .withDefault([]),
   );
@@ -223,9 +251,9 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
 
   const resolvedInitialState = React.useMemo((): InitialTableState | undefined => {
     if (!initialState) return undefined;
-    
+
     const { sorting, ...rest } = initialState;
-    
+
     if (!sorting) {
       return rest as InitialTableState;
     }

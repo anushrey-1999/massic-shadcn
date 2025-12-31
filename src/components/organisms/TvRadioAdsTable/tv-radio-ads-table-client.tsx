@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useTvRadioAds } from "@/hooks/use-tv-radio-ads";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { TvRadioAdConceptRow } from "@/types/tv-radio-ads-types";
-import type { ExtendedColumnFilter } from "@/types/data-table-types";
+import type { TvRadioApiFilter } from "@/types/tv-radio-ads-types";
 
 interface TvRadioAdsTableClientProps {
   businessId: string;
@@ -34,8 +34,8 @@ export function TvRadioAdsTableClient({ businessId }: TvRadioAdsTableClientProps
 
   const [filters] = useQueryState(
     "filters",
-    parseAsJson<ExtendedColumnFilter<TvRadioAdConceptRow>[]>((value) => {
-      if (Array.isArray(value)) return value as ExtendedColumnFilter<TvRadioAdConceptRow>[];
+    parseAsJson<TvRadioApiFilter[]>((value) => {
+      if (Array.isArray(value)) return value as TvRadioApiFilter[];
       return null;
     }).withDefault([])
   );

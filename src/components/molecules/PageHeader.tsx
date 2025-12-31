@@ -56,7 +56,7 @@ export function PageHeader({
 
   return (
     <div className="w-full border-b border-border bg-foreground-light">
-      <div className="w-full max-w-[1224px] mx-auto px-7 py-3 flex items-center justify-between">
+      <div className="w-full max-w-[1224px] px-7 py-3 flex items-center justify-between">
         <nav className="flex items-center gap-1 text-sm">
           {breadcrumbs.map((item, index) => {
             const isLast = index === breadcrumbs.length - 1;

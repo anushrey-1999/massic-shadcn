@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { TrendingUp, TrendingDown, icons } from "lucide-react"
 
 interface StatsBadgeProps {
   value: number
@@ -25,15 +25,18 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 text-[10px] font-medium leading-4 tracking-[0.15px] text-muted-foreground",
+          "inline-flex items-center gap-1 text-[10px] font-medium  tracking-[0.15px] text-muted-foreground",
           className
         )}
       >
         {showIcon && !isNeutral &&
           (isPositive ? (
-            <TrendingUp className={cn("h-3 w-3", iconColor)} />
+            // <TrendingUp className={cn("h-3 w-3", iconColor)} />
+          <span className={`-mr-0.5 text-xs ${iconColor}`} >+</span>
+
           ) : (
-            <TrendingDown className={cn("h-3 w-3", iconColor)} />
+            // <TrendingDown className={cn("h-3 w-3", iconColor)} />
+            <span className={`-mr-0.5 text-xs ${iconColor}`}>-</span>
           ))}
         <span className="font-medium">{Math.abs(value)}%</span>
       </span>
@@ -49,9 +52,11 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
     >
       {showIcon && !isNeutral &&
         (isPositive ? (
-          <TrendingUp className="h-3 w-3 text-emerald-600" />
+          // <TrendingUp className="h-3 w-3 text-emerald-600" />
+          <span className="-mr-0.5">+</span>
         ) : (
-          <TrendingDown className="h-3 w-3 text-red-600" />
+          // <TrendingDown className="h-3 w-3 text-red-600" />
+            <span className="-mr-0.5">-</span>
         ))}
       <span className="font-medium">{Math.abs(value)}%</span>
     </span>

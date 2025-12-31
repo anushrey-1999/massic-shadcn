@@ -87,12 +87,12 @@ function getGreetingName(user: any) {
 }
 
 const HOME_PERIODS = [
-	{ label: "7 days", value: "7 days" },
-	{ label: "14 days", value: "14 days" },
-	{ label: "28 days", value: "28 days" },
-	{ label: "3 months", value: "3 months" },
-	{ label: "6 months", value: "6 months" },
-	{ label: "12 months", value: "12 months" },
+	{ label: "7 Days", value: "7 days" },
+	{ label: "14 Days", value: "14 days" },
+	{ label: "28 Days", value: "28 days" },
+	{ label: "3 Months", value: "3 months" },
+	{ label: "6 Months", value: "6 months" },
+	{ label: "12 Months", value: "12 months" },
 ] as const;
 
 export function HomeTemplate() {
@@ -199,7 +199,7 @@ export function HomeTemplate() {
 						value={period}
 						onValueChange={(value) => setPeriod(value as any)}
 					>
-						<SelectTrigger className="min-w-[130px]">
+						<SelectTrigger>
 							<SelectValue placeholder="Period" />
 						</SelectTrigger>
 						<SelectContent align="end">
@@ -217,14 +217,14 @@ export function HomeTemplate() {
 							value={search}
 							onChange={(e) => setSearch(e.target.value)}
 							placeholder="Search by business name"
-							className="pl-9"
+							className="h-10 pl-9"
 						/>
 					</div>
 
 					<Button
 						type="button"
 						onClick={() => router.push("/create-business")}
-						className="h-9"
+						className="h-10"
 					>
 						<Plus className="h-4 w-4 mr-2" />
 						Add

@@ -1,5 +1,6 @@
 import { PitchesTableClient } from "@/components/organisms/PitchesTable";
 import { PageHeader } from "@/components/molecules/PageHeader";
+import { Suspense } from "react";
 
 export default function PitchesPage() {
   const breadcrumbs = [
@@ -11,7 +12,9 @@ export default function PitchesPage() {
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
-        <PitchesTableClient />
+        <Suspense fallback={null}>
+          <PitchesTableClient />
+        </Suspense>
       </div>
     </div>
   );

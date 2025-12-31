@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Home, LineChart, Settings, Bell, LogOut, Plus, Search, ChevronRight, X } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -47,7 +47,6 @@ interface BusinessIconProps {
   website?: string
   name?: string
 }
-
 function BusinessIcon({ website, name }: BusinessIconProps) {
   const [imgError, setImgError] = useState(false)
   const fallbackInitial = name?.charAt(0).toUpperCase() || 'B'
@@ -139,11 +138,15 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick, className }:
   )
 }
 
+
 export default function AppSidebar() {
+    // ...existing code...
   const pathname = usePathname()
   const router = useRouter()
   const logout = useLogout()
   const { user } = useAuthStore()
+
+  const businessesScrollRef = useRef<HTMLDivElement>(null)
 
   const {
     profiles,
@@ -152,6 +155,21 @@ export default function AppSidebar() {
   } = useBusinessProfiles()
 
   const setExpandedBusinessId = useBusinessStore((state) => state.setExpandedBusinessId)
+  // Scroll active business into view on mount or when expandedBusinessId changes
+  useEffect(() => {
+    if (!expandedBusinessId || sidebarDataLoading) return;
+    // Defer scroll until after DOM update
+    const timeout = setTimeout(() => {
+      const container = businessesScrollRef.current;
+      if (!container) return;
+      const target = container.querySelector<HTMLElement>(`[data-business-id="${expandedBusinessId}"]`);
+      if (!target) return;
+      if (!isFullyVisible(container, target)) {
+        smoothScrollToCenter(container, target);
+      }
+    }, 0);
+    return () => clearTimeout(timeout);
+  }, [expandedBusinessId, sidebarDataLoading]);
   
   // Search state
   const [isSearchMode, setIsSearchMode] = useState(false)
@@ -198,6 +216,12 @@ export default function AppSidebar() {
   const isBusinessRoute = pathname.startsWith('/business/')
 
   useEffect(() => {
+
+    // Utility: check if an element is fully visible in a scroll container
+    // (moved helpers to component scope)
+  }, [])
+
+  useEffect(() => {
     if (!isBusinessRoute) {
       if (expandedBusinessId !== null) {
         setExpandedBusinessId(null)
@@ -216,8 +240,60 @@ export default function AppSidebar() {
     }
   }, [pathname, isBusinessRoute, profiles, expandedBusinessId])
 
-  const toggleBusiness = (uniqueId: string, open: boolean) => {
+  // Utility: check if an element is fully visible in a scroll container
+  const isFullyVisible = (container: HTMLElement, target: HTMLElement) => {
+    const cTop = container.scrollTop
+    const cBottom = cTop + container.clientHeight
+    const tTop = target.offsetTop
+    const tBottom = tTop + target.offsetHeight
+    return tTop >= cTop && tBottom <= cBottom
+  }
+
+  // Utility: smooth scroll to center target in container
+  // Scroll so the target is near the top (with a small offset)
+  const smoothScrollToCenter = (container: HTMLElement, target: HTMLElement, duration = 650) => {
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    // Offset from the top (e.g., 16px)
+    const offset = 16;
+    const targetTopY = targetRect.top - containerRect.top + container.scrollTop - offset;
+    const desiredScrollTop = Math.max(0, targetTopY);
+    const maxScrollTop = container.scrollHeight - container.clientHeight;
+    const nextScrollTop = Math.max(0, Math.min(maxScrollTop, desiredScrollTop));
+    const start = container.scrollTop;
+    const change = nextScrollTop - start;
+    const startTime = performance.now();
+    function easeInOutQuad(t: number) {
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    }
+    function animate(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = easeInOutQuad(progress);
+      container.scrollTop = start + change * eased;
+      if (progress < 1) requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  }
+
+  // Handler to scroll after accordion opens
+  const handleBusinessAccordionOpen = useCallback((uniqueId: string, open: boolean) => {
     setExpandedBusinessId(open ? uniqueId : null)
+    if (open) {
+      setTimeout(() => {
+        const container = businessesScrollRef.current
+        if (!container) return
+        const target = container.querySelector<HTMLElement>(`[data-business-id="${uniqueId}"]`)
+        if (!target) return
+        if (!isFullyVisible(container, target)) {
+          smoothScrollToCenter(container, target)
+        }
+      }, 0) // Run after DOM update
+    }
+  }, [setExpandedBusinessId])
+
+  const toggleBusiness = (uniqueId: string, open: boolean) => {
+    handleBusinessAccordionOpen(uniqueId, open)
     if (open) {
       router.push(`/business/${uniqueId}/analytics`)
     }
@@ -348,7 +424,11 @@ export default function AppSidebar() {
               )}
             </div>
             <div className="relative flex-1 overflow-hidden">
-              <SidebarGroupContent className="flex-1 overflow-y-auto py-0 h-full px-0" onScroll={handleScroll}>
+              <SidebarGroupContent
+                ref={businessesScrollRef}
+                className="flex-1 overflow-y-auto py-0 h-full px-0"
+                onScroll={handleScroll}
+              >
               <SidebarMenu className="gap-1 px-4 pb-3">
                 {sidebarDataLoading ? (
                   <>
@@ -381,6 +461,7 @@ export default function AppSidebar() {
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton
                                 isActive={false}
+                                data-business-id={business.UniqueId}
                                 className="py-4 pl-3 group/business w-full justify-between cursor-pointer overflow-hidden rounded-md"
                               >
                                 <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -470,6 +551,7 @@ export default function AppSidebar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </>
   )
 }

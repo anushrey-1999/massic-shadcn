@@ -167,11 +167,16 @@ export default function AppSidebar() {
       label: 'Home',
     },
     {
-      href: '/proposals',
+      href: '/pitches',
       icon: LineChart,
-      label: 'Proposal',
+      label: 'Pitches',
     },
   ]
+
+  const isNavItemActive = (href: string) => {
+    if (href === '/') return pathname === '/'
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
 
   const userName = user?.username || user?.email || 'User'
 
@@ -290,7 +295,7 @@ export default function AppSidebar() {
                     href={item.href}
                     icon={item.icon}
                     label={item.label}
-                    isActive={pathname === item.href}
+                    isActive={isNavItemActive(item.href)}
                   />
                 ))}
               </SidebarMenu>

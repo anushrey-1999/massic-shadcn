@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -133,9 +133,16 @@ export default function LinkedBusinessTable() {
   const [confirmToggleOpen, setConfirmToggleOpen] = useState(false);
   const [confirmToggleRow, setConfirmToggleRow] =
     useState<LinkedBusiness | null>(null);
+  const [stickySummaryTopPx, setStickySummaryTopPx] = useState(0);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   // API hooks
-  const { data: businessesData, isLoading, refetch } = useFetchBusinesses();
+  const {
+    data: businessesData,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useFetchBusinesses();
   const createBusinessMutation = useCreateAgencyBusiness();
   const linkPropertyMutation = useLinkPropertyId();
   const toggleStatusMutation = useToggleBusinessStatus();
@@ -250,6 +257,32 @@ export default function LinkedBusinessTable() {
     createBusinessMutation.isPending ||
     linkPropertyMutation.isPending ||
     toggleStatusMutation.isPending;
+
+  const isTableBusy = isLoading || isFetching || isMutating;
+
+  useLayoutEffect(() => {
+    const container = tableScrollRef.current;
+    if (!container) return;
+
+    const thead = container.querySelector("thead");
+    if (!thead) return;
+
+    const update = () => {
+      const next = Math.ceil(thead.getBoundingClientRect().height);
+      setStickySummaryTopPx(next);
+    };
+
+    update();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => update());
+      ro.observe(thead);
+      return () => ro.disconnect();
+    }
+
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const columns = useMemo<ColumnDef<LinkedBusiness>[]>(
     () => [
@@ -494,7 +527,7 @@ export default function LinkedBusinessTable() {
                 >
                   <SelectTrigger className="w-full max-w-[300px] min-h-10 h-auto! whitespace-normal! items-center! px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
                     {displayGa4 ? (
-                       <div className="flex items-center justify-between w-full gap-1">
+                      <div className="flex items-center justify-between w-full gap-1">
                         <TextWithPill
                           displayName={displayGa4.displayName || displayGa4.propertyDisplayName || ""}
                           propertyId={displayGa4.propertyId || (displayGa4 as any).PropertyId}
@@ -830,123 +863,151 @@ export default function LinkedBusinessTable() {
   ).length;
 
   return (
-    <Card variant="profileCard" className="p-4 bg-white border-none">
+    <Card
+      variant="profileCard"
+      className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-hidden p-4 bg-white border-none"
+    >
       <CardHeader>
         <CardTitle className="pb-6">
           <Typography variant="h4">Linked Businesses</Typography>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 flex flex-col min-h-0">
 
-
-        {/* Filter Tabs */}
-        <Tabs value={filter} onValueChange={setFilter} >
-          <TabsList className="bg-general-border rounded-lg">
-            {FILTERS.map((tab) => {
-              const count =
-                tab.value === "all"
-                  ? localBusinesses.length
-                  : tab.value === "matched"
-                    ? localBusinesses.filter((b) => b.matchedGa4).length
-                    : localBusinesses.filter((b) => !b.matchedGa4).length;
-              return (
-                <TabsTrigger key={tab.value} value={tab.value} className="font-normal">
-                  {tab.label} • {count}
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </Tabs>
-
-        {/* Search Bar */}
-        <div className="relative w-1/3">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search Business Name"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-
-        {/* Loading State */}
-        {isLoading ? (
-          <div className="border rounded-lg p-8">
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Loading businesses...
-              </p>
+        <div className="relative" aria-busy={isTableBusy}>
+          {isTableBusy ? (
+            <div className="absolute inset-0 z-10 rounded-lg bg-background/40">
+              <div className="absolute right-3 top-3 flex items-center gap-2 rounded-md border bg-background/95 px-3 py-2 shadow-sm">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  {isMutating
+                    ? "Updating linked businesses…"
+                    : "Loading businesses…"}
+                </span>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="border rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <TableElement>
-                <TableHeader>
-                  {tableWithFixedSummary.getHeaderGroups().map((headerGroup) => (
-                    <TableRow key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <TableHead
-                          key={header.id}
-                          colSpan={header.colSpan}
-                          className="p-0"
-                        >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {tableWithFixedSummary.getRowModel().rows?.length ? (
-                    tableWithFixedSummary.getRowModel().rows.map((row) => {
-                      const isSummary = (row.original as any).isSummary;
-                      return (
-                        <TableRow
-                          key={row.id}
-                          className={cn(
-                            isSummary && "bg-foreground-light"
-                          )}
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <TableCell
-                              key={cell.id}
-                              className={cn(
-                                "px-2 py-1.5",
+          ) : null}
 
-                              )}
+          <div className={cn(isTableBusy ? "pointer-events-none opacity-60" : "")}>
+            {/* Filter Tabs */}
+            <Tabs value={filter} onValueChange={setFilter}>
+              <TabsList className="bg-general-border rounded-lg">
+                {FILTERS.map((tab) => {
+                  const count =
+                    tab.value === "all"
+                      ? localBusinesses.length
+                      : tab.value === "matched"
+                        ? localBusinesses.filter((b) => b.matchedGa4).length
+                        : localBusinesses.filter((b) => !b.matchedGa4).length;
+                  return (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className="font-normal"
+                    >
+                      {tab.label} • {count}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </Tabs>
+
+            {/* Search Bar */}
+            <div className="relative w-1/3 mt-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search Business Name"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <div className="border rounded-lg overflow-hidden mt-4 flex-1 min-h-0">
+              <div
+                ref={tableScrollRef}
+                className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-18rem)]"
+              >
+                <TableElement>
+                  <TableHeader>
+                    {tableWithFixedSummary.getHeaderGroups().map(
+                      (headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead
+                              key={header.id}
+                              colSpan={header.colSpan}
+                              className="sticky top-0 z-20 p-0 bg-background"
                             >
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext()
-                              )}
-                            </TableCell>
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext()
+                                )}
+                            </TableHead>
                           ))}
                         </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        colSpan={tableWithFixedSummary.getVisibleLeafColumns().length}
-                        className="h-24 text-center text-muted-foreground"
-                      >
-                        No results.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </TableElement>
+                      )
+                    )}
+                  </TableHeader>
+                  <TableBody>
+                    {tableWithFixedSummary.getRowModel().rows?.length ? (
+                      tableWithFixedSummary.getRowModel().rows.map((row) => {
+                        const isSummary = (row.original as any).isSummary;
+                        return (
+                          <TableRow
+                            key={row.id}
+                            className={cn(
+                              isSummary && "sticky z-10 bg-foreground-light"
+                            )}
+                            style={
+                              isSummary
+                                ? { top: `${stickySummaryTopPx}px` }
+                                : undefined
+                            }
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                              <TableCell
+                                key={cell.id}
+                                className={cn(
+                                  "px-2 py-1.5",
+                                  isSummary &&
+                                  "sticky z-10 bg-foreground-light"
+                                )}
+                                style={
+                                  isSummary
+                                    ? { top: `${stickySummaryTopPx}px` }
+                                    : undefined
+                                }
+                              >
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell
+                          colSpan={
+                            tableWithFixedSummary.getVisibleLeafColumns().length
+                          }
+                          className="h-24 text-center text-muted-foreground"
+                        >
+                          No results.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </TableElement>
+              </div>
             </div>
           </div>
-        )}
+        </div>
       </CardContent>
 
       {/* Confirm link/unlink (mirrors old UI warning) */}

@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { TrendingUp, TrendingDown, Loader2 } from "lucide-react"
+import { TrendingUp, TrendingDown, Loader2, Plus, Minus } from "lucide-react"
 
 interface MetricCardProps {
   icon?: React.ReactNode
@@ -85,15 +85,15 @@ export function MetricCard({
           {change !== undefined && (
             <div
               className={cn(
-                "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
+                "flex items-center gap-1 text-[10px] leading-0"
               )}
             >
               {isPositive ? (
-                <TrendingUp className="h-3 w-3 text-emerald-600" />
+                <Plus  className="h-3 w-3 text-emerald-600" />
               ) : (
-                <TrendingDown className="h-3 w-3 text-red-600" />
+                <Minus className="h-3 w-3 text-red-600" />
               )}
-              <span className="font-medium text-general-muted-foreground">{Math.abs(change)}%</span>
+              <span className="font-medium text-general-muted-foreground leading-none">{Math.abs(change)}%</span>
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { TrendingUp, TrendingDown, icons } from "lucide-react"
+import { Plus, Minus } from "lucide-react"
 
 interface StatsBadgeProps {
   value: number
@@ -25,18 +25,15 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 text-[10px] font-medium  tracking-[0.15px] text-muted-foreground",
+          "inline-flex items-center gap-0.5 text-[10px] font-medium  tracking-[0.15px] text-muted-foreground",
           className
         )}
       >
         {showIcon && !isNeutral &&
           (isPositive ? (
-            // <TrendingUp className={cn("h-3 w-3", iconColor)} />
-          <span className={`-mr-0.5 text-xs ${iconColor}`} >+</span>
-
+            <Plus className={cn("h-3 w-3", iconColor)} />
           ) : (
-            // <TrendingDown className={cn("h-3 w-3", iconColor)} />
-            <span className={`-mr-0.5 text-xs ${iconColor}`}>-</span>
+            <Minus className={cn("h-3 w-3", iconColor)} />
           ))}
         <span className="font-medium">{Math.abs(value)}%</span>
       </span>
@@ -46,17 +43,15 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 text-general-muted-foreground text-xs ",
+        "inline-flex items-center gap-0.5 text-general-muted-foreground text-xs ",
         className
       )}
     >
       {showIcon && !isNeutral &&
         (isPositive ? (
-          // <TrendingUp className="h-3 w-3 text-emerald-600" />
-          <span className="-mr-0.5">+</span>
+          <Plus className="h-3 w-3 text-emerald-600" />
         ) : (
-          // <TrendingDown className="h-3 w-3 text-red-600" />
-            <span className="-mr-0.5">-</span>
+          <Minus className="h-3 w-3 text-red-600" />
         ))}
       <span className="font-medium">{Math.abs(value)}%</span>
     </span>

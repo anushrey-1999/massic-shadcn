@@ -135,11 +135,11 @@ export function PositionDistributionCard({
       </div>
 
       <div className="flex flex-col gap-4 p-2">
-        <div className="grid grid-cols-3 gap-1.5 rounded-lg bg-foreground-light p-2 ">
+        <div className="flex gap-1.5 rounded-lg">
           {positions.map((position, index) => (
             <label
               key={position.key || index}
-              className="flex justify-between gap-0.5 rounded px-1.5 py-1.5 bg-white cursor-pointer min-w-0"
+              className="flex  gap-4 rounded px-1.5 py-1.5 bg-foreground-light cursor-pointer min-w-0"
             >
               <div className="flex items-center gap-1.5">
                 <Checkbox
@@ -160,9 +160,11 @@ export function PositionDistributionCard({
                 </span>
                 <div className="flex items-center gap-0.5">
                   {position.change >= 0 ? (
-                    <TrendingUp className="h-3.5 w-3.5 text-[#16A34A]" />
+                    // <TrendingUp className="h-3.5 w-3.5 text-[#16A34A]" />
+                    <span className="text-[#16A34A] -mr-0.5-">+</span>
                   ) : (
-                    <TrendingDown className="h-3.5 w-3.5 text-[#DC2626]" />
+                    // <TrendingDown className="h-3.5 w-3.5 text-[#DC2626]" />
+                      <span className="text-[#DC2626] -mr-0.5">-</span>
                   )}
                   <span className={`text-[11px] font-medium tracking-[0.15px] ${position.change >= 0 ? 'text-general-muted-foreground' : 'text-[#DC2626]'}`}>
                     {Math.abs(position.change)}%

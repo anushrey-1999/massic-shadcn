@@ -17,6 +17,7 @@ import {
   Eye,
   BarChart3,
   ArrowRight,
+  MousePointerClick,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -42,6 +43,10 @@ interface TrafficAnalysisSheetProps {
   businessId: string | null
   businessName: string
 }
+
+export const getTrafficAlertIconColor = (trafficData: TrafficData | null) => {
+  return trafficData ? "#F59E0B" : "#16A34A";
+};
 
 const getSeverityConfig = (severity: string) => {
   const normalized = severity.toLowerCase()
@@ -386,14 +391,16 @@ export function TrafficAnalysisSheet({
         <SheetHeader className="px-4 py-3 border-b bg-muted/30 space-y-3">
           <div>
             <SheetTitle className="text-base font-bold flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" />
+              <MousePointerClick
+                className="h-4 w-4"
+                color={getTrafficAlertIconColor(defaultTrafficData)}
+              />
               Traffic Analysis
             </SheetTitle>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Monitor and analyze traffic anomalies
+              Track and analyze your traffic anomalies
             </p>
           </div>
-
           <div className="space-y-2">
             <AlertDateSelector selectedDate={localDate} onDateChange={setLocalDate} />
             <Button

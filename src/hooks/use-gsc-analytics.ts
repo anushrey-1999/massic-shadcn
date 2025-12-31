@@ -306,7 +306,7 @@ export function useGSCAnalytics(
 
     return [
       {
-        label: "Impressions",
+        label: "Imp.",
         value: funnelData.impressions.Value,
         percentage: funnelData.impressions.Percentage,
       },

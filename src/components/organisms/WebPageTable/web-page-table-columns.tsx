@@ -28,9 +28,11 @@ function formatVolume(volume: number): string {
 interface GetWebPageTableColumnsProps {
   businessId: string;
   offeringCounts?: Record<string, number>;
+  expandedRowId?: string | null;
+  onExpandedRowChange?: (rowId: string | null) => void;
 }
 
-export function getWebPageTableColumns({ businessId, offeringCounts = {} }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
+export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
   return [
     {
       id: "keyword",
@@ -237,9 +239,17 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {} }: GetW
       ),
       cell: ({ row }) => {
         const keywords = row.original.supporting_keywords || [];
+        const isExpanded = expandedRowId === row.id;
         return (
           <div className="max-w-full">
-            <ExpandablePills items={keywords} pillVariant="outline" />
+            <ExpandablePills
+              items={keywords}
+              pillVariant="outline"
+              expanded={isExpanded}
+              onExpandedChange={(next) => {
+                onExpandedRowChange?.(next ? row.id : null);
+              }}
+            />
           </div>
         );
       },

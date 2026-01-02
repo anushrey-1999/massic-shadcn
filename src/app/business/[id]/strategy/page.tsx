@@ -89,7 +89,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 				{!(isStrategySplitView || isAudienceSplitView) && (
 					<div className="shrink-0 flex items-center justify-between gap-4">
 						<TabsList>
-							<TabsTrigger value="strategy">Strategy</TabsTrigger>
+							<TabsTrigger value="strategy">Topics</TabsTrigger>
 							<TabsTrigger value="audience">Audience</TabsTrigger>
 							<TabsTrigger value="landscape">Landscape</TabsTrigger>
 						</TabsList>

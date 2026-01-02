@@ -14,3 +14,17 @@ export type ChatMessage = {
   content: string;
   callout?: { ctaLabel?: string; panel: PanelPayload };
 };
+
+export type ConversationPreview = {
+  conv_id: string;
+  title: string;
+};
+
+export type ChatHistoryResponse = {
+  messages: ChatMessage[];
+  next_id?: string;
+};
+
+export type ConversationListResponse = {
+  conversations: ConversationPreview[];
+};

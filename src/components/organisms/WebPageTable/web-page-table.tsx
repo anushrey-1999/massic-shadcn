@@ -36,9 +36,18 @@ export function WebPageTable({
 }: WebPageTableProps) {
   const enableAdvancedFilter = true;
 
+
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+
   const columns = React.useMemo(
-    () => getWebPageTableColumns({ businessId, offeringCounts }),
-    [businessId, offeringCounts]
+    () =>
+      getWebPageTableColumns({
+        businessId,
+        offeringCounts,
+        expandedRowId,
+        onExpandedRowChange: setExpandedRowId,
+      }),
+    [businessId, offeringCounts, expandedRowId]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -53,6 +62,7 @@ export function WebPageTable({
       },
       columnVisibility: {
         offerings: false,
+        status: false,
       },
     },
     queryKeys,
@@ -60,6 +70,8 @@ export function WebPageTable({
     shallow: false,
     clearOnDefault: true,
   });
+
+
 
   return (
     <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
@@ -70,6 +82,12 @@ export function WebPageTable({
         pageSizeOptions={[10, 30, 50, 100, 200]}
         emptyMessage="No web pages found. Try adjusting your filters or check back later."
         disableHorizontalScroll={true}
+        onRowClick={(row) => {
+          const rowId = (row as any).id;
+          setExpandedRowId((prev) => (prev === rowId ? null : rowId));
+        }}
+        selectedRowId={expandedRowId}
+        highlightSelectedRow={false}
       >
         <div
           role="toolbar"
@@ -84,6 +102,7 @@ export function WebPageTable({
                 placeholder="Search pages, keywords..."
               />
             )}
+        
             <DataTableFilterList
               table={table}
               shallow={shallow}

@@ -23,7 +23,7 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
   } else if (barsToFill === 2) {
     barColor = "hsl(45, 93%, 47%)"; // Yellow
   } else {
-    barColor = "hsl(142, 71%, 45%)"; // Green (3 or 4 bars)
+    barColor = "#84cc16"; // lime-600 (3 or 4 bars)
   }
   
   // Calculate score percentage for display
@@ -32,7 +32,7 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 px-2 py-[4.5px] rounded-lg border bg-white",
+        "inline-flex items-center gap-1 px-2 py-[3.5px] rounded-lg border border-general-border bg-white",
         className
       )}
     >
@@ -40,7 +40,6 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
         {[1, 2, 3, 4].map((barIndex) => {
           const isFilled = barIndex <= barsToFill;
           const heights = ["h-1", "h-1.5", "h-2", "h-2.5"];
-          
           return (
             <div
               key={barIndex}
@@ -56,7 +55,7 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
         })}
       </div>
       <Typography
-        variant="extraSmall"
+        variant="p"
         className="text-foreground leading-[150%]"
       >
         {scorePercentage}

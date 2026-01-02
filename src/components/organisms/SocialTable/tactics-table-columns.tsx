@@ -14,6 +14,7 @@ import { SocialActionCell } from "./social-action-cell";
 interface GetTacticsTableColumnsProps {
   channelName?: string;
   businessId?: string;
+  expandedRowId?: string | null;
 }
 
 function extractRedditThreadPath(url: string): string {
@@ -34,7 +35,7 @@ function extractRedditThreadPath(url: string): string {
   }
 }
 
-export function getTacticsTableColumns({ channelName, businessId }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
+export function getTacticsTableColumns({ channelName, businessId, expandedRowId }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
   const isReddit = channelName?.toLowerCase() === "reddit";
 
   if (isReddit) {
@@ -142,9 +143,14 @@ export function getTacticsTableColumns({ channelName, businessId }: GetTacticsTa
         ),
         cell: ({ row }) => {
           const keywords = row.original.related_keywords || [];
+          const isExpanded = expandedRowId === row.original.id;
           return (
             <div className="max-w-full">
-              <ExpandablePills items={keywords} pillVariant="outline" />
+              <ExpandablePills 
+                items={keywords} 
+                pillVariant="outline" 
+                expanded={isExpanded}
+              />
             </div>
           );
         },
@@ -287,9 +293,14 @@ export function getTacticsTableColumns({ channelName, businessId }: GetTacticsTa
       ),
       cell: ({ row }) => {
         const keywords = row.original.related_keywords || [];
+        const isExpanded = expandedRowId === row.original.id;
         return (
           <div className="max-w-full">
-            <ExpandablePills items={keywords} pillVariant="outline" />
+            <ExpandablePills 
+              items={keywords} 
+              pillVariant="outline" 
+              expanded={isExpanded}
+            />
           </div>
         );
       },

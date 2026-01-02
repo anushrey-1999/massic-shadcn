@@ -28,7 +28,7 @@ export function getStrategyClustersTableColumns(
       id: "cluster",
       accessorKey: "cluster",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Cluster" disableHide={true} />
+        <DataTableColumnHeader column={column} label="Sub Topics" disableHide={true} />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
@@ -36,8 +36,8 @@ export function getStrategyClustersTableColumns(
         </Typography>
       ),
       meta: {
-        label: "Cluster",
-        placeholder: "Search clusters...",
+        label: "Sub Topics",
+        placeholder: "Search sub topics...",
         variant: "text",
         icon: Building2,
       },

@@ -11,9 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import { renderLightMarkdown } from "./markdown";
-import type { ChatMessage, PanelPayload } from "./types";
-import { sendChatbotMessage, simulateStreamingResponse } from "./chatbot-api";
+import type { ChatMessage, PanelPayload, ConversationPreview } from "./types";
+import { sendChatbotMessage, simulateStreamingResponse, getConversationList, getChatHistory } from "./chatbot-api";
 import { X, Loader2 } from "lucide-react";
+import { ChatHistoryList } from "./chat-history-list";
 import type { AnchorRect } from "./ask-massic-overlay-provider";
 
 type UiMode = "full" | "split";
@@ -58,7 +59,7 @@ function PanelView({ panel }: { panel: PanelPayload | null }) {
 
   if (panel.type === "text") {
     return (
-      <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+      <pre className="whitespace-pre-wrap text-xs leading-relaxed text-foreground font-mono overflow-x-auto">
         {panel.data}
       </pre>
     );
@@ -187,6 +188,11 @@ export function AskMassicOverlay({
   const [conversationId, setConversationId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
+  // History state
+  const [showHistory, setShowHistory] = React.useState(true);
+  const [conversations, setConversations] = React.useState<ConversationPreview[]>([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
+
   const streamCleanupRef = React.useRef<null | (() => void)>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -254,9 +260,24 @@ export function AskMassicOverlay({
     if (persisted) {
       setConversationId(persisted.conversationId);
       setMessages(persisted.messages || []);
+      setShowHistory(false);
     } else {
       setConversationId(null);
       setMessages([]);
+      setShowHistory(true);
+      // Load conversation list
+      setHistoryLoading(true);
+      getConversationList(businessId)
+        .then((data) => {
+          setConversations(data.conversations || []);
+        })
+        .catch((err) => {
+          console.error("Failed to load conversation list:", err);
+          setConversations([]);
+        })
+        .finally(() => {
+          setHistoryLoading(false);
+        });
     }
 
     setActivePanel(null);
@@ -344,12 +365,16 @@ export function AskMassicOverlay({
           );
         },
         (finalMessage) => {
+          console.log("Final message received:", finalMessage);
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === botPlaceholder.id
-                ? { ...finalMessage, id: botPlaceholder.id }
-                : m
-            )
+            prev.map((m) => {
+              if (m.id === botPlaceholder.id) {
+                const updated = { ...finalMessage, id: botPlaceholder.id };
+                console.log("Updating message with final:", updated);
+                return updated;
+              }
+              return m;
+            })
           );
           setIsLoading(false);
           streamCleanupRef.current = null;
@@ -374,12 +399,64 @@ export function AskMassicOverlay({
     if (!text || isLoading) return;
 
     setInput("");
+    
+    // Switch from history view to chat view when starting a new conversation
+    if (showHistory) {
+      setShowHistory(false);
+    }
+    
     await sendInPlace(text);
+  };
+
+  const handleSelectConversation = async (convId: string) => {
+    setHistoryLoading(true);
+    try {
+      const historyData = await getChatHistory(businessId, convId);
+      // Ensure each message has a unique ID and reverse order if needed
+      const baseTimestamp = Date.now();
+      const messages = historyData.messages || [];
+      
+      // Reverse the messages array so they appear in chronological order (oldest first)
+      const messagesWithIds = messages.reverse().map((msg, idx) => ({
+        ...msg,
+        id: msg.id || `msg-${convId}-${baseTimestamp}-${idx}`,
+      }));
+      
+      setMessages(messagesWithIds);
+      setConversationId(convId);
+      setShowHistory(false);
+      setError(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load conversation";
+      setError(msg);
+      console.error("Failed to load chat history:", err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleBackToHistory = () => {
+    setConversationId(null);
+    setMessages([]);
+    setShowHistory(true);
+    setInput("");
+    setError(null);
+    setHistoryLoading(true);
+    getConversationList(businessId)
+      .then((data) => {
+        setConversations(data.conversations || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load conversation list:", err);
+      })
+      .finally(() => {
+        setHistoryLoading(false);
+      });
   };
 
   const title = businessName ? `Ask Massic · ${businessName}` : "Ask Massic";
   const showHero =
-    messages.length === 0 && !isLoading && !error;
+    messages.length === 0 && !isLoading && !error && !showHistory;
 
   if (!open) return null;
 
@@ -425,6 +502,33 @@ export function AskMassicOverlay({
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <ScrollArea className="flex-1 h-full">
                   <div className="space-y-4 px-5 py-5 pb-7">
+                    {showHistory ? (
+                      <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
+                        <Image
+                          src="/massic-logo-green.svg"
+                          alt="Massic"
+                          width={40}
+                          height={40}
+                        />
+                        <Typography
+                          variant="h2"
+                          className="mt-2.5 bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent"
+                        >
+                          Ask Massic anything.
+                        </Typography>
+                        <div className="mt-1 max-w-xl text-base text-general-muted-foreground mb-8">
+                          Tell me what you want to grow. I'll handle the rest.
+                        </div>
+                        <div className="w-full">
+                          <ChatHistoryList
+                            conversations={conversations}
+                            isLoading={historyLoading}
+                            onSelectConversation={handleSelectConversation}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+
                     {showHero ? (
                       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
                         <Image
@@ -444,6 +548,21 @@ export function AskMassicOverlay({
                         </div>
                       </div>
                     ) : null}
+
+                    {!showHistory && messages.length > 0 && (
+                      <div className="flex items-center justify-between mb-4">
+                        <div />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleBackToHistory}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          ← Back to History
+                        </Button>
+                      </div>
+                    )}
 
                     {messages.map((m, idx) => {
                       const isCallout = Boolean(m.callout);

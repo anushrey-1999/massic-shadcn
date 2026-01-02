@@ -25,7 +25,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-0.5 text-[10px] font-medium  tracking-[0.15px] text-muted-foreground",
+          "inline-flex items-center text-[10px] font-medium  text-muted-foreground",
           className
         )}
       >
@@ -35,7 +35,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
           ) : (
             <Minus className={cn("h-3 w-3", iconColor)} />
           ))}
-        <span className="font-medium">{Math.abs(value)}%</span>
+        <span className={`font-medium ${isPositive ? 'text-emerald-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
       </span>
     )
   }
@@ -43,7 +43,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 text-general-muted-foreground text-xs ",
+        "inline-flex items-center text-general-muted-foreground text-xs",
         className
       )}
     >
@@ -53,7 +53,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
         ) : (
           <Minus className="h-3 w-3 text-red-600" />
         ))}
-      <span className="font-medium">{Math.abs(value)}%</span>
+      <span className={`font-medium ${isPositive ? 'text-emerald-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
     </span>
   )
 }

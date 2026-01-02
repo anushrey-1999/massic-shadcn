@@ -312,7 +312,11 @@ export function OrganicPerformanceSection({
           ) : (
             <>
               {/* Show empty state for each metric card with heading and -- */}
-              {["topic-coverage", "visibility-relevance", "engagement-relevance"].map((key) => (
+              {[
+                "topic-coverage",
+                "visibility-relevance",
+                "engagement-relevance",
+              ].map((key) => (
                 <MetricCard
                   key={key}
                   icon={METRIC_ICONS[key] || <Target className="h-5 w-5" />}
@@ -329,6 +333,15 @@ export function OrganicPerformanceSection({
                   change={undefined}
                   sparklineData={undefined}
                   isLoading={false}
+                  emptyMessage={
+                    key === "topic-coverage"
+                      ? "Add more topics to your business profile to see this metric."
+                      : key === "visibility-relevance"
+                      ? "Improve your website's SEO to see this metric."
+                      : key === "engagement-relevance"
+                      ? "Increase user engagement to see this metric."
+                      : "No data available."
+                  }
                 />
               ))}
             </>
@@ -366,7 +379,10 @@ export function OrganicPerformanceSection({
           ) : (
             <>
               {/* Show empty state for branded/non-branded cards with heading and -- */}
-              {["branded", "non-branded"].map((key) => (
+              {[
+                "branded",
+                "non-branded",
+              ].map((key) => (
                 <MetricCard
                   key={key}
                   icon={METRIC_ICONS[key] || <Star className="h-5 w-5" />}
@@ -375,6 +391,11 @@ export function OrganicPerformanceSection({
                   change={undefined}
                   sparklineData={undefined}
                   isLoading={false}
+                  emptyMessage={
+                    key === "branded"
+                      ? "Ensure your brand keywords are tracked to see this metric."
+                      : "Add more non-branded keywords to see this metric."
+                  }
                 />
               ))}
             </>
@@ -491,7 +512,7 @@ export function OrganicPerformanceSection({
                                 <div className="space-y-1 text-xs">
                                   {visibleLines.impressions && (
                                     <p className="text-gray-500">
-                                      Imp.:{" "}
+                                      Impr.:{" "}
                                       {data?.impressions?.toLocaleString()}
                                     </p>
                                   )}

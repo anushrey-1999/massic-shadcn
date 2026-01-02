@@ -20,9 +20,10 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
   const { fetchAudience } = useAudience(businessId || "");
   const { data: jobDetails } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
+  const isWorkflowSuccess = jobDetails?.workflow_status?.status === "success";
 
   const prefetchPage1 = useCallback(async () => {
-    if (!businessId || !jobExists) return;
+    if (!businessId || !jobExists || !isWorkflowSuccess) return;
 
     const defaultParams = {
       page: 1,

@@ -48,7 +48,7 @@ export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
                 {item.value}
               </span>
             </div>
-            <StatsBadge value={item.change} />
+            <StatsBadge value={item.change} variant="plain" />
           </div>
         </label>
       ))}
@@ -91,7 +91,7 @@ export function PositionLegend({ items, onToggle, className }: PositionLegendPro
           <div className="flex">
           <span className="text-sm">{item.label}</span>
           <span className="text-sm font-medium">{item.value}</span>
-          <StatsBadge value={item.change} />
+          <StatsBadge value={item.change} variant="plain" />
           </div>
         </div>
       ))}

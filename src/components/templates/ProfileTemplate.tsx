@@ -290,7 +290,7 @@ const ProfileTemplate = ({
           const s = String(raw).trim().toLowerCase();
           if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
           if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
-          if (s === "partial" || s === "partially") return "partial";
+          if (s === "partial" || s === "partially" || s === "sometimes") return "partial";
           return "";
         };
 
@@ -432,9 +432,11 @@ const ProfileTemplate = ({
                 ?.filter((item: string) => item.length > 0)
               : null,
           RecurringFlag:
-            value.recurringRevenue && value.recurringRevenue.trim()
-              ? value.recurringRevenue.trim().toLowerCase()
-              : null,
+              value.recurringRevenue && value.recurringRevenue.trim()
+                ? value.recurringRevenue.trim().toLowerCase() === "partial"
+                  ? "sometimes"
+                  : value.recurringRevenue.trim().toLowerCase()
+                : null,
           AOV: (() => {
             const num = Number.parseFloat(String(value.avgOrderValue || "").trim());
             return Number.isFinite(num) ? num : null;
@@ -547,7 +549,7 @@ const ProfileTemplate = ({
       const s = String(raw).trim().toLowerCase();
       if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
       if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
-      if (s === "partial" || s === "partially") return "partial";
+      if (s === "partial" || s === "partially" || s === "sometimes") return "partial";
       return "";
     };
 

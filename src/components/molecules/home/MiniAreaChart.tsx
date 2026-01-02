@@ -126,7 +126,7 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
                   const rawValue = payloadObj ? payloadObj[rawKey] : undefined
                   const displayValue = typeof rawValue === "number" ? rawValue : Number(rawValue ?? 0)
                   const label = seriesKey.startsWith("impressions")
-                    ? "Imp."
+                    ? "Impr."
                     : seriesKey.startsWith("clicks")
                       ? "Clicks"
                       : "Goals"

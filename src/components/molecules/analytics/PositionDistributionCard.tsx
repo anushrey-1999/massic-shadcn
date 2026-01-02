@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { Eye, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
+import { StatsBadge } from "./StatsBadge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   AreaChart,
@@ -158,18 +159,7 @@ export function PositionDistributionCard({
                 <span className="font-mono text-base font-normal text-general-foreground">
                   {position.value}
                 </span>
-                <div className="flex items-center gap-0.5">
-                  {position.change >= 0 ? (
-                    // <TrendingUp className="h-3.5 w-3.5 text-[#16A34A]" />
-                    <span className="text-[#16A34A] -mr-0.5-">+</span>
-                  ) : (
-                    // <TrendingDown className="h-3.5 w-3.5 text-[#DC2626]" />
-                      <span className="text-[#DC2626] -mr-0.5">-</span>
-                  )}
-                  <span className={`text-[11px] font-medium tracking-[0.15px] ${position.change >= 0 ? 'text-general-muted-foreground' : 'text-[#DC2626]'}`}>
-                    {Math.abs(position.change)}%
-                  </span>
-                </div>
+                <StatsBadge value={position.change} variant="plain" />
               </div>
             </label>
           ))}

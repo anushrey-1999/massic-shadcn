@@ -93,7 +93,7 @@ export function InteractionsChartCard({
               </span>
               <div className="flex items-center gap-2 justify-between">
                 <span className="text-base font-medium">{legend.value}</span>
-                <StatsBadge value={legend.change} />
+                <StatsBadge value={legend.change} variant="plain" />
               </div>
             </div>
           </div>

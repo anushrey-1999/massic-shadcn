@@ -80,7 +80,7 @@ interface CreateBusinessPayload {
 
 interface LinkPropertyPayload {
   websiteUri: string;
-  propertyId: string;
+  propertyId?: string;
   locations: { DisplayName: string; Url: string; Name: string; AccountName: string }[];
   NoLocationExist: boolean;
 }
@@ -112,20 +112,41 @@ export function useFetchBusinesses() {
 
       const data = response.data || { businesses: [], allGBP: [], unmatchedGa4: [] };
 
+      const findGa4ByPropertyId = (propertyId: string | null | undefined, business: LinkedBusiness): GA4Property | undefined => {
+        if (!propertyId) return undefined;
+        const normalized = String(propertyId);
+        if (business.matchedGa4?.propertyId === normalized) return business.matchedGa4;
+        const fromMultiple = business.matchedGa4Multiple?.find((g) => String(g.propertyId) === normalized);
+        if (fromMultiple) return fromMultiple;
+        return (data.unmatchedGa4 || []).find((g) => String(g.propertyId) === normalized);
+      };
+
       // Process businesses to add selectedGbp and selectedGa4 based on businessProfile
       const processedBusinesses = data.businesses.map((business) => {
         const selectedGbp = getSelectedGbp(business, data.allGBP || []);
         const noLocation = business.businessProfile?.NoLocationExist === true;
 
-        // Set default selectedGa4 from linkedPropertyId or matchedGa4
+        const isAlreadyLinked = !!business.businessProfile?.Id;
+        const hasSavedLinkedProperty = !!business.linkedPropertyId;
+
+        const linkedPropertyIdRaw =
+          (business.linkedPropertyId?.PropertyId || business.linkedPropertyId?.propertyId || (business.linkedPropertyId as any)?.GoogleAnalyticsPropertyId) as
+          | string
+          | undefined;
+
+        const linkedGa4Details = hasSavedLinkedProperty
+          ? findGa4ByPropertyId(linkedPropertyIdRaw, business)
+          : undefined;
+
+        // Only prefill GA4 when there is a saved linked property.
+        // If the business is already linked but linkedPropertyId is null, do not prefill from matched suggestions.
         const selectedGa4 = business.selectedGa4 ||
-          (business.linkedPropertyId ? {
-            displayName: business.linkedPropertyId.displayName,
-            propertyId: business.linkedPropertyId.PropertyId || business.linkedPropertyId.propertyId,
-            accountName: business.linkedPropertyId.accountName,
-            accountId: business.linkedPropertyId.accountId,
-          } : business.matchedGa4) ||
-          (business.matchedGa4Multiple?.[0]);
+          (hasSavedLinkedProperty ? {
+            displayName: linkedGa4Details?.displayName || business.linkedPropertyId!.displayName,
+            propertyId: String(linkedGa4Details?.propertyId || linkedPropertyIdRaw || business.linkedPropertyId!.PropertyId || business.linkedPropertyId!.propertyId),
+            accountName: linkedGa4Details?.accountName || business.linkedPropertyId!.accountName,
+            accountId: linkedGa4Details?.accountId || business.linkedPropertyId!.accountId,
+          } : (!isAlreadyLinked ? (business.matchedGa4 || business.matchedGa4Multiple?.[0]) : undefined));
 
         return { ...business, selectedGbp, noLocation, selectedGa4 };
       });
@@ -262,7 +283,6 @@ export function useLinkPropertyId() {
 
       const payload: LinkPropertyPayload = {
         websiteUri: business.siteUrl,
-        propertyId: selectedGa4?.propertyId || "",
         locations: business.noLocation ? [] :
           (business.selectedGbp?.map((gbp) => ({
             DisplayName: gbp.title || "",
@@ -272,6 +292,13 @@ export function useLinkPropertyId() {
           })) || []),
         NoLocationExist: business.noLocation || false,
       };
+
+      // Only send GA4 when explicitly changed.
+      if (business.ga4Cleared === true) {
+        payload.propertyId = "";
+      } else if (selectedGa4?.propertyId) {
+        payload.propertyId = selectedGa4.propertyId;
+      }
 
       const response = await api.post<{ err?: boolean; message?: string }>(
         "/link-property-id",

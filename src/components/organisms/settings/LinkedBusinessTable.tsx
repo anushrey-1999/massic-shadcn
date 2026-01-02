@@ -180,10 +180,20 @@ export default function LinkedBusinessTable() {
             // Clear selection and set flag to indicate explicit clear
             return { ...b, selectedGa4: undefined, ga4Cleared: true };
           }
+          const linkedGa4PropertyId =
+            b.linkedPropertyId?.PropertyId || b.linkedPropertyId?.propertyId;
           const selectedGa4 =
-            b.matchedGa4Multiple?.find(
-              (ga4) => ga4.propertyId === propertyId
-            ) || unmatchedGa4.find((ga4) => ga4.propertyId === propertyId);
+            b.matchedGa4Multiple?.find((ga4) => ga4.propertyId === propertyId) ||
+            (b.matchedGa4?.propertyId === propertyId ? b.matchedGa4 : undefined) ||
+            unmatchedGa4.find((ga4) => ga4.propertyId === propertyId) ||
+            (linkedGa4PropertyId === propertyId
+              ? {
+                displayName: b.linkedPropertyId!.displayName,
+                propertyId: String(linkedGa4PropertyId),
+                accountName: b.linkedPropertyId!.accountName,
+                accountId: b.linkedPropertyId!.accountId,
+              }
+              : undefined);
           // When selecting, clear the ga4Cleared flag
           return { ...b, selectedGa4, ga4Cleared: false };
         }
@@ -258,7 +268,10 @@ export default function LinkedBusinessTable() {
     linkPropertyMutation.isPending ||
     toggleStatusMutation.isPending;
 
-  const isTableBusy = isLoading || isFetching || isMutating;
+  const hasAnyRows = localBusinesses.length > 0;
+  const isInitialLoading = isLoading && !hasAnyRows;
+  const showBlockingOverlay = isInitialLoading || isFetching || isMutating;
+  const showBusyBadge = isFetching || isMutating;
 
   useLayoutEffect(() => {
     const container = tableScrollRef.current;
@@ -268,7 +281,7 @@ export default function LinkedBusinessTable() {
     if (!thead) return;
 
     const update = () => {
-      const next = Math.ceil(thead.getBoundingClientRect().height);
+      const next = Math.max(0, Math.ceil(thead.getBoundingClientRect().height) - 1);
       setStickySummaryTopPx(next);
     };
 
@@ -415,10 +428,12 @@ export default function LinkedBusinessTable() {
             );
           }
           const rowData = row.original;
-          const hasMultipleMatches =
-            (rowData.matchedGa4Multiple?.length ?? 0) > 1;
           const hasUnmatchedData = unmatchedGa4.length > 0;
-          const hasLinkedData = rowData.linkedPropertyId || rowData.matchedGa4;
+          const isAlreadyLinked = !!rowData.businessProfile?.Id;
+          const hasLinkedProperty = !!rowData.linkedPropertyId;
+          const hasSuggestedMatches =
+            !!rowData.matchedGa4 || (rowData.matchedGa4Multiple?.length ?? 0) > 0;
+          const hasLinkedData = hasLinkedProperty || hasSuggestedMatches;
 
           // Helper functions
           const getDisplayName = () =>
@@ -506,93 +521,118 @@ export default function LinkedBusinessTable() {
 
           // Case 2: Has linked/matched data
           if (hasLinkedData) {
-            // If multiple matches, wrap card in a Select dropdown
-            if (hasMultipleMatches) {
-              const ga4Options = rowData.matchedGa4Multiple || [];
-              const isCleared = rowData.ga4Cleared === true;
+            const isCleared = rowData.ga4Cleared === true;
+            const linkedGa4PropertyId =
+              rowData.linkedPropertyId?.PropertyId ||
+              rowData.linkedPropertyId?.propertyId ||
+              (rowData.linkedPropertyId as any)?.GoogleAnalyticsPropertyId;
 
-              // Only show selected value if not cleared
-              const displayGa4 = isCleared ? null : (rowData.selectedGa4 || rowData.matchedGa4 || rowData.linkedPropertyId);
-              const selectedPropertyId = isCleared ? "" : (rowData.selectedGa4?.propertyId || getPropertyId() || "");
+            const findGa4ByPropertyId = (propertyId: string | null | undefined): GA4Property | undefined => {
+              if (!propertyId) return undefined;
+              const normalized = String(propertyId);
+              if (rowData.matchedGa4?.propertyId === normalized) return rowData.matchedGa4;
+              const fromMultiple = (rowData.matchedGa4Multiple || []).find((g) => String(g.propertyId) === normalized);
+              if (fromMultiple) return fromMultiple;
+              return unmatchedGa4.find((g) => String(g.propertyId) === normalized);
+            };
 
-              // Show X button if there's a displayed value (either selectedGa4 or default matchedGa4)
-              const showClearButton = !isCleared && (rowData.selectedGa4 || rowData.matchedGa4);
-
-              return (
-                <Select
-                  value={selectedPropertyId || undefined}
-                  onValueChange={(value) =>
-                    handleGa4Change(rowData.siteUrl || "", value)
-                  }
-                >
-                  <SelectTrigger className="w-full max-w-[300px] min-h-10 h-auto! whitespace-normal! items-center! px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
-                    {displayGa4 ? (
-                      <div className="flex items-center justify-between w-full gap-1">
-                        <TextWithPill
-                          displayName={displayGa4.displayName || displayGa4.propertyDisplayName || ""}
-                          propertyId={displayGa4.propertyId || (displayGa4 as any).PropertyId}
-                          accountName={displayGa4.accountName}
-                          accountId={displayGa4.accountId}
-                        />
-                        <div className="flex items-center gap-1 shrink-0">
-                          {showClearButton && (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center cursor-pointer pointer-events-auto"
-                              onPointerDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleGa4Change(rowData.siteUrl || "", null);
-                              }}
-                            >
-                              <X className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                            </div>
-                          )}
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-muted-foreground font-normal text-xs">Select GA4</span>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                      </div>
-                    )}
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[500px]">
-                    {ga4Options.map((ga4, i) => (
-                      <SelectItem key={i} value={ga4.propertyId} className="cursor-pointer">
-                        <div className="flex flex-col gap-1 py-1.5 ">
-                          <TextWithPill
-                            displayName={ga4.displayName || ga4.propertyDisplayName || ""}
-                            propertyId={ga4.propertyId}
-                            accountName={ga4.accountName}
-                            accountId={ga4.accountId}
-                          />
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              );
+            const optionMap = new Map<string, GA4Property>();
+            if (linkedGa4PropertyId && rowData.linkedPropertyId) {
+              const enriched = findGa4ByPropertyId(String(linkedGa4PropertyId));
+              optionMap.set(String(linkedGa4PropertyId), {
+                displayName: enriched?.displayName || rowData.linkedPropertyId.displayName,
+                propertyId: String(linkedGa4PropertyId),
+                accountName: enriched?.accountName || rowData.linkedPropertyId.accountName,
+                accountId: enriched?.accountId || rowData.linkedPropertyId.accountId,
+              });
             }
+            if (rowData.matchedGa4) {
+              optionMap.set(rowData.matchedGa4.propertyId, rowData.matchedGa4);
+            }
+            (rowData.matchedGa4Multiple || []).forEach((ga4) => {
+              optionMap.set(ga4.propertyId, ga4);
+            });
 
-            // Single match - show as selectable card (can still be changed if needed)
+            const ga4Options = Array.from(optionMap.values());
+
+            // For already-linked businesses without a saved linkedPropertyId, do not prefill from matched suggestions.
+            const selectedPropertyId = (() => {
+              if (isCleared) return "";
+              if (rowData.selectedGa4?.propertyId) return rowData.selectedGa4.propertyId;
+              if (hasLinkedProperty && linkedGa4PropertyId) return String(linkedGa4PropertyId);
+              if (!isAlreadyLinked) return String(getPropertyId() || "");
+              return "";
+            })();
+
+            const displayGa4 = (() => {
+              if (isCleared) return null;
+              if (rowData.selectedGa4) return rowData.selectedGa4;
+              if (hasLinkedProperty && linkedGa4PropertyId) return optionMap.get(String(linkedGa4PropertyId)) || null;
+              return null;
+            })();
+
+            const showClearButton = !isCleared && !!displayGa4;
+
             return (
-              <div className="max-w-[300px] overflow-hidden">
-                <div className="flex flex-col gap-1 py-1.5 px-2 border border-general-border rounded-md">
-                  <TextWithPill
-                    displayName={getDisplayName() || ""}
-                    propertyId={getPropertyId()}
-                    accountName={getAccountName()}
-                    accountId={getAccountId()}
-                  />
-                </div>
-              </div>
+              <Select
+                value={selectedPropertyId || undefined}
+                onValueChange={(value) =>
+                  handleGa4Change(rowData.siteUrl || "", value)
+                }
+              >
+                <SelectTrigger className="w-full max-w-[300px] min-h-10 h-auto! whitespace-normal! items-center! px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
+                  {displayGa4 ? (
+                    <div className="flex items-center justify-between w-full gap-1">
+                      <TextWithPill
+                        displayName={displayGa4.displayName || displayGa4.propertyDisplayName || ""}
+                        propertyId={displayGa4.propertyId}
+                        accountName={displayGa4.accountName}
+                        accountId={displayGa4.accountId}
+                      />
+                      <div className="flex items-center gap-1 shrink-0">
+                        {showClearButton && (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center cursor-pointer pointer-events-auto"
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleGa4Change(rowData.siteUrl || "", null);
+                            }}
+                          >
+                            <X className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                          </div>
+                        )}
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-muted-foreground font-normal text-xs">Select GA4</span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </div>
+                  )}
+                </SelectTrigger>
+                <SelectContent className="max-h-[500px]">
+                  {ga4Options.map((ga4) => (
+                    <SelectItem key={ga4.propertyId} value={ga4.propertyId} className="cursor-pointer">
+                      <div className="flex flex-col gap-1 py-1.5 ">
+                        <TextWithPill
+                          displayName={ga4.displayName || ga4.propertyDisplayName || ""}
+                          propertyId={ga4.propertyId}
+                          accountName={ga4.accountName}
+                          accountId={ga4.accountId}
+                        />
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             );
           }
 
@@ -708,10 +748,11 @@ export default function LinkedBusinessTable() {
           const checkGa4Edited = () => {
             if (!hasBusinessProfile) return false;
 
-            // Determine the original GA4 property ID (from linkedPropertyId or matchedGa4)
-            const originalGa4Id = rowData.linkedPropertyId?.PropertyId ||
-              rowData.linkedPropertyId?.propertyId ||
-              rowData.matchedGa4?.propertyId;
+            // Determine the original GA4 property ID (only from saved linkedPropertyId)
+            // matchedGa4 is a suggestion, not a saved linkage.
+            const originalGa4Id =
+              rowData.linkedPropertyId?.PropertyId ||
+              rowData.linkedPropertyId?.propertyId;
 
             // If GA4 was cleared and there was an original, it's a change
             if (rowData.ga4Cleared && originalGa4Id) {
@@ -874,21 +915,21 @@ export default function LinkedBusinessTable() {
       </CardHeader>
       <CardContent className="space-y-4 flex flex-col min-h-0">
 
-        <div className="relative" aria-busy={isTableBusy}>
-          {isTableBusy ? (
-            <div className="absolute inset-0 z-10 rounded-lg bg-background/40">
-              <div className="absolute right-3 top-3 flex items-center gap-2 rounded-md border bg-background/95 px-3 py-2 shadow-sm">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
-                  {isMutating
-                    ? "Updating linked businesses…"
-                    : "Loading businesses…"}
-                </span>
-              </div>
+        <div className="relative" aria-busy={showBlockingOverlay}>
+          {showBlockingOverlay ? (
+            <div className="absolute inset-0 z-10 rounded-lg bg-background/40" />
+          ) : null}
+
+          {showBusyBadge ? (
+            <div className="absolute right-3 top-3 z-20 flex items-center gap-2 rounded-md border bg-background/95 px-2 py-1.5 shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
+                {isMutating ? "Updating…" : "Loading…"}
+              </span>
             </div>
           ) : null}
 
-          <div className={cn(isTableBusy ? "pointer-events-none opacity-60" : "")}>
+          <div className={cn(showBlockingOverlay ? "pointer-events-none opacity-60" : "")}>
             {/* Filter Tabs */}
             <Tabs value={filter} onValueChange={setFilter}>
               <TabsList className="bg-general-border rounded-lg">

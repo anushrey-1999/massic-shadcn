@@ -9,13 +9,14 @@ import { Typography } from "@/components/ui/typography";
 function normalizeUrlDomain(input: string) {
 	const raw = (input || "").trim().toLowerCase();
 	if (!raw) return "";
+	const cleaned = raw.replace(/^sc-domain:/, "");
 	try {
-		const withProto = raw.startsWith("http") ? raw : `https://${raw}`;
+		const withProto = cleaned.startsWith("http") ? cleaned : `https://${cleaned}`;
 		const url = new URL(withProto);
 		return url.hostname.replace(/^www\./, "");
 	} catch {
 		return (
-			raw
+			cleaned
 				.replace(/^https?:\/\//, "")
 				.replace(/^www\./, "")
 				.split("/")[0] || raw

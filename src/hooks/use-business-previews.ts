@@ -3,9 +3,14 @@ import { api } from "@/hooks/use-api"
 import { useAuthStore } from "@/store/auth-store"
 
 export interface BusinessPreviewItem {
+  businessUniqueId?: string | null
   url: string
   mainstats?: string
   graph?: string
+  // Flags returned by /fetch-business-previews
+  isGscConnected?: boolean
+  isGa4Connected?: boolean
+  isGbpConnected?: boolean
 }
 
 const BUSINESS_PREVIEWS_KEY = "businessPreviews"

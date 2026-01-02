@@ -32,9 +32,11 @@ export function TacticsTable({
   onBack,
   channelName,
 }: TacticsTableProps) {
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+
   const columns = React.useMemo(
-    () => getTacticsTableColumns({ channelName, businessId }),
-    [channelName, businessId]
+    () => getTacticsTableColumns({ channelName, businessId, expandedRowId }),
+    [channelName, businessId, expandedRowId]
   );
 
   const { table } = useLocalDataTable({
@@ -44,6 +46,9 @@ export function TacticsTable({
       pagination: {
         pageIndex: 0,
         pageSize: 500,
+      },
+      columnVisibility: {
+        status: false,
       },
     },
     getRowId: (originalRow: TacticRow) => originalRow.id,
@@ -90,6 +95,12 @@ export function TacticsTable({
             emptyMessage="No tactics found. Try adjusting your search or check back later."
             showPagination={false}
             className="h-full [&>div]:overflow-x-hidden [&>div>div]:overflow-x-hidden"
+            onRowClick={(row) => {
+              const rowId = (row as any).id;
+              setExpandedRowId((prev) => (prev === rowId ? null : rowId));
+            }}
+            selectedRowId={expandedRowId}
+            highlightSelectedRow={false}
           />
         </div>
       </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef } from "@tantml/react-table";
 import { Building2, CalendarClock, Tag, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ export type PitchRow = {
   business: string;
   type: string;
   dateTime: string;
+  business_id: string;
 };
 
 export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
@@ -86,11 +88,13 @@ export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
     {
       id: "actions",
       header: "Actions",
-      cell: () => (
+      cell: ({ row }) => (
         <div className="flex items-center justify-start">
-          <Button variant="ghost" size="icon" aria-label="Open pitch">
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <Link href={`/pitches/${row.original.business_id}/summary`}>
+            <Button variant="ghost" size="icon" aria-label="View pitch summary">
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       ),
       enableSorting: false,

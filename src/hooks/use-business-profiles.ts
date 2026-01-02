@@ -7,13 +7,21 @@ import { toast } from "sonner";
 const BUSINESS_PROFILES_KEY = "businessProfiles";
 
 // Extract query function to reuse in mutation
-async function fetchBusinessProfiles(userUniqueId: string | undefined): Promise<BusinessProfile[]> {
+async function fetchBusinessProfiles(
+  userUniqueId: string | undefined,
+  isPitch?: boolean
+): Promise<BusinessProfile[]> {
   if (!userUniqueId) {
     return [];
   }
 
+  let url = `/profile/get-user-business-profiles/?useruniqueId=${userUniqueId}`;
+  if (isPitch !== undefined) {
+    url += `&isPitch=${isPitch}`;
+  }
+
   const response = await api.get<{ err: boolean; data: string; message?: string }>(
-    `/profile/get-user-business-profiles/?useruniqueId=${userUniqueId}`,
+    url,
     "node"
   );
 
@@ -23,6 +31,10 @@ async function fetchBusinessProfiles(userUniqueId: string | undefined): Promise<
   }
 
   return [];
+}
+
+export async function fetchPitchBusinessProfiles(userUniqueId: string | undefined): Promise<BusinessProfile[]> {
+  return fetchBusinessProfiles(userUniqueId, true);
 }
 
 export function useBusinessProfiles() {
@@ -67,6 +79,37 @@ export function useBusinessProfiles() {
     isFetching,
     expandedBusinessId,
     refetchBusinessProfiles: refetch,
+  };
+}
+
+export function usePitchBusinesses() {
+  const { user, isAuthenticated } = useAuthStore();
+  const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
+
+  const {
+    data: pitchBusinesses = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery<BusinessProfile[]>({
+    queryKey: ["pitchBusinesses", userUniqueId],
+    queryFn: async () => {
+      if (!userUniqueId) {
+        return [];
+      }
+
+      return fetchBusinessProfiles(userUniqueId, true);
+    },
+    enabled: isAuthenticated && !!userUniqueId,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  return {
+    pitchBusinesses,
+    isLoading,
+    isFetching,
+    refetch,
   };
 }
 
@@ -120,6 +163,7 @@ interface CreateBusinessPayload {
   primaryLocation: string; // Format: "Location,Country" or just "Location"
   serveCustomers: "local" | "online";
   offerType: "products" | "services";
+  isPitch?: boolean; // Set to true when created from /create-pitch
 }
 
 interface CreateBusinessResponse {
@@ -172,6 +216,7 @@ export function useCreateBusiness() {
             businessObjective: formData.serveCustomers, // local/online
             competitors: null,
             uniqueId: "",
+            isPitch: formData.isPitch === true ? true : false, // Set IsPitch flag based on payload
             primaryLocation: {
               Location: location,
               Country: country,

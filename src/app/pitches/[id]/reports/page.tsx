@@ -3,21 +3,9 @@
 import React from "react";
 import { useParams } from "next/navigation";
 import {
-  Copy,
-  Download,
-  ArrowLeft,
   Zap,
   ListChecks,
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  Quote,
-  List,
-  ListOrdered,
-  Link2,
 } from "lucide-react";
-import type { Editor } from "@tiptap/react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/molecules/PageHeader";
@@ -37,6 +25,13 @@ import {
   extractSnapshotSectionsMarkdown,
 } from "@/hooks/use-pitch-reports";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
+import { PitchReportViewer } from "@/components/templates/PitchReportViewer";
+import {
+  useTriggerWorkflow,
+  usePollWorkflowStatus,
+  useGetDetailedReport,
+  useGenerateDetailedReport,
+} from "@/hooks/use-detailed-pitch-workflow";
 
 export default function PitchReportsPage() {
   const params = useParams();
@@ -46,18 +41,30 @@ export default function PitchReportsPage() {
   const fetchReportMutation = useFetchReportFromDownloadUrl();
   const detailedMutation = useGenerateDetailedPitch();
 
+  // Detailed report workflow hooks
+  const triggerWorkflowMutation = useTriggerWorkflow();
   const [snapshotStarted, setSnapshotStarted] = React.useState(false);
+  const [detailedWorkflowStarted, setDetailedWorkflowStarted] = React.useState(false);
 
   const [activeReport, setActiveReport] = React.useState<
     "snapshot" | "detailed" | null
   >(null);
   const [reportContent, setReportContent] = React.useState<string>("");
-  const [reportEditor, setReportEditor] = React.useState<Editor | null>(null);
+
+  const detailedReportQuery = useGetDetailedReport(
+    activeReport === "detailed" ? businessId ?? null : null
+  );
+  const generateDetailedReportMutation = useGenerateDetailedReport();
 
   const quickyStatusQuery = useQuickyReportStatus({
     businessId: activeReport === "snapshot" && snapshotStarted ? businessId ?? null : null,
     enabled: activeReport === "snapshot" && snapshotStarted,
   });
+
+  const workflowStatusQuery = usePollWorkflowStatus(
+    activeReport === "detailed" && detailedWorkflowStarted ? businessId ?? null : null,
+    activeReport === "detailed" && detailedWorkflowStarted
+  );
 
   const { profiles } = useBusinessProfiles();
   const { profileData: businessProfile } = useBusinessProfileById(
@@ -91,13 +98,39 @@ export default function PitchReportsPage() {
     detailedMutation.isPending ||
     startQuickyMutation.isPending ||
     fetchReportMutation.isPending ||
-    (activeReport === "snapshot" && snapshotStarted && quickyStatusQuery.isFetching);
+    triggerWorkflowMutation.isPending ||
+    generateDetailedReportMutation.isPending ||
+    (activeReport === "snapshot" && snapshotStarted && quickyStatusQuery.isFetching) ||
+    (activeReport === "detailed" && detailedWorkflowStarted && workflowStatusQuery.isFetching);
 
   const quickyStatus = React.useMemo(() => {
     const fromPoll = quickyStatusQuery.data?.status;
     const fromStart = startQuickyMutation.data?.status;
     return String(fromPoll ?? fromStart ?? "");
   }, [quickyStatusQuery.data?.status, startQuickyMutation.data?.status]);
+
+  // Auto-resume detailed report polling if workflow is still in progress
+  React.useEffect(() => {
+    if (!businessId) return;
+    if (activeReport === "detailed") return; // Already polling
+    if (detailedWorkflowStarted) return; // Already started
+    
+    // Check if workflow is still in progress by triggering once
+    triggerWorkflowMutation
+      .mutateAsync({ businessId })
+      .then((data) => {
+        const status = String(data?.status || "").toLowerCase().trim();
+        // If workflow is still processing, resume polling
+        if (status === "pending" || status === "processing") {
+          setActiveReport("detailed");
+          setReportContent("");
+          setDetailedWorkflowStarted(true);
+        }
+      })
+      .catch(() => {
+        // Silent fail - workflow might not exist yet
+      });
+  }, [businessId]); // Only run once on mount
 
   React.useEffect(() => {
     if (activeReport !== "snapshot") return;
@@ -153,46 +186,53 @@ export default function PitchReportsPage() {
         : "Report";
   }, [reportContent, activeReport]);
 
-  const handleCopyReport = React.useCallback(async () => {
-    if (!reportEditor) {
-      toast.error("Nothing to copy yet");
-      return;
-    }
+  // Handle detailed report workflow
+  const workflowStatus = React.useMemo(() => {
+    return String(workflowStatusQuery.data?.status || "").toLowerCase().trim();
+  }, [workflowStatusQuery.data?.status]);
 
-    const htmlContent = reportEditor.getHTML();
-    if (!htmlContent || !htmlContent.trim()) {
-      toast.error("Nothing to copy yet");
-      return;
-    }
+  React.useEffect(() => {
+    if (activeReport !== "detailed") return;
+    if (!detailedWorkflowStarted) return;
+    if (!businessId) return;
 
-    try {
-      if (typeof ClipboardItem !== "undefined") {
-        const clipboardItem = new ClipboardItem({
-          "text/html": new Blob([htmlContent], { type: "text/html" }),
-          "text/plain": new Blob([reportEditor.getText()], {
-            type: "text/plain",
-          }),
+    // Workflow is success, try to get the report
+    if (workflowStatus === "success") {
+      if (reportContent.trim()) return; // Already have content
+
+      // Check if report already exists
+      if (detailedReportQuery.isSuccess && detailedReportQuery.data) {
+        const existingContent = detailedReportQuery.data?.report || detailedReportQuery.data?.content;
+        if (existingContent) {
+          setReportContent(existingContent);
+          return;
+        }
+      }
+
+      // Report doesn't exist, generate it
+      if (generateDetailedReportMutation.isPending) return;
+      if (generateDetailedReportMutation.isSuccess) return;
+
+      generateDetailedReportMutation
+        .mutateAsync({ businessId })
+        .then((data) => {
+          const content = data?.report || data?.content || "";
+          setReportContent(content);
+        })
+        .catch(() => {
+          // toast handled in hook
         });
-        await navigator.clipboard.write([clipboardItem]);
-      } else {
-        await navigator.clipboard.writeText(reportEditor.getText());
-      }
-      toast.success("Copied");
-    } catch {
-      try {
-        await navigator.clipboard.writeText(reportEditor.getText());
-        toast.success("Copied");
-      } catch {
-        toast.error("Copy failed");
-      }
     }
-  }, [reportEditor]);
-
-  const handleDownloadPdf = React.useCallback(() => {
-    // Minimal implementation: browser print dialog supports "Save as PDF".
-    // We can replace this later with a dedicated PDF export pipeline.
-    window.print();
-  }, []);
+  }, [
+    activeReport,
+    detailedWorkflowStarted,
+    businessId,
+    workflowStatus,
+    reportContent,
+    detailedReportQuery.data,
+    detailedReportQuery.isSuccess,
+    generateDetailedReportMutation,
+  ]);
 
   const showReportView = activeReport !== null;
 
@@ -202,119 +242,23 @@ export default function PitchReportsPage() {
 
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5">
         {showReportView ? (
-          <div className="h-full bg-white rounded-lg p-6 flex flex-col gap-6 overflow-hidden">
-            <div className="flex items-center justify-between">
-              <Button
-                variant="ghost"
-                className="gap-2"
-                onClick={() => {
-                  setActiveReport(null);
-                  setReportContent("");
-                  setReportEditor(null);
-                  setSnapshotStarted(false);
-                  startQuickyMutation.reset();
-                  fetchReportMutation.reset();
-                }}
-                disabled={isGenerating}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back
-              </Button>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={handleCopyReport}
-                  disabled={isGenerating}
-                >
-                  <Copy className="h-4 w-4" />
-                  Copy
-                </Button>
-                <Button
-                  className="gap-2"
-                  onClick={handleDownloadPdf}
-                  disabled={isGenerating}
-                >
-                  <Download className="h-4 w-4" />
-                  Download as PDF
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <Typography variant="muted">Report Summary</Typography>
-              {activeReport === "snapshot" && snapshotStarted && !reportContent.trim() ? (
-                <Typography variant="muted" className="text-xs">
-                  {quickyStatus ? `Status: ${quickyStatus}` : "Status: generating"}
-                </Typography>
-              ) : null}
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <div className="w-full">
-                <Typography variant="h3" className="mb-4">
-                  {reportTitle}
-                </Typography>
-
-                <div className="flex w-full items-center gap-2 border rounded-md px-2 py-1 mb-3">
-                  {[Bold, Italic, Underline, Strikethrough, Quote, List, ListOrdered, Link2].map((Icon, idx) => (
-                    <Button
-                      key={idx}
-                      variant="ghost"
-                      size="icon"
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        if (!reportEditor) return;
-
-                        switch (idx) {
-                          case 0:
-                            reportEditor.chain().focus().toggleBold().run();
-                            break;
-                          case 1:
-                            reportEditor.chain().focus().toggleItalic().run();
-                            break;
-                          case 2:
-                            reportEditor.chain().focus().toggleUnderline().run();
-                            break;
-                          case 3:
-                            reportEditor.chain().focus().toggleStrike().run();
-                            break;
-                          case 4:
-                            reportEditor.chain().focus().toggleBlockquote().run();
-                            break;
-                          case 5:
-                            reportEditor.chain().focus().toggleBulletList().run();
-                            break;
-                          case 6:
-                            reportEditor.chain().focus().toggleOrderedList().run();
-                            break;
-                          case 7: {
-                            const url = window.prompt("Enter URL:");
-                            if (url) {
-                              reportEditor.chain().focus().setLink({ href: url }).run();
-                            }
-                            break;
-                          }
-                        }
-                      }}
-                      disabled={!reportEditor || isGenerating}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </Button>
-                  ))}
-                </div>
-
-                <InlineTipTapEditor
-                  content={reportContent || (isGenerating ? "Generating..." : "")}
-                  isEditable={!isGenerating}
-                  onEditorReady={setReportEditor}
-                  placeholder="Write your report here..."
-                />
-              </div>
-            </div>
-          </div>
+          <PitchReportViewer
+            content={reportContent}
+            reportTitle={reportTitle}
+            isEditable={true}
+            isGenerating={isGenerating}
+            showStatus={activeReport === "snapshot" && snapshotStarted && !reportContent.trim()}
+            statusText={quickyStatus ? `Status: ${quickyStatus}` : "Status: generating"}
+            showWorkflowMessage={activeReport === "detailed" && detailedWorkflowStarted && workflowStatus !== "success"}
+            workflowStatus={workflowStatus}
+            onBack={() => {
+              setActiveReport(null);
+              setReportContent("");
+              setSnapshotStarted(false);
+              startQuickyMutation.reset();
+              fetchReportMutation.reset();
+            }}
+          />
         ) : (
           <div className="flex gap-4 h-full bg-white rounded-lg items-center justify-center p-6">
           <Card className="bg-white border border-general-primary p-8 h-[652px] w-[488px] shadow-none">
@@ -422,16 +366,22 @@ export default function PitchReportsPage() {
                   variant="secondary"
                   size="lg"
                   className="w-full"
-                  disabled={!businessId || detailedMutation.isPending}
+                  disabled={!businessId || triggerWorkflowMutation.isPending || generateDetailedReportMutation.isPending}
                   onClick={async () => {
                     if (!businessId) return;
+                    
                     setActiveReport("detailed");
                     setReportContent("");
-                    const content = await detailedMutation.mutateAsync({ businessId });
-                    setReportContent(content);
+                    setDetailedWorkflowStarted(true);
+                    triggerWorkflowMutation.reset();
+                    generateDetailedReportMutation.reset();
+                    detailedReportQuery.refetch();
+                    
+                    // Trigger workflow to prepare detailed report
+                    await triggerWorkflowMutation.mutateAsync({ businessId });
                   }}
                 >
-                  {detailedMutation.isPending ? "Loading..." : "View"}
+                  {triggerWorkflowMutation.isPending || generateDetailedReportMutation.isPending ? "Preparing..." : "View"}
                 </Button>
               </div>
             </CardContent>

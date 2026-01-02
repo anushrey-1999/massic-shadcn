@@ -219,3 +219,54 @@ export function useGenerateDetailedPitch() {
     },
   });
 }
+
+export function usePitchSummary(businessId: string | null) {
+  return useQuery<{ content: string; status: string } | null, Error>({
+    queryKey: ["pitch-summary", businessId],
+    queryFn: async () => {
+      if (!businessId) return null;
+
+      try {
+        const response = await api.get<ReportStatusResponse>("/client/quicky", "python", {
+          params: { business_id: businessId },
+        });
+
+        const status = normalizeStatus(response?.status);
+        
+        if (status !== "success") {
+          throw new Error(`Report not ready. Status: ${status}`);
+        }
+
+        let content = "";
+        const snapshotMarkdown = extractSnapshotSectionsMarkdown(response);
+        
+        if (snapshotMarkdown) {
+          content = snapshotMarkdown;
+        } else {
+          const downloadUrl = response?.output_data?.download_url;
+          if (downloadUrl) {
+            const reportResponse = await api.get(downloadUrl, "python");
+            content = cleanEscapedContent(extractReportText(reportResponse));
+          }
+        }
+
+        if (!content) {
+          throw new Error("No summary content available");
+        }
+
+        return {
+          content,
+          status,
+        };
+      } catch (error: any) {
+        if (error?.response?.status === 404) {
+          throw new Error("No pitch summary found. Please generate a report first.");
+        }
+        throw error;
+      }
+    },
+    enabled: !!businessId,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}

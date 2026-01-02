@@ -10,7 +10,7 @@ import {
   businessInfoSchema,
   type BusinessInfoFormData,
 } from "@/schemas/ProfileFormSchema";
-import { useCreateBusiness, useBusinessProfiles } from "@/hooks/use-business-profiles";
+import { useCreateBusiness, useBusinessProfiles, fetchPitchBusinessProfiles } from "@/hooks/use-business-profiles";
 import { useCreateJob, type Offering, type BusinessProfilePayload } from "@/hooks/use-jobs";
 
 import PageHeader from "@/components/molecules/PageHeader";
@@ -18,6 +18,7 @@ import ProfileSidebar from "@/components/organisms/ProfileSidebar";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
 import { LoaderOverlay } from "@/components/ui/loader";
+import { useAuthStore } from "@/store/auth-store";
 
 const sections = [
   { id: "business-info", label: "Business Info" },
@@ -27,6 +28,7 @@ const sections = [
 export function CreatePitchTemplate() {
   const router = useRouter();
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
+  const { user } = useAuthStore();
 
   const createBusiness = useCreateBusiness();
   const createJobMutation = useCreateJob();
@@ -79,11 +81,27 @@ export function CreatePitchTemplate() {
         primaryLocation: value.primaryLocation,
         serveCustomers: normalizedServeCustomers,
         offerType: normalizedOfferType,
+        isPitch: true, // Mark this business as created from pitch flow
       });
 
       await refetchBusinessProfiles();
 
-      const createdBusinessId = result?.createdBusiness?.UniqueId;
+      // Refetch pitch businesses (with isPitch=true) to get the newly created business
+      const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
+      let createdBusinessId: string | null = null;
+
+      if (userUniqueId) {
+        const pitchBusinesses = await fetchPitchBusinessProfiles(userUniqueId);
+        // Find the business matching the website we just created
+        const websiteLower = value.website.toLowerCase();
+        const createdBiz = pitchBusinesses.find(
+          (b) =>
+            b.Website?.toLowerCase().includes(websiteLower) ||
+            websiteLower.includes(b.Website?.toLowerCase() || "")
+        );
+        createdBusinessId = createdBiz?.UniqueId || null;
+      }
+
       if (!createdBusinessId) {
         router.push("/pitches");
         return;

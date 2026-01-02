@@ -60,7 +60,7 @@ export function TacticsTable({
           <div className="flex flex-1 flex-wrap items-center gap-2">
             {onBack && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={onBack}
               >
@@ -77,7 +77,6 @@ export function TacticsTable({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
           </div>
         </div>

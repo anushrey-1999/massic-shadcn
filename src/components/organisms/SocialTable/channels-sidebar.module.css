@@ -1,0 +1,9 @@
+.channelsSidebarTable td {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+.channelsSidebarCell {
+  padding: 0 !important;
+}

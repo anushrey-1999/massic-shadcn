@@ -62,7 +62,7 @@ export function DataTableSearch({
           setLocalValue(value);
         }}
         placeholder={placeholder}
-        className="h-10 pl-9 pr-10"
+        className="h-9 pl-9 pr-10"
       />
       {localValue && (
         <Button

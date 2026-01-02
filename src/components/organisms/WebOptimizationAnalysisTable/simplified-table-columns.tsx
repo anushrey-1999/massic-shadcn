@@ -42,15 +42,15 @@ export function getWebOptimizationAnalysisSimplifiedColumns(): ColumnDef<WebOpti
       },
       enableColumnFilter: true,
       enableSorting: true,
-      size: 190,
-      minSize: 150,
-      maxSize: 260,
+      size: 120,
+      minSize: 80,
+      maxSize: 160,
     },
     {
       id: "ops",
       accessorKey: "ops",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="OPS" />
+        <DataTableColumnHeader column={column} label="Priority" />
       ),
       cell: ({ cell }) => {
         const score = cell.getValue<number>() || 0;

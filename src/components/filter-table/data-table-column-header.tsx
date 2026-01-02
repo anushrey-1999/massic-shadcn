@@ -2,7 +2,7 @@
 
 import type { Column } from "@tanstack/react-table";
 import * as React from "react";
-import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
+import { MoveUp, MoveDown, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DataTableColumnHeaderProps<TData, TValue>
@@ -36,7 +36,7 @@ export function DataTableColumnHeader<TData, TValue>({
         "flex h-full w-full items-center justify-between gap-2 rounded-none px-2 py-[7.5px] text-left transition-colors",
         "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         sortState && "bg-accent text-foreground",
-        "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
+        "group [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground",
         className,
       )}
       aria-sort={
@@ -50,22 +50,23 @@ export function DataTableColumnHeader<TData, TValue>({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
-
-        // Delegate to TanStack handler so multi-sort works correctly.
-        // Table-level config decides multi vs single:
-        // - Server-side (useDataTable): isMultiSortEvent => true (always append)
-        // - Client-side (useLocalDataTable): isMultiSortEvent => false (always replace)
         toggleSorting?.(event);
       }}
     >
       <span className="min-w-0 truncate">{label}</span>
-      <span className={cn(sortState && "[&_svg]:text-foreground")}>
+      <span
+        className={cn(
+          sortState
+            ? "[&_svg]:text-foreground"
+            : "opacity-0 group-hover:opacity-80 transition-opacity duration-200 ease-in-out"
+        )}
+      >
         {sortState === "desc" ? (
-          <ChevronDown />
+          <MoveDown />
         ) : sortState === "asc" ? (
-          <ChevronUp />
+          <MoveUp />
         ) : (
-          <ChevronsUpDown />
+          <ArrowUpDown />
         )}
       </span>
     </button>

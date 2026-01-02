@@ -1,5 +1,10 @@
 
 import React from 'react'
+import { getPageMetadata } from "@/config/seo";
+
+export const metadata = {
+  ...getPageMetadata("proposals"),
+}
 
 const page = () => {
   return (

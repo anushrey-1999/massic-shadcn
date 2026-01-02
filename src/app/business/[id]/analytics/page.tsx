@@ -1,5 +1,10 @@
 import { AnalyticsTemplate } from "@/components/templates/AnalyticsTemplate"
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
+import { getPageMetadata } from "@/config/seo";
+
+export const metadata = {
+  ...getPageMetadata("businessAnalytics"),
+}
 
 interface PageProps {
   params: Promise<{

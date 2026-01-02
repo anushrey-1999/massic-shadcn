@@ -1,7 +1,8 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { ArrowRight, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
+import { ArrowRight, MoveUp, MoveDown, TrendingUp, TrendingDown, Loader2, ArrowUpDown } from "lucide-react"
+import { StatsBadge } from "./StatsBadge"
 import {
   Table,
   TableElement,
@@ -94,44 +95,46 @@ export function DataTable({
   }
 
   const getSortIcon = (columnKey: string) => {
-    const isActive = sortConfig?.column === columnKey
-    const isDesc = sortConfig?.direction === "desc"
-
+    const isActive = sortConfig?.column === columnKey;
+    const isDesc = sortConfig?.direction === "desc";
     return (
       <span className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center align-middle">
-        <ArrowUp
-          className={cn(
-            "absolute inset-0 m-auto h-4 w-4 transition-all duration-200 ease-in-out",
-            isActive && !isDesc ? "opacity-100 text-foreground" : "opacity-0"
-          )}
-        />
-        <ArrowDown
-          className={cn(
-            "absolute inset-0 m-auto h-4 w-4 transition-all duration-200 ease-in-out",
-            isActive && isDesc ? "opacity-100 text-foreground" : "opacity-0"
-          )}
-        />
-        <ArrowUpDown
-          className={cn(
-            "absolute inset-0 m-auto h-4 w-4 transition-all duration-200 ease-in-out",
-            !isActive ? "opacity-50 text-muted-foreground" : "opacity-0"
-          )}
-        />
+        {!isActive && (
+          <ArrowUpDown 
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-opacity duration-200 ease-in-out opacity-0 group-hover:opacity-80"
+            )}
+          />
+        )}
+        {isActive && !isDesc && (
+          <MoveUp
+            className={cn(
+              "h-3.5 w-3.5 text-foreground transition-opacity duration-200 ease-in-out opacity-100"
+            )}
+          />
+        )}
+        {isActive && isDesc && (
+          <MoveDown
+            className={cn(
+              "h-3.5 w-3.5 text-foreground transition-opacity duration-200 ease-in-out opacity-100"
+            )}
+          />
+        )}
       </span>
-    )
+    );
   }
 
   const cellStyles = {
     sm: {
-      header: "h-[33px] px-2 py-[7.5px]",
-      cell: "h-10 max-h-10 px-2 py-1",
+      header: "h-[33px] p-2",
+      cell: "h-10 max-h-10 p-2",
       text: "text-xs",
       truncate: "max-w-[250px]",
       badge: "text-[10px]",
     },
     md: {
-      header: "h-11 px-2 py-2",
-      cell: "h-11 px-4 py-2",
+      header: "h-11 p-2",
+      cell: "h-11 p-2",
       text: "text-sm",
       truncate: "max-w-[380px]",
       badge: "text-[11px]",
@@ -171,6 +174,7 @@ export function DataTable({
                     <TableHead
                       key={col.key}
                       className={cn(
+                        "group",
                         sortConfig?.column === col.key ? "bg-general-primary-foreground" : "bg-foreground-light",
                         stickyHeader && "sticky top-0 z-10",
                         styles.header,
@@ -192,7 +196,7 @@ export function DataTable({
                             <span
                               className={cn(
                                 "min-w-0 truncate font-medium leading-none tracking-wide text-general-muted-foreground",
-                                cellSize === "md" ? "text-xs font-semibold uppercase" : "text-xs",
+                                  cellSize === "md" ? "text-xs font-semibold" : "text-xs",
                                 sortConfig?.column === col.key && "text-foreground"
                               )}
                             >
@@ -200,8 +204,7 @@ export function DataTable({
                             </span>
                             <span
                               className={cn(
-                                "inline-flex shrink-0 items-center justify-center",
-                                sortConfig?.column === col.key && "text-foreground"
+                                "inline-flex shrink-0 items-center justify-center"
                               )}
                             >
                               {getSortIcon(col.key)}
@@ -213,7 +216,7 @@ export function DataTable({
                           <span
                             className={cn(
                               "font-medium tracking-wide text-general-muted-foreground",
-                              cellSize === "md" ? "text-xs font-semibold uppercase" : "text-xs"
+                              cellSize === "md" ? "text-xs font-semibold" : "text-xs"
                             )}
                           >
                             {col.label}
@@ -265,26 +268,7 @@ export function DataTable({
                                 </TooltipContent>
                               </Tooltip>
                               {(cellValue as { change?: number }).change !== undefined && (
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center gap-1 font-medium shrink-0",
-                                    styles.badge,
-                                    (cellValue as { change: number }).change > 0
-                                      ? "text-emerald-600"
-                                      : (cellValue as { change: number }).change < 0
-                                        ? "text-red-600"
-                                        : "text-general-muted-foreground",
-                                  )}
-                                >
-                                  {(cellValue as { change: number }).change > 0 ? (
-                                    // <TrendingUp className="h-2 w-2" /> 
-                                    <span className="-mr-0.5">+</span>
-                                  ) : (cellValue as { change: number }).change < 0 ? (
-                                    // <TrendingDown className="h-2 w-2" />
-                                    <span className="-mr-0.5">-</span>
-                                  ) : null}
-                                  {Math.abs((cellValue as { change: number }).change)}%
-                                </span>
+                                <StatsBadge value={(cellValue as { change: number }).change} className={styles.badge} />
                               )}
                             </div>
                           ) : (

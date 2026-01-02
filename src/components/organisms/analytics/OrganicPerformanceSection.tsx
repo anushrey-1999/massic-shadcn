@@ -205,8 +205,17 @@ export function OrganicPerformanceSection({
       <div className="flex gap-6">
         <AlertBar
           title="Goal Alerts"
-          icon={<Target className="h-5 w-5" color="#F59E0B" />}
-          badges={[
+          icon={
+            <Target
+              className="h-5 w-5"
+              color={
+                (criticalCount > 0 || warningCount > 0 || positiveCount > 0)
+                  ? "#F59E0B"
+                  : "#16A34A"
+              }
+            />
+          }
+          badges={[ 
             { count: criticalCount, type: "critical" },
             { count: warningCount, type: "warning" },
             { count: positiveCount, type: "positive" },
@@ -219,7 +228,12 @@ export function OrganicPerformanceSection({
 
         <AlertBar
           title="Traffic Alerts"
-          icon={<MousePointerClick className="h-5 w-5" color="#F59E0B" />}
+          icon={
+            <MousePointerClick
+              className="h-5 w-5"
+              color={trafficData ? "#F59E0B" : "#16A34A"}
+            />
+          }
           badges={
             trafficData
               ? [
@@ -296,10 +310,41 @@ export function OrganicPerformanceSection({
               ))}
             </>
           ) : (
-            <MetricCard
-              className="col-span-3"
-              emptyMessage={metricsStatusMessage || "No performance data available"}
-            />
+            <>
+              {/* Show empty state for each metric card with heading and -- */}
+              {[
+                "topic-coverage",
+                "visibility-relevance",
+                "engagement-relevance",
+              ].map((key) => (
+                <MetricCard
+                  key={key}
+                  icon={METRIC_ICONS[key] || <Target className="h-5 w-5" />}
+                  label={
+                    key === "topic-coverage"
+                      ? "Topic Coverage"
+                      : key === "visibility-relevance"
+                      ? "Visibility Rel"
+                      : key === "engagement-relevance"
+                      ? "Engagement Rel"
+                      : "--"
+                  }
+                  value={"--"}
+                  change={undefined}
+                  sparklineData={undefined}
+                  isLoading={false}
+                  emptyMessage={
+                    key === "topic-coverage"
+                      ? "Add more topics to your business profile to see this metric."
+                      : key === "visibility-relevance"
+                      ? "Improve your website's SEO to see this metric."
+                      : key === "engagement-relevance"
+                      ? "Increase user engagement to see this metric."
+                      : "No data available."
+                  }
+                />
+              ))}
+            </>
           )}
 
           {/* Branded / Non-branded cards (2 columns) */}
@@ -333,8 +378,26 @@ export function OrganicPerformanceSection({
             </>
           ) : (
             <>
-              <MetricCard emptyMessage={brandedStatusMessage} />
-              <MetricCard emptyMessage={brandedStatusMessage} />
+              {/* Show empty state for branded/non-branded cards with heading and -- */}
+              {[
+                "branded",
+                "non-branded",
+              ].map((key) => (
+                <MetricCard
+                  key={key}
+                  icon={METRIC_ICONS[key] || <Star className="h-5 w-5" />}
+                  label={key === "branded" ? "Branded" : "Non-Branded"}
+                  value={"--"}
+                  change={undefined}
+                  sparklineData={undefined}
+                  isLoading={false}
+                  emptyMessage={
+                    key === "branded"
+                      ? "Ensure your brand keywords are tracked to see this metric."
+                      : "Add more non-branded keywords to see this metric."
+                  }
+                />
+              ))}
             </>
           )}
         </div>
@@ -449,7 +512,7 @@ export function OrganicPerformanceSection({
                                 <div className="space-y-1 text-xs">
                                   {visibleLines.impressions && (
                                     <p className="text-gray-500">
-                                      Impressions:{" "}
+                                      Impr.:{" "}
                                       {data?.impressions?.toLocaleString()}
                                     </p>
                                   )}

@@ -187,6 +187,56 @@
   }
 }
 
+:root {
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: var(--general-border);
+  --scrollbar-thumb-hover: var(--general-border-three);
+}
+
+.dark {
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: var(--general-unofficial-foreground-alt);
+  --scrollbar-thumb-hover: var(--general-muted-foreground);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-x-auto::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 @layer components {
 
   /* Tailwind preflight resets headings to inherit; force hierarchy inside TipTap only. */

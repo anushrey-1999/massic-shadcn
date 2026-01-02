@@ -281,7 +281,7 @@ const DiscoveryPerformanceSection = ({
               }
               columns={[
                 { key: "key", label: "Content Groups", width: "w-[200px]" },
-                { key: "impressions", label: "Impressions", sortable: true },
+                { key: "impressions", label: "Impr.", sortable: true },
                 { key: "clicks", label: "Clicks", sortable: true },
               ]}
               data={contentGroupsData.map((item) => ({
@@ -317,7 +317,7 @@ const DiscoveryPerformanceSection = ({
               }
               columns={[
                 { key: "key", label: "Top Pages", width: "w-[200px]" },
-                { key: "impressions", label: "Impressions", sortable: true },
+                { key: "impressions", label: "Impr.", sortable: true },
                 { key: "clicks", label: "Clicks", sortable: true },
               ]}
               data={topPagesData.map((item) => ({
@@ -358,7 +358,7 @@ const DiscoveryPerformanceSection = ({
               }
               columns={[
                 { key: "key", label: "Top Queries", width: "w-[200px]" },
-                { key: "impressions", label: "Impressions", sortable: true },
+                { key: "impressions", label: "Impr.", sortable: true },
                 { key: "clicks", label: "Clicks", sortable: true },
               ]}
               data={topQueriesData.map((item) => ({
@@ -446,7 +446,7 @@ const DiscoveryPerformanceSection = ({
         }
         columns={[
           { key: "key", label: "Content Groups" },
-          { key: "impressions", label: "Impressions", sortable: true },
+          { key: "impressions", label: "Impr.", sortable: true },
           { key: "clicks", label: "Clicks", sortable: true },
         ]}
         data={contentGroupsData.map((item) => ({
@@ -488,8 +488,8 @@ const DiscoveryPerformanceSection = ({
           handleTopPagesFilterChange(value as TableFilterType)
         }
         columns={[
-          { key: "key", label: "Page" },
-          { key: "impressions", label: "Impressions", sortable: true },
+          { key: "key", label: "Top Page" },
+          { key: "impressions", label: "Impr.", sortable: true },
           { key: "clicks", label: "Clicks", sortable: true },
         ]}
         data={topPagesData.map((item) => ({
@@ -531,8 +531,8 @@ const DiscoveryPerformanceSection = ({
           handleTopQueriesFilterChange(value as TableFilterType)
         }
         columns={[
-          { key: "key", label: "Query" },
-          { key: "impressions", label: "Impressions", sortable: true },
+          { key: "key", label: "Top Queries" },
+          { key: "impressions", label: "Impr.", sortable: true },
           { key: "clicks", label: "Clicks", sortable: true },
         ]}
         data={topQueriesData.map((item) => ({

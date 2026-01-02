@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils"
 import { TrendingUp, TrendingDown, Loader2 } from "lucide-react"
+import { StatsBadge } from "./StatsBadge"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 interface MetricCardProps {
   icon?: React.ReactNode
@@ -53,16 +55,23 @@ export function MetricCard({
     )
   }
 
-  if (!value && !label) {
+  // Show tooltip for empty state if value is '--' (as used in OrganicPerformanceSection)
+  if (value === "--") {
     return (
-      <div
-        className={cn(
-          "flex items-center justify-center rounded-lg p-3 text-muted-foreground text-sm",
-          className
-        )}
-      >
-        {emptyMessage}
-      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className={cn(
+              "flex flex-col items-center justify-center rounded-lg p-3 text-muted-foreground text-sm cursor-default h-[88px]",
+              className
+            )}
+          >
+            {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
+            <span className="text-3xl font-semibold text-general-unofficial-foreground-alt">--</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>{emptyMessage}</TooltipContent>
+      </Tooltip>
     )
   }
 
@@ -83,18 +92,7 @@ export function MetricCard({
         <div className="flex items-center gap-1">
           {value && <span className="text-3xl font-semibold text-general-unofficial-foreground-alt">{value}</span>}
           {change !== undefined && (
-            <div
-              className={cn(
-                "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
-              )}
-            >
-              {isPositive ? (
-                <TrendingUp className="h-3 w-3 text-emerald-600" />
-              ) : (
-                <TrendingDown className="h-3 w-3 text-red-600" />
-              )}
-              <span className="font-medium text-general-muted-foreground">{Math.abs(change)}%</span>
-            </div>
+            <StatsBadge value={change} className="text-[10px] leading-0" />
           )}
         </div>
       </div>

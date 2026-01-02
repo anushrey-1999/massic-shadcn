@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { TrendingUp, TrendingDown } from "lucide-react"
+import { Plus, Minus } from "lucide-react"
 
 interface StatsBadgeProps {
   value: number
@@ -25,17 +25,17 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 text-[10px] font-medium leading-4 tracking-[0.15px] text-muted-foreground",
+          "inline-flex items-center text-[10px] font-medium  text-muted-foreground",
           className
         )}
       >
         {showIcon && !isNeutral &&
           (isPositive ? (
-            <TrendingUp className={cn("h-3 w-3", iconColor)} />
+            <Plus className={cn("h-3 w-3", iconColor)} />
           ) : (
-            <TrendingDown className={cn("h-3 w-3", iconColor)} />
+            <Minus className={cn("h-3 w-3", iconColor)} />
           ))}
-        <span className="font-medium">{Math.abs(value)}%</span>
+        <span className={`font-medium ${isPositive ? 'text-emerald-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
       </span>
     )
   }
@@ -43,17 +43,17 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 text-general-muted-foreground text-xs ",
+        "inline-flex items-center text-general-muted-foreground text-xs",
         className
       )}
     >
       {showIcon && !isNeutral &&
         (isPositive ? (
-          <TrendingUp className="h-3 w-3 text-emerald-600" />
+          <Plus className="h-3 w-3 text-emerald-600" />
         ) : (
-          <TrendingDown className="h-3 w-3 text-red-600" />
+          <Minus className="h-3 w-3 text-red-600" />
         ))}
-      <span className="font-medium">{Math.abs(value)}%</span>
+      <span className={`font-medium ${isPositive ? 'text-emerald-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
     </span>
   )
 }

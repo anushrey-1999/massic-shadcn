@@ -114,10 +114,10 @@ export function DataTableModal({
         className="w-[85vw] min-w-[800px] max-h-[85vh] flex flex-col p-0 gap-0"
         showCloseButton={false}
       >
-        <DialogHeader className="px-6 py-4 border-b shrink-0">
+        <DialogHeader className="px-4 py-4 border-b shrink-0">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2 min-w-0 shrink">
-              {icon && <span className="text-muted-foreground shrink-0">{icon}</span>}
+              {/* {icon && <span className="text-muted-foreground shrink-0">{icon}</span>} */}
               <DialogTitle className="text-lg font-semibold truncate max-w-[300px]">{title}</DialogTitle>
             </div>
             <div className="flex items-center gap-3 shrink-0">
@@ -131,27 +131,12 @@ export function DataTableModal({
                         className="min-h-6 min-w-6 px-2 py-1 cursor-pointer"
                       >
                         {tab.icon && <span>{tab.icon}</span>}
-                        {tab.label && <span className="ml-1 text-xs">{tab.label}</span>}
+                        {/* {tab.label && <span className="ml-1 text-xs">{tab.label}</span>} */}
                       </TabsTrigger>
                     ))}
                   </TabsList>
                 </Tabs>
               )}
-              <Select
-                value={String(rowsPerPage)}
-                onValueChange={(value) => setRowsPerPage(Number(value))}
-              >
-                <SelectTrigger className="w-[100px] h-8 text-xs">
-                  <SelectValue placeholder="Rows" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROW_LIMITS.map((limit) => (
-                    <SelectItem key={limit} value={String(limit)} className="text-xs">
-                      {limit} rows
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Button
                 variant="outline"
                 size="sm"
@@ -171,7 +156,7 @@ export function DataTableModal({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden px-6 py-4">
+        <div className="flex-1 overflow-hidden">
           <DataTable
             columns={columns}
             data={displayData}
@@ -186,70 +171,72 @@ export function DataTableModal({
           />
         </div>
 
-        <div className="px-6 py-3 border-t shrink-0 flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            Showing {((currentPage - 1) * rowsPerPage) + 1}-{Math.min(currentPage * rowsPerPage, data.length)} of {data.length} rows
-          </span>
+        <div className="px-4 py-3 border-t shrink-0 flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span className="text-black">Rows per page</span>
+            <Select
+              value={String(rowsPerPage)}
+              onValueChange={(value) => setRowsPerPage(Number(value))}
+            >
+              <SelectTrigger className="!h-8 text-xs">
+                <SelectValue placeholder="Rows" />
+              </SelectTrigger>
+              <SelectContent>
+                {ROW_LIMITS.map((limit) => (
+                  <SelectItem key={limit} value={String(limit)} className="text-xs">
+                    {limit}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {totalPages > 1 && (
-            <Pagination className="mx-0 w-auto justify-end">
-              <PaginationContent className="gap-1">
-                <PaginationItem>
-                  <PaginationPrevious
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      setCurrentPage((p) => Math.max(1, p - 1))
-                    }}
-                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-                {(() => {
-                  const pages: (number | "ellipsis")[] = []
-                  if (totalPages <= 5) {
-                    for (let i = 1; i <= totalPages; i++) pages.push(i)
-                  } else {
-                    pages.push(1)
-                    if (currentPage > 3) pages.push("ellipsis")
-                    const start = Math.max(2, currentPage - 1)
-                    const end = Math.min(totalPages - 1, currentPage + 1)
-                    for (let i = start; i <= end; i++) pages.push(i)
-                    if (currentPage < totalPages - 2) pages.push("ellipsis")
-                    pages.push(totalPages)
-                  }
-                  return pages.map((page, idx) =>
-                    page === "ellipsis" ? (
-                      <PaginationItem key={`ellipsis-${idx}`}>
-                        <PaginationEllipsis />
-                      </PaginationItem>
-                    ) : (
-                      <PaginationItem key={page}>
-                        <PaginationLink
-                          href="#"
-                          isActive={currentPage === page}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            setCurrentPage(page)
-                          }}
-                          className="cursor-pointer"
-                        >
-                          {page}
-                        </PaginationLink>
-                      </PaginationItem>
-                    )
-                  )
-                })()}
-                <PaginationItem>
-                  <PaginationNext
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      setCurrentPage((p) => Math.min(totalPages, p + 1))
-                    }}
-                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+            <div className="flex items-center gap-4">
+              <span className="font-medium text-black">Page {currentPage} of {totalPages}</span>
+
+              <div className="flex gap-2">
+                <button
+                  className="size-8 rounded-md border border-input bg-transparent flex items-center justify-center disabled:opacity-50"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  aria-label="First page"
+                  type="button"
+                >
+                  <span className="sr-only">First</span>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12.53 13.28a.75.75 0 0 1-1.06 0L7.25 9.06a.75.75 0 0 1 0-1.06l4.22-4.22a.75.75 0 1 1 1.06 1.06L9.31 8.53l3.22 3.22a.75.75 0 0 1 0 1.06z" fill="currentColor"/><path d="M8.53 13.28a.75.75 0 0 1-1.06 0L3.25 9.06a.75.75 0 0 1 0-1.06l4.22-4.22a.75.75 0 1 1 1.06 1.06L5.31 8.53l3.22 3.22a.75.75 0 0 1 0 1.06z" fill="currentColor"/></svg>
+                </button>
+                <button
+                  className="size-8 rounded-md border border-input bg-transparent flex items-center justify-center disabled:opacity-50"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  aria-label="Previous page"
+                  type="button"
+                >
+                  <span className="sr-only">Previous</span>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11.53 13.28a.75.75 0 0 1-1.06 0L6.25 9.06a.75.75 0 0 1 0-1.06l4.22-4.22a.75.75 0 1 1 1.06 1.06L8.31 8.53l3.22 3.22a.75.75 0 0 1 0 1.06z" fill="currentColor"/></svg>
+                </button>
+                <button
+                  className="size-8 rounded-md border border-input bg-transparent flex items-center justify-center disabled:opacity-50"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  aria-label="Next page"
+                  type="button"
+                >
+                  <span className="sr-only">Next</span>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.47 4.72a.75.75 0 0 1 1.06 0l4.22 4.22a.75.75 0 0 1 0 1.06l-4.22 4.22a.75.75 0 1 1-1.06-1.06l3.22-3.22-3.22-3.22a.75.75 0 0 1 0-1.06z" fill="currentColor"/></svg>
+                </button>
+                <button
+                  className="size-8 rounded-md border border-input bg-transparent flex items-center justify-center disabled:opacity-50"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  aria-label="Last page"
+                  type="button"
+                >
+                  <span className="sr-only">Last</span>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.47 4.72a.75.75 0 0 1 1.06 0l4.22 4.22a.75.75 0 0 1 0 1.06l-4.22 4.22a.75.75 0 1 1-1.06-1.06l3.22-3.22-3.22-3.22a.75.75 0 0 1 0-1.06z" fill="currentColor"/><path d="M9.47 4.72a.75.75 0 0 1 1.06 0l4.22 4.22a.75.75 0 0 1 0 1.06l-4.22 4.22a.75.75 0 1 1-1.06-1.06l3.22-3.22-3.22-3.22a.75.75 0 0 1 0-1.06z" fill="currentColor"/></svg>
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </DialogContent>

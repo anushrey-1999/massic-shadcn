@@ -209,7 +209,10 @@ export default function LinkedBusinessTable() {
           const hasNoLocation =
             selectedLocationIds.includes("no-location-exist");
           if (hasNoLocation) {
-            return { ...b, selectedGbp: [], noLocation: true };
+            return { ...b, selectedGbp: [], noLocation: true, gbpCleared: false };
+          }
+          if (selectedLocationIds.length === 0) {
+            return { ...b, selectedGbp: [], noLocation: false, gbpCleared: true };
           }
           const selectedGbp = allGBP
             .filter((gbp) => selectedLocationIds.includes(gbp.locationId))
@@ -217,7 +220,7 @@ export default function LinkedBusinessTable() {
               ...gbp,
               label: `${gbp.title} (${gbp.locationId})`,
             }));
-          return { ...b, selectedGbp, noLocation: false };
+          return { ...b, selectedGbp, noLocation: false, gbpCleared: false };
         }
         return b;
       })
@@ -658,21 +661,20 @@ export default function LinkedBusinessTable() {
             );
           }
           const rowData = row.original;
-          const rowIdx = filteredData.findIndex(
-            (b) => b.siteUrl === rowData.siteUrl
+          const businessKey = rowData.siteUrl || rowData.id;
+          const localRow = localBusinesses.find(
+            (b) => (b.siteUrl || b.id) === businessKey
           );
-          const selectedGbps =
-            localBusinesses[rowIdx]?.selectedGbp || rowData.selectedGbp || [];
+          const selectedGbps = localRow?.selectedGbp || rowData.selectedGbp || [];
           const selectedLocationIds = selectedGbps.map((gbp) => gbp.locationId);
-          const hasNoLocation =
-            localBusinesses[rowIdx]?.noLocation ?? rowData.noLocation ?? false;
+          const hasNoLocation = localRow?.noLocation ?? rowData.noLocation ?? false;
 
           // Create options from allGBP, filtering out already selected by other businesses
           const availableGbps = allGBP.filter(
             (gbp) =>
               !localBusinesses.some(
-                (business, i) =>
-                  i !== rowIdx &&
+                (business) =>
+                  (business.siteUrl || business.id) !== businessKey &&
                   business.selectedGbp?.some(
                     (selected) => selected.location === gbp.location
                   )

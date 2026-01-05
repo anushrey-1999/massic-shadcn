@@ -46,6 +46,7 @@ export interface LinkedBusiness {
   businessProfile?: BusinessProfile;
   noLocation?: boolean;
   ga4Cleared?: boolean;
+  gbpCleared?: boolean;
 }
 
 export interface FetchBusinessesResponse {
@@ -229,8 +230,11 @@ export function useCreateAgencyBusiness() {
             website: b.siteUrl || "",
             displayName: b.title || "",
             locationType: "global",
-            propertyId: b.matchedGa4?.propertyId ?? b.selectedGa4?.propertyId ?? "",
-            locations: b.noLocation ? [] :
+            propertyId:
+              b.ga4Cleared === true
+                ? ""
+                : b.selectedGa4?.propertyId ?? b.matchedGa4?.propertyId ?? "",
+            locations: b.noLocation || b.gbpCleared === true ? [] :
               (b.selectedGbp?.map((gbp) => ({
                 DisplayName: gbp.title || "",
                 Url: gbp.websiteUri || "",
@@ -283,7 +287,7 @@ export function useLinkPropertyId() {
 
       const payload: LinkPropertyPayload = {
         websiteUri: business.siteUrl,
-        locations: business.noLocation ? [] :
+        locations: business.noLocation || business.gbpCleared === true ? [] :
           (business.selectedGbp?.map((gbp) => ({
             DisplayName: gbp.title || "",
             Url: gbp.websiteUri || "",

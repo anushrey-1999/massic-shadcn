@@ -24,8 +24,51 @@ type PersistedChat = {
   messages: ChatMessage[];
 };
 
+type PersistedConversationList = {
+  ts: number;
+  conversations: ConversationPreview[];
+};
+
+const HISTORY_CACHE_TTL_MS = 60_000;
+
 function storageKey(businessId: string) {
   return `massic:chatbot:${businessId}`;
+}
+
+function historyCacheKey(businessId: string) {
+  return `massic:chatbot:history:${businessId}`;
+}
+
+function safeParseHistory(value: string | null): PersistedConversationList | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as PersistedConversationList;
+    if (!parsed || typeof parsed.ts !== "number" || !Array.isArray(parsed.conversations)) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function readConversationListCache(businessId: string): PersistedConversationList | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return safeParseHistory(sessionStorage.getItem(historyCacheKey(businessId)));
+  } catch {
+    return null;
+  }
+}
+
+function writeConversationListCache(businessId: string, conversations: ConversationPreview[]) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: PersistedConversationList = { ts: Date.now(), conversations };
+    sessionStorage.setItem(historyCacheKey(businessId), JSON.stringify(payload));
+  } catch {
+    // ignore
+  }
 }
 
 function safeParseJson(value: string | null): PersistedChat | null {
@@ -43,12 +86,25 @@ function persistChatSnapshot(
   messages: ChatMessage[]
 ) {
   if (typeof window === "undefined") return;
+  const key = storageKey(businessId);
+
+  // Don't persist an "empty" snapshot — it breaks reopening by making the UI
+  // think there's an active chat, which hides the history list.
+  if (!conversationId && messages.length === 0) {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
   const payload: PersistedChat = {
     conversationId,
     messages: messages.slice(-60),
   };
   try {
-    sessionStorage.setItem(storageKey(businessId), JSON.stringify(payload));
+    sessionStorage.setItem(key, JSON.stringify(payload));
   } catch {
     // ignore
   }
@@ -243,6 +299,8 @@ export function AskMassicOverlay({
   React.useEffect(() => {
     if (!open) return;
 
+    let cancelled = false;
+
     // Session-only persistence: ensure any legacy localStorage snapshot doesn't
     // keep resurfacing old chats after refresh.
     try {
@@ -257,26 +315,59 @@ export function AskMassicOverlay({
         : sessionStorage.getItem(storageKey(businessId))
     );
 
-    if (persisted) {
-      setConversationId(persisted.conversationId);
-      setMessages(persisted.messages || []);
+    const hasPersistedChat = Boolean(
+      persisted &&
+        ((persisted.conversationId && persisted.conversationId !== null) ||
+          (Array.isArray(persisted.messages) && persisted.messages.length > 0))
+    );
+
+    if (hasPersistedChat) {
+      setConversationId(persisted?.conversationId ?? null);
+      setMessages(persisted?.messages || []);
       setShowHistory(false);
     } else {
+      // Clean up any empty/invalid persisted snapshot so the next open is correct.
+      try {
+        sessionStorage.removeItem(storageKey(businessId));
+      } catch {
+        // ignore
+      }
+
       setConversationId(null);
       setMessages([]);
       setShowHistory(true);
-      // Load conversation list
-      setHistoryLoading(true);
-      getConversationList(businessId)
+
+      const cached = readConversationListCache(businessId);
+      const isCacheFresh = Boolean(
+        cached && Date.now() - cached.ts <= HISTORY_CACHE_TTL_MS
+      );
+
+      if (cached) {
+        setConversations(cached.conversations || []);
+        setHistoryLoading(false);
+      } else {
+        setConversations([]);
+        setHistoryLoading(true);
+      }
+
+      // Refresh in background (avoid showing the loading state if we have cache).
+      void getConversationList(businessId)
         .then((data) => {
-          setConversations(data.conversations || []);
+          if (cancelled) return;
+          const next = data.conversations || [];
+          setConversations(next);
+          writeConversationListCache(businessId, next);
         })
         .catch((err) => {
           console.error("Failed to load conversation list:", err);
-          setConversations([]);
+          if (cancelled) return;
+          // Only clear the list if we didn't have cache.
+          if (!cached) setConversations([]);
         })
         .finally(() => {
-          setHistoryLoading(false);
+          if (cancelled) return;
+          // If we had cache, keep the UI stable (no spinner).
+          if (!cached || !isCacheFresh) setHistoryLoading(false);
         });
     }
 
@@ -285,6 +376,10 @@ export function AskMassicOverlay({
     setError(null);
     streamCleanupRef.current?.();
     streamCleanupRef.current = null;
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, businessId]);
 
   React.useEffect(() => {
@@ -441,16 +536,28 @@ export function AskMassicOverlay({
     setShowHistory(true);
     setInput("");
     setError(null);
-    setHistoryLoading(true);
-    getConversationList(businessId)
+
+    const cached = readConversationListCache(businessId);
+    if (cached) {
+      setConversations(cached.conversations || []);
+      setHistoryLoading(false);
+    } else {
+      setConversations([]);
+      setHistoryLoading(true);
+    }
+
+    void getConversationList(businessId)
       .then((data) => {
-        setConversations(data.conversations || []);
+        const next = data.conversations || [];
+        setConversations(next);
+        writeConversationListCache(businessId, next);
       })
       .catch((err) => {
         console.error("Failed to load conversation list:", err);
+        if (!cached) setConversations([]);
       })
       .finally(() => {
-        setHistoryLoading(false);
+        if (!cached) setHistoryLoading(false);
       });
   };
 

@@ -13,6 +13,7 @@ import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { StrategyRow } from "@/types/strategy-types";
 import { Typography } from "@/components/ui/typography";
+import { formatVolume } from "@/lib/format";
 
 // Helper to format percentage
 function formatPercentage(value: number): string {
@@ -115,7 +116,7 @@ export function getStrategyTableColumns({
       cell: ({ cell }) => {
         const volume = cell.getValue<number>();
         return (
-          <Typography variant="p">{volume.toLocaleString()}</Typography>
+          <Typography variant="p">{formatVolume(volume || 0)}</Typography>
         );
       },
       meta: {

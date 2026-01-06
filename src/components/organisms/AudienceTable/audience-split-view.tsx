@@ -14,7 +14,7 @@ interface AudienceSplitViewProps {
   selectedPersonaId: string | null;
   selectedUseCaseId: string | null;
   onPersonaSelect: (personaId: string) => void;
-  onUseCaseSelect: (useCaseId: string) => void;
+  onUseCaseSelect: (useCaseId: string | null) => void;
   search: string;
   onSearchChange: (value: string) => void;
   onBack?: () => void;
@@ -42,9 +42,17 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
     []
   );
 
+  React.useEffect(() => {
+    onUseCaseSelect(null);
+  }, [selectedPersonaId, onUseCaseSelect]);
+
   const keywordsColumns = React.useMemo(
-    () => getAudienceKeywordsTableColumns(),
-    []
+    () =>
+      getAudienceKeywordsTableColumns({
+        expandedRowId: selectedUseCaseId,
+        onExpandedRowChange: onUseCaseSelect,
+      }),
+    [selectedUseCaseId, onUseCaseSelect]
   );
 
   const {
@@ -106,10 +114,13 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
 
   const rightTableProps = React.useMemo(
     () => ({
+      onRowClick: (row: AudienceUseCaseRow) => {
+        onUseCaseSelect(selectedUseCaseId === row.id ? null : row.id);
+      },
       showPagination: false,
       pageSizeOptions,
     }),
-    [pageSizeOptions]
+    [pageSizeOptions, onUseCaseSelect, selectedUseCaseId]
   );
 
   const searchColumnIds = React.useMemo(

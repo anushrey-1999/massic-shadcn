@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { ArrowRight, MoveUp, MoveDown, TrendingUp, TrendingDown, Loader2, ArrowUpDown } from "lucide-react"
+import { ArrowRight, ChevronDown, ChevronUp, ChevronsUpDown, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
 import { StatsBadge } from "./StatsBadge"
 import {
   Table,
@@ -100,21 +100,21 @@ export function DataTable({
     return (
       <span className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center align-middle">
         {!isActive && (
-          <ArrowUpDown 
+          <ChevronsUpDown
             className={cn(
               "h-4 w-4 text-muted-foreground transition-opacity duration-200 ease-in-out opacity-0 group-hover:opacity-80"
             )}
           />
         )}
         {isActive && !isDesc && (
-          <MoveUp
+          <ChevronUp
             className={cn(
               "h-3.5 w-3.5 text-foreground transition-opacity duration-200 ease-in-out opacity-100"
             )}
           />
         )}
         {isActive && isDesc && (
-          <MoveDown
+          <ChevronDown
             className={cn(
               "h-3.5 w-3.5 text-foreground transition-opacity duration-200 ease-in-out opacity-100"
             )}

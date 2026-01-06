@@ -2,7 +2,7 @@
 
 import type { Column } from "@tanstack/react-table";
 import * as React from "react";
-import { MoveUp, MoveDown, ArrowUpDown } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DataTableColumnHeaderProps<TData, TValue>
@@ -62,11 +62,11 @@ export function DataTableColumnHeader<TData, TValue>({
         )}
       >
         {sortState === "desc" ? (
-          <MoveDown />
+          <ChevronDown />
         ) : sortState === "asc" ? (
-          <MoveUp />
+          <ChevronUp />
         ) : (
-          <ArrowUpDown />
+          <ChevronsUpDown />
         )}
       </span>
     </button>

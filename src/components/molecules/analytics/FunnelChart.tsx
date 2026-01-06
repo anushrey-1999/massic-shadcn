@@ -25,15 +25,15 @@ const LINE_OFFSET = 0
 const LINE_RATIOS = [0.34, 0.68] as const
 const SECTION_STYLES = [
   {
-    label: "text-xs font-medium text-muted-foreground",
-    value: "text-2xl font-semibold leading-8 text-foreground",
+    label: "text-xs font-medium text-general-muted-foreground",
+    value: "text-2xl font-semibold leading-8 ",
   },
   {
-    label: "text-xs font-medium text-sky-500",
+    label: "text-xs font-medium text-general-muted-foreground",
     value: "text-2xl font-semibold leading-8 text-sky-600",
   },
   {
-    label: "text-xs font-medium text-emerald-500",
+    label: "text-xs font-medium text-general-muted-foreground",
     value: "text-2xl font-semibold leading-8 text-emerald-600",
   },
 ] as const

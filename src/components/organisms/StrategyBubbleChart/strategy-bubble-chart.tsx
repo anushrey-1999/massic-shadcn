@@ -420,7 +420,7 @@ export function StrategyBubbleChart({
     tooltipType === "topic"
       ? "Topic"
       : tooltipType === "cluster"
-        ? "Cluster"
+        ? "Sub Topic"
         : tooltipType === "keyword"
           ? "Keyword"
           : null;
@@ -454,7 +454,7 @@ export function StrategyBubbleChart({
               <Badge variant="outline">Keywords&nbsp;<span className="text-general-foreground"> {tooltipKeywords ?? 0}</span></Badge>
               {tooltipVolume !== undefined ? (
                 <Badge variant="outline">
-                  Cluster Vol&nbsp;<span className="text-general-foreground">{formatCompactNumber(tooltipVolume)}</span>
+                  Sub Topic Vol&nbsp;<span className="text-general-foreground">{formatCompactNumber(tooltipVolume)}</span>
                 </Badge>
               ) : null}
             </div>

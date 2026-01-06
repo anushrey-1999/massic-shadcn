@@ -246,7 +246,7 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
     onSplitViewChange?.(false);
   }, [onSplitViewChange]);
 
-  const handleUseCaseSelect = React.useCallback((useCaseId: string) => {
+  const handleUseCaseSelect = React.useCallback((useCaseId: string | null) => {
     setSelectedUseCaseId(useCaseId);
   }, []);
 

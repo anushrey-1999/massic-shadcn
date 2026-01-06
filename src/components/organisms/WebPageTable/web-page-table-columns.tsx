@@ -8,22 +8,7 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { WebPageRow } from "@/types/web-page-types";
 import { Typography } from "@/components/ui/typography";
 import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
-
-function formatVolume(volume: number): string {
-  if (!volume && volume !== 0) return "0";
-
-  if (volume >= 1000000) {
-    const millions = volume / 1000000;
-    return `${millions.toFixed(millions % 1 === 0 ? 0 : 1)}M`;
-  }
-
-  if (volume >= 10000) {
-    const thousands = volume / 1000;
-    return `${thousands.toFixed(thousands % 1 === 0 ? 0 : 1)}K`;
-  }
-
-  return volume.toLocaleString();
-}
+import { formatVolume } from "@/lib/format";
 
 interface GetWebPageTableColumnsProps {
   businessId: string;

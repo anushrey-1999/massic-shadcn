@@ -35,7 +35,7 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
           ) : (
             <Minus className={cn("h-3 w-3", iconColor)} />
           ))}
-        <span className={`font-medium ${isPositive ? 'text-emerald-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
+        <span className={`font-medium ${isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
       </span>
     )
   }
@@ -49,11 +49,11 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
     >
       {showIcon && !isNeutral &&
         (isPositive ? (
-          <Plus className="h-3 w-3 text-emerald-600" />
+          <Plus className="h-3 w-3 text-green-600" />
         ) : (
           <Minus className="h-3 w-3 text-red-600" />
         ))}
-      <span className={`font-medium ${isPositive ? 'text-emerald-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
+      <span className={`font-medium ${isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
     </span>
   )
 }
@@ -70,7 +70,7 @@ export function TrendBadge({ label, variant = "default", className }: TrendBadge
       className={cn(
         "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium leading-none",
         variant === "critical" && " text-red-600",
-        variant === "positive" && "bg-emerald-100 text-emerald-600",
+        variant === "positive" && "bg-green-100 text-green-600",
         variant === "default" && "bg-gray-100 text-gray-600",
         className
       )}

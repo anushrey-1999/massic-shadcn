@@ -50,19 +50,19 @@ export function ChatHistoryList({ conversations, isLoading, onSelectConversation
           key={conv.conv_id}
           onClick={() => onSelectConversation(conv.conv_id)}
           className={cn(
-            "w-full text-left p-4 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors group",
+            "w-full text-left p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted/80 transition-colors group",
             "flex items-center justify-between gap-3"
           )}
         >
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-sm text-foreground group-hover:text-primary transition-colors truncate">
+            <h3 className="font-medium text-base text-general-foreground group-hover:text-primary transition-colors truncate leading-[150%]">
               {truncateTitle(conv.title)}
             </h3>
-            <p className="text-xs text-muted-foreground mt-1">
+            {/* <p className="text-xs text-muted-foreground mt-1">
               {formatConversationDate(conv.title)}
-            </p>
+            </p> */}
           </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
+          <ArrowRight className="h-5 w-5 text-general-border-four shrink-0 group-hover:text-primary transition-colors" />
         </button>
       ))}
     </div>

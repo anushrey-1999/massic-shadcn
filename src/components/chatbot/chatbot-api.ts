@@ -1,11 +1,16 @@
-import type { ChatMessage, ConversationListResponse, ChatHistoryResponse } from "./types";
+import type {
+  ChatMessage,
+  ConversationListResponse,
+  ChatHistoryResponse,
+  ChatReference,
+} from "./types";
 
 export type ChatbotResponse = {
   conversation_id: string;
   message: string;
   callout?: {
     ctaLabel?: string;
-    panel: { type: "text" | "table"; title: string; data: any };
+    panel: { type: "text" | "table" | "references"; title: string; data: any };
   };
 };
 
@@ -14,8 +19,23 @@ type ApiResponse = {
   answer?: string;
   message?: string;
   response?: string;
-  references?: Array<{ text?: string } & Record<string, unknown>>;
+  references?: ChatReference[];
 };
+
+function normalizeReferences(references: ChatReference[]): ChatReference[] {
+  return (references || [])
+    .map((r) => {
+      if (!r || typeof r !== "object") return undefined;
+      const filename = typeof r.filename === "string" ? r.filename : undefined;
+      const text = typeof r.text === "string" ? r.text : undefined;
+      const metadata = r.metadata && typeof r.metadata === "object" ? (r.metadata as Record<string, unknown>) : undefined;
+      return { filename, text, metadata } as ChatReference;
+    })
+    .filter(
+      (r): r is ChatReference =>
+        r !== undefined && (r.filename !== undefined || r.text !== undefined || r.metadata !== undefined)
+    );
+}
 
 export async function sendChatbotMessage(
   message: string,
@@ -47,23 +67,26 @@ export async function sendChatbotMessage(
   let callout: ChatbotResponse["callout"] | undefined;
   const refs = data.references;
   if (Array.isArray(refs) && refs.length > 0) {
-    // Handle both formats: { text: "..." } and { filename: "..." }
-    const referenceData = refs
-      .map((r: any) => {
-        const text = r.text || r.filename || "";
-        return String(text).trim();
-      })
-      .filter(Boolean)
-      .join("\n");
+    const normalized = normalizeReferences(refs);
+    const hasMetadata = normalized.some((r) => r.metadata && Object.keys(r.metadata).length > 0);
 
-    console.log("Reference data:", referenceData);
-
-    if (referenceData) {
+    if (hasMetadata) {
       callout = {
         ctaLabel: "View sources",
-        panel: { type: "text", title: "References", data: referenceData },
+        panel: { type: "references", title: "Sources", data: normalized },
       };
-      console.log("Created callout:", callout);
+    } else {
+      const referenceData = normalized
+        .map((r) => String(r.text || r.filename || "").trim())
+        .filter(Boolean)
+        .join("\n");
+
+      if (referenceData) {
+        callout = {
+          ctaLabel: "View sources",
+          panel: { type: "text", title: "References", data: referenceData },
+        };
+      }
     }
   } else {
     console.log("No references found or refs is not an array");

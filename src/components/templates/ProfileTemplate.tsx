@@ -1242,7 +1242,7 @@ const ProfileTemplate = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="w-full max-w-[1224px] mx-auto flex gap-6 p-7 items-start">
+        <div className="w-full max-w-[1224px] flex gap-6 p-5 items-start">
           <ProfileSidebar
             sections={sections}
             activeSection={activeSection}

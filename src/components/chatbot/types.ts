@@ -1,12 +1,21 @@
 export type Role = "user" | "assistant";
 
+export type ChatReferenceMetadata = Record<string, unknown>;
+
+export type ChatReference = {
+  filename?: string;
+  metadata?: ChatReferenceMetadata;
+  text?: string;
+};
+
 export type PanelPayload =
   | { type: "text"; title: string; data: string }
   | {
     type: "table";
     title: string;
     data: { columns: string[]; rows: Array<Array<string>> };
-  };
+  }
+  | { type: "references"; title: string; data: ChatReference[] };
 
 export type ChatMessage = {
   id: string;

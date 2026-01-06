@@ -16,6 +16,9 @@ import { sendChatbotMessage, simulateStreamingResponse, getConversationList, get
 import { X, Loader2 } from "lucide-react";
 import { ChatHistoryList } from "./chat-history-list";
 import type { AnchorRect } from "./ask-massic-overlay-provider";
+import { ReferencesMetadataTable } from "./references-metadata-table";
+import { ArrowLeft } from 'lucide-react';
+
 
 type UiMode = "full" | "split";
 
@@ -121,6 +124,10 @@ function PanelView({ panel }: { panel: PanelPayload | null }) {
     );
   }
 
+  if (panel.type === "references") {
+    return <ReferencesMetadataTable references={panel.data} />;
+  }
+
   return (
     <div className="w-full overflow-auto">
       <table className="w-full text-sm">
@@ -179,7 +186,7 @@ function ChatComposer({ value, onChange, onSend, isLoading }: ChatComposerProps)
 
   return (
     <Card className="border-none rounded-none py-4 flex items-center">
-      <CardContent className="pt-0 max-w-[600px] w-full">
+      <CardContent className="pt-0 max-w-[600px] w-full mx-auto">
         <div className="relative bg-foreground-light p-2 rounded-xl">
           <Textarea
             value={value}
@@ -248,9 +255,14 @@ export function AskMassicOverlay({
   const [showHistory, setShowHistory] = React.useState(true);
   const [conversations, setConversations] = React.useState<ConversationPreview[]>([]);
   const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [historyNextId, setHistoryNextId] = React.useState<string | null>(null);
+  const [isLoadingMoreHistory, setIsLoadingMoreHistory] = React.useState(false);
 
   const streamCleanupRef = React.useRef<null | (() => void)>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
+  const messagesScrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const lastScrollTopRef = React.useRef(0);
+  const suppressNextAutoScrollRef = React.useRef(false);
 
   const connectedButtonStyle = React.useMemo<
     React.CSSProperties | undefined
@@ -325,6 +337,7 @@ export function AskMassicOverlay({
       setConversationId(persisted?.conversationId ?? null);
       setMessages(persisted?.messages || []);
       setShowHistory(false);
+      setHistoryNextId(null);
     } else {
       // Clean up any empty/invalid persisted snapshot so the next open is correct.
       try {
@@ -336,6 +349,7 @@ export function AskMassicOverlay({
       setConversationId(null);
       setMessages([]);
       setShowHistory(true);
+      setHistoryNextId(null);
 
       const cached = readConversationListCache(businessId);
       const isCacheFresh = Boolean(
@@ -382,6 +396,85 @@ export function AskMassicOverlay({
     };
   }, [open, businessId]);
 
+  const loadMoreHistory = React.useCallback(async () => {
+    if (showHistory) return;
+    if (!conversationId) return;
+    if (!historyNextId) return;
+    if (isLoadingMoreHistory) return;
+
+    const container = messagesScrollContainerRef.current;
+    const viewport = container?.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]'
+    );
+
+    setIsLoadingMoreHistory(true);
+    const prevScrollHeight = viewport?.scrollHeight ?? 0;
+    const prevScrollTop = viewport?.scrollTop ?? 0;
+
+    try {
+      const historyData = await getChatHistory(
+        businessId,
+        conversationId,
+        historyNextId
+      );
+
+      const baseTimestamp = Date.now();
+      const chunk = historyData.messages || [];
+      const chunkWithIds = chunk
+        .reverse()
+        .map((msg, idx) => ({
+          ...msg,
+          id:
+            msg.id ||
+            `msg-${conversationId}-${historyNextId}-${baseTimestamp}-${idx}`,
+        }));
+
+      suppressNextAutoScrollRef.current = true;
+      setMessages((prev) => [...chunkWithIds, ...prev]);
+      setHistoryNextId(historyData.next_id ?? null);
+
+      if (viewport) {
+        requestAnimationFrame(() => {
+          const nextScrollHeight = viewport.scrollHeight;
+          const delta = nextScrollHeight - prevScrollHeight;
+          viewport.scrollTop = prevScrollTop + delta;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load more chat history:", err);
+    } finally {
+      setIsLoadingMoreHistory(false);
+    }
+  }, [businessId, conversationId, historyNextId, isLoadingMoreHistory, showHistory]);
+
+  React.useEffect(() => {
+    if (showHistory) return;
+    if (!historyNextId) return;
+
+    const container = messagesScrollContainerRef.current;
+    const viewport = container?.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]'
+    );
+    if (!viewport) return;
+
+    lastScrollTopRef.current = viewport.scrollTop;
+
+    const onScroll = () => {
+      if (!historyNextId || isLoadingMoreHistory) return;
+      const currentTop = viewport.scrollTop;
+      const wasTop = lastScrollTopRef.current;
+      const isScrollingUp = currentTop < wasTop;
+      lastScrollTopRef.current = currentTop;
+
+      if (isScrollingUp && currentTop <= 40) {
+        void loadMoreHistory();
+      }
+    };
+
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, [historyNextId, isLoadingMoreHistory, loadMoreHistory, showHistory]);
+
   React.useEffect(() => {
     if (!open) return;
     persistChatSnapshot(businessId, conversationId, messages);
@@ -389,6 +482,11 @@ export function AskMassicOverlay({
 
   React.useEffect(() => {
     if (!open) return;
+
+    if (suppressNextAutoScrollRef.current) {
+      suppressNextAutoScrollRef.current = false;
+      return;
+    }
 
     const timer = setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -494,6 +592,7 @@ export function AskMassicOverlay({
     if (!text || isLoading) return;
 
     setInput("");
+    setHistoryNextId(null);
     
     // Switch from history view to chat view when starting a new conversation
     if (showHistory) {
@@ -518,6 +617,7 @@ export function AskMassicOverlay({
       }));
       
       setMessages(messagesWithIds);
+      setHistoryNextId(historyData.next_id ?? null);
       setConversationId(convId);
       setShowHistory(false);
       setError(null);
@@ -536,6 +636,8 @@ export function AskMassicOverlay({
     setShowHistory(true);
     setInput("");
     setError(null);
+    setHistoryNextId(null);
+    setIsLoadingMoreHistory(false);
 
     const cached = readConversationListCache(businessId);
     if (cached) {
@@ -569,13 +671,13 @@ export function AskMassicOverlay({
 
   const content = (
     <div className="absolute inset-0 z-50 bg-foreground-light" role="dialog" aria-label="Ask Massic">
-      <div className="relative h-full w-full">
+      <div className="relative h-full w-full max-w-[1224px]">
         <Button
           type="button"
           variant="outline"
           className={cn(
             "absolute z-10 gap-2 border-none shadow-none rounded-b-none text-general-foreground",
-            connectedButtonStyle ? "right-4" : "top-4 right-4"
+            connectedButtonStyle ? "right-5" : "top-4 right-5"
           )}
           style={connectedButtonStyle}
           onClick={() => {
@@ -598,17 +700,37 @@ export function AskMassicOverlay({
           <X className="h-4 w-4" />
         </Button>
 
-        <div className="absolute inset-0 p-4 pt-12 pb-0">
-          <div className="flex h-full w-full flex-col overflow-hidden rounded-tl-2xl shadow-xl bg-background">
+        <div className="absolute inset-0 px-5 pb-0 pt-12">
+          <div className="relative flex h-full w-full flex-col overflow-hidden rounded-tl-2xl shadow-xl bg-background">
+            {!showHistory && messages.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToHistory}
+                className="absolute left-4 top-4 z-20 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft  />
+              </Button>
+            )}
             <div
               className={cn(
-                "min-h-0 flex-1 overflow-hidden",
+                "min-h-0 flex-1 overflow-hidden w-full",
+                ui === "split" ? "max-w-[1136px] mx-auto" : "",
                 ui === "split" ? "grid grid-cols-1 md:grid-cols-2" : "flex"
               )}
             >
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div
+                ref={messagesScrollContainerRef}
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              >
                 <ScrollArea className="flex-1 h-full">
-                  <div className="space-y-4 px-5 py-5 pb-7">
+                  <div
+                    className={cn(
+                      "space-y-4 px-2 py-5 pb-7 w-full",
+                      ui === "split" ? "" : "max-w-[552px] mx-auto"
+                    )}
+                  >
                     {showHistory ? (
                       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
                         <Image
@@ -626,7 +748,7 @@ export function AskMassicOverlay({
                         <div className="mt-1 max-w-xl text-base text-general-muted-foreground mb-8">
                           Tell me what you want to grow. I'll handle the rest.
                         </div>
-                        <div className="w-full">
+                        <div className="w-full max-w-[552px] mx-auto">
                           <ChatHistoryList
                             conversations={conversations}
                             isLoading={historyLoading}
@@ -656,20 +778,11 @@ export function AskMassicOverlay({
                       </div>
                     ) : null}
 
-                    {!showHistory && messages.length > 0 && (
-                      <div className="flex items-center justify-between mb-4">
-                        <div />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleBackToHistory}
-                          className="text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          ← Back to History
-                        </Button>
+                    {!showHistory && isLoadingMoreHistory ? (
+                      <div className="flex justify-center py-1">
+                        <span className="text-xs text-muted-foreground">Loading more…</span>
                       </div>
-                    )}
+                    ) : null}
 
                     {messages.map((m, idx) => {
                       const isCallout = Boolean(m.callout);
@@ -745,23 +858,29 @@ export function AskMassicOverlay({
               </div>
 
         {ui === "split" ? (
-          <div className="hidden min-h-0 overflow-hidden border-l border-border bg-background md:flex md:flex-col">
-            <div className="relative flex-1 min-h-0">
+          <div className="hidden min-h-0 overflow-hidden bg-background md:flex md:flex-col">
+            <div className="relative flex-1 pr-4 min-h-0">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="absolute right-3 top-3 z-10 h-8 w-8"
+                className="absolute right-0 top-3 z-10 h-8 w-8"
                 onClick={clearPanel}
                 aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </Button>
 
-              <div className="h-full p-4">
-                <ScrollArea className="h-full">
-                  <PanelView panel={activePanel} />
-                </ScrollArea>
+              <div className="h-full p-0">
+                {activePanel?.type === "references" ? (
+                  <div className="h-full">
+                    <PanelView panel={activePanel} />
+                  </div>
+                ) : (
+                  <ScrollArea className="h-full">
+                    <PanelView panel={activePanel} />
+                  </ScrollArea>
+                )}
               </div>
             </div>
           </div>

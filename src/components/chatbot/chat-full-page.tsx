@@ -22,6 +22,7 @@ import type { ChatMessage, PanelPayload } from "./types";
 import { sendChatbotMessage, simulateStreamingResponse } from "./chatbot-api";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
+import { ReferencesMetadataTable } from "./references-metadata-table";
 
 type UiMode = "full" | "split";
 
@@ -70,6 +71,12 @@ function PanelView({ panel }: { panel: PanelPayload | null }) {
       <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{panel.data}</pre>
     );
   }
+
+  if (panel.type === "references") {
+    return <ReferencesMetadataTable references={panel.data} />;
+  }
+
+  if (panel.type !== "table") return null;
 
   return (
     <div className="w-full overflow-auto">

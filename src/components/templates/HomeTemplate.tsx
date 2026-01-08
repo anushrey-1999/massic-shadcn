@@ -450,6 +450,7 @@ export function HomeTemplate() {
 									Active Businesses
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading ? (
 									<div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1">
 										{[1, 2, 3, 4].map((i) => (
@@ -495,6 +496,7 @@ export function HomeTemplate() {
 										})}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 
@@ -507,6 +509,7 @@ export function HomeTemplate() {
 									Onboarding
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading || onboardingJobsLoading ? (
 									<div className="flex flex-col gap-2.5 overflow-y-auto flex-1">
 										{[1, 2].map((i) => (
@@ -545,6 +548,7 @@ export function HomeTemplate() {
 										)}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 					</div>
@@ -553,7 +557,9 @@ export function HomeTemplate() {
 				{selectedCount > 0 && !showThreeColumnLayout && (
 					<div className="flex-1 overflow-y-auto flex flex-col gap-5">
 						{showActive && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none">
+							<Card className={cn(
+								"flex flex-col gap-3 p-4 border-none shadow-none overflow-hidden"
+							)}>
 								<Typography
 									variant="h4"
 									className="text-general-unofficial-foreground-alt"
@@ -561,6 +567,7 @@ export function HomeTemplate() {
 									Active Businesses
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading ? (
 									<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
 										{[1, 2, 3, 4, 5, 6].map((i) => (
@@ -606,11 +613,14 @@ export function HomeTemplate() {
 										})}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 
 						{showOnboarding && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px)">
+							<Card className={cn(
+								"flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px) overflow-hidden"
+							)}>
 								<Typography
 									variant="h4"
 									className="text-general-unofficial-foreground-alt"
@@ -618,6 +628,7 @@ export function HomeTemplate() {
 									Onboarding
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading || onboardingJobsLoading ? (
 									<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
 										{[1, 2, 3].map((i) => (
@@ -656,6 +667,7 @@ export function HomeTemplate() {
 										)}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 					</div>

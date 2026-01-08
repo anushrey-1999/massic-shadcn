@@ -220,7 +220,7 @@ export function AnalyticsTemplate() {
       />
 
       {/* Sticky Header with Breadcrumb and Tabs */}
-      <div className="sticky top-0 z-11 bg-foreground-light">
+      <div className="sticky top-0 z-11 bg-foreground-light border-b border-general-border">
         <PageHeader
           trial={
             showTrialBanner
@@ -242,6 +242,7 @@ export function AnalyticsTemplate() {
             periodSelector={
               <PeriodSelector
                 value={selectedPeriod}
+                className="bg-foreground-light"
                 onValueChange={setSelectedPeriod}
               />
             }
@@ -288,7 +289,7 @@ export function AnalyticsTemplate() {
           ref={sectionRefs["local-search"]}
           className="scroll-mt-[200px] px-7 pb-10"
         >
-          <div className="flex items-center justify-between bg-[#0A0A0A0D] px-6 py-5 rounded-lg">
+          <div className="flex items-center justify-between border-b border-general-muted-foreground py-5">
             <div className="flex items-center gap-2">
               <MapPin className="h-8 w-8 text-general-foreground" />
               <Typography variant="h2">Local Search</Typography>
@@ -316,7 +317,7 @@ export function AnalyticsTemplate() {
             ) : null}
           </div>
 
-          <div className="pt-6 flex flex-col gap-6">
+          <div className="pt-10 flex flex-col gap-3">
             <LocalSearchSection
               period={selectedPeriod}
               locations={locations}

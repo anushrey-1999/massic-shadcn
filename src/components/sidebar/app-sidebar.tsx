@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { normalizeDomainForFavicon } from '@/utils/utils'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -50,19 +51,21 @@ interface BusinessIconProps {
 function BusinessIcon({ website, name }: BusinessIconProps) {
   const [imgError, setImgError] = useState(false)
   const fallbackInitial = name?.charAt(0).toUpperCase() || 'B'
+  
+  const normalizedDomain = normalizeDomainForFavicon(website)
 
-  if (!website || imgError) {
+  if (!normalizedDomain || imgError) {
     return (
-      <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-xs border border-dashed border-black dark:border-white text-[9px] text-sidebar-foreground">
+      <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-xs border border-dashed border-black dark:border-white text-[9px] font-medium text-sidebar-foreground aspect-square">
         {fallbackInitial}
       </div>
     )
   }
 
   return (
-    <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-xs overflow-hidden bg-sidebar-accent">
+    <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-xs overflow-hidden bg-sidebar-accent aspect-square">
       <img
-        src={`${FAVICON_URL}${website}`}
+        src={`${FAVICON_URL}${normalizedDomain}`}
         alt=""
         width={16}
         height={16}
@@ -184,10 +187,15 @@ export default function AppSidebar() {
       icon: Home,
       label: 'Home',
     },
+    // {
+    //   href: '/proposals',
+    //   icon: LineChart,
+    //   label: 'Proposal',
+    // },
     {
-      href: '/proposals',
+      href: '/pitches',
       icon: LineChart,
-      label: 'Proposal',
+      label: 'Pitches',
     },
   ]
 

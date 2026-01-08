@@ -140,22 +140,57 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
     [leftShallow, leftDebounceMs, leftThrottleMs]
   );
 
+  const tableContainerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      
+      if (!tableContainerRef.current) return;
+
+      const isOutsideContainer = !tableContainerRef.current.contains(target);
+      
+      // If click is outside container, collapse
+      if (isOutsideContainer) {
+        onUseCaseSelect(null);
+        return;
+      }
+
+      // If click is inside container, check if it's on a table element or interactive element
+      const isOnTableElement = target?.closest?.('table, [role="table"], [role="row"], [role="cell"], [role="columnheader"], [role="rowheader"]');
+      const isOnInteractiveElement = target?.closest?.('button, input, select, textarea, a, [role="button"], [role="textbox"], [role="combobox"]');
+      
+      // Collapse if click is inside container but not on table or interactive elements
+      // This handles clicks on empty space within the container
+      if (!isOnTableElement && !isOnInteractiveElement) {
+        onUseCaseSelect(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [onUseCaseSelect]);
+
   return (
-    <SplitTableView
-      leftTable={leftTable}
-      leftEmptyMessage="No personas found."
-      leftTableProps={leftTableProps}
-      rightTable={keywordsTable}
-      rightEmptyMessage="Select a persona to view use cases and keywords."
-      rightTableProps={rightTableProps}
-      search={search}
-      onSearchChange={onSearchChange}
-      searchPlaceholder="Search personas, use cases and keywords..."
-      searchColumnIds={searchColumnIds}
-      leftTableHooks={leftTableHooks}
-      leftTableWidth="35%"
-      rightTableWidth="65%"
-      onBack={onBack}
-    />
+    <div ref={tableContainerRef} className="">
+      <SplitTableView
+        leftTable={leftTable}
+        leftEmptyMessage="No personas found."
+        leftTableProps={leftTableProps}
+        rightTable={keywordsTable}
+        rightEmptyMessage="Select a persona to view use cases and keywords."
+        rightTableProps={rightTableProps}
+        search={search}
+        onSearchChange={onSearchChange}
+        searchPlaceholder="Search personas, use cases and keywords..."
+        searchColumnIds={searchColumnIds}
+        leftTableHooks={leftTableHooks}
+        leftTableWidth="35%"
+        rightTableWidth="65%"
+        onBack={onBack}
+      />
+    </div>
   );
 });

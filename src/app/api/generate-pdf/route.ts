@@ -4,7 +4,7 @@ import chromium from "@sparticuz/chromium-min";
 import Showdown from "showdown";
 
 const CHROMIUM_URL =
-  "https://github.com/nicholasanthony-softwareengineer/chromium-bin/releases/download/v133.0.0/chromium-v133.0.0-pack.tar";
+  "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar";
 
 const converter = new Showdown.Converter({
   tables: true,

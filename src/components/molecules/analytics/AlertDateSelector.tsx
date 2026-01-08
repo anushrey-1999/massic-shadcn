@@ -29,13 +29,14 @@ export function AlertDateSelector({ selectedDate, onDateChange, className }: Ale
   }
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn(className || "w-full")}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             className={cn(
-              "w-full justify-start text-left font-normal",
+              className?.includes("w-auto") ? "w-auto" : "w-full",
+              "justify-start text-left font-normal",
               !selectedDate && "text-muted-foreground"
             )}
           >

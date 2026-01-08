@@ -47,10 +47,11 @@ export function ReportsTableClient({ businessId }: { businessId: string }) {
         sort: sort || [],
       });
     },
-    staleTime: 1000 * 60 * 2,
+    staleTime: 0, // Always refetch in background when returning to page
     gcTime: 1000 * 60 * 10,
     placeholderData: (previousData) => previousData,
-    refetchOnMount: false,
+    refetchOnMount: true, // Refetch when component mounts (returning to page)
+    refetchOnWindowFocus: false,
     retry: 1,
     enabled: !!businessId,
   });
@@ -98,13 +99,16 @@ export function ReportsTableClient({ businessId }: { businessId: string }) {
     );
   }
 
+  // Only show loading on initial load (no cache), not during background refetches
+  const showLoading = isLoading && !data;
+
   return (
     <ReportsTable
       businessId={businessId}
       data={data?.data ?? []}
       pageCount={data?.pageCount ?? 0}
-      isLoading={isLoading}
-      isFetching={isFetching}
+      isLoading={showLoading}
+      isFetching={false} // Don't show fetching indicator during background refetches
     />
   );
 }

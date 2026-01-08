@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { CalendarFold, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export function ReportsTable({
   isLoading,
   isFetching,
 }: ReportsTableProps) {
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
   const columns = React.useMemo(
@@ -55,6 +57,13 @@ export function ReportsTable({
     clearOnDefault: true,
   });
 
+  const handleRowClick = React.useCallback(
+    (row: ReportRunListItem) => {
+      router.push(`/business/${businessId}/reports/${row.id}`);
+    },
+    [router, businessId]
+  );
+
   return (
     <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden gap-4">
       <DataTable
@@ -64,6 +73,7 @@ export function ReportsTable({
         disableHorizontalScroll={true}
         showPagination={false}
         emptyMessage="No reports found."
+        onRowClick={handleRowClick}
       >
         <div
           role="toolbar"
@@ -76,14 +86,13 @@ export function ReportsTable({
               <Input
                 placeholder="Search..."
                 className="pl-9"
-                value=""
-                onChange={() => { }}
+                disabled
               />
             </div>
           </div>
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
-            <Button variant="outline" className="h-9 gap-2">
+            <Button variant="outline" className="h-9 gap-2" disabled>
               <CalendarFold className="h-4 w-4" />
               Auto-schedule
             </Button>
@@ -97,7 +106,7 @@ export function ReportsTable({
 
       <ReportsTablePagination table={table} pageSizeOptions={[10, 24, 50, 100]} />
 
-      <GenerateReportDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <GenerateReportDialog open={dialogOpen} onOpenChange={setDialogOpen} businessId={businessId} />
     </div>
   );
 }

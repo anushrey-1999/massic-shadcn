@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useApi, type ApiPlatform } from "./use-api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useApi, api, type ApiPlatform } from "./use-api";
 import type { ListReportRunsResponse, ReportRunListItem, ReportRunDetail } from "@/types/report-runs-types";
 
 export interface ListReportRunsParams {
@@ -109,5 +109,41 @@ export function useReportRunDetail(params: {
       return status === "pending" || status === "processing" ? pollingIntervalMs : false;
     },
     staleTime: 0,
+  });
+}
+
+export interface GenerateReportParams {
+  businessId: string;
+  period: string;
+}
+
+export interface GenerateReportResponse {
+  id: string;
+  status: string;
+}
+
+export function useGenerateReport() {
+  const queryClient = useQueryClient();
+
+  return useMutation<GenerateReportResponse, Error, GenerateReportParams>({
+    mutationFn: async ({ businessId, period }) => {
+      if (!businessId) {
+        throw new Error("Business ID is required");
+      }
+
+      const response = await api.post<GenerateReportResponse>(
+        `/analytics/generate-performance-report`,
+        "node",
+        { businessId, period }
+      );
+
+      return response;
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate report runs list to show the new report
+      queryClient.invalidateQueries({
+        queryKey: ["report-runs", variables.businessId],
+      });
+    },
   });
 }

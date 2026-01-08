@@ -60,6 +60,7 @@ interface DataTableProps {
   stickyHeader?: boolean
   maxHeight?: string
   cellSize?: "sm" | "md"
+  firstColumnTruncate?: string
 }
 
 export function DataTable({
@@ -82,6 +83,7 @@ export function DataTable({
   stickyHeader = false,
   maxHeight,
   cellSize = "md",
+  firstColumnTruncate,
 }: DataTableProps) {
   const activeTab = controlledActiveTab || tabs?.find((t) => t.active)?.value || tabs?.[0]?.value || "tab-0"
   const displayData = maxRows ? data.slice(0, maxRows) : data
@@ -146,7 +148,8 @@ export function DataTable({
   const isThreeColumnLayout = columns.length === 3
   const firstColumnWidth = cellSize === "sm" ? "w-[28rem]" : "min-w-[30rem]"
   const otherColumnWidth = cellSize === "sm" ? "w-24" : "w-32"
-  const firstColumnTruncate = cellSize === "sm" ? "max-w-[15rem]" : "max-w-[28rem]"
+  const defaultFirstColumnTruncate = cellSize === "sm" ? "max-w-[15rem]" : "max-w-[28rem]"
+  const resolvedFirstColumnTruncate = firstColumnTruncate ?? defaultFirstColumnTruncate
 
   const tableContent = (
     <>
@@ -244,7 +247,7 @@ export function DataTable({
 
                       const truncateClass =
                         isThreeColumnLayout && colIndex === 0
-                          ? firstColumnTruncate
+                          ? resolvedFirstColumnTruncate
                           : styles.truncate
 
                       return (
@@ -256,10 +259,10 @@ export function DataTable({
                           )}
                         >
                           {isObject ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-baseline gap-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className={cn(styles.text, "text-foreground truncate block cursor-default", truncateClass)}>
+                                  <span className={cn(styles.text, "text-foreground truncate inline-block align-baseline leading-none cursor-default", truncateClass)}>
                                     {(cellValue as { value: string | number }).value}
                                   </span>
                                 </TooltipTrigger>
@@ -268,13 +271,13 @@ export function DataTable({
                                 </TooltipContent>
                               </Tooltip>
                               {(cellValue as { change?: number }).change !== undefined && (
-                                <StatsBadge value={(cellValue as { change: number }).change} className={styles.badge} />
+                                <StatsBadge value={(cellValue as { change: number }).change} className={cn("leading-none", styles.badge)} />
                               )}
                             </div>
                           ) : (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span className={cn(styles.text, "text-foreground truncate block cursor-default", truncateClass)}>
+                                <span className={cn(styles.text, "text-foreground truncate inline-block align-baseline leading-none cursor-default", truncateClass)}>
                                   {cellValue}
                                 </span>
                               </TooltipTrigger>

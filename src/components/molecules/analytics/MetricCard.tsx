@@ -89,10 +89,10 @@ export function MetricCard({
           {/* {icon && <span className="text-muted-foreground">{icon}</span>} */}
           {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
         </div>
-        <div className="flex items-center gap-1">
-          {value && <span className="text-3xl font-semibold text-general-unofficial-foreground-alt">{value}</span>}
+        <div className="flex items-baseline gap-1">
+          {value && <span className="text-3xl font-semibold leading-none text-general-unofficial-foreground-alt">{value}</span>}
           {change !== undefined && (
-            <StatsBadge value={change} className="text-[10px] leading-0" />
+            <StatsBadge value={change} className="leading-none" valueClassName="text-base" />
           )}
         </div>
       </div>

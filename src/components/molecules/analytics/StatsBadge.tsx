@@ -56,11 +56,11 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
     >
       {showIcon && !isNeutral &&
         (isPositive ? (
-          <Plus className="h-3 w-3 text-green-600" />
+          <Plus className="h-2 w-2 text-green-600" />
         ) : (
-          <Minus className="h-3 w-3 text-red-600" />
+          <Minus className="h-2 w-2 text-red-600" />
         ))}
-      <span className={`font-medium ${isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
+      <span className={`font-medium text-xs ${isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
     </span>
   )
 }

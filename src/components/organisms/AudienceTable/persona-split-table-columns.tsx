@@ -34,7 +34,7 @@ export function getPersonaSplitTableColumns(): ColumnDef<AudienceRow>[] {
       id: "ars",
       accessorKey: "ars",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="ARS" />
+        <DataTableColumnHeader column={column} label="Relevance" />
       ),
       cell: ({ cell }) => {
         const score = cell.getValue<number>();

@@ -142,22 +142,61 @@ export const StrategySplitView = React.memo(function StrategySplitView({
     [leftShallow, leftDebounceMs, leftThrottleMs]
   );
 
+  const tableContainerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+
+      if (!tableContainerRef.current) return;
+
+      const isOutsideContainer = !tableContainerRef.current.contains(target);
+
+      // If click is outside container, collapse
+      if (isOutsideContainer) {
+        setExpandedClusterRowId(null);
+        return;
+      }
+
+      // If click is inside container, check if it's on a table element or interactive element
+      const isOnTableElement = target?.closest?.(
+        'table, [role="table"], [role="row"], [role="cell"], [role="columnheader"], [role="rowheader"]'
+      );
+      const isOnInteractiveElement = target?.closest?.(
+        'button, input, select, textarea, a, [role="button"], [role="textbox"], [role="combobox"]'
+      );
+
+      // Collapse if click is inside container but not on table or interactive elements
+      // This handles clicks on empty space within the container
+      if (!isOnTableElement && !isOnInteractiveElement) {
+        setExpandedClusterRowId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   return (
-    <SplitTableView
-      leftTable={leftTable}
-      leftEmptyMessage="No topics found."
-      leftTableProps={leftTableProps}
-      rightTable={clustersTable}
-      rightEmptyMessage="Select a topic to view clusters and keywords."
-      rightTableProps={rightTableProps}
-      search={search}
-      onSearchChange={onSearchChange}
-      searchPlaceholder="Search topics, clusters and keywords..."
-      searchColumnIds={searchColumnIds}
-      leftTableHooks={leftTableHooks}
-      leftTableWidth="35%"
-      rightTableWidth="65%"
-      onBack={onBack}
-    />
+    <div ref={tableContainerRef} className="">
+      <SplitTableView
+        leftTable={leftTable}
+        leftEmptyMessage="No topics found."
+        leftTableProps={leftTableProps}
+        rightTable={clustersTable}
+        rightEmptyMessage="Select a topic to view clusters and keywords."
+        rightTableProps={rightTableProps}
+        search={search}
+        onSearchChange={onSearchChange}
+        searchPlaceholder="Search topics, clusters and keywords..."
+        searchColumnIds={searchColumnIds}
+        leftTableHooks={leftTableHooks}
+        leftTableWidth="35%"
+        rightTableWidth="65%"
+        onBack={onBack}
+      />
+    </div>
   );
 });

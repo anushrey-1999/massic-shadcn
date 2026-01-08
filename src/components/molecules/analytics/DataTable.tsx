@@ -81,7 +81,7 @@ export function DataTable({
   variant = "card",
   stickyHeader = false,
   maxHeight,
-  cellSize = "sm",
+  cellSize = "md",
 }: DataTableProps) {
   const activeTab = controlledActiveTab || tabs?.find((t) => t.active)?.value || tabs?.[0]?.value || "tab-0"
   const displayData = maxRows ? data.slice(0, maxRows) : data

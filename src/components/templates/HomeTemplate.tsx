@@ -27,7 +27,6 @@ import { api } from "@/hooks/use-api";
 import type { JobDetails } from "@/hooks/use-jobs";
 import { cn } from "@/lib/utils";
 import { BusinessPreviewCard } from "@/components/molecules/home/BusinessPreviewCard";
-import { ProspectsCard } from "@/components/molecules/home/ProspectsCard";
 import { OnboardingCard } from "@/components/molecules/home/OnboardingCard";
 import { Typography } from "@/components/ui/typography";
 
@@ -111,14 +110,13 @@ function parseStoredHomeSections(value: string | null) {
 	try {
 		const parsed = JSON.parse(value) as any;
 		if (!parsed || typeof parsed !== "object") return null;
-		const { showActive, showOnboarding, showProspects } = parsed;
+		const { showActive, showOnboarding } = parsed;
 		if (
 			typeof showActive !== "boolean" ||
-			typeof showOnboarding !== "boolean" ||
-			typeof showProspects !== "boolean"
+			typeof showOnboarding !== "boolean"
 		)
 			return null;
-		return { showActive, showOnboarding, showProspects };
+		return { showActive, showOnboarding };
 	} catch {
 		return null;
 	}
@@ -130,7 +128,6 @@ export function HomeTemplate() {
 	const greetingName = getGreetingName(user);
 	const showActiveId = useId();
 	const showOnboardingId = useId();
-	const showProspectsId = useId();
 
 	const [search, setSearch] = useState("");
 	const [period, setPeriod] =
@@ -139,7 +136,6 @@ export function HomeTemplate() {
 	// selection before localStorage is read.
 	const [showActive, setShowActive] = useState(false);
 	const [showOnboarding, setShowOnboarding] = useState(false);
-	const [showProspects, setShowProspects] = useState(false);
 	const [sectionsReady, setSectionsReady] = useState(false);
 
 	useEffect(() => {
@@ -150,12 +146,10 @@ export function HomeTemplate() {
 		if (stored) {
 			setShowActive(stored.showActive);
 			setShowOnboarding(stored.showOnboarding);
-			setShowProspects(stored.showProspects);
 		} else {
 			// Only default Active when nothing is stored.
 			setShowActive(true);
 			setShowOnboarding(false);
-			setShowProspects(false);
 		}
 		setSectionsReady(true);
 	}, []);
@@ -165,9 +159,9 @@ export function HomeTemplate() {
 		if (!sectionsReady) return;
 		window.localStorage.setItem(
 			HOME_SECTIONS_STORAGE_KEY,
-			JSON.stringify({ showActive, showOnboarding, showProspects }),
+			JSON.stringify({ showActive, showOnboarding }),
 		);
-	}, [sectionsReady, showActive, showOnboarding, showProspects]);
+	}, [sectionsReady, showActive, showOnboarding]);
 
 	const { profiles } = useBusinessProfiles();
 	const { previews, isLoading: previewsLoading } = useBusinessPreviews(period);
@@ -203,9 +197,7 @@ export function HomeTemplate() {
 
 	const onboardingCandidates = useMemo(() => {
 		return joined.filter(
-			(item) =>
-				Boolean(item.uniqueId) &&
-				(item.preview as BusinessPreviewItem | undefined)?.isGscConnected === true,
+			(item) => Boolean(item.uniqueId)
 		);
 	}, [joined]);
 
@@ -255,10 +247,11 @@ export function HomeTemplate() {
 
 				const job = onboardingJobsByBusinessId[businessId] || null;
 				const jobExists = Boolean(job?.job_id);
+				const isGscConnected = preview?.isGscConnected === true;
 				const isGa4Connected = preview?.isGa4Connected === true;
 				const isGbpConnected = preview?.isGbpConnected === true;
 
-				return !isGa4Connected || !isGbpConnected || !jobExists;
+				return !isGscConnected || !isGa4Connected || !isGbpConnected || !jobExists;
 			})
 			.map((item) => {
 				const preview = item.preview as BusinessPreviewItem;
@@ -319,9 +312,8 @@ export function HomeTemplate() {
 		);
 	}, [joined, search]);
 
-	const { activeBusinesses, prospects } = useMemo(() => {
+	const activeBusinesses = useMemo(() => {
 		const active: typeof filtered = [];
-		const prospect: typeof filtered = [];
 
 		for (const item of filtered) {
 			const mainStats = safeJsonParse<PreviewMainStats>(
@@ -335,22 +327,17 @@ export function HomeTemplate() {
 				Object.keys(clicks || {}).length === 0 ||
 				Object.keys(impressions || {}).length === 0;
 
-			if (showConnectGoogle) {
-				prospect.push(item);
-			} else {
+			if (!showConnectGoogle) {
 				active.push(item);
 			}
 		}
 
 		active.sort((a, b) => compareStrings(a.name, b.name));
-		prospect.sort((a, b) => compareStrings(a.domain, b.domain));
-		return { activeBusinesses: active, prospects: prospect };
+		return active;
 	}, [filtered]);
 
-	const selectedCount = Number(showActive) + Number(showOnboarding) + Number(showProspects);
-	const showThreeColumnLayout = selectedCount === 3;
-	const showTwoColumnLayout = selectedCount === 2;
-	const showOneColumnLayout = selectedCount === 1;
+	const selectedCount = Number(showActive) + Number(showOnboarding);
+	const showThreeColumnLayout = selectedCount === 2;
 
 	const handleOpen = (uniqueId: string | null, url: string) => {
 		if (uniqueId) {
@@ -376,39 +363,39 @@ export function HomeTemplate() {
 
 					<div className="flex items-center gap-2">
 						<Select
-						value={period}
-						onValueChange={(value) => setPeriod(value as any)}
-					>
-						<SelectTrigger>
-							<SelectValue placeholder="Period" />
-						</SelectTrigger>
-						<SelectContent align="end">
-							{HOME_PERIODS.map((p) => (
-								<SelectItem key={p.value} value={p.value}>
-									{p.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+							value={period}
+							onValueChange={(value) => setPeriod(value as any)}
+						>
+							<SelectTrigger>
+								<SelectValue placeholder="Period" />
+							</SelectTrigger>
+							<SelectContent align="end">
+								{HOME_PERIODS.map((p) => (
+									<SelectItem key={p.value} value={p.value}>
+										{p.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 
-					<div className="relative w-[320px]">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-						<Input
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							placeholder="Search by business name"
-							className="h-10 pl-9"
-						/>
-					</div>
+						<div className="relative w-[320px]">
+							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+							<Input
+								value={search}
+								onChange={(e) => setSearch(e.target.value)}
+								placeholder="Search by business name"
+								className="h-10 pl-9"
+							/>
+						</div>
 
-					<Button
-						type="button"
-						onClick={() => router.push("/create-business")}
-						className="h-9"
-					>
-						<Plus className="h-4 w-4 mr-2" />
-						Add
-					</Button>
+						<Button
+							type="button"
+							onClick={() => router.push("/create-business")}
+							className="h-9"
+						>
+							<Plus className="h-4 w-4 mr-2" />
+							Add
+						</Button>
 					</div>
 				</div>
 
@@ -442,19 +429,6 @@ export function HomeTemplate() {
 								Onboarding
 							</label>
 						</div>
-						<div className="flex items-center gap-2">
-							<Checkbox
-								id={showProspectsId}
-								checked={showProspects}
-								onCheckedChange={(checked) => setShowProspects(checked === true)}
-							/>
-							<label
-								htmlFor={showProspectsId}
-								className="text-sm font-medium cursor-pointer"
-							>
-								Prospects
-							</label>
-						</div>
 					</div>
 				</div>
 				{selectedCount === 0 && (
@@ -466,20 +440,20 @@ export function HomeTemplate() {
 				)}
 
 				{selectedCount > 0 && showThreeColumnLayout && (
-					<div className="grid grid-cols-3 gap-2.5 h-full flex-1 min-h-0">
+					<div className="grid grid-cols-1 xl:grid-cols-3 gap-2.5 flex-1 overflow-hidden">
 						{showActive && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none h-full overflow-hidden">
+							<Card className="flex flex-col gap-3 p-4 border-none shadow-none xl:col-span-2 min-h-0 overflow-hidden">
 								<Typography
 									variant="h4"
-									className="text-general-unofficial-foreground-alt"
+									className="text-general-unofficial-foreground-alt flex-shrink-0"
 								>
 									Active Businesses
 								</Typography>
 
 								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading ? (
-									<div className="flex flex-col gap-2.5">
-										{[1, 2, 3].map((i) => (
+									<div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1">
+										{[1, 2, 3, 4].map((i) => (
 											<Card key={i} className="overflow-hidden">
 												<div className="px-3 py-2 border-b border-border">
 													<Skeleton className="h-4 w-40" />
@@ -498,7 +472,7 @@ export function HomeTemplate() {
 										))}
 									</div>
 								) : (
-									<div className="grid grid-cols-1 gap-2.5">
+									<div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1 auto-rows-max">
 										{activeBusinesses.map(({ preview, name, domain, uniqueId }) => {
 											const mainStats = safeJsonParse<PreviewMainStats>(
 												preview.mainstats,
@@ -527,17 +501,17 @@ export function HomeTemplate() {
 						)}
 
 						{showOnboarding && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px) h-full overflow-hidden">
+							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px) min-h-0 overflow-hidden">
 								<Typography
 									variant="h4"
-									className="text-general-unofficial-foreground-alt"
+									className="text-general-unofficial-foreground-alt flex-shrink-0"
 								>
 									Onboarding
 								</Typography>
 
 								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading || onboardingJobsLoading ? (
-									<div className="flex flex-col gap-2.5">
+									<div className="flex flex-col gap-2.5 overflow-y-auto flex-1">
 										{[1, 2].map((i) => (
 											<Card key={i} className="p-3 border-border">
 												<div className="flex items-center justify-between">
@@ -554,7 +528,7 @@ export function HomeTemplate() {
 										))}
 									</div>
 								) : (
-									<div className="grid grid-cols-1 gap-2.5">
+									<div className="flex flex-col gap-2.5 overflow-y-auto flex-1">
 										{onboardingCards.map((card) => (
 											<OnboardingCard
 												key={card.id}
@@ -577,68 +551,14 @@ export function HomeTemplate() {
 								</div>
 							</Card>
 						)}
-
-						{showProspects && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground h-full overflow-hidden">
-								<Typography
-									variant="h4"
-									className="text-general-muted-foreground"
-								>
-									Prospects
-								</Typography>
-
-								<div className="flex-1 overflow-y-auto min-h-0">
-								{previewsLoading ? (
-									<div className="flex flex-col gap-2.5">
-										{[1, 2].map((i) => (
-											<Card key={i} className="p-2 border-border shadow-none rounded-lg flex flex-col gap-4">
-												<div className="flex items-center justify-between">
-													<Skeleton className="h-4 w-40" />
-													<Skeleton className="h-9 w-32" />
-												</div>
-											</Card>
-										))}
-									</div>
-								) : (
-									<div
-										className={cn(
-											"grid grid-cols-1 gap-2.5",
-											prospects.length === 0 && "opacity-60",
-										)}
-									>
-										{prospects.map(({ preview, domain }) => (
-											<ProspectsCard
-												key={domain}
-												url={preview.url}
-												onConnectGoogle={connectGoogleAccount}
-											/>
-										))}
-
-										{prospects.length === 0 && (
-											<Card className="border-border">
-												<CardContent className="p-3 text-sm text-muted-foreground">
-													No prospects found
-												</CardContent>
-											</Card>
-										)}
-									</div>
-								)}
-								</div>
-							</Card>
-						)}
 					</div>
 				)}
 
 				{selectedCount > 0 && !showThreeColumnLayout && (
-					<div className={cn(
-						"flex flex-col gap-2.5 flex-1 min-h-0",
-						showTwoColumnLayout && "h-full"
-					)}>
+					<div className="flex-1 overflow-y-auto flex flex-col gap-5">
 						{showActive && (
 							<Card className={cn(
-								"flex flex-col gap-3 p-4 border-none shadow-none overflow-hidden",
-								showOneColumnLayout && "h-full flex-1 min-h-0",
-								showTwoColumnLayout && "h-1/2 shrink-0"
+								"flex flex-col gap-3 p-4 border-none shadow-none overflow-hidden"
 							)}>
 								<Typography
 									variant="h4"
@@ -699,9 +619,7 @@ export function HomeTemplate() {
 
 						{showOnboarding && (
 							<Card className={cn(
-								"flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px) overflow-hidden",
-								showOneColumnLayout && "h-full flex-1 min-h-0",
-								showTwoColumnLayout && "h-1/2 shrink-0"
+								"flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px) overflow-hidden"
 							)}>
 								<Typography
 									variant="h4"
@@ -744,56 +662,6 @@ export function HomeTemplate() {
 											<Card className="border-border">
 												<CardContent className="p-3 text-sm text-muted-foreground">
 													No onboarding businesses found
-												</CardContent>
-											</Card>
-										)}
-									</div>
-								)}
-								</div>
-							</Card>
-						)}
-
-						{showProspects && (
-							<Card className={cn(
-								"flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground overflow-hidden",
-								showOneColumnLayout && "h-full flex-1 min-h-0",
-								showTwoColumnLayout && "h-1/2 shrink-0"
-							)}>
-								<Typography variant="h4" className="text-general-muted-foreground">
-									Prospects
-								</Typography>
-
-								<div className="flex-1 overflow-y-auto min-h-0">
-								{previewsLoading ? (
-									<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-										{[1, 2, 3].map((i) => (
-											<Card key={i} className="p-2 border-border shadow-none rounded-lg flex flex-col gap-4">
-												<Skeleton className="h-4 w-40" />
-												<div className="flex justify-end">
-													<Skeleton className="h-9 w-32" />
-												</div>
-											</Card>
-										))}
-									</div>
-								) : (
-									<div
-										className={cn(
-											"grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5",
-											prospects.length === 0 && "opacity-60",
-										)}
-									>
-										{prospects.map(({ preview, domain }) => (
-											<ProspectsCard
-												key={domain}
-												url={preview.url}
-												onConnectGoogle={connectGoogleAccount}
-											/>
-										))}
-
-										{prospects.length === 0 && (
-											<Card className="border-border">
-												<CardContent className="p-3 text-sm text-muted-foreground">
-													No prospects found
 												</CardContent>
 											</Card>
 										)}

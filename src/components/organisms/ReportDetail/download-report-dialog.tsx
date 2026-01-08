@@ -73,7 +73,7 @@ export function DownloadReportDialog({
       onClose();
     } catch (error) {
       console.error("Download failed:", error);
-      toast.error("Failed to generate download");
+      toast.error(error instanceof Error ? error.message : "Failed to generate download");
     } finally {
       setIsGenerating(false);
     }

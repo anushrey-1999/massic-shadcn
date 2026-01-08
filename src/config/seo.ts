@@ -45,6 +45,10 @@ export const pageMeta = {
     title: "Proposals",
     description: "View and manage proposals for your clients and businesses.",
   },
+  pitches: {
+    title: "Pitches",
+    description: "View and manage pitches for your clients and businesses.",
+  },
   businessAnalytics: {
     title: "Business Analytics",
     description: "View analytics and performance insights for your business.",

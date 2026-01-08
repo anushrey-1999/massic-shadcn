@@ -349,6 +349,8 @@ export function HomeTemplate() {
 
 	const selectedCount = Number(showActive) + Number(showOnboarding) + Number(showProspects);
 	const showThreeColumnLayout = selectedCount === 3;
+	const showTwoColumnLayout = selectedCount === 2;
+	const showOneColumnLayout = selectedCount === 1;
 
 	const handleOpen = (uniqueId: string | null, url: string) => {
 		if (uniqueId) {
@@ -365,8 +367,8 @@ export function HomeTemplate() {
 	};
 
 	return (
-		<div className="bg-muted min-h-full">
-			<div className="w-full max-w-[1224px] py-7 px-5 flex flex-col gap-5 min-h-full">
+		<div className="bg-muted h-screen overflow-hidden">
+			<div className="w-full max-w-[1224px] py-7 px-5 flex flex-col gap-5 h-full">
 				<div className="flex items-center justify-between gap-4">
 					<h1 className="text-3xl font-semibold tracking-tight">
 						Hi, {greetingName}
@@ -464,9 +466,9 @@ export function HomeTemplate() {
 				)}
 
 				{selectedCount > 0 && showThreeColumnLayout && (
-					<div className="grid grid-cols-1 xl:grid-cols-3 gap-2.5">
+					<div className="grid grid-cols-3 gap-2.5 h-full flex-1 min-h-0">
 						{showActive && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none">
+							<Card className="flex flex-col gap-3 p-4 border-none shadow-none h-full overflow-hidden">
 								<Typography
 									variant="h4"
 									className="text-general-unofficial-foreground-alt"
@@ -474,6 +476,7 @@ export function HomeTemplate() {
 									Active Businesses
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading ? (
 									<div className="flex flex-col gap-2.5">
 										{[1, 2, 3].map((i) => (
@@ -495,7 +498,7 @@ export function HomeTemplate() {
 										))}
 									</div>
 								) : (
-									<div className="flex flex-col gap-2.5">
+									<div className="grid grid-cols-1 gap-2.5">
 										{activeBusinesses.map(({ preview, name, domain, uniqueId }) => {
 											const mainStats = safeJsonParse<PreviewMainStats>(
 												preview.mainstats,
@@ -519,11 +522,12 @@ export function HomeTemplate() {
 										})}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 
 						{showOnboarding && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px)">
+							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px) h-full overflow-hidden">
 								<Typography
 									variant="h4"
 									className="text-general-unofficial-foreground-alt"
@@ -531,6 +535,7 @@ export function HomeTemplate() {
 									Onboarding
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading || onboardingJobsLoading ? (
 									<div className="flex flex-col gap-2.5">
 										{[1, 2].map((i) => (
@@ -549,7 +554,7 @@ export function HomeTemplate() {
 										))}
 									</div>
 								) : (
-									<div className="flex flex-col gap-2.5">
+									<div className="grid grid-cols-1 gap-2.5">
 										{onboardingCards.map((card) => (
 											<OnboardingCard
 												key={card.id}
@@ -569,11 +574,12 @@ export function HomeTemplate() {
 										)}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 
 						{showProspects && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground">
+							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground h-full overflow-hidden">
 								<Typography
 									variant="h4"
 									className="text-general-muted-foreground"
@@ -581,6 +587,7 @@ export function HomeTemplate() {
 									Prospects
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading ? (
 									<div className="flex flex-col gap-2.5">
 										{[1, 2].map((i) => (
@@ -595,7 +602,7 @@ export function HomeTemplate() {
 								) : (
 									<div
 										className={cn(
-											"flex flex-col gap-2.5",
+											"grid grid-cols-1 gap-2.5",
 											prospects.length === 0 && "opacity-60",
 										)}
 									>
@@ -616,15 +623,23 @@ export function HomeTemplate() {
 										)}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 					</div>
 				)}
 
 				{selectedCount > 0 && !showThreeColumnLayout && (
-					<>
+					<div className={cn(
+						"flex flex-col gap-2.5 flex-1 min-h-0",
+						showTwoColumnLayout && "h-full"
+					)}>
 						{showActive && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none">
+							<Card className={cn(
+								"flex flex-col gap-3 p-4 border-none shadow-none overflow-hidden",
+								showOneColumnLayout && "h-full flex-1 min-h-0",
+								showTwoColumnLayout && "h-1/2 shrink-0"
+							)}>
 								<Typography
 									variant="h4"
 									className="text-general-unofficial-foreground-alt"
@@ -632,6 +647,7 @@ export function HomeTemplate() {
 									Active Businesses
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading ? (
 									<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
 										{[1, 2, 3, 4, 5, 6].map((i) => (
@@ -677,11 +693,16 @@ export function HomeTemplate() {
 										})}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 
 						{showOnboarding && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px)">
+							<Card className={cn(
+								"flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px) overflow-hidden",
+								showOneColumnLayout && "h-full flex-1 min-h-0",
+								showTwoColumnLayout && "h-1/2 shrink-0"
+							)}>
 								<Typography
 									variant="h4"
 									className="text-general-unofficial-foreground-alt"
@@ -689,6 +710,7 @@ export function HomeTemplate() {
 									Onboarding
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading || onboardingJobsLoading ? (
 									<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
 										{[1, 2, 3].map((i) => (
@@ -727,15 +749,21 @@ export function HomeTemplate() {
 										)}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
 
 						{showProspects && (
-							<Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground">
+							<Card className={cn(
+								"flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground overflow-hidden",
+								showOneColumnLayout && "h-full flex-1 min-h-0",
+								showTwoColumnLayout && "h-1/2 shrink-0"
+							)}>
 								<Typography variant="h4" className="text-general-muted-foreground">
 									Prospects
 								</Typography>
 
+								<div className="flex-1 overflow-y-auto min-h-0">
 								{previewsLoading ? (
 									<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
 										{[1, 2, 3].map((i) => (
@@ -771,9 +799,10 @@ export function HomeTemplate() {
 										)}
 									</div>
 								)}
+								</div>
 							</Card>
 						)}
-					</>
+					</div>
 				)}
 			</div>
 		</div>

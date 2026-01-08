@@ -1,145 +1,230 @@
 import { NextRequest, NextResponse } from "next/server";
+import puppeteer, { Browser } from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
-import puppeteerCore from "puppeteer-core";
-import puppeteer, { Browser } from "puppeteer";
+import Showdown from "showdown";
 
-// Singleton browser instance to reuse across requests
+const converter = new Showdown.Converter({
+  tables: true,
+  ghCompatibleHeaderId: true,
+  simpleLineBreaks: true,
+  emoji: true,
+});
+
 let browserInstance: Browser | null = null;
+let browserPromise: Promise<Browser> | null = null;
 
-async function getBrowser() {
-  if (browserInstance && browserInstance.isConnected()) {
+async function getBrowser(): Promise<Browser> {
+  if (browserInstance?.connected) return browserInstance;
+
+  if (browserPromise) return browserPromise;
+
+  browserPromise = (async () => {
+    const isLocal = process.env.NODE_ENV === "development";
+
+    if (isLocal) {
+      const puppeteerFull = await import("puppeteer");
+      browserInstance = await puppeteerFull.default.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      });
+    } else {
+      browserInstance = await puppeteer.launch({
+        args: [...chromium.args, "--disable-dev-shm-usage"],
+        defaultViewport: { width: 1200, height: 800 },
+        executablePath: await chromium.executablePath(),
+        headless: true,
+      });
+    }
+
+    browserPromise = null;
     return browserInstance;
-  }
+  })();
 
-  // Check if running in a serverless environment (e.g., AWS Lambda)
-  // AWS_LAMBDA_FUNCTION_NAME is a standard environment variable in AWS Lambda
-  const isProduction = process.env.NODE_ENV === "production";
-
-  if (isProduction) {
-    // Configure sparticuz/chromium
-    chromium.setGraphicsMode = false;
-
-    // In production/serverless, use puppeteer-core with @sparticuz/chromium
-    browserInstance = await puppeteerCore.launch({
-      args: chromium.args,
-      defaultViewport: { width: 1200, height: 1600 },
-      executablePath: await chromium.executablePath(),
-      headless: true, // @sparticuz/chromium is always headless in Lambda
-    }) as unknown as Browser;
-  } else {
-    // In local development, use the full puppeteer package
-    browserInstance = await puppeteer.launch({
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--headless",
-      ],
-    });
-  }
-
-  return browserInstance;
+  return browserPromise;
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const { html } = await req.json();
+const CSS = `
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1a1a1a;
+    padding: 40px;
+  }
+  
+  h1 {
+    font-size: 1.75rem;
+    line-height: 1.25;
+    font-weight: 600;
+    margin: 1rem 0;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+    line-height: 1.3;
+    font-weight: 600;
+    margin: 1rem 0;
+  }
+  
+  h3 {
+    font-size: 1.25rem;
+    line-height: 1.35;
+    font-weight: 600;
+    margin: 0.75rem 0;
+  }
+  
+  h4 {
+    font-size: 1.125rem;
+    line-height: 1.4;
+    font-weight: 600;
+    margin: 0.75rem 0;
+  }
+  
+  p {
+    margin: 0.75rem 0;
+  }
+  
+  ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+    margin: 0.75rem 0;
+  }
+  
+  ol {
+    list-style: decimal;
+    padding-left: 1.5rem;
+    margin: 0.75rem 0;
+  }
+  
+  li {
+    margin: 0.25rem 0;
+  }
+  
+  blockquote {
+    border-left: 3px solid #e5e5e5;
+    padding-left: 1rem;
+    margin: 0.75rem 0;
+    font-style: italic;
+    color: #666;
+  }
+  
+  a {
+    color: #0066cc;
+    text-decoration: underline;
+  }
+  
+  strong {
+    font-weight: 600;
+  }
+  
+  em {
+    font-style: italic;
+  }
+  
+  code {
+    background: #f5f5f5;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+    font-size: 0.9em;
+  }
+  
+  pre {
+    background: #f5f5f5;
+    padding: 1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.75rem 0;
+  }
+  
+  pre code {
+    background: none;
+    padding: 0;
+  }
+  
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+  }
+  
+  th, td {
+    border: 1px solid #e5e5e5;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+  }
+  
+  th {
+    background: #f9f9f9;
+    font-weight: 600;
+  }
+  
+  hr {
+    border: none;
+    border-top: 1px solid #e5e5e5;
+    margin: 1.5rem 0;
+  }
+  
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+`;
 
-    if (!html) {
-      return NextResponse.json(
-        { error: "HTML content is required" },
-        { status: 400 }
-      );
+export async function POST(request: NextRequest) {
+  let page = null;
+  try {
+    const { markdown, title } = await request.json();
+
+    if (!markdown) {
+      return NextResponse.json({ error: "Markdown content is required" }, { status: 400 });
     }
+
+    const html = converter.makeHtml(markdown);
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${title || "Document"}</title>
+          <style>${CSS}</style>
+        </head>
+        <body>
+          ${html}
+        </body>
+      </html>
+    `;
 
     const browser = await getBrowser();
-    const page = await browser.newPage();
+    page = await browser.newPage();
 
-    try {
-      // Set a reasonable viewport
-      await page.setViewport({ width: 1200, height: 1600 });
+    await page.setContent(fullHtml, { waitUntil: "domcontentloaded" });
 
-      // CSS to inject for styling the PDF
-      const styles = `
-        <style>
-          body {
-            font-family: ui-sans-serif, system-ui, sans-serif;
-            color: #000000;
-            background-color: #ffffff;
-            padding: 40px;
-            margin: 0;
-          }
-          .pdf-content {
-            width: 100%;
-            max-width: 800px;
-            margin: 0 auto;
-          }
-          h1 { font-size: 24px; font-weight: 700; margin-bottom: 24px; margin-top: 0; color: #111827; }
-          h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 16px; color: #1f2937; border-bottom: 1px solid #e5e5e5; padding-bottom: 8px; }
-          h3 { font-size: 18px; font-weight: 600; margin-top: 24px; margin-bottom: 12px; color: #374151; }
-          p { margin-bottom: 16px; line-height: 1.6; font-size: 14px; color: #374151; }
-          ul, ol { margin-bottom: 16px; padding-left: 24px; }
-          li { margin-bottom: 4px; line-height: 1.6; font-size: 14px; color: #374151; }
-          strong { font-weight: 600; color: #111827; }
-          a { color: #2563eb; text-decoration: underline; }
-          blockquote { border-left: 4px solid #e5e5e5; padding-left: 16px; margin: 16px 0; font-style: italic; color: #4b5563; }
-          code { font-family: ui-monospace, monospace; background-color: #f3f4f6; padding: 2px 4px; border-radius: 4px; font-size: 0.9em; color: #111827; }
-          pre { background-color: #f3f4f6; padding: 16px; border-radius: 6px; overflow-x: auto; margin-bottom: 16px; }
-          pre code { background-color: transparent; padding: 0; color: inherit; }
-          hr { border: 0; border-top: 1px solid #e5e5e5; margin: 32px 0; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 14px; }
-          th { text-align: left; padding: 12px 8px; border-bottom: 2px solid #e5e5e5; font-weight: 600; color: #111827; }
-          td { padding: 8px; border-bottom: 1px solid #e5e5e5; color: #374151; }
-        </style>
-      `;
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "20mm", right: "20mm", bottom: "20mm", left: "20mm" },
+    });
 
-      const fullContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            ${styles}
-          </head>
-          <body>
-            <div class="pdf-content">
-              ${html}
-            </div>
-          </body>
-        </html>
-      `;
-
-      // Optimized load: wait only for DOM to be ready, not all network resources
-      await page.setContent(fullContent, { waitUntil: "domcontentloaded" });
-
-      const pdfUint8Array = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: {
-          top: "20px",
-          bottom: "20px",
-          left: "20px",
-          right: "20px",
-        },
-      });
-
-      // Fix type error: Convert Uint8Array to Buffer for NextResponse
-      const pdfBuffer = Buffer.from(pdfUint8Array);
-
-      return new NextResponse(pdfBuffer, {
-        status: 200,
-        headers: {
-          "Content-Type": "application/pdf",
-        },
-      });
-    } finally {
-      // Always close the page to free memory, but keep the browser open
-      await page.close();
-    }
+    return new NextResponse(Buffer.from(pdf), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${title || "document"}.pdf"`,
+      },
+    });
   } catch (error) {
-    console.error("Error generating PDF:", error);
+    console.error("PDF generation error:", error);
     return NextResponse.json(
-      { error: "Failed to generate PDF" },
+      { error: "Failed to generate PDF", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
+  } finally {
+    if (page) await page.close();
   }
 }

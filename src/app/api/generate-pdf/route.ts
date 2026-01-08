@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import puppeteer, { Browser } from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
+import chromium from "@sparticuz/chromium-min";
 import Showdown from "showdown";
+
+const CHROMIUM_URL =
+  "https://github.com/nicholasanthony-softwareengineer/chromium-bin/releases/download/v133.0.0/chromium-v133.0.0-pack.tar";
 
 const converter = new Showdown.Converter({
   tables: true,
@@ -31,7 +34,7 @@ async function getBrowser(): Promise<Browser> {
       browserInstance = await puppeteer.launch({
         args: [...chromium.args, "--disable-dev-shm-usage"],
         defaultViewport: { width: 1200, height: 800 },
-        executablePath: await chromium.executablePath(),
+        executablePath: await chromium.executablePath(CHROMIUM_URL),
         headless: true,
       });
     }

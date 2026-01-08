@@ -199,10 +199,10 @@ export function OrganicPerformanceSection({
 
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
 
       {/* Alert Bars */}
-      <div className="flex gap-6">
+      <div className="flex gap-3">
         <AlertBar
           title="Goal Alerts"
           icon={
@@ -287,7 +287,7 @@ export function OrganicPerformanceSection({
         businessName={businessName}
       />
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         {/* Metric Cards */}
         <div className="grid grid-cols-5 bg-white p-2 rounded-lg border border-general-border">
           {/* Gap analysis cards (3 columns) */}

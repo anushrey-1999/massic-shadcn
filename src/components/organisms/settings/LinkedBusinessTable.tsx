@@ -166,8 +166,11 @@ export default function LinkedBusinessTable() {
       ) {
         return false;
       }
-      if (filter === "matched") return !!row.matchedGa4;
-      if (filter === "unmatched") return !row.matchedGa4;
+      // Matched (Linked): businesses that are accepted (have businessProfile.Id) AND IsActive
+      const isLinked = !!row.businessProfile?.Id && row.businessProfile?.IsActive === true;
+
+      if (filter === "matched") return isLinked;
+      if (filter === "unmatched") return !isLinked;
       return true;
     });
   }, [search, localBusinesses, filter]);
@@ -299,6 +302,25 @@ export default function LinkedBusinessTable() {
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  // Helper function to get GA4s that are selected by other businesses
+  const getSelectedUnmatchedGa4IdsForOthers = (currentBusinessKey: string) => {
+    const selectedIds = new Set<string>();
+    localBusinesses.forEach((business) => {
+      const businessKey = business.siteUrl || business.id;
+      // Skip current business and only track selectedGa4 (UI selections)
+      if (businessKey !== currentBusinessKey && business.selectedGa4) {
+        // Only track if the selection came from unmatchedGa4 list
+        const isFromUnmatched = unmatchedGa4.some(
+          (ga4) => ga4.propertyId === business.selectedGa4?.propertyId
+        );
+        if (isFromUnmatched) {
+          selectedIds.add(business.selectedGa4.propertyId);
+        }
+      }
+    });
+    return selectedIds;
+  };
 
   const columns = useMemo<ColumnDef<LinkedBusiness>[]>(
     () => [
@@ -458,8 +480,15 @@ export default function LinkedBusinessTable() {
 
           // Case 1: No linked data but unmatched GA4 available - show dropdown to select
           if (!hasLinkedData && hasUnmatchedData) {
+            const businessKey = rowData.siteUrl || rowData.id || "";
+            const selectedByOthers = getSelectedUnmatchedGa4IdsForOthers(businessKey);
             const selectedPropertyId = rowData.selectedGa4?.propertyId || "";
             const selectedGa4 = rowData.selectedGa4 || unmatchedGa4.find(ga4 => ga4.propertyId === selectedPropertyId);
+
+            // Filter out GA4s selected by other rows, but always include current selection
+            const availableUnmatchedGa4 = unmatchedGa4.filter(
+              (ga4) => !selectedByOthers.has(ga4.propertyId) || ga4.propertyId === selectedPropertyId
+            );
 
             return (
               <Select
@@ -505,7 +534,7 @@ export default function LinkedBusinessTable() {
                   )}
                 </SelectTrigger>
                 <SelectContent className="max-h-[500px]">
-                  {unmatchedGa4.map((ga4, i) => (
+                  {availableUnmatchedGa4.map((ga4, i) => (
                     <SelectItem key={i} value={ga4.propertyId} className="cursor-pointer">
                       <div className="flex flex-col gap-1 py-1.5">
                         <TextWithPill
@@ -524,6 +553,8 @@ export default function LinkedBusinessTable() {
 
           // Case 2: Has linked/matched data
           if (hasLinkedData) {
+            const businessKey = rowData.siteUrl || rowData.id || "";
+            const selectedByOthers = getSelectedUnmatchedGa4IdsForOthers(businessKey);
             const isCleared = rowData.ga4Cleared === true;
             const linkedGa4PropertyId =
               rowData.linkedPropertyId?.PropertyId ||
@@ -554,6 +585,19 @@ export default function LinkedBusinessTable() {
             }
             (rowData.matchedGa4Multiple || []).forEach((ga4) => {
               optionMap.set(ga4.propertyId, ga4);
+            });
+
+            // Include unmatchedGa4 that are not selected by other rows
+            // Always include the current row's selection even if it would be filtered
+            (unmatchedGa4 || []).forEach((ga4) => {
+              if (!optionMap.has(ga4.propertyId)) {
+                const isSelectedByOthers = selectedByOthers.has(ga4.propertyId);
+                const isCurrentSelection = rowData.selectedGa4?.propertyId === ga4.propertyId;
+                // Only add if not selected by others, OR if it's this row's current selection
+                if (!isSelectedByOthers || isCurrentSelection) {
+                  optionMap.set(ga4.propertyId, ga4);
+                }
+              }
             });
 
             const ga4Options = Array.from(optionMap.values());

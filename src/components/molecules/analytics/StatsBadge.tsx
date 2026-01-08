@@ -7,7 +7,7 @@ interface StatsBadgeProps {
   value: number
   className?: string
   showIcon?: boolean
-  variant?: "pill" | "plain"
+  variant?: "pill" | "plain" | "small"
 }
 
 export function StatsBadge({ value, className, showIcon = true, variant = "pill" }: StatsBadgeProps) {
@@ -15,25 +15,32 @@ export function StatsBadge({ value, className, showIcon = true, variant = "pill"
   const isNegative = value < 0
   const isNeutral = value === 0
 
-  if (variant === "plain") {
+  if (variant === "plain" || variant === "small") {
     const iconColor = isPositive
       ? "text-emerald-600"
       : isNegative
         ? "text-red-600"
         : "text-general-muted-foreground"
 
+    const wrapperClassName =
+      variant === "small"
+        ? "inline-flex items-center text-[8px] font-medium text-muted-foreground"
+        : "inline-flex items-center text-[10px] font-medium  text-muted-foreground"
+
+    const iconSizeClassName = variant === "small" ? "h-2.5 w-2.5" : "h-3 w-3"
+
     return (
       <span
         className={cn(
-          "inline-flex items-center text-[10px] font-medium  text-muted-foreground",
+          wrapperClassName,
           className
         )}
       >
         {showIcon && !isNeutral &&
           (isPositive ? (
-            <Plus className={cn("h-3 w-3", iconColor)} />
+            <Plus className={cn(iconSizeClassName, iconColor)} />
           ) : (
-            <Minus className={cn("h-3 w-3", iconColor)} />
+            <Minus className={cn(iconSizeClassName, iconColor)} />
           ))}
         <span className={`font-medium ${isPositive ? 'text-green-600' : isNegative ? 'text-red-600' : 'text-general-muted-foreground'}`}>{Math.abs(value)}%</span>
       </span>

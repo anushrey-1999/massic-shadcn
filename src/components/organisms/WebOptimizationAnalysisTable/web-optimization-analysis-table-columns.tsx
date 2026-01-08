@@ -66,6 +66,7 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
             rel="noopener noreferrer"
             className="block truncate text-primary hover:underline"
             title={url}
+            onClick={(e) => e.stopPropagation()}
           >
             {path}
           </a>

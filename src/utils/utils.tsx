@@ -129,6 +129,40 @@ export function isValidWebsiteUrl(url: string): boolean {
 }
 
 /**
+ * Normalizes a domain for use with favicon services (e.g., Google's favicon API)
+ * Extracts just the clean domain name by removing protocols, prefixes, and paths
+ * Examples:
+ * - "sc-domain:vertaccount.com" -> "vertaccount.com"
+ * - "https://www.example.com/path" -> "example.com"
+ * - "www.example.com" -> "example.com"
+ * @param input - The website URL or domain to normalize
+ * @returns The normalized domain name without protocol, www, or paths
+ */
+export function normalizeDomainForFavicon(input: string | undefined): string {
+  if (!input) return '';
+  const raw = input.trim();
+  if (!raw) return '';
+  
+  // Remove "sc-domain:" prefix if present
+  let cleaned = raw.replace(/^sc-domain:/i, '');
+  
+  try {
+    // Try to parse as URL to extract hostname
+    const withProto = cleaned.startsWith('http') ? cleaned : `https://${cleaned}`;
+    const url = new URL(withProto);
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    // Fallback: manual cleaning
+    cleaned = cleaned.replace(/^https?:\/\//i, '');
+    cleaned = cleaned.replace(/^www\./, '');
+    cleaned = cleaned.split('/')[0];
+    cleaned = cleaned.split('?')[0];
+    cleaned = cleaned.split('#')[0];
+    return cleaned || raw;
+  }
+}
+
+/**
  * Simple hash function for object comparison
  * Much faster than JSON.stringify for change detection
  * @param obj - The object to hash

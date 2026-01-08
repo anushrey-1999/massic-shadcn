@@ -256,14 +256,14 @@ const DiscoveryPerformanceSection = ({
 
   return (
     <div className="px-7 pb-10">
-      <div className="flex items-center gap-2 bg-[#0A0A0A0D] px-6 py-5 rounded-lg">
+      <div className="flex items-center gap-2 py-5 border-b border-general-muted-foreground">
         <Search className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Discovery</Typography>
       </div>
 
-      <div className="flex flex-col gap-6 pt-6">
+      <div className="flex flex-col gap-3 pt-10">
         <div className="">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-3">
             <DataTable
               title="Content people are seeing"
               showTabs
@@ -339,7 +339,7 @@ const DiscoveryPerformanceSection = ({
 
         {/* Second Row */}
         <div className="">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-3">
             <DataTable
               icon={<Eye className="h-4 w-4" />}
               title="Searches to discover you"

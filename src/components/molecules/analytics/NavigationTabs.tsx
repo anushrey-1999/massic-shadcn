@@ -44,8 +44,8 @@ export function NavigationTabs({
   }
 
   return (
-    <div className="flex items-center justify-between px-7 py-4 bg-background rounded-bl-lg rounded-br-lg">
-      <div className="flex items-center bg-primary-foreground rounded-xl   p-1">
+    <div className="flex items-center justify-between py-4 bg-foreground-light rounded-bl-lg rounded-br-lg">
+      <div className="flex items-center bg-primary-foreground rounded-xl p-1">
         {items.map((item) => (
           <button
             key={item.id}
@@ -53,8 +53,8 @@ export function NavigationTabs({
             className={cn(
               "w-[125px] py-1.5 text-sm font-medium cursor-pointer rounded-lg transition-all whitespace-nowrap leading-[150%]",
               activeSection === item.id
-                ? "bg-white shadow-sm border border-border"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-white shadow-sm"
+                : "text-general-foreground hover:text-foreground"
             )}
           >
             {item.label}

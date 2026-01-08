@@ -90,7 +90,7 @@ export function LocalSearchSection({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-3">
         {isLoading ? (
           <div className="flex items-center justify-center h-[300px] border rounded-lg">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

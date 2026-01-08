@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, Check, MousePointer2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -46,9 +47,12 @@ export function OnboardingCard({
         <div className="min-w-0 flex-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <p className="font-mono font-normal leading-[150%] text-[16px] text-general-unofficial-foreground-alt truncate">
+              <Link
+                href={`/business/${businessId}/analytics`}
+                className="font-mono font-normal leading-[150%] text-[16px] text-general-unofficial-foreground-alt truncate cursor-pointer block"
+              >
                 {businessName}
-              </p>
+              </Link>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={6}>
               {businessName}

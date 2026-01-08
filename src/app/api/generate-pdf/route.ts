@@ -1,20 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
+import chromium from "@sparticuz/chromium";
+import puppeteerCore from "puppeteer-core";
 import puppeteer, { Browser } from "puppeteer";
 
 // Singleton browser instance to reuse across requests
 let browserInstance: Browser | null = null;
 
 async function getBrowser() {
-  if (!browserInstance || !browserInstance.isConnected()) {
+  if (browserInstance && browserInstance.isConnected()) {
+    return browserInstance;
+  }
+
+  // Check if running in a serverless environment (e.g., AWS Lambda)
+  // AWS_LAMBDA_FUNCTION_NAME is a standard environment variable in AWS Lambda
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction) {
+    // Configure sparticuz/chromium
+    chromium.setGraphicsMode = false;
+
+    // In production/serverless, use puppeteer-core with @sparticuz/chromium
+    browserInstance = await puppeteerCore.launch({
+      args: chromium.args,
+      defaultViewport: { width: 1200, height: 1600 },
+      executablePath: await chromium.executablePath(),
+      headless: true, // @sparticuz/chromium is always headless in Lambda
+    }) as unknown as Browser;
+  } else {
+    // In local development, use the full puppeteer package
     browserInstance = await puppeteer.launch({
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage", // Optimize memory usage
+        "--disable-dev-shm-usage",
         "--headless",
       ],
     });
   }
+
   return browserInstance;
 }
 

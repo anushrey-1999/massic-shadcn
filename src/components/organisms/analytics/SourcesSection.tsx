@@ -51,12 +51,12 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
 
   return (
     <div className="flex flex-col px-7 pb-10">
-      <div className="flex items-center gap-2 px-6 py-5 bg-[#0A0A0A0D] rounded-lg">
+      <div className="flex items-center gap-2 py-5 border-b border-general-muted-foreground">
         <ListChecks className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Sources</Typography>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 pt-6 ">
+      <div className="grid grid-cols-2 gap-3 pt-10">
         <DataTable
           icon={<Eye className="h-6 w-6" />}
           title="Sources that drive the most conversion"

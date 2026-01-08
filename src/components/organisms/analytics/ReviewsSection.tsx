@@ -61,7 +61,7 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
     <div className="">
       {/* <h2 className="text-base font-semibold">Reviews</h2> */}
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-3">
          <RatingCard
           title="All Time Reviews"
           value={reviewsData.allTimeReviews.value}

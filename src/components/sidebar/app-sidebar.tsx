@@ -143,7 +143,7 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick, className }:
 
 
 export default function AppSidebar() {
-    // ...existing code...
+  // ...existing code...
   const pathname = usePathname()
   const router = useRouter()
   const logout = useLogout()
@@ -173,11 +173,11 @@ export default function AppSidebar() {
     }, 0);
     return () => clearTimeout(timeout);
   }, [expandedBusinessId, sidebarDataLoading]);
-  
+
   // Search state
   const [isSearchMode, setIsSearchMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   // Scroll blur effect hook
   const { handleScroll, blurEffectClassName, blurEffectStyle } = useScrollBlurEffect({ fadeZone: 60 })
 
@@ -206,6 +206,7 @@ export default function AppSidebar() {
     { label: 'Strategy', slug: 'strategy' },
     { label: 'Web', slug: 'web' },
     { label: 'Social', slug: 'social' },
+    { label: 'Reports', slug: 'reports' },
     { label: 'Ads', slug: 'ads' },
     { label: 'Reviews', slug: 'reviews' },
     { label: 'Profile', slug: 'profile' },
@@ -214,8 +215,8 @@ export default function AppSidebar() {
   // Filter businesses based on search query
   const filteredProfiles = useMemo(() => {
     if (!searchQuery.trim()) return profiles
-    
-    return profiles.filter(business => 
+
+    return profiles.filter(business =>
       (business.Name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (business.DisplayName?.toLowerCase().includes(searchQuery.toLowerCase()))
     )
@@ -437,79 +438,79 @@ export default function AppSidebar() {
                 className="flex-1 overflow-y-auto py-0 h-full px-0"
                 onScroll={handleScroll}
               >
-              <SidebarMenu className="gap-1 px-4 pb-3">
-                {sidebarDataLoading ? (
-                  <>
-                    {[1, 2, 3].map((i) => (
-                      <SidebarMenuItem key={i}>
-                        <div className="flex items-center gap-2 ">
-                          <Skeleton className="h-4 w-4 rounded-xs" />
-                          <Skeleton className="h-4 w-24" />
-                        </div>
-                      </SidebarMenuItem>
-                    ))}
-                  </>
-                ) : filteredProfiles.length === 0 ? (
-                  <SidebarMenuItem>
-                    <div className=" text-sm text-muted-foreground">
-                      {searchQuery ? 'No matching businesses found' : 'No businesses found'}
-                    </div>
-                  </SidebarMenuItem>
-                ) : (
-                  filteredProfiles.map((business) => {
-                    const isOpen = expandedBusinessId === business.UniqueId
-                    return (
-                      <Collapsible
-                        key={business.UniqueId}
-                        open={isOpen}
-                        onOpenChange={(open) => toggleBusiness(business.UniqueId, open)}
-                      >
-                        <SidebarMenuItem>
-                          <div className="relative">
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuButton
-                                isActive={false}
-                                data-business-id={business.UniqueId}
-                                className="py-4 pl-3 group/business w-full justify-between cursor-pointer overflow-hidden rounded-md"
-                              >
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <BusinessIcon website={business.Website} name={business.Name} />
-                                  <span className="truncate font-medium text-general-unofficial-foreground-alt" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
-                                </div>
-                                <ChevronRight className={`shrink-0 ml-auto h-4 w-4 text-general-border-three opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
-                              </SidebarMenuButton>
-                            </CollapsibleTrigger>
+                <SidebarMenu className="gap-1 px-4 pb-3">
+                  {sidebarDataLoading ? (
+                    <>
+                      {[1, 2, 3].map((i) => (
+                        <SidebarMenuItem key={i}>
+                          <div className="flex items-center gap-2 ">
+                            <Skeleton className="h-4 w-4 rounded-xs" />
+                            <Skeleton className="h-4 w-24" />
                           </div>
-                          <CollapsibleContent>
-                            <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
-                              {businessSubItems.map((subItem) => {
-                                const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
-                                const isActive = pathname === subItemHref
-                                return (
-                                  <SidebarMenuSubItem key={subItem.slug}>
-                                    <SidebarMenuSubButton
-                                      asChild
-                                      isActive={isActive}
-                                      className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
-                                    >
-                                      <Link href={subItemHref}>
-                                        <span>{subItem.label}</span>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                )
-                              })}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
                         </SidebarMenuItem>
-                      </Collapsible>
-                    )
-                  })
-                )}
-              </SidebarMenu>
+                      ))}
+                    </>
+                  ) : filteredProfiles.length === 0 ? (
+                    <SidebarMenuItem>
+                      <div className=" text-sm text-muted-foreground">
+                        {searchQuery ? 'No matching businesses found' : 'No businesses found'}
+                      </div>
+                    </SidebarMenuItem>
+                  ) : (
+                    filteredProfiles.map((business) => {
+                      const isOpen = expandedBusinessId === business.UniqueId
+                      return (
+                        <Collapsible
+                          key={business.UniqueId}
+                          open={isOpen}
+                          onOpenChange={(open) => toggleBusiness(business.UniqueId, open)}
+                        >
+                          <SidebarMenuItem>
+                            <div className="relative">
+                              <CollapsibleTrigger asChild>
+                                <SidebarMenuButton
+                                  isActive={false}
+                                  data-business-id={business.UniqueId}
+                                  className="py-4 pl-3 group/business w-full justify-between cursor-pointer overflow-hidden rounded-md"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <BusinessIcon website={business.Website} name={business.Name} />
+                                    <span className="truncate font-medium text-general-unofficial-foreground-alt" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
+                                  </div>
+                                  <ChevronRight className={`shrink-0 ml-auto h-4 w-4 text-general-border-three opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
+                                </SidebarMenuButton>
+                              </CollapsibleTrigger>
+                            </div>
+                            <CollapsibleContent>
+                              <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
+                                {businessSubItems.map((subItem) => {
+                                  const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
+                                  const isActive = pathname === subItemHref
+                                  return (
+                                    <SidebarMenuSubItem key={subItem.slug}>
+                                      <SidebarMenuSubButton
+                                        asChild
+                                        isActive={isActive}
+                                        className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                                      >
+                                        <Link href={subItemHref}>
+                                          <span>{subItem.label}</span>
+                                        </Link>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  )
+                                })}
+                              </SidebarMenuSub>
+                            </CollapsibleContent>
+                          </SidebarMenuItem>
+                        </Collapsible>
+                      )
+                    })
+                  )}
+                </SidebarMenu>
               </SidebarGroupContent>
               {/* Blur fade effect at bottom */}
-              <div 
+              <div
                 className={blurEffectClassName}
                 style={blurEffectStyle}
               />

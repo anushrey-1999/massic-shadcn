@@ -39,8 +39,8 @@ export function LLMComparisonChart({
         <div className="flex flex-col gap-3">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-[38px] w-[38px] rounded" />
-              <Skeleton className="h-[38px] flex-1 rounded" />
+              <Skeleton className="h-[28px] w-[38px] rounded" />
+              <Skeleton className="h-[28px] flex-1 rounded" />
               <Skeleton className="h-4 w-14" />
             </div>
           ))}
@@ -73,7 +73,7 @@ export function LLMComparisonChart({
               <TooltipProvider delayDuration={100}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex h-[38px] w-[38px] items-center justify-center text-general-muted-foreground cursor-pointer">
+                    <div className="flex h-[30px] w-[30px] items-center justify-center text-general-muted-foreground cursor-pointer">
                       {item.icon}
                     </div>
                   </TooltipTrigger>
@@ -84,7 +84,7 @@ export function LLMComparisonChart({
               </TooltipProvider>
               <div className="flex flex-1 items-center gap-2 group relative">
                 <div
-                  className="h-[38px] rounded min-w-1 relative cursor-pointer"
+                  className="h-[30px] rounded min-w-1 relative cursor-pointer"
                   style={{
                     width: barWidth > 0 ? `${barWidth}%` : '4px',
                     backgroundColor: item.value > 0 ? item.color : '#E5E5E5',

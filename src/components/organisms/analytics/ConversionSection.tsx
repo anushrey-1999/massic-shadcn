@@ -202,6 +202,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
             onTabChange={(value) =>
               handleTopPagesFilterChange(value as TableFilterType)
             }
+            firstColumnTruncate="max-w-[300px]"
             columns={[
               { key: "key", label: "Top Pages", width: "w-[240px]" },
               { key: "sessions", label: "Sessions", sortable: true },

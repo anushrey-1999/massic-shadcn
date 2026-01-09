@@ -35,8 +35,8 @@ export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
             }
             className="cursor-pointer"
           />
-          <div className="flex items-center gap-2 pl-4 pr-2 flex-1 justify-center">
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-baseline gap-2 pl-4 pr-2 flex-1 justify-center">
+            <div className="flex items-baseline gap-1.5">
               <span style={item.color ? { color: item.color } : undefined} className={item.color ? undefined : "text-muted-foreground w-6 h-6"}>{item.icon}</span>
               <span
                 className="font-semibold leading-[120%] tracking-[-0.02em]"
@@ -48,7 +48,7 @@ export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
                 {item.value}
               </span>
             </div>
-            <StatsBadge value={item.change} variant="plain" />
+            <StatsBadge value={item.change} variant="small" valueClassName="text-[11px]" className="flex items-end" />
           </div>
         </label>
       ))}
@@ -88,7 +88,7 @@ export function PositionLegend({ items, onToggle, className }: PositionLegendPro
               } as React.CSSProperties
             }
           />
-          <div className="flex">
+          <div className="flex items-baseline">
           <span className="text-sm">{item.label}</span>
           <span className="text-sm font-medium">{item.value}</span>
           <StatsBadge value={item.change} variant="plain" />

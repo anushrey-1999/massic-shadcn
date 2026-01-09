@@ -1,7 +1,7 @@
 
 'use client'
 import React from 'react'
-import { Settings, Bell, LogOut, BarChart3, Target, Star, User, Link2, Globe, Tv, Share2 } from 'lucide-react'
+import { Settings, Bell, LogOut, BarChart3, Target, Star, User, Link2, Globe, Tv, Share2, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
@@ -173,6 +173,7 @@ export default function SingleBusinessSidebar() {
     { label: 'Strategy', slug: 'strategy', icon: Target },
     { label: 'Web', slug: 'web', icon: Globe },
     { label: 'Social', slug: 'social', icon: Share2 },
+    { label: 'Reports', slug: 'reports', icon: FileText },
     { label: 'Ads', slug: 'ads', icon: Tv },
     { label: 'Reviews', slug: 'reviews', icon: Star },
     { label: 'Profile', slug: 'profile', icon: User },

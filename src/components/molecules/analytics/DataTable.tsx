@@ -255,7 +255,8 @@ export function DataTable({
                           key={col.key}
                           className={cn(
                             styles.cell,
-                            isThreeColumnLayout && !col.width && (colIndex === 0 ? firstColumnWidth : otherColumnWidth)
+                            isThreeColumnLayout && !col.width && (colIndex === 0 ? firstColumnWidth : otherColumnWidth),
+                            col.width
                           )}
                         >
                           {isObject ? (
@@ -271,7 +272,7 @@ export function DataTable({
                                 </TooltipContent>
                               </Tooltip>
                               {(cellValue as { change?: number }).change !== undefined && (
-                                <StatsBadge value={(cellValue as { change: number }).change} className={cn("leading-none", styles.badge)} />
+                                <StatsBadge value={(cellValue as { change: number }).change} className={cn("leading-none flex items-center", styles.badge)} />
                               )}
                             </div>
                           ) : (

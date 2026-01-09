@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 import { useWebActionContentQuery, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
@@ -21,6 +21,7 @@ function getFinalContent(type: WebActionType, data: any): string {
 }
 
 export function WebPageView({ businessId, pageId }: { businessId: string; pageId: string }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const intent = searchParams.get("intent");
   const mode = searchParams.get("mode");
@@ -30,21 +31,29 @@ export function WebPageView({ businessId, pageId }: { businessId: string; pageId
     type,
     businessId,
     pageId,
-    enabled: !mode && !!businessId && !!pageId,
+    enabled: !!businessId && !!pageId,
     pollingIntervalMs: 6000,
   });
-
-  if (mode === "outline") {
-    return <WebOutlineView businessId={businessId} pageId={pageId} />;
-  }
-
-  if (mode === "final") {
-    return <WebBlogView businessId={businessId} pageId={pageId} />;
-  }
 
   const data = contentQuery.data;
   const finalContent = React.useMemo(() => getFinalContent(type, data), [type, data]);
   const hasFinal = !!finalContent && finalContent.trim().length > 0;
 
-  return hasFinal ? <WebBlogView businessId={businessId} pageId={pageId} /> : <WebOutlineView businessId={businessId} pageId={pageId} />;
+  React.useEffect(() => {
+    if (mode === "outline" && hasFinal) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("mode");
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
+  }, [mode, hasFinal, searchParams, router]);
+
+  if (mode === "outline" && !hasFinal) {
+    return <WebOutlineView businessId={businessId} pageId={pageId} />;
+  }
+
+  if (mode === "final" || hasFinal) {
+    return <WebBlogView businessId={businessId} pageId={pageId} />;
+  }
+
+  return <WebOutlineView businessId={businessId} pageId={pageId} />;
 }

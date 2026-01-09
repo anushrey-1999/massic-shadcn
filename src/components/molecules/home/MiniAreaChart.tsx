@@ -110,7 +110,7 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
             </linearGradient>
           </defs>
           <XAxis dataKey="date" hide />
-          <YAxis hide />
+          <YAxis hide domain={[0, 135]} />
           <ChartTooltip
             content={
               <ChartTooltipContent

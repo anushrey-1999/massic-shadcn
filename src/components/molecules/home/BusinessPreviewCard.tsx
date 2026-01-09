@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import {
 	AlertTriangle,
 	ArrowRight,
@@ -11,6 +11,7 @@ import {
 import { Card, CardContent, CardFooter, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { normalizeDomainForFavicon } from "@/utils/utils";
 import { StatsBadge } from "@/components/molecules/analytics";
 import {
 	MiniAreaChart,
@@ -40,6 +41,41 @@ function parsePercent(
 			: Number(String(diff).replace(/[^0-9.]/g, ""));
 	if (!Number.isFinite(raw)) return 0;
 	return (trend || "").toLowerCase() === "down" ? -raw : raw;
+}
+
+const FAVICON_URL = "https://www.google.com/s2/favicons?domain=";
+
+interface BusinessIconProps {
+	website?: string;
+	name?: string;
+}
+
+function BusinessIcon({ website, name }: BusinessIconProps) {
+	const [imgError, setImgError] = useState(false);
+	const fallbackInitial = name?.charAt(0).toUpperCase() || "B";
+
+	const normalizedDomain = normalizeDomainForFavicon(website);
+
+	if (!normalizedDomain || imgError) {
+		return (
+			<div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-xs border border-dashed border-black dark:border-white text-[9px] font-medium text-foreground aspect-square">
+				{fallbackInitial}
+			</div>
+		);
+	}
+
+	return (
+		<div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-xs overflow-hidden bg-accent aspect-square">
+			<img
+				src={`${FAVICON_URL}${normalizedDomain}`}
+				alt=""
+				width={16}
+				height={16}
+				className="h-full w-full object-contain"
+				onError={() => setImgError(true)}
+			/>
+		</div>
+	);
 }
 
 function normalizeUrlDomain(input: string) {
@@ -93,12 +129,15 @@ export function BusinessPreviewCard({
 			className="overflow-hidden border border-general-border-three p-2 shadow-none rounded-lg gap-4 flex flex-col h-full cursor-pointer"
 		>
 			<CardTitle className="text-sm font-medium p-0 shrink-0">
-				<Typography
-					variant="p"
-					className="text-base font-mono text-general-unofficial-foreground-alt"
-				>
-					{name || domain}
-				</Typography>
+				<div className="flex items-center gap-2">
+					<BusinessIcon website={url} name={name} />
+					<Typography
+						variant="p"
+						className="text-base font-mono text-general-unofficial-foreground-alt"
+					>
+						{name || domain}
+					</Typography>
+				</div>
 			</CardTitle>
 
 			{/* <a
@@ -158,7 +197,7 @@ export function BusinessPreviewCard({
 					</svg>
 					<div className="relative h-full flex items-center justify-center  gap-1.5">
 						<div className="flex items-center gap-0.5 leading-[150%]">
-              <Eye  className="text-gray-600 w-3.5 h-3.5 " />
+							<Eye className="text-gray-600 w-3.5 h-3.5 " />
 							<span className="text-sm font-medium text-gray-600">
 								{formatTotal(impressions?.Total)}
 							</span>

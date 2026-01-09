@@ -16,6 +16,7 @@ export interface ReportRunListItem {
   period_end: string | null
   period: string | null
   errors: ReportRunError | null
+  created_at: string
 }
 
 export interface ListReportRunsResponse {

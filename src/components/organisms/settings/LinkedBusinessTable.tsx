@@ -147,10 +147,92 @@ export default function LinkedBusinessTable() {
   const linkPropertyMutation = useLinkPropertyId();
   const toggleStatusMutation = useToggleBusinessStatus();
 
-  // Sync API data with local state
+  // Sync API data with local state while preserving unsaved changes
+  // This ensures that when one row is saved and the data refetches, 
+  // other rows with unsaved changes don't lose their modifications
   useEffect(() => {
     if (businessesData?.businesses) {
-      setLocalBusinesses(businessesData.businesses as LinkedBusiness[]);
+      setLocalBusinesses((prevLocalBusinesses) => {
+        const apiBusinesses = businessesData.businesses as LinkedBusiness[];
+
+        // If no previous local state, just set the API data
+        if (prevLocalBusinesses.length === 0) {
+          return apiBusinesses;
+        }
+
+        // Create a map of local businesses with unsaved changes
+        const localChangesMap = new Map<string, LinkedBusiness>();
+
+        prevLocalBusinesses.forEach((localBusiness) => {
+          const businessKey = localBusiness.siteUrl || localBusiness.id;
+          if (!businessKey) return;
+
+          // Check if this business has unsaved GA4 changes
+          const hasGa4Changes = (() => {
+            const originalGa4Id =
+              localBusiness.linkedPropertyId?.PropertyId ||
+              localBusiness.linkedPropertyId?.propertyId;
+
+            if (localBusiness.ga4Cleared && originalGa4Id) return true;
+            if (localBusiness.selectedGa4 && originalGa4Id) {
+              return localBusiness.selectedGa4.propertyId !== originalGa4Id;
+            }
+            if (localBusiness.selectedGa4 && !originalGa4Id) return true;
+            return false;
+          })();
+
+          // Check if this business has unsaved GBP changes
+          const hasGbpChanges = (() => {
+            if (!localBusiness.businessProfile?.Id) return false;
+
+            const backendNoLocationExist = localBusiness.businessProfile?.NoLocationExist === true;
+            const currentNoLocation = localBusiness.noLocation === true;
+
+            if (backendNoLocationExist !== currentNoLocation) return true;
+            if (currentNoLocation && backendNoLocationExist) return false;
+
+            const selectedGbpLocations = (localBusiness.selectedGbp || [])
+              .filter((gbp: any) => !gbp.isNoLocationOption)
+              .map((gbp: any) => gbp.location);
+            const businessLocations =
+              localBusiness.businessProfile?.Locations?.map((loc: any) => loc.Name) || [];
+
+            if (selectedGbpLocations.length !== businessLocations.length) return true;
+
+            const selectedSet = new Set(selectedGbpLocations);
+            for (const loc of businessLocations) {
+              if (!selectedSet.has(loc)) return true;
+            }
+
+            return false;
+          })();
+
+          // If this business has unsaved changes, store it
+          if (hasGa4Changes || hasGbpChanges) {
+            localChangesMap.set(businessKey, localBusiness);
+          }
+        });
+
+        // Merge API data with local unsaved changes
+        return apiBusinesses.map((apiBusiness) => {
+          const businessKey = apiBusiness.siteUrl || apiBusiness.id;
+          const localChanges = businessKey ? localChangesMap.get(businessKey) : undefined;
+
+          if (localChanges) {
+            // Preserve the local changes (selectedGa4, selectedGbp, noLocation, ga4Cleared, gbpCleared)
+            return {
+              ...apiBusiness,
+              selectedGa4: localChanges.selectedGa4,
+              selectedGbp: localChanges.selectedGbp,
+              noLocation: localChanges.noLocation,
+              ga4Cleared: localChanges.ga4Cleared,
+              gbpCleared: localChanges.gbpCleared,
+            };
+          }
+
+          return apiBusiness;
+        });
+      });
     }
   }, [businessesData]);
 
@@ -984,8 +1066,8 @@ export default function LinkedBusinessTable() {
                     tab.value === "all"
                       ? localBusinesses.length
                       : tab.value === "matched"
-                        ? localBusinesses.filter((b) => b.matchedGa4).length
-                        : localBusinesses.filter((b) => !b.matchedGa4).length;
+                        ? localBusinesses.filter((b) => !!b.businessProfile?.Id && b.businessProfile?.IsActive === true).length
+                        : localBusinesses.filter((b) => !(!!b.businessProfile?.Id && b.businessProfile?.IsActive === true)).length;
                   return (
                     <TabsTrigger
                       key={tab.value}

@@ -41,9 +41,9 @@ export function SourcesChannelsChart({
   hasData = true,
 }: SourcesChannelsChartProps) {
   const BAR_SIZE = 34
-  const CATEGORY_GAP = 16
+  const CATEGORY_GAP = 8
   const CHART_CHROME_HEIGHT = 60
-  const Y_AXIS_WIDTH = 90
+  const Y_AXIS_WIDTH = 110
   const Y_LABEL_LEFT_PADDING = 15
   const computedHeight = Math.max(
     height,
@@ -59,8 +59,9 @@ export function SourcesChannelsChart({
         dx={-(Y_AXIS_WIDTH - Y_LABEL_LEFT_PADDING)}
         textAnchor="start"
         dominantBaseline="central"
-        fontSize={10}
-        fill="#737373"
+        fontSize="12"
+        fill="#0A0A0A"
+        style={{ fill: "#0A0A0A", fontSize: "12px" }}
       >
         {payload?.value}
       </text>

@@ -34,6 +34,43 @@ export function TacticsTable({
 }: TacticsTableProps) {
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
 
+  const tableContainerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+
+      if (!tableContainerRef.current) return;
+
+      const isOutsideContainer = !tableContainerRef.current.contains(target);
+
+      // If click is outside container, collapse
+      if (isOutsideContainer) {
+        setExpandedRowId(null);
+        return;
+      }
+
+      // If click is inside container, check if it's on a table element or interactive element
+      const isOnTableElement = target?.closest?.(
+        'table, [role="table"], [role="row"], [role="cell"], [role="columnheader"], [role="rowheader"]'
+      );
+      const isOnInteractiveElement = target?.closest?.(
+        'button, input, select, textarea, a, [role="button"], [role="textbox"], [role="combobox"]'
+      );
+
+      // Collapse if click is inside container but not on table or interactive elements
+      // This handles clicks on empty space within the container
+      if (!isOnTableElement && !isOnInteractiveElement) {
+        setExpandedRowId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const columns = React.useMemo(
     () => getTacticsTableColumns({ channelName, businessId, expandedRowId }),
     [channelName, businessId, expandedRowId]
@@ -55,7 +92,7 @@ export function TacticsTable({
   });
 
   return (
-    <div className="flex flex-col h-full w-full gap-2.5">
+    <div ref={tableContainerRef} className="flex flex-col h-full w-full gap-2.5">
       <div className="shrink-0">
         <div
           role="toolbar"

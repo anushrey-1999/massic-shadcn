@@ -315,8 +315,9 @@ const DiscoveryPerformanceSection = ({
               onTabChange={(value) =>
                 handleTopPagesFilterChange(value as TableFilterType)
               }
+              firstColumnTruncate="max-w-[300px]"
               columns={[
-                { key: "key", label: "Top Pages", width: "w-[200px]" },
+                { key: "key", label: "Top Pages", width: "w-[180px]" },
                 { key: "impressions", label: "Impr.", sortable: true },
                 { key: "clicks", label: "Clicks", sortable: true },
               ]}

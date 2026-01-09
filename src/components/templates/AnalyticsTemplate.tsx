@@ -242,7 +242,6 @@ export function AnalyticsTemplate() {
             periodSelector={
               <PeriodSelector
                 value={selectedPeriod}
-                className="bg-foreground-light"
                 onValueChange={setSelectedPeriod}
               />
             }

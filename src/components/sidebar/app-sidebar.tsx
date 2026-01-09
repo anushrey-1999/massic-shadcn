@@ -51,7 +51,7 @@ interface BusinessIconProps {
 function BusinessIcon({ website, name }: BusinessIconProps) {
   const [imgError, setImgError] = useState(false)
   const fallbackInitial = name?.charAt(0).toUpperCase() || 'B'
-  
+
   const normalizedDomain = normalizeDomainForFavicon(website)
 
   if (!normalizedDomain || imgError) {
@@ -206,7 +206,6 @@ export default function AppSidebar() {
     { label: 'Strategy', slug: 'strategy' },
     { label: 'Web', slug: 'web' },
     { label: 'Social', slug: 'social' },
-    { label: 'Reports', slug: 'reports' },
     { label: 'Ads', slug: 'ads' },
     { label: 'Reviews', slug: 'reviews' },
     { label: 'Profile', slug: 'profile' },
@@ -485,7 +484,8 @@ export default function AppSidebar() {
                               <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
                                 {businessSubItems.map((subItem) => {
                                   const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
-                                  const isActive = pathname === subItemHref
+                                  const reportsPath = `/business/${business.UniqueId}/reports`
+                                  const isActive = pathname === subItemHref || (subItem.slug === 'analytics' && pathname.startsWith(reportsPath))
                                   return (
                                     <SidebarMenuSubItem key={subItem.slug}>
                                       <SidebarMenuSubButton

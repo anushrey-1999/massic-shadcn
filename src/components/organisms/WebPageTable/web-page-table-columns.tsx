@@ -54,8 +54,15 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       meta: {
         label: "Type",
-        placeholder: "Search types...",
-        variant: "text",
+        placeholder: "Select page type...",
+        variant: "select",
+        options: [
+          { label: "Geo page", value: "geographic landing page" },
+          { label: "Section in page", value: "section in existing page" },
+          { label: "Use case page", value: "category-use case page" },
+          { label: "Audience page", value: "category-audience page" },
+          { label: "Blog", value: "Blog" },
+        ],
         icon: Tag,
       },
       enableColumnFilter: true,

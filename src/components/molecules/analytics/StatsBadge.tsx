@@ -26,9 +26,9 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
     const wrapperClassName =
       variant === "small"
         ? "inline-flex items-baseline text-[8px] font-medium text-muted-foreground leading-none"
-        : "inline-flex items-baseline text-[10px] font-medium text-muted-foreground leading-none"
+        : "inline-flex items-baseline text-[11px] font-medium text-muted-foreground leading-none"
 
-    const iconSizeClassName = variant === "small" ? "h-2.5 w-2.5" : "h-3 w-3"
+    const iconSizeClassName = variant === "small" ? "h-2.5 w-2.5" : "h-2.5 w-2.5"
 
     return (
       <span
@@ -69,9 +69,9 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
     >
       {showIcon && !isNeutral &&
         (isPositive ? (
-          <Plus className="mr-0.5 h-2 w-2 self-baseline text-green-600" />
+          <Plus className="mr-0.5 h-2.5 w-2.5 self-baseline text-green-600" />
         ) : (
-          <Minus className="mr-0.5 h-2 w-2 self-baseline text-red-600" />
+          <Minus className="mr-0.5 h-2.5 w-2.5 self-baseline text-red-600" />
         ))}
       <span
         className={cn(

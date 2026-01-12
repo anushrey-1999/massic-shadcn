@@ -21,6 +21,19 @@
   animation: loaderGrow 1.2s ease-in-out infinite;
 }
 
+@keyframes floatUpDown {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float-up-down {
+  animation: floatUpDown 2s ease-in-out infinite;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

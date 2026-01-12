@@ -6,6 +6,7 @@ import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page
 import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOptimizationAnalysisTable'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
+import { EmptyState } from '@/components/molecules/EmptyState'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
@@ -33,12 +34,18 @@ function WebNewPagesTab({ businessId }: { businessId: string }) {
   if (!jobExists) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
-          <p className="text-muted-foreground">
-            Please create a job in the profile page to view web page data.
-          </p>
-        </div>
+        <EmptyState
+          showCard={false}
+          title="No Job Found"
+          description="Please create a job in the profile page to view web page data."
+          buttons={[
+            {
+              label: "Go to Profile Page",
+              href: `/business/${businessId}/profile`,
+              variant: "default"
+            }
+          ]}
+        />
       </div>
     )
   }
@@ -111,7 +118,10 @@ export default function BusinessWebPage({ params }: PageProps) {
             </TabsList>
           )}
           <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
-            <WorkflowStatusBanner businessId={businessId} />
+            <WorkflowStatusBanner 
+              businessId={businessId} 
+              emptyStateHeight="h-[calc(100vh-16rem)]"
+            />
             {showContent ? (
               <EntitlementsGuard
                 entitlement="web"

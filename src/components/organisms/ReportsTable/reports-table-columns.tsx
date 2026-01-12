@@ -7,6 +7,7 @@ import { DataTableColumnHeader } from "../../filter-table/data-table-column-head
 import { Button } from "@/components/ui/button";
 import { Typography } from "@/components/ui/typography";
 import type { ReportRunListItem } from "@/types/report-runs-types";
+import { formatDate } from "@/lib/format";
 
 interface GetReportsTableColumnsProps {
   businessId: string;
@@ -18,13 +19,13 @@ export function getReportsTableColumns({
   return [
     {
       id: "date_generated",
-      accessorKey: "date_generated",
+      accessorKey: "created_at",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Date Generated" />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="text-sm">
-          {row.original.date_generated || "—"}
+          {row.original.created_at ? formatDate(row.original.created_at, "MMM d, yyyy") : "—"}
         </Typography>
       ),
       enableSorting: true,
@@ -37,13 +38,13 @@ export function getReportsTableColumns({
     },
     {
       id: "time_generated",
-      accessorKey: "time_generated",
+      accessorKey: "created_at",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Time" />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="text-sm">
-          {row.original.time_generated || "—"}
+          {row.original.created_at ? formatDate(row.original.created_at, "h:mm a") : "—"}
         </Typography>
       ),
       enableSorting: true,

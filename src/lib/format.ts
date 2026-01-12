@@ -35,3 +35,24 @@ export function formatVolume(volume: number): string {
   return volume.toLocaleString();
 }
 
+export function formatPeriodRange(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined
+): string {
+  if (!startDate || !endDate) return ""
+  
+  try {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return ""
+    
+    const startFormatted = dateFnsFormat(start, "do MMM")
+    const endFormatted = dateFnsFormat(end, "do MMM")
+    
+    return `${startFormatted} - ${endFormatted}`
+  } catch {
+    return ""
+  }
+}
+

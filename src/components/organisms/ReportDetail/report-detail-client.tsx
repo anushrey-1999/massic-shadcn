@@ -12,6 +12,7 @@ import {
 import type { Editor } from "@tiptap/react";
 
 import { DownloadReportDialog } from "./download-report-dialog";
+import { ShareReportDialog } from "./share-report-dialog";
 
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useReportRunDetail } from "@/hooks/use-report-runs";
@@ -19,6 +20,12 @@ import { Button } from "@/components/ui/button";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { toast } from "sonner";
 import { copyToClipboard } from "@/utils/clipboard";
+import { formatPeriodRange } from "@/lib/format";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ReportDetailClientProps {
   businessId: string;
@@ -29,6 +36,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const router = useRouter();
   const [reportEditor, setReportEditor] = React.useState<Editor | null>(null);
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = React.useState(false);
 
   const { profileData } = useBusinessProfileById(businessId);
   const businessName = profileData?.Name || profileData?.DisplayName || "Business";
@@ -46,6 +54,10 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
 
   const performanceReport = reportData?.narrative_text?.performance_report || "";
   const period = reportData?.period || "3-month";
+  const periodStart = reportData?.period_start;
+  const periodEnd = reportData?.period_end;
+  const periodRange = formatPeriodRange(periodStart, periodEnd);
+  const reportTitle = `${businessName} ${period}${periodRange ? ` (${periodRange})` : ""} Performance Report`;
 
   const handleBack = () => {
     router.push(`/business/${businessId}/reports`);
@@ -56,7 +68,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   };
 
   const handleShare = () => {
-    toast.info("Share functionality coming soon");
+    setIsShareDialogOpen(true);
   };
 
   const handleCopyReport = async () => {
@@ -123,10 +135,17 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
         <>
           {/* Title and Actions Section */}
           <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <h1 className="font-mono text-base font-normal text-muted-foreground leading-normal">
-                {businessName} {period} Performance Report
-              </h1>
+            <div className="flex flex-col gap-1 flex-1 min-w-0 mr-4">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <h1 className="font-mono text-base font-normal text-muted-foreground leading-normal truncate cursor-pointer">
+                    {reportTitle}
+                  </h1>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start" className="max-w-[600px]">
+                  <p className="wrap-break-words">{reportTitle}</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             <div className="flex items-center gap-2">
@@ -152,8 +171,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
               </Button>
               <Button
                 onClick={handleShare}
-                disabled
-                className="gap-2 h-9 px-4 py-[7.5px] bg-primary text-primary-foreground hover:bg-primary/90"
+                className="gap-2 h-9 px-4 py-[7.5px] text-primary-foreground"
               >
                 <Mail className="h-[13.25px] w-[13.25px]" />
                 <span className="text-sm font-medium">Share</span>
@@ -206,7 +224,8 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
                 <InlineTipTapEditor
                   content={performanceReport}
                   isEditable={false}
-                  className="prose prose-sm max-w-none"
+                  className="prose prose-sm max-w-none border-0"
+                  editorClassName="border-0"
                   onEditorReady={setReportEditor}
                 />
               </div>
@@ -224,7 +243,13 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
         isOpen={isDownloadDialogOpen}
         onClose={() => setIsDownloadDialogOpen(false)}
         markdownContent={performanceReport}
-        defaultFilename={`${businessName} - ${period} Performance Report`}
+        defaultFilename={reportTitle}
+      />
+      <ShareReportDialog
+        isOpen={isShareDialogOpen}
+        onClose={() => setIsShareDialogOpen(false)}
+        reportName={reportTitle}
+        reportRunId={reportRunId}
       />
     </div>
   );

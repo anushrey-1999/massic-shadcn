@@ -145,12 +145,19 @@ export function AnalyticsTemplate() {
     conversion: useRef<HTMLDivElement>(null),
     "local-search": useRef<HTMLDivElement>(null),
   };
+  const isScrollingProgrammatically = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const observers: IntersectionObserver[] = [];
     const sectionStates: Record<string, boolean> = {};
 
     const updateActiveSection = () => {
+      // Ignore updates during programmatic scrolling
+      if (isScrollingProgrammatically.current) {
+        return;
+      }
+
       // If organic is intersecting, discovery should be active
       if (sectionStates["organic"]) {
         setActiveSection("discovery");
@@ -204,6 +211,15 @@ export function AnalyticsTemplate() {
     };
   }, []);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen scroll-smooth ">
       <PlanModal
@@ -238,7 +254,22 @@ export function AnalyticsTemplate() {
           <NavigationTabs
             items={navItems}
             activeSection={activeSection}
-            onSectionChange={setActiveSection}
+            onSectionChange={(id) => {
+              setActiveSection(id);
+              // Set flag to prevent IntersectionObserver from interfering
+              isScrollingProgrammatically.current = true;
+              
+              // Clear any existing timeout
+              if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+              }
+              
+              // Clear flag after scroll animation completes
+              scrollTimeoutRef.current = setTimeout(() => {
+                isScrollingProgrammatically.current = false;
+                scrollTimeoutRef.current = null;
+              }, 1000);
+            }}
             periodSelector={
               <PeriodSelector
                 value={selectedPeriod}

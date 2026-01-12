@@ -1,8 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Custom loader animation for 3D vertical rectangles - grow from 0 to full height */
-@keyframes loaderGrow {
+@keyframes loaderWave {
   0% {
     transform: scaleY(0);
     transform-origin: bottom;
@@ -17,8 +16,8 @@
   }
 }
 
-.animate-loader-grow {
-  animation: loaderGrow 1.2s ease-in-out infinite;
+.animate-loader-wave {
+  animation: loaderWave 1.2s ease-in-out infinite;
 }
 
 @keyframes floatUpDown {

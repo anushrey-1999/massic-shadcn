@@ -126,7 +126,7 @@ export function getStrategyTableColumns({
         icon: TrendingUp,
       },
       enableColumnFilter: true,
-      enableSorting: true,
+      enableSorting: false,
       size: 130,
       minSize: 110,
       maxSize: 160,

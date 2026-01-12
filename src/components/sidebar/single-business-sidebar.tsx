@@ -285,7 +285,16 @@ export default function SingleBusinessSidebar() {
           {businessNavItems.map((item) => {
             const itemHref = `/business/${business.UniqueId}/${item.slug}`
             const reportsPath = `/business/${business.UniqueId}/reports`
-            const isActive = pathname === itemHref || (item.slug === 'analytics' && pathname.startsWith(reportsPath))
+
+            const itemBasePath = `/business/${business.UniqueId}/${item.slug}`
+            let isActive = false
+            if (item.slug === 'analytics') {
+              isActive = pathname === itemHref || pathname.startsWith(reportsPath)
+            } else if (item.slug === 'profile') {
+              isActive = pathname === itemHref
+            } else {
+              isActive = pathname.startsWith(itemBasePath)
+            }
             return (
               <NavItem
                 key={item.slug}

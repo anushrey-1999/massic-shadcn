@@ -1,16 +1,16 @@
 "use client"
 
-import React from 'react'
-import Link from 'next/link'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { cn } from '@/lib/utils'
+import { EmptyState } from '@/components/molecules/EmptyState'
 
 interface WorkflowStatusBannerProps {
   businessId: string
   className?: string
+  emptyStateHeight?: string
 }
 
-export function WorkflowStatusBanner({ businessId, className }: WorkflowStatusBannerProps) {
+export function WorkflowStatusBanner({ businessId, className, emptyStateHeight }: WorkflowStatusBannerProps) {
   const { data: jobDetails, isLoading } = useJobByBusinessId(businessId || null)
   
   const workflowStatus = jobDetails?.workflow_status?.status
@@ -22,53 +22,51 @@ export function WorkflowStatusBanner({ businessId, className }: WorkflowStatusBa
   // Show message when no job exists
   if (!jobDetails || !workflowStatus) {
     return (
-      <div className={cn(
-        "bg-yellow-50 border border-yellow-200 text-yellow-900 px-4 py-3 rounded-lg mb-4",
-        className
-      )}>
-        <p className="text-sm">
-          No Job found, Please create one from{' '}
-          <Link 
-            href={`/business/${businessId}/profile`}
-            className="underline font-medium hover:text-yellow-700"
-          >
-            Profile Page
-          </Link>
-        </p>
-      </div>
+      <EmptyState
+        title="No Job Found"
+        className={emptyStateHeight || "h-[calc(100vh-12rem)]"}
+        description="Please create a job in the profile page to view web page data."
+        cardClassName={cn("", className)}
+        buttons={[
+          {
+            label: "Go to Profile",
+            href: `/business/${businessId}/profile`,
+            variant: "outline",
+            size: "lg"
+          }
+        ]}
+      />
     )
   }
 
   if (workflowStatus === "processing") {
     return (
-      <div className={cn(
-        "bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded-lg mb-4",
-        className
-      )}>
-        <p className="text-sm">
-          Your workflows are being proceed. You will get the data in sometime
-        </p>
-      </div>
+      <EmptyState
+        title="Workflow Processing"
+        description="Your workflows are being processed. Data will be available shortly."
+        className={emptyStateHeight}
+        cardClassName={cn("", className)}
+        isProcessing={true}
+      />
     )
   }
 
   if (workflowStatus === "error") {
     return (
-      <div className={cn(
-        "bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-lg mb-4",
-        className
-      )}>
-        <p className="text-sm">
-          Something went wrong, Re-run the workflows in{' '}
-          <Link 
-            href={`/business/${businessId}/profile`}
-            className="underline font-medium hover:text-red-700"
-          >
-            Profile
-          </Link>{' '}
-          page
-        </p>
-      </div>
+      <EmptyState
+        title="Workflow Error"
+        className={emptyStateHeight}
+        cardClassName={cn("", className)}
+        description="Something went wrong. Please re-run the workflows from your profile page."
+        buttons={[
+          {
+            label: "Go to Profile",
+            href: `/business/${businessId}/profile`,
+            variant: "outline",
+            size: "lg"
+          }
+        ]}
+      />
     )
   }
 

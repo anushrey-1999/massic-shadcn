@@ -271,7 +271,10 @@ export default function BusinessSocialPage({ params }: PageProps) {
       />
       {showBanner && (
         <div className="w-full max-w-[1224px] px-5 pt-5">
-          <WorkflowStatusBanner businessId={businessId} />
+          <WorkflowStatusBanner 
+            businessId={businessId} 
+            emptyStateHeight="h-[calc(100vh-12rem)]"
+          />
         </div>
       )}
       {showContent && jobDetails && (

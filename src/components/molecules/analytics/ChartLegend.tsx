@@ -1,23 +1,23 @@
-"use client"
+"use client";
 
-import { cn } from "@/lib/utils"
-import { Checkbox } from "@/components/ui/checkbox"
-import { StatsBadge } from "./StatsBadge"
+import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StatsBadge } from "./StatsBadge";
 
 interface ChartLegendItem {
-  key: string
-  label?: string
-  icon: React.ReactNode
-  value: string
-  change: number
-  color?: string
-  checked?: boolean
+  key: string;
+  label?: string;
+  icon: React.ReactNode;
+  value: string;
+  change: number;
+  color?: string;
+  checked?: boolean;
 }
 
 interface ChartLegendProps {
-  items: ChartLegendItem[]
-  onToggle?: (key: string, checked: boolean) => void
-  className?: string
+  items: ChartLegendItem[];
+  onToggle?: (key: string, checked: boolean) => void;
+  className?: string;
 }
 
 export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
@@ -35,43 +35,60 @@ export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
             }
             className="cursor-pointer"
           />
-          <div className="flex items-baseline gap-2 pl-4 pr-2 flex-1 justify-center">
-            <div className="flex items-baseline gap-1.5">
-              <span style={item.color ? { color: item.color } : undefined} className={item.color ? undefined : "text-muted-foreground w-6 h-6"}>{item.icon}</span>
+          <div className="flex items-center gap-1 pl-4  flex-1 justify-center">
+            <span
+              style={item.color ? { color: item.color } : undefined}
+              className={cn(
+                "flex items-baseline",
+                item.color ? undefined : "text-muted-foreground"
+              )}
+            >
+              {item.icon}
+            </span>
+            <div className="flex items-baseline gap-1 py-0.5 rounded">
               <span
                 className="font-semibold leading-[120%] tracking-[-0.02em]"
                 style={{
                   fontSize: "20px",
-                  ...(item.color ? { color: item.color } : {})
+                  ...(item.color ? { color: item.color } : {}),
                 }}
               >
                 {item.value}
               </span>
+              <StatsBadge
+                value={item.change}
+                variant="small"
+                valueClassName="text-[11px]"
+                className="flex items-end"
+              />
             </div>
-            <StatsBadge value={item.change} variant="small" valueClassName="text-[11px]" className="flex items-end" />
           </div>
         </label>
       ))}
     </div>
-  )
+  );
 }
 
 interface PositionLegendItem {
-  key: string
-  label: string
-  value: number
-  change: number
-  color: string
-  checked?: boolean
+  key: string;
+  label: string;
+  value: number;
+  change: number;
+  color: string;
+  checked?: boolean;
 }
 
 interface PositionLegendProps {
-  items: PositionLegendItem[]
-  onToggle?: (key: string, checked: boolean) => void
-  className?: string
+  items: PositionLegendItem[];
+  onToggle?: (key: string, checked: boolean) => void;
+  className?: string;
 }
 
-export function PositionLegend({ items, onToggle, className }: PositionLegendProps) {
+export function PositionLegend({
+  items,
+  onToggle,
+  className,
+}: PositionLegendProps) {
   return (
     <div className={cn("flex items-center gap-4 p-2", className)}>
       {items.map((item) => (
@@ -89,12 +106,12 @@ export function PositionLegend({ items, onToggle, className }: PositionLegendPro
             }
           />
           <div className="flex items-baseline">
-          <span className="text-sm">{item.label}</span>
-          <span className="text-sm font-medium">{item.value}</span>
-          <StatsBadge value={item.change} variant="plain" />
+            <span className="text-sm">{item.label}</span>
+            <span className="text-sm font-medium">{item.value}</span>
+            <StatsBadge value={item.change} variant="plain" />
           </div>
         </div>
       ))}
     </div>
-  )
+  );
 }

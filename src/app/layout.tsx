@@ -25,6 +25,9 @@ export const metadata: Metadata = {
     template: siteMeta.titleTemplate,
   },
   description: siteMeta.description,
+  icons: {
+    icon: "/massic-logo-green.svg",
+  },
 };
 
 export default function RootLayout({

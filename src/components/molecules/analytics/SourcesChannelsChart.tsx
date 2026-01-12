@@ -168,12 +168,12 @@ export function SourcesChannelsChart({
                 shared={true}
                 trigger="hover"
               />
-              <Legend
+              {/* <Legend
                 content={renderLegend}
                 verticalAlign="top"
                 align="right"
                 wrapperStyle={{ paddingBottom: "0px" }}
-              />
+              /> */}
               <Bar 
                 dataKey="sessionsNorm" 
                 radius={4} 

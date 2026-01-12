@@ -53,6 +53,31 @@ function isScoreKey(key: string): boolean {
   return k.includes("score") || k.includes("relevance") || k.includes("priority") || k === "ops";
 }
 
+function extractWorkflowName(filename?: string): string {
+  if (!filename) return "unknown";
+  const match = filename.match(/^([^_]+(?:_[^_]+)*)_\d+\.txt$/);
+  if (match) {
+    return match[1];
+  }
+  return "unknown";
+}
+
+function groupReferencesByWorkflow(
+  references: ChatReference[]
+): Map<string, ChatReference[]> {
+  const groups = new Map<string, ChatReference[]>();
+
+  for (const ref of references || []) {
+    const workflow = extractWorkflowName(ref.filename);
+    if (!groups.has(workflow)) {
+      groups.set(workflow, []);
+    }
+    groups.get(workflow)!.push(ref);
+  }
+
+  return groups;
+}
+
 function getOrderedMetadataKeys(references: ChatReference[]): string[] {
   const seen = new Set<string>();
   const ordered: string[] = [];
@@ -134,7 +159,13 @@ function getColumns(keys: string[]): ColumnDef<ReferenceRow>[] {
   });
 }
 
-export function ReferencesMetadataTable({ references }: { references: ChatReference[] }) {
+function WorkflowTable({
+  workflowName,
+  references,
+}: {
+  workflowName: string;
+  references: ChatReference[];
+}) {
   const data = React.useMemo(() => toRows(references), [references]);
   const keys = React.useMemo(() => getOrderedMetadataKeys(references), [references]);
   const columns = React.useMemo(() => getColumns(keys), [keys]);
@@ -146,25 +177,55 @@ export function ReferencesMetadataTable({ references }: { references: ChatRefere
       sorting: keys.length ? [{ id: keys[0], desc: false }] : [],
       pagination: {
         pageIndex: 0,
-        pageSize: 100,
+        pageSize: data.length || 100,
       },
     },
     getRowId: (row: ReferenceRow) => row.id,
   });
 
+  const displayName = workflowName
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
   return (
-    <div className="bg-white rounded-lg p-4 h-full w-full flex flex-col overflow-hidden">
-      <div className="flex-1 min-h-0 w-full">
-        <DataTable
-          table={table}
-          isLoading={false}
-          isFetching={false}
-          pageSizeOptions={[10, 30, 50, 100, 200]}
-          emptyMessage="No sources found."
-          disableHorizontalScroll={false}
-          className="h-full"
-        />
+    <div className="mb-6 last:mb-0">
+      <Typography variant="h3" className="mb-1 text-sm font-semibold pl-4">
+        {displayName}
+      </Typography>
+      <div className="bg-white rounded-lg p-4 w-full flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 w-full">
+          <DataTable
+            table={table}
+            isLoading={false}
+            isFetching={false}
+            pageSizeOptions={[10, 30, 50, 100, 200]}
+            emptyMessage="No sources found."
+            disableHorizontalScroll={false}
+            className="h-full"
+            showPagination={false}
+          />
+        </div>
       </div>
+    </div>
+  );
+}
+
+export function ReferencesMetadataTable({ references }: { references: ChatReference[] }) {
+  const workflowGroups = React.useMemo(
+    () => groupReferencesByWorkflow(references),
+    [references]
+  );
+
+  const sortedWorkflows = React.useMemo(() => {
+    return Array.from(workflowGroups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [workflowGroups]);
+
+  return (
+    <div className="h-full w-full flex flex-col overflow-auto">
+      {sortedWorkflows.map(([workflowName, refs]) => (
+        <WorkflowTable key={workflowName} workflowName={workflowName} references={refs} />
+      ))}
     </div>
   );
 }

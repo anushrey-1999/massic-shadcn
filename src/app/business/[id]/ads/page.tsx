@@ -4,6 +4,7 @@ import React from 'react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
+import { EmptyState } from '@/components/molecules/EmptyState'
 import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
 import { TvRadioAdsTableClient } from '@/components/organisms/TvRadioAdsTable'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
@@ -42,12 +43,18 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
   if (!jobExists) {
     return (
       <div className="flex items-center justify-center flex-1">
-        <div className="text-center">
-          <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
-          <p className="text-muted-foreground">
-            Please create a job in the profile page to view ads data.
-          </p>
-        </div>
+        <EmptyState
+          showCard={false}
+          title="No Job Found"
+          description="Please create a job in the profile page to view ads data."
+          buttons={[
+            {
+              label: "Go to Profile Page",
+              href: `/business/${businessId}/profile`,
+              variant: "default"
+            }
+          ]}
+        />
       </div>
     )
   }
@@ -83,7 +90,7 @@ export default function BusinessAdsPage({ params }: PageProps) {
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
   const workflowStatus = jobDetails?.workflow_status?.status
   const showContent = workflowStatus === "success"
-  const showBanner = workflowStatus === "processing" || workflowStatus === "error"
+  const showBanner = !jobDetails || !workflowStatus || workflowStatus === "processing" || workflowStatus === "error"
 
   const breadcrumbs = React.useMemo(
     () => [
@@ -118,7 +125,10 @@ export default function BusinessAdsPage({ params }: PageProps) {
       <PageHeader breadcrumbs={breadcrumbs} />
       {showBanner && (
         <div className="w-full max-w-[1224px] px-5 pt-5">
-          <WorkflowStatusBanner businessId={businessId} />
+          <WorkflowStatusBanner 
+            businessId={businessId} 
+            emptyStateHeight="h-[calc(100vh-12rem)]"
+          />
         </div>
       )}
       {showContent && (

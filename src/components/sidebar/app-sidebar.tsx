@@ -485,7 +485,16 @@ export default function AppSidebar() {
                                 {businessSubItems.map((subItem) => {
                                   const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
                                   const reportsPath = `/business/${business.UniqueId}/reports`
-                                  const isActive = pathname === subItemHref || (subItem.slug === 'analytics' && pathname.startsWith(reportsPath))
+                                  const itemBasePath = `/business/${business.UniqueId}/${subItem.slug}`
+                                  let isActive = false
+                                  if (subItem.slug === 'analytics') {
+                                    isActive = pathname === subItemHref || pathname.startsWith(reportsPath)
+                                  } else if (subItem.slug === 'profile') {
+                                    isActive = pathname === subItemHref
+                                  } else {
+                                    isActive = pathname.startsWith(itemBasePath)
+                                  }
+                                  
                                   return (
                                     <SidebarMenuSubItem key={subItem.slug}>
                                       <SidebarMenuSubButton

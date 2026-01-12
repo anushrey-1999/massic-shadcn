@@ -247,9 +247,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
                   {viewButtonLabel}
                 </Button>
               </div>
-            ) : hasOutline ? (
+            ) : hasOutline || isGenerating ? (
               <div className="flex w-full justify-center gap-3">
-                <Button type="button" variant="outline" onClick={handleViewOutline} disabled={isGenerating}>
+                <Button type="button" variant="outline" onClick={handleViewOutline} disabled={false}>
                   View Outline
                 </Button>
                 <Button type="button" variant="default" onClick={handleGenerateFinal} disabled={isGenerating || workingAction !== null}>

@@ -248,7 +248,7 @@ export function SocialActionCell({
               </Button>
             </DialogClose>
 
-            {showGeneratingCard ? (
+            {showGeneratingCard || isGenerating ? (
               <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-10 text-center flex flex-col items-center justify-center gap-2">
                 <Typography variant="p" className="text-muted-foreground">
                   Generating social content... This may take a few minutes.

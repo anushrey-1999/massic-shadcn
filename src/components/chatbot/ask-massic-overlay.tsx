@@ -373,6 +373,8 @@ export function AskMassicOverlay({
   const messagesScrollContainerRef = React.useRef<HTMLDivElement | null>(null);
   const lastScrollTopRef = React.useRef(0);
   const suppressNextAutoScrollRef = React.useRef(false);
+  const savedScrollPositionRef = React.useRef<number | null>(null);
+  const savedPanelScrollPositionRef = React.useRef<number | null>(null);
 
   const connectedButtonStyle = React.useMemo<
     React.CSSProperties | undefined
@@ -614,6 +616,30 @@ export function AskMassicOverlay({
   }, [open, messages.length, ui, activePanel]);
 
   React.useEffect(() => {
+    if (isPanelFullscreen) return;
+    if (savedScrollPositionRef.current === null) return;
+
+    const container = messagesScrollContainerRef.current;
+    if (!container) return;
+
+    suppressNextAutoScrollRef.current = true;
+
+    const restoreScroll = () => {
+      const viewport = container.querySelector<HTMLElement>(
+        '[data-slot="scroll-area-viewport"]'
+      );
+      if (viewport && savedScrollPositionRef.current !== null) {
+        viewport.scrollTop = savedScrollPositionRef.current;
+        savedScrollPositionRef.current = null;
+      }
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(restoreScroll);
+    });
+  }, [isPanelFullscreen]);
+
+  React.useEffect(() => {
     return () => {
       streamCleanupRef.current?.();
       streamCleanupRef.current = null;
@@ -621,15 +647,57 @@ export function AskMassicOverlay({
   }, []);
 
   const openPanel = (panel: PanelPayload) => {
+    // Save scroll position before opening panel
+    const container = messagesScrollContainerRef.current;
+    const viewport = container?.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]'
+    );
+    if (viewport) {
+      savedPanelScrollPositionRef.current = viewport.scrollTop;
+    }
     suppressNextAutoScrollRef.current = true;
     setActivePanel(panel);
     setUi("split");
   };
 
   const clearPanel = () => {
+    const scrollPositionToRestore = savedPanelScrollPositionRef.current;
     setActivePanel(null);
     setUi("full");
     setIsPanelFullscreen(false);
+    
+    // Restore scroll position after closing panel
+    if (scrollPositionToRestore !== null) {
+      suppressNextAutoScrollRef.current = true;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const container = messagesScrollContainerRef.current;
+          const viewport = container?.querySelector<HTMLElement>(
+            '[data-slot="scroll-area-viewport"]'
+          );
+          if (viewport) {
+            viewport.scrollTop = scrollPositionToRestore;
+          }
+          savedPanelScrollPositionRef.current = null;
+        });
+      });
+    } else {
+      savedPanelScrollPositionRef.current = null;
+    }
+  };
+
+  const handleToggleFullscreen = () => {
+    if (!isPanelFullscreen) {
+      // Entering fullscreen - save scroll position
+      const container = messagesScrollContainerRef.current;
+      const viewport = container?.querySelector<HTMLElement>(
+        '[data-slot="scroll-area-viewport"]'
+      );
+      if (viewport) {
+        savedScrollPositionRef.current = viewport.scrollTop;
+      }
+    }
+    setIsPanelFullscreen(!isPanelFullscreen);
   };
 
   const sendInPlace = async (text: string) => {
@@ -1006,7 +1074,7 @@ export function AskMassicOverlay({
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => setIsPanelFullscreen(!isPanelFullscreen)}
+                          onClick={handleToggleFullscreen}
                           aria-label={isPanelFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
                         >
                           {isPanelFullscreen ? (

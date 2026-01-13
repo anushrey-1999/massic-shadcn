@@ -23,7 +23,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           toast: "group toast",
           title: "group-data-[type=error]:text-destructive-foreground",
           description:
-            "text-muted-foreground group-data-[type=error]:text-destructive-foreground",
+            "!text-gray-600 group-data-[type=error]:!text-gray-600",
         },
       }}
       icons={{

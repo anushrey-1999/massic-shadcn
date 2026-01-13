@@ -59,18 +59,6 @@ function InitialStep({
           Continue with Email
         </Button>
 
-        <p className="text-center text-xs text-muted-foreground">
-          By continuing, you agree to our{" "}
-          <Link href="/terms" className="underline hover:text-foreground">
-            Terms of Service
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="underline hover:text-foreground">
-            Privacy Policy
-          </Link>
-          .
-        </p>
-
         <p className="text-center text-sm text-muted-foreground">
           Already have an account?{" "}
           <Link href="/login" className="underline hover:text-foreground">
@@ -86,10 +74,12 @@ function EmailFormStep({
   onBack,
   onContinue,
   isLoading,
+  isGoogleSignup = false,
 }: {
   onBack: () => void;
   onContinue: () => void;
   isLoading: boolean;
+  isGoogleSignup?: boolean;
 }) {
   const { userSignupData, setUserSignupData } = useSignupStore();
 
@@ -121,8 +111,14 @@ function EmailFormStep({
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Continue with Email</CardTitle>
-        <CardDescription>Please enter your details below</CardDescription>
+        <CardTitle className="text-2xl">
+          {isGoogleSignup ? "Complete Your Profile" : "Continue with Email"}
+        </CardTitle>
+        <CardDescription>
+          {isGoogleSignup
+            ? "Set a password to complete your account setup"
+            : "Please enter your details below"}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -133,7 +129,7 @@ function EmailFormStep({
             value={userSignupData.firstName}
             onChange={(e) => setUserSignupData({ firstName: e.target.value })}
             required
-            disabled={isLoading}
+            disabled={isLoading || isGoogleSignup}
           />
           <GenericInput
             type="input"
@@ -142,7 +138,7 @@ function EmailFormStep({
             value={userSignupData.lastName}
             onChange={(e) => setUserSignupData({ lastName: e.target.value })}
             required
-            disabled={isLoading}
+            disabled={isLoading || isGoogleSignup}
           />
         </div>
 
@@ -153,7 +149,7 @@ function EmailFormStep({
           value={userSignupData.email}
           onChange={(e) => setUserSignupData({ email: e.target.value })}
           required
-          disabled={isLoading}
+          disabled={isLoading || isGoogleSignup}
         />
 
         <GenericInput
@@ -557,7 +553,7 @@ export default function SignupPage() {
           lastName: googleDetails?.lastName || "",
           googleToken: credentialResponse.credential,
         });
-        setStep("userTypeSelection");
+        setStep("emailForm");
         return;
       }
       const errorMessage =
@@ -671,6 +667,7 @@ export default function SignupPage() {
           onBack={() => handleBack("initial")}
           onContinue={handleEmailFormContinue}
           isLoading={isLoading}
+          isGoogleSignup={!!userSignupData.googleToken}
         />
       )}
 

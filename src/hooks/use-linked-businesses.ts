@@ -254,14 +254,23 @@ export function useCreateAgencyBusiness() {
           })),
         };
 
-        const response = await api.post<any>(
-          "/profile/create-agency-businesses",
-          "node",
-          payload
-        );
+        try {
+          const response = await api.post<any>(
+            "/profile/create-agency-businesses",
+            "node",
+            payload
+          );
 
-        if (response.status !== 200 && response.err !== false) {
-          throw new Error(response.message || response.response?.data?.message || "Failed to connect businesses");
+          if (response.err === true || response.success === false) {
+            throw new Error(response.message || "Failed to connect businesses");
+          }
+        } catch (error: any) {
+          // If axios error with response (status code error like 409)
+          if (error.response?.data) {
+            const errorData = error.response.data;
+            throw new Error(errorData.message || errorData.error || "Failed to connect businesses");
+          }
+          throw error;
         }
       }
     },

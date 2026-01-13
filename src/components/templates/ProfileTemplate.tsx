@@ -1149,7 +1149,7 @@ const ProfileTemplate = ({
     }
 
     if (!externalJobDetails?.job_id) return "Add offerings first to proceed to Strategy.";
-    if (isWorkflowProcessing) return "Workflow is already processing.";
+    if (isWorkflowProcessing) return "Workflows are under process. Please wait till they are done.";
     if (isTriggeringWorkflow) return "Triggering workflow...";
     if (externalLoading) return "Please wait for the profile to finish loading.";
     if (isSaving) return "Saving in progress.";
@@ -1252,6 +1252,7 @@ const ProfileTemplate = ({
             onButtonClick={handlePrimaryButtonClick}
             buttonDisabled={isButtonDisabled}
             buttonHelperText={buttonHelperText}
+            isWorkflowProcessing={isWorkflowProcessing}
           />
           {/* Loader overlay only on the right panel (form content) */}
 

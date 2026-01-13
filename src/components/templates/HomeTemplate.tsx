@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { BusinessPreviewCard } from "@/components/molecules/home/BusinessPreviewCard";
 import { OnboardingCard } from "@/components/molecules/home/OnboardingCard";
 import { Typography } from "@/components/ui/typography";
+import { EmptyState } from "@/components/molecules/EmptyState";
 
 type PreviewGraphRow = {
 	keys?: [string];
@@ -471,6 +472,28 @@ export function HomeTemplate() {
 											</Card>
 										))}
 									</div>
+								) : activeBusinesses.length === 0 ? (
+									<EmptyState
+										title="No Data Found"
+										cardClassName="bg-white h-full flex items-center justify-center"
+										description="Connect your business from Settings page or Create Manually"
+										buttons={[
+											{
+												label: "Go to Settings",
+												href: "/settings",
+												variant: "outline",
+												size: "lg"
+											},
+											{
+												label: "Create Manually",
+												href: "/create-business",
+												variant: "outline",
+												size: "lg"
+											}
+										]}
+										
+										className="h-full"
+									/>
 								) : (
 									<div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1 auto-rows-max">
 										{activeBusinesses.map(({ preview, name, domain, uniqueId }) => {
@@ -527,6 +550,13 @@ export function HomeTemplate() {
 											</Card>
 										))}
 									</div>
+								) : onboardingCards.length === 0 ? (
+									<EmptyState
+										title="No Data Found"
+										description="No onboarding businesses found"
+										cardClassName="bg-general-primary-foreground h-full flex items-center justify-center"
+										className="h-full"
+									/>
 								) : (
 									<div className="flex flex-col gap-2.5 overflow-y-auto flex-1">
 										{onboardingCards.map((card) => (
@@ -538,14 +568,6 @@ export function HomeTemplate() {
 												tasks={card.tasks}
 											/>
 										))}
-
-										{!previewsLoading && !onboardingJobsLoading && onboardingCards.length === 0 && (
-											<Card className="border-border">
-												<CardContent className="p-3 text-sm text-muted-foreground">
-													No onboarding businesses found
-												</CardContent>
-											</Card>
-										)}
 									</div>
 								)}
 								</div>
@@ -588,6 +610,27 @@ export function HomeTemplate() {
 											</Card>
 										))}
 									</div>
+								) : activeBusinesses.length === 0 ? (
+									<EmptyState
+										title="No Data Found"
+										description="Connect your business from Settings page or Create Manually"
+										cardClassName="bg-white"
+										buttons={[
+											{
+												label: "Go to Settings",
+												href: "/settings",
+												variant: "outline",
+												size: "lg"
+											},
+											{
+												label: "Create Manually",
+												href: "/create-business",
+												variant: "outline",
+												size: "lg"
+											}
+										]}
+										className="h-full"
+									/>
 								) : (
 									<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
 										{activeBusinesses.map(({ preview, name, domain, uniqueId }) => {
@@ -646,6 +689,13 @@ export function HomeTemplate() {
 											</Card>
 										))}
 									</div>
+								) : onboardingCards.length === 0 ? (
+									<EmptyState
+										title="No Data Found"
+										description="No onboarding businesses found"
+										cardClassName="bg-general-primary-foreground"
+										className="h-full"
+									/>
 								) : (
 									<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
 										{onboardingCards.map((card) => (
@@ -657,14 +707,6 @@ export function HomeTemplate() {
 												tasks={card.tasks}
 											/>
 										))}
-
-										{!previewsLoading && !onboardingJobsLoading && onboardingCards.length === 0 && (
-											<Card className="border-border">
-												<CardContent className="p-3 text-sm text-muted-foreground">
-													No onboarding businesses found
-												</CardContent>
-											</Card>
-										)}
 									</div>
 								)}
 								</div>

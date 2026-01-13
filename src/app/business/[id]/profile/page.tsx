@@ -28,6 +28,13 @@ export default function BusinessProfilePage() {
     refetch: refetchJob
   } = useJobByBusinessId(businessId || null)
 
+  // Refetch job details on mount to get latest workflow status
+  useEffect(() => {
+    if (businessId) {
+      refetchJob()
+    }
+  }, [businessId, refetchJob])
+
   // Fetch locations using React Query (limited to 1000 for performance)
   const { locationOptions, isLoading: locationsLoading } = useLocations("us")
 

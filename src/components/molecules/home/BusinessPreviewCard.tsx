@@ -204,7 +204,8 @@ export function BusinessPreviewCard({
 						</div>
 						<StatsBadge
 							value={parsePercent(impressions?.Diff, impressions?.Trend)}
-							variant="small"
+							variant="plain"
+							className="flex items-end"
 						/>
 					</div>
 				</div>
@@ -233,7 +234,8 @@ export function BusinessPreviewCard({
 						</div>
 						<StatsBadge
 							value={parsePercent(clicks?.Diff, clicks?.Trend)}
-							variant="small"
+							variant="plain"
+							className="flex items-end"
 						/>
 					</div>
 				</div>
@@ -262,7 +264,8 @@ export function BusinessPreviewCard({
 						</div>
 						<StatsBadge
 							value={parsePercent(goals?.Diff, goals?.Trend)}
-							variant="small"
+							variant="plain"
+							className="flex items-end"
 						/>
 					</div>
 				</div>

@@ -6,8 +6,6 @@ import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page
 import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOptimizationAnalysisTable'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
-import { EmptyState } from '@/components/molecules/EmptyState'
-import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { cn } from '@/lib/utils'
@@ -20,36 +18,6 @@ interface PageProps {
 }
 
 function WebNewPagesTab({ businessId }: { businessId: string }) {
-  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
-  const jobExists = jobDetails && jobDetails.job_id
-
-  if (jobLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Checking job status...</p>
-      </div>
-    )
-  }
-
-  if (!jobExists) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <EmptyState
-          showCard={false}
-          title="No Job Found"
-          description="Please create a job in the profile page to view web page data."
-          buttons={[
-            {
-              label: "Go to Profile Page",
-              href: `/business/${businessId}/profile`,
-              variant: "default"
-            }
-          ]}
-        />
-      </div>
-    )
-  }
-
   return <WebPageTableClient businessId={businessId} />
 }
 
@@ -72,11 +40,8 @@ export default function BusinessWebPage({ params }: PageProps) {
   }, [params])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
-  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
-  const workflowStatus = jobDetails?.workflow_status?.status
-  const showContent = workflowStatus === "success"
 
   const breadcrumbs = React.useMemo(
     () => [
@@ -95,7 +60,7 @@ export default function BusinessWebPage({ params }: PageProps) {
     )
   }
 
-  if (profileDataLoading || jobLoading) {
+  if (profileDataLoading) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader breadcrumbs={breadcrumbs} />
@@ -118,19 +83,17 @@ export default function BusinessWebPage({ params }: PageProps) {
             </TabsList>
           )}
           <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
-            <WorkflowStatusBanner 
-              businessId={businessId} 
-              emptyStateHeight="h-[calc(100vh-16rem)]"
-            />
-            {showContent ? (
-              <EntitlementsGuard
-                entitlement="web"
-                businessId={businessId}
-                alertMessage="You're on Starter. Upgrade your plan to unlock Web."
-              >
-                <WebNewPagesTab businessId={businessId} />
-              </EntitlementsGuard>
-            ) : null}
+            <EntitlementsGuard
+              entitlement="web"
+              businessId={businessId}
+              alertMessage="You're on Starter. Upgrade your plan to unlock Web."
+            >
+              <WorkflowStatusBanner 
+                businessId={businessId} 
+                emptyStateHeight="h-[calc(100vh-16rem)]"
+              />
+              <WebNewPagesTab businessId={businessId} />
+            </EntitlementsGuard>
           </TabsContent>
           <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
             <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>

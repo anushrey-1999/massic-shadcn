@@ -36,6 +36,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useUnlinkGoogleAccount } from "@/hooks/use-unlink-google-account";
+import { EmptyState } from "@/components/molecules/EmptyState";
+import { cn } from "@/lib/utils";
 
 const agencyFormSchema = z.object({
   agencyName: z.string().min(1, "Agency Name is required"),
@@ -352,14 +354,15 @@ export function ProfileSettings() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 ">
+          <div className={cn("", linkedGoogleAccounts.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-3 gap-4")}>
             {/* Linked Accounts List */}
             <div className="lg:col-span-1 space-y-3">
               {linkedGoogleAccounts.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center">
-                  No Google accounts linked yet. Click "Add Account" to connect
-                  your first Google account.
-                </p>
+                <EmptyState
+                  title="No Google accounts linked yet."
+                  description='Click "Add Account" to connect your first Google account.'
+                  cardClassName="bg-white"
+                />
               ) : (
                 linkedGoogleAccounts.map((account, index) => (
                   <div
@@ -450,7 +453,16 @@ export function ProfileSettings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <LinkedBusinessTable />
+      <div className="relative">
+        <LinkedBusinessTable />
+        {linkedGoogleAccounts.length === 0 && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg backdrop-blur-sm bg-background/60">
+            <Typography variant="h4" className="text-general-muted-foreground">
+              Connect Google account to see your businesses
+            </Typography>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

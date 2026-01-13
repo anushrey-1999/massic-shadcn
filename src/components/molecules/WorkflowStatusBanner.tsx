@@ -70,5 +70,24 @@ export function WorkflowStatusBanner({ businessId, className, emptyStateHeight }
     )
   }
 
+  if (workflowStatus === "pending") {
+    return (
+      <EmptyState
+        title="No Data Found"
+        className={emptyStateHeight}
+        cardClassName={cn("", className)}
+        description="Trigger workflow from Profile page to start the workflows"
+        buttons={[
+          {
+            label: "Go to Profile",
+            href: `/business/${businessId}/profile`,
+            variant: "outline",
+            size: "lg"
+          }
+        ]}
+      />
+    )
+  }
+
   return null
 }

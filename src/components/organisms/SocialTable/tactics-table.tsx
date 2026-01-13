@@ -71,9 +71,21 @@ export function TacticsTable({
     };
   }, []);
 
+  const handleExpandedRowChange = React.useCallback(
+    (rowId: string | null) => {
+      setExpandedRowId(rowId);
+    },
+    []
+  );
+
   const columns = React.useMemo(
-    () => getTacticsTableColumns({ channelName, businessId, expandedRowId }),
-    [channelName, businessId, expandedRowId]
+    () => getTacticsTableColumns({ 
+      channelName, 
+      businessId, 
+      expandedRowId, 
+      onExpandedRowChange: handleExpandedRowChange 
+    }),
+    [channelName, businessId, expandedRowId, handleExpandedRowChange]
   );
 
   const { table } = useLocalDataTable({
@@ -92,8 +104,8 @@ export function TacticsTable({
   });
 
   return (
-    <div ref={tableContainerRef} className="flex flex-col h-full w-full gap-2.5">
-      <div className="shrink-0">
+    <div ref={tableContainerRef} className="bg-white rounded-lg p-4 flex flex-col h-full w-full overflow-hidden">
+      <div className="shrink-0 mb-4">
         <div
           role="toolbar"
           aria-orientation="horizontal"

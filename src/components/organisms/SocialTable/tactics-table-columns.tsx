@@ -15,6 +15,7 @@ interface GetTacticsTableColumnsProps {
   channelName?: string;
   businessId?: string;
   expandedRowId?: string | null;
+  onExpandedRowChange?: (rowId: string | null) => void;
 }
 
 function extractRedditThreadPath(url: string): string {
@@ -35,7 +36,7 @@ function extractRedditThreadPath(url: string): string {
   }
 }
 
-export function getTacticsTableColumns({ channelName, businessId, expandedRowId }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
+export function getTacticsTableColumns({ channelName, businessId, expandedRowId, onExpandedRowChange }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
   const isReddit = channelName?.toLowerCase() === "reddit";
 
   if (isReddit) {
@@ -143,13 +144,17 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId 
         ),
         cell: ({ row }) => {
           const keywords = row.original.related_keywords || [];
-          const isExpanded = expandedRowId === row.original.id;
+          const rowId = row.original.id;
+          const isExpanded = expandedRowId === rowId;
           return (
             <div className="max-w-full">
               <ExpandablePills 
                 items={keywords} 
                 pillVariant="outline" 
                 expanded={isExpanded}
+                onExpandedChange={(next) => {
+                  onExpandedRowChange?.(next ? rowId : null);
+                }}
               />
             </div>
           );
@@ -293,13 +298,17 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId 
       ),
       cell: ({ row }) => {
         const keywords = row.original.related_keywords || [];
-        const isExpanded = expandedRowId === row.original.id;
+        const rowId = row.original.id;
+        const isExpanded = expandedRowId === rowId;
         return (
           <div className="max-w-full">
             <ExpandablePills 
               items={keywords} 
               pillVariant="outline" 
               expanded={isExpanded}
+              onExpandedChange={(next) => {
+                onExpandedRowChange?.(next ? rowId : null);
+              }}
             />
           </div>
         );

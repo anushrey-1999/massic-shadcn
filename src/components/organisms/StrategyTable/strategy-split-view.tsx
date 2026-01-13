@@ -180,7 +180,7 @@ export const StrategySplitView = React.memo(function StrategySplitView({
   }, []);
 
   return (
-    <div ref={tableContainerRef} className="">
+    <div ref={tableContainerRef} className="h-full flex flex-col">
       <SplitTableView
         leftTable={leftTable}
         leftEmptyMessage="No topics found."

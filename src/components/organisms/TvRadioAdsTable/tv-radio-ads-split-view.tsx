@@ -7,7 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { TvRadioAdConceptRow } from "@/types/tv-radio-ads-types";
 import { TvRadioAdExampleCard } from "./tv-radio-ad-example-card";
-import { getTvRadioAdsTableColumns } from "./tv-radio-ads-table-columns";
+import { getTvRadioAdsSplitViewColumns } from "./tv-radio-ads-table-columns";
 
 interface TvRadioAdsSplitViewProps {
   businessId: string;
@@ -26,12 +26,7 @@ export const TvRadioAdsSplitView = React.memo(function TvRadioAdsSplitView({
   onBack,
   pageCount = 1,
 }: TvRadioAdsSplitViewProps) {
-  const columns = React.useMemo(() => {
-    const all = getTvRadioAdsTableColumns();
-    return all.filter((col) =>
-      ["subtopic", "type", "opp_score"].includes(String(col.id))
-    );
-  }, []);
+  const columns = React.useMemo(() => getTvRadioAdsSplitViewColumns(), []);
 
   const { table } = useDataTable({
     data: leftTableData,
@@ -59,6 +54,47 @@ export const TvRadioAdsSplitView = React.memo(function TvRadioAdsSplitView({
     return leftTableData.find((row) => row.id === selectedRowId) || null;
   }, [leftTableData, selectedRowId]);
 
+  // Auto-scroll to selected row
+  const leftTableContainerRef = React.useRef<HTMLDivElement>(null);
+  const hasScrolledRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!selectedRowId || !leftTableContainerRef.current) {
+      hasScrolledRef.current = false;
+      return;
+    }
+
+    // Reset scroll flag when selectedRowId changes
+    hasScrolledRef.current = false;
+
+    const scrollToRow = () => {
+      if (hasScrolledRef.current) return;
+      
+      const selectedRow = leftTableContainerRef.current?.querySelector(
+        `[data-selected-row="${selectedRowId}"]`
+      ) as HTMLElement;
+      
+      if (selectedRow) {
+        selectedRow.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        });
+        hasScrolledRef.current = true;
+      }
+    };
+
+    // Small delay to ensure DOM is updated
+    const timeoutId = setTimeout(scrollToRow, 100);
+    // Also try after a longer delay in case data is still loading
+    const timeoutId2 = setTimeout(scrollToRow, 500);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(timeoutId2);
+    };
+  }, [selectedRowId, table]);
+
   return (
     <div className="bg-white rounded-lg p-4 flex-1 min-h-0 flex flex-col overflow-hidden">
       <div className="shrink-0 mb-4">
@@ -72,7 +108,7 @@ export const TvRadioAdsSplitView = React.memo(function TvRadioAdsSplitView({
       </div>
 
       <div className="flex-1 min-h-0 flex gap-4">
-        <div className="flex flex-col shrink-0 h-full overflow-hidden" style={{ width: "412px" }}>
+        <div ref={leftTableContainerRef} className="flex flex-col shrink-0 h-full overflow-hidden" style={{ width: "412px" }}>
           <DataTable
             table={table}
             isLoading={false}

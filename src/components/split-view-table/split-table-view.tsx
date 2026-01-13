@@ -190,6 +190,79 @@ export function SplitTableView<TLeftData, TRightData>({
     }
   }, [leftTable, rightTable, columnMapping]);
 
+  // Auto-scroll to selected row in left table
+  const leftTableContainerRef = React.useRef<HTMLDivElement>(null);
+  const hasScrolledRef = React.useRef(false);
+
+  React.useEffect(() => {
+    const selectedRowId = leftTableProps.selectedRowId;
+    if (!selectedRowId || !leftTableContainerRef.current) {
+      hasScrolledRef.current = false;
+      return;
+    }
+
+    // Reset scroll flag when selectedRowId changes
+    hasScrolledRef.current = false;
+
+    // Find the row in the table data to determine which page it's on
+    const allRows = leftTable.getRowModel().rows;
+    const rowIndex = allRows.findIndex((row) => row.id === selectedRowId);
+
+    if (rowIndex === -1) {
+      // Row not found in current page, try to find it in all data
+      // For server-side pagination, we need to navigate to the correct page
+      const currentPage = leftTable.getState().pagination.pageIndex;
+      const pageSize = leftTable.getState().pagination.pageSize;
+      
+      // Check if we need to navigate to a different page
+      // This is a best-effort approach - for server-side pagination,
+      // we'll scroll after the row appears on the current page
+      const scrollToRow = () => {
+        const selectedRow = leftTableContainerRef.current?.querySelector(
+          `[data-selected-row="${selectedRowId}"]`
+        ) as HTMLElement;
+        
+        if (selectedRow) {
+          selectedRow.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest'
+          });
+          hasScrolledRef.current = true;
+        }
+      };
+
+      // Try scrolling immediately (in case row is already rendered)
+      setTimeout(scrollToRow, 100);
+      
+      // Also try after a longer delay in case data is still loading
+      const timeoutId = setTimeout(scrollToRow, 500);
+      return () => clearTimeout(timeoutId);
+    } else {
+      // Row is on current page, scroll to it
+      const scrollToRow = () => {
+        if (hasScrolledRef.current) return;
+        
+        const selectedRow = leftTableContainerRef.current?.querySelector(
+          `[data-selected-row="${selectedRowId}"]`
+        ) as HTMLElement;
+        
+        if (selectedRow) {
+          selectedRow.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest'
+          });
+          hasScrolledRef.current = true;
+        }
+      };
+
+      // Small delay to ensure DOM is updated
+      const timeoutId = setTimeout(scrollToRow, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [leftTableProps.selectedRowId, leftTable]);
+
   return (
     <div className="bg-white rounded-lg p-4 flex-1 min-h-0 flex flex-col">
       {/* Unified Toolbar - Controls both tables */}
@@ -227,6 +300,7 @@ export function SplitTableView<TLeftData, TRightData>({
         style={{ gap, alignItems: 'stretch' }}
       >
         <div
+          ref={leftTableContainerRef}
           className="flex flex-col shrink-0 h-full overflow-hidden"
           style={{ width: leftTableWidth, minWidth: 0, maxWidth: leftTableWidth }}
         >

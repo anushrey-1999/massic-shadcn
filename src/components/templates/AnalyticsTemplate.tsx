@@ -145,12 +145,19 @@ export function AnalyticsTemplate() {
     conversion: useRef<HTMLDivElement>(null),
     "local-search": useRef<HTMLDivElement>(null),
   };
+  const isScrollingProgrammatically = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const observers: IntersectionObserver[] = [];
     const sectionStates: Record<string, boolean> = {};
 
     const updateActiveSection = () => {
+      // Ignore updates during programmatic scrolling
+      if (isScrollingProgrammatically.current) {
+        return;
+      }
+
       // If organic is intersecting, discovery should be active
       if (sectionStates["organic"]) {
         setActiveSection("discovery");
@@ -204,6 +211,15 @@ export function AnalyticsTemplate() {
     };
   }, []);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="flex flex-col min-h-screen scroll-smooth ">
       <PlanModal
@@ -220,7 +236,7 @@ export function AnalyticsTemplate() {
       />
 
       {/* Sticky Header with Breadcrumb and Tabs */}
-      <div className="sticky top-0 z-11 bg-foreground-light">
+      <div className="sticky top-0 z-11 bg-foreground-light border-b border-general-border">
         <PageHeader
           trial={
             showTrialBanner
@@ -238,7 +254,22 @@ export function AnalyticsTemplate() {
           <NavigationTabs
             items={navItems}
             activeSection={activeSection}
-            onSectionChange={setActiveSection}
+            onSectionChange={(id) => {
+              setActiveSection(id);
+              // Set flag to prevent IntersectionObserver from interfering
+              isScrollingProgrammatically.current = true;
+              
+              // Clear any existing timeout
+              if (scrollTimeoutRef.current) {
+                clearTimeout(scrollTimeoutRef.current);
+              }
+              
+              // Clear flag after scroll animation completes
+              scrollTimeoutRef.current = setTimeout(() => {
+                isScrollingProgrammatically.current = false;
+                scrollTimeoutRef.current = null;
+              }, 1000);
+            }}
             periodSelector={
               <PeriodSelector
                 value={selectedPeriod}
@@ -288,7 +319,7 @@ export function AnalyticsTemplate() {
           ref={sectionRefs["local-search"]}
           className="scroll-mt-[200px] px-7 pb-10"
         >
-          <div className="flex items-center justify-between bg-[#0A0A0A0D] px-6 py-5 rounded-lg">
+          <div className="flex items-center justify-between border-b border-general-muted-foreground py-5">
             <div className="flex items-center gap-2">
               <MapPin className="h-8 w-8 text-general-foreground" />
               <Typography variant="h2">Local Search</Typography>
@@ -316,7 +347,7 @@ export function AnalyticsTemplate() {
             ) : null}
           </div>
 
-          <div className="pt-6 flex flex-col gap-6">
+          <div className="pt-10 flex flex-col gap-3">
             <LocalSearchSection
               period={selectedPeriod}
               locations={locations}

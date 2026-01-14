@@ -155,10 +155,10 @@ export function DataTableSortList<TData>({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className={`h-9 font-normal ${
+            className={`h-9 min-w-9 font-normal ${
               sorting.length > 0
-                ? "min-w-9 px-2 gap-1.5"
-                : "w-9 p-0"
+                ? "px-2 gap-1.5"
+                : "p-0"
             }`}
             onKeyDown={onTriggerKeyDown}
           >

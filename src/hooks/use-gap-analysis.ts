@@ -166,13 +166,13 @@ export function useGapAnalysis(businessId: string | null) {
         trendData: topicCoverageTrend,
       },
       visibilityRelevance: {
-        title: "Visibility Relevance",
+        title: "Visibility Rel.",
         percentage: visibilityRelevanceLatest.percentage,
         value: visibilityRelevanceLatest.value,
         trendData: visibilityRelevanceTrend,
       },
       engagementRelevance: {
-        title: "Engagement Relevance",
+        title: "Engagement Rel.",
         percentage: engagementRelevanceLatest.percentage,
         value: engagementRelevanceLatest.value,
         trendData: engagementRelevanceTrend,

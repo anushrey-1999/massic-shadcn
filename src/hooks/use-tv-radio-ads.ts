@@ -40,6 +40,28 @@ function toArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === "string" && v.trim().length > 0);
 }
 
+function normalizeTvRadioType(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "tv") return "tv";
+  if (normalized === "radio") return "radio";
+  return value;
+}
+
+function mapTvRadioApiField(field: string): string {
+  switch (field) {
+    case "subtopic":
+      return "display_name";
+    case "type":
+      return "channel";
+    case "relevance":
+      return "avg_business_relevance";
+    case "volume":
+      return "total_search_volume";
+    default:
+      return field;
+  }
+}
+
 export function useTvRadioAds(_businessId: string) {
   const platform: ApiPlatform = "python";
 
@@ -91,13 +113,23 @@ export function useTvRadioAds(_businessId: string) {
       if (params.search) queryParams.append("search", params.search);
 
       if (params.sort && params.sort.length > 0) {
-        queryParams.append("sort", JSON.stringify(params.sort));
+        const modifiedSort = params.sort.map((item) => ({
+          ...item,
+          field: mapTvRadioApiField(item.field),
+        }));
+
+        queryParams.append("sort", JSON.stringify(modifiedSort));
       }
 
       if (params.filters && params.filters.length > 0) {
         const modifiedFilters = params.filters.map((filter) => ({
-          field: filter.field,
-          value: filter.value,
+          field: mapTvRadioApiField(filter.field),
+          value:
+            mapTvRadioApiField(filter.field) === "channel"
+              ? Array.isArray(filter.value)
+                ? filter.value.map(normalizeTvRadioType)
+                : normalizeTvRadioType(String(filter.value))
+              : filter.value,
           operator: filter.operator,
         }));
 

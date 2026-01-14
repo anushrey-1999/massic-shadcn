@@ -20,6 +20,7 @@ interface AlertBarProps {
   noAlertsMessage?: string;
   onClick?: () => void;
   className?: string;
+  variant?: "default" | "secondary";
 }
 
 const badgeStyles = {
@@ -44,6 +45,7 @@ export function AlertBar({
   noAlertsMessage = "No recent anomalies detected",
   onClick,
   className,
+  variant = "default",
 }: AlertBarProps) {
   const hasAlerts = badges.some((b) => b.count > 0);
 
@@ -103,8 +105,20 @@ export function AlertBar({
       </div>
 
       {!isLoading && (
-        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-general-primary text-primary-foreground">
-          <ArrowRight className="h-4 w-4" />
+        <div
+          className={cn(
+            "flex items-center justify-center h-8 w-8 rounded-lg",
+            variant === "secondary"
+              ? "bg-foreground-light"
+              : "bg-general-primary text-primary-foreground"
+          )}
+        >
+          <ArrowRight
+            className={cn(
+              "h-4 w-4",
+              variant === "secondary" && "text-general-secondary-foreground"
+            )}
+          />
         </div>
       )}
     </button>

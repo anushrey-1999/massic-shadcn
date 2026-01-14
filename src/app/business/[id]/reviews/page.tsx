@@ -4,6 +4,7 @@ import React from 'react'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { PageHeader } from "@/components/molecules/PageHeader"
 import { useBusinessProfileById } from "@/hooks/use-business-profiles"
+import { Typography } from "@/components/ui/typography"
 
 interface PageProps {
   params: Promise<{
@@ -52,11 +53,12 @@ export default function BusinessReviewsPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-screen">
-      <PageHeader breadcrumbs={breadcrumbs} />
+      {/* <PageHeader breadcrumbs={breadcrumbs} /> */}
       <EntitlementsGuard entitlement="reviews" businessId={businessId}>
-        <div className="p-8">
-          <h1 className="text-2xl font-bold mb-4">Reviews - {businessId}</h1>
-          <p className="text-muted-foreground">Reviews page for {businessId}</p>
+        <div className="flex items-center justify-center flex-1">
+          <Typography variant="h2" className="text-muted-foreground">
+            Coming soon...
+          </Typography>
         </div>
       </EntitlementsGuard>
     </div>

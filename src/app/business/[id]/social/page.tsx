@@ -6,7 +6,6 @@ import { SocialTableClient } from '@/components/organisms/SocialTable/social-tab
 import { SocialBubbleChart, type SocialBubbleDatum } from '@/components/organisms/SocialBubbleChart/social-bubble-chart'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
-import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -224,12 +223,8 @@ export default function BusinessSocialPage({ params }: PageProps) {
   }, [params])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
-  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
-  const workflowStatus = jobDetails?.workflow_status?.status
-  const showContent = workflowStatus === "success"
-  const showBanner = workflowStatus === "processing" || workflowStatus === "error" || !jobDetails
 
   const breadcrumbs = React.useMemo(() => {
     const baseBreadcrumbs = [
@@ -251,7 +246,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
     )
   }
 
-  if (profileDataLoading || jobLoading) {
+  if (profileDataLoading) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader
@@ -269,24 +264,21 @@ export default function BusinessSocialPage({ params }: PageProps) {
       <PageHeader
         breadcrumbs={breadcrumbs}
       />
-      {showBanner && (
-        <div className="w-full max-w-[1224px] px-5 pt-5">
-          <WorkflowStatusBanner businessId={businessId} />
-        </div>
-      )}
-      {showContent && jobDetails && (
-        <EntitlementsGuard
-          entitlement="content"
+      <EntitlementsGuard
+        entitlement="content"
+        businessId={businessId}
+        alertMessage="Upgrade your plan to unlock Social content generation."
+      >
+        <WorkflowStatusBanner 
+          businessId={businessId} 
+          emptyStateHeight="h-[calc(100vh-12rem)]"
+        />
+        <SocialEntitledContent
           businessId={businessId}
-          alertMessage="Upgrade your plan to unlock Social content generation."
-        >
-          <SocialEntitledContent
-            businessId={businessId}
-            selectedChannel={selectedChannel || null}
-            onChannelSelect={(channel) => setSelectedChannel(channel)}
-          />
-        </EntitlementsGuard>
-      )}
+          selectedChannel={selectedChannel || null}
+          onChannelSelect={(channel) => setSelectedChannel(channel)}
+        />
+      </EntitlementsGuard>
     </div>
   )
 }

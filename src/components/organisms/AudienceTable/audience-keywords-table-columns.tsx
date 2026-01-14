@@ -6,7 +6,16 @@ import { ExpandablePills } from "@/components/ui/expandable-pills";
 import type { AudienceUseCaseRow } from "@/types/audience-types";
 import { Typography } from "@/components/ui/typography";
 
-export function getAudienceKeywordsTableColumns(): ColumnDef<AudienceUseCaseRow>[] {
+interface AudienceKeywordsColumnsOptions {
+  expandedRowId?: string | null;
+  onExpandedRowChange?: (rowId: string | null) => void;
+}
+
+export function getAudienceKeywordsTableColumns(
+  options: AudienceKeywordsColumnsOptions = {}
+): ColumnDef<AudienceUseCaseRow>[] {
+  const { expandedRowId = null, onExpandedRowChange } = options;
+
   return [
     {
       id: "use_case_name",
@@ -38,9 +47,19 @@ export function getAudienceKeywordsTableColumns(): ColumnDef<AudienceUseCaseRow>
       ),
       cell: ({ row }) => {
         const keywords = row.original.supporting_keywords || [];
+        const rowId = row.original.id;
+        const isExpanded = !!expandedRowId && expandedRowId === rowId;
         return (
           <div className="max-w-full">
-            <ExpandablePills items={keywords} pillVariant="outline" />
+            <ExpandablePills
+              items={keywords}
+              pillVariant="outline"
+              expanded={isExpanded}
+              onExpandedChange={(next) => {
+                if (!onExpandedRowChange) return;
+                onExpandedRowChange(next ? rowId : null);
+              }}
+            />
           </div>
         );
       },

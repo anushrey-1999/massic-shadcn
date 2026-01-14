@@ -1,4 +1,9 @@
 import { redirect } from "next/navigation";
+import { getPageMetadata } from "@/config/seo";
+
+export const metadata = {
+  ...getPageMetadata("businessChat"),
+};
 
 interface PageProps {
   params: Promise<{ id: string }>;

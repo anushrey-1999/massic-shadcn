@@ -492,7 +492,7 @@ export function SocialBubbleChart({
 			: tooltipType === "campaign"
 				? "Campaign"
 				: tooltipType === "cluster"
-					? "Cluster"
+					? "Sub Topic"
 					: null;
 	const tooltipRelevance = formatScorePercent(tooltipNode?.data.data?.relevanceScore);
 

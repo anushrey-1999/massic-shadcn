@@ -16,23 +16,24 @@ interface FunnelChartProps {
 const VIEWBOX_WIDTH = 327
 const VIEWBOX_HEIGHT = 274
 const TOP_Y = 12
-const BOTTOM_Y = VIEWBOX_HEIGHT - 12
+const BOTTOM_Y = VIEWBOX_HEIGHT - 10
 const TOP_INSET = 20
-const BOTTOM_INSET = 90
-const CORNER_RADIUS = 16
+const BOTTOM_INSET = 100
+const CORNER_RADIUS = 10
+const BOTTOM_CORNER_RADIUS = 5
 const LINE_OFFSET = 0
-const LINE_RATIOS = [0.37, 0.68] as const
+const LINE_RATIOS = [0.34, 0.68] as const
 const SECTION_STYLES = [
   {
-    label: "text-xs font-medium text-muted-foreground",
-    value: "text-2xl font-semibold leading-8 text-foreground",
+    label: "text-xs font-medium text-general-muted-foreground",
+    value: "text-2xl font-semibold leading-8 ",
   },
   {
-    label: "text-xs font-medium text-sky-500",
+    label: "text-xs font-medium text-general-muted-foreground",
     value: "text-2xl font-semibold leading-8 text-sky-600",
   },
   {
-    label: "text-xs font-medium text-emerald-500",
+    label: "text-xs font-medium text-general-muted-foreground",
     value: "text-2xl font-semibold leading-8 text-emerald-600",
   },
 ] as const
@@ -41,10 +42,10 @@ const outlinePath = [
   `M ${TOP_INSET + CORNER_RADIUS} ${TOP_Y}`,
   `H ${VIEWBOX_WIDTH - TOP_INSET - CORNER_RADIUS}`,
   `Q ${VIEWBOX_WIDTH - TOP_INSET} ${TOP_Y} ${VIEWBOX_WIDTH - TOP_INSET} ${TOP_Y + CORNER_RADIUS}`,
-  `L ${VIEWBOX_WIDTH - BOTTOM_INSET} ${BOTTOM_Y - CORNER_RADIUS}`,
-  `Q ${VIEWBOX_WIDTH - BOTTOM_INSET} ${BOTTOM_Y} ${VIEWBOX_WIDTH - BOTTOM_INSET - CORNER_RADIUS} ${BOTTOM_Y}`,
-  `H ${BOTTOM_INSET + CORNER_RADIUS}`,
-  `Q ${BOTTOM_INSET} ${BOTTOM_Y} ${BOTTOM_INSET} ${BOTTOM_Y - CORNER_RADIUS}`,
+  `L ${VIEWBOX_WIDTH - BOTTOM_INSET} ${BOTTOM_Y - BOTTOM_CORNER_RADIUS}`,
+  `Q ${VIEWBOX_WIDTH - BOTTOM_INSET} ${BOTTOM_Y} ${VIEWBOX_WIDTH - BOTTOM_INSET - BOTTOM_CORNER_RADIUS} ${BOTTOM_Y}`,
+  `H ${BOTTOM_INSET + BOTTOM_CORNER_RADIUS}`,
+  `Q ${BOTTOM_INSET} ${BOTTOM_Y} ${BOTTOM_INSET} ${BOTTOM_Y - BOTTOM_CORNER_RADIUS}`,
   `L ${TOP_INSET} ${TOP_Y + CORNER_RADIUS}`,
   `Q ${TOP_INSET} ${TOP_Y} ${TOP_INSET + CORNER_RADIUS} ${TOP_Y}`,
   "Z",

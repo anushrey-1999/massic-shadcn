@@ -226,24 +226,25 @@ export function useCreateBusiness() {
         ],
       };
 
-      const response = await api.post<any>(
-        "/profile/create-agency-businesses",
-        "node",
-        payload
-      );
+      let response: any;
+      try {
+        response = await api.post<any>(
+          "/profile/create-agency-businesses",
+          "node",
+          payload
+        );
 
-      // Check if the API returned an error
-      // Response might be { status: 200, ... } or { err: false, ... } or direct data
-      const status = response.status || (response.err === false ? 200 : undefined);
-      const hasError = response.err === true || (status !== undefined && status !== 200);
-
-      if (hasError) {
-        const errorMessage =
-          response.message ||
-          response.data?.message ||
-          response.response?.data?.message ||
-          "Failed to create business";
-        throw new Error(errorMessage);
+        // Check if the API returned an error in the response body
+        if (response.err === true || response.success === false) {
+          throw new Error(response.message || "Failed to create business");
+        }
+      } catch (error: any) {
+        // If axios error with response (status code error like 409)
+        if (error.response?.data) {
+          const errorData = error.response.data;
+          throw new Error(errorData.message || errorData.error || "Failed to create business");
+        }
+        throw error;
       }
 
       // Invalidate and refetch business profiles to get the newly created one

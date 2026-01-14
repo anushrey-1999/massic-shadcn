@@ -290,7 +290,7 @@ const ProfileTemplate = ({
           const s = String(raw).trim().toLowerCase();
           if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
           if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
-          if (s === "partial" || s === "partially") return "partial";
+          if (s === "partial" || s === "partially" || s === "sometimes") return "partial";
           return "";
         };
 
@@ -432,9 +432,11 @@ const ProfileTemplate = ({
                 ?.filter((item: string) => item.length > 0)
               : null,
           RecurringFlag:
-            value.recurringRevenue && value.recurringRevenue.trim()
-              ? value.recurringRevenue.trim().toLowerCase()
-              : null,
+              value.recurringRevenue && value.recurringRevenue.trim()
+                ? value.recurringRevenue.trim().toLowerCase() === "partial"
+                  ? "sometimes"
+                  : value.recurringRevenue.trim().toLowerCase()
+                : null,
           AOV: (() => {
             const num = Number.parseFloat(String(value.avgOrderValue || "").trim());
             return Number.isFinite(num) ? num : null;
@@ -547,7 +549,7 @@ const ProfileTemplate = ({
       const s = String(raw).trim().toLowerCase();
       if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
       if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
-      if (s === "partial" || s === "partially") return "partial";
+      if (s === "partial" || s === "partially" || s === "sometimes") return "partial";
       return "";
     };
 
@@ -1147,7 +1149,7 @@ const ProfileTemplate = ({
     }
 
     if (!externalJobDetails?.job_id) return "Add offerings first to proceed to Strategy.";
-    if (isWorkflowProcessing) return "Workflow is already processing.";
+    if (isWorkflowProcessing) return "Workflows are under process. Please wait till they are done.";
     if (isTriggeringWorkflow) return "Triggering workflow...";
     if (externalLoading) return "Please wait for the profile to finish loading.";
     if (isSaving) return "Saving in progress.";
@@ -1240,7 +1242,7 @@ const ProfileTemplate = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="w-full max-w-[1224px] mx-auto flex gap-6 p-7 items-start">
+        <div className="w-full max-w-[1224px] flex gap-6 p-5 items-start">
           <ProfileSidebar
             sections={sections}
             activeSection={activeSection}
@@ -1250,6 +1252,7 @@ const ProfileTemplate = ({
             onButtonClick={handlePrimaryButtonClick}
             buttonDisabled={isButtonDisabled}
             buttonHelperText={buttonHelperText}
+            isWorkflowProcessing={isWorkflowProcessing}
           />
           {/* Loader overlay only on the right panel (form content) */}
 

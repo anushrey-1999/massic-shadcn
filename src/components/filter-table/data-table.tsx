@@ -29,6 +29,7 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   emptyMessage?: string;
   onRowClick?: (row: TData) => void;
   selectedRowId?: string | null;
+  highlightSelectedRow?: boolean; // Optional: highlight selected row (default true)
   showPagination?: boolean;
   hideRowsPerPage?: boolean;
   disableHorizontalScroll?: boolean;
@@ -50,6 +51,7 @@ export function DataTable<TData>({
   hideRowsPerPage = false,
   disableHorizontalScroll = false,
   paginationAlign = "between",
+  highlightSelectedRow = true,
   ...props
 }: DataTableProps<TData>) {
   const showLoading = isLoading && table.getRowModel().rows.length === 0;
@@ -163,16 +165,25 @@ export function DataTable<TData>({
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row, index) => {
-                  const isSelected = selectedRowId ? row.id === selectedRowId : row.getIsSelected();
+                  const isSelected = selectedRowId != null && row.id === selectedRowId;
                   return (
                     <TableRow
                       key={`${row.id}-${index}`}
-                      data-state={isSelected && "selected"}
+                      data-selected-row={isSelected ? row.id : undefined}
                       className={cn(
                         onRowClick && "cursor-pointer hover:bg-muted/70",
-                        isSelected && "bg-muted"
+                        highlightSelectedRow && isSelected && "bg-primary/10"
                       )}
-                      onClick={() => onRowClick?.(row.original)}
+                      onClick={(e) => {
+                        // Prevent row click if a button or inside a button is clicked
+                        if (
+                          e.target instanceof HTMLElement &&
+                          (e.target.closest('button') || e.target.tagName === 'BUTTON')
+                        ) {
+                          return;
+                        }
+                        onRowClick?.(row.original);
+                      }}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell

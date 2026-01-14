@@ -76,7 +76,7 @@ export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableCol
       id: "campaign_name",
       accessorKey: "campaign_name",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Campaign Name" />
+        <DataTableColumnHeader column={column} label="Campaign" />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
@@ -99,7 +99,7 @@ export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableCol
       id: "campaign_relevance",
       accessorKey: "campaign_relevance",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Campaign Rel" />
+        <DataTableColumnHeader column={column} label="Relevance" />
       ),
       cell: ({ cell }) => {
         const score = cell.getValue<number>();

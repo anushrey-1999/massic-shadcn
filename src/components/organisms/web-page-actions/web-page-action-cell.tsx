@@ -197,13 +197,13 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="outline"
+            variant={action.label === "View" ? "outline" : "default"}
             size="icon"
-            className="h-9 w-9 text-primary"
+            className="size-6 rounded-sm"
             onClick={handleClick}
             aria-label={actionTooltipLabel}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="size-3.5" />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={8}>
@@ -247,12 +247,12 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
                   {viewButtonLabel}
                 </Button>
               </div>
-            ) : hasOutline ? (
+            ) : hasOutline || isGenerating ? (
               <div className="flex w-full justify-center gap-3">
-                <Button type="button" variant="outline" onClick={handleViewOutline} disabled={isGenerating}>
+                <Button type="button" variant="outline" onClick={handleViewOutline} disabled={false}>
                   View Outline
                 </Button>
-                <Button type="button" onClick={handleGenerateFinal} disabled={isGenerating || workingAction !== null}>
+                <Button type="button" variant="default" onClick={handleGenerateFinal} disabled={isGenerating || workingAction !== null}>
                   {generateFinalLabel}
                 </Button>
               </div>

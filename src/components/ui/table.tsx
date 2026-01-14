@@ -9,7 +9,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Loader2, MoveUp, MoveDown } from "lucide-react"
+import { ArrowUpDown, Loader2, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -198,26 +198,35 @@ function DataTable<TData, TValue>({
                         <button
                           type="button"
                           onClick={onHeaderSortClick}
+                          aria-sort={
+                            sortState === "asc"
+                              ? "ascending"
+                              : sortState === "desc"
+                                ? "descending"
+                                : "none"
+                          }
                           className={cn(
-                            "flex h-full w-full items-center justify-between gap-2 px-2 py-1 text-left transition-colors",
+                            "group flex h-full w-full items-center justify-between gap-2 px-2 py-1 text-left transition-colors",
                             "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                             sortState && "bg-accent"
                           )}
                         >
                           <span className="min-w-0 truncate">{headerContent}</span>
-                          <span className="flex shrink-0 items-center">
-                            <MoveUp
-                              className={cn(
-                                "h-4 w-3",
-                                sortState === "asc" ? "text-foreground" : "text-muted-foreground"
-                              )}
-                            />
-                            <MoveDown
-                              className={cn(
-                                "h-4 w-3 -ml-0.5",
-                                sortState === "desc" ? "text-foreground" : "text-muted-foreground"
-                              )}
-                            />
+                          <span
+                            className={cn(
+                              "inline-flex shrink-0 items-center justify-center [&_svg]:size-4 [&_svg]:shrink-0",
+                              sortState
+                                ? "[&_svg]:text-foreground"
+                                : "opacity-0 transition-opacity duration-200 ease-in-out group-hover:opacity-80 [&_svg]:text-muted-foreground"
+                            )}
+                          >
+                            {sortState === "asc" ? (
+                              <ChevronUp />
+                            ) : sortState === "desc" ? (
+                              <ChevronDown />
+                            ) : (
+                              <ChevronsUpDown />
+                            )}
                           </span>
                         </button>
                       ) : (

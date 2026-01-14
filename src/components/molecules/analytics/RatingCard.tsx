@@ -58,7 +58,7 @@ export function RatingCard({
               )}
             </div>
           </div>
-          <StatsBadge className="w-fit" value={change} />
+          <StatsBadge className="w-fit" value={change} variant="plain" />
         </div>
       </div>
       {sparklineData && (

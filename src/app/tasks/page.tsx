@@ -1,6 +1,11 @@
 import { Suspense } from "react";
 import { TasksTableClient } from "@/components/organisms/TaskTable/tasks-table-client";
 import { DataTableSkeleton } from "@/components/filter-table/data-table-skeleton";
+import { getPageMetadata } from "@/config/seo";
+
+export const metadata = {
+  ...getPageMetadata("tasks"),
+};
 
 export default function TasksPage() {
   return (

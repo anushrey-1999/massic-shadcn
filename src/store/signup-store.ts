@@ -5,7 +5,8 @@ export type SignupStep =
   | "emailForm"
   | "userTypeSelection"
   | "agencyWorkspace"
-  | "businessProfile";
+  | "businessProfile"
+  | "connectGoogle";
 
 export type UserType = "AGENCY" | "BUSINESS";
 

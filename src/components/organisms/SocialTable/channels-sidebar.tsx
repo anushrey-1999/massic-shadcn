@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import styles from "./channels-sidebar.module.css";
 import type { ColumnDef } from "@tanstack/react-table";
 import Image from "next/image";
 import { RelevancePill } from "@/components/ui/relevance-pill";
@@ -68,7 +69,7 @@ function getChannelsTableColumns(
         const iconPath = channel.icon || (channel.isAllChannels ? null : getChannelIcon(channel.name));
 
         return (
-          <div className="flex items-center gap-2">
+          <div className={"flex items-center gap-1 min-h-10 h-10 " + styles.channelsSidebarCell}>
             {iconPath && (
               <Image
                 src={iconPath}
@@ -84,7 +85,7 @@ function getChannelsTableColumns(
       },
       enableSorting: true,
       enableColumnFilter: false,
-      size: 150,
+      size: 120,
       sortingFn: (rowA, rowB) => {
         // Always keep "All Channels" at the top
         if (rowA.original.isAllChannels) return -1;
@@ -244,9 +245,10 @@ export function ChannelsSidebar({
         table={tableWithFixedRows as typeof table}
         isLoading={false}
         emptyMessage="No channels found"
-        className=" gap-0 [&>div:last-child]:hidden [&>div:first-child]:border-0 [&>div:first-child]:rounded-none [&>div:first-child]:min-h-0 [&>div:first-child]:flex-1 [&>div:first-child>div>table]:min-w-0! [&>div:first-child>div>table]:w-full"
+        className={"gap-0 " + styles.channelsSidebarTable + " [&>div:last-child]:hidden [&>div:first-child]:border-0 [&>div:first-child]:rounded-none [&>div:first-child]:min-h-0 [&>div:first-child]:flex-1 [&>div:first-child>div>table]:min-w-0! [&>div:first-child>div>table]:w-full"}
         onRowClick={handleRowClick}
         selectedRowId={selectedRowId}
+        highlightSelectedRow={true}
       >
         {null}
       </DataTable>

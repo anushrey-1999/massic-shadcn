@@ -1,11 +1,16 @@
-import type { ChatMessage } from "./types";
+import type {
+  ChatMessage,
+  ConversationListResponse,
+  ChatHistoryResponse,
+  ChatReference,
+} from "./types";
 
 export type ChatbotResponse = {
   conversation_id: string;
   message: string;
   callout?: {
     ctaLabel?: string;
-    panel: { type: "text" | "table"; title: string; data: any };
+    panel: { type: "text" | "table" | "references"; title: string; data: any };
   };
 };
 
@@ -14,8 +19,23 @@ type ApiResponse = {
   answer?: string;
   message?: string;
   response?: string;
-  references?: Array<{ text?: string } & Record<string, unknown>>;
+  references?: ChatReference[];
 };
+
+function normalizeReferences(references: ChatReference[]): ChatReference[] {
+  return (references || [])
+    .map((r) => {
+      if (!r || typeof r !== "object") return undefined;
+      const filename = typeof r.filename === "string" ? r.filename : undefined;
+      const text = typeof r.text === "string" ? r.text : undefined;
+      const metadata = r.metadata && typeof r.metadata === "object" ? (r.metadata as Record<string, unknown>) : undefined;
+      return { filename, text, metadata } as ChatReference;
+    })
+    .filter(
+      (r): r is ChatReference =>
+        r !== undefined && (r.filename !== undefined || r.text !== undefined || r.metadata !== undefined)
+    );
+}
 
 export async function sendChatbotMessage(
   message: string,
@@ -41,20 +61,35 @@ export async function sendChatbotMessage(
 
   const data = (await response.json()) as ApiResponse;
 
+  console.log("API Response:", data);
+  console.log("References in response:", data.references);
+
   let callout: ChatbotResponse["callout"] | undefined;
   const refs = data.references;
   if (Array.isArray(refs) && refs.length > 0) {
-    const referenceData = refs
-      .map((r) => String((r as any).text ?? ""))
-      .filter(Boolean)
-      .join("\n\n");
+    const normalized = normalizeReferences(refs);
+    const hasMetadata = normalized.some((r) => r.metadata && Object.keys(r.metadata).length > 0);
 
-    if (referenceData) {
+    if (hasMetadata) {
       callout = {
         ctaLabel: "View sources",
-        panel: { type: "text", title: "References", data: referenceData },
+        panel: { type: "references", title: "Sources", data: normalized },
       };
+    } else {
+      const referenceData = normalized
+        .map((r) => String(r.text || r.filename || "").trim())
+        .filter(Boolean)
+        .join("\n");
+
+      if (referenceData) {
+        callout = {
+          ctaLabel: "View sources",
+          panel: { type: "text", title: "References", data: referenceData },
+        };
+      }
     }
+  } else {
+    console.log("No references found or refs is not an array");
   }
 
   return {
@@ -109,4 +144,60 @@ export function simulateStreamingResponse(
   }, intervalMs);
 
   return () => clearInterval(streamInterval);
+}
+
+export async function getConversationList(
+  businessId: string
+): Promise<ConversationListResponse> {
+  const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL;
+  const response = await fetch(
+    `${baseUrl}/chatbot/chat-history?business_id=${encodeURIComponent(businessId)}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  if (!response.ok) {
+    // 404 means no conversations exist yet, return empty list
+    if (response.status === 404) {
+      return { conversations: [] };
+    }
+    const text = await response.text().catch(() => "");
+    throw new Error(`Failed to fetch conversation list (${response.status}): ${text}`);
+  }
+
+  return await response.json();
+}
+
+export async function getChatHistory(
+  businessId: string,
+  conversationId: string,
+  nextId?: string
+): Promise<ChatHistoryResponse> {
+  const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL;
+  const params = new URLSearchParams({
+    business_id: businessId,
+    conversation_id: conversationId,
+    ...(nextId ? { next_id: nextId } : {}),
+  });
+
+  const response = await fetch(
+    `${baseUrl}/chatbot/chat-history?${params.toString()}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  if (!response.ok) {
+    // 404 means conversation not found or no history, return empty
+    if (response.status === 404) {
+      return { messages: [] };
+    }
+    const text = await response.text().catch(() => "");
+    throw new Error(`Failed to fetch chat history (${response.status}): ${text}`);
+  }
+
+  return await response.json();
 }

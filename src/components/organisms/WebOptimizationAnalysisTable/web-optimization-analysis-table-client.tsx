@@ -10,6 +10,7 @@ import type { WebOptimizationAnalysisRow } from "@/types/web-optimization-analys
 import { WebOptimizationAnalysisTable } from "./web-optimization-analysis-table";
 import { WebOptimizationAnalysisSplitView } from "./web-optimization-analysis-split-view";
 import type { WebOptimizationSuggestionRow } from "./suggestions-table-columns";
+import { EmptyState } from "@/components/molecules/EmptyState";
 
 interface WebOptimizationAnalysisTableClientProps {
   businessId: string;
@@ -55,6 +56,15 @@ function isGoogleNotConnected(error: unknown): boolean {
   if (anyError?.code === "GOOGLE_NOT_CONNECTED") return true;
   const message = getErrorMessage(error);
   return message.toLowerCase().includes("failed to fetch access token");
+}
+
+function isNoAuthenticationError(error: unknown): boolean {
+  const anyError = error as any;
+  const status = anyError?.response?.status || anyError?.status;
+  if (status !== 400) return false;
+  
+  const message = getErrorMessage(error);
+  return message === "No authentication linked to this business profile";
 }
 
 function applyLocalSearch(rows: WebOptimizationAnalysisRow[], search: string): WebOptimizationAnalysisRow[] {
@@ -166,6 +176,24 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
       );
     }
 
+    if (isNoAuthenticationError(error)) {
+      return (
+        <EmptyState
+          title="Data not available"
+          description="Need to connect your google account"
+          className="h-[calc(100vh-16rem)]"
+          buttons={[
+            {
+              label: "Go to Settings",
+              href: "/settings",
+              variant: "outline",
+              size: "lg"
+            }
+          ]}
+        />
+      );
+    }
+
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <AlertCircle className="h-8 w-8 text-destructive" />
@@ -175,6 +203,24 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
         </p>
         <Button onClick={() => refetch()}>Try Again</Button>
       </div>
+    );
+  }
+
+  if (!isLoading && !isError && (!allRows || allRows.length === 0)) {
+    return (
+      <EmptyState
+        title="Data not available"
+        description="Need to connect your google account"
+        className="h-[calc(100vh-16rem)]"
+        buttons={[
+          {
+            label: "Go to Settings",
+            href: "/settings",
+            variant: "outline",
+            size: "lg"
+          }
+        ]}
+      />
     );
   }
 

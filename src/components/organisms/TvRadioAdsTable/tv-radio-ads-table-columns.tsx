@@ -44,6 +44,7 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
         label: "Subtopic",
         placeholder: "Search subtopics...",
         variant: "text",
+        apiField: "display_name",
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -60,12 +61,9 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
       cell: ({ cell }) => <TypeCell value={cell.getValue<TvRadioChannel>()} />,
       meta: {
         label: "Type",
-        variant: "multiSelect",
-        options: [
-          { label: "Radio", value: "Radio" },
-          { label: "TV", value: "TV" },
-        ],
-        closeOnSelect: true,
+        variant: "text",
+        placeholder: "TV or Radio...",
+        apiField: "channel",
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -88,6 +86,7 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
         label: "Relevance",
         variant: "range",
         range: [0, 1],
+        apiField: "avg_business_relevance",
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -130,12 +129,82 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
         label: "Volume",
         variant: "range",
         range: [0, 10000000],
+        apiField: "total_search_volume",
       },
       enableColumnFilter: true,
       enableSorting: true,
       size: 140,
       minSize: 120,
       maxSize: 180,
+    },
+  ];
+}
+
+export function getTvRadioAdsSplitViewColumns(): ColumnDef<TvRadioAdConceptRow>[] {
+  return [
+    {
+      id: "subtopic",
+      accessorKey: "subtopic",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Subtopic" />
+      ),
+      cell: ({ row }) => (
+        <Typography variant="p" className="truncate">
+          {row.getValue("subtopic")}
+        </Typography>
+      ),
+      meta: {
+        label: "Subtopic",
+        placeholder: "Search subtopics...",
+        variant: "text",
+        apiField: "display_name",
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 180,
+      minSize: 150,
+      maxSize: 220,
+    },
+    {
+      id: "type",
+      accessorKey: "type",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Type" />
+      ),
+      cell: ({ cell }) => <TypeCell value={cell.getValue<TvRadioChannel>()} />,
+      meta: {
+        label: "Type",
+        variant: "text",
+        placeholder: "TV or Radio...",
+        apiField: "channel",
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 100,
+      minSize: 80,
+      maxSize: 120,
+    },
+    {
+      id: "opp_score",
+      accessorKey: "opp_score",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Priority" />
+      ),
+      cell: ({ cell }) => (
+        <div className="flex items-center">
+          <RelevancePill score={cell.getValue<number>() || 0} />
+        </div>
+      ),
+      meta: {
+        label: "Priority",
+        variant: "range",
+        range: [0, 1],
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 100,
+      minSize: 80,
+      maxSize: 120,
     },
   ];
 }

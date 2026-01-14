@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { TrendingUp, TrendingDown } from "lucide-react"
+import { StatsBadge } from "./StatsBadge"
 import {
   AreaChart,
   Area,
@@ -113,25 +114,14 @@ export function AITrafficChartCard({
   }
 
   return (
-    <div className="flex flex-col rounded-lg gap-4  bg-white">
+    <div className="flex flex-col rounded-lg gap-4 bg-white">
       <div className="flex items-center gap-4">
         {metrics.map((metric, index) => (
-          <div key={index} className="flex flex-1 flex-col gap-1 rounded-lg p-2 bg-foreground-light">
+          <div key={index} className="flex flex-1 flex-col gap-2 rounded-lg p-2 bg-foreground-light">
             <span className="text-xs font-medium text-general-muted-foreground">{metric.label}</span>
-            <div className="flex items-center gap-2 justify-between">
-              <span className="text-base text-general-foreground font-medium">{metric.value}</span>
-              <div className="flex items-center gap-0.5">
-                {metric.change >= 0 ? (
-                  <TrendingUp className="h-3 w-3 text-[#16A34A]" />
-                ) : (
-                  <TrendingDown className="h-3 w-3 text-[#DC2626]" />
-                )}
-                <span className={cn(
-                  "text-[10px] font-medium text-general-muted-foreground",
-                )}>
-                  {metric.change >= 0 ? "+" : ""}{metric.change}%
-                </span>
-              </div>
+            <div className="flex items-end gap-2 justify-between">
+              <span className="text-base leading-none text-general-foreground font-medium">{metric.value}</span>
+              <StatsBadge value={metric.change} variant="plain" className="flex items-end" />
             </div>
           </div>
         ))}

@@ -19,3 +19,40 @@ export function formatDate(
   }
 }
 
+export function formatVolume(volume: number): string {
+  if (!volume && volume !== 0) return "0";
+
+  if (volume >= 1000000) {
+    const millions = volume / 1000000;
+    return `${millions.toFixed(millions % 1 === 0 ? 0 : 1)}M`;
+  }
+
+  if (volume >= 10000) {
+    const thousands = volume / 1000;
+    return `${thousands.toFixed(thousands % 1 === 0 ? 0 : 1)}K`;
+  }
+
+  return volume.toLocaleString();
+}
+
+export function formatPeriodRange(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined
+): string {
+  if (!startDate || !endDate) return ""
+  
+  try {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return ""
+    
+    const startFormatted = dateFnsFormat(start, "do MMM")
+    const endFormatted = dateFnsFormat(end, "do MMM")
+    
+    return `${startFormatted} - ${endFormatted}`
+  } catch {
+    return ""
+  }
+}
+

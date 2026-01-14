@@ -40,10 +40,10 @@ export function SourcesChannelsChart({
   isLoading = false,
   hasData = true,
 }: SourcesChannelsChartProps) {
-  const BAR_SIZE = 34
-  const CATEGORY_GAP = 16
+  const BAR_SIZE = 30
+  const CATEGORY_GAP = 4
   const CHART_CHROME_HEIGHT = 60
-  const Y_AXIS_WIDTH = 90
+  const Y_AXIS_WIDTH = 120
   const Y_LABEL_LEFT_PADDING = 15
   const computedHeight = Math.max(
     height,
@@ -59,8 +59,9 @@ export function SourcesChannelsChart({
         dx={-(Y_AXIS_WIDTH - Y_LABEL_LEFT_PADDING)}
         textAnchor="start"
         dominantBaseline="central"
-        fontSize={10}
-        fill="#737373"
+        fontSize="12"
+        fill="#0A0A0A"
+        style={{ fill: "#0A0A0A", fontSize: "12px" }}
       >
         {payload?.value}
       </text>
@@ -128,7 +129,7 @@ export function SourcesChannelsChart({
             <BarChart
               data={data}
               layout="vertical"
-              margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+              margin={{ top: 0, right: 15, bottom: 0, left: 0 }}
               barSize={BAR_SIZE}
               barGap={-BAR_SIZE}
               barCategoryGap={CATEGORY_GAP}
@@ -167,12 +168,12 @@ export function SourcesChannelsChart({
                 shared={true}
                 trigger="hover"
               />
-              <Legend
+              {/* <Legend
                 content={renderLegend}
                 verticalAlign="top"
                 align="right"
                 wrapperStyle={{ paddingBottom: "0px" }}
-              />
+              /> */}
               <Bar 
                 dataKey="sessionsNorm" 
                 radius={4} 

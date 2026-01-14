@@ -8,29 +8,16 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { WebPageRow } from "@/types/web-page-types";
 import { Typography } from "@/components/ui/typography";
 import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
-
-function formatVolume(volume: number): string {
-  if (!volume && volume !== 0) return "0";
-
-  if (volume >= 1000000) {
-    const millions = volume / 1000000;
-    return `${millions.toFixed(millions % 1 === 0 ? 0 : 1)}M`;
-  }
-
-  if (volume >= 10000) {
-    const thousands = volume / 1000;
-    return `${thousands.toFixed(thousands % 1 === 0 ? 0 : 1)}K`;
-  }
-
-  return volume.toLocaleString();
-}
+import { formatVolume } from "@/lib/format";
 
 interface GetWebPageTableColumnsProps {
   businessId: string;
   offeringCounts?: Record<string, number>;
+  expandedRowId?: string | null;
+  onExpandedRowChange?: (rowId: string | null) => void;
 }
 
-export function getWebPageTableColumns({ businessId, offeringCounts = {} }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
+export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
   return [
     {
       id: "keyword",
@@ -67,8 +54,15 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {} }: GetW
       },
       meta: {
         label: "Type",
-        placeholder: "Search types...",
-        variant: "text",
+        placeholder: "Select page type...",
+        variant: "select",
+        options: [
+          { label: "Geo page", value: "geographic landing page" },
+          { label: "Section in page", value: "section in existing page" },
+          { label: "Use case page", value: "category-use case page" },
+          { label: "Audience page", value: "category-audience page" },
+          { label: "Blog", value: "Blog" },
+        ],
         icon: Tag,
       },
       enableColumnFilter: true,
@@ -237,9 +231,17 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {} }: GetW
       ),
       cell: ({ row }) => {
         const keywords = row.original.supporting_keywords || [];
+        const isExpanded = expandedRowId === row.id;
         return (
           <div className="max-w-full">
-            <ExpandablePills items={keywords} pillVariant="outline" />
+            <ExpandablePills
+              items={keywords}
+              pillVariant="outline"
+              expanded={isExpanded}
+              onExpandedChange={(next) => {
+                onExpandedRowChange?.(next ? row.id : null);
+              }}
+            />
           </div>
         );
       },

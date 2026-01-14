@@ -18,6 +18,7 @@ interface ProfileSidebarProps {
   onButtonClick?: () => void;
   buttonDisabled?: boolean;
   buttonHelperText?: string;
+  isWorkflowProcessing?: boolean;
 }
 
 export function ProfileSidebar({
@@ -29,6 +30,7 @@ export function ProfileSidebar({
   onButtonClick,
   buttonDisabled = false,
   buttonHelperText,
+  isWorkflowProcessing = false,
 }: ProfileSidebarProps) {
   return (
     <div className="flex flex-col gap-2 sticky top-20">
@@ -77,7 +79,12 @@ export function ProfileSidebar({
           >
             {buttonText}
           </Button>
-          {buttonDisabled && buttonHelperText ? (
+          {isWorkflowProcessing && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Workflows are under process. Please wait till they are done.
+            </p>
+          )}
+          {!isWorkflowProcessing && buttonDisabled && buttonHelperText ? (
             <p className="mt-2 text-xs text-destructive">{buttonHelperText}</p>
           ) : null}
         </CardContent>

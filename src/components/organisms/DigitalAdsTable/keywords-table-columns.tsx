@@ -39,9 +39,7 @@ export function getKeywordsTableColumns(): ColumnDef<DigitalAdsKeyword>[] {
       cell: ({ cell }) => {
         const cpc = cell.getValue<number>();
         return (
-          <div className="flex items-center">
-            <RelevancePill score={cpc || 0} />
-          </div>
+          <Typography variant="p">${cpc?.toFixed(2) || "0.00"}</Typography>
         );
       },
       meta: {

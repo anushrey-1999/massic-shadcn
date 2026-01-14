@@ -8,11 +8,12 @@ import {
   TrendingUp,
   TrendingDown,
   Loader2,
+  CircleCheckBig,
+  AlertTriangle,
 } from "lucide-react";
 import { MetricCard } from "@/components/molecules/analytics/MetricCard";
 import { AlertBar } from "@/components/molecules/analytics/AlertBar";
-import { GoalAnalysisSheet } from "@/components/molecules/analytics/GoalAnalysisSheet";
-import { TrafficAnalysisSheet } from "@/components/molecules/analytics/TrafficAnalysisSheet";
+import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet";
 import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from "recharts";
@@ -109,8 +110,7 @@ export function OrganicPerformanceSection({
     error: trafficError,
   } = useTrafficAnalysis(businessUniqueId, businessName, null);
 
-  const [goalSheetOpen, setGoalSheetOpen] = useState(false);
-  const [trafficSheetOpen, setTrafficSheetOpen] = useState(false);
+  const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
 
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     impressions: true,
@@ -197,83 +197,69 @@ export function OrganicPerformanceSection({
     setZoomCenter(null);
   }, []);
 
+  // Calculate total counts from both Goals and Traffic APIs
+  const trafficCriticalCount = trafficData && trafficData.severity === "high" ? 1 : 0;
+  const trafficPositiveCount = trafficData && trafficData.direction === "up" ? 1 : 0;
+  
+  const totalCriticalCount = criticalCount + trafficCriticalCount;
+  const totalPositiveCount = positiveCount + trafficPositiveCount;
+  const totalAnomaliesCount = totalCriticalCount + totalPositiveCount;
+  
+  const hasAnomalies = totalAnomaliesCount > 0;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
 
-      {/* Alert Bars */}
-      <div className="flex gap-6">
-        <AlertBar
-          title="Goal Alerts"
-          icon={<Target className="h-5 w-5" color="#F59E0B" />}
-          badges={[
-            { count: criticalCount, type: "critical" },
-            { count: warningCount, type: "warning" },
-            { count: positiveCount, type: "positive" },
-          ]}
-          isLoading={isLoadingGoals}
-          error={goalError}
-          noAlertsMessage={`No recent anomalies detected as of ${new Date().toLocaleDateString()}`}
-          onClick={() => setGoalSheetOpen(true)}
-        />
-
-        <AlertBar
-          title="Traffic Alerts"
-          icon={<MousePointerClick className="h-5 w-5" color="#F59E0B" />}
-          badges={
-            trafficData
-              ? [
+      {/* Alert Bar */}
+      <AlertBar
+        title={hasAnomalies ? "Anomalies Detected" : ""}
+        icon={
+          hasAnomalies ? (
+            <AlertTriangle
+              className="h-5 w-5"
+              color="#F59E0B"
+            />
+          ) : (
+            <CircleCheckBig
+              className="h-5 w-5"
+              color="#16A34A"
+            />
+          )
+        }
+        badges={
+          hasAnomalies
+            ? [
                 {
-                  count: 1,
-                  type:
-                    trafficData.direction === "up"
-                      ? "positive"
-                      : trafficData.severity === "high"
-                        ? "critical"
-                        : "warning",
-                  label:
-                    trafficData.direction === "down"
-                      ? `${Math.abs(trafficData.delta_pct * 100).toFixed(
-                        0
-                      )}% Drop`
-                      : `${Math.abs(trafficData.delta_pct * 100).toFixed(
-                        0
-                      )}% Increase`,
+                  count: totalAnomaliesCount,
+                  type: "critical" as const,
+                  label: `${totalAnomaliesCount}`,
                 },
               ]
-              : []
-          }
-          isLoading={isLoadingTraffic}
-          error={trafficError}
-          noAlertsMessage={`No recent anomalies detected as of ${new Date().toLocaleDateString()}`}
-          onClick={() => setTrafficSheetOpen(true)}
-        />
-      </div>
+            : []
+        }
+        isLoading={isLoadingGoals || isLoadingTraffic}
+        error={goalError || trafficError}
+        noAlertsMessage={`No recent anomalies detected as of ${new Date().toLocaleDateString()}`}
+        onClick={() => setAnomaliesSheetOpen(true)}
+        variant="secondary"
+      />
 
-      {/* Goal Analysis Sheet */}
-      <GoalAnalysisSheet
-        open={goalSheetOpen}
-        onOpenChange={setGoalSheetOpen}
+      {/* Anomalies Sheet */}
+      <AnomaliesSheet
+        open={anomaliesSheetOpen}
+        onOpenChange={setAnomaliesSheetOpen}
         defaultGoalData={goalData}
         defaultCriticalCount={criticalCount}
         defaultWarningCount={warningCount}
         defaultPositiveCount={positiveCount}
-        defaultIsLoading={isLoadingGoals}
-        businessId={businessUniqueId}
-        businessName={businessName}
-      />
-
-      {/* Traffic Analysis Sheet */}
-      <TrafficAnalysisSheet
-        open={trafficSheetOpen}
-        onOpenChange={setTrafficSheetOpen}
+        defaultIsLoadingGoals={isLoadingGoals}
         defaultTrafficData={trafficData}
-        defaultIsLoading={isLoadingTraffic}
+        defaultIsLoadingTraffic={isLoadingTraffic}
         businessId={businessUniqueId}
         businessName={businessName}
       />
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         {/* Metric Cards */}
         <div className="grid grid-cols-5 bg-white p-2 rounded-lg border border-general-border">
           {/* Gap analysis cards (3 columns) */}
@@ -296,10 +282,41 @@ export function OrganicPerformanceSection({
               ))}
             </>
           ) : (
-            <MetricCard
-              className="col-span-3"
-              emptyMessage={metricsStatusMessage || "No performance data available"}
-            />
+            <>
+              {/* Show empty state for each metric card with heading and -- */}
+              {[
+                "topic-coverage",
+                "visibility-relevance",
+                "engagement-relevance",
+              ].map((key) => (
+                <MetricCard
+                  key={key}
+                  icon={METRIC_ICONS[key] || <Target className="h-5 w-5" />}
+                  label={
+                    key === "topic-coverage"
+                      ? "Topic Coverage"
+                      : key === "visibility-relevance"
+                      ? "Visibility Rel"
+                      : key === "engagement-relevance"
+                      ? "Engagement Rel"
+                      : "--"
+                  }
+                  value={"--"}
+                  change={undefined}
+                  sparklineData={undefined}
+                  isLoading={false}
+                  emptyMessage={
+                    key === "topic-coverage"
+                      ? "Add more topics to your business profile to see this metric."
+                      : key === "visibility-relevance"
+                      ? "Improve your website's SEO to see this metric."
+                      : key === "engagement-relevance"
+                      ? "Increase user engagement to see this metric."
+                      : "No data available."
+                  }
+                />
+              ))}
+            </>
           )}
 
           {/* Branded / Non-branded cards (2 columns) */}
@@ -333,8 +350,27 @@ export function OrganicPerformanceSection({
             </>
           ) : (
             <>
-              <MetricCard emptyMessage={brandedStatusMessage} />
-              <MetricCard emptyMessage={brandedStatusMessage} />
+              {/* Show empty state for branded/non-branded cards with heading and -- */}
+              {[
+                "branded",
+                "non-branded",
+              ].map((key) => (
+                <MetricCard
+                  key={key}
+                  icon={METRIC_ICONS[key] || <Star className="h-5 w-5" />}
+                  label={key === "branded" ? "Branded" : "Non-Branded"}
+                  value={"--"}
+                  change={undefined}
+                  sparklineData={undefined}
+                  isLoading={false}
+                  emptyMessage={
+                    key === "branded"
+                      ? "Ensure your brand keywords are tracked to see this metric."
+                      : "Add more non-branded keywords to see this metric."
+                  }
+                  disableTooltip={key === "non-branded"}
+                />
+              ))}
             </>
           )}
         </div>
@@ -449,7 +485,7 @@ export function OrganicPerformanceSection({
                                 <div className="space-y-1 text-xs">
                                   {visibleLines.impressions && (
                                     <p className="text-gray-500">
-                                      Impressions:{" "}
+                                      Impr.:{" "}
                                       {data?.impressions?.toLocaleString()}
                                     </p>
                                   )}

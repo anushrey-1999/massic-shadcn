@@ -206,6 +206,7 @@ export function SocialActionCell({
   const PrimaryIcon = primaryAction === "view" ? Eye : Sparkles;
   const primaryLabel = primaryAction === "view" ? "View" : "Generate";
   const handlePrimaryClick = primaryAction === "view" ? handleOpen : handleGenerate;
+  const buttonVariant = primaryAction === "generate" ? "default" : "outline";
 
   return (
     <>
@@ -214,13 +215,13 @@ export function SocialActionCell({
           <TooltipTrigger asChild>
             <Button
               size="icon"
-              variant="outline"
-              className="h-8 w-8"
+              variant={buttonVariant}
+              className="size-6 rounded-sm"
               onClick={handlePrimaryClick}
               aria-label={primaryLabel}
               disabled={primaryAction === "generate" ? starting : false}
             >
-              <PrimaryIcon className="h-4 w-4" />
+              <PrimaryIcon className="size-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={8}>
@@ -247,7 +248,7 @@ export function SocialActionCell({
               </Button>
             </DialogClose>
 
-            {showGeneratingCard ? (
+            {showGeneratingCard || isGenerating ? (
               <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-10 text-center flex flex-col items-center justify-center gap-2">
                 <Typography variant="p" className="text-muted-foreground">
                   Generating social content... This may take a few minutes.

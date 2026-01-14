@@ -186,9 +186,12 @@ export function useGoogleLogin() {
         throw new Error("Token not found in response");
       }
 
+      // Extract token and user data the same way as useLogin
+      const { token, ...userData } = response.data;
+
       return {
-        token: response.data.token,
-        user: response.data.user,
+        token,
+        user: userData,
       };
     },
     onSuccess: (data) => {

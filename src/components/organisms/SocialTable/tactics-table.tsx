@@ -32,9 +32,60 @@ export function TacticsTable({
   onBack,
   channelName,
 }: TacticsTableProps) {
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+
+  const tableContainerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+
+      if (!tableContainerRef.current) return;
+
+      const isOutsideContainer = !tableContainerRef.current.contains(target);
+
+      // If click is outside container, collapse
+      if (isOutsideContainer) {
+        setExpandedRowId(null);
+        return;
+      }
+
+      // If click is inside container, check if it's on a table element or interactive element
+      const isOnTableElement = target?.closest?.(
+        'table, [role="table"], [role="row"], [role="cell"], [role="columnheader"], [role="rowheader"]'
+      );
+      const isOnInteractiveElement = target?.closest?.(
+        'button, input, select, textarea, a, [role="button"], [role="textbox"], [role="combobox"]'
+      );
+
+      // Collapse if click is inside container but not on table or interactive elements
+      // This handles clicks on empty space within the container
+      if (!isOnTableElement && !isOnInteractiveElement) {
+        setExpandedRowId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleExpandedRowChange = React.useCallback(
+    (rowId: string | null) => {
+      setExpandedRowId(rowId);
+    },
+    []
+  );
+
   const columns = React.useMemo(
-    () => getTacticsTableColumns({ channelName, businessId }),
-    [channelName, businessId]
+    () => getTacticsTableColumns({ 
+      channelName, 
+      businessId, 
+      expandedRowId, 
+      onExpandedRowChange: handleExpandedRowChange 
+    }),
+    [channelName, businessId, expandedRowId, handleExpandedRowChange]
   );
 
   const { table } = useLocalDataTable({
@@ -45,13 +96,16 @@ export function TacticsTable({
         pageIndex: 0,
         pageSize: 500,
       },
+      columnVisibility: {
+        status: false,
+      },
     },
     getRowId: (originalRow: TacticRow) => originalRow.id,
   });
 
   return (
-    <div className="flex flex-col h-full w-full gap-2.5">
-      <div className="shrink-0">
+    <div ref={tableContainerRef} className="bg-white rounded-lg p-4 flex flex-col h-full w-full overflow-hidden">
+      <div className="shrink-0 mb-4">
         <div
           role="toolbar"
           aria-orientation="horizontal"
@@ -60,7 +114,7 @@ export function TacticsTable({
           <div className="flex flex-1 flex-wrap items-center gap-2">
             {onBack && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="icon"
                 onClick={onBack}
               >
@@ -77,7 +131,6 @@ export function TacticsTable({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
           </div>
         </div>
@@ -91,6 +144,12 @@ export function TacticsTable({
             emptyMessage="No tactics found. Try adjusting your search or check back later."
             showPagination={false}
             className="h-full [&>div]:overflow-x-hidden [&>div>div]:overflow-x-hidden"
+            onRowClick={(row) => {
+              const rowId = (row as any).id;
+              setExpandedRowId((prev) => (prev === rowId ? null : rowId));
+            }}
+            selectedRowId={expandedRowId}
+            highlightSelectedRow={false}
           />
         </div>
       </div>

@@ -36,9 +36,17 @@ export function WebPageTable({
 }: WebPageTableProps) {
   const enableAdvancedFilter = true;
 
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+
   const columns = React.useMemo(
-    () => getWebPageTableColumns({ businessId, offeringCounts }),
-    [businessId, offeringCounts]
+    () =>
+      getWebPageTableColumns({
+        businessId,
+        offeringCounts,
+        expandedRowId,
+        onExpandedRowChange: setExpandedRowId,
+      }),
+    [businessId, offeringCounts, expandedRowId]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -53,6 +61,7 @@ export function WebPageTable({
       },
       columnVisibility: {
         offerings: false,
+        status: false,
       },
     },
     queryKeys,
@@ -61,15 +70,59 @@ export function WebPageTable({
     clearOnDefault: true,
   });
 
+  const tableContainerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+
+      if (!tableContainerRef.current) return;
+
+      const isOutsideContainer = !tableContainerRef.current.contains(target);
+
+      // If click is outside container, collapse
+      if (isOutsideContainer) {
+        setExpandedRowId(null);
+        return;
+      }
+
+      // If click is inside container, check if it's on a table element or interactive element
+      const isOnTableElement = target?.closest?.(
+        'table, [role="table"], [role="row"], [role="cell"], [role="columnheader"], [role="rowheader"]'
+      );
+      const isOnInteractiveElement = target?.closest?.(
+        'button, input, select, textarea, a, [role="button"], [role="textbox"], [role="combobox"]'
+      );
+
+      // Collapse if click is inside container but not on table or interactive elements
+      // This handles clicks on empty space within the container
+      if (!isOnTableElement && !isOnInteractiveElement) {
+        setExpandedRowId(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+
+
   return (
-    <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
+    <div ref={tableContainerRef} className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
       <DataTable
         table={table}
         isLoading={isLoading}
         isFetching={isFetching}
         pageSizeOptions={[10, 30, 50, 100, 200]}
         emptyMessage="No web pages found. Try adjusting your filters or check back later."
-        disableHorizontalScroll={true}
+        onRowClick={(row) => {
+          const rowId = (row as any).id;
+          setExpandedRowId((prev) => (prev === rowId ? null : rowId));
+        }}
+        selectedRowId={expandedRowId}
+        highlightSelectedRow={false}
       >
         <div
           role="toolbar"
@@ -84,6 +137,7 @@ export function WebPageTable({
                 placeholder="Search pages, keywords..."
               />
             )}
+        
             <DataTableFilterList
               table={table}
               shallow={shallow}

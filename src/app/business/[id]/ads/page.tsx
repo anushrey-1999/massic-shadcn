@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
 import { TvRadioAdsTableClient } from '@/components/organisms/TvRadioAdsTable'
-import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { usePathname, useRouter } from 'next/navigation'
@@ -18,9 +17,6 @@ interface PageProps {
 }
 
 function AdsEntitledContent({ businessId }: { businessId: string }) {
-  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
-  const jobExists = jobDetails && jobDetails.job_id
-
   const router = useRouter()
   const pathname = usePathname()
 
@@ -30,27 +26,6 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
     },
     [router, pathname]
   )
-
-  if (jobLoading) {
-    return (
-      <div className="flex items-center justify-center flex-1">
-        <p className="text-muted-foreground">Checking job status...</p>
-      </div>
-    )
-  }
-
-  if (!jobExists) {
-    return (
-      <div className="flex items-center justify-center flex-1">
-        <div className="text-center">
-          <p className="text-lg font-medium text-foreground mb-2">No Job Found</p>
-          <p className="text-muted-foreground">
-            Please create a job in the profile page to view ads data.
-          </p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
@@ -78,12 +53,8 @@ export default function BusinessAdsPage({ params }: PageProps) {
   }, [params])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
-  const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null)
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
-  const workflowStatus = jobDetails?.workflow_status?.status
-  const showContent = workflowStatus === "success"
-  const showBanner = workflowStatus === "processing" || workflowStatus === "error"
 
   const breadcrumbs = React.useMemo(
     () => [
@@ -102,7 +73,7 @@ export default function BusinessAdsPage({ params }: PageProps) {
     )
   }
 
-  if (profileDataLoading || jobLoading) {
+  if (profileDataLoading) {
     return (
       <div className="flex flex-col h-screen">
         <PageHeader breadcrumbs={breadcrumbs} />
@@ -116,20 +87,17 @@ export default function BusinessAdsPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
-      {showBanner && (
-        <div className="w-full max-w-[1224px] px-5 pt-5">
-          <WorkflowStatusBanner businessId={businessId} />
-        </div>
-      )}
-      {showContent && (
-        <EntitlementsGuard
-          entitlement="ads"
-          businessId={businessId}
-          alertMessage="You're on Starter. Upgrade your plan to unlock Ads."
-        >
-          <AdsEntitledContent businessId={businessId} />
-        </EntitlementsGuard>
-      )}
+      <EntitlementsGuard
+        entitlement="ads"
+        businessId={businessId}
+        alertMessage="You're on Starter. Upgrade your plan to unlock Ads."
+      >
+        <WorkflowStatusBanner 
+          businessId={businessId} 
+          emptyStateHeight="h-[calc(100vh-12rem)]"
+        />
+        <AdsEntitledContent businessId={businessId} />
+      </EntitlementsGuard>
     </div>
   )
 }

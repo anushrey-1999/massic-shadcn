@@ -256,14 +256,14 @@ const DiscoveryPerformanceSection = ({
 
   return (
     <div className="px-7 pb-10">
-      <div className="flex items-center gap-2 bg-[#0A0A0A0D] px-6 py-5 rounded-lg">
+      <div className="flex items-center gap-2 py-5 border-b border-general-muted-foreground">
         <Search className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Discovery</Typography>
       </div>
 
-      <div className="flex flex-col gap-6 pt-6">
+      <div className="flex flex-col gap-3 pt-10">
         <div className="">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-3">
             <DataTable
               title="Content people are seeing"
               showTabs
@@ -281,7 +281,7 @@ const DiscoveryPerformanceSection = ({
               }
               columns={[
                 { key: "key", label: "Content Groups", width: "w-[200px]" },
-                { key: "impressions", label: "Impressions", sortable: true },
+                { key: "impressions", label: "Impr.", sortable: true },
                 { key: "clicks", label: "Clicks", sortable: true },
               ]}
               data={contentGroupsData.map((item) => ({
@@ -315,9 +315,10 @@ const DiscoveryPerformanceSection = ({
               onTabChange={(value) =>
                 handleTopPagesFilterChange(value as TableFilterType)
               }
+              firstColumnTruncate="max-w-[300px]"
               columns={[
-                { key: "key", label: "Top Pages", width: "w-[200px]" },
-                { key: "impressions", label: "Impressions", sortable: true },
+                { key: "key", label: "Top Pages", width: "w-[180px]" },
+                { key: "impressions", label: "Impr.", sortable: true },
                 { key: "clicks", label: "Clicks", sortable: true },
               ]}
               data={topPagesData.map((item) => ({
@@ -339,7 +340,7 @@ const DiscoveryPerformanceSection = ({
 
         {/* Second Row */}
         <div className="">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-3">
             <DataTable
               icon={<Eye className="h-4 w-4" />}
               title="Searches to discover you"
@@ -358,7 +359,7 @@ const DiscoveryPerformanceSection = ({
               }
               columns={[
                 { key: "key", label: "Top Queries", width: "w-[200px]" },
-                { key: "impressions", label: "Impressions", sortable: true },
+                { key: "impressions", label: "Impr.", sortable: true },
                 { key: "clicks", label: "Clicks", sortable: true },
               ]}
               data={topQueriesData.map((item) => ({
@@ -446,7 +447,7 @@ const DiscoveryPerformanceSection = ({
         }
         columns={[
           { key: "key", label: "Content Groups" },
-          { key: "impressions", label: "Impressions", sortable: true },
+          { key: "impressions", label: "Impr.", sortable: true },
           { key: "clicks", label: "Clicks", sortable: true },
         ]}
         data={contentGroupsData.map((item) => ({
@@ -488,8 +489,8 @@ const DiscoveryPerformanceSection = ({
           handleTopPagesFilterChange(value as TableFilterType)
         }
         columns={[
-          { key: "key", label: "Page" },
-          { key: "impressions", label: "Impressions", sortable: true },
+          { key: "key", label: "Top Page" },
+          { key: "impressions", label: "Impr.", sortable: true },
           { key: "clicks", label: "Clicks", sortable: true },
         ]}
         data={topPagesData.map((item) => ({
@@ -531,8 +532,8 @@ const DiscoveryPerformanceSection = ({
           handleTopQueriesFilterChange(value as TableFilterType)
         }
         columns={[
-          { key: "key", label: "Query" },
-          { key: "impressions", label: "Impressions", sortable: true },
+          { key: "key", label: "Top Queries" },
+          { key: "impressions", label: "Impr.", sortable: true },
           { key: "clicks", label: "Clicks", sortable: true },
         ]}
         data={topQueriesData.map((item) => ({

@@ -110,11 +110,10 @@ export function AskMassicOverlayProvider({ businessId, children }: Props) {
   }, [businessId]);
 
   React.useEffect(() => {
-    if (!overlayOpen) return;
-    const match = pathname.match(/^\/business\/([^/]+)/);
-    const pathBusinessId = match?.[1];
-    if (!pathBusinessId || pathBusinessId !== businessId) setOverlayOpen(false);
-  }, [pathname, businessId, overlayOpen]);
+    // Close overlay whenever pathname changes (e.g., when clicking sidebar tabs)
+    setOverlayOpen(false);
+    setAnchorRect(null);
+  }, [pathname]);
 
   const open = React.useCallback(
     (nextAnchorRect?: AnchorRect) => {

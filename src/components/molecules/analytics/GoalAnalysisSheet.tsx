@@ -296,7 +296,14 @@ export function GoalAnalysisSheet({
         <SheetHeader className="px-4 py-3 border-b bg-muted/30 space-y-3">
           <div>
             <SheetTitle className="text-base font-bold flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
+              <Target
+                className="h-4 w-4"
+                color={
+                  (displayCriticalCount > 0 || displayWarningCount > 0 || displayPositiveCount > 0)
+                    ? "#F59E0B"
+                    : "#16A34A"
+                }
+              />
               Goal Analysis
             </SheetTitle>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -361,7 +368,14 @@ export function GoalAnalysisSheet({
             <div className="flex items-center justify-center h-full px-4">
               <div className="text-center space-y-2 max-w-xs">
                 <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
-                  <Target className="h-5 w-5 text-muted-foreground" />
+                  <Target
+                    className="h-5 w-5"
+                    color={
+                      (displayCriticalCount > 0 || displayWarningCount > 0 || displayPositiveCount > 0)
+                        ? "#F59E0B"
+                        : "#16A34A"
+                    }
+                  />
                 </div>
                 <p className="text-xs font-medium text-foreground">No goal anomalies</p>
                 <p className="text-[11px] text-muted-foreground">

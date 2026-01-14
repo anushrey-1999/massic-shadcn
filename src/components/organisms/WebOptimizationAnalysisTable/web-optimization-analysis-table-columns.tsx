@@ -66,6 +66,7 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
             rel="noopener noreferrer"
             className="block truncate text-primary hover:underline"
             title={url}
+            onClick={(e) => e.stopPropagation()}
           >
             {path}
           </a>
@@ -133,7 +134,7 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
       id: "impressions",
       accessorKey: "impressions",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Impressions" />
+        <DataTableColumnHeader column={column} label="Impr." />
       ),
       cell: ({ cell }) => (
         <Typography variant="p" className="tabular-nums">
@@ -141,7 +142,7 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
         </Typography>
       ),
       meta: {
-        label: "Impressions",
+        label: "Impr.",
         variant: "range",
         range: [0, 100000000],
       },

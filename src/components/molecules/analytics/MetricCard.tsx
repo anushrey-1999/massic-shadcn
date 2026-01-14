@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils"
 import { TrendingUp, TrendingDown, Loader2 } from "lucide-react"
+import { StatsBadge } from "./StatsBadge"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 
 interface MetricCardProps {
   icon?: React.ReactNode
@@ -13,6 +15,7 @@ interface MetricCardProps {
   error?: string | null
   emptyMessage?: string
   className?: string
+  disableTooltip?: boolean
 }
 
 export function MetricCard({
@@ -25,6 +28,7 @@ export function MetricCard({
   error = null,
   emptyMessage = "No data available",
   className,
+  disableTooltip = false,
 }: MetricCardProps) {
   if (isLoading) {
     return (
@@ -53,16 +57,42 @@ export function MetricCard({
     )
   }
 
-  if (!value && !label) {
+  // Show tooltip for empty state if value is '--' (as used in OrganicPerformanceSection)
+  if (value === "--") {
+    const emptyStateContent = (
+      <>
+        {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
+        <span className="text-3xl font-semibold text-general-unofficial-foreground-alt">--</span>
+      </>
+    )
+
+    if (disableTooltip) {
+      return (
+        <div
+          className={cn(
+            "flex flex-col items-center justify-center rounded-lg p-3 text-muted-foreground text-sm cursor-default h-[88px]",
+            className
+          )}
+        >
+          {emptyStateContent}
+        </div>
+      )
+    }
+
     return (
-      <div
-        className={cn(
-          "flex items-center justify-center rounded-lg p-3 text-muted-foreground text-sm",
-          className
-        )}
-      >
-        {emptyMessage}
-      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className={cn(
+              "flex flex-col items-center justify-center rounded-lg p-3 text-muted-foreground text-sm cursor-default h-[88px]",
+              className
+            )}
+          >
+            {emptyStateContent}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>{emptyMessage}</TooltipContent>
+      </Tooltip>
     )
   }
 
@@ -80,21 +110,10 @@ export function MetricCard({
           {/* {icon && <span className="text-muted-foreground">{icon}</span>} */}
           {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
         </div>
-        <div className="flex items-center gap-1">
-          {value && <span className="text-3xl font-semibold text-general-unofficial-foreground-alt">{value}</span>}
+        <div className="flex items-baseline gap-1">
+          {value && <span className="text-3xl font-semibold leading-none text-general-unofficial-foreground-alt">{value}</span>}
           {change !== undefined && (
-            <div
-              className={cn(
-                "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
-              )}
-            >
-              {isPositive ? (
-                <TrendingUp className="h-3 w-3 text-emerald-600" />
-              ) : (
-                <TrendingDown className="h-3 w-3 text-red-600" />
-              )}
-              <span className="font-medium text-general-muted-foreground">{Math.abs(change)}%</span>
-            </div>
+            <StatsBadge value={change} className="leading-none" valueClassName="text-base" />
           )}
         </div>
       </div>

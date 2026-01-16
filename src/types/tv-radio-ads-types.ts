@@ -86,6 +86,7 @@ export interface TvRadioAdsApiResponse {
   metadata?: Record<string, any>;
   output_data: {
     items: TvRadioAdsApiItem[];
+    metrics?: TvRadioAdsMetrics[];
     pagination: {
       page: number;
       page_size: number;
@@ -96,6 +97,10 @@ export interface TvRadioAdsApiResponse {
     };
     download_url?: string;
   };
+}
+
+export interface TvRadioAdsMetrics {
+  total_ads: number;
 }
 
 export interface TvRadioApiFilter {

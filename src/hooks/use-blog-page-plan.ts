@@ -8,6 +8,7 @@ import type {
   WebPageRow,
   WebPageCounts,
   WebPageItem,
+  WebPageMetrics,
 } from "@/types/web-page-types";
 
 export function useBlogPagePlan(businessId: string) {
@@ -99,6 +100,24 @@ export function useBlogPagePlan(businessId: string) {
           pageCount = Math.ceil(flatRows.length / params.perPage);
         }
 
+        const metricsMaybe =
+          (response as any)?.output_data?.metrics ?? (response as any)?.metrics;
+        const metricsFirst = Array.isArray(metricsMaybe)
+          ? metricsMaybe[0]
+          : metricsMaybe;
+        const metrics: WebPageMetrics | null = metricsFirst
+          ? {
+              total_pages:
+                typeof metricsFirst?.total_pages === "number"
+                  ? metricsFirst.total_pages
+                  : 0,
+              total_supporting_keywords:
+                typeof metricsFirst?.total_supporting_keywords === "number"
+                  ? metricsFirst.total_supporting_keywords
+                  : 0,
+            }
+          : null;
+
         return {
           data: flatRows,
           pageCount,
@@ -110,6 +129,7 @@ export function useBlogPagePlan(businessId: string) {
             status: "success" as const,
           },
           metadata: response?.metadata,
+          metrics,
         };
       } catch (error) {
         console.error("Error fetching web page data:", error);

@@ -8,12 +8,17 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useBlogPagePlan } from "@/hooks/use-blog-page-plan";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
+import type { WebPageMetrics } from "@/types/web-page-types";
 
 interface WebPageTableClientProps {
   businessId: string;
+  onMetricsChange?: (metrics: WebPageMetrics | null) => void;
 }
 
-export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
+export function WebPageTableClient({
+  businessId,
+  onMetricsChange,
+}: WebPageTableClientProps) {
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
   const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
   const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
@@ -115,7 +120,7 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      return fetchWebPages({
+      const result = await fetchWebPages({
         business_id: businessId,
         page,
         perPage,
@@ -124,6 +129,8 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
         filters: filters || [],
         joinOperator: (joinOperator || "and") as "and" | "or",
       });
+      onMetricsChange?.(result?.metrics ?? null);
+      return result;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh longer
     gcTime: 1000 * 60 * 15, // 15 minutes - keep in cache longer
@@ -133,6 +140,10 @@ export function WebPageTableClient({ businessId }: WebPageTableClientProps) {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading,
   });
+
+  React.useEffect(() => {
+    onMetricsChange?.(webPageData?.metrics ?? null);
+  }, [onMetricsChange, webPageData?.metrics]);
 
   React.useEffect(() => {
     if (!jobExists || !webPageData || !webPageData.pageCount) return;

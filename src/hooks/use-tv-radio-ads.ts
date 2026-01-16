@@ -7,6 +7,7 @@ import type {
   TvRadioAdsApiResponse,
   TvRadioAdConceptRow,
   TvRadioAdsApiItem,
+  TvRadioAdsMetrics,
 } from "@/types/tv-radio-ads-types";
 
 function getAvgCpc(item: TvRadioAdsApiItem): number {
@@ -152,11 +153,22 @@ export function useTvRadioAds(_businessId: string) {
 
       const pageCount = Number(pagination?.total_pages || 0);
 
+      const metricsMaybe =
+        (response as any)?.output_data?.metrics ?? (response as any)?.metrics;
+      const metricsFirst = Array.isArray(metricsMaybe) ? metricsMaybe[0] : metricsMaybe;
+      const metrics: TvRadioAdsMetrics | null = metricsFirst
+        ? {
+            total_ads:
+              typeof metricsFirst?.total_ads === "number" ? metricsFirst.total_ads : 0,
+          }
+        : null;
+
       return {
         data: rows,
         pageCount,
         pagination,
         metadata: response?.metadata,
+        metrics,
       };
     },
     [api, transformToTableRows]

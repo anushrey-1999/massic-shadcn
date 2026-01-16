@@ -49,6 +49,7 @@ export interface DigitalAdsApiResponse {
       keywords: DigitalAdsKeyword[];
       [key: string]: any;
     }>;
+    metrics?: DigitalAdsMetrics[];
     pagination: {
       page: number;
       page_size: number;
@@ -58,6 +59,11 @@ export interface DigitalAdsApiResponse {
       status: "success" | "error";
     };
   };
+}
+
+export interface DigitalAdsMetrics {
+  total_ads?: number;
+  total_clusters?: number;
 }
 
 export interface GetDigitalAdsSchema {

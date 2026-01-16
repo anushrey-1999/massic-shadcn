@@ -9,14 +9,15 @@ import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTvRadioAds } from "@/hooks/use-tv-radio-ads";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import type { TvRadioAdConceptRow } from "@/types/tv-radio-ads-types";
+import type { TvRadioAdConceptRow, TvRadioAdsMetrics } from "@/types/tv-radio-ads-types";
 import type { TvRadioApiFilter } from "@/types/tv-radio-ads-types";
 
 interface TvRadioAdsTableClientProps {
   businessId: string;
+  onMetricsChange?: (metrics: TvRadioAdsMetrics | null) => void;
 }
 
-export function TvRadioAdsTableClient({ businessId }: TvRadioAdsTableClientProps) {
+export function TvRadioAdsTableClient({ businessId, onMetricsChange }: TvRadioAdsTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null);
 
@@ -113,7 +114,7 @@ export function TvRadioAdsTableClient({ businessId }: TvRadioAdsTableClientProps
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      return fetchTvRadioAds({
+      const result = await fetchTvRadioAds({
         business_id: businessId,
         page,
         perPage,
@@ -122,6 +123,8 @@ export function TvRadioAdsTableClient({ businessId }: TvRadioAdsTableClientProps
         filters: filters || [],
         joinOperator: (joinOperator || "and") as "and" | "or",
       });
+      onMetricsChange?.(result?.metrics ?? null);
+      return result;
     },
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 15,
@@ -131,6 +134,10 @@ export function TvRadioAdsTableClient({ businessId }: TvRadioAdsTableClientProps
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading,
   });
+
+  React.useEffect(() => {
+    onMetricsChange?.(data?.metrics ?? null);
+  }, [onMetricsChange, data?.metrics]);
 
   React.useEffect(() => {
     if (!jobExists || !data || !data.pageCount) return;

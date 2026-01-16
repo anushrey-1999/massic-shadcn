@@ -9,14 +9,18 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import { useDigitalAds } from "@/hooks/use-digital-ads";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import type { DigitalAdsRow } from "@/types/digital-ads-types";
+import type { DigitalAdsMetrics, DigitalAdsRow } from "@/types/digital-ads-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface DigitalAdsTableClientProps {
   businessId: string;
+  onMetricsChange?: (metrics: DigitalAdsMetrics | null) => void;
 }
 
-export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps) {
+export function DigitalAdsTableClient({
+  businessId,
+  onMetricsChange,
+}: DigitalAdsTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null);
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
@@ -123,7 +127,7 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      return fetchDigitalAds({
+      const result = await fetchDigitalAds({
         business_id: businessId,
         page,
         perPage,
@@ -132,6 +136,8 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
         filters: filters || [],
         joinOperator: (joinOperator || "and") as "and" | "or",
       });
+      onMetricsChange?.(result?.metrics ?? null);
+      return result;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh longer
     gcTime: 1000 * 60 * 15, // 15 minutes - keep in cache longer
@@ -141,6 +147,10 @@ export function DigitalAdsTableClient({ businessId }: DigitalAdsTableClientProps
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading,
   });
+
+  React.useEffect(() => {
+    onMetricsChange?.(digitalAdsData?.metrics ?? null);
+  }, [onMetricsChange, digitalAdsData?.metrics]);
 
   React.useEffect(() => {
     if (!jobExists || !digitalAdsData || !digitalAdsData.pageCount) return;

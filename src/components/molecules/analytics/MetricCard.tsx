@@ -15,6 +15,7 @@ interface MetricCardProps {
   error?: string | null
   emptyMessage?: string
   className?: string
+  disableTooltip?: boolean
 }
 
 export function MetricCard({
@@ -27,6 +28,7 @@ export function MetricCard({
   error = null,
   emptyMessage = "No data available",
   className,
+  disableTooltip = false,
 }: MetricCardProps) {
   if (isLoading) {
     return (
@@ -57,6 +59,26 @@ export function MetricCard({
 
   // Show tooltip for empty state if value is '--' (as used in OrganicPerformanceSection)
   if (value === "--") {
+    const emptyStateContent = (
+      <>
+        {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
+        <span className="text-3xl font-semibold text-general-unofficial-foreground-alt">--</span>
+      </>
+    )
+
+    if (disableTooltip) {
+      return (
+        <div
+          className={cn(
+            "flex flex-col items-center justify-center rounded-lg p-3 text-muted-foreground text-sm cursor-default h-[88px]",
+            className
+          )}
+        >
+          {emptyStateContent}
+        </div>
+      )
+    }
+
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -66,8 +88,7 @@ export function MetricCard({
               className
             )}
           >
-            {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
-            <span className="text-3xl font-semibold text-general-unofficial-foreground-alt">--</span>
+            {emptyStateContent}
           </div>
         </TooltipTrigger>
         <TooltipContent>{emptyMessage}</TooltipContent>

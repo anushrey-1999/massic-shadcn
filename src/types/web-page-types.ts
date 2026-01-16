@@ -49,6 +49,7 @@ export interface WebPageApiResponse {
   };
   output_data: {
     items: WebPageItem[];
+    metrics?: WebPageMetrics[];
     pagination: {
       page: number;
       page_size: number;
@@ -58,6 +59,11 @@ export interface WebPageApiResponse {
       status: "success" | "error";
     };
   };
+}
+
+export interface WebPageMetrics {
+  total_pages: number;
+  total_supporting_keywords: number;
 }
 
 // Schema for web page fetching parameters

@@ -368,6 +368,7 @@ export function OrganicPerformanceSection({
                       ? "Ensure your brand keywords are tracked to see this metric."
                       : "Add more non-branded keywords to see this metric."
                   }
+                  disableTooltip={key === "non-branded"}
                 />
               ))}
             </>

@@ -39,7 +39,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useFetchBusinesses, useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
@@ -52,6 +51,7 @@ import {
   LocationRow,
   CompetitorRow,
 } from "@/store/business-store";
+import { useUnlinkOrDeleteBusiness } from "@/hooks/use-business-actions";
 
 interface ProfileTemplateProps {
   businessId: string;
@@ -115,7 +115,7 @@ const ProfileTemplate = ({
   const router = useRouter();
   const queryClient = useQueryClient();
   const profiles = useBusinessStore((state) => state.profiles);
-
+  const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   // Get setters from Zustand store (only for UI state)
   const setActiveSection = useBusinessStore((state) => state.setActiveSection);
 
@@ -127,7 +127,7 @@ const ProfileTemplate = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [isUnlinkModalOpen, setIsUnlinkModalOpen] = useState(false);
-  const [isUnlinking, setIsUnlinking] = useState(false);
+  const unlinkOrDeleteMutation = useUnlinkOrDeleteBusiness();
   const [showSubmitErrors, setShowSubmitErrors] = useState(false);
   const initialValuesRef = useRef<any>(null);
   const hasChangesRef = useRef(false);
@@ -432,11 +432,11 @@ const ProfileTemplate = ({
                 ?.filter((item: string) => item.length > 0)
               : null,
           RecurringFlag:
-              value.recurringRevenue && value.recurringRevenue.trim()
-                ? value.recurringRevenue.trim().toLowerCase() === "partial"
-                  ? "sometimes"
-                  : value.recurringRevenue.trim().toLowerCase()
-                : null,
+            value.recurringRevenue && value.recurringRevenue.trim()
+              ? value.recurringRevenue.trim().toLowerCase() === "partial"
+                ? "sometimes"
+                : value.recurringRevenue.trim().toLowerCase()
+              : null,
           AOV: (() => {
             const num = Number.parseFloat(String(value.avgOrderValue || "").trim());
             return Number.isFinite(num) ? num : null;
@@ -1184,46 +1184,53 @@ const ProfileTemplate = ({
     return undefined;
   }, [isTriggeringWorkflow, isSaving, externalLoading]);
 
-  // Use the same API as Settings > Linked Businesses
-  const { data: linkedBusinessesData } = useFetchBusinesses();
-  const toggleBusinessStatusMutation = useToggleBusinessStatus();
+  // Determine if we should show "Unlink" or "Delete" based on LinkedAuthId
+  const hasLinkedAuth = !!currentProfile?.LinkedAuthId;
+  const isActive = currentProfile?.IsActive === true;
+  const businessDbId = currentProfile?.Id;
 
-  const linkedBusiness = useMemo(() => {
-    const businesses = linkedBusinessesData?.businesses || [];
-    return businesses.find((b) => b.businessProfile?.UniqueId === businessId) || null;
-  }, [linkedBusinessesData?.businesses, businessId]);
+  // Can unlink if: has LinkedAuthId AND is active AND has database Id
+  const canUnlink = hasLinkedAuth && isActive && !!businessDbId;
 
-  const canUnlink = !!linkedBusiness?.businessProfile?.Id && linkedBusiness?.businessProfile?.IsActive === true;
+  // Can delete if: no LinkedAuthId AND is active AND has database Id
+  const canDelete = !hasLinkedAuth && isActive && !!businessDbId;
 
-  const handleConfirmUnlink = useCallback(async () => {
-    if (!linkedBusiness) {
-      toast.error("Unable to unlink", {
-        description: "Linked business not found. Please try again from Settings.",
+  const canPerformAction = canUnlink || canDelete;
+  const actionLabel = hasLinkedAuth ? "Unlink Business" : "Delete Business";
+
+  const handleConfirmAction = useCallback(async () => {
+    if (!currentProfile) {
+      toast.error(`Unable to ${actionLabel.toLowerCase()}`, {
+        description: "Business profile not found.",
       });
       return;
     }
 
-    if (!linkedBusiness.businessProfile?.Id) {
-      toast.error("Unable to unlink", {
-        description: "This business is not linked yet.",
+    if (!businessDbId) {
+      toast.error(`Unable to ${actionLabel.toLowerCase()}`, {
+        description: "This business has not been saved yet.",
       });
       return;
     }
 
-    if (linkedBusiness.businessProfile.IsActive !== true) {
-      toast.info("Business is already unlinked");
+    if (!isActive) {
+      toast.info(`Business is already ${hasLinkedAuth ? "unlinked" : "deleted"}`);
       setIsUnlinkModalOpen(false);
       return;
     }
 
-    setIsUnlinking(true);
     try {
-      await toggleBusinessStatusMutation.mutateAsync({ business: linkedBusiness });
+      await unlinkOrDeleteMutation.mutateAsync({
+        businessId,
+        businessDbId,
+        hasLinkedAuth,
+        isActive,
+      });
       setIsUnlinkModalOpen(false);
-    } finally {
-      setIsUnlinking(false);
+    } catch (error) {
+      // Error handling is done in the mutation hook
     }
-  }, [linkedBusiness, toggleBusinessStatusMutation]);
+  }, [currentProfile, businessDbId, isActive, hasLinkedAuth, actionLabel, businessId, unlinkOrDeleteMutation]);
 
   return (
     <div
@@ -1274,35 +1281,37 @@ const ProfileTemplate = ({
                 variant="destructive"
                 onClick={() => setIsUnlinkModalOpen(true)}
                 className="flex items-center gap-2"
-                disabled={!canUnlink || isUnlinking || toggleBusinessStatusMutation.isPending}
+                disabled={!canPerformAction || unlinkOrDeleteMutation.isPending}
               >
                 <Unlink className="size-4" />
-                Unlink Business
+                {actionLabel}
               </Button>
             </div>
           </div>
         </div>
 
-        {/* Unlink Confirmation Modal (shadcn) */}
+        {/* Unlink/Delete Confirmation Modal (shadcn) */}
         <AlertDialog open={isUnlinkModalOpen} onOpenChange={setIsUnlinkModalOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure you want to unlink this business?</AlertDialogTitle>
+              <AlertDialogTitle>Are you sure you want to {hasLinkedAuth ? "unlink" : "delete"} this business?</AlertDialogTitle>
               <AlertDialogDescription>
-                Unlinking this business will deactivate it, cancel any associated subscription, and remove it from your profile along with all linked accounts (GSC, GA4, GBP). This impacts your strategy and execution. Only do this if your business goals have significantly changed.
+                {hasLinkedAuth
+                  ? "Unlinking this business will deactivate it, cancel any associated subscription, and remove it from your profile along with all linked accounts (GSC, GA4, GBP). This impacts your strategy and execution. Only do this if your business goals have significantly changed."
+                  : "Deleting this business will permanently deactivate it and cancel any associated subscription. This action will remove the business from your profile."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isUnlinking || toggleBusinessStatusMutation.isPending}>
+              <AlertDialogCancel disabled={unlinkOrDeleteMutation.isPending}>
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction asChild>
                 <Button
                   variant="destructive"
-                  onClick={handleConfirmUnlink}
-                  disabled={!canUnlink || isUnlinking || toggleBusinessStatusMutation.isPending}
+                  onClick={handleConfirmAction}
+                  disabled={!canPerformAction || unlinkOrDeleteMutation.isPending}
                 >
-                  {isUnlinking || toggleBusinessStatusMutation.isPending ? "Unlinking..." : "Unlink"}
+                  {unlinkOrDeleteMutation.isPending ? `${hasLinkedAuth ? "Unlinking" : "Deleting"}...` : hasLinkedAuth ? "Unlink" : "Delete"}
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>

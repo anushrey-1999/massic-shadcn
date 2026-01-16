@@ -803,7 +803,7 @@ export function AnomaliesSheet({
           </Tabs>
         </div>
 
-        <div className="flex-1 overflow-hidden -mx-6 pt-5">
+        <div className="flex-1 overflow-scroll -mx-6 pt-5">
           <Tabs
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as "goals" | "traffic")}

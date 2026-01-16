@@ -14,6 +14,8 @@ import type { QueryKeys } from "@/types/data-table-types";
 import { getReportsTableColumns } from "./reports-table-columns";
 import { ReportsTablePagination } from "./reports-table-pagination";
 import { GenerateReportDialog } from "./generate-report-dialog";
+import { AutoScheduleDialog } from "./auto-schedule-dialog";
+import { useGetAutoScheduleByBusiness } from "@/hooks/use-auto-schedules";
 
 interface ReportsTableProps {
   businessId: string;
@@ -34,6 +36,9 @@ export function ReportsTable({
 }: ReportsTableProps) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [autoScheduleDialogOpen, setAutoScheduleDialogOpen] = React.useState(false);
+
+  const { data: existingSchedule } = useGetAutoScheduleByBusiness(businessId);
 
   const columns = React.useMemo(
     () => getReportsTableColumns({ businessId }),
@@ -74,6 +79,7 @@ export function ReportsTable({
         showPagination={false}
         emptyMessage="No reports found."
         onRowClick={handleRowClick}
+        className="[&_tbody_tr]:h-10 [&_tbody_td]:py-0.5"
       >
         <div
           role="toolbar"
@@ -92,7 +98,11 @@ export function ReportsTable({
           </div>
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
-            <Button variant="outline" className="h-9 gap-2" disabled>
+            <Button
+              variant="outline"
+              className="h-9 gap-2"
+              onClick={() => setAutoScheduleDialogOpen(true)}
+            >
               <CalendarFold className="h-4 w-4" />
               Auto-schedule
             </Button>
@@ -107,6 +117,13 @@ export function ReportsTable({
       <ReportsTablePagination table={table} pageSizeOptions={[10, 24, 50, 100]} />
 
       <GenerateReportDialog open={dialogOpen} onOpenChange={setDialogOpen} businessId={businessId} />
+
+      <AutoScheduleDialog
+        isOpen={autoScheduleDialogOpen}
+        onClose={() => setAutoScheduleDialogOpen(false)}
+        businessId={businessId}
+        existingSchedule={existingSchedule}
+      />
     </div>
   );
 }

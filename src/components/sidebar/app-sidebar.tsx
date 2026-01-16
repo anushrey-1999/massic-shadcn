@@ -227,6 +227,43 @@ export default function AppSidebar() {
   }, [profiles, searchQuery])
 
   const isBusinessRoute = pathname.startsWith('/business/')
+  const pitchBusinessId = useMemo(() => {
+    const parts = pathname.split('/').filter(Boolean)
+    if (parts[0] !== 'pitches') return null
+    if (!parts[1] || parts[1] === 'create-pitch') return null
+    return parts[1]
+  }, [pathname])
+  const isPitchBusinessRoute = pitchBusinessId !== null
+
+  const pitchBusinessSubItems = [
+    { label: 'Reports', slug: 'reports' },
+    { label: 'Strategy', slug: 'strategy' },
+    { label: 'Web', slug: 'web' },
+    { label: 'Social', slug: 'social' },
+    { label: 'Ads', slug: 'ads' },
+    { label: 'Profile', slug: 'profile' },
+  ] as const
+
+  const pitchBusinessProfile = useMemo(() => {
+    if (!pitchBusinessId) return null
+    return profiles.find((p) => p.UniqueId === pitchBusinessId) ?? null
+  }, [pitchBusinessId, profiles])
+
+  const getPitchSubItemHref = (slug: (typeof pitchBusinessSubItems)[number]['slug']) => {
+    if (!pitchBusinessId) return '/pitches'
+    return `/pitches/${pitchBusinessId}/${slug}`
+  }
+
+  const isPitchSubItemActive = (slug: (typeof pitchBusinessSubItems)[number]['slug']) => {
+    if (!pitchBusinessId) return false
+    if (slug === 'reports') {
+      return (
+        pathname.startsWith(`/pitches/${pitchBusinessId}/reports`) ||
+        pathname.startsWith(`/pitches/${pitchBusinessId}/summary`)
+      )
+    }
+    return pathname.startsWith(`/pitches/${pitchBusinessId}/${slug}`)
+  }
 
   useEffect(() => {
 
@@ -373,15 +410,74 @@ export default function AppSidebar() {
           <SidebarGroup className="shrink-0 py-0 pb-3 px-4">
             <SidebarGroupContent>
               <SidebarMenu className="gap-2">
-                {navItems.map((item) => (
-                  <NavItem
-                    key={item.href}
-                    href={item.href}
-                    icon={item.icon}
-                    label={item.label}
-                    isActive={isNavItemActive(item.href)}
-                  />
-                ))}
+                {navItems.map((item) => {
+                  if (item.href !== '/pitches') {
+                    return (
+                      <NavItem
+                        key={item.href}
+                        href={item.href}
+                        icon={item.icon}
+                        label={item.label}
+                        isActive={isNavItemActive(item.href)}
+                      />
+                    )
+                  }
+
+                  const businessLabel =
+                    pitchBusinessProfile?.Name || pitchBusinessProfile?.DisplayName || 'Business'
+
+                  return (
+                    <React.Fragment key={item.href}>
+                      <NavItem
+                        href={item.href}
+                        icon={item.icon}
+                        label={item.label}
+                        isActive={isPitchBusinessRoute ? false : isNavItemActive(item.href)}
+                      />
+
+                      {isPitchBusinessRoute ? (
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={false}
+                            className="py-4 pl-3 cursor-pointer hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                          >
+                            <Link href={getPitchSubItemHref('reports')}>
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <BusinessIcon
+                                  website={pitchBusinessProfile?.Website}
+                                  name={pitchBusinessProfile?.Name || pitchBusinessProfile?.DisplayName}
+                                />
+                                <span
+                                  className="truncate font-medium text-general-unofficial-foreground-alt"
+                                  title={businessLabel}
+                                >
+                                  {businessLabel}
+                                </span>
+                              </div>
+                            </Link>
+                          </SidebarMenuButton>
+
+                          <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
+                            {pitchBusinessSubItems.map((subItem) => (
+                              <SidebarMenuSubItem key={subItem.slug}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={isPitchSubItemActive(subItem.slug)}
+                                  className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                                >
+                                  <Link href={getPitchSubItemHref(subItem.slug)}>
+                                    <span>{subItem.label}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
+                        </SidebarMenuItem>
+                      ) : null}
+                    </React.Fragment>
+                  )
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

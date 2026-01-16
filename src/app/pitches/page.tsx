@@ -1,6 +1,11 @@
 import { PitchesTableClient } from "@/components/organisms/PitchesTable";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { Suspense } from "react";
+import { getPageMetadata } from "@/config/seo";
+
+export const metadata = {
+  ...getPageMetadata("pitches"),
+};
 
 export default function PitchesPage() {
   const breadcrumbs = [

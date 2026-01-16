@@ -7,6 +7,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,11 +25,10 @@ import {
   useFetchReportFromDownloadUrl,
   extractSnapshotSectionsMarkdown,
 } from "@/hooks/use-pitch-reports";
+import { api } from "@/hooks/use-api";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { PitchReportViewer } from "@/components/templates/PitchReportViewer";
 import {
-  useTriggerWorkflow,
-  usePollWorkflowStatus,
   useGetDetailedReport,
   useGenerateDetailedReport,
 } from "@/hooks/use-detailed-pitch-workflow";
@@ -39,32 +39,64 @@ export default function PitchReportsPage() {
 
   const startQuickyMutation = useStartQuickyReport();
   const fetchReportMutation = useFetchReportFromDownloadUrl();
-  const detailedMutation = useGenerateDetailedPitch();
-
-  // Detailed report workflow hooks
-  const triggerWorkflowMutation = useTriggerWorkflow();
   const [snapshotStarted, setSnapshotStarted] = React.useState(false);
-  const [detailedWorkflowStarted, setDetailedWorkflowStarted] = React.useState(false);
 
   const [activeReport, setActiveReport] = React.useState<
     "snapshot" | "detailed" | null
   >(null);
   const [reportContent, setReportContent] = React.useState<string>("");
 
-  const detailedReportQuery = useGetDetailedReport(
-    activeReport === "detailed" ? businessId ?? null : null
-  );
+  const detailedReportQuery = useGetDetailedReport(businessId ?? null);
   const generateDetailedReportMutation = useGenerateDetailedReport();
+
+  const snapshotExistingQuery = useQuery({
+    queryKey: ["quicky", "status", "existing", businessId],
+    queryFn: async () => {
+      if (!businessId) return null;
+      try {
+        return await api.get("/client/quicky", "python", {
+          params: { business_id: businessId },
+        });
+      } catch (error: any) {
+        if (error?.response?.status === 404) return null;
+        throw error;
+      }
+    },
+    enabled: !!businessId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  const hasExistingSnapshot = React.useMemo(() => {
+    const status = String((snapshotExistingQuery.data as any)?.status || "")
+      .trim()
+      .toLowerCase();
+    return status === "success";
+  }, [snapshotExistingQuery.data]);
+
+  const existingSnapshotMarkdown = React.useMemo(() => {
+    if (!hasExistingSnapshot) return "";
+    return extractSnapshotSectionsMarkdown(snapshotExistingQuery.data) || "";
+  }, [hasExistingSnapshot, snapshotExistingQuery.data]);
+
+  const existingSnapshotDownloadUrl = React.useMemo(() => {
+    if (!hasExistingSnapshot) return "";
+    return String((snapshotExistingQuery.data as any)?.output_data?.download_url || "").trim();
+  }, [hasExistingSnapshot, snapshotExistingQuery.data]);
+
+  const existingDetailedContent = React.useMemo(() => {
+    const data = detailedReportQuery.data as any;
+    const content = String(data?.report || data?.content || "").trim();
+    return content;
+  }, [detailedReportQuery.data]);
+
+  const hasExistingDetailed = Boolean(existingDetailedContent);
 
   const quickyStatusQuery = useQuickyReportStatus({
     businessId: activeReport === "snapshot" && snapshotStarted ? businessId ?? null : null,
     enabled: activeReport === "snapshot" && snapshotStarted,
   });
-
-  const workflowStatusQuery = usePollWorkflowStatus(
-    activeReport === "detailed" && detailedWorkflowStarted ? businessId ?? null : null,
-    activeReport === "detailed" && detailedWorkflowStarted
-  );
 
   const { profiles } = useBusinessProfiles();
   const { profileData: businessProfile } = useBusinessProfileById(
@@ -95,42 +127,17 @@ export default function PitchReportsPage() {
   ];
 
   const isGenerating =
-    detailedMutation.isPending ||
     startQuickyMutation.isPending ||
     fetchReportMutation.isPending ||
-    triggerWorkflowMutation.isPending ||
     generateDetailedReportMutation.isPending ||
     (activeReport === "snapshot" && snapshotStarted && quickyStatusQuery.isFetching) ||
-    (activeReport === "detailed" && detailedWorkflowStarted && workflowStatusQuery.isFetching);
+    false;
 
   const quickyStatus = React.useMemo(() => {
     const fromPoll = quickyStatusQuery.data?.status;
     const fromStart = startQuickyMutation.data?.status;
     return String(fromPoll ?? fromStart ?? "");
   }, [quickyStatusQuery.data?.status, startQuickyMutation.data?.status]);
-
-  // Auto-resume detailed report polling if workflow is still in progress
-  React.useEffect(() => {
-    if (!businessId) return;
-    if (activeReport === "detailed") return; // Already polling
-    if (detailedWorkflowStarted) return; // Already started
-    
-    // Check if workflow is still in progress by triggering once
-    triggerWorkflowMutation
-      .mutateAsync({ businessId })
-      .then((data) => {
-        const status = String(data?.status || "").toLowerCase().trim();
-        // If workflow is still processing, resume polling
-        if (status === "pending" || status === "processing") {
-          setActiveReport("detailed");
-          setReportContent("");
-          setDetailedWorkflowStarted(true);
-        }
-      })
-      .catch(() => {
-        // Silent fail - workflow might not exist yet
-      });
-  }, [businessId]); // Only run once on mount
 
   React.useEffect(() => {
     if (activeReport !== "snapshot") return;
@@ -186,54 +193,6 @@ export default function PitchReportsPage() {
         : "Report";
   }, [reportContent, activeReport]);
 
-  // Handle detailed report workflow
-  const workflowStatus = React.useMemo(() => {
-    return String(workflowStatusQuery.data?.status || "").toLowerCase().trim();
-  }, [workflowStatusQuery.data?.status]);
-
-  React.useEffect(() => {
-    if (activeReport !== "detailed") return;
-    if (!detailedWorkflowStarted) return;
-    if (!businessId) return;
-
-    // Workflow is success, try to get the report
-    if (workflowStatus === "success") {
-      if (reportContent.trim()) return; // Already have content
-
-      // Check if report already exists
-      if (detailedReportQuery.isSuccess && detailedReportQuery.data) {
-        const existingContent = detailedReportQuery.data?.report || detailedReportQuery.data?.content;
-        if (existingContent) {
-          setReportContent(existingContent);
-          return;
-        }
-      }
-
-      // Report doesn't exist, generate it
-      if (generateDetailedReportMutation.isPending) return;
-      if (generateDetailedReportMutation.isSuccess) return;
-
-      generateDetailedReportMutation
-        .mutateAsync({ businessId })
-        .then((data) => {
-          const content = data?.report || data?.content || "";
-          setReportContent(content);
-        })
-        .catch(() => {
-          // toast handled in hook
-        });
-    }
-  }, [
-    activeReport,
-    detailedWorkflowStarted,
-    businessId,
-    workflowStatus,
-    reportContent,
-    detailedReportQuery.data,
-    detailedReportQuery.isSuccess,
-    generateDetailedReportMutation,
-  ]);
-
   const showReportView = activeReport !== null;
 
   return (
@@ -249,8 +208,6 @@ export default function PitchReportsPage() {
             isGenerating={isGenerating}
             showStatus={activeReport === "snapshot" && snapshotStarted && !reportContent.trim()}
             statusText={quickyStatus ? `Status: ${quickyStatus}` : "Status: generating"}
-            showWorkflowMessage={activeReport === "detailed" && detailedWorkflowStarted && workflowStatus !== "success"}
-            workflowStatus={workflowStatus}
             onBack={() => {
               setActiveReport(null);
               setReportContent("");
@@ -300,22 +257,69 @@ export default function PitchReportsPage() {
               </div>
 
               <div className="mt-4">
-                <Button
-                  size="lg"
-                  className="w-full"
-                  disabled={!businessId || startQuickyMutation.isPending}
-                  onClick={async () => {
-                    if (!businessId) return;
-                    setActiveReport("snapshot");
-                    setReportContent("");
-                    setSnapshotStarted(true);
-                    startQuickyMutation.reset();
-                    fetchReportMutation.reset();
-                    await startQuickyMutation.mutateAsync({ businessId });
-                  }}
-                >
-                  {startQuickyMutation.isPending ? "Generating..." : "Generate"}
-                </Button>
+                {hasExistingSnapshot ? (
+                  <div className="flex gap-2">
+                    <Button
+                      size="lg"
+                      className="flex-1"
+                      disabled={!businessId || fetchReportMutation.isPending}
+                      onClick={async () => {
+                        if (!businessId) return;
+                        setActiveReport("snapshot");
+                        setSnapshotStarted(false);
+                        if (existingSnapshotMarkdown) {
+                          setReportContent(existingSnapshotMarkdown);
+                          return;
+                        }
+                        if (existingSnapshotDownloadUrl) {
+                          setReportContent("");
+                          const content = await fetchReportMutation.mutateAsync({
+                            downloadUrl: existingSnapshotDownloadUrl,
+                          });
+                          setReportContent(content);
+                          return;
+                        }
+                        setReportContent("");
+                      }}
+                    >
+                      View
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={!businessId || startQuickyMutation.isPending}
+                      onClick={async () => {
+                        if (!businessId) return;
+                        setActiveReport("snapshot");
+                        setReportContent("");
+                        setSnapshotStarted(true);
+                        startQuickyMutation.reset();
+                        fetchReportMutation.reset();
+                        await startQuickyMutation.mutateAsync({ businessId });
+                      }}
+                    >
+                      {startQuickyMutation.isPending ? "Regenerating..." : "Regenerate"}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    disabled={!businessId || startQuickyMutation.isPending}
+                    onClick={async () => {
+                      if (!businessId) return;
+                      setActiveReport("snapshot");
+                      setReportContent("");
+                      setSnapshotStarted(true);
+                      startQuickyMutation.reset();
+                      fetchReportMutation.reset();
+                      await startQuickyMutation.mutateAsync({ businessId });
+                    }}
+                  >
+                    {startQuickyMutation.isPending ? "Generating..." : "Generate"}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -366,22 +370,31 @@ export default function PitchReportsPage() {
                   variant="secondary"
                   size="lg"
                   className="w-full"
-                  disabled={!businessId || triggerWorkflowMutation.isPending || generateDetailedReportMutation.isPending}
+                  disabled={!businessId || generateDetailedReportMutation.isPending}
                   onClick={async () => {
                     if (!businessId) return;
+
+                    if (hasExistingDetailed) {
+                      setActiveReport("detailed");
+                      setReportContent(existingDetailedContent);
+                      return;
+                    }
                     
                     setActiveReport("detailed");
                     setReportContent("");
-                    setDetailedWorkflowStarted(true);
-                    triggerWorkflowMutation.reset();
                     generateDetailedReportMutation.reset();
                     detailedReportQuery.refetch();
-                    
-                    // Trigger workflow to prepare detailed report
-                    await triggerWorkflowMutation.mutateAsync({ businessId });
+
+                    const data = await generateDetailedReportMutation.mutateAsync({ businessId });
+                    const content = String(data?.report || data?.content || "");
+                    setReportContent(content);
                   }}
                 >
-                  {triggerWorkflowMutation.isPending || generateDetailedReportMutation.isPending ? "Preparing..." : "View"}
+                  {generateDetailedReportMutation.isPending
+                    ? "Generating..."
+                    : hasExistingDetailed
+                      ? "View"
+                      : "Generate"}
                 </Button>
               </div>
             </CardContent>

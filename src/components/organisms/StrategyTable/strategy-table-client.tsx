@@ -12,17 +12,20 @@ import { useStrategy } from "@/hooks/use-strategy";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { StrategyCluster, StrategyRow, StrategyTopic } from "@/types/strategy-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
+import type { StrategyMetrics } from "@/types/strategy-types";
 
 interface StrategyTableClientProps {
   businessId: string;
   onSplitViewChange?: (isSplitView: boolean) => void;
   toolbarRightPrefix?: React.ReactNode;
+  onMetricsChange?: (metrics: StrategyMetrics | null) => void;
 }
 
 export function StrategyTableClient({
   businessId,
   onSplitViewChange,
   toolbarRightPrefix,
+  onMetricsChange,
 }: StrategyTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedTopicId, setSelectedTopicId] = React.useState<string | null>(null);
@@ -122,7 +125,7 @@ export function StrategyTableClient({
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      return fetchStrategy({
+      const result = await fetchStrategy({
         business_id: businessId,
         page,
         perPage,
@@ -131,6 +134,8 @@ export function StrategyTableClient({
         filters: filters || [],
         joinOperator: (joinOperator || "and") as "and" | "or",
       });
+      onMetricsChange?.(result?.metrics ?? null);
+      return result;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh longer
     gcTime: 1000 * 60 * 15, // 15 minutes - keep in cache longer
@@ -140,6 +145,10 @@ export function StrategyTableClient({
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading, // Only fetch if businessId is provided and job exists
   });
+
+  React.useEffect(() => {
+    onMetricsChange?.(strategyData?.metrics ?? null);
+  }, [onMetricsChange, strategyData?.metrics]);
 
   // Prefetch pages 2 and 3 when page 1 is already cached (from Analytics prefetch)
   React.useEffect(() => {

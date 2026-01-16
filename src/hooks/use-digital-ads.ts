@@ -6,6 +6,7 @@ import type {
   GetDigitalAdsSchema,
   DigitalAdsApiResponse,
   DigitalAdsRow,
+  DigitalAdsMetrics,
 } from "@/types/digital-ads-types";
 
 export function useDigitalAds(businessId: string) {
@@ -96,6 +97,24 @@ export function useDigitalAds(businessId: string) {
           pageCount = Math.ceil(flatRows.length / params.perPage);
         }
 
+        const metricsMaybe =
+          (response as any)?.output_data?.metrics ?? (response as any)?.metrics;
+        const metricsFirst = Array.isArray(metricsMaybe)
+          ? metricsMaybe[0]
+          : metricsMaybe;
+        const metrics: DigitalAdsMetrics | null = metricsFirst
+          ? {
+              total_clusters:
+                typeof metricsFirst?.total_clusters === "number"
+                  ? metricsFirst.total_clusters
+                  : undefined,
+              total_ads:
+                typeof metricsFirst?.total_ads === "number"
+                  ? metricsFirst.total_ads
+                  : undefined,
+            }
+          : null;
+
         return {
           data: flatRows,
           pageCount,
@@ -107,6 +126,7 @@ export function useDigitalAds(businessId: string) {
             status: "success" as const,
           },
           metadata: response?.metadata,
+          metrics,
         };
       } catch (error) {
         console.error("Error fetching digital ads data:", error);

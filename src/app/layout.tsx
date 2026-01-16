@@ -7,6 +7,7 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { NuqsProvider } from "@/components/providers/nuqs-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { GoogleAuthProvider } from "@/components/providers/google-auth-provider";
+import { SessionExpiredProvider } from "@/components/providers/session-expired-provider";
 import { pageMeta, siteMeta } from "@/config/seo";
 
 const geistSans = Geist({
@@ -49,6 +50,7 @@ export default function RootLayout({
                   {children}
                 </LayoutWrapper>
                 <Toaster />
+                <SessionExpiredProvider />
               </NuqsProvider>
             </AuthProvider>
           </GoogleAuthProvider>

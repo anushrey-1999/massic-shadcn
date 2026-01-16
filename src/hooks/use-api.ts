@@ -46,8 +46,8 @@ async function refreshNodeAccessToken(currentToken: string): Promise<string | nu
 function getBaseURLByPlatform(platform: ApiPlatform): string {
   switch (platform) {
     case "node":
-      // return process.env.NEXT_PUBLIC_NODE_API_URL || "https://seedmain.seedinternaldev.xyz/api/1";
-      return 'http://localhost:4922/api/1'
+      return process.env.NEXT_PUBLIC_NODE_API_URL || "https://seedmain.seedinternaldev.xyz/api/1";
+    // return 'http://localhost:4922/api/1'
 
     case "python":
       return process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v1";
@@ -145,8 +145,8 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
         const url = error.config?.url || "";
         const status = error.response.status;
 
-        // Handle 401 Unauthorized - show session expired dialog
-        if (status === 401) {
+        // Handle 401 Unauthorized - show session expired dialog (only for node API)
+        if (status === 401 && platform === "node") {
           useSessionStore.getState().setShowSessionExpiredDialog(true);
           Cookies.remove("token");
           useAuthStore.getState().logout();

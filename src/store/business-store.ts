@@ -7,6 +7,7 @@ export interface BusinessLocation {
 
 export interface BusinessProfile {
   UniqueId: string;
+  Id?: string;
   Name: string;
   DisplayName?: string;
   Website?: string;
@@ -33,6 +34,8 @@ export interface BusinessProfile {
     status?: string;
     [key: string]: any;
   };
+  LinkedAuthId?: string | null;
+  IsActive?: boolean;
 }
 
 // Profile form table row types

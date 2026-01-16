@@ -73,3 +73,9 @@ export interface StrategyCounts {
   topicCoverageRange: { min: number; max: number };
   searchVolumeRange: { min: number; max: number };
 }
+
+export interface StrategyMetrics {
+  total_topics: number;
+  total_clusters: number;
+  total_keywords: number;
+}

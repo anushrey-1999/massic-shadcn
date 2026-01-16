@@ -9,6 +9,10 @@ import { TvRadioAdsTableClient } from '@/components/organisms/TvRadioAdsTable'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { usePathname, useRouter } from 'next/navigation'
+import { Typography } from '@/components/ui/typography'
+import { formatVolume } from '@/lib/format'
+import type { DigitalAdsMetrics } from '@/types/digital-ads-types'
+import type { TvRadioAdsMetrics } from '@/types/tv-radio-ads-types'
 
 interface PageProps {
   params: Promise<{
@@ -19,26 +23,64 @@ interface PageProps {
 function AdsEntitledContent({ businessId }: { businessId: string }) {
   const router = useRouter()
   const pathname = usePathname()
+  const [activeTab, setActiveTab] = React.useState<"digital" | "tv-radio">("digital")
+  const [digitalMetrics, setDigitalMetrics] = React.useState<DigitalAdsMetrics | null>(null)
+  const [tvRadioMetrics, setTvRadioMetrics] = React.useState<TvRadioAdsMetrics | null>(null)
 
   const handleTabChange = React.useCallback(
-    () => {
+    (value: string) => {
+      setActiveTab(value as "digital" | "tv-radio")
       router.replace(pathname)
     },
     [router, pathname]
   )
 
+  const headerMetricsText = React.useMemo(() => {
+    if (activeTab === "digital") {
+      if (!digitalMetrics) return "Loading metrics..."
+      const value =
+        typeof digitalMetrics.total_clusters === "number"
+          ? digitalMetrics.total_clusters
+          : typeof digitalMetrics.total_ads === "number"
+            ? digitalMetrics.total_ads
+            : 0
+
+      const label =
+        typeof digitalMetrics.total_clusters === "number" ? "Ad Topics" : "Ads"
+
+      return `${formatVolume(value)} ${label}`
+    }
+
+    if (activeTab === "tv-radio") {
+      if (!tvRadioMetrics) return "Loading metrics..."
+      return `${formatVolume(tvRadioMetrics.total_ads)} Sub Topics`
+    }
+
+    return null
+  }, [activeTab, digitalMetrics, tvRadioMetrics])
+
   return (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
-      <Tabs defaultValue="digital" onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
-        <TabsList className="shrink-0">
-          <TabsTrigger value="digital">Digital</TabsTrigger>
-          <TabsTrigger value="tv-radio">TV & Radio</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
+        <div className="shrink-0 flex items-center justify-between gap-4">
+          <TabsList>
+            <TabsTrigger value="digital">Digital</TabsTrigger>
+            <TabsTrigger value="tv-radio">TV & Radio</TabsTrigger>
+          </TabsList>
+          {headerMetricsText && (
+            <Typography
+              variant="p"
+              className="text-sm font-mono text-general-muted-foreground"
+            >
+              {headerMetricsText}
+            </Typography>
+          )}
+        </div>
         <TabsContent value="digital" className="flex-1 min-h-0 mt-4 overflow-hidden">
-          <DigitalAdsTableClient businessId={businessId} />
+          <DigitalAdsTableClient businessId={businessId} onMetricsChange={setDigitalMetrics} />
         </TabsContent>
         <TabsContent value="tv-radio" className="flex-1 min-h-0 mt-4">
-          <TvRadioAdsTableClient businessId={businessId} />
+          <TvRadioAdsTableClient businessId={businessId} onMetricsChange={setTvRadioMetrics} />
         </TabsContent>
       </Tabs>
     </div>

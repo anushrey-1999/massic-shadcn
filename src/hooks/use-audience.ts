@@ -7,6 +7,7 @@ import type {
   AudienceApiResponse,
   AudienceRow,
   AudienceCounts,
+  AudienceMetrics,
 } from "@/types/audience-types";
 
 export function useAudience(businessId: string) {
@@ -131,6 +132,28 @@ export function useAudience(businessId: string) {
           pageCount = Math.ceil(flatRows.length / params.perPage);
         }
 
+        const metricsMaybe =
+          (response as any)?.output_data?.metrics ?? (response as any)?.metrics;
+        const metricsFirst = Array.isArray(metricsMaybe)
+          ? metricsMaybe[0]
+          : metricsMaybe;
+        const metrics: AudienceMetrics | null = metricsFirst
+          ? {
+              total_personas:
+                typeof metricsFirst?.total_personas === "number"
+                  ? metricsFirst.total_personas
+                  : 0,
+              total_use_cases:
+                typeof metricsFirst?.total_use_cases === "number"
+                  ? metricsFirst.total_use_cases
+                  : 0,
+              total_supporting_keywords:
+                typeof metricsFirst?.total_supporting_keywords === "number"
+                  ? metricsFirst.total_supporting_keywords
+                  : 0,
+            }
+          : null;
+
         return {
           data: flatRows,
           pageCount,
@@ -142,6 +165,7 @@ export function useAudience(businessId: string) {
             status: "success" as const,
           },
           metadata: response?.metadata,
+          metrics,
         };
       } catch (error) {
         console.error("Error fetching audience data:", error);

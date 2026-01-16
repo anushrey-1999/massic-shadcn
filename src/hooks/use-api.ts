@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import Cookies from "js-cookie";
 import { decodeJwt, isTokenExpired } from "@/utils/jwt";
 import { useAuthStore } from "@/store/auth-store";
+import { useSessionStore } from "@/store/session-store";
 
 export type ApiPlatform = "node" | "python" | "dotnet";
 // Refresh only when close to expiry (standard SaaS behavior)
@@ -46,7 +47,7 @@ function getBaseURLByPlatform(platform: ApiPlatform): string {
   switch (platform) {
     case "node":
       return process.env.NEXT_PUBLIC_NODE_API_URL || "https://seedmain.seedinternaldev.xyz/api/1";
-      // return 'http://localhost:4922/api/1'
+    // return 'http://localhost:4922/api/1'
 
     case "python":
       return process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v1";
@@ -143,6 +144,13 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
       if (error.response) {
         const url = error.config?.url || "";
         const status = error.response.status;
+
+        // Handle 401 Unauthorized - show session expired dialog (only for node API)
+        if (status === 401 && platform === "node") {
+          useSessionStore.getState().setShowSessionExpiredDialog(true);
+          Cookies.remove("token");
+          useAuthStore.getState().logout();
+        }
 
         // Don't log 404 errors for endpoints that have fallbacks (like timezones)
         const silent404Endpoints = ["/timezones"];

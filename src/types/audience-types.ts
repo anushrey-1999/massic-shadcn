@@ -28,6 +28,7 @@ export interface AudienceApiResponse {
   };
   output_data: {
     items: AudienceRow[];
+    metrics?: AudienceMetrics[];
     pagination: {
       page: number;
       page_size: number;
@@ -37,6 +38,12 @@ export interface AudienceApiResponse {
       status: "success" | "error";
     };
   };
+}
+
+export interface AudienceMetrics {
+  total_personas: number;
+  total_use_cases: number;
+  total_supporting_keywords: number;
 }
 
 export interface GetAudienceSchema {

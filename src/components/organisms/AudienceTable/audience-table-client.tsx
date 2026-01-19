@@ -9,15 +9,20 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useAudience } from "@/hooks/use-audience";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import type { AudienceRow, AudienceUseCaseRow } from "@/types/audience-types";
+import type { AudienceMetrics, AudienceRow, AudienceUseCaseRow } from "@/types/audience-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface AudienceTableClientProps {
   businessId: string;
   onSplitViewChange?: (isSplitView: boolean) => void;
+  onMetricsChange?: (metrics: AudienceMetrics | null) => void;
 }
 
-export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceTableClientProps) {
+export function AudienceTableClient({
+  businessId,
+  onSplitViewChange,
+  onMetricsChange,
+}: AudienceTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedPersonaId, setSelectedPersonaId] = React.useState<string | null>(null);
   const [selectedUseCaseId, setSelectedUseCaseId] = React.useState<string | null>(null);
@@ -96,7 +101,7 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      return fetchAudience({
+      const result = await fetchAudience({
         business_id: businessId,
         page,
         perPage,
@@ -105,6 +110,8 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
         filters: filters || [],
         joinOperator: (joinOperator || "and") as "and" | "or",
       });
+      onMetricsChange?.(result?.metrics ?? null);
+      return result;
     },
     staleTime: 1000 * 60,
     placeholderData: (previousData) => previousData,
@@ -112,6 +119,10 @@ export function AudienceTableClient({ businessId, onSplitViewChange }: AudienceT
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId && !!jobExists && !jobLoading,
   });
+
+  React.useEffect(() => {
+    onMetricsChange?.(audienceData?.metrics ?? null);
+  }, [onMetricsChange, audienceData?.metrics]);
 
   React.useEffect(() => {
     if (!jobExists || !audienceData || !audienceData.pageCount) return;

@@ -8,6 +8,14 @@ import {
   Copy,
   Mail,
   Loader2,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Quote,
+  List,
+  ListOrdered,
+  Link2,
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 
@@ -15,8 +23,9 @@ import { DownloadReportDialog } from "./download-report-dialog";
 import { ShareReportDialog } from "./share-report-dialog";
 
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
-import { useReportRunDetail } from "@/hooks/use-report-runs";
+import { useReportRunDetail, useUpdatePerformanceReport } from "@/hooks/use-report-runs";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { toast } from "sonner";
 import { copyToClipboard } from "@/utils/clipboard";
@@ -38,8 +47,20 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = React.useState(false);
 
+  const [localContent, setLocalContent] = React.useState<string>("");
+  const [isEditorFocused, setIsEditorFocused] = React.useState(false);
+  const lastSavedRef = React.useRef<string>("");
+  const isInitialLoadRef = React.useRef(true);
+  const lastStatusRef = React.useRef<string>("");
+  const pendingContentRef = React.useRef<string | null>(null);
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const periodicTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const isSavingRef = React.useRef(false);
+
   const { profileData } = useBusinessProfileById(businessId);
   const businessName = profileData?.Name || profileData?.DisplayName || "Business";
+
+  const updateMutation = useUpdatePerformanceReport();
 
   const { data: reportData, isLoading, error } = useReportRunDetail({
     reportRunId,
@@ -59,6 +80,59 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const periodRange = formatPeriodRange(periodStart, periodEnd);
   const reportTitle = `${businessName} ${period}${periodRange ? ` (${periodRange})` : ""} Performance Report`;
 
+  const canonicalize = React.useCallback((value: string) => {
+    return (value || "").replace(/\r\n/g, "\n").replace(/\u00A0/g, " ").trimEnd();
+  }, []);
+
+  // Sync content from server
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (pendingContentRef.current && !isSavingRef.current) {
+        handleSaveReport(pendingContentRef.current);
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      if (periodicTimerRef.current) {
+        clearInterval(periodicTimerRef.current);
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!reportData) return;
+
+    const prevStatus = lastStatusRef.current;
+    const wasPolling = prevStatus === "pending" || prevStatus === "processing";
+    const isPolling = status === "pending" || status === "processing";
+    const transitionedFromPollingToTerminal = wasPolling && !isPolling;
+
+    lastStatusRef.current = status;
+
+    const editorFocused = !!reportEditor?.isFocused;
+    const shouldSyncFromServer =
+      !editorFocused && (isInitialLoadRef.current || isPolling || transitionedFromPollingToTerminal);
+
+    if (!shouldSyncFromServer) return;
+
+    const rawReport = reportData?.narrative_text?.performance_report || "";
+    setLocalContent(rawReport);
+    lastSavedRef.current = rawReport;
+
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+    }
+  }, [reportData, status, reportEditor]);
+
   const handleBack = () => {
     router.push(`/business/${businessId}/reports`);
   };
@@ -70,6 +144,66 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const handleShare = () => {
     setIsShareDialogOpen(true);
   };
+
+  const handleSaveReport = React.useCallback(async (markdown: string) => {
+    if (isInitialLoadRef.current) return;
+
+    const next = canonicalize(markdown);
+    if (next === canonicalize(lastSavedRef.current)) {
+      pendingContentRef.current = null;
+      return;
+    }
+
+    if (isSavingRef.current) {
+      pendingContentRef.current = next;
+      return;
+    }
+
+    try {
+      isSavingRef.current = true;
+      await updateMutation.mutateAsync({
+        reportRunId,
+        performance_report: next,
+      });
+      lastSavedRef.current = next;
+      setLocalContent(next);
+      toast.success("Changes Saved");
+    } catch {
+      toast.error("Failed to save changes to server");
+    } finally {
+      isSavingRef.current = false;
+
+      if (pendingContentRef.current && pendingContentRef.current !== next) {
+        const pending = pendingContentRef.current;
+        pendingContentRef.current = null;
+        await handleSaveReport(pending);
+      }
+    }
+  }, [canonicalize, reportRunId, updateMutation]);
+
+  const handleContentChange = React.useCallback((markdown: string) => {
+    if (isInitialLoadRef.current) return;
+
+    pendingContentRef.current = markdown;
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      if (pendingContentRef.current) {
+        handleSaveReport(pendingContentRef.current);
+      }
+    }, 5000);
+
+    if (!periodicTimerRef.current) {
+      periodicTimerRef.current = setInterval(() => {
+        if (pendingContentRef.current && !isSavingRef.current) {
+          handleSaveReport(pendingContentRef.current);
+        }
+      }, 45000);
+    }
+  }, [handleSaveReport]);
 
   const handleCopyReport = async () => {
     if (reportEditor) {
@@ -220,15 +354,70 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
             )}
 
             {isSuccess && performanceReport && (
-              <div className="prose prose-sm max-w-none">
+              <Card className="p-4 space-y-3 border-0">
+                {isEditorFocused && (
+                  <div className="sticky top-0 z-10 bg-white flex items-center gap-2 border rounded-md px-2 py-1 mb-3">
+                    {[Bold, Italic, Underline, Strikethrough, Quote, List, ListOrdered, Link2].map((Icon, idx) => (
+                      <Button
+                        key={idx}
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          if (!reportEditor) return;
+
+                          switch (idx) {
+                            case 0:
+                              reportEditor.chain().focus().toggleBold().run();
+                              break;
+                            case 1:
+                              reportEditor.chain().focus().toggleItalic().run();
+                              break;
+                            case 2:
+                              reportEditor.chain().focus().toggleUnderline().run();
+                              break;
+                            case 3:
+                              reportEditor.chain().focus().toggleStrike().run();
+                              break;
+                            case 4:
+                              reportEditor.chain().focus().toggleBlockquote().run();
+                              break;
+                            case 5:
+                              reportEditor.chain().focus().toggleBulletList().run();
+                              break;
+                            case 6:
+                              reportEditor.chain().focus().toggleOrderedList().run();
+                              break;
+                            case 7: {
+                              const url = window.prompt("Enter URL:");
+                              if (url) {
+                                reportEditor.chain().focus().setLink({ href: url }).run();
+                              }
+                              break;
+                            }
+                          }
+                        }}
+                        disabled={!reportEditor}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </Button>
+                    ))}
+                  </div>
+                )}
+
                 <InlineTipTapEditor
-                  content={performanceReport}
-                  isEditable={false}
+                  content={localContent}
                   className="prose prose-sm max-w-none border-0"
                   editorClassName="border-0"
+                  isEditable={true}
                   onEditorReady={setReportEditor}
+                  onSave={handleSaveReport}
+                  onChange={handleContentChange}
+                  onFocus={() => setIsEditorFocused(true)}
+                  onBlur={() => setIsEditorFocused(false)}
                 />
-              </div>
+              </Card>
             )}
 
             {isSuccess && !performanceReport && (

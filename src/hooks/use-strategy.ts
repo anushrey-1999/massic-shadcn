@@ -7,6 +7,7 @@ import type {
   StrategyApiResponse,
   StrategyRow,
   StrategyCounts,
+  StrategyMetrics,
 } from "@/types/strategy-types";
 
 /**
@@ -144,6 +145,28 @@ export function useStrategy(businessId: string) {
           pageCount = Math.ceil(flatRows.length / params.perPage);
         }
 
+        const metricsMaybe =
+          (response as any)?.output_data?.metrics ?? (response as any)?.metrics;
+        const metricsFirst = Array.isArray(metricsMaybe)
+          ? metricsMaybe[0]
+          : metricsMaybe;
+        const metrics: StrategyMetrics | null = metricsFirst
+          ? {
+              total_topics:
+                typeof metricsFirst?.total_topics === "number"
+                  ? metricsFirst.total_topics
+                  : 0,
+              total_clusters:
+                typeof metricsFirst?.total_clusters === "number"
+                  ? metricsFirst.total_clusters
+                  : 0,
+              total_keywords:
+                typeof metricsFirst?.total_keywords === "number"
+                  ? metricsFirst.total_keywords
+                  : 0,
+            }
+          : null;
+
         return {
           data: flatRows,
           pageCount,
@@ -155,6 +178,7 @@ export function useStrategy(businessId: string) {
             status: "success" as const,
           },
           metadata: response?.metadata,
+          metrics,
         };
       } catch (error) {
         console.error("Error fetching strategy data:", error);

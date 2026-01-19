@@ -147,3 +147,45 @@ export function useGenerateReport() {
     },
   });
 }
+
+export interface UpdatePerformanceReportParams {
+  reportRunId: string;
+  performance_report: string;
+}
+
+export interface UpdatePerformanceReportResponse {
+  success: boolean;
+  message: string;
+  data: {
+    id: string;
+    narrative_text: {
+      performance_report: string;
+    };
+  };
+}
+
+export function useUpdatePerformanceReport() {
+  const queryClient = useQueryClient();
+
+  return useMutation<UpdatePerformanceReportResponse, Error, UpdatePerformanceReportParams>({
+    mutationFn: async ({ reportRunId, performance_report }) => {
+      if (!reportRunId) {
+        throw new Error("Report run ID is required");
+      }
+
+      const response = await api.put<UpdatePerformanceReportResponse>(
+        `/analytics/report-runs/${encodeURIComponent(reportRunId)}/performance-report`,
+        "node",
+        { performance_report }
+      );
+
+      return response;
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate the current report detail to refresh the data
+      queryClient.invalidateQueries({
+        queryKey: ["report-run-detail", variables.reportRunId],
+      });
+    },
+  });
+}

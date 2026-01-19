@@ -5,6 +5,8 @@ export type ReportRunStatus =
   | "error"
   | string
 
+export type ReportRunDeliveryStatus = "ready_for_approval" | "sent" | null
+
 export type ReportRunError = unknown
 
 export interface ReportRunListItem {
@@ -17,6 +19,9 @@ export interface ReportRunListItem {
   period: string | null
   errors: ReportRunError | null
   created_at: string
+  delivery_status?: ReportRunDeliveryStatus
+  is_auto_scheduled?: boolean
+  business_name?: string | null
 }
 
 export interface ListReportRunsResponse {

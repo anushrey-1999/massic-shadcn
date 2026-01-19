@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 const LOCATIONS_KEY = "locations";
 const MAX_LOCATIONS = 1000; // Limit to prevent freezing
+const EMPTY_LOCATIONS: string[] = [];
 
 interface LocationsResponse {
   locations: string[];
@@ -29,7 +30,7 @@ function formatLocationLabel(location: string) {
 
 export function useLocations(country: string = "us") {
   const {
-    data: locations = [],
+    data,
     isLoading,
     isFetching,
     error,
@@ -66,6 +67,8 @@ export function useLocations(country: string = "us") {
     retry: 1, // Only retry once for network errors
     retryDelay: 1000, // Wait 1 second before retry
   });
+
+  const locations = data ?? EMPTY_LOCATIONS;
 
   // Limit locations to prevent freezing - only show first MAX_LOCATIONS
   const limitedLocations = useMemo(() => {

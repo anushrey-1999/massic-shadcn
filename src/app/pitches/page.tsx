@@ -1,19 +1,26 @@
-import React from 'react'
+import { PitchesTableClient } from "@/components/organisms/PitchesTable";
+import { PageHeader } from "@/components/molecules/PageHeader";
+import { Suspense } from "react";
 import { getPageMetadata } from "@/config/seo";
-import { Typography } from "@/components/ui/typography";
 
 export const metadata = {
   ...getPageMetadata("pitches"),
-}
+};
 
-const page = () => {
+export default function PitchesPage() {
+  const breadcrumbs = [
+    { label: "Home", href: "/" },
+    { label: "Pitches", href: "/pitches" },
+  ];
+
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <Typography variant="h2" className="text-muted-foreground">
-        Coming soon...
-      </Typography>
+    <div className="flex flex-col h-screen">
+      <PageHeader breadcrumbs={breadcrumbs} />
+      <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+        <Suspense fallback={null}>
+          <PitchesTableClient />
+        </Suspense>
+      </div>
     </div>
-  )
+  );
 }
-
-export default page

@@ -251,6 +251,9 @@ export default function AppSidebar() {
 
   const getPitchSubItemHref = (slug: (typeof pitchBusinessSubItems)[number]['slug']) => {
     if (!pitchBusinessId) return '/pitches'
+    if (slug === 'reports') {
+      return `/pitches/${pitchBusinessId}/reports?view=cards`
+    }
     return `/pitches/${pitchBusinessId}/${slug}`
   }
 

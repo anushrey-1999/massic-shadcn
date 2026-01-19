@@ -136,10 +136,10 @@ export function PitchReportViewer({
               : "text-blue-900"
           }`}>
             {workflowStatus === "error"
-              ? "Workflow Error: Unable to prepare your detailed report. Please try again."
+              ? "Error: Unable to prepare your report. Please try again."
               : workflowStatus === "processing" || workflowStatus === "pending"
-                ? "Your workflow is being prepared. Please come back shortly to view your detailed report."
-                : "Preparing your detailed report..."}
+                ? "Your report is being prepared. Please come back shortly to view it."
+                : "Preparing your report..."}
           </Typography>
         </div>
       )}

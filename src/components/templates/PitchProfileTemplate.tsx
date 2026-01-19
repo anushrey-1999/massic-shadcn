@@ -19,6 +19,15 @@ import ProfileSidebar from "@/components/organisms/ProfileSidebar";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
 import { LoaderOverlay } from "@/components/ui/loader";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Typography } from "@/components/ui/typography";
 
 const sections = [
   { id: "business-info", label: "Business Info" },
@@ -100,6 +109,7 @@ export function PitchProfileTemplate() {
       serviceType: "" as any,
       offerings: "" as any,
       offeringsList: [],
+      brandTerms: "",
     } as unknown as BusinessInfoFormData;
   }, []);
 
@@ -245,6 +255,28 @@ export function PitchProfileTemplate() {
     const currentOfferingsList = Array.isArray(formValues.offeringsList) ? formValues.offeringsList : [];
     const hasAnyOfferingRow = currentOfferingsList.some((row) => Boolean(row?.name?.trim()));
 
+    const brandTerms = (() => {
+      const fromBusiness = profileAny?.BrandTerms ?? profileAny?.brand_terms;
+      const fromJob = (jobDetails as any)?.brand_terms;
+      const raw = fromBusiness ?? fromJob;
+
+      if (Array.isArray(raw)) {
+        return raw.map((t) => String(t).trim()).filter(Boolean).join(", ");
+      }
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            return parsed.map((t) => String(t).trim()).filter(Boolean).join(", ");
+          }
+        } catch {
+          // ignore
+        }
+        return raw;
+      }
+      return "";
+    })();
+
     if (!String(formValues.website || "").trim() && website) form.setFieldValue("website", website);
     if (!String(formValues.businessName || "").trim() && businessName) form.setFieldValue("businessName", businessName);
     if (!String(formValues.businessDescription || "").trim() && businessDescription) {
@@ -289,6 +321,9 @@ export function PitchProfileTemplate() {
 
     if (!String(formValues.offerings || "").trim()) form.setFieldValue("offerings", offerings as any);
     if (!hasAnyOfferingRow && offeringsList.length > 0) form.setFieldValue("offeringsList", offeringsList as any);
+    if (!String(formValues.brandTerms || "").trim() && String(brandTerms || "").trim()) {
+      form.setFieldValue("brandTerms", String(brandTerms).trim() as any);
+    }
   }, [businessId, form, formValues, jobQuery.data, jobQuery.isFetched, profileData, profileDataLoading]);
 
   const businessNameForBreadcrumb =
@@ -426,6 +461,41 @@ export function PitchProfileTemplate() {
             >
               <BusinessInfoForm form={form} disableWebsiteLock />
               <OfferingsForm form={form} businessId={businessId ?? null} />
+              <Card
+                variant="profileCard"
+                className="py-6 px-4 bg-white border-none mt-6"
+              >
+                <CardHeader className="pb-4">
+                  <CardTitle>
+                    <Typography variant="h4">Brand Terms</Typography>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Card variant="profileCard">
+                    <CardHeader>
+                      <CardTitle>
+                        <FieldLabel className="gap-0">
+                          Brand terms that best describe your business
+                        </FieldLabel>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <form.Field
+                        name="brandTerms"
+                        children={(field: any) => (
+                          <Input
+                            variant="noBorder"
+                            value={field.state.value || ""}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            placeholder="List the words, separating each one with a comma"
+                            className="w-full"
+                          />
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+                </CardContent>
+              </Card>
             </form>
           </div>
         </div>

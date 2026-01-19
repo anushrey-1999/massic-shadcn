@@ -54,6 +54,15 @@ export function PitchesTableClient() {
     enabled: pitchBusinesses.length > 0,
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
+    refetchInterval: (query) => {
+      const data = (query.state.data as any)?.data as Array<{ status?: string }> | undefined;
+      if (!Array.isArray(data) || data.length === 0) return false;
+      const shouldPoll = data.some((row) => {
+        const status = String(row?.status || "").trim().toLowerCase();
+        return status === "pending" || status === "processing" || status === "in_progress";
+      });
+      return shouldPoll ? 10_000 : false;
+    },
   });
 
   const transformedData = React.useMemo<PitchRow[]>(() => {
@@ -64,6 +73,7 @@ export function PitchesTableClient() {
       business_id: pitch.business_id,
       business: pitch.business_name || "Unknown Business",
       type: pitch.pitch_type || "Unknown",
+      status: pitch.status || "N/A",
       dateTime: pitch.created_at || "N/A",
     }));
   }, [pitchesData?.data]);

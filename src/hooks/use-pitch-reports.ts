@@ -220,9 +220,12 @@ export function useGenerateDetailedPitch() {
   });
 }
 
-export function usePitchSummary(businessId: string | null) {
+export function usePitchSummary(
+  businessId: string | null,
+  options?: { requestKey?: string }
+) {
   return useQuery<{ content: string; status: string } | null, Error>({
-    queryKey: ["pitch-summary", businessId],
+    queryKey: ["pitch-summary", businessId, options?.requestKey ?? "default"],
     queryFn: async () => {
       if (!businessId) return null;
 
@@ -232,10 +235,6 @@ export function usePitchSummary(businessId: string | null) {
         });
 
         const status = normalizeStatus(response?.status);
-        
-        if (status !== "success") {
-          throw new Error(`Report not ready. Status: ${status}`);
-        }
 
         let content = "";
         const snapshotMarkdown = extractSnapshotSectionsMarkdown(response);
@@ -250,23 +249,25 @@ export function usePitchSummary(businessId: string | null) {
           }
         }
 
-        if (!content) {
-          throw new Error("No summary content available");
-        }
-
         return {
-          content,
+          content: content || "",
           status,
         };
       } catch (error: any) {
         if (error?.response?.status === 404) {
-          throw new Error("No pitch summary found. Please generate a report first.");
+          return null;
         }
         throw error;
       }
     },
     enabled: !!businessId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
     retry: false,
+    refetchInterval: (query) => {
+      const data = query.state.data as { content: string; status: string } | null;
+      const status = normalizeStatus(data?.status);
+      return status === "pending" || status === "processing" ? 4000 : false;
+    },
   });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useApi, type ApiPlatform } from "./use-api";
+import { api } from "./use-api";
 import type { BusinessProfile } from "@/store/business-store";
 
 export interface PitchItem {
@@ -10,6 +10,7 @@ export interface PitchItem {
   url?: string;
   created_at: string;
   business_name?: string;
+  status?: string;
 }
 
 export interface GetPitchesSchema {
@@ -20,9 +21,6 @@ export interface GetPitchesSchema {
 }
 
 export function usePitches() {
-  const platform: ApiPlatform = "python";
-  const pitchesApi = useApi<{ pitches: PitchItem[] }>({ platform });
-
   const fetchPitches = useCallback(
     async (
       params: GetPitchesSchema,
@@ -43,14 +41,12 @@ export function usePitches() {
           };
         }
 
-        const response = await pitchesApi.execute("/pitches", {
-          method: "POST",
-          data: {
-            business_ids: pitchBusinessIds,
-          },
-        });
+        const response = await api.post<{ pitches?: PitchItem[] }>(
+          "/pitches",
+          "python",
+          { business_ids: pitchBusinessIds }
+        );
 
-        // Extract pitches array from response
         const pitches = response?.pitches || [];
 
         // Transform pitches to include business names
@@ -71,7 +67,7 @@ export function usePitches() {
           filteredPitches = transformedPitches.filter(
             (pitch: any) =>
               pitch.business_name.toLowerCase().includes(searchLower) ||
-              pitch.type.toLowerCase().includes(searchLower)
+              pitch.pitch_type.toLowerCase().includes(searchLower)
           );
         }
 
@@ -119,7 +115,7 @@ export function usePitches() {
         };
       }
     },
-    [pitchesApi]
+    []
   );
 
   return {

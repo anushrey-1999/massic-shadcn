@@ -19,6 +19,7 @@ export default function PitchSummaryPage() {
   const params = useParams();
   const router = useRouter();
   const businessId = (params as any)?.id as string | undefined;
+  const [requestKey] = React.useState(() => crypto.randomUUID());
 
   const { profiles } = useBusinessProfiles();
   const { profileData: businessProfile } = useBusinessProfileById(
@@ -30,7 +31,7 @@ export default function PitchSummaryPage() {
     isLoading,
     isError,
     error,
-  } = usePitchSummary(businessId ?? null);
+  } = usePitchSummary(businessId ?? null, { requestKey });
 
   const businessName = React.useMemo(() => {
     const profileFromList = profiles.find((p) => p.UniqueId === businessId);
@@ -61,12 +62,19 @@ export default function PitchSummaryPage() {
     return match?.[1]?.trim() || "Pitch Summary";
   }, [summaryData?.content]);
 
+  const summaryStatus = React.useMemo(() => {
+    return String(summaryData?.status || "").trim().toLowerCase();
+  }, [summaryData?.status]);
+
+  const isSummarySuccess =
+    Boolean(summaryData?.content?.trim()) && summaryStatus === "success";
+
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
 
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5">
-        {isLoading ? (
+        {isLoading && !summaryData ? (
           <div className="h-full bg-white rounded-lg p-6 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-general-primary" />
@@ -78,10 +86,10 @@ export default function PitchSummaryPage() {
             <Card className="bg-general-background border border-general-border p-8 max-w-md">
               <CardContent className="p-0 flex flex-col items-center gap-4 text-center">
                 <Typography variant="h3" className="text-general-destructive">
-                  No Summary Found
+                  Unable to load summary
                 </Typography>
                 <Typography variant="p" className="text-general-muted-foreground">
-                  {error?.message || "No pitch summary has been generated for this business yet."}
+                  {error?.message || "Please try again."}
                 </Typography>
                 <Button
                   variant="default"
@@ -93,6 +101,46 @@ export default function PitchSummaryPage() {
               </CardContent>
             </Card>
           </div>
+        ) : !summaryData ? (
+          <div className="h-full bg-white rounded-lg p-6 flex items-center justify-center">
+            <Card className="bg-general-background border border-general-border p-8 max-w-md">
+              <CardContent className="p-0 flex flex-col items-center gap-4 text-center">
+                <Typography variant="h3" className="text-general-destructive">
+                  No Summary Found
+                </Typography>
+                <Typography variant="p" className="text-general-muted-foreground">
+                  No pitch summary has been generated for this business yet.
+                </Typography>
+                <Button
+                  variant="default"
+                  onClick={() => router.push(`/pitches/${businessId}/reports`)}
+                  className="mt-4"
+                >
+                  Generate Report
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        ) : !isSummarySuccess ? (
+          <div className="h-full bg-white rounded-lg p-6 flex items-center justify-center">
+            <Card className="bg-general-background border border-general-border p-8 max-w-md">
+              <CardContent className="p-0 flex flex-col items-center gap-4 text-center">
+                <Typography variant="h3" className="text-general-primary">
+                  Summary Status
+                </Typography>
+                <Typography variant="p" className="text-general-muted-foreground">
+                  Status: {summaryStatus || "unknown"}
+                </Typography>
+                <Button
+                  variant="default"
+                  onClick={() => router.push(`/pitches/${businessId}/reports`)}
+                  className="mt-4"
+                >
+                  View Reports
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <PitchReportViewer
             content={summaryData?.content || ""}
@@ -100,7 +148,9 @@ export default function PitchSummaryPage() {
             isEditable={true}
             isGenerating={false}
             showStatus={false}
-            onBack={() => router.push("/pitches")}
+            onBack={() =>
+              router.push(businessId ? `/pitches/${businessId}/reports?view=cards` : "/pitches")
+            }
           />
         )}
       </div>

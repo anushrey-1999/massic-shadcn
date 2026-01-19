@@ -1,17 +1,19 @@
 "use client";
 
-import type { ColumnDef } from "@tantml/react-table";
-import { Building2, CalendarClock, Tag, ArrowRight } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Building2, CalendarClock, Tag, ArrowRight, CircleDot } from "lucide-react";
 import Link from "next/link";
 
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Typography } from "@/components/ui/typography";
 
 export type PitchRow = {
   id: string;
   business: string;
   type: string;
+  status: string;
   dateTime: string;
   business_id: string;
 };
@@ -63,6 +65,42 @@ export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
       maxSize: 260,
     },
     {
+      id: "status",
+      accessorKey: "status",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Status" />
+      ),
+      cell: ({ row }) => {
+        const status = String(row.getValue("status") ?? "");
+        const normalized = status.trim().toLowerCase();
+        const variant =
+          normalized === "error"
+            ? "destructive"
+            : normalized === "processing"
+              ? "secondary"
+              : normalized === "completed" || normalized === "complete"
+                ? "default"
+                : "outline";
+
+        return (
+          <Badge variant={variant} className="capitalize">
+            {status || "N/A"}
+          </Badge>
+        );
+      },
+      meta: {
+        label: "Status",
+        placeholder: "Search status...",
+        variant: "text",
+        icon: CircleDot,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 160,
+      minSize: 130,
+      maxSize: 200,
+    },
+    {
       id: "dateTime",
       accessorKey: "dateTime",
       header: ({ column }) => (
@@ -90,7 +128,7 @@ export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
       header: "Actions",
       cell: ({ row }) => (
         <div className="flex items-center justify-start">
-          <Link href={`/pitches/${row.original.business_id}/summary`}>
+          <Link href={`/pitches/${row.original.business_id}/reports?view=cards`}>
             <Button variant="ghost" size="icon" aria-label="View pitch summary">
               <ArrowRight className="h-4 w-4" />
             </Button>

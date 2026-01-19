@@ -15,7 +15,12 @@ export interface WorkflowStatusResponse {
 export interface DetailedReportResponse {
   report?: string;
   content?: string;
+  status?: WorkflowStatus;
   [key: string]: any;
+}
+
+function normalizeStatus(value: unknown): string {
+  return String(value || "").trim().toLowerCase();
 }
 
 // Trigger workflow for detailed report and poll its status
@@ -71,17 +76,19 @@ export function usePollWorkflowStatus(businessId: string | null, enabled: boolea
 }
 
 // Get existing detailed report (check if already generated)
-export function useGetDetailedReport(businessId: string | null) {
+export function useGetDetailedReport(
+  businessId: string | null,
+  options?: { enabled?: boolean }
+) {
   return useQuery<DetailedReportResponse | null, Error>({
     queryKey: ["detailed-report", businessId],
     queryFn: async () => {
       if (!businessId) return null;
 
       try {
-        const response = await api.get<DetailedReportResponse>(
-          `/client/pitches?business_id=${businessId}`,
-          "python"
-        );
+        const response = await api.get<DetailedReportResponse>("/client/pitches", "python", {
+          params: { business_id: businessId },
+        });
         return response;
       } catch (error: any) {
         if (error?.response?.status === 404) {
@@ -90,9 +97,14 @@ export function useGetDetailedReport(businessId: string | null) {
         throw error;
       }
     },
-    enabled: !!businessId,
-    staleTime: 5 * 60 * 1000,
+    enabled: options?.enabled ?? !!businessId,
+    staleTime: 0,
     retry: false,
+    refetchInterval: (query) => {
+      const data = query.state.data as DetailedReportResponse | null;
+      const status = normalizeStatus(data?.status);
+      return status === "pending" || status === "processing" ? 4000 : false;
+    },
   });
 }
 
@@ -104,11 +116,9 @@ export function useGenerateDetailedReport() {
         throw new Error("Business ID is required");
       }
 
-      const response = await api.post<DetailedReportResponse>(
-        `/client/pitches?business_id=${businessId}`,
-        "python",
-        {}
-      );
+      const response = await api.post<DetailedReportResponse>("/client/pitches", "python", undefined, {
+        params: { business_id: businessId },
+      });
       return response;
     },
     onError: (error) => {

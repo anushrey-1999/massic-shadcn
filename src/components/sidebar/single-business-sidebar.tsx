@@ -179,6 +179,22 @@ export default function SingleBusinessSidebar() {
   ]
 
   const isBusinessRoute = pathname.startsWith('/business/')
+  const pitchBusinessId = React.useMemo(() => {
+    const parts = pathname.split('/').filter(Boolean)
+    if (parts[0] !== 'pitches') return null
+    if (!parts[1] || parts[1] === 'create-pitch') return null
+    return parts[1]
+  }, [pathname])
+  const isPitchBusinessRoute = pitchBusinessId !== null
+
+  const pitchNavItems = [
+    { label: 'Reports', slug: 'reports', icon: FileText },
+    { label: 'Strategy', slug: 'strategy', icon: Target },
+    { label: 'Web', slug: 'web', icon: Globe },
+    { label: 'Social', slug: 'social', icon: Share2 },
+    { label: 'Ads', slug: 'ads', icon: Tv },
+    { label: 'Profile', slug: 'profile', icon: User },
+  ] as const
 
 
   const [showLogoutDialog, setShowLogoutDialog] = React.useState(false)
@@ -258,6 +274,42 @@ export default function SingleBusinessSidebar() {
                 disabled={true}
               />
             ))}
+          </SidebarMenu>
+        </div>
+      )
+    }
+
+    if (isPitchBusinessRoute && pitchBusinessId) {
+      return (
+        <div className="px-2">
+          <SidebarMenu className="gap-0.5">
+            {pitchNavItems.map((item) => {
+              const itemHref =
+                item.slug === 'reports'
+                  ? `/pitches/${pitchBusinessId}/reports?view=cards`
+                  : `/pitches/${pitchBusinessId}/${item.slug}`
+              const reportsPath = `/pitches/${pitchBusinessId}/reports`
+              const itemBasePath = `/pitches/${pitchBusinessId}/${item.slug}`
+
+              let isActive = false
+              if (item.slug === 'reports') {
+                isActive =
+                  pathname.startsWith(reportsPath) ||
+                  pathname.startsWith(`/pitches/${pitchBusinessId}/summary`)
+              } else {
+                isActive = pathname.startsWith(itemBasePath)
+              }
+
+              return (
+                <NavItem
+                  key={item.slug}
+                  href={itemHref}
+                  icon={item.icon}
+                  label={item.label}
+                  isActive={isActive}
+                />
+              )
+            })}
           </SidebarMenu>
         </div>
       )

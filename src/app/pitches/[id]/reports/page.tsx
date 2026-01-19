@@ -645,7 +645,7 @@ export default function PitchReportsPage() {
                     </Typography>
                   </div>
 
-                  <div className="flex gap-2">
+                  {/* <div className="flex gap-2">
                     <Badge
                       variant={"outline"}
                       className="text-[10px] text-primary py-1"
@@ -658,7 +658,7 @@ export default function PitchReportsPage() {
                     >
                       2 of 5 used
                     </Badge>
-                  </div>
+                  </div> */}
 
                   <div className="flex-1">
                     <Typography variant="p" className="text-primary">
@@ -749,14 +749,14 @@ export default function PitchReportsPage() {
                     </Typography>
                   </div>
 
-                  <div className="flex gap-2">
+                  {/* <div className="flex gap-2">
                     <Badge
                       variant={"outline"}
                       className="text-[10px] text-primary py-1"
                     >
                       100 credits per pitch
                     </Badge>
-                  </div>
+                  </div> */}
 
                   <div className="flex-1">
                     <Typography

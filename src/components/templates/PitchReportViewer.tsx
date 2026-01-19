@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Typography } from "@/components/ui/typography";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
+import { DownloadReportDialog } from "@/components/organisms/ReportDetail/download-report-dialog";
+import { ContentConverter } from "@/utils/content-converter";
 
 interface PitchReportViewerProps {
   content: string;
@@ -45,6 +47,7 @@ export function PitchReportViewer({
   onBack,
 }: PitchReportViewerProps) {
   const [reportEditor, setReportEditor] = React.useState<Editor | null>(null);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
 
   const handleCopyReport = React.useCallback(async () => {
     if (!reportEditor) {
@@ -77,9 +80,27 @@ export function PitchReportViewer({
     }
   }, [reportEditor]);
 
-  const handleDownloadPdf = React.useCallback(() => {
-    window.print();
-  }, []);
+  const markdownForDownload = React.useMemo(() => {
+    if (isGenerating) return "";
+
+    const editorText = reportEditor?.getText?.() ? String(reportEditor.getText()).trim() : "";
+    if (editorText && editorText.toLowerCase() !== "generating...") {
+      const html = reportEditor?.getHTML() || "";
+      return ContentConverter.prepareForApi(html);
+    }
+
+    const fallback = String(content || "").trim();
+    if (!fallback || fallback.toLowerCase() === "generating...") return "";
+    return ContentConverter.prepareForApi(fallback);
+  }, [isGenerating, reportEditor, content]);
+
+  const handleDownload = React.useCallback(() => {
+    if (!markdownForDownload || !String(markdownForDownload).trim()) {
+      toast.error("Nothing to download yet");
+      return;
+    }
+    setIsDownloadDialogOpen(true);
+  }, [markdownForDownload]);
 
   return (
     <div className="h-full bg-white rounded-lg p-6 flex flex-col gap-6 overflow-hidden">
@@ -106,11 +127,11 @@ export function PitchReportViewer({
           </Button>
           <Button
             className="gap-2"
-            onClick={handleDownloadPdf}
-            disabled={isGenerating}
+            onClick={handleDownload}
+            disabled={isGenerating || !markdownForDownload.trim()}
           >
             <Download className="h-4 w-4" />
-            Download as PDF
+            Download
           </Button>
         </div>
       </div>
@@ -207,6 +228,13 @@ export function PitchReportViewer({
           />
         </div>
       </div>
+
+      <DownloadReportDialog
+        isOpen={isDownloadDialogOpen}
+        onClose={() => setIsDownloadDialogOpen(false)}
+        markdownContent={markdownForDownload}
+        defaultFilename={reportTitle}
+      />
     </div>
   );
 }

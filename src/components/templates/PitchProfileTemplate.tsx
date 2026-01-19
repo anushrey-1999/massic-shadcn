@@ -364,7 +364,7 @@ export function PitchProfileTemplate() {
   }, [formValues.recurringRevenue]);
 
   const completionPercentage = React.useMemo(() => {
-    const totalFields = 10;
+    const totalFields = 11;
     let filledFields = 0;
 
     if (String(formValues.website ?? "").trim()) filledFields++;
@@ -393,6 +393,8 @@ export function PitchProfileTemplate() {
       if (lifetimeValueStr) filledFields++;
     }
 
+    if (String(formValues.brandTerms ?? "").trim()) filledFields++;
+
     const percentage = Math.round((filledFields / totalFields) * 100);
     return Math.max(0, Math.min(100, percentage));
   }, [
@@ -405,6 +407,7 @@ export function PitchProfileTemplate() {
     formValues.recurringRevenue,
     formValues.serviceType,
     formValues.website,
+    formValues.brandTerms,
     hasAtLeastOneOffering,
   ]);
 
@@ -460,7 +463,11 @@ export function PitchProfileTemplate() {
               }}
             >
               <BusinessInfoForm form={form} disableWebsiteLock />
-              <OfferingsForm form={form} businessId={businessId ?? null} />
+              <OfferingsForm
+                form={form}
+                businessId={businessId ?? null}
+                hideFetchOfferingsFromWebsite
+              />
               <Card
                 variant="profileCard"
                 className="py-6 px-4 bg-white border-none mt-6"

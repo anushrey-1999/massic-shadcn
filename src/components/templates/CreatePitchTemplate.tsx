@@ -19,6 +19,11 @@ import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoFor
 import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
 import { LoaderOverlay } from "@/components/ui/loader";
 import { useAuthStore } from "@/store/auth-store";
+import { api } from "@/hooks/use-api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Typography } from "@/components/ui/typography";
 
 const sections = [
   { id: "business-info", label: "Business Info" },
@@ -61,6 +66,7 @@ export function CreatePitchTemplate() {
     lifetimeValue: "",
     offerings: "",
     offeringsList: [],
+    brandTerms: "",
   } as unknown as BusinessInfoFormData;
 
   const form = useForm({
@@ -148,11 +154,27 @@ export function CreatePitchTemplate() {
         },
         BusinessObjective: normalizedServeCustomers,
         LocationType: normalizedOfferType,
-        RecurringFlag: value.recurringRevenue || null,
-        AOV: value.avgOrderValue ?? null,
-        LTV: value.lifetimeValue ?? null,
+        RecurringFlag: value.recurringRevenue
+          ? String(value.recurringRevenue).trim().toLowerCase() === "partial"
+            ? "sometimes"
+            : String(value.recurringRevenue).trim().toLowerCase()
+          : null,
+        AOV: (() => {
+          const num = Number.parseFloat(String(value.avgOrderValue ?? "").trim());
+          return Number.isFinite(num) ? num : null;
+        })(),
+        LTV: (() => {
+          const num = Number.parseFloat(String(value.lifetimeValue ?? "").trim());
+          return Number.isFinite(num) ? num : null;
+        })(),
         BrandTerms: brandTermsArray.length > 0 ? brandTermsArray : null,
       };
+
+      await api.post(
+        "/profile/update-business-profile",
+        "node",
+        { ...businessProfilePayload, UniqueId: createdBusinessId }
+      );
 
       await createJobMutation.mutateAsync({
         businessId: createdBusinessId,
@@ -198,7 +220,7 @@ export function CreatePitchTemplate() {
   }, [formValues.recurringRevenue]);
 
   const completionPercentage = React.useMemo(() => {
-    const totalFields = 10;
+    const totalFields = 11;
     let filledFields = 0;
 
     if (String(formValues.website ?? "").trim()) filledFields++;
@@ -227,6 +249,8 @@ export function CreatePitchTemplate() {
       if (lifetimeValueStr) filledFields++;
     }
 
+    if (String(formValues.brandTerms ?? "").trim()) filledFields++;
+
     const percentage = Math.round((filledFields / totalFields) * 100);
     return Math.max(0, Math.min(100, percentage));
   }, [
@@ -239,6 +263,7 @@ export function CreatePitchTemplate() {
     formValues.recurringRevenue,
     formValues.serviceType,
     formValues.website,
+    formValues.brandTerms,
     hasAtLeastOneOffering,
   ]);
 
@@ -294,7 +319,46 @@ export function CreatePitchTemplate() {
               }}
             >
               <BusinessInfoForm form={form} disableWebsiteLock />
-              <OfferingsForm form={form} businessId="create-pitch" />
+              <OfferingsForm
+                form={form}
+                businessId="create-pitch"
+                hideFetchOfferingsFromWebsite
+              />
+              <Card
+                variant="profileCard"
+                className="py-6 px-4 bg-white border-none mt-6"
+              >
+                <CardHeader className="pb-4">
+                  <CardTitle>
+                    <Typography variant="h4">Brand Terms</Typography>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Card variant="profileCard">
+                    <CardHeader>
+                      <CardTitle>
+                        <FieldLabel className="gap-0">
+                          Brand terms that best describe your business
+                        </FieldLabel>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <form.Field
+                        name="brandTerms"
+                        children={(field: any) => (
+                          <Input
+                            variant="noBorder"
+                            value={field.state.value || ""}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            placeholder="List the words, separating each one with a comma"
+                            className="w-full"
+                          />
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+                </CardContent>
+              </Card>
             </form>
           </div>
         </div>

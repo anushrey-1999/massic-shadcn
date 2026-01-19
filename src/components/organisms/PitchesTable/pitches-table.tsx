@@ -4,7 +4,6 @@ import * as React from "react";
 import { parseAsString, useQueryState } from "nuqs";
 
 import { DataTable } from "@/components/filter-table";
-import { DataTableFilterList } from "@/components/filter-table/data-table-filter-list";
 import { DataTableSearch } from "@/components/filter-table/data-table-search";
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list";
 import { DataTableViewOptions } from "@/components/filter-table/data-table-view-options";
@@ -29,7 +28,7 @@ export function PitchesTable({
   queryKeys,
   isLoading = false,
 }: PitchesTableProps) {
-  const enableAdvancedFilter = true;
+  const enableAdvancedFilter = false;
 
   const columns = React.useMemo(() => getPitchesTableColumns(), []);
 
@@ -77,13 +76,6 @@ export function PitchesTable({
                 setSearch(value);
               }}
               placeholder="Search pitches..."
-            />
-            <DataTableFilterList
-              table={table}
-              shallow={shallow}
-              debounceMs={debounceMs}
-              throttleMs={throttleMs}
-              align="start"
             />
           </div>
           <div className="flex items-center gap-2">

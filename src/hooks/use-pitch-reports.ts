@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { api } from "@/hooks/use-api";
@@ -119,6 +119,7 @@ function normalizeStatus(value: unknown): string {
 }
 
 export function useStartQuickyReport() {
+  const queryClient = useQueryClient();
   return useMutation<ReportStatusResponse, Error, { businessId: string }>({
     mutationFn: async ({ businessId }) => {
       if (!businessId) {
@@ -128,6 +129,9 @@ export function useStartQuickyReport() {
       return api.post<ReportStatusResponse>("/client/quicky", "python", undefined, {
         params: { business_id: businessId },
       });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pitches"] });
     },
     onError: (error) => {
       toast.error("Failed to start snapshot", {
@@ -181,6 +185,7 @@ export function useFetchReportFromDownloadUrl() {
 }
 
 export function useGenerateQuickyReport() {
+  const queryClient = useQueryClient();
   return useMutation<string, Error, { businessId: string }>({
     mutationFn: async ({ businessId }) => {
       if (!businessId) {
@@ -191,6 +196,9 @@ export function useGenerateQuickyReport() {
         params: { business_id: businessId },
       });
       return cleanEscapedContent(extractReportText(response));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pitches"] });
     },
     onError: (error) => {
       toast.error("Failed to generate snapshot", {

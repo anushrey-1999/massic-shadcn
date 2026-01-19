@@ -54,6 +54,8 @@ export function PitchesTableClient() {
     enabled: pitchBusinesses.length > 0,
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
     refetchInterval: (query) => {
       const data = (query.state.data as any)?.data as Array<{ status?: string }> | undefined;
       if (!Array.isArray(data) || data.length === 0) return false;

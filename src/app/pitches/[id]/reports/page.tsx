@@ -89,7 +89,7 @@ export default function PitchReportsPage() {
       // newest first
       return rows.slice().sort((a, b) => String(b?.created_at || "").localeCompare(String(a?.created_at || "")));
     },
-    enabled: !!businessId && activeReport === null,
+    enabled: !!businessId,
     staleTime: 0,
     retry: false,
     refetchInterval: (query) => {
@@ -137,6 +137,69 @@ export default function PitchReportsPage() {
       dateTime: String(pitch.created_at || "N/A"),
     }));
   }, [businessPitchesQuery.data, businessId, businessName]);
+
+  const parseCreatedAt = React.useCallback((value: unknown): Date | null => {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+
+    const native = new Date(raw);
+    if (!Number.isNaN(native.getTime())) return native;
+
+    // Supports "19-1-2026 5:31 AM" or "19-01-2026 05:31 PM"
+    const m = raw.match(
+      /^(\d{1,2})-(\d{1,2})-(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i,
+    );
+    if (!m) return null;
+
+    const day = Number(m[1]);
+    const month = Number(m[2]);
+    const year = Number(m[3]);
+    let hour = Number(m[4]);
+    const minute = Number(m[5]);
+    const ampm = String(m[6]).toUpperCase();
+
+    if (ampm === "PM" && hour < 12) hour += 12;
+    if (ampm === "AM" && hour === 12) hour = 0;
+
+    const dt = new Date(year, month - 1, day, hour, minute, 0, 0);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }, []);
+
+  const latestSuccessfulSnapshotCreatedAt = React.useMemo(() => {
+    const rows = Array.isArray(businessPitchesQuery.data)
+      ? businessPitchesQuery.data
+      : [];
+
+    const snapshots = rows
+      .filter((r: any) => String(r?.pitch_type || "").trim().toLowerCase() === "snapshot")
+      .filter((r: any) => String(r?.status || "").trim().toLowerCase() === "success");
+
+    let latest: Date | null = null;
+    for (const row of snapshots) {
+      const dt = parseCreatedAt(row?.created_at);
+      if (!dt) continue;
+      if (!latest || dt.getTime() > latest.getTime()) latest = dt;
+    }
+    return latest;
+  }, [businessPitchesQuery.data, parseCreatedAt]);
+
+  const isSnapshotExpired = React.useMemo(() => {
+    if (activeReport !== "snapshot") return false;
+    if (!latestSuccessfulSnapshotCreatedAt) return false;
+
+    // If user is generating/polling, do not block with expiry state.
+    if (startQuickyMutation.isPending || snapshotStarted) return false;
+
+    const now = Date.now();
+    const ageMs = now - latestSuccessfulSnapshotCreatedAt.getTime();
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    return ageDays > 30;
+  }, [
+    activeReport,
+    latestSuccessfulSnapshotCreatedAt,
+    startQuickyMutation.isPending,
+    snapshotStarted,
+  ]);
 
   const detailedExistingQuery = useQuery({
     queryKey: ["pitches", "status", "existing", businessId],
@@ -487,6 +550,38 @@ export default function PitchReportsPage() {
 
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5">
         {showReportView ? (
+          isSnapshotExpired ? (
+            <EmptyState
+              title="Report Expired"
+              description="This report is older than 30 days. Please regenerate to view the latest report."
+              className="h-[calc(100vh-12rem)]"
+              buttons={[
+                {
+                  label: startQuickyMutation.isPending ? "Regenerating..." : "Regenerate",
+                  variant: "default",
+                  size: "lg",
+                  onClick: async () => {
+                    if (!businessId) return;
+                    queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
+                    setActiveReport("snapshot");
+                    setReportContent("");
+                    setSnapshotStarted(false);
+                    startQuickyMutation.reset();
+                    fetchReportMutation.reset();
+                    await startQuickyMutation.mutateAsync({ businessId });
+                    queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                    setSnapshotStarted(true);
+                  },
+                },
+                {
+                  label: "Back",
+                  href: businessId ? `/pitches/${businessId}/reports?view=cards` : "/pitches",
+                  variant: "outline",
+                  size: "lg",
+                },
+              ]}
+            />
+          ) : (
           shouldShowProcessingEmptyState ? (
             <EmptyState
               title={processingEmptyState.title}
@@ -522,6 +617,7 @@ export default function PitchReportsPage() {
                 router.push(businessId ? `/pitches/${businessId}/reports?view=cards` : "/pitches");
               }}
             />
+          )
           )
         ) : (
           <div className="h-full bg-white rounded-lg p-6 flex flex-col gap-6 overflow-hidden">
@@ -609,6 +705,7 @@ export default function PitchReportsPage() {
                             startQuickyMutation.reset();
                             fetchReportMutation.reset();
                             await startQuickyMutation.mutateAsync({ businessId });
+                        queryClient.invalidateQueries({ queryKey: ["pitches"] });
                             setSnapshotStarted(true);
                           }}
                         >
@@ -629,6 +726,7 @@ export default function PitchReportsPage() {
                           startQuickyMutation.reset();
                           fetchReportMutation.reset();
                           await startQuickyMutation.mutateAsync({ businessId });
+                      queryClient.invalidateQueries({ queryKey: ["pitches"] });
                           setSnapshotStarted(true);
                         }}
                       >

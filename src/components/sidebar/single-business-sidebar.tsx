@@ -173,7 +173,6 @@ export default function SingleBusinessSidebar() {
     { label: 'Strategy', slug: 'strategy', icon: Target },
     { label: 'Web', slug: 'web', icon: Globe },
     { label: 'Social', slug: 'social', icon: Share2 },
-    { label: 'Ads', slug: 'ads', icon: Tv },
     { label: 'Reviews', slug: 'reviews', icon: Star },
     { label: 'Profile', slug: 'profile', icon: User },
   ]
@@ -192,7 +191,6 @@ export default function SingleBusinessSidebar() {
     { label: 'Strategy', slug: 'strategy', icon: Target },
     { label: 'Web', slug: 'web', icon: Globe },
     { label: 'Social', slug: 'social', icon: Share2 },
-    { label: 'Ads', slug: 'ads', icon: Tv },
     { label: 'Profile', slug: 'profile', icon: User },
   ] as const
 

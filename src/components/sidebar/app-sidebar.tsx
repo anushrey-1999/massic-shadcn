@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
-import { useBusinessProfiles } from '@/hooks/use-business-profiles'
+import { useBusinessProfileById, useBusinessProfiles } from '@/hooks/use-business-profiles'
 import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
@@ -235,19 +235,21 @@ export default function AppSidebar() {
   }, [pathname])
   const isPitchBusinessRoute = pitchBusinessId !== null
 
+  const { profileData: pitchProfileById, profileDataLoading: pitchProfileByIdLoading } =
+    useBusinessProfileById(pitchBusinessId)
+
   const pitchBusinessSubItems = [
     { label: 'Reports', slug: 'reports' },
     { label: 'Strategy', slug: 'strategy' },
     { label: 'Web', slug: 'web' },
     { label: 'Social', slug: 'social' },
-    { label: 'Ads', slug: 'ads' },
     { label: 'Profile', slug: 'profile' },
   ] as const
 
   const pitchBusinessProfile = useMemo(() => {
     if (!pitchBusinessId) return null
-    return profiles.find((p) => p.UniqueId === pitchBusinessId) ?? null
-  }, [pitchBusinessId, profiles])
+    return profiles.find((p) => p.UniqueId === pitchBusinessId) ?? pitchProfileById ?? null
+  }, [pitchBusinessId, profiles, pitchProfileById])
 
   const getPitchSubItemHref = (slug: (typeof pitchBusinessSubItems)[number]['slug']) => {
     if (!pitchBusinessId) return '/pitches'
@@ -427,7 +429,9 @@ export default function AppSidebar() {
                   }
 
                   const businessLabel =
-                    pitchBusinessProfile?.Name || pitchBusinessProfile?.DisplayName || 'Business'
+                    pitchBusinessProfile?.Name ||
+                    pitchBusinessProfile?.DisplayName ||
+                    (pitchProfileByIdLoading ? 'Loading…' : 'Business')
 
                   return (
                     <React.Fragment key={item.href}>

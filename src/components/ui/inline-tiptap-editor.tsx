@@ -25,6 +25,7 @@ interface InlineTipTapEditorProps {
   editorClassName?: string;
   onEditorReady?: (editor: Editor | null) => void;
   onSave?: (markdown: string) => void | Promise<void>;
+  onChange?: (markdown: string) => void;
   onFocus?: (editor: Editor) => void;
   onBlur?: () => void;
 }
@@ -37,6 +38,7 @@ export function InlineTipTapEditor({
   editorClassName,
   onEditorReady,
   onSave,
+  onChange,
   onFocus,
   onBlur,
 }: InlineTipTapEditorProps) {
@@ -86,9 +88,14 @@ export function InlineTipTapEditor({
     ],
     content: "",
     editable: isEditable,
-    onUpdate: ({ transaction }) => {
+    onUpdate: ({ editor, transaction }) => {
       if (transaction.docChanged) {
         isDirtyRef.current = true;
+        if (onChange && isInitializedRef.current) {
+          const html = editor.getHTML() || "";
+          const markdown = canonicalize(ContentConverter.htmlToMarkdown(html));
+          onChange(markdown);
+        }
       }
     },
     onFocus: ({ editor }) => {

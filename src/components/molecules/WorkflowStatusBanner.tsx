@@ -8,12 +8,14 @@ interface WorkflowStatusBannerProps {
   businessId: string
   className?: string
   emptyStateHeight?: string
+  profileHref?: string
 }
 
-export function WorkflowStatusBanner({ businessId, className, emptyStateHeight }: WorkflowStatusBannerProps) {
+export function WorkflowStatusBanner({ businessId, className, emptyStateHeight, profileHref }: WorkflowStatusBannerProps) {
   const { data: jobDetails, isLoading } = useJobByBusinessId(businessId || null)
   
   const workflowStatus = jobDetails?.workflow_status?.status
+  const effectiveProfileHref = profileHref || `/business/${businessId}/profile`
 
   if (isLoading) {
     return null
@@ -30,7 +32,7 @@ export function WorkflowStatusBanner({ businessId, className, emptyStateHeight }
         buttons={[
           {
             label: "Go to Profile",
-            href: `/business/${businessId}/profile`,
+            href: effectiveProfileHref,
             variant: "outline",
             size: "lg"
           }
@@ -61,7 +63,7 @@ export function WorkflowStatusBanner({ businessId, className, emptyStateHeight }
         buttons={[
           {
             label: "Go to Profile",
-            href: `/business/${businessId}/profile`,
+            href: effectiveProfileHref,
             variant: "outline",
             size: "lg"
           }
@@ -80,7 +82,7 @@ export function WorkflowStatusBanner({ businessId, className, emptyStateHeight }
         buttons={[
           {
             label: "Go to Profile",
-            href: `/business/${businessId}/profile`,
+            href: effectiveProfileHref,
             variant: "outline",
             size: "lg"
           }

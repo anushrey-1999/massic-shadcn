@@ -43,11 +43,13 @@ type BusinessInfoFormData = {
 interface OfferingsFormProps {
   form: any; // TanStack Form instance
   businessId?: string | null; // Business ID for offerings extraction
+  hideFetchOfferingsFromWebsite?: boolean;
 }
 
 export const OfferingsForm = ({
   form,
   businessId,
+  hideFetchOfferingsFromWebsite = false,
 }: OfferingsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
@@ -259,24 +261,26 @@ export const OfferingsForm = ({
                   What products and services does your business sell?
                 </FieldLabel>
               </CardTitle>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleFetchOfferings}
-                disabled={isExtracting || !website}
-                className="min-w-[200px]"
-              >
-                {isExtracting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Extracting...
-                  </>
-                ) : offeringsData.length > 0 ? (
-                  "Add More from Website"
-                ) : (
-                  "Fetch Offerings from Website"
-                )}
-              </Button>
+              {!hideFetchOfferingsFromWebsite ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleFetchOfferings}
+                  disabled={isExtracting || !website}
+                  className="min-w-[200px]"
+                >
+                  {isExtracting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Extracting...
+                    </>
+                  ) : offeringsData.length > 0 ? (
+                    "Add More from Website"
+                  ) : (
+                    "Fetch Offerings from Website"
+                  )}
+                </Button>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent>

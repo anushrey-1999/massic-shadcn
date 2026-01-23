@@ -24,11 +24,13 @@ export default function PitchSocialPage() {
   if (isLoading || !canShowData) {
     return (
       <div className="flex flex-col h-screen">
-        <WorkflowStatusBanner
-          businessId={businessId}
-          profileHref={`/pitches/${businessId}/profile`}
-          emptyStateHeight="h-[calc(100vh-12rem)]"
-        />
+        <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+          <WorkflowStatusBanner
+            businessId={businessId}
+            profileHref={`/pitches/${businessId}/profile`}
+            emptyStateHeight="min-h-[calc(100vh-12rem)]"
+          />
+        </div>
       </div>
     );
   }

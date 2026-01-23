@@ -7,6 +7,7 @@ import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOp
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
+import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { cn } from '@/lib/utils'
 import { usePathname, useRouter } from 'next/navigation'
@@ -58,6 +59,9 @@ export default function BusinessWebPage({ params }: PageProps) {
   }, [params])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
+  const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)
+  const workflowStatus = jobDetails?.workflow_status?.status
+  const showMainContent = workflowStatus === "success"
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
@@ -92,44 +96,49 @@ export default function BusinessWebPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
-          {!isOptimizeSplitView && (
-            <div className="shrink-0 flex items-center justify-between gap-4">
-              <TabsList>
-                <TabsTrigger value="new-pages">New Pages</TabsTrigger>
-                <TabsTrigger value="optimize">Optimize</TabsTrigger>
-              </TabsList>
-              {newPagesMetricsText && (
-                <Typography
-                  variant="p"
-                  className="text-sm font-mono text-general-muted-foreground"
-                >
-                  {newPagesMetricsText}
-                </Typography>
+      <EntitlementsGuard
+        entitlement="web"
+        businessId={businessId}
+        alertMessage="You're on Starter. Upgrade your plan to unlock Web."
+      >
+        {!jobDetailsLoading && showMainContent ? (
+          <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
+              {!isOptimizeSplitView && (
+                <div className="shrink-0 flex items-center justify-between gap-4">
+                  <TabsList>
+                    <TabsTrigger value="new-pages">New Pages</TabsTrigger>
+                    <TabsTrigger value="optimize">Optimize</TabsTrigger>
+                  </TabsList>
+                  {newPagesMetricsText && (
+                    <Typography
+                      variant="p"
+                      className="text-sm font-mono text-general-muted-foreground"
+                    >
+                      {newPagesMetricsText}
+                    </Typography>
+                  )}
+                </div>
               )}
-            </div>
-          )}
-          <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
-            <EntitlementsGuard
-              entitlement="web"
+              <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
+                <WebNewPagesTab businessId={businessId} onMetricsChange={setNewPagesMetrics} />
+              </TabsContent>
+              <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+                <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
+                  <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
+                </EntitlementsGuard>
+              </TabsContent>
+            </Tabs>
+          </div>
+        ) : (
+          <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+            <WorkflowStatusBanner
               businessId={businessId}
-              alertMessage="You're on Starter. Upgrade your plan to unlock Web."
-            >
-              <WorkflowStatusBanner 
-                businessId={businessId} 
-                emptyStateHeight="h-[calc(100vh-16rem)]"
-              />
-              <WebNewPagesTab businessId={businessId} onMetricsChange={setNewPagesMetrics} />
-            </EntitlementsGuard>
-          </TabsContent>
-          <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
-            <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
-              <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
-            </EntitlementsGuard>
-          </TabsContent>
-        </Tabs>
-      </div>
+              emptyStateHeight="min-h-[calc(100vh-12rem)]"
+            />
+          </div>
+        )}
+      </EntitlementsGuard>
     </div>
   )
 }

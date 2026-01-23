@@ -55,6 +55,7 @@ interface DataTableProps {
   sortConfig?: SortConfig
   onSort?: (column: string) => void
   onArrowClick?: () => void
+  onRowClick?: (row: DataTableRow) => void
   maxRows?: number
   variant?: "card" | "standalone"
   stickyHeader?: boolean
@@ -78,6 +79,7 @@ export function DataTable({
   sortConfig,
   onSort,
   onArrowClick,
+  onRowClick,
   maxRows,
   variant = "card",
   stickyHeader = false,
@@ -199,7 +201,7 @@ export function DataTable({
                             <span
                               className={cn(
                                 "min-w-0 truncate font-medium leading-none tracking-wide text-general-muted-foreground",
-                                  cellSize === "md" ? "text-xs font-semibold" : "text-xs",
+                                cellSize === "md" ? "text-xs font-semibold" : "text-xs",
                                 sortConfig?.column === col.key && "text-foreground"
                               )}
                             >
@@ -235,8 +237,10 @@ export function DataTable({
                   <TableRow
                     key={rowIndex}
                     className={cn(
-                      cellSize === "sm" ? "h-10 max-h-10" : "h-11 border-b border-border/40 transition-colors hover:bg-muted/30"
+                      cellSize === "sm" ? "h-10 max-h-10" : "h-11 border-b border-border/40 transition-colors hover:bg-muted/30",
+                      onRowClick && "cursor-pointer"
                     )}
+                    onClick={() => onRowClick?.(row)}
                   >
                     {columns.map((col, colIndex) => {
                       const cellValue = row[col.key]

@@ -7,6 +7,7 @@ import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanne
 import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
 import { TvRadioAdsTableClient } from '@/components/organisms/TvRadioAdsTable'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
+import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { usePathname, useRouter } from 'next/navigation'
 import { Typography } from '@/components/ui/typography'
@@ -95,6 +96,9 @@ export default function BusinessAdsPage({ params }: PageProps) {
   }, [params])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
+  const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)
+  const workflowStatus = jobDetails?.workflow_status?.status
+  const showMainContent = workflowStatus === "success"
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
@@ -134,11 +138,16 @@ export default function BusinessAdsPage({ params }: PageProps) {
         businessId={businessId}
         alertMessage="You're on Starter. Upgrade your plan to unlock Ads."
       >
-        <WorkflowStatusBanner 
-          businessId={businessId} 
-          emptyStateHeight="h-[calc(100vh-12rem)]"
-        />
-        <AdsEntitledContent businessId={businessId} />
+        {!jobDetailsLoading && showMainContent ? (
+          <AdsEntitledContent businessId={businessId} />
+        ) : (
+          <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+            <WorkflowStatusBanner
+              businessId={businessId}
+              emptyStateHeight="min-h-[calc(100vh-12rem)]"
+            />
+          </div>
+        )}
       </EntitlementsGuard>
     </div>
   )

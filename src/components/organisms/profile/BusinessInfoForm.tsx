@@ -32,13 +32,16 @@ type BusinessInfoFormData = {
 
 interface BusinessInfoFormProps {
   form: any; // TanStack Form instance
+  disableWebsiteLock?: boolean;
 }
 
 export const BusinessInfoForm = React.memo(({
-  form
+  form,
+  disableWebsiteLock = false,
 }: BusinessInfoFormProps) => {
   const websiteValue = useStore(form.store, (state: any) => state.values?.website || "");
-  const isWebsiteLocked = String(websiteValue || "").trim().length > 0;
+  const isWebsiteLocked =
+    !disableWebsiteLock && String(websiteValue || "").trim().length > 0;
 
   // Own Zustand selectors - isolated selector for better performance
   const { locationOptions, locationsLoading } = useBusinessStore(

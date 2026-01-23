@@ -11,6 +11,11 @@ interface StatsBadgeProps {
   variant?: "pill" | "plain" | "small"
 }
 
+function formatValue(value: number): React.ReactNode {
+  if (!Number.isFinite(value)) return <span className="inline-flex items-center"><span className="text-[1.4em] leading-none">∞</span>%</span>
+  return `${Math.abs(value)}%`
+}
+
 export function StatsBadge({ value, className, valueClassName, showIcon = true, variant = "pill" }: StatsBadgeProps) {
   const isPositive = value > 0
   const isNegative = value < 0
@@ -54,7 +59,7 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
             valueClassName
           )}
         >
-          {Math.abs(value)}%
+          {formatValue(value)}
         </span>
       </span>
     )
@@ -84,7 +89,7 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
           valueClassName
         )}
       >
-        {Math.abs(value)}%
+        {formatValue(value)}
       </span>
     </span>
   )

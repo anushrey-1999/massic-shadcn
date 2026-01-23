@@ -7,6 +7,7 @@ import { LandscapeTableClient } from "@/components/organisms/LandscapeTable/land
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { WorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanner";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
+import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -250,6 +251,11 @@ export default function BusinessStrategyPage({ params }: PageProps) {
   const { profileData, profileDataLoading } = useBusinessProfileById(
     businessId || null
   );
+  const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(
+    businessId || null
+  );
+  const workflowStatus = jobDetails?.workflow_status?.status;
+  const showMainContent = workflowStatus === "success";
 
   const businessName =
     profileData?.Name || profileData?.DisplayName || "Business";
@@ -286,11 +292,16 @@ export default function BusinessStrategyPage({ params }: PageProps) {
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
       <EntitlementsGuard entitlement="strategy" businessId={businessId}>
-        <WorkflowStatusBanner
-          businessId={businessId}
-          emptyStateHeight="h-[calc(100vh-12rem)]"
-        />
-        <StrategyEntitledContent businessId={businessId} />
+        {!jobDetailsLoading && showMainContent ? (
+          <StrategyEntitledContent businessId={businessId} />
+        ) : (
+          <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+            <WorkflowStatusBanner
+              businessId={businessId}
+              emptyStateHeight="min-h-[calc(100vh-12rem)]"
+            />
+          </div>
+        )}
       </EntitlementsGuard>
     </div>
   );

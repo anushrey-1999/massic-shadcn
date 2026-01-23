@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import puppeteer, { Browser } from "puppeteer-core";
+import chromium from "@sparticuz/chromium-min";
 import Showdown from "showdown";
 
 const CHROMIUM_URL =
@@ -30,13 +31,6 @@ async function getBrowser(): Promise<Browser> {
         args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
       });
     } else {
-      // Avoid build-time resolution issues: only require chromium-min at runtime in production.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { createRequire } = require("module");
-      const requireFromHere = createRequire(__filename);
-      const chromiumPkg = "@sparticuz/" + "chromium-min";
-      const chromium = requireFromHere(chromiumPkg);
-
       browserInstance = await puppeteer.launch({
         args: [...chromium.args, "--disable-dev-shm-usage"],
         defaultViewport: { width: 1200, height: 800 },

@@ -208,26 +208,30 @@ export function SocialActionCell({
   const handlePrimaryClick = primaryAction === "view" ? handleOpen : handleGenerate;
   const buttonVariant = primaryAction === "generate" ? "default" : "outline";
 
+  const isReddit = resolvedChannel === "reddit";
+
   return (
     <>
       <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              variant={buttonVariant}
-              className="size-6 rounded-sm"
-              onClick={handlePrimaryClick}
-              aria-label={primaryLabel}
-              disabled={primaryAction === "generate" ? starting : false}
-            >
-              <PrimaryIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={8}>
-            {primaryLabel}
-          </TooltipContent>
-        </Tooltip>
+        {!isReddit && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant={buttonVariant}
+                className="size-6 rounded-sm"
+                onClick={handlePrimaryClick}
+                aria-label={primaryLabel}
+                disabled={primaryAction === "generate" ? starting : false}
+              >
+                <PrimaryIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={8}>
+              {primaryLabel}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>

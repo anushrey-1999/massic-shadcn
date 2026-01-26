@@ -81,6 +81,7 @@ interface CreateBusinessPayload {
 
 interface LinkPropertyPayload {
   websiteUri: string;
+  businessUniqueId?: string;
   propertyId?: string;
   locations: { DisplayName: string; Url: string; Name: string; AccountName: string }[];
   NoLocationExist: boolean;
@@ -296,6 +297,7 @@ export function useLinkPropertyId() {
 
       const payload: LinkPropertyPayload = {
         websiteUri: business.siteUrl,
+        businessUniqueId: business.businessProfile?.UniqueId,
         locations: business.noLocation || business.gbpCleared === true ? [] :
           (business.selectedGbp?.map((gbp) => ({
             DisplayName: gbp.title || "",

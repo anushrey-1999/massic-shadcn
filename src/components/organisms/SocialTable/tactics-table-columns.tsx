@@ -148,9 +148,9 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
           const isExpanded = expandedRowId === rowId;
           return (
             <div className="max-w-full">
-              <ExpandablePills 
-                items={keywords} 
-                pillVariant="outline" 
+              <ExpandablePills
+                items={keywords}
+                pillVariant="outline"
                 expanded={isExpanded}
                 onExpandedChange={(next) => {
                   onExpandedRowChange?.(next ? rowId : null);
@@ -170,26 +170,6 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
         size: 200,
         minSize: 150,
         maxSize: 250,
-      },
-      {
-        id: "actions",
-        header: () => <div className="text-sm font-semibold">Actions</div>,
-        cell: ({ row }) => {
-          if (!businessId) {
-            return (
-              <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled>
-                <Sparkles className="h-4 w-4" />
-              </Button>
-            );
-          }
-
-          return <SocialActionCell businessId={businessId} row={row.original} channelName={channelName} />;
-        },
-        enableColumnFilter: false,
-        enableSorting: false,
-        size: 100,
-        minSize: 100,
-        maxSize: 100,
       },
     ];
   }
@@ -302,9 +282,9 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
         const isExpanded = expandedRowId === rowId;
         return (
           <div className="max-w-full">
-            <ExpandablePills 
-              items={keywords} 
-              pillVariant="outline" 
+            <ExpandablePills
+              items={keywords}
+              pillVariant="outline"
               expanded={isExpanded}
               onExpandedChange={(next) => {
                 onExpandedRowChange?.(next ? rowId : null);

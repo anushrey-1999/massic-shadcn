@@ -86,7 +86,6 @@ function EmailFormStep({
   const handleContinue = () => {
     if (
       !userSignupData.firstName.trim() ||
-      !userSignupData.lastName.trim() ||
       !userSignupData.email.trim() ||
       !userSignupData.password.trim() ||
       !userSignupData.confirmPassword.trim()
@@ -137,7 +136,6 @@ function EmailFormStep({
             placeholder="Enter your last name"
             value={userSignupData.lastName}
             onChange={(e) => setUserSignupData({ lastName: e.target.value })}
-            required
             disabled={isLoading || isGoogleSignup}
           />
         </div>

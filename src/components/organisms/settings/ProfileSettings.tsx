@@ -96,7 +96,7 @@ function GoogleConnectButton() {
 
 export function ProfileSettings() {
   const { profileDataByUniqueID } = useBusinessStore();
-  const { agencyInfo, agencyDetails } = useAgencyInfo();
+  const { agencyInfo, agencyDetails, isTeamMember } = useAgencyInfo();
   const updateAgencyMutation = useUpdateAgencyInfo();
   const uploadLogoMutation = useUploadLogo();
   const unlinkGoogleAccount = useUnlinkGoogleAccount();
@@ -205,6 +205,7 @@ export function ProfileSettings() {
                           inputVariant="noBorder"
                           label="Agency Name"
                           required={true}
+                          disabled={isTeamMember}
                           placeholder="Provide the name of your agency"
                         />
                       </CardContent>
@@ -224,6 +225,7 @@ export function ProfileSettings() {
                           inputVariant="noBorder"
                           label="Agency Website"
                           required={true}
+                          disabled={isTeamMember}
                           placeholder="Provide the official url of your agency website"
                         />
                       </CardContent>
@@ -260,7 +262,7 @@ export function ProfileSettings() {
                       <CardContent>
                         <div
                           onClick={() => {
-                            if (!isUploadingLogo) {
+                            if (!isUploadingLogo && !isTeamMember) {
                               const fileInput = document.createElement("input");
                               fileInput.type = "file";
                               fileInput.accept =
@@ -278,8 +280,8 @@ export function ProfileSettings() {
                           className={`
                           relative w-[182px] h-[182px] rounded-lg border-2 border-dashed 
                           border-muted bg-muted/30 flex flex-col items-center justify-center 
-                          cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/50
-                          ${isUploadingLogo
+                          ${!isTeamMember ? 'cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/50' : 'cursor-not-allowed'}
+                          ${isUploadingLogo || isTeamMember
                               ? "opacity-50 cursor-not-allowed"
                               : ""
                             }
@@ -292,18 +294,20 @@ export function ProfileSettings() {
                                 alt="Agency Logo"
                                 className="absolute inset-0 w-full h-full rounded-lg object-cover"
                               />
-                              <div className="absolute inset-0 bg-black/40 rounded-lg flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                                {isUploadingLogo ? (
-                                  <Loader2 className="h-8 w-8 text-white animate-spin" />
-                                ) : (
-                                  <>
-                                    <Upload className="h-8 w-8 text-white mb-2" />
-                                    <span className="text-sm text-white font-medium">
-                                      Replace
-                                    </span>
-                                  </>
-                                )}
-                              </div>
+                              {!isTeamMember && (
+                                <div className="absolute inset-0 bg-black/40 rounded-lg flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                  {isUploadingLogo ? (
+                                    <Loader2 className="h-8 w-8 text-white animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Upload className="h-8 w-8 text-white mb-2" />
+                                      <span className="text-sm text-white font-medium">
+                                        Replace
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </>
                           ) : (
                             <>
@@ -313,11 +317,13 @@ export function ProfileSettings() {
                                 <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
                               )}
                               <span className="text-sm font-medium text-muted-foreground mb-1">
-                                Upload Thumbnail
+                                {isTeamMember ? "Agency Logo" : "Upload Thumbnail"}
                               </span>
-                              <span className="text-xs text-muted-foreground">
-                                .png, .jpeg, .jpg
-                              </span>
+                              {!isTeamMember && (
+                                <span className="text-xs text-muted-foreground">
+                                  .png, .jpeg, .jpg
+                                </span>
+                              )}
                             </>
                           )}
                         </div>
@@ -328,134 +334,140 @@ export function ProfileSettings() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 mt-6 pt-6 border-t">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
-            </div>
+            {!isTeamMember && (
+              <div className="flex justify-end gap-2 mt-6 pt-6 border-t">
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
 
-      <Card variant="profileCard" className="p-4 bg-white border-none">
-        <CardHeader className="pb-6 flex items-center justify-between">
-          <CardTitle className="flex items-center justify-between">
-            <Typography variant="h4">Linked Google Accounts</Typography>
-          </CardTitle>
-          <div className="flex flex-col gap-3">
-            <GoogleConnectButton />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className={cn("", linkedGoogleAccounts.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-3 gap-4")}>
-            {/* Linked Accounts List */}
-            <div className="lg:col-span-1 space-y-3">
-              {linkedGoogleAccounts.length === 0 ? (
-                <EmptyState
-                  title="No Google accounts linked yet."
-                  description='Click "Add Account" to connect your first Google account.'
-                  cardClassName="bg-white"
-                />
-              ) : (
-                linkedGoogleAccounts.map((account, index) => (
-                  <div
-                    key={index}
-                    className="p-3 rounded-lg border border-general-border bg-card"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-full  border flex items-center justify-center overflow-hidden">
-                        {account.profileImage ? (
-                          <img
-                            src={account.profileImage}
-                            alt={account.email}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-xs font-semibold">
-                            {getInitials(account.email)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-base font-mono text-general-unofficial-foreground-alt">
-                          {account.email}
-                        </p>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        disabled={!account.AuthId || unlinkGoogleAccount.isPending}
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => {
-                          if (!account.AuthId) return;
-                          setSelectedAccount(account);
-                          setUnlinkDialogOpen(true);
-                        }}
-                        aria-label="Unlink Google account"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
+      {!isTeamMember && (
+        <Card variant="profileCard" className="p-4 bg-white border-none">
+          <CardHeader className="pb-6 flex items-center justify-between">
+            <CardTitle className="flex items-center justify-between">
+              <Typography variant="h4">Linked Google Accounts</Typography>
+            </CardTitle>
+            <div className="flex flex-col gap-3">
+              <GoogleConnectButton />
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <div className={cn("", linkedGoogleAccounts.length === 0 ? "" : "grid grid-cols-1 lg:grid-cols-3 gap-4")}>
+              {/* Linked Accounts List */}
+              <div className="lg:col-span-1 space-y-3">
+                {linkedGoogleAccounts.length === 0 ? (
+                  <EmptyState
+                    title="No Google accounts linked yet."
+                    description='Click "Add Account" to connect your first Google account.'
+                    cardClassName="bg-white"
+                  />
+                ) : (
+                  linkedGoogleAccounts.map((account, index) => (
+                    <div
+                      key={index}
+                      className="p-3 rounded-lg border border-general-border bg-card"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full  border flex items-center justify-center overflow-hidden">
+                          {account.profileImage ? (
+                            <img
+                              src={account.profileImage}
+                              alt={account.email}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs font-semibold">
+                              {getInitials(account.email)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-base font-mono text-general-unofficial-foreground-alt">
+                            {account.email}
+                          </p>
+                        </div>
 
-      <AlertDialog
-        open={unlinkDialogOpen}
-        onOpenChange={(open) => {
-          setUnlinkDialogOpen(open);
-          if (!open) setSelectedAccount(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unlink Google account?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will disconnect the Google account and deactivate its linked business profiles. You can reconnect later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={unlinkGoogleAccount.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={!selectedAccount?.AuthId || unlinkGoogleAccount.isPending}
-              onClick={async (e) => {
-                e.preventDefault();
-                if (!selectedAccount?.AuthId) return;
-                try {
-                  await unlinkGoogleAccount.mutateAsync({ authId: selectedAccount.AuthId });
-                  toast.success("Google account unlinked");
-                  setUnlinkDialogOpen(false);
-                  setSelectedAccount(null);
-                } catch (error: any) {
-                  toast.error("Failed to unlink Google account", {
-                    description: error?.message || "Please try again later.",
-                    descriptionClassName: "text-destructive-foreground/90",
-                  });
-                }
-              }}
-            >
-              {unlinkGoogleAccount.isPending ? "Unlinking..." : "Unlink"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={!account.AuthId || unlinkGoogleAccount.isPending}
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            if (!account.AuthId) return;
+                            setSelectedAccount(account);
+                            setUnlinkDialogOpen(true);
+                          }}
+                          aria-label="Unlink Google account"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isTeamMember && (
+        <AlertDialog
+          open={unlinkDialogOpen}
+          onOpenChange={(open) => {
+            setUnlinkDialogOpen(open);
+            if (!open) setSelectedAccount(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unlink Google account?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will disconnect the Google account and deactivate its linked business profiles. You can reconnect later.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={unlinkGoogleAccount.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={!selectedAccount?.AuthId || unlinkGoogleAccount.isPending}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  if (!selectedAccount?.AuthId) return;
+                  try {
+                    await unlinkGoogleAccount.mutateAsync({ authId: selectedAccount.AuthId });
+                    toast.success("Google account unlinked");
+                    setUnlinkDialogOpen(false);
+                    setSelectedAccount(null);
+                  } catch (error: any) {
+                    toast.error("Failed to unlink Google account", {
+                      description: error?.message || "Please try again later.",
+                      descriptionClassName: "text-destructive-foreground/90",
+                    });
+                  }
+                }}
+              >
+                {unlinkGoogleAccount.isPending ? "Unlinking..." : "Unlink"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       <div className="relative">
         <LinkedBusinessTable />
-        {linkedGoogleAccounts.length === 0 && (
+        {!isTeamMember && linkedGoogleAccounts.length === 0 && (
           <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg backdrop-blur-sm bg-background/60">
             <Typography variant="h4" className="text-general-muted-foreground">
               Connect Google account to see your businesses

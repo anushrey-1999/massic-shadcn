@@ -65,16 +65,28 @@ function updateUserInStore(updates: Partial<Record<string, any>>) {
 
 /**
  * Hook to get current agency info from auth store
+ * For team members, returns the owner's agency info instead
  */
 export function useAgencyInfo() {
   const { user, isAuthenticated } = useAuthStore();
 
-  const agencyInfo: AgencyInfo = {
-    name: user?.name || user?.username || "",
-    website: user?.website || "",
-    email: user?.email || "",
-    logo: user?.logo || "",
-  };
+  // If user is a team member and has ownerAgencyInfo, use that
+  const isTeamMember = user?.isTeamMember || false;
+  const ownerInfo = user?.ownerAgencyInfo;
+
+  const agencyInfo: AgencyInfo = isTeamMember && ownerInfo
+    ? {
+      name: ownerInfo.name || "",
+      website: ownerInfo.website || "",
+      email: ownerInfo.email || "",
+      logo: ownerInfo.logo || "",
+    }
+    : {
+      name: user?.name || user?.username || "",
+      website: user?.website || "",
+      email: user?.email || "",
+      logo: user?.logo || "",
+    };
 
   return {
     agencyInfo,
@@ -82,6 +94,7 @@ export function useAgencyInfo() {
     userId: user?.id,
     userUniqueId: user?.uniqueId || user?.UniqueId,
     agencyDetails: user?.agencyDetails || [],
+    isTeamMember,
   };
 }
 

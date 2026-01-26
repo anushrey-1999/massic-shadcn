@@ -7,8 +7,12 @@ import { BillingSettings } from "@/components/organisms/settings/BillingSettings
 import { TeamSettings } from "@/components/organisms/settings/TeamSettings";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { ReceiptText, Settings, Users } from "lucide-react";
+import { useAuthStore } from "@/store/auth-store";
 
 const SettingsTemplate = () => {
+  const user = useAuthStore((state) => state.user);
+  console.log(user)
+  const isTeamMember = user?.isTeamMember || false;
   const breadcrumbs = useMemo(
     () => [
       { label: "Home", href: "/" },
@@ -32,9 +36,11 @@ const SettingsTemplate = () => {
               <TabsTrigger value="billing">
                 <ReceiptText /> Billing
               </TabsTrigger>
-              <TabsTrigger value="team">
-                <Users /> Team
-              </TabsTrigger>
+              {!isTeamMember && (
+                <TabsTrigger value="team">
+                  <Users /> Team
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="profile" className="mt-6">
@@ -45,9 +51,11 @@ const SettingsTemplate = () => {
               <BillingSettings />
             </TabsContent>
 
-            <TabsContent value="team" className="mt-6">
-              <TeamSettings />
-            </TabsContent>
+            {!isTeamMember && (
+              <TabsContent value="team" className="mt-6">
+                <TeamSettings />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>

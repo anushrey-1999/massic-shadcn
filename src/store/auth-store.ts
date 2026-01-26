@@ -13,6 +13,7 @@ interface User {
   UniqueId?: string;
   roleid?: number;
   rolename?: string;
+  isTeamMember?: boolean;
   [key: string]: any;
 }
 

@@ -85,16 +85,18 @@ export function OrganicDeepdiveTemplate() {
           </div>
         </div> */}
 
-        <OrganicDeepdiveHeader
-          period={period}
-          onPeriodChange={handlePeriodChange}
-          filters={filters}
-          onRemoveFilter={removeFilter}
-        />
+        <div className="w-full max-w-[1224px] px-7">
+          <OrganicDeepdiveHeader
+            period={period}
+            onPeriodChange={handlePeriodChange}
+            filters={filters}
+            onRemoveFilter={removeFilter}
+          />
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-7 py-6">
-        <div className="flex flex-col gap-3 max-w-7xl mx-auto">
+      <div className="flex-1 overflow-y-auto">
+        <div className="w-full max-w-[1224px] px-7 py-6 flex flex-col gap-3">
           <Suspense fallback={<ChartSectionSkeleton />}>
             <OrganicChartSection
               businessUniqueId={businessUniqueId}

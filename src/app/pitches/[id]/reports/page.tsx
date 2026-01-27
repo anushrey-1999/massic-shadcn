@@ -138,6 +138,25 @@ export default function PitchReportsPage() {
     }));
   }, [businessPitchesQuery.data, businessId, businessName]);
 
+  const normalizeStatus = React.useCallback((value: unknown) => {
+    return String(value || "").trim().toLowerCase();
+  }, []);
+
+  const isPitchTypeProcessing = React.useCallback(
+    (pitchType: "snapshot" | "detailed") => {
+      const rows = Array.isArray(businessPitchesQuery.data)
+        ? businessPitchesQuery.data
+        : [];
+      return rows.some((row: any) => {
+        const type = String(row?.pitch_type || "").trim().toLowerCase();
+        if (type !== pitchType) return false;
+        const status = normalizeStatus(row?.status);
+        return status === "pending" || status === "processing" || status === "in_progress";
+      });
+    },
+    [businessPitchesQuery.data, normalizeStatus]
+  );
+
   const parseCreatedAt = React.useCallback((value: unknown): Date | null => {
     const raw = String(value || "").trim();
     if (!raw) return null;
@@ -202,7 +221,7 @@ export default function PitchReportsPage() {
   ]);
 
   const detailedExistingQuery = useQuery({
-    queryKey: ["pitches", "status", "existing", businessId],
+    queryKey: ["detailed", "status", "existing", businessId],
     queryFn: async () => {
       if (!businessId) return null;
       try {
@@ -214,7 +233,7 @@ export default function PitchReportsPage() {
         throw error;
       }
     },
-    enabled: false,
+    enabled: !!businessId && activeReport === null,
     staleTime: 0,
     retry: false,
     refetchInterval: (query) => {
@@ -327,6 +346,27 @@ export default function PitchReportsPage() {
   }, [detailedReportQuery.data]);
 
   const hasExistingSnapshot = snapshotExistingQuery.data != null;
+  const hasExistingDetailed = detailedExistingQuery.data != null;
+
+  const snapshotExistingStatus = React.useMemo(() => {
+    return normalizeStatus((snapshotExistingQuery.data as any)?.status);
+  }, [snapshotExistingQuery.data, normalizeStatus]);
+
+  const detailedExistingStatus = React.useMemo(() => {
+    return normalizeStatus((detailedExistingQuery.data as any)?.status);
+  }, [detailedExistingQuery.data, normalizeStatus]);
+
+  const isSnapshotProcessing = React.useMemo(() => {
+    const fromExisting =
+      snapshotExistingStatus === "pending" || snapshotExistingStatus === "processing";
+    return fromExisting || isPitchTypeProcessing("snapshot");
+  }, [snapshotExistingStatus, isPitchTypeProcessing]);
+
+  const isDetailedProcessing = React.useMemo(() => {
+    const fromExisting =
+      detailedExistingStatus === "pending" || detailedExistingStatus === "processing";
+    return fromExisting || isPitchTypeProcessing("detailed");
+  }, [detailedExistingStatus, isPitchTypeProcessing]);
 
   const viewerWorkflowStatus = React.useMemo(() => {
     if (activeReport === "snapshot") return snapshotStatus || "processing";
@@ -429,6 +469,19 @@ export default function PitchReportsPage() {
       setDetailedPolling(false);
       return;
     }
+
+    const downloadUrl = String(data?.output_data?.download_url || "").trim();
+    if (downloadUrl && !reportContent.trim() && !fetchReportMutation.isPending) {
+      fetchReportMutation
+        .mutateAsync({ downloadUrl })
+        .then((text) => {
+          setReportContent(text);
+          setDetailedPolling(false);
+        })
+        .catch(() => {
+          // toast handled in hook
+        });
+    }
   }, [
     activeReport,
     detailedPolling,
@@ -438,6 +491,8 @@ export default function PitchReportsPage() {
     detailedReportQuery.error,
     detailedStatus,
     reportContent,
+    fetchReportMutation.isPending,
+    fetchReportMutation.isSuccess,
   ]);
 
   const reportTitle = React.useMemo(() => {
@@ -677,7 +732,7 @@ export default function PitchReportsPage() {
                         <Button
                           size="lg"
                           className="flex-1"
-                          disabled={!businessId}
+                          disabled={!businessId || isSnapshotProcessing}
                           onClick={() => {
                             if (!businessId) return;
                             queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
@@ -694,7 +749,11 @@ export default function PitchReportsPage() {
                           size="lg"
                           variant="outline"
                           className="flex-1"
-                          disabled={!businessId || startQuickyMutation.isPending}
+                          disabled={
+                            !businessId ||
+                            startQuickyMutation.isPending ||
+                            isSnapshotProcessing
+                          }
                           onClick={async () => {
                             if (!businessId) return;
                             queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
@@ -716,7 +775,11 @@ export default function PitchReportsPage() {
                       <Button
                         size="lg"
                         className="w-full"
-                        disabled={!businessId || startQuickyMutation.isPending}
+                        disabled={
+                          !businessId ||
+                          startQuickyMutation.isPending ||
+                          isSnapshotProcessing
+                        }
                         onClick={async () => {
                           if (!businessId) return;
                           queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
@@ -779,11 +842,89 @@ export default function PitchReportsPage() {
               </div> */}
 
                   <div className="mt-4">
-                    <div className="w-full rounded-md bg-foreground-light px-4 py-2 text-center">
-                      <Typography variant="small" className="text-general-muted-foreground">
-                        Coming soon
-                      </Typography>
-                    </div>
+                    {hasExistingDetailed ? (
+                      <div className="flex gap-2">
+                        <Button
+                          size="lg"
+                          className="flex-1"
+                          disabled={!businessId || isDetailedProcessing}
+                          onClick={() => {
+                            if (!businessId) return;
+                            queryClient.removeQueries({
+                              queryKey: ["detailed-report", businessId],
+                            });
+                            setActiveReport("detailed");
+                            setReportContent("");
+                            setDetailedPolling(true);
+                            generateDetailedReportMutation.reset();
+                            fetchReportMutation.reset();
+                          }}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="lg"
+                          variant="outline"
+                          className="flex-1"
+                          disabled={
+                            !businessId ||
+                            generateDetailedReportMutation.isPending ||
+                            isDetailedProcessing
+                          }
+                          onClick={async () => {
+                            if (!businessId) return;
+                            queryClient.removeQueries({
+                              queryKey: ["detailed-report", businessId],
+                            });
+                            setActiveReport("detailed");
+                            setReportContent("");
+                            // Important: start POST first, then enable polling GET.
+                            setDetailedPolling(false);
+                            generateDetailedReportMutation.reset();
+                            fetchReportMutation.reset();
+                            await generateDetailedReportMutation.mutateAsync({ businessId });
+                            queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                            queryClient.invalidateQueries({
+                              queryKey: ["detailed", "status", "existing", businessId],
+                            });
+                            setDetailedPolling(true);
+                          }}
+                        >
+                          {generateDetailedReportMutation.isPending
+                            ? "Generating..."
+                            : "Regenerate"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="lg"
+                        className="w-full"
+                        disabled={
+                          !businessId ||
+                          generateDetailedReportMutation.isPending ||
+                          isDetailedProcessing
+                        }
+                        onClick={async () => {
+                          if (!businessId) return;
+                          queryClient.removeQueries({
+                            queryKey: ["detailed-report", businessId],
+                          });
+                          setActiveReport("detailed");
+                          setReportContent("");
+                          setDetailedPolling(false);
+                          generateDetailedReportMutation.reset();
+                          fetchReportMutation.reset();
+                          await generateDetailedReportMutation.mutateAsync({ businessId });
+                          queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                          queryClient.invalidateQueries({
+                            queryKey: ["detailed", "status", "existing", businessId],
+                          });
+                          setDetailedPolling(true);
+                        }}
+                      >
+                        {generateDetailedReportMutation.isPending ? "Generating..." : "Generate"}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

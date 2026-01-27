@@ -15,6 +15,13 @@ import { useQuery } from "@tanstack/react-query"
 import { useSocial } from "@/hooks/use-social"
 import { Typography } from '@/components/ui/typography'
 import { BUSINESS_RELEVANCE_PALETTE } from '@/components/organisms/StrategyBubbleChart/strategy-bubble-chart'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface PageProps {
   params: Promise<{
@@ -33,6 +40,7 @@ function SocialEntitledContent({
 }) {
 
   const [socialView, setSocialView] = React.useState<"list" | "bubble">("list")
+  const [selectedOffering, setSelectedOffering] = React.useState<string>("all")
 
   const [cachedDownloadUrl, setCachedDownloadUrl] = React.useState<string | null>(null)
 
@@ -77,7 +85,15 @@ function SocialEntitledContent({
     retry: false,
   })
 
-  const bubbleRows = React.useMemo((): SocialBubbleDatum[] => {
+  type SocialBubbleRow = SocialBubbleDatum & { offerings?: string[] }
+
+  const formatOfferingLabel = React.useCallback((value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return value
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+  }, [])
+
+  const bubbleRows = React.useMemo((): SocialBubbleRow[] => {
     const source = bubbleData?.data as unknown
     if (!source) return []
 
@@ -99,7 +115,7 @@ function SocialEntitledContent({
     if (!itemsMaybe) return []
 
     return itemsMaybe
-      .map((row): SocialBubbleDatum | null => {
+      .map((row): SocialBubbleRow | null => {
         if (typeof row !== 'object' || row === null) return null
         const r = row as Record<string, unknown>
 
@@ -109,9 +125,16 @@ function SocialEntitledContent({
         const channel_relevance = typeof r.channel_relevance === 'number' ? r.channel_relevance : undefined
         const campaign_relevance = typeof r.campaign_relevance === 'number' ? r.campaign_relevance : undefined
         const cluster_relevance = typeof r.cluster_relevance === 'number' ? r.cluster_relevance : undefined
+        const offeringsRaw = (r.offerings ?? r.channel_offerings) as unknown
+        const offerings = Array.isArray(offeringsRaw)
+          ? offeringsRaw
+              .filter((o): o is string => typeof o === "string")
+              .map((o) => o.trim())
+              .filter(Boolean)
+          : undefined
 
         if (!channel_name || !campaign_name) return null
-        const out: SocialBubbleDatum = {
+        const out: SocialBubbleRow = {
           channel_name,
           campaign_name,
         }
@@ -119,10 +142,38 @@ function SocialEntitledContent({
         if (campaign_relevance !== undefined) out.campaign_relevance = campaign_relevance
         if (cluster_name) out.cluster_name = cluster_name
         if (cluster_relevance !== undefined) out.cluster_relevance = cluster_relevance
+        if (offerings?.length) out.offerings = offerings
         return out
       })
-      .filter((x): x is SocialBubbleDatum => x !== null)
+      .filter((x): x is SocialBubbleRow => x !== null)
   }, [bubbleData])
+
+  const offeringOptions = React.useMemo(() => {
+    const unique = new Set<string>()
+    for (const row of bubbleRows) {
+      const offerings = Array.isArray(row.offerings) ? row.offerings : []
+      for (const offering of offerings) {
+        if (typeof offering !== "string") continue
+        const trimmed = offering.trim()
+        if (trimmed) unique.add(trimmed)
+      }
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b))
+  }, [bubbleRows])
+
+  React.useEffect(() => {
+    if (selectedOffering === "all") return
+    if (offeringOptions.includes(selectedOffering)) return
+    setSelectedOffering("all")
+  }, [offeringOptions, selectedOffering])
+
+  const filteredBubbleRows = React.useMemo(() => {
+    if (selectedOffering === "all") return bubbleRows
+    return bubbleRows.filter((row) => {
+      const offerings = Array.isArray(row.offerings) ? row.offerings : []
+      return offerings.some((o) => typeof o === "string" && o.trim() === selectedOffering)
+    })
+  }, [bubbleRows, selectedOffering])
 
   const socialViewTabs = (
     <Tabs
@@ -179,7 +230,40 @@ function SocialEntitledContent({
                 </div>
               </div>
 
-              {socialViewTabs}
+              <div className="flex items-center gap-4">
+                <Typography
+                  variant="p"
+                  className="text-base font-mono text-general-muted-foreground"
+                >
+                  {bubbleRows.length
+                    ? `${filteredBubbleRows.length} item${
+                        filteredBubbleRows.length === 1 ? "" : "s"
+                      }${
+                        selectedOffering === "all"
+                          ? ""
+                          : ` (of ${bubbleRows.length})`
+                      }`
+                    : downloadUrlFetching || bubbleDataLoading || bubbleDataFetching
+                      ? "Loading.."
+                      : "No data"}
+                </Typography>
+                {offeringOptions.length > 0 ? (
+                  <Select value={selectedOffering} onValueChange={setSelectedOffering}>
+                    <SelectTrigger className="w-[240px] max-w-[45vw]">
+                      <SelectValue placeholder="All offerings" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All offerings</SelectItem>
+                      {offeringOptions.map((offering) => (
+                        <SelectItem key={offering} value={offering}>
+                          {formatOfferingLabel(offering)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+                {socialViewTabs}
+              </div>
             </div>
 
             <div className="flex-1 min-h-0">
@@ -187,9 +271,9 @@ function SocialEntitledContent({
                 <div className="h-full min-h-[640px] flex items-center justify-center">
                   <div className="text-sm text-muted-foreground">Loading…</div>
                 </div>
-              ) : bubbleRows.length ? (
+              ) : filteredBubbleRows.length ? (
                 <div className="w-full h-full min-h-[640px]">
-                  <SocialBubbleChart data={bubbleRows} />
+                  <SocialBubbleChart data={filteredBubbleRows} />
                 </div>
               ) : bubbleDataLoading || bubbleDataFetching ? (
                 <div className="h-full min-h-[640px] flex items-center justify-center">

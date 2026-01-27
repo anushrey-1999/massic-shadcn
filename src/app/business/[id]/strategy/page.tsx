@@ -23,6 +23,13 @@ import { Typography } from "@/components/ui/typography";
 import { CircleDot, List, Loader2 } from "lucide-react";
 import type { StrategyMetrics } from "@/types/strategy-types";
 import type { AudienceMetrics } from "@/types/audience-types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface PageProps {
   params: Promise<{
@@ -39,6 +46,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [strategyView, setStrategyView] = React.useState<"list" | "bubble">(
     "list"
   );
+  const [selectedOffering, setSelectedOffering] = React.useState<string>("all");
 
   const router = useRouter();
   const pathname = usePathname();
@@ -58,6 +66,46 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     enabled: strategyView === "bubble" && !!businessId,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
+
+  const formatOfferingLabel = React.useCallback((value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }, []);
+
+  const offeringOptions = React.useMemo(() => {
+    const rows = fullData?.data ?? [];
+    const unique = new Set<string>();
+
+    for (const row of rows) {
+      const offerings = Array.isArray(row.offerings) ? row.offerings : [];
+      for (const offering of offerings) {
+        if (typeof offering !== "string") continue;
+        const trimmed = offering.trim();
+        if (trimmed) unique.add(trimmed);
+      }
+    }
+
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  }, [fullData?.data]);
+
+  React.useEffect(() => {
+    if (selectedOffering === "all") return;
+    if (offeringOptions.includes(selectedOffering)) return;
+    setSelectedOffering("all");
+  }, [offeringOptions, selectedOffering]);
+
+  const filteredBubbleData = React.useMemo(() => {
+    const rows = fullData?.data ?? [];
+    if (selectedOffering === "all") return rows;
+
+    return rows.filter((row) => {
+      const offerings = Array.isArray(row.offerings) ? row.offerings : [];
+      return offerings.some(
+        (o) => typeof o === "string" && o.trim() === selectedOffering
+      );
+    });
+  }, [fullData?.data, selectedOffering]);
 
   const headerMetricsText = React.useMemo(() => {
     if (primaryTab === "strategy") {
@@ -176,13 +224,35 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                       className="text-base font-mono text-general-muted-foreground"
                     >
                       {fullData?.data
-                        ? `${fullData.data.length} total topic${
-                            fullData.data.length === 1 ? "" : "s"
+                        ? `${filteredBubbleData.length} topic${
+                            filteredBubbleData.length === 1 ? "" : "s"
+                          }${
+                            selectedOffering === "all"
+                              ? ""
+                              : ` (of ${fullData.data.length})`
                           }`
                         : isLoadingFullData
                         ? "Loading.."
                         : "No data"}
                     </Typography>
+                    {offeringOptions.length > 0 ? (
+                      <Select
+                        value={selectedOffering}
+                        onValueChange={setSelectedOffering}
+                      >
+                        <SelectTrigger className="w-[240px] max-w-[45vw]">
+                          <SelectValue placeholder="All offerings" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All offerings</SelectItem>
+                          {offeringOptions.map((offering) => (
+                            <SelectItem key={offering} value={offering}>
+                              {formatOfferingLabel(offering)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : null}
                     {strategyViewTabs}
                   </div>
                 </div>
@@ -201,7 +271,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                       </p>
                     </div>
                   ) : fullData?.data ? (
-                    <StrategyBubbleChart data={fullData.data} />
+                    <StrategyBubbleChart data={filteredBubbleData} />
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <p className="text-muted-foreground">

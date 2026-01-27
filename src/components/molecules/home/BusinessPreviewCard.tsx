@@ -195,8 +195,8 @@ export function BusinessPreviewCard({
 							strokeWidth="0.5"
 						/>
 					</svg>
-					<div className="relative h-full flex items-center justify-center  gap-1.5">
-						<div className="flex items-center gap-0.5 leading-[150%]">
+					<div className="relative h-full flex items-center justify-center gap-1.5 ">
+						<div className="flex items-center gap-0.5 leading-[150%] ">
 							<Eye className="text-gray-600 w-3.5 h-3.5 " />
 							<span className="text-sm font-medium text-gray-600">
 								{formatTotal(impressions?.Total)}
@@ -205,7 +205,7 @@ export function BusinessPreviewCard({
 						<StatsBadge
 							value={parsePercent(impressions?.Diff, impressions?.Trend)}
 							variant="plain"
-							className="flex items-end"
+							className="flex items-center transform translate-y-px "
 						/>
 					</div>
 				</div>
@@ -235,7 +235,7 @@ export function BusinessPreviewCard({
 						<StatsBadge
 							value={parsePercent(clicks?.Diff, clicks?.Trend)}
 							variant="plain"
-							className="flex items-end"
+							className="flex items-end transform translate-y-px"
 						/>
 					</div>
 				</div>
@@ -265,7 +265,7 @@ export function BusinessPreviewCard({
 						<StatsBadge
 							value={parsePercent(goals?.Diff, goals?.Trend)}
 							variant="plain"
-							className="flex items-end"
+							className="flex items-end transform translate-y-px "
 						/>
 					</div>
 				</div>

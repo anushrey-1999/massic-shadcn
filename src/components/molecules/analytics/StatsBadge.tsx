@@ -8,7 +8,7 @@ interface StatsBadgeProps {
   className?: string
   valueClassName?: string
   showIcon?: boolean
-  variant?: "pill" | "plain" | "small"
+  variant?: "pill" | "plain" | "small" | "big"
 }
 
 export function StatsBadge({ value, className, valueClassName, showIcon = true, variant = "pill" }: StatsBadgeProps) {
@@ -16,7 +16,7 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
   const isNegative = value < 0
   const isNeutral = value === 0
 
-  if (variant === "plain" || variant === "small") {
+  if (variant === "plain" || variant === "small" || variant === "big") {
     const iconColor = isPositive
       ? "text-emerald-600"
       : isNegative
@@ -25,10 +25,12 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
 
     const wrapperClassName =
       variant === "small"
-        ? "inline-flex items-baseline text-[8px] font-medium text-muted-foreground leading-none"
-        : "inline-flex items-baseline text-[11px] font-medium text-muted-foreground leading-none"
+        ? "inline-flex items-center text-[8px] font-medium text-muted-foreground leading-none"
+        : variant === "big"
+          ? "inline-flex items-center text-[13px] font-medium text-muted-foreground leading-none"
+          : "inline-flex items-center text-[11px] font-medium text-muted-foreground leading-none"
 
-    const iconSizeClassName = variant === "small" ? "h-2.5 w-2.5" : "h-2.5 w-2.5"
+    const iconSizeClassName = "h-2.5 w-2.5"
 
     return (
       <span
@@ -39,9 +41,9 @@ export function StatsBadge({ value, className, valueClassName, showIcon = true, 
       >
         {showIcon && !isNeutral &&
           (isPositive ? (
-            <Plus className={cn(iconSizeClassName, "mr-0.5 self-baseline", iconColor)} />
+            <Plus className={cn(iconSizeClassName, "mr-0.5 self-center stroke-2", iconColor)} />
           ) : (
-            <Minus className={cn(iconSizeClassName, "mr-0.5 self-baseline", iconColor)} />
+            <Minus className={cn(iconSizeClassName, "mr-0.5 self-center", iconColor)} />
           ))}
         <span
           className={cn(

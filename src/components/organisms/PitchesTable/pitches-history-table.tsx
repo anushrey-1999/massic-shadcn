@@ -30,7 +30,10 @@ export function PitchesHistoryTable({
           const type = String(row.original?.type || "").trim().toLowerCase();
           const isSnapshot = type === "snapshot";
           const isDetailed = type === "detailed";
-          const disabled = isDetailed;
+          const status = String(row.original?.status || "").trim().toLowerCase();
+          const isProcessing =
+            status === "pending" || status === "processing" || status === "in_progress";
+          const disabled = isDetailed || isProcessing;
           const href = isSnapshot
             ? `/pitches/${businessId}/reports?open=snapshot`
             : `/pitches/${businessId}/reports`;

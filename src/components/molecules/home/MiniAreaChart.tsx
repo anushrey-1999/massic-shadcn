@@ -17,9 +17,9 @@ export type PreviewGraph = {
 }
 
 const miniChartConfig: ChartConfig = {
-  impressionsNorm: { label: "Imp.", color: "#4B5563" },
+  impressionsNorm: { label: "Imp.", color: "#8662D0" },
   clicksNorm: { label: "Clicks", color: "#2563EB" },
-  goalsNorm: { label: "Goals", color: "#059669" },
+  goalsNorm: { label: "Goals", color: "var(--general-unofficial-foreground-alt)" },
 }
 
 function formatTooltipDate(input: unknown) {
@@ -97,16 +97,16 @@ export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
         <AreaChart data={normalizedData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id={impressionsGradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#4B5563" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="#4B5563" stopOpacity={0} />
+              <stop offset="0%" stopColor="#8662D0" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#8662D0" stopOpacity={0} />
             </linearGradient>
             <linearGradient id={clicksGradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#2563EB" stopOpacity={0.15} />
               <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
             </linearGradient>
             <linearGradient id={goalsGradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#059669" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="#059669" stopOpacity={0} />
+              <stop offset="0%" stopColor="var(--general-unofficial-foreground-alt)" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="var(--general-unofficial-foreground-alt)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <XAxis dataKey="date" hide />

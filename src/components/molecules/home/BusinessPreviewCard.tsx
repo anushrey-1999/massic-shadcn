@@ -126,7 +126,7 @@ export function BusinessPreviewCard({
 	return (
 		<Card
 			onClick={onClick}
-			className="overflow-hidden border border-general-border-three p-2 shadow-none rounded-lg gap-4 flex flex-col h-full cursor-pointer"
+			className="overflow-hidden border border-[#f4f4f4] p-2 shadow-none rounded-lg gap-4 flex flex-col h-full cursor-pointer"
 		>
 			<CardTitle className="text-sm font-medium p-0 shrink-0">
 				<div className="flex items-center gap-2">
@@ -196,16 +196,16 @@ export function BusinessPreviewCard({
 						/>
 					</svg>
 					<div className="relative h-full flex items-center justify-center gap-1.5 ">
-						<div className="flex items-center gap-0.5 leading-[150%] ">
-							<Eye className="text-gray-600 w-3.5 h-3.5 " />
-							<span className="text-sm font-medium text-gray-600">
+						<div className="flex items-center gap-0.5">
+							<Eye className="text-[#8662D0] w-3 h-3 " />
+							<span className="text-xs font-medium text-[#8662D0] leading-0 ">
 								{formatTotal(impressions?.Total)}
 							</span>
 						</div>
 						<StatsBadge
 							value={parsePercent(impressions?.Diff, impressions?.Trend)}
-							variant="plain"
-							className="flex items-center transform translate-y-px "
+							variant="big"
+							className="flex items-baseline"
 						/>
 					</div>
 				</div>
@@ -227,15 +227,15 @@ export function BusinessPreviewCard({
 					</svg>
 					<div className="relative h-full flex items-center justify-center gap-1.5">
 						<div className="flex items-center gap-0.5 leading-[150%]">
-							<MousePointerClick className="text-blue-600 w-3.5 h-3.5 rotate-90" />
-							<span className="text-sm font-medium  text-blue-600">
+							<MousePointerClick className="text-blue-600 w-3 h-3 rotate-90" />
+							<span className="text-xs font-medium  text-blue-600">
 								{formatTotal(clicks?.Total)}
 							</span>
 						</div>
 						<StatsBadge
 							value={parsePercent(clicks?.Diff, clicks?.Trend)}
-							variant="plain"
-							className="flex items-end transform translate-y-px"
+							variant="big"
+							className="flex items-baseline"
 						/>
 					</div>
 				</div>
@@ -257,15 +257,15 @@ export function BusinessPreviewCard({
 					</svg>
 					<div className="relative h-full flex items-center justify-center gap-1.5">
 						<div className="flex items-center gap-0.5 leading-[150%]">
-							<Target className="text-emerald-600 w-3.5 h-3.5 " />
-							<span className="text-sm font-medium  text-emerald-600">
+							<Target className="text-general-unofficial-foreground-alt w-3 h-3 " />
+							<span className="text-xs font-medium text-general-unofficial-foreground-alt">
 								{formatTotal(goals?.Total)}
 							</span>
 						</div>
 						<StatsBadge
 							value={parsePercent(goals?.Diff, goals?.Trend)}
-							variant="plain"
-							className="flex items-end transform translate-y-px "
+							variant="big"
+							className="flex items-baseline"
 						/>
 					</div>
 				</div>

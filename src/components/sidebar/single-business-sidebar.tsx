@@ -335,11 +335,15 @@ export default function SingleBusinessSidebar() {
           {businessNavItems.map((item) => {
             const itemHref = `/business/${business.UniqueId}/${item.slug}`
             const reportsPath = `/business/${business.UniqueId}/reports`
+            const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
 
             const itemBasePath = `/business/${business.UniqueId}/${item.slug}`
             let isActive = false
             if (item.slug === 'analytics') {
-              isActive = pathname === itemHref || pathname.startsWith(reportsPath)
+              isActive =
+                pathname === itemHref ||
+                pathname.startsWith(reportsPath) ||
+                pathname.startsWith(organicDeepdivePath)
             } else if (item.slug === 'profile') {
               isActive = pathname === itemHref
             } else {

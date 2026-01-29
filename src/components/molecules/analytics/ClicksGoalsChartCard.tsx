@@ -141,7 +141,7 @@ export function ClicksGoalsChartCard({
       >
         <ChartContainer config={chartConfig} className="h-full w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={zoomedData} margin={{ top: 0, right: 0, left: 20, bottom: 0 }}>
+            <AreaChart data={zoomedData} margin={{ top: 20, right: 0, left: 20, bottom: 0 }}>
               <defs>
                 <linearGradient id="fillSessions" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#2563EB" stopOpacity={0.2} />
@@ -159,7 +159,7 @@ export function ClicksGoalsChartCard({
                 tick={{ fontSize: 10, fill: "#737373" }}
                 interval={zoomedData.length <= 7 ? 0 : zoomedData.length <= 14 ? 1 : zoomedData.length <= 30 ? Math.floor(zoomedData.length / 8) : zoomedData.length <= 90 ? Math.floor(zoomedData.length / 10) : Math.floor(zoomedData.length / 12)}
               />
-              <YAxis hide domain={[0, 100]} />
+              <YAxis hide domain={[0, 130]} />
               <ChartTooltip
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null

@@ -207,14 +207,14 @@ function mapBusinessProfilePayloadToJobFormData(
   // Handle offerings CSV - always send a CSV file with headers and at least one row (required by API)
   // Simple CSV generation without external library
   const csvRows: string[] = [];
-  csvRows.push("Offerings,Description,Url"); // Header
+  csvRows.push("Offerings,Description,Url,Link,URL,Website,offering_url"); // Header
 
   if (offerings.length > 0) {
     offerings.forEach((offering) => {
       const name = (offering.name || "").replace(/"/g, '""'); // Escape quotes
       const description = (offering.description || "").replace(/"/g, '""');
       const url = (offering.link || "").replace(/"/g, '""');
-      csvRows.push(`"${name}","${description}","${url}"`);
+      csvRows.push(`"${name}","${description}","${url}","${url}","${url}","${url}","${url}"`);
     });
   } else {
     // Empty row with headers if no offerings
@@ -237,7 +237,7 @@ function createFormDataAxiosInstance() {
 
   return axios.create({
     baseURL,
-    timeout: 30000,
+    timeout: 300000,
     headers: {
       "Content-Type": "multipart/form-data",
       ...(token && { token }),

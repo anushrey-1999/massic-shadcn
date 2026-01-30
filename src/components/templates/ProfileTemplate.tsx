@@ -243,6 +243,32 @@ const ProfileTemplate = ({
       })
     );
 
+    const normalizeUsps = (raw: unknown): string[] => {
+      if (!raw) return [];
+      if (Array.isArray(raw)) {
+        return raw.map((item) => String(item).trim()).filter(Boolean);
+      }
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            return parsed.map((item) => String(item).trim()).filter(Boolean);
+          }
+        } catch {
+          // ignore
+        }
+        return raw
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+      return [];
+    };
+
+    const uspsFromJob = normalizeUsps(
+      (jobDetails as any)?.usps ?? (jobDetails as any)?.USPs
+    );
+    const usps = uspsFromJob.join(", ");
     const calendarEventsList = parseArrayField((profileData as any).CalendarEvents).map(
       (event: any): CalendarEventRow => ({
         eventName: event.eventName || "",
@@ -250,11 +276,6 @@ const ProfileTemplate = ({
         endDate: event.endDate || null,
       })
     );
-
-    // USPs from business API
-    const usps = Array.isArray((profileData as any).USPs)
-      ? (profileData as any).USPs.join(", ")
-      : "";
 
     // Brand Voice from business API - convert to lowercase for checkboxes
     // IMPORTANT: Checkboxes in ContentCuesForm expect lowercase values (e.g., "professional", "bold")
@@ -398,6 +419,47 @@ const ProfileTemplate = ({
 
       setIsSaving(true);
       try {
+        const normalizeUsps = (raw: unknown): string[] => {
+          if (!raw) return [];
+          if (Array.isArray(raw)) {
+            return raw.map((item) => String(item).trim()).filter(Boolean);
+          }
+          if (typeof raw === "string") {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                return parsed.map((item) => String(item).trim()).filter(Boolean);
+              }
+            } catch {
+              // ignore
+            }
+            return raw
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
+          }
+          return [];
+        };
+
+        const jobUsps = normalizeUsps(
+          (externalJobDetails as any)?.usps ?? (externalJobDetails as any)?.USPs
+        );
+        const formUsps = value.usps && value.usps.trim()
+          ? value.usps
+            .split(",")
+            ?.map((item: string) => item.trim())
+            ?.filter((item: string) => item.length > 0)
+          : [];
+        const jobExists = Boolean(externalJobDetails && externalJobDetails.job_id);
+        const uspsPayload = jobExists
+          ? Array.from(
+            new Set([
+              ...jobUsps,
+              ...formUsps,
+            ])
+          )
+          : formUsps;
+
         // Map form values to API payload structure
         // Spread existing profile data to preserve all fields, then update specific ones
         const locationParts = value.primaryLocation.split(",");
@@ -421,20 +483,8 @@ const ProfileTemplate = ({
             Country: country,
           },
           // ProductsServices removed - offerings are only in job API, not business API
-          USPs:
-            value.usps && value.usps.trim()
-              ? value.usps
-                .split(",")
-                ?.map((item: string) => item.trim())
-                ?.filter((item: string) => item.length > 0)
-              : null,
-          SellingPoints:
-            value.usps && value.usps.trim()
-              ? value.usps
-                .split(",")
-                ?.map((item: string) => item.trim())
-                ?.filter((item: string) => item.length > 0)
-              : null, // Keep for backward compatibility
+          USPs: uspsPayload.length > 0 ? uspsPayload : null,
+          SellingPoints: uspsPayload.length > 0 ? uspsPayload : null, // Keep for backward compatibility
           BrandTerms:
             value.brandTerms && value.brandTerms.trim()
               ? value.brandTerms

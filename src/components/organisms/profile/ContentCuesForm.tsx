@@ -13,8 +13,9 @@ import { FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
-import { CTARow, StakeholderRow } from "@/store/business-store";
+import { CTARow, StakeholderRow, CalendarEventRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 type BusinessInfoFormData = {
   usps?: string;
@@ -22,6 +23,8 @@ type BusinessInfoFormData = {
   ctasSavedIndices?: number[];
   stakeholders?: Array<{ name: string; title: string }>;
   stakeholdersSavedIndices?: number[];
+  calendarEvents?: Array<{ eventName: string; startDate: string | null; endDate: string | null }>;
+  calendarEventsSavedIndices?: number[];
   brandToneSocial?: string[];
   brandToneWeb?: string[];
   brandTerms?: string;
@@ -38,6 +41,7 @@ export const ContentCuesForm = ({
   // Component will only re-render when these fields change
   const ctasData = useStore(form.store, (state: any) => (state.values?.ctas || []) as CTARow[]);
   const stakeholdersData = useStore(form.store, (state: any) => (state.values?.stakeholders || []) as StakeholderRow[]);
+  const calendarEventsData = useStore(form.store, (state: any) => (state.values?.calendarEvents || []) as CalendarEventRow[]);
 
   // Track CTA validation errors
   const [hasCtaErrors, setHasCtaErrors] = React.useState(false);
@@ -59,6 +63,15 @@ export const ContentCuesForm = ({
   const stakeholdersColumns: Column<StakeholderRow>[] = useMemo(() => [
     { key: "name", label: "Name", validation: { required: false } },
     { key: "title", label: "Title", validation: { required: false } },
+  ], []);
+
+  const calendarEventsColumns: Column<CalendarEventRow>[] = useMemo(() => [
+    { key: "eventName", label: "Upcoming Events", validation: { required: false } },
+    {
+      key: "startDate",
+      label: "Date",
+      validation: { required: false }
+    },
   ], []);
 
   // Own handlers - encapsulated logic
@@ -83,6 +96,43 @@ export const ContentCuesForm = ({
     setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
     emptyRowFactory: () => ({ name: "", title: "" }),
   });
+
+  const {
+    handleAddRow: handleAddCalendarEventRow,
+    handleRowChange: handleCalendarEventRowChange,
+    handleDeleteRow: handleCalendarEventDeleteRow,
+  } = useAddRowTableState<CalendarEventRow>({
+    data: calendarEventsData,
+    formFieldName: "calendarEvents",
+    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
+    emptyRowFactory: () => ({ eventName: "", startDate: null, endDate: null }),
+  });
+
+  // Define calendar events columns with dependency on handler
+  const calendarEventsColumnsWithHandlers: Column<CalendarEventRow>[] = useMemo(() => [
+    { key: "eventName", label: "Upcoming Events", validation: { required: false }, width: "50%" },
+    {
+      key: "startDate",
+      label: "Date",
+      validation: { required: false },
+      width: "50%",
+      render: (value: any, row: CalendarEventRow, index: number) => {
+        return (
+          <DateRangePicker
+            startDate={row.startDate}
+            endDate={row.endDate}
+            onChange={(startDate, endDate) => {
+              const updatedData = [...calendarEventsData];
+              updatedData[index] = { ...row, startDate, endDate };
+              form.setFieldValue("calendarEvents" as keyof BusinessInfoFormData, updatedData);
+            }}
+            placeholder="Select date"
+            className="w-full"
+          />
+        );
+      }
+    },
+  ], [calendarEventsData, form]);
 
   return (
     <Card
@@ -333,7 +383,7 @@ export const ContentCuesForm = ({
                 />
               )}
             />
-         
+
           </CardContent>
         </Card>
 
@@ -353,6 +403,26 @@ export const ContentCuesForm = ({
               onRowChange={handleStakeholderRowChange}
               onDeleteRow={handleStakeholderDeleteRow}
               addButtonText="Add Person"
+            />
+          </CardContent>
+        </Card>
+
+        <Card variant="profileCard">
+          <CardHeader className="">
+            <CardTitle>
+              <FieldLabel className="gap-0">
+                Calendar Events
+              </FieldLabel>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CustomAddRowTable
+              columns={calendarEventsColumnsWithHandlers}
+              data={calendarEventsData}
+              onAddRow={handleAddCalendarEventRow}
+              onRowChange={handleCalendarEventRowChange}
+              onDeleteRow={handleCalendarEventDeleteRow}
+              addButtonText="Add Custom Event"
             />
           </CardContent>
         </Card>

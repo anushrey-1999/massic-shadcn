@@ -347,8 +347,10 @@ export function useGSCAnalytics(
     const maxGoals = Math.max(...goalsValues)
 
     const scaleValueToBand = (value: number, min: number, max: number, bandStart: number, bandEnd: number): number => {
+      const numericValue = Number(value) || 0
+      if (numericValue === 0) return 0
       if (max === min) return (bandStart + bandEnd) / 2
-      const normalized = (value - min) / (max - min)
+      const normalized = (numericValue - min) / (max - min)
       return bandStart + normalized * (bandEnd - bandStart)
     }
 

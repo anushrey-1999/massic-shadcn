@@ -16,9 +16,10 @@ interface SocialTableClientProps {
   businessId: string;
   channelsSidebar?: React.ReactNode;
   toolbarRightPrefix?: React.ReactNode;
+  isReadOnly?: boolean;
 }
 
-export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPrefix }: SocialTableClientProps) {
+export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPrefix, isReadOnly = false }: SocialTableClientProps) {
   const [tacticsSearch, setTacticsSearch] = React.useState("");
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
   const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
@@ -538,6 +539,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
           onSearchChange={setTacticsSearch}
           onBack={handleBackToMain}
           channelName={tacticsChannel || undefined}
+          hideActions={isReadOnly}
         />
       </div>
     );

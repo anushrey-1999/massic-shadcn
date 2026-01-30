@@ -73,12 +73,62 @@ export function extractSnapshotSectionsMarkdown(payload: unknown): string | null
   return result.length > 0 ? result : null;
 }
 
+export function extractDetailedSectionsMarkdown(payload: unknown): string | null {
+  const sections = getDetailedSections(payload as any);
+  if (!sections) return null;
+
+  const order = [
+    "executive_summary",
+    "business_snapshot",
+    "current_snapshot",
+    "topics_and_audiences",
+    "uncovered_opportunities",
+    "landscape_and_channels",
+    "conclusion",
+  ];
+
+  const parts: string[] = [];
+
+  for (const key of order) {
+    const raw = (sections as any)[key];
+    if (!raw) continue;
+    
+    const content = cleanEscapedContent(toStringOrJson(raw)).trim();
+    if (!content) continue;
+    
+    // For detailed pitch, the sections often come with their own headers or formatting.
+    // We append them directly.
+    parts.push(content);
+  }
+
+  const result = parts.join("\n\n").trim();
+  return result.length > 0 ? result : null;
+}
+
+function getDetailedSections(payload: any): Record<string, unknown> | null {
+  const direct = payload?.pitches?.sections;
+  if (direct && typeof direct === "object") return direct;
+
+  const nested = payload?.output_data?.pitches?.sections;
+  if (nested && typeof nested === "object") return nested;
+  
+  // Fallback: check if payload itself is the sections object (unlikely for detailed but possible)
+  if (payload?.executive_summary && payload?.business_snapshot) {
+      return payload;
+  }
+
+  return null;
+}
+
 function extractReportText(payload: unknown): string {
   if (payload == null) return "";
   if (typeof payload === "string") return payload;
 
   const snapshotMarkdown = extractSnapshotSectionsMarkdown(payload);
   if (snapshotMarkdown) return snapshotMarkdown;
+
+  const detailedMarkdown = extractDetailedSectionsMarkdown(payload);
+  if (detailedMarkdown) return detailedMarkdown;
 
   const asAny = payload as any;
 

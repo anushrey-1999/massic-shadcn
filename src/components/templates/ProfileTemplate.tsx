@@ -202,7 +202,7 @@ const ProfileTemplate = ({
           (offering: any): OfferingRow => ({
             name: offering.offering || offering.name || "",
             description: offering.description || "",
-            link: offering.url || "",
+            link: offering.url || offering.link || "",
           })
         );
       }

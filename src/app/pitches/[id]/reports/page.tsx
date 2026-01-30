@@ -25,6 +25,7 @@ import {
   useQuickyReportStatus,
   useFetchReportFromDownloadUrl,
   extractSnapshotSectionsMarkdown,
+  extractDetailedSectionsMarkdown,
 } from "@/hooks/use-pitch-reports";
 import { PitchReportViewer } from "@/components/templates/PitchReportViewer";
 import {
@@ -463,6 +464,14 @@ export default function PitchReportsPage() {
     }
 
     const data = detailedReportQuery.data as any;
+
+    const detailedFromPayload = extractDetailedSectionsMarkdown(data);
+    if (detailedFromPayload && !reportContent.trim()) {
+      setReportContent(detailedFromPayload);
+      setDetailedPolling(false);
+      return;
+    }
+
     const content = String(data?.report || data?.content || "").trim();
     if (content && !reportContent.trim()) {
       setReportContent(content);

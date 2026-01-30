@@ -15,10 +15,11 @@ interface GetWebPageTableColumnsProps {
   offeringCounts?: Record<string, number>;
   expandedRowId?: string | null;
   onExpandedRowChange?: (rowId: string | null) => void;
+  hideActions?: boolean;
 }
 
-export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
-  return [
+export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange, hideActions = false }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
+  const columns: ColumnDef<WebPageRow>[] = [
     {
       id: "keyword",
       accessorKey: "keyword",
@@ -128,7 +129,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: true,
       enableSorting: true,
-      size: 130,
+      size: 100,
       minSize: 110,
       maxSize: 160,
     },
@@ -170,8 +171,8 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: true,
       enableSorting: true,
-      size: 120,
-      minSize: 100,
+      size: 90,
+      minSize: 90,
       maxSize: 150,
     },
     {
@@ -196,8 +197,8 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: false,
       enableSorting: true,
-      size: 130,
-      minSize: 110,
+      size: 80,
+      minSize: 80,
       maxSize: 160,
     },
     {
@@ -253,9 +254,9 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: false,
       enableSorting: true,
-      size: 250,
-      minSize: 200,
-      maxSize: 350,
+      size: 180,
+      minSize: 120,
+      maxSize: 250,
     },
     {
       id: "actions",
@@ -272,9 +273,15 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: false,
       enableSorting: false,
-      size: 56,
-      minSize: 56,
-      maxSize: 64,
+      size: 70,
+      minSize: 70,
+      maxSize: 70,
     },
   ];
+
+  if (hideActions) {
+    return columns.filter((col) => col.id !== "actions");
+  }
+
+  return columns;
 }

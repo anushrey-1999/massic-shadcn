@@ -35,6 +35,7 @@ interface PageProps {
   params: Promise<{
     id: string;
   }>;
+  skipEntitlements?: boolean;
 }
 
 function StrategyEntitledContent({ businessId }: { businessId: string }) {
@@ -224,16 +225,14 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                       className="text-base font-mono text-general-muted-foreground"
                     >
                       {fullData?.data
-                        ? `${filteredBubbleData.length} topic${
-                            filteredBubbleData.length === 1 ? "" : "s"
-                          }${
-                            selectedOffering === "all"
-                              ? ""
-                              : ` (of ${fullData.data.length})`
-                          }`
+                        ? `${filteredBubbleData.length} topic${filteredBubbleData.length === 1 ? "" : "s"
+                        }${selectedOffering === "all"
+                          ? ""
+                          : ` (of ${fullData.data.length})`
+                        }`
                         : isLoadingFullData
-                        ? "Loading.."
-                        : "No data"}
+                          ? "Loading.."
+                          : "No data"}
                     </Typography>
                     {offeringOptions.length > 0 ? (
                       <Select
@@ -311,7 +310,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   );
 }
 
-export default function BusinessStrategyPage({ params }: PageProps) {
+export default function BusinessStrategyPage({ params, skipEntitlements = false }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>("");
 
   React.useEffect(() => {
@@ -358,21 +357,27 @@ export default function BusinessStrategyPage({ params }: PageProps) {
     );
   }
 
+  const content = !jobDetailsLoading && showMainContent ? (
+    <StrategyEntitledContent businessId={businessId} />
+  ) : (
+    <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+      <WorkflowStatusBanner
+        businessId={businessId}
+        emptyStateHeight="min-h-[calc(100vh-12rem)]"
+      />
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <EntitlementsGuard entitlement="strategy" businessId={businessId}>
-        {!jobDetailsLoading && showMainContent ? (
-          <StrategyEntitledContent businessId={businessId} />
-        ) : (
-          <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
-            <WorkflowStatusBanner
-              businessId={businessId}
-              emptyStateHeight="min-h-[calc(100vh-12rem)]"
-            />
-          </div>
-        )}
-      </EntitlementsGuard>
+      {skipEntitlements ? (
+        content
+      ) : (
+        <EntitlementsGuard entitlement="strategy" businessId={businessId}>
+          {content}
+        </EntitlementsGuard>
+      )}
     </div>
   );
 }

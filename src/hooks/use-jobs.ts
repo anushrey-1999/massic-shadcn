@@ -69,9 +69,11 @@ export interface JobDetails {
 function mapBusinessProfilePayloadToJobFormData(
   businessProfilePayload: BusinessProfilePayload,
   businessId: string,
-  offerings: Offering[]
+  offerings: Offering[],
+  options?: { includeOfferings?: boolean }
 ): FormData {
   const formDataPayload = new FormData();
+  const includeOfferings = options?.includeOfferings !== false;
 
   // Validate required fields
   if (!businessId) {
@@ -204,27 +206,26 @@ function mapBusinessProfilePayloadToJobFormData(
     );
   }
 
-  // Handle offerings CSV - always send a CSV file with headers and at least one row (required by API)
-  // Simple CSV generation without external library
-  const csvRows: string[] = [];
-  csvRows.push("Offerings,Description,Url,Link,URL,Website,offering_url"); // Header
+  if (includeOfferings) {
+    const csvRows: string[] = [];
+    csvRows.push("Offerings,Description,Url,Link,URL,Website,offering_url");
 
-  if (offerings.length > 0) {
-    offerings.forEach((offering) => {
-      const name = (offering.name || "").replace(/"/g, '""'); // Escape quotes
-      const description = (offering.description || "").replace(/"/g, '""');
-      const url = (offering.link || "").replace(/"/g, '""');
-      csvRows.push(`"${name}","${description}","${url}","${url}","${url}","${url}","${url}"`);
-    });
-  } else {
-    // Empty row with headers if no offerings
-    csvRows.push('"","",""');
+    if (offerings.length > 0) {
+      offerings.forEach((offering) => {
+        const name = (offering.name || "").replace(/"/g, '""');
+        const description = (offering.description || "").replace(/"/g, '""');
+        const url = (offering.link || "").replace(/"/g, '""');
+        csvRows.push(`"${name}","${description}","${url}","${url}","${url}","${url}","${url}"`);
+      });
+    } else {
+      csvRows.push('"","",""');
+    }
+
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const file = new File([blob], "offerings.csv", { type: "text/csv" });
+    formDataPayload.append("csv_file", file);
   }
-
-  const csvString = csvRows.join("\n");
-  const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-  const file = new File([blob], "offerings.csv", { type: "text/csv" });
-  formDataPayload.append("csv_file", file);
 
   return formDataPayload;
 }
@@ -368,6 +369,7 @@ interface UpdateJobParams {
   businessId: string;
   businessProfilePayload: BusinessProfilePayload;
   offerings: Offering[];
+  includeOfferings?: boolean;
 }
 
 /**
@@ -377,7 +379,7 @@ export function useUpdateJob() {
   const queryClient = useQueryClient();
 
   return useMutation<JobDetails, Error, UpdateJobParams>({
-    mutationFn: async ({ businessId, businessProfilePayload, offerings }) => {
+    mutationFn: async ({ businessId, businessProfilePayload, offerings, includeOfferings }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
@@ -386,7 +388,8 @@ export function useUpdateJob() {
         const formDataPayload = mapBusinessProfilePayloadToJobFormData(
           businessProfilePayload,
           businessId,
-          offerings
+          offerings,
+          { includeOfferings }
         );
 
         const instance = createFormDataAxiosInstance();

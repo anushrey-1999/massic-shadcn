@@ -21,6 +21,7 @@ interface WebPageTableProps {
   isFetching?: boolean;
   search?: string;
   onSearchChange?: (value: string) => void;
+  hideActions?: boolean;
 }
 
 export function WebPageTable({
@@ -33,6 +34,7 @@ export function WebPageTable({
   isFetching = false,
   search = "",
   onSearchChange,
+  hideActions = false,
 }: WebPageTableProps) {
   const enableAdvancedFilter = true;
 
@@ -45,8 +47,9 @@ export function WebPageTable({
         offeringCounts,
         expandedRowId,
         onExpandedRowChange: setExpandedRowId,
+        hideActions,
       }),
-    [businessId, offeringCounts, expandedRowId]
+    [businessId, offeringCounts, expandedRowId, hideActions]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({

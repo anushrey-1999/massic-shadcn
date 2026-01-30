@@ -11,6 +11,7 @@ import {
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
 import { CTARow, StakeholderRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
@@ -106,12 +107,12 @@ export const ContentCuesForm = ({
               name="usps"
               children={(field: any) => {
                 return (
-                  <Input
-                    variant="noBorder"
+                  <Textarea
                     value={field.state.value || ""}
                     onChange={(e) => field.handleChange(e.target.value)}
                     placeholder="Add the top benefits or features you want customers to notice"
-                    className="w-full"
+                    className="w-full min-h-[100px] resize-none"
+                    disabled
                   />
                 );
               }}

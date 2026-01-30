@@ -35,6 +35,51 @@ export default function BusinessProfilePage() {
     }
   }, [businessId, refetchJob])
 
+  // Sync job API USPs to business API on mount
+  useEffect(() => {
+    const syncUspsOnMount = async () => {
+      if (!jobDetails || !profileData || !businessId) return
+
+      const normalizeUsps = (raw: unknown): string[] => {
+        if (!raw) return []
+        if (Array.isArray(raw)) {
+          return raw.map((item) => String(item).trim()).filter(Boolean)
+        }
+        if (typeof raw === "string") {
+          try {
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed)) {
+              return parsed.map((item) => String(item).trim()).filter(Boolean)
+            }
+          } catch {
+            // ignore
+          }
+          return raw.split(",").map((item) => item.trim()).filter(Boolean)
+        }
+        return []
+      }
+
+      const jobUsps = normalizeUsps((jobDetails as any)?.usps ?? (jobDetails as any)?.USPs)
+      const businessUsps = normalizeUsps((profileData as any)?.USPs ?? (profileData as any)?.SellingPoints)
+
+      // Only sync if job has USPs and they differ from business API
+      if (jobUsps.length > 0 && JSON.stringify(jobUsps) !== JSON.stringify(businessUsps)) {
+        try {
+          await updateBusinessProfileMutation.mutateAsync({
+            ...profileData,
+            USPs: jobUsps,
+            SellingPoints: jobUsps,
+          })
+          await refetchProfile()
+        } catch (error) {
+          console.error("Failed to sync USPs on mount:", error)
+        }
+      }
+    }
+
+    syncUspsOnMount()
+  }, [jobDetails, profileData, businessId])
+
   // Fetch locations using React Query (limited to 1000 for performance)
   const { locationOptions, isLoading: locationsLoading } = useLocations("us")
 
@@ -84,6 +129,52 @@ export default function BusinessProfilePage() {
       throw new Error("Business ID is required")
     }
 
+    const normalizeUsps = (raw: unknown): string[] => {
+      if (!raw) return []
+      if (Array.isArray(raw)) {
+        return raw.map((item) => String(item).trim()).filter(Boolean)
+      }
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) {
+            return parsed.map((item) => String(item).trim()).filter(Boolean)
+          }
+        } catch {
+          // ignore
+        }
+        return raw
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      }
+      return []
+    }
+
+    const normalizeOfferings = (raw: any): Offering[] => {
+      if (!Array.isArray(raw)) return []
+      return raw
+        .map((offering: any) => ({
+          name: String(offering?.offering ?? offering?.name ?? "").trim(),
+          description: String(offering?.description ?? "").trim(),
+          link: String(offering?.url ?? offering?.link ?? "").trim(),
+        }))
+        .filter((offering) => Boolean(offering.name))
+    }
+
+    const mergeUsps = (base: string[], extra: string[]) =>
+      Array.from(new Set([...base, ...extra]))
+
+    const syncBusinessUspsFromJob = async (usps: string[], basePayload: any) => {
+      if (usps.length === 0) return
+
+      await updateBusinessProfileMutation.mutateAsync({
+        ...basePayload,
+        USPs: usps,
+        SellingPoints: usps,
+      })
+    }
+
     try {
       // Step 1: Check if job exists and if user has filled offerings
       const jobExists = jobDetails && jobDetails.job_id
@@ -96,12 +187,21 @@ export default function BusinessProfilePage() {
             link: offering.link || "",
           }))
         : []
+      const jobOfferings = normalizeOfferings(jobDetails?.offerings)
+      const offeringsChanged =
+        !jobExists || JSON.stringify(normalizedOfferings) !== JSON.stringify(jobOfferings)
       const hasOfferings = normalizedOfferings.length > 0
 
       // Step 2: ALWAYS update Business Profile API first (source of truth)
       // Remove offerings from payload (offerings are only in job API, not business API)
       const { ProductsServices, ...businessPayload } = payload
-      await updateBusinessProfileMutation.mutateAsync(businessPayload)
+      const jobUsps = normalizeUsps(jobDetails?.usps ?? jobDetails?.USPs)
+      const businessPayloadWithUsps = {
+        ...businessPayload,
+        USPs: jobUsps.length > 0 ? jobUsps : null,
+        SellingPoints: jobUsps.length > 0 ? jobUsps : null,
+      }
+      await updateBusinessProfileMutation.mutateAsync(businessPayloadWithUsps)
 
       // Step 3: Handle Job API - sync data to maintain consistency
       if (jobExists) {
@@ -112,7 +212,7 @@ export default function BusinessProfilePage() {
           // Convert CTAs array to the format expected by job API ({ value: JSON.stringify(...) })
           const ctasArray = businessPayload.CTAs || []
           const payloadWithCTAs = {
-            ...businessPayload,
+            ...businessPayloadWithUsps,
             CTAs: Array.isArray(ctasArray) && ctasArray.length > 0
               ? {
                 value: JSON.stringify(
@@ -130,7 +230,17 @@ export default function BusinessProfilePage() {
             businessId,
             businessProfilePayload: payloadWithCTAs,
             offerings,
+            includeOfferings: offeringsChanged,
           })
+
+          const refreshedJob = await refetchJob()
+          const refreshedUsps = normalizeUsps(
+            refreshedJob?.data?.usps ?? refreshedJob?.data?.USPs
+          )
+
+          if (refreshedUsps.length > 0) {
+            await syncBusinessUspsFromJob(refreshedUsps, businessPayloadWithUsps)
+          }
 
           // Refresh job details after update
           await refetchJob()
@@ -145,7 +255,7 @@ export default function BusinessProfilePage() {
           // Convert CTAs array to the format expected by job API ({ value: JSON.stringify(...) })
           const ctasArray = businessPayload.CTAs || []
           const payloadWithCTAs = {
-            ...businessPayload,
+            ...businessPayloadWithUsps,
             CTAs: Array.isArray(ctasArray) && ctasArray.length > 0
               ? {
                 value: JSON.stringify(
@@ -164,6 +274,15 @@ export default function BusinessProfilePage() {
             businessProfilePayload: payloadWithCTAs,
             offerings,
           })
+
+          const refreshedJob = await refetchJob()
+          const refreshedUsps = normalizeUsps(
+            refreshedJob?.data?.usps ?? refreshedJob?.data?.USPs
+          )
+
+          if (refreshedUsps.length > 0) {
+            await syncBusinessUspsFromJob(refreshedUsps, businessPayloadWithUsps)
+          }
 
           // Refresh job details after creation
           await refetchJob()

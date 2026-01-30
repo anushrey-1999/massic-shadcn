@@ -42,8 +42,15 @@ class OfferingsPollingService {
           
           // If already complete or failed, stop polling immediately
           if (cachedData && cachedData.status !== "processing") {
-            this.stopExtraction(businessId);
-            return;
+            // Also check for new response format where status might be missing but we have type
+            if (!cachedData.status && !cachedData.type && !cachedData.offerings) {
+              // If it has no status AND no type AND no offerings, it might still be processing or invalid
+              // But if it has ANY of these, it's likely done or providing info
+              // Let's assume if it matches the new "done" shape (no status, has type), it should stop
+            } else {
+               this.stopExtraction(businessId);
+               return;
+            }
           }
 
           // Trigger React Query to refetch - it will handle caching, error handling, etc.
@@ -63,7 +70,8 @@ class OfferingsPollingService {
           if (updatedCacheData) {
             const status = updatedCacheData.status;
             
-            // Stop polling if status is not "processing"
+            // Stop polling if status is not "processing". 
+            // In new format, status is undefined when done, so undefined !== "processing" is true.
             if (status !== "processing") {
               this.stopExtraction(businessId);
               return; // Important: return to prevent further polling
@@ -120,7 +128,9 @@ interface ExtractionTaskResponse {
 
 // Type for extraction status response
 interface ExtractionStatusResponse {
-  status: "processing" | "completed" | "failed";
+  status?: "processing" | "completed" | "failed"; // Optional in new format
+  type?: string; // New field from backend
+  business_url?: string;
   offerings?: Array<{
     name?: string;
     offering?: string;
@@ -358,10 +368,19 @@ export function useOfferingsExtractor(businessId: string | null) {
 
     // Check if extraction is complete:
     // 1. Status is explicitly "completed" OR
-    // 2. Status is not "processing" and we have offerings (API might return data without status)
-    const status = statusQuery.data.status;
-    const hasOfferings = statusQuery.data.offerings && Array.isArray(statusQuery.data.offerings) && statusQuery.data.offerings.length > 0;
-    const isComplete = status === "completed" || (status !== "processing" && hasOfferings);
+    // 2. Status is not "processing" AND (we have offerings OR we have a response with a type)
+    const data = statusQuery.data;
+    const status = data.status;
+    const type = data.type;
+    const hasOfferings = data.offerings && Array.isArray(data.offerings) && data.offerings.length > 0;
+    
+    // New response format may not have status, but will have type
+    const isResponseReceived = type !== undefined;
+    
+    // If we have a type, or non-empty offerings, and status is not 'processing', we consider it done.
+    const isComplete = status === "completed" || 
+                       (status !== "processing" && (hasOfferings || isResponseReceived));
+    
     const isFailed = status === "failed";
     
     if (isComplete || isFailed) {
@@ -403,17 +422,23 @@ export function useOfferingsExtractor(businessId: string | null) {
 
   // Transform extracted offerings to our format
   const getExtractedOfferings = useCallback((): ExtractedOffering[] => {
-    // Check if we have offerings data (status might be undefined, but offerings exist)
+    const data = statusQuery.data;
+    if (!data) return [];
+
+    // Check if we have offerings data
     if (
-      statusQuery.data?.offerings &&
-      Array.isArray(statusQuery.data.offerings) &&
-      statusQuery.data.offerings.length > 0
+      data.offerings &&
+      Array.isArray(data.offerings) &&
+      data.offerings.length > 0
     ) {
-      // Only return if status is "completed" OR if status is undefined but we have offerings
-      // (API might return data directly without status field)
-      const status = statusQuery.data.status;
-      if (status === "completed" || (!status && statusQuery.data.offerings.length > 0)) {
-        return statusQuery.data.offerings.map((offering) => ({
+      // Only return if status is "completed" OR if status is undefined but we have offerings/type
+      const status = data.status;
+      const type = data.type;
+      
+      // If completed explicitly, OR if we have type/offerings and not processing
+      if (status === "completed" || 
+          (status !== "processing" && (type !== undefined || data.offerings.length > 0))) {
+        return data.offerings.map((offering) => ({
           name: offering.name || offering.offering || "",
           description: offering.description || "",
           link: offering.url || "",
@@ -436,15 +461,16 @@ export function useOfferingsExtractor(businessId: string | null) {
     });
   }, [businessId, queryClient]);
 
-  // Determine extraction status - infer "completed" if we have offerings but no status
+  // Determine extraction status - infer "completed" if we have offerings/type but no status
   const inferredStatus = useMemo((): "processing" | "completed" | "failed" | undefined => {
     const data = statusQuery.data as ExtractionStatusResponse | undefined;
     if (data) {
       const status = data.status;
+      const type = data.type;
       const hasOfferings = data.offerings && Array.isArray(data.offerings) && data.offerings.length > 0;
       
-      // If status is undefined but we have offerings, treat as completed
-      if (!status && hasOfferings) {
+      // If status is undefined but we have offerings OR type (e.g. "unknown"), treat as completed
+      if (!status && (hasOfferings || type !== undefined)) {
         return "completed";
       }
       return status;

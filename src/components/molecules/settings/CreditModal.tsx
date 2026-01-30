@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { X, Loader2, ArrowLeft, Gem } from "lucide-react";
+import { X, Loader2, ArrowLeft, Gem, AlertCircle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface CreditModalProps {
@@ -17,6 +17,8 @@ interface CreditModalProps {
   autoTopupEnabled?: boolean;
   autoTopupThreshold?: number;
   onPurchaseCredits?: (params?: { quantity: number }) => Promise<void>;
+  description?: string;
+  alertMessage?: string;
 }
 
 export function CreditModal({
@@ -27,6 +29,8 @@ export function CreditModal({
   autoTopupEnabled = false,
   autoTopupThreshold = 0,
   onPurchaseCredits,
+  description = "Need extra content or campaigns this month? Use Execution Credits to instantly scale blogs and posts.",
+  alertMessage,
 }: CreditModalProps) {
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -62,15 +66,22 @@ export function CreditModal({
         <DialogTitle className="sr-only">
           Purchase Execution Credits
         </DialogTitle>
-        <div className="flex">
+        <div className="flex items-start gap-3 -mt-12">
           <Button
-            variant="outline"
-            className="bg-white border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-md flex items-center gap-2"
+            variant="secondary"
+            size="sm"
+            className="gap-2 bg-white shadow-sm shrink-0 h-12"
             onClick={onClose}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-5 w-5" />
             Back
           </Button>
+          {alertMessage && (
+            <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 min-h-12 flex-1">
+              <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
+              <p className="text-sm text-red-800 flex-1 break-words">{alertMessage}</p>
+            </div>
+          )}
         </div>
 
         <div className="rounded-lg p-6 bg-white">
@@ -134,12 +145,12 @@ export function CreditModal({
               >
                 Pitches
               </Badge>
-        
+
               <Badge
                 variant="outline"
                 className="text-general-foreground text-[10px] px-2 py-[4.5px]"
               >
-                Content 
+                Content
               </Badge>
               <Badge
                 variant="outline"
@@ -150,7 +161,7 @@ export function CreditModal({
             </div>
 
             <p className="text-sm text-primary py-4">
-            Need extra content or campaigns this month? Use Execution Credits to instantly scale blogs and posts.
+              {description}
             </p>
             {/* <p className="text-xs text-[#666666] mb-4">
               Credits are workspace-wide, don't expire, and can be used by any
@@ -161,7 +172,8 @@ export function CreditModal({
               {[
                 { text: "1 social post", credits: "3 credits" },
                 { text: "1 blog post", credits: "5 credits" },
-                { text: "1 proposal", credits: "50 credits" },
+                { text: "1 snapshot pitch", credits: "10 credits" },
+                { text: "1 detailed pitch", credits: "100 credits" },
               ].map((row) => (
                 <div
                   key={row.text}

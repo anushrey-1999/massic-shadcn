@@ -17,6 +17,7 @@ interface PlanItem {
   hasBorder?: boolean;
   isRecommended?: boolean;
   isAddOn?: boolean;
+  isMassicOpportunitiesActive?: boolean;
 }
 
 interface PlansWrapperProps {
@@ -25,6 +26,8 @@ interface PlansWrapperProps {
   onCreditsRefresh?: () => void;
   currentCreditBalance?: number;
   onPurchaseCredits?: (params?: { quantity: number }) => Promise<void>;
+  onMassicOpportunitiesClick?: () => void;
+  onMassicOpportunitiesDeactivate?: () => void;
 }
 
 export function PlansWrapper({
@@ -33,6 +36,8 @@ export function PlansWrapper({
   onCreditsRefresh,
   currentCreditBalance = 0,
   onPurchaseCredits,
+  onMassicOpportunitiesClick,
+  onMassicOpportunitiesDeactivate,
 }: PlansWrapperProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [creditModalOpen, setCreditModalOpen] = useState(false);
@@ -109,13 +114,13 @@ export function PlansWrapper({
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="">
+              <div className="flex flex-col gap-4">
                 {addOns.map((plan) => (
                   <PlanCard
                     key={plan.planName}
                     planName={plan.planName}
                     price={plan.price}
-                    onClick={handleOpenCreditModal}
+                    onClick={plan.planName === "Massic Opportunities" && onMassicOpportunitiesClick ? onMassicOpportunitiesClick : handleOpenCreditModal}
                     businessesLinked={plan.businessesLinked}
                     iconName={plan.iconName}
                     cardBackground={plan.cardBackground}
@@ -123,6 +128,8 @@ export function PlansWrapper({
                     hasBorder={plan.hasBorder}
                     isRecommended={plan.isRecommended}
                     isAddOn={plan.isAddOn}
+                    isMassicOpportunitiesActive={plan.isMassicOpportunitiesActive}
+                    onDeactivate={plan.planName === "Massic Opportunities" && onMassicOpportunitiesDeactivate ? onMassicOpportunitiesDeactivate : undefined}
                   />
                 ))}
               </div>

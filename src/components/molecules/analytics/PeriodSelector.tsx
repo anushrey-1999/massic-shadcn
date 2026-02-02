@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TIME_PERIODS, type TimePeriodValue } from "@/hooks/use-gsc-analytics"
+import { useId } from "react"
 
 interface PeriodSelectorProps {
   value: TimePeriodValue
@@ -16,8 +17,9 @@ interface PeriodSelectorProps {
 }
 
 export function PeriodSelector({ value, onValueChange, className }: PeriodSelectorProps) {
+    const id = useId()
   return (
-    <Select value={value} onValueChange={onValueChange}>
+    <Select value={value} onValueChange={onValueChange} key={id}>
       <SelectTrigger className={className}>
         <SelectValue placeholder="Select period" />
       </SelectTrigger>

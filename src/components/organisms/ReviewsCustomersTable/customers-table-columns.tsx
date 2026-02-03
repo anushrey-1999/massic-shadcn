@@ -126,7 +126,12 @@ export function getCustomersTableColumns(
               className="h-8 text-sm"
             />
           )
-        return <div className="truncate font-medium">{row.original.name}</div>
+        const isEditable = row.original.status === "failed" || row.original.status === "pending"
+        return (
+          <div className={cn("truncate font-medium", !isEditable && "text-muted-foreground")}>
+            {row.original.name}
+          </div>
+        )
       },
       size: 220,
       minSize: 160,
@@ -148,7 +153,12 @@ export function getCustomersTableColumns(
               className="h-8 text-sm"
             />
           )
-        return <div className="truncate">{row.original.phone}</div>
+        const isEditable = row.original.status === "failed" || row.original.status === "pending"
+        return (
+          <div className={cn("truncate", !isEditable && "text-muted-foreground")}>
+            {row.original.phone}
+          </div>
+        )
       },
       size: 160,
       minSize: 140,
@@ -169,7 +179,12 @@ export function getCustomersTableColumns(
               className="h-8 text-sm"
             />
           )
-        return <div className="truncate">{row.original.email}</div>
+        const isEditable = row.original.status === "failed" || row.original.status === "pending"
+        return (
+          <div className={cn("truncate", !isEditable && "text-muted-foreground")}>
+            {row.original.email}
+          </div>
+        )
       },
       size: 260,
       minSize: 200,
@@ -190,7 +205,12 @@ export function getCustomersTableColumns(
               className="h-8 text-sm"
             />
           )
-        return <div className="truncate">{formatDate(row.original.createdAt)}</div>
+        const isEditable = row.original.status === "failed" || row.original.status === "pending"
+        return (
+          <div className={cn("truncate", !isEditable && "text-muted-foreground")}>
+            {formatDate(row.original.createdAt)}
+          </div>
+        )
       },
       sortingFn: "datetime",
       size: 160,
@@ -222,8 +242,13 @@ export function getCustomersTableColumns(
             </Select>
           )
         const campaign = row.original.campaignsLinked[0]
+        const isEditable = row.original.status === "failed" || row.original.status === "pending"
         if (!campaign) return <span className="text-muted-foreground">-</span>
-        return <CampaignChip campaign={campaign} />
+        return (
+          <div className={cn(!isEditable && "opacity-50")}>
+            <CampaignChip campaign={campaign} />
+          </div>
+        )
       },
       size: 200,
       minSize: 160,

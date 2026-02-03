@@ -270,7 +270,7 @@ export function getCustomersTableColumns(
             >
               {row.original.status === "in-progress" ? "In-Progress" : row.original.status.charAt(0).toUpperCase() + row.original.status.slice(1)}
             </Badge>
-            <div className="ml-auto flex w-9 shrink-0 items-center justify-end">
+            <div className="ml-auto flex w-9 shrink-0 items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity">
               <Button
                 variant="ghost"
                 size="icon"

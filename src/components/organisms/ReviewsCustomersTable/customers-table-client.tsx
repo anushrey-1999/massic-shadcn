@@ -22,6 +22,14 @@ import { DataTableAdvancedToolbar } from "@/components/filter-table/data-table-a
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list"
 import { DataTableSearch } from "@/components/filter-table/data-table-search"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 import {
   getCustomersTableColumns,
@@ -90,12 +98,17 @@ export function CustomersTableClient() {
   const [customers, setCustomers] = React.useState<ReviewCustomerRow[]>(demoCustomers)
   const [isAddingRow, setIsAddingRow] = React.useState(false)
   const [draft, setDraft] = React.useState<NewRowDraft>(initialDraft)
+  const [showBeginCampaignDialog, setShowBeginCampaignDialog] = React.useState(false)
 
   const onDraftChange = React.useCallback((field: keyof NewRowDraft, value: string) => {
     setDraft((prev) => ({ ...prev, [field]: value }))
   }, [])
 
   const onSaveNewRow = React.useCallback(() => {
+    setShowBeginCampaignDialog(true)
+  }, [])
+
+  const onConfirmBeginCampaign = React.useCallback(() => {
     const campaignsLinked =
       draft.campaign === "Google Reviews"
         ? [{ platform: "google" as const, label: "Google Reviews" }]
@@ -114,6 +127,7 @@ export function CustomersTableClient() {
     setCustomers((prev) => [newRow, ...prev])
     setIsAddingRow(false)
     setDraft(initialDraft)
+    setShowBeginCampaignDialog(false)
   }, [draft])
 
   const onCancelNewRow = React.useCallback(() => {
@@ -194,36 +208,60 @@ export function CustomersTableClient() {
   })
 
   return (
-    <DataTable
-      table={table}
-      emptyMessage="No customers found."
-      pageSizeOptions={[10, 24, 30, 50, 100]}
-    >
-      <DataTableAdvancedToolbar table={table} className="flex-wrap gap-2">
-        <DataTableSearch
-          value={globalFilter}
-          onChange={(value) => setGlobalFilter(value)}
-          placeholder="Search..."
-        />
-        <DataTableSortList table={table} align="start" />
-        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" type="button" aria-label="Download">
-          <Download className="h-4 w-4" />
-        </Button>
-        <div className="min-w-0 flex-1" />
-        <Button
-          type="button"
-          className="gap-2 shrink-0"
-          disabled={isAddingRow}
-          onClick={() => {
-            setIsAddingRow(true)
-            setDraft(initialDraft)
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Add
-        </Button>
-      </DataTableAdvancedToolbar>
-    </DataTable>
+    <>
+      <DataTable
+        table={table}
+        emptyMessage="No customers found."
+        pageSizeOptions={[10, 24, 30, 50, 100]}
+      >
+        <DataTableAdvancedToolbar table={table} className="flex-wrap gap-2">
+          <DataTableSearch
+            value={globalFilter}
+            onChange={(value) => setGlobalFilter(value)}
+            placeholder="Search..."
+          />
+          <DataTableSortList table={table} align="start" />
+          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" type="button" aria-label="Download">
+            <Download className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0 flex-1" />
+          <Button
+            type="button"
+            className="gap-2 shrink-0"
+            disabled={isAddingRow}
+            onClick={() => {
+              setIsAddingRow(true)
+              setDraft(initialDraft)
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Add
+          </Button>
+        </DataTableAdvancedToolbar>
+      </DataTable>
+
+      <Dialog open={showBeginCampaignDialog} onOpenChange={setShowBeginCampaignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Begin Campaign</DialogTitle>
+            <DialogDescription>
+              Confirming will start the communication sequence for the selected campaign and customers.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowBeginCampaignDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={onConfirmBeginCampaign}>
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

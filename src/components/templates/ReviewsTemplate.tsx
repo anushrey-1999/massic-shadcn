@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/molecules/EmptyState"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ResponderSettingsModal } from "@/components/molecules/ResponderSettingsModal"
 import { CustomersTableClient } from "@/components/organisms/ReviewsCustomersTable/customers-table-client"
+import { CampaignsTableClient } from "@/components/organisms/ReviewsCampaignTable/campaigns-table-client"
 
 interface ReviewsTemplateProps {
   businessId: string
@@ -366,11 +367,9 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
               </div>
             </TabsContent>
 
-            <TabsContent value="campaign" className={cn("flex-1 min-h-0", "mt-4")}>
-              <div className="flex items-center justify-center h-[240px] border rounded-lg bg-muted/20">
-                <Typography variant="h3" className="text-muted-foreground">
-                  Coming soon...
-                </Typography>
+            <TabsContent value="campaign" className={cn("flex-1 min-h-0 overflow-hidden", "mt-4")}>
+              <div className="bg-white rounded-lg p-4 h-full min-h-0">
+                <CampaignsTableClient businessId={businessId} />
               </div>
             </TabsContent>
 

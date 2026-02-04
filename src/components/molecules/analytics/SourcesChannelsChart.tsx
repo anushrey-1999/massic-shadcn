@@ -40,7 +40,7 @@ export function SourcesChannelsChart({
   isLoading = false,
   hasData = true,
 }: SourcesChannelsChartProps) {
-  const BAR_SIZE = 30
+  const BAR_SIZE = 12
   const CATEGORY_GAP = 4
   const CHART_CHROME_HEIGHT = 60
   const Y_AXIS_WIDTH = 120
@@ -176,7 +176,7 @@ export function SourcesChannelsChart({
               /> */}
               <Bar 
                 dataKey="sessionsNorm" 
-                radius={4} 
+                radius={[15, 15, 15, 15]} 
                 fill="#0374E5" 
                 opacity={0.3} 
                 name="Sessions"
@@ -185,7 +185,7 @@ export function SourcesChannelsChart({
               />
               <Bar 
                 dataKey="goalsNorm" 
-                radius={4} 
+                radius={[15, 15, 15, 15]} 
                 fill="#059669" 
                 name="Goals"
                 isAnimationActive={false}

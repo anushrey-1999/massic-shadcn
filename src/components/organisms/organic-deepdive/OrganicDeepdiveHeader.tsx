@@ -56,7 +56,7 @@ export function OrganicDeepdiveHeader({
   onRemoveFilter,
 }: OrganicDeepdiveHeaderProps) {
   return (
-    <div className="border-b border-general-border flex items-center justify-between px-7 py-4 w-full">
+    <div className="flex items-center justify-between py-4 w-full">
       <div className="flex gap-2 items-center">
         <Search className="h-[22px] w-[22px] text-general-muted-foreground" strokeWidth={1.5} />
         <p className="font-mono font-normal leading-normal text-base text-general-muted-foreground">

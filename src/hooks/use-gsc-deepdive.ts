@@ -176,8 +176,8 @@ export function useGscDeepdive(
 
     return dateData.data.current.map((item: any) => ({
       date: formatDate(item.keys?.[0] ?? ""),
-      impressions: item.impressions ?? 0,
-      clicks: item.clicks ?? 0,
+      impressions: Number(item.impressions ?? 0),
+      clicks: Number(item.clicks ?? 0),
     }));
   }, [dateData]);
 
@@ -404,8 +404,10 @@ export function useGscDeepdive(
       bandStart: number,
       bandEnd: number
     ): number => {
+      const numericValue = Number(value) || 0;
+      if (numericValue === 0) return 0;
       if (max === min) return (bandStart + bandEnd) / 2;
-      const normalized = (value - min) / (max - min);
+      const normalized = (numericValue - min) / (max - min);
       return bandStart + normalized * (bandEnd - bandStart);
     };
 

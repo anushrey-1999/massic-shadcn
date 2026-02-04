@@ -7,7 +7,6 @@ import { WorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanne
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
-import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard";
 import { WorkflowStatusBanner as BusinessWorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanner";
 import { WebPageTableClient } from "@/components/organisms/WebPageTable/web-page-table-client";
 
@@ -66,21 +65,15 @@ function PitchWebSuccessView({ businessId }: { businessId: string }) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
-      <EntitlementsGuard
-        entitlement="web"
-        businessId={businessId}
-        alertMessage="You're on Starter. Upgrade your plan to unlock Web."
-      >
-        <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
-          <BusinessWorkflowStatusBanner
-            businessId={businessId}
-            profileHref={`/pitches/${businessId}/profile`}
-            emptyStateHeight="min-h-[calc(100vh-16rem)]"
-          />
-          <WebPageTableClient businessId={businessId} hideActions={true} />
-        </div>
-      </EntitlementsGuard>
-    </div>
+      <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+        <BusinessWorkflowStatusBanner
+          businessId={businessId}
+          profileHref={`/pitches/${businessId}/profile`}
+          emptyStateHeight="min-h-[calc(100vh-16rem)]"
+        />
+        <WebPageTableClient businessId={businessId} hideActions={true} />
+      </div>
+    </div >
   );
 }
 

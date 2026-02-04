@@ -46,14 +46,18 @@ export function useBlogPagePlan(businessId: string) {
       }
 
       if (params.sort && params.sort.length > 0) {
-        const mappedSort = params.sort.map(sortItem => {
-          let field = sortItem.field;
-          if (field === 'sub_topics_count') {
-            field = 'total_supporting_keywords_count';
-          }
-          return { ...sortItem, field };
-        });
-        queryParams.append("sort", JSON.stringify(mappedSort));
+        const mappedSort = params.sort
+          .filter(sortItem => sortItem.field !== 'actions') // Exclude actions from backend sort
+          .map(sortItem => {
+            let field = sortItem.field;
+            if (field === 'sub_topics_count') {
+              field = 'total_supporting_keywords_count';
+            }
+            return { ...sortItem, field };
+          });
+        if (mappedSort.length > 0) {
+          queryParams.append("sort", JSON.stringify(mappedSort));
+        }
       }
 
       if (params.filters && params.filters.length > 0) {

@@ -34,7 +34,7 @@ function formatTooltipDate(input: unknown) {
   if (!Number.isFinite(date.getTime())) return raw
 
   const month = new Intl.DateTimeFormat("en-US", { month: "short" }).format(date)
-  return `${day}, ${month}, ${year}`
+  return `${day} ${month} ${year}`
 }
 
 export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {

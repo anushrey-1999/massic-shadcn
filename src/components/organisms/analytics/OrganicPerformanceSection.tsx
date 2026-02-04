@@ -16,6 +16,7 @@ import { AlertBar } from "@/components/molecules/analytics/AlertBar";
 import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet";
 import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
+import { BrandedKeywordsModal } from "@/components/molecules/analytics/BrandedKeywordsModal";
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import {
   ChartContainer,
@@ -111,6 +112,7 @@ export function OrganicPerformanceSection({
   } = useTrafficAnalysis(businessUniqueId, businessName, null);
 
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
+  const [brandedKeywordsModalOpen, setBrandedKeywordsModalOpen] = useState(false);
 
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     impressions: true,
@@ -330,6 +332,8 @@ export function OrganicPerformanceSection({
                 change={brandedCard.change}
                 sparklineData={brandedCard.sparklineData}
                 isLoading={isLoadingBranded}
+                showArrowButton={true}
+                onArrowClick={() => setBrandedKeywordsModalOpen(true)}
               />
               <MetricCard
                 key={nonBrandedCard.key}
@@ -369,6 +373,8 @@ export function OrganicPerformanceSection({
                       : "Add more non-branded keywords to see this metric."
                   }
                   disableTooltip={key === "non-branded"}
+                  showArrowButton={key === "branded"}
+                  onArrowClick={key === "branded" ? () => setBrandedKeywordsModalOpen(true) : undefined}
                 />
               ))}
             </>
@@ -562,6 +568,12 @@ export function OrganicPerformanceSection({
           </div>
         </div>
       </div>
+
+      <BrandedKeywordsModal
+        open={brandedKeywordsModalOpen}
+        onOpenChange={setBrandedKeywordsModalOpen}
+        businessId={businessUniqueId}
+      />
     </div>
   );
 }

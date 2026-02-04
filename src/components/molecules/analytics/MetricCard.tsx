@@ -1,9 +1,10 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { TrendingUp, TrendingDown, Loader2 } from "lucide-react"
+import { TrendingUp, TrendingDown, Loader2, ArrowRight } from "lucide-react"
 import { StatsBadge } from "./StatsBadge"
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { useState } from "react"
 
 interface MetricCardProps {
   icon?: React.ReactNode
@@ -16,6 +17,8 @@ interface MetricCardProps {
   emptyMessage?: string
   className?: string
   disableTooltip?: boolean
+  showArrowButton?: boolean
+  onArrowClick?: () => void
 }
 
 export function MetricCard({
@@ -29,7 +32,10 @@ export function MetricCard({
   emptyMessage = "No data available",
   className,
   disableTooltip = false,
+  showArrowButton = false,
+  onArrowClick,
 }: MetricCardProps) {
+  const [isHovered, setIsHovered] = useState(false)
   if (isLoading) {
     return (
       <div
@@ -101,11 +107,14 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "flex items-center gap-10 bg-card p-3 flex-1",
+        "flex items-center gap-10 bg-card p-3 flex-1 relative group transition-colors",
+        showArrowButton && "hover:bg-muted rounded-lg",
         className
       )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="flex flex-col">
+      <div className="flex flex-col flex-1">
         <div className="flex items-center gap-2 leading-[150%]">
           {/* {icon && <span className="text-muted-foreground">{icon}</span>} */}
           {label && <span className="text-base text-muted-foreground font-medium ">{label}</span>}
@@ -117,6 +126,17 @@ export function MetricCard({
           )}
         </div>
       </div>
+      {showArrowButton && (
+        <button
+          onClick={onArrowClick}
+          className={cn(
+            "absolute right-3  -translate-y-1/2 p-2 rounded-md bg-background border border-border opacity-0 transition-opacity cursor-pointer",
+            isHovered && "opacity-100"
+          )}
+        >
+          <ArrowRight className="h-3.5 w-3.5 text-foreground" />
+        </button>
+      )}
       {/* {sparklineData && (
         <div className="h-8 w-[100px]">
           <svg

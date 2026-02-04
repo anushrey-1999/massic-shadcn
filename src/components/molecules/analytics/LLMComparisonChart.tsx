@@ -63,39 +63,37 @@ export function LLMComparisonChart({
 
   return (
     <div className="flex flex-col bg-white justify-center">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         {data.map((item, index) => {
           const displayValue = item.rawValue ?? item.value
           const barWidth = maxValue > 0 ? (item.value / maxValue) * 100 : 0
 
           return (
             <div key={index} className="flex items-center gap-3">
-              <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex h-[30px] w-[30px] items-center justify-center text-general-muted-foreground cursor-pointer">
-                      {item.icon}
+              <div className="flex h-[40px] w-[40px] items-center justify-center text-general-muted-foreground shrink-0">
+                {item.icon}
+              </div>
+              <div className="flex flex-1 flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm" style={{ color: '#737373' }}>{item.name}</span>
+                  <StatsBadge value={item.change} className="min-w-[60px] justify-end" />
+                </div>
+                <div className="flex items-center gap-2 group relative">
+                  <div className="w-full h-[12px] bg-[#E5E5E5] rounded-full relative">
+                    <div
+                      className="h-[12px] rounded-full absolute top-0 left-0 cursor-pointer"
+                      style={{
+                        width: barWidth > 0 ? `${barWidth}%` : '4px',
+                        backgroundColor: item.value > 0 ? item.color : '#E5E5E5',
+                      }}
+                    >
+                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#171717] text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
+                        {displayValue}
+                      </div>
                     </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <p>{item.name}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <div className="flex flex-1 items-center gap-2 group relative">
-                <div
-                  className="h-[30px] rounded min-w-1 relative cursor-pointer"
-                  style={{
-                    width: barWidth > 0 ? `${barWidth}%` : '4px',
-                    backgroundColor: item.value > 0 ? item.color : '#E5E5E5',
-                  }}
-                >
-                  <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#171717] text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                    {displayValue}
                   </div>
                 </div>
               </div>
-              <StatsBadge value={item.change} className="min-w-[60px] justify-end" />
             </div>
           )
         })}

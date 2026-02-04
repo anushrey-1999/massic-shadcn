@@ -17,7 +17,7 @@ import { formatVolume } from "@/lib/format";
 
 // Helper to format percentage
 function formatPercentage(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
+  return `${Math.round(value * 100)}%`;
 }
 
 interface GetStrategyTableColumnsProps {
@@ -170,9 +170,9 @@ export function getStrategyTableColumns({
       },
       enableColumnFilter: false,
       enableSorting: true,
-      size: 100,
-      minSize: 80,
-      maxSize: 150,
+      size: 50,
+      minSize: 50,
+      maxSize: 100,
     },
     {
       id: "total_keywords",

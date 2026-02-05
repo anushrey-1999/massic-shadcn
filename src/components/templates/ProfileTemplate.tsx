@@ -29,6 +29,8 @@ import {
 } from "@/utils/utils";
 import { Button } from "@/components/ui/button";
 import { Unlink } from "lucide-react";
+import { PlanModal } from "@/components/molecules/settings/PlanModal";
+import { useSubscription } from "@/hooks/use-subscription";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -127,8 +129,16 @@ const ProfileTemplate = ({
 
   const [isSaving, setIsSaving] = useState(false);
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
+  const [isCheckingPlan, setIsCheckingPlan] = useState(false);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
   const [isUnlinkModalOpen, setIsUnlinkModalOpen] = useState(false);
   const unlinkOrDeleteMutation = useUnlinkOrDeleteBusiness();
+  const {
+    loading: subscriptionLoading,
+    data: subscriptionData,
+    handleSubscribeToPlan,
+    refetchData: refetchSubscriptionData,
+  } = useSubscription();
   const [showSubmitErrors, setShowSubmitErrors] = useState(false);
   const initialValuesRef = useRef<any>(null);
   const hasChangesRef = useRef(false);
@@ -251,10 +261,32 @@ const ProfileTemplate = ({
       })
     );
 
-    // USPs from business API
-    const usps = Array.isArray((profileData as any).USPs)
-      ? (profileData as any).USPs.join(", ")
-      : "";
+    const normalizeUsps = (raw: unknown): string[] => {
+      if (!raw) return [];
+      if (Array.isArray(raw)) {
+        return raw.map((item) => String(item).trim()).filter(Boolean);
+      }
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            return parsed.map((item) => String(item).trim()).filter(Boolean);
+          }
+        } catch {
+          // ignore
+        }
+        return raw
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+      return [];
+    };
+
+    const uspsFromJob = normalizeUsps(
+      (jobDetails as any)?.usps ?? (jobDetails as any)?.USPs
+    );
+    const usps = uspsFromJob.join(", ");
 
     // Brand Voice from business API - convert to lowercase for checkboxes
     // IMPORTANT: Checkboxes in ContentCuesForm expect lowercase values (e.g., "professional", "bold")
@@ -398,6 +430,47 @@ const ProfileTemplate = ({
 
       setIsSaving(true);
       try {
+        const normalizeUsps = (raw: unknown): string[] => {
+          if (!raw) return [];
+          if (Array.isArray(raw)) {
+            return raw.map((item) => String(item).trim()).filter(Boolean);
+          }
+          if (typeof raw === "string") {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                return parsed.map((item) => String(item).trim()).filter(Boolean);
+              }
+            } catch {
+              // ignore
+            }
+            return raw
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean);
+          }
+          return [];
+        };
+
+        const jobUsps = normalizeUsps(
+          (externalJobDetails as any)?.usps ?? (externalJobDetails as any)?.USPs
+        );
+        const formUsps = value.usps && value.usps.trim()
+          ? value.usps
+            .split(",")
+            ?.map((item: string) => item.trim())
+            ?.filter((item: string) => item.length > 0)
+          : [];
+        const jobExists = Boolean(externalJobDetails && externalJobDetails.job_id);
+        const uspsPayload = jobExists
+          ? Array.from(
+            new Set([
+              ...jobUsps,
+              ...formUsps,
+            ])
+          )
+          : formUsps;
+
         // Map form values to API payload structure
         // Spread existing profile data to preserve all fields, then update specific ones
         const locationParts = value.primaryLocation.split(",");
@@ -421,20 +494,8 @@ const ProfileTemplate = ({
             Country: country,
           },
           // ProductsServices removed - offerings are only in job API, not business API
-          USPs:
-            value.usps && value.usps.trim()
-              ? value.usps
-                .split(",")
-                ?.map((item: string) => item.trim())
-                ?.filter((item: string) => item.length > 0)
-              : null,
-          SellingPoints:
-            value.usps && value.usps.trim()
-              ? value.usps
-                .split(",")
-                ?.map((item: string) => item.trim())
-                ?.filter((item: string) => item.length > 0)
-              : null, // Keep for backward compatibility
+          USPs: uspsPayload.length > 0 ? uspsPayload : null,
+          SellingPoints: uspsPayload.length > 0 ? uspsPayload : null, // Keep for backward compatibility
           BrandTerms:
             value.brandTerms && value.brandTerms.trim()
               ? value.brandTerms
@@ -871,6 +932,20 @@ const ProfileTemplate = ({
     await saveProfileValues(parsed.data as BusinessInfoFormData);
   }, [form, saveProfileValues]);
 
+  const getPlanTypeFromData = useCallback(
+    (data: any) => {
+      const raw =
+        currentProfile?.SubscriptionItems?.plan_type ||
+        (externalProfileData as any)?.SubscriptionItems?.plan_type ||
+        data?.plan_type ||
+        data?.planType ||
+        data?.plan;
+      if (!raw) return "";
+      return String(raw).toLowerCase();
+    },
+    [currentProfile, externalProfileData]
+  );
+
   // Handle Confirm & Proceed - trigger workflow API and navigate to strategy
   const handleConfirmAndProceed = useCallback(async () => {
     if (!businessId) {
@@ -885,6 +960,28 @@ const ProfileTemplate = ({
     }
 
     try {
+      setIsCheckingPlan(true);
+      const latestSubscription = await refetchSubscriptionData();
+      const effectiveSubscription = latestSubscription ?? subscriptionData;
+      const isWhitelisted =
+        effectiveSubscription?.whitelisted === true ||
+        effectiveSubscription?.status === "whitelisted";
+
+      const planType = getPlanTypeFromData(effectiveSubscription);
+      const planLevels: Record<string, number> = {
+        no_plan: 0,
+        starter: 1,
+        core: 2,
+        growth: 3,
+      };
+      const level = planLevels[planType] ?? 0;
+      const hasAboveStarterPlan = isWhitelisted || level > planLevels.starter;
+
+      if (!hasAboveStarterPlan) {
+        setPlanModalOpen(true);
+        return;
+      }
+
       setIsTriggeringWorkflow(true);
 
       // Call trigger workflow API
@@ -927,14 +1024,58 @@ const ProfileTemplate = ({
 
       toast.error(`Error triggering workflow: ${errorMessage}`);
     } finally {
+      setIsCheckingPlan(false);
       setIsTriggeringWorkflow(false);
     }
-  }, [businessId, externalJobDetails, router]);
+  }, [
+    businessId,
+    externalJobDetails,
+    router,
+    refetchSubscriptionData,
+    subscriptionData,
+    getPlanTypeFromData,
+  ]);
 
   const businessName = useMemo(() => {
     const profile = profiles.find((p) => p.UniqueId === businessId);
     return profile?.Name || profile?.DisplayName || "Business";
   }, [profiles, businessId]);
+
+  const isTrialActive =
+    ((externalProfileData as any)?.isTrialActive ??
+      (currentProfile as any)?.isTrialActive) === true;
+
+  const remainingTrialDays =
+    typeof (externalProfileData as any)?.remainingTrialDays === "number"
+      ? (externalProfileData as any).remainingTrialDays
+      : typeof (currentProfile as any)?.remainingTrialDays === "number"
+        ? (currentProfile as any).remainingTrialDays
+        : undefined;
+
+  const getCurrentPlanLabel = useCallback((planType?: string | null) => {
+    if (!planType) return "No Plan";
+    if (planType.toLowerCase() === "no_plan") return "No Plan";
+    return planType.charAt(0).toUpperCase() + planType.slice(1).toLowerCase();
+  }, []);
+
+  const getPlanAlertMessage = useCallback(
+    (currentPlan: string) => {
+      if (isTrialActive) {
+        const trialDaysMessage =
+          typeof remainingTrialDays === "number" && remainingTrialDays > 0
+            ? ` Your trial expires in ${remainingTrialDays} day${remainingTrialDays === 1 ? "" : "s"}.`
+            : "";
+        return `You're on a free trial. Upgrade to access this feature.${trialDaysMessage}`;
+      }
+
+      if (currentPlan === "No Plan") {
+        return "Upgrade to Core to access this feature.";
+      }
+
+      return `You're on ${currentPlan}. Upgrade to Core to access this feature.`;
+    },
+    [isTrialActive, remainingTrialDays]
+  );
 
   // Memoize breadcrumbs to prevent re-renders
   const breadcrumbs = useMemo(
@@ -1118,11 +1259,13 @@ const ProfileTemplate = ({
     ? isSaving
       ? "Saving..."
       : "Save Changes"
-    : isTriggeringWorkflow
-      ? "Triggering Workflow..."
-      : isWorkflowProcessing
-        ? "Workflow Processing..."
-        : "Confirm & Proceed to Strategy";
+    : isCheckingPlan
+      ? "Checking Plan..."
+      : isTriggeringWorkflow
+        ? "Triggering Workflow..."
+        : isWorkflowProcessing
+          ? "Workflow Processing..."
+          : "Confirm & Proceed to Strategy";
 
   // Always use Save Changes handler when there are changes, even during workflow operations
   const handleButtonClick = hasChanges
@@ -1156,6 +1299,7 @@ const ProfileTemplate = ({
     ? externalLoading || isSaving || hasAnyValidationErrors // Save Changes: disable during loading, saving, or validation errors
     : externalLoading ||
     isSaving ||
+    isCheckingPlan ||
     isTriggeringWorkflow ||
     isWorkflowProcessing || // Disable if workflow is already processing
     !externalJobDetails?.job_id; // Require job to exist before proceeding
@@ -1172,6 +1316,7 @@ const ProfileTemplate = ({
 
     if (!externalJobDetails?.job_id) return "Add offerings first to proceed to Strategy.";
     if (isWorkflowProcessing) return "Workflows are under process. Please wait till they are done.";
+    if (isCheckingPlan) return "Checking your plan...";
     if (isTriggeringWorkflow) return "Triggering workflow...";
     if (externalLoading) return "Please wait for the profile to finish loading.";
     if (isSaving) return "Saving in progress.";
@@ -1184,6 +1329,7 @@ const ProfileTemplate = ({
     hasAnyValidationErrors,
     externalJobDetails?.job_id,
     isWorkflowProcessing,
+    isCheckingPlan,
     isTriggeringWorkflow,
   ]);
 
@@ -1219,6 +1365,30 @@ const ProfileTemplate = ({
 
   const canPerformAction = canUnlink || canDelete;
   const actionLabel = hasLinkedAuth ? "Unlink Business" : "Delete Business";
+
+  const currentPlanLabel = useMemo(() => {
+    const planType = getPlanTypeFromData(subscriptionData);
+    return getCurrentPlanLabel(planType);
+  }, [getPlanTypeFromData, getCurrentPlanLabel, subscriptionData]);
+
+  const planAlertMessage = useMemo(
+    () => getPlanAlertMessage(currentPlanLabel),
+    [getPlanAlertMessage, currentPlanLabel]
+  );
+
+  const handlePlanSelect = useCallback(
+    async (planName: string, action: "UPGRADE" | "DOWNGRADE" | "SUBSCRIBE") => {
+      const business = currentProfile || externalProfileData;
+      if (!business) return;
+      await handleSubscribeToPlan({
+        business,
+        planName,
+        action,
+        closeAllModals: () => setPlanModalOpen(false),
+      });
+    },
+    [currentProfile, externalProfileData, handleSubscribeToPlan]
+  );
 
   const handleConfirmAction = useCallback(async () => {
     if (!currentProfile) {
@@ -1261,6 +1431,18 @@ const ProfileTemplate = ({
         isLoading ? "overflow-hidden" : ""
       )}
     >
+      <PlanModal
+        open={planModalOpen}
+        onClose={() => setPlanModalOpen(false)}
+        currentPlan={currentPlanLabel}
+        showFooterButtons={true}
+        showAlertBar={true}
+        alertSeverity="error"
+        alertMessage={planAlertMessage}
+        isDescription={false}
+        onSelectPlan={handlePlanSelect}
+        loading={subscriptionLoading}
+      />
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         {/* Sticky Page Header */}
         <div className="sticky top-0 z-10">

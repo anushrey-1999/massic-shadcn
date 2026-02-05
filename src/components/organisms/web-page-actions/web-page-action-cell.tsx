@@ -112,7 +112,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const finalFromServer =
     type === "blog"
       ? cleanEscapedContent(content?.output_data?.page?.blog?.blog_post || "")
-      : cleanEscapedContent(content?.output_data?.page?.page_content || "");
+      : cleanEscapedContent(content?.output_data?.page?.page_content?.page_content || "");
 
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
   const hasFinal = !!finalFromServer && finalFromServer.trim().length > 0;

@@ -97,7 +97,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       lastSavedMainRef.current = canonicalize(cleanEscapedContent(rawBlog));
       lastSavedMetaRef.current = canonicalize(cleanEscapedContent(rawMeta));
     } else {
-      const rawPage = data?.output_data?.page?.page_content || "";
+      const rawPage = data?.output_data?.page?.page_content?.page_content || "";
       setMainContent(cleanEscapedContent(rawPage));
       setMetaDescription("");
       setCitations([]);

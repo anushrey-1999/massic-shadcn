@@ -17,7 +17,7 @@ function getFinalContent(type: WebActionType, data: any): string {
     return cleanEscapedContent(data?.output_data?.page?.blog?.blog_post || "");
   }
 
-  return cleanEscapedContent(data?.output_data?.page?.page_content || "");
+  return cleanEscapedContent(data?.output_data?.page?.page_content?.page_content || "");
 }
 
 export function WebPageView({ businessId, pageId }: { businessId: string; pageId: string }) {

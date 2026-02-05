@@ -113,6 +113,21 @@ export function PlanModal({
   loading = false,
 }: PlanModalProps) {
   const plans = plansData || defaultPlansData;
+  const [selectedPlanName, setSelectedPlanName] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!loading) {
+      setSelectedPlanName(null);
+    }
+  }, [loading]);
+
+  const handleSelectPlan = async (
+    planName: string,
+    action: "UPGRADE" | "DOWNGRADE" | "SUBSCRIBE"
+  ) => {
+    setSelectedPlanName(planName);
+    await onSelectPlan?.(planName, action);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -164,11 +179,11 @@ export function PlanModal({
               isGradient={plan.isGradient}
               currentPlan={currentPlan}
               isTrialActive={isTrialActive}
-              onSelectPlan={onSelectPlan}
+              onSelectPlan={handleSelectPlan}
               isDescription={isDescription}
               isShowFooterButton={showFooterButtons}
-              loading={loading}
-              globalLoading={loading}
+              loading={loading && selectedPlanName === plan.name}
+              globalLoading={loading || selectedPlanName !== null}
             />
           ))}
         </div>
@@ -176,4 +191,3 @@ export function PlanModal({
     </Dialog>
   );
 }
-

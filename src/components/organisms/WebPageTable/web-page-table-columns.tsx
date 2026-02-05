@@ -58,11 +58,14 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         placeholder: "Select page type...",
         variant: "select",
         options: [
-          { label: "Geo page", value: "geographic landing page" },
-          { label: "Section in page", value: "section in existing page" },
-          { label: "Use case page", value: "category-use case page" },
-          { label: "Audience page", value: "category-audience page" },
-          { label: "Blog", value: "Blog" },
+          { label: "Blog", value: "blog" },
+          { label: "Reviews Section", value: "reviews section" },
+          { label: "Product/Service Page", value: "product/service page" },
+          { label: "Page Section", value: "page section" },
+          { label: "Use Case", value: "use case" },
+          { label: "Comparison", value: "comparison" },
+          { label: "Audience", value: "audience" },
+          { label: "Benefits", value: "benefits" },
         ],
         icon: Tag,
       },
@@ -130,7 +133,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       enableColumnFilter: true,
       enableSorting: true,
       size: 100,
-      minSize: 110,
+      minSize: 100,
       maxSize: 160,
     },
     {
@@ -260,7 +263,26 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
     },
     {
       id: "actions",
-      header: () => <div className="text-center">Actions</div>,
+      accessorFn: (row) => {
+        const status = (row.status || "").toString().toLowerCase();
+        const VIEW_ACTION_STATUSES = new Set([
+          "success",
+          "update_required",
+          "outline_only",
+          "final_only",
+          "pending",
+          "processing",
+        ]);
+        
+        if (VIEW_ACTION_STATUSES.has(status)) {
+          return "View";
+        }
+        
+        return "Generate";
+      },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Actions" />
+      ),
       cell: ({ row }) => {
         return (
           <div className="flex items-center justify-center">
@@ -269,13 +291,15 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         );
       },
       meta: {
+        label: "Actions",
         align: "center",
       },
       enableColumnFilter: false,
-      enableSorting: false,
-      size: 70,
-      minSize: 70,
-      maxSize: 70,
+      enableSorting: true,
+      sortingFn: "text",
+      size: 90,
+      minSize: 90,
+      maxSize: 120,
     },
   ];
 

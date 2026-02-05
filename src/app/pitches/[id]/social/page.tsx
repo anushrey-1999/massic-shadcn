@@ -35,6 +35,6 @@ export default function PitchSocialPage() {
     );
   }
 
-  return <BusinessSocialPage params={businessParams} isReadOnly={true} skipEntitlements />;
+  return <BusinessSocialPage params={businessParams} isReadOnly={true} skipEntitlements/>;
 }
 

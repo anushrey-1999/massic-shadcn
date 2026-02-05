@@ -26,7 +26,7 @@ interface UseSubscriptionResult {
   handleAddBusinessToSubscription: (params: { business: any; planName: string }) => Promise<void>;
   handleChangePlan: (params: { business: any; planName: string; action: string; closeAllModals?: () => void }) => Promise<void>;
   handleSubscribeToPlan: (params: SubscribeParams) => Promise<void>;
-  refetchData: () => Promise<void>;
+  refetchData: () => Promise<any>;
   data: any;
 }
 
@@ -182,13 +182,14 @@ export const useSubscription = (): UseSubscriptionResult => {
   }, [isWhitelisted, api, user?.uniqueId]);
 
   const refetchData = async () => {
-    await refetchSubscriptionQuery();
+    const result = await refetchSubscriptionQuery();
     // Invalidate business profiles query if it exists
     // Assuming there is a query key for business profiles like 'business-profiles' or similar
     await queryClient.invalidateQueries({ queryKey: ["business-profiles"] });
     // Also try to reload window if we really need a hard refresh for some reason, 
     // but usually query invalidation is enough. 
     // For now, we'll just stick to query invalidation.
+    return result?.data ?? null;
   };
 
   const handleSubscribeToPlan = useCallback(async ({ business, planName, action, closeAllModals }: SubscribeParams) => {

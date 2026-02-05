@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Eye, Sparkles, X } from "lucide-react";
+import { Eye, Sparkles, X, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { TacticRow } from "@/types/social-types";
@@ -73,25 +73,57 @@ export function SocialActionCell({
   const { startGeneration } = useSocialActions();
 
   const campaignClusterId = React.useMemo(() => getCampaignClusterId(row), [row]);
+  const tacticsChannel = React.useMemo(
+    () =>
+      (channelName ||
+        (row as any).channel_name ||
+        (row as any).channelName ||
+        null) as string | null,
+    [channelName, row]
+  );
+  const tacticsCampaign = React.useMemo(
+    () =>
+      ((row as any).campaign_name ||
+        (row as any).campaignName ||
+        null) as string | null,
+    [row]
+  );
+
+  const tacticsQueryKey = React.useMemo(
+    () => ["tactics-all", businessId, tacticsChannel || null, tacticsCampaign || null],
+    [businessId, tacticsChannel, tacticsCampaign]
+  );
 
   const [open, setOpen] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
   const [justGenerated, setJustGenerated] = React.useState(false);
+  const [shouldPoll, setShouldPoll] = React.useState(false);
 
   const contentQuery = useSocialActionContentQuery({
     businessId,
     campaignClusterId: campaignClusterId || "",
-    enabled: open && !!campaignClusterId,
+    enabled: (open || shouldPoll) && !!campaignClusterId,
     pollingIntervalMs: 3000,
   });
 
   const status = (contentQuery.data?.status || "").toString().toLowerCase();
   const isGenerating = status === "pending" || status === "processing";
+  const isErrorStatus = status === "error";
 
   // Clear justGenerated flag when generation completes
   React.useEffect(() => {
     if (justGenerated && !isGenerating && status === "success") {
       setJustGenerated(false);
+    }
+  }, [justGenerated, isGenerating, status]);
+
+  React.useEffect(() => {
+    if (status === "success") {
+      setShouldPoll(false);
+      return;
+    }
+    if (justGenerated || isGenerating) {
+      setShouldPoll(true);
     }
   }, [justGenerated, isGenerating, status]);
 
@@ -114,7 +146,7 @@ export function SocialActionCell({
       if (campaignClusterId && latestStatus) {
         // Silently update the tactics data with the latest status without showing loading
         queryClient.setQueriesData(
-          { queryKey: ["tactics-all", businessId] },
+          { queryKey: tacticsQueryKey, exact: true },
           (oldData: any) => {
             if (!Array.isArray(oldData)) return oldData;
 
@@ -134,8 +166,19 @@ export function SocialActionCell({
           type: "inactive",
         });
       }
+
+      // Refresh tactics listing so row status updates after closing the modal
+      window.dispatchEvent(
+        new CustomEvent("tactics-refetch-silent", {
+          detail: { businessId },
+        })
+      );
+      queryClient.refetchQueries({
+        queryKey: tacticsQueryKey,
+        exact: true,
+      });
     },
-    [businessId, campaignClusterId, contentQuery.data?.status, queryClient]
+    [businessId, campaignClusterId, contentQuery.data?.status, queryClient, tacticsQueryKey]
   );
 
   const handleOpen = (e: React.MouseEvent) => {
@@ -157,23 +200,24 @@ export function SocialActionCell({
     setOpen(true);
     setStarting(true);
     setJustGenerated(true);
+    setShouldPoll(true);
 
     try {
       const response = await startGeneration(businessId, campaignClusterId);
       const startedStatus = (response?.status || "pending").toString();
 
       queryClient.setQueriesData(
-        { queryKey: ["tactics", businessId] },
+        { queryKey: tacticsQueryKey, exact: true },
         (oldData: any) => {
-          if (!oldData || !Array.isArray(oldData.data)) return oldData;
+          if (!Array.isArray(oldData)) return oldData;
 
-          const nextRows = (oldData.data as TacticRow[]).map((r) => {
+          const nextRows = (oldData as TacticRow[]).map((r) => {
             const id = getCampaignClusterId(r);
             if (id !== campaignClusterId) return r;
             return { ...r, status: startedStatus };
           });
 
-          return { ...oldData, data: nextRows };
+          return nextRows;
         }
       );
 
@@ -192,9 +236,7 @@ export function SocialActionCell({
 
   const title = row.title || row.cluster_name || "Social Content";
   const resolvedChannel = normalizeChannel(
-    channelName ||
-    (row as any).channel_name ||
-    (row as any).channelName ||
+    tacticsChannel ||
     (row as any).contentType ||
     ""
   );
@@ -252,13 +294,11 @@ export function SocialActionCell({
               </Button>
             </DialogClose>
 
-            {showGeneratingCard || isGenerating ? (
-              <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-10 text-center flex flex-col items-center justify-center gap-2">
+            {showGeneratingCard || isGenerating || (shouldPoll && (isNotGeneratedYet || contentQuery.isLoading)) ? (
+              <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-10 text-center flex flex-col items-center justify-center gap-3">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <Typography variant="p" className="text-muted-foreground">
-                  Generating social content... This may take a few minutes.
-                </Typography>
-                <Typography variant="p" className="text-muted-foreground">
-                  Keep this window open.
+                  Generating content...
                 </Typography>
               </div>
             ) : isNotGeneratedYet ? (
@@ -270,14 +310,15 @@ export function SocialActionCell({
                   Generate
                 </Button>
               </div>
-            ) : contentQuery.error ? (
+            ) : contentQuery.error || isErrorStatus ? (
               <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-8 text-center space-y-2 flex flex-col items-center justify-center">
                 <Typography variant="p" className="text-destructive">
-                  Failed to load social content
+                  Something Went Wrong
                 </Typography>
                 <Typography variant="p" className="text-muted-foreground">
                   {(contentQuery.error as any)?.response?.data?.detail ||
                     (contentQuery.error as any)?.message ||
+                    (contentQuery.data as any)?.message ||
                     "An error occurred"}
                 </Typography>
                 <Button type="button" variant="outline" onClick={() => contentQuery.refetch()}>

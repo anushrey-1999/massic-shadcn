@@ -253,6 +253,14 @@ const ProfileTemplate = ({
       })
     );
 
+    const calendarEventsList = parseArrayField((profileData as any).CalendarEvents).map(
+      (event: any): CalendarEventRow => ({
+        eventName: event.eventName || "",
+        startDate: event.startDate || null,
+        endDate: event.endDate || null,
+      })
+    );
+
     const normalizeUsps = (raw: unknown): string[] => {
       if (!raw) return [];
       if (Array.isArray(raw)) {
@@ -279,13 +287,6 @@ const ProfileTemplate = ({
       (jobDetails as any)?.usps ?? (jobDetails as any)?.USPs
     );
     const usps = uspsFromJob.join(", ");
-    const calendarEventsList = parseArrayField((profileData as any).CalendarEvents).map(
-      (event: any): CalendarEventRow => ({
-        eventName: event.eventName || "",
-        startDate: event.startDate || null,
-        endDate: event.endDate || null,
-      })
-    );
 
     // Brand Voice from business API - convert to lowercase for checkboxes
     // IMPORTANT: Checkboxes in ContentCuesForm expect lowercase values (e.g., "professional", "bold")

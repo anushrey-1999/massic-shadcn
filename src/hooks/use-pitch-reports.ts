@@ -168,6 +168,46 @@ function normalizeStatus(value: unknown): string {
   return String(value || "").trim().toLowerCase();
 }
 
+function extractSubscriptionError(error: any): string | null {
+  if (!error) return null;
+
+  const response = error?.response;
+  if (!response) return null;
+
+  const status = response.status;
+  if (status !== 403) return null;
+
+  const data = response.data;
+  if (!data) return null;
+
+  const detail = data.detail;
+  if (!detail) return null;
+
+  // Handle string detail
+  if (typeof detail === "string") return detail;
+
+  // Handle object detail
+  if (typeof detail === "object") {
+    // Try to get message property
+    const message = detail.message;
+    if (typeof message === "string" && message) return message;
+
+    // Try to stringify the detail object to show it
+    try {
+      const jsonStr = JSON.stringify(detail);
+      if (jsonStr && jsonStr !== '{}') return jsonStr;
+    } catch {
+      // Ignore stringify errors
+    }
+  }
+
+  return null;
+}
+
+function is403Error(error: any): boolean {
+  return error?.response?.status === 403;
+}
+
 export function useStartQuickyReport() {
   const queryClient = useQueryClient();
   return useMutation<ReportStatusResponse, Error, { businessId: string }>({
@@ -184,8 +224,19 @@ export function useStartQuickyReport() {
       queryClient.invalidateQueries({ queryKey: ["pitches"] });
     },
     onError: (error) => {
+      if (is403Error(error)) {
+        const subscriptionError = extractSubscriptionError(error);
+        if (subscriptionError) {
+          toast.error("Subscription Required", {
+            description: subscriptionError,
+          });
+          return;
+        }
+      }
+
+      const errorMessage = error.message || "Please try again.";
       toast.error("Failed to start snapshot", {
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     },
   });
@@ -201,9 +252,14 @@ export function useQuickyReportStatus(params: {
     queryKey: ["quicky", "status", businessId],
     queryFn: async () => {
       if (!businessId) return null;
-      return api.get<ReportStatusResponse>("/client/quicky", "python", {
-        params: { business_id: businessId },
-      });
+      try {
+        return await api.get<ReportStatusResponse>("/client/quicky", "python", {
+          params: { business_id: businessId },
+        });
+      } catch (error: any) {
+        if (error?.response?.status === 403) return null;
+        throw error;
+      }
     },
     enabled: enabled && !!businessId,
     staleTime: 0,
@@ -251,8 +307,19 @@ export function useGenerateQuickyReport() {
       queryClient.invalidateQueries({ queryKey: ["pitches"] });
     },
     onError: (error) => {
+      if (is403Error(error)) {
+        const subscriptionError = extractSubscriptionError(error);
+        if (subscriptionError) {
+          toast.error("Subscription Required", {
+            description: subscriptionError,
+          });
+          return;
+        }
+      }
+
+      const errorMessage = error.message || "Please try again.";
       toast.error("Failed to generate snapshot", {
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     },
   });
@@ -271,8 +338,19 @@ export function useGenerateDetailedPitch() {
       return cleanEscapedContent(extractReportText(response));
     },
     onError: (error) => {
+      if (is403Error(error)) {
+        const subscriptionError = extractSubscriptionError(error);
+        if (subscriptionError) {
+          toast.error("Subscription Required", {
+            description: subscriptionError,
+          });
+          return;
+        }
+      }
+
+      const errorMessage = error.message || "Please try again.";
       toast.error("Failed to generate detailed pitch", {
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     },
   });
@@ -296,7 +374,7 @@ export function usePitchSummary(
 
         let content = "";
         const snapshotMarkdown = extractSnapshotSectionsMarkdown(response);
-        
+
         if (snapshotMarkdown) {
           content = snapshotMarkdown;
         } else {

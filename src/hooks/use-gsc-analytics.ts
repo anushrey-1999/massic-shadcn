@@ -473,7 +473,12 @@ export function useGSCAnalytics(
     }))
   }, [chartData])
 
-  const hasData = chartData.length > 0
+  const hasData = chartData.some(
+    (point) =>
+      (point.impressions ?? 0) > 0 ||
+      (point.clicks ?? 0) > 0 ||
+      (point.goals ?? 0) > 0
+  )
   const hasFunnelData = funnelData !== null
 
   const parseTableData = useCallback((jsonString: string): GSCTableRow[] => {

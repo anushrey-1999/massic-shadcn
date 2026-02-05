@@ -21,6 +21,7 @@ interface SocialTableClientProps {
 
 export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPrefix, isReadOnly = false }: SocialTableClientProps) {
   const [tacticsSearch, setTacticsSearch] = React.useState("");
+  const [suppressTacticsFetching, setSuppressTacticsFetching] = React.useState(false);
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
   const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
   const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
@@ -434,6 +435,23 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     enabled: !!businessId && !!jobExists && !jobLoading && isDetailView && !!tacticsChannel && !!campaignName,
   });
 
+  React.useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ businessId?: string }>).detail;
+      if (!detail?.businessId || detail.businessId !== businessId) return;
+      setSuppressTacticsFetching(true);
+    };
+
+    window.addEventListener("tactics-refetch-silent", handler as EventListener);
+    return () => window.removeEventListener("tactics-refetch-silent", handler as EventListener);
+  }, [businessId]);
+
+  React.useEffect(() => {
+    if (suppressTacticsFetching && !tacticsFetching) {
+      setSuppressTacticsFetching(false);
+    }
+  }, [suppressTacticsFetching, tacticsFetching]);
+
   const filteredTacticsData = React.useMemo(() => {
     const rows = allTacticsData || [];
     const term = (tacticsSearch || "").trim().toLowerCase();
@@ -534,7 +552,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
           businessId={businessId}
           data={filteredTacticsData || []}
           isLoading={tacticsLoading && !allTacticsData}
-          isFetching={tacticsFetching}
+          isFetching={tacticsFetching && !suppressTacticsFetching}
           search={tacticsSearch}
           onSearchChange={setTacticsSearch}
           onBack={handleBackToMain}

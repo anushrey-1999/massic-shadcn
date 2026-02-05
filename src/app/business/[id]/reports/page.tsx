@@ -5,6 +5,7 @@ import * as React from "react";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { ReportsTableClient } from "@/components/organisms/ReportsTable/reports-table-client";
+import { AnalyticsPageTabs } from "@/components/molecules/analytics";
 
 interface PageProps {
   params: Promise<{
@@ -58,6 +59,9 @@ export default function BusinessReportsPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
+      <div className="w-full max-w-[1224px] px-7 flex items-center gap-4 py-4">
+        <AnalyticsPageTabs businessId={businessId} />
+      </div>
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
         <div className="flex-1 min-h-0 overflow-hidden">
           <ReportsTableClient businessId={businessId} />

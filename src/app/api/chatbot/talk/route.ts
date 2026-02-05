@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   }
 
   const upstreamResponse = await fetch(
-    `${promptUrl.replace(/\/$/, "")}/chatbot/talk-to-workflow?business_id=${encodeURIComponent(
+    `${promptUrl.replace(/\/$/, "")}/chatbot/conversation?business_id=${encodeURIComponent(
       businessId
     )}`,
     {

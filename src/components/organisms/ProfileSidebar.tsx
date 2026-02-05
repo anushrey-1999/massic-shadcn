@@ -32,6 +32,11 @@ export function ProfileSidebar({
   buttonHelperText,
   isWorkflowProcessing = false,
 }: ProfileSidebarProps) {
+  const helperTextClass =
+    buttonHelperText === "Checking your plan..."
+      ? "text-foreground"
+      : "text-destructive";
+
   return (
     <div className="flex flex-col gap-2 sticky top-20">
       {/* Section Navigation */}
@@ -85,7 +90,9 @@ export function ProfileSidebar({
             </p>
           )}
           {!isWorkflowProcessing && buttonDisabled && buttonHelperText ? (
-            <p className="mt-2 text-xs text-destructive">{buttonHelperText}</p>
+            <p className={cn("mt-2 text-xs", helperTextClass)}>
+              {buttonHelperText}
+            </p>
           ) : null}
         </CardContent>
       </Card>

@@ -593,10 +593,14 @@ export default function AppSidebar() {
                                 {businessSubItems.map((subItem) => {
                                   const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
                                   const reportsPath = `/business/${business.UniqueId}/reports`
+                                  const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
                                   const itemBasePath = `/business/${business.UniqueId}/${subItem.slug}`
                                   let isActive = false
                                   if (subItem.slug === 'analytics') {
-                                    isActive = pathname === subItemHref || pathname.startsWith(reportsPath)
+                                    isActive =
+                                      pathname === subItemHref ||
+                                      pathname.startsWith(reportsPath) ||
+                                      pathname.startsWith(organicDeepdivePath)
                                   } else if (subItem.slug === 'profile') {
                                     isActive = pathname === subItemHref
                                   } else {

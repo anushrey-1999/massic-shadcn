@@ -28,16 +28,19 @@ interface PageProps {
     id: string
   }>
   skipEntitlements?: boolean
+  isReadOnly?: boolean
 }
 
 function SocialEntitledContent({
   businessId,
   selectedChannel,
   onChannelSelect,
+  isReadOnly,
 }: {
   businessId: string
   selectedChannel: string | null
   onChannelSelect: (channel: string | null) => void
+  isReadOnly?: boolean
 }) {
 
   const [socialView, setSocialView] = React.useState<"list" | "bubble">("list")
@@ -199,7 +202,7 @@ function SocialEntitledContent({
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
       <div className="flex-1 min-h-0 overflow-hidden">
         {socialView === "list" ? (
-          <SocialTableClient businessId={businessId} toolbarRightPrefix={socialViewTabs} />
+          <SocialTableClient businessId={businessId} toolbarRightPrefix={socialViewTabs} isReadOnly={isReadOnly} />
         ) : (
           <div className="bg-white rounded-lg p-4 h-full flex flex-col gap-3">
             <div className="shrink-0 flex items-center justify-between gap-4">
@@ -291,7 +294,7 @@ function SocialEntitledContent({
   )
 }
 
-export default function BusinessSocialPage({ params, skipEntitlements = false }: PageProps) {
+export default function BusinessSocialPage({ params, skipEntitlements = false, isReadOnly }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [selectedChannel, setSelectedChannel] = useQueryState(
     "channel_name",
@@ -351,6 +354,7 @@ export default function BusinessSocialPage({ params, skipEntitlements = false }:
       businessId={businessId}
       selectedChannel={selectedChannel || null}
       onChannelSelect={(channel) => setSelectedChannel(channel)}
+      isReadOnly={isReadOnly}
     />
   ) : (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
@@ -366,17 +370,19 @@ export default function BusinessSocialPage({ params, skipEntitlements = false }:
       <PageHeader
         breadcrumbs={breadcrumbs}
       />
-      {skipEntitlements ? (
-        content
-      ) : (
-        <EntitlementsGuard
-          entitlement="content"
-          businessId={businessId}
-          alertMessage="Upgrade your plan to unlock Social content generation."
-        >
-          {content}
-        </EntitlementsGuard>
-      )}
-    </div>
+  {
+    skipEntitlements ? (
+      content
+    ) : (
+      <EntitlementsGuard
+        entitlement="content"
+        businessId={businessId}
+        alertMessage="Upgrade your plan to unlock Social content generation."
+      >
+        {content}
+      </EntitlementsGuard>
+    )
+  }
+    </div >
   )
 }

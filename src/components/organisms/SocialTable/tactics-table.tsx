@@ -20,6 +20,7 @@ interface TacticsTableProps {
   onSearchChange?: (value: string) => void;
   onBack?: () => void;
   channelName?: string;
+  hideActions?: boolean;
 }
 
 export function TacticsTable({
@@ -31,6 +32,7 @@ export function TacticsTable({
   onSearchChange,
   onBack,
   channelName,
+  hideActions = false,
 }: TacticsTableProps) {
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
 
@@ -83,9 +85,10 @@ export function TacticsTable({
       channelName, 
       businessId, 
       expandedRowId, 
-      onExpandedRowChange: handleExpandedRowChange 
+      onExpandedRowChange: handleExpandedRowChange,
+      hideActions
     }),
-    [channelName, businessId, expandedRowId, handleExpandedRowChange]
+    [channelName, businessId, expandedRowId, handleExpandedRowChange, hideActions]
   );
 
   const { table } = useLocalDataTable({

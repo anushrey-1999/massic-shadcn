@@ -107,7 +107,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const finalContent =
     type === "blog"
       ? cleanEscapedContent(data?.output_data?.page?.blog?.blog_post || "")
-      : cleanEscapedContent(data?.output_data?.page?.page_content || "");
+      : cleanEscapedContent(data?.output_data?.page?.page_content?.page_content || "");
   const hasFinalContent = !!finalContent && finalContent.trim().length > 0;
   const hasOutline = !!outline && outline.trim().length > 0;
   const isGeneratingFinal = hasOutline && !hasFinalContent;

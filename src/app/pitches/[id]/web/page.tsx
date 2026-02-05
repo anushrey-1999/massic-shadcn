@@ -71,7 +71,7 @@ function PitchWebSuccessView({ businessId }: { businessId: string }) {
           profileHref={`/pitches/${businessId}/profile`}
           emptyStateHeight="min-h-[calc(100vh-16rem)]"
         />
-        <WebPageTableClient businessId={businessId} />
+        <WebPageTableClient businessId={businessId} hideActions={true}/>
       </div>
     </div>
   );

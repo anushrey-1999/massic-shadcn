@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryState, parseAsJson } from "nuqs";
 import { DataTable } from "../../filter-table/index";
 import { DataTableFilterList } from "../../filter-table/data-table-filter-list";
 import { DataTableSortList } from "../../filter-table/data-table-sort-list";
@@ -21,6 +22,7 @@ interface WebPageTableProps {
   isFetching?: boolean;
   search?: string;
   onSearchChange?: (value: string) => void;
+  hideActions?: boolean;
 }
 
 export function WebPageTable({
@@ -33,10 +35,22 @@ export function WebPageTable({
   isFetching = false,
   search = "",
   onSearchChange,
+  hideActions = false,
 }: WebPageTableProps) {
   const enableAdvancedFilter = true;
 
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+  
+  // Track sort state from URL
+  const [sort] = useQueryState(
+    "sort",
+    parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
+      if (Array.isArray(value)) {
+        return value as Array<{ field: string; desc: boolean }>;
+      }
+      return null;
+    }).withDefault([])
+  );
 
   const columns = React.useMemo(
     () =>
@@ -45,12 +59,50 @@ export function WebPageTable({
         offeringCounts,
         expandedRowId,
         onExpandedRowChange: setExpandedRowId,
+        hideActions,
       }),
-    [businessId, offeringCounts, expandedRowId]
+    [businessId, offeringCounts, expandedRowId, hideActions]
   );
 
+  // Sort data client-side when actions column is being sorted
+  const sortedData = React.useMemo(() => {
+    // Don't sort if there's no data
+    if (!data || data.length === 0) return data;
+    
+    // Check if actions column is being sorted
+    const actionsSort = sort.find((s) => s.field === 'actions');
+    
+    if (!actionsSort) return data;
+    
+    // Apply client-side sorting for actions column
+    return [...data].sort((a, b) => {
+      const getActionValue = (row: WebPageRow) => {
+        const status = (row.status || "").toString().toLowerCase();
+        const VIEW_ACTION_STATUSES = new Set([
+          "success",
+          "update_required",
+          "outline_only",
+          "final_only",
+          "pending",
+          "processing",
+        ]);
+        return VIEW_ACTION_STATUSES.has(status) ? "View" : "Generate";
+      };
+      
+      const aValue = getActionValue(a);
+      const bValue = getActionValue(b);
+      
+      // First click (desc=false): View first
+      // Second click (desc=true): Generate first
+      if (actionsSort.desc) {
+        return aValue.localeCompare(bValue); // Generate first
+      }
+      return bValue.localeCompare(aValue); // View first
+    });
+  }, [data, sort]);
+
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
-    data,
+    data: sortedData,
     columns,
     pageCount,
     enableAdvancedFilter,

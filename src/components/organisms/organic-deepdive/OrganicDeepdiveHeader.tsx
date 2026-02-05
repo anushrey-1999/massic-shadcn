@@ -1,8 +1,6 @@
 "use client";
 
-import { Search, X } from "lucide-react";
-import { PeriodSelector } from "@/components/molecules/analytics";
-import { type TimePeriodValue } from "@/hooks/use-gsc-analytics";
+import { X } from "lucide-react";
 import {
   type DeepdiveFilter,
   type FilterDimension,
@@ -43,29 +41,17 @@ function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
 }
 
 interface OrganicDeepdiveHeaderProps {
-  period: TimePeriodValue;
-  onPeriodChange: (value: TimePeriodValue) => void;
   filters: DeepdiveFilter[];
   onRemoveFilter: (dimension: FilterDimension) => void;
 }
 
 export function OrganicDeepdiveHeader({
-  period,
-  onPeriodChange,
   filters,
   onRemoveFilter,
 }: OrganicDeepdiveHeaderProps) {
   return (
     <div className="flex items-center justify-between py-4 w-full">
-      <div className="flex gap-2 items-center">
-        <Search className="h-[22px] w-[22px] text-general-muted-foreground" strokeWidth={1.5} />
-        <p className="font-mono font-normal leading-normal text-base text-general-muted-foreground">
-          Organic Deep Dive
-        </p>
-        <div className="ml-2">
-          <PeriodSelector value={period} onValueChange={onPeriodChange} />
-        </div>
-      </div>
+      <div />
 
       {filters.length > 0 && (
         <div className="flex gap-2 items-center">

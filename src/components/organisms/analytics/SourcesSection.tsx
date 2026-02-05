@@ -56,8 +56,9 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         <Typography variant="h2">Sources</Typography>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 pt-10">
+      <div className="grid grid-cols-2 gap-3 pt-10 items-stretch">
         <DataTable
+          className="h-full"
           icon={<Eye className="h-6 w-6" />}
           title="Sources that drive the most conversion"
           showTabs
@@ -87,6 +88,7 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         />
 
         <SourcesChannelsChart
+          fillHeight
           data={normalizedChannelsData}
           isLoading={isLoading}
           hasData={hasChannelsData}

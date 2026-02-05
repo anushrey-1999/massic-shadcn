@@ -2,10 +2,8 @@
 
 import { useState, useMemo, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { useBusinessStore } from "@/store/business-store";
 import { PageHeader } from "@/components/molecules/PageHeader";
-import { Button } from "@/components/ui/button";
 import { type TimePeriodValue } from "@/hooks/use-gsc-chart-data";
 import { type TimePeriodValue as AnalyticsTimePeriodValue } from "@/hooks/use-gsc-analytics";
 import { OrganicChartSection } from "@/components/organisms/organic-deepdive/OrganicChartSection";
@@ -14,6 +12,7 @@ import { TopPagesSection } from "@/components/organisms/organic-deepdive/TopPage
 import { TopQueriesSection } from "@/components/organisms/organic-deepdive/TopQueriesSection";
 import { PositionDistributionSection } from "@/components/organisms/organic-deepdive/PositionDistributionSection";
 import { OrganicDeepdiveHeader } from "@/components/organisms/organic-deepdive/OrganicDeepdiveHeader";
+import { AnalyticsPageTabs, PeriodSelector } from "@/components/molecules/analytics";
 import {
   ChartSectionSkeleton,
   TableSectionSkeleton,
@@ -79,20 +78,19 @@ export function OrganicDeepdiveTemplate() {
       <div className="sticky top-0 z-11 bg-foreground-light border-b border-general-border">
         <PageHeader breadcrumbs={breadcrumbs} />
 
-        {/* <div className="flex items-center justify-between py-4 px-7 bg-foreground-light border-b border-general-border">
-          <div className="flex items-center gap-3">
-            
-          </div>
-        </div> */}
-
-        <div className="w-full max-w-[1224px] px-7">
-          <OrganicDeepdiveHeader
-            period={period}
-            onPeriodChange={handlePeriodChange}
-            filters={filters}
-            onRemoveFilter={removeFilter}
-          />
+        <div className="w-full max-w-[1224px] px-7 flex items-center justify-between gap-4 py-4">
+          <AnalyticsPageTabs businessId={businessUniqueId} />
+          <PeriodSelector value={period} onValueChange={handlePeriodChange} />
         </div>
+
+        {filters.length > 0 ? (
+          <div className="w-full max-w-[1224px] px-7">
+            <OrganicDeepdiveHeader
+              filters={filters}
+              onRemoveFilter={removeFilter}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="flex-1 overflow-y-auto">

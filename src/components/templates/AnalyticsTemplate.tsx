@@ -1,39 +1,24 @@
 "use client";
 
-import { useRef, useState, useEffect, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { usePathname } from "next/navigation";
 import { OrganicPerformanceSection } from "@/components/organisms/analytics/OrganicPerformanceSection";
-import { LocalSearchSection } from "@/components/organisms/analytics/LocalSearchSection";
-import { ReviewsSection } from "@/components/organisms/analytics/ReviewsSection";
-import { PeriodSelector } from "../molecules/analytics";
+import { AnalyticsPageTabs, PeriodSelector } from "../molecules/analytics";
 import { PageHeader } from "@/components/molecules/PageHeader";
-import { TIME_PERIODS, type TimePeriodValue } from "@/hooks/use-gsc-analytics";
+import { type TimePeriodValue } from "@/hooks/use-gsc-analytics";
 import { useBusinessStore } from "@/store/business-store";
 import DiscoveryPerformanceSection from "@/components/organisms/analytics/DiscoveryPerformanceSection";
 import SourcesSection from "@/components/organisms/analytics/SourcesSection";
 import ConversionSection from "@/components/organisms/analytics/ConversionSection";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 import { usePrefetchAnalyticsPages } from "@/hooks/use-prefetch-analytics-pages";
-import { MapPin } from "lucide-react";
-import { Typography } from "@/components/ui/typography";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 export function AnalyticsTemplate() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState("overview");
   const [selectedPeriod, setSelectedPeriod] =
     useState<TimePeriodValue>("3 months");
-  const [selectedLocation, setSelectedLocation] = useState("");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const pathname = usePathname();
@@ -104,34 +89,6 @@ export function AnalyticsTemplate() {
     [businessName, businessId]
   );
 
-  const locations = useMemo(() => {
-    if (!businessProfile?.Locations || businessProfile.Locations.length === 0) {
-      return [];
-    }
-    return businessProfile.Locations.map((loc, index) => ({
-      value: `${loc.Name}__${index}`,
-      name: loc.Name,
-      label: `${loc.DisplayName} - ${index + 1}`,
-    }));
-  }, [businessProfile]);
-
-  useEffect(() => {
-    if (locations.length === 0) {
-      if (selectedLocation) setSelectedLocation("");
-      return;
-    }
-
-    const exists = locations.some((loc) => loc.value === selectedLocation);
-    if (!exists) {
-      setSelectedLocation(locations[0].value);
-    }
-  }, [locations, selectedLocation]);
-
-  const selectedLocationName = useMemo(() => {
-    if (!selectedLocation) return "";
-    const match = locations.find((loc) => loc.value === selectedLocation);
-    return match?.name || "";
-  }, [locations, selectedLocation]);
 
   return (
     <div className="flex flex-col min-h-screen scroll-smooth ">
@@ -164,21 +121,7 @@ export function AnalyticsTemplate() {
           breadcrumbs={breadcrumbs}
         />
         <div className="w-full max-w-[1224px] px-7 flex items-center justify-between gap-4 py-4">
-          <Tabs value={activeTab} onValueChange={(value) => {
-            if (value === "reports" && businessId) {
-              router.push(`/business/${businessId}/reports`);
-            } else if (value === "organic-deep-dive" && businessId) {
-              router.push(`/business/${businessId}/organic-deepdive`);
-            } else {
-              setActiveTab(value);
-            }
-          }}>
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="organic-deep-dive">Organic Deep Dive</TabsTrigger>
-              <TabsTrigger value="reports">Reports</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <AnalyticsPageTabs businessId={businessId} />
           <PeriodSelector
             value={selectedPeriod}
             onValueChange={setSelectedPeriod}
@@ -188,61 +131,12 @@ export function AnalyticsTemplate() {
 
       {/* Tab Content */}
       <div className="w-full max-w-[1224px] flex flex-col">
-        <Tabs value={activeTab} className="w-full">
-          <TabsContent value="overview" className="mt-0">
-            <div className="p-7 pb-10">
-              <OrganicPerformanceSection period={selectedPeriod} />
-            </div>
-            <DiscoveryPerformanceSection period={selectedPeriod} />
-            <SourcesSection period={selectedPeriod} />
-            <ConversionSection period={selectedPeriod} />
-          </TabsContent>
-
-          <TabsContent value="organic-deep-dive" className="mt-0">
-            <div className="px-7 pb-10">
-              <div className="flex items-center justify-between border-b border-general-muted-foreground py-5">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-8 w-8 text-general-foreground" />
-                  <Typography variant="h2">Local Search</Typography>
-                </div>
-
-                {locations.length > 0 ? (
-                  <Select
-                    value={selectedLocation}
-                    onValueChange={setSelectedLocation}
-                  >
-                    <SelectTrigger className="w-[220px]">
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map((location, index) => (
-                        <SelectItem
-                          key={`${location.value}-${index}`}
-                          value={location.value}
-                        >
-                          {location.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-              </div>
-
-              <div className="pt-10 flex flex-col gap-3">
-                <LocalSearchSection
-                  period={selectedPeriod}
-                  locations={locations}
-                  selectedLocation={selectedLocationName}
-                />
-
-                <ReviewsSection
-                  period={selectedPeriod}
-                  selectedLocation={selectedLocationName}
-                />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        <div className="p-7 pb-10">
+          <OrganicPerformanceSection period={selectedPeriod} />
+        </div>
+        <DiscoveryPerformanceSection period={selectedPeriod} />
+        <SourcesSection period={selectedPeriod} />
+        <ConversionSection period={selectedPeriod} />
       </div>
     </div>
   );

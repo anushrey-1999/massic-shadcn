@@ -39,6 +39,7 @@ export interface GSCTrendData {
 
 export interface GSCChartDataPoint {
   date: string
+  dateKey?: string
   impressions: number
   clicks: number
   goals?: number
@@ -165,6 +166,76 @@ function formatDate(dateString: string): string {
   }
 }
 
+function normalizeDateKey(value: string): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  const dashedMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
+  if (dashedMatch) {
+    return `${dashedMatch[1]}-${dashedMatch[2]}-${dashedMatch[3]}`
+  }
+  const compactMatch = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed)
+  if (compactMatch) {
+    return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`
+  }
+  return null
+}
+
+function dateFromKey(dateKey: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2]) - 1
+  const day = Number(match[3])
+  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null
+  return new Date(Date.UTC(year, month, day))
+}
+
+function formatDateKey(date: Date): string {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
+  const day = String(date.getUTCDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function formatDateLabel(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
+}
+
+function addDaysUtc(date: Date, days: number): Date {
+  const next = new Date(date)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next
+}
+
+function addMonthsUtc(date: Date, months: number): Date {
+  const next = new Date(date)
+  next.setUTCMonth(next.getUTCMonth() + months)
+  return next
+}
+
+function getPeriodStartDate(period: TimePeriodValue, endDate: Date): Date {
+  switch (period) {
+    case "7 days":
+      return addDaysUtc(endDate, -6)
+    case "14 days":
+      return addDaysUtc(endDate, -13)
+    case "28 days":
+      return addDaysUtc(endDate, -27)
+    case "3 months":
+      return addMonthsUtc(endDate, -3)
+    case "6 months":
+      return addMonthsUtc(endDate, -6)
+    case "12 months":
+      return addMonthsUtc(endDate, -12)
+    default:
+      return addMonthsUtc(endDate, -3)
+  }
+}
+
 export function useGSCAnalytics(
   businessUniqueId: string | null,
   website: string | null,
@@ -216,7 +287,7 @@ export function useGSCAnalytics(
     gcTime: 30 * 60 * 1000,
   })
 
-  const chartData = useMemo<GSCChartDataPoint[]>(() => {
+  const rawChartData = useMemo<GSCChartDataPoint[]>(() => {
     if (!rawData?.data) return []
 
     const dateItem = rawData.data.find(
@@ -228,16 +299,56 @@ export function useGSCAnalytics(
       const parsed: GSCDateResponse = JSON.parse(dateItem.date)
       if (!parsed.rows || !Array.isArray(parsed.rows)) return []
 
-      return parsed.rows.map((row) => ({
-        date: formatDate(row.keys?.[0] ?? ""),
-        impressions: row.impressions ?? 0,
-        clicks: row.clicks ?? 0,
-        goals: row.goal,
-      }))
+      return parsed.rows
+        .map((row) => {
+          const rawKey = row.keys?.[0] ?? ""
+          const dateKey = normalizeDateKey(rawKey)
+          const dateFromRow = dateKey ? dateFromKey(dateKey) : null
+          return {
+            date: dateFromRow ? formatDateLabel(dateFromRow) : formatDate(rawKey),
+            dateKey: dateKey ?? rawKey,
+            impressions: row.impressions ?? 0,
+            clicks: row.clicks ?? 0,
+            goals: row.goal ?? 0,
+          }
+        })
+        .filter((row) => row.dateKey)
     } catch {
       return []
     }
   }, [rawData])
+
+  const chartData = useMemo<GSCChartDataPoint[]>(() => {
+    const now = new Date()
+    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    const availableDates = rawChartData
+      .map((row) => (row.dateKey ? dateFromKey(row.dateKey) : null))
+      .filter((value): value is Date => value instanceof Date)
+      .sort((a, b) => a.getTime() - b.getTime())
+    const lastAvailableDate = availableDates[availableDates.length - 1]
+    const endDate = lastAvailableDate ?? todayUtc
+    const startDate = getPeriodStartDate(period, endDate)
+
+    const dataByDate = new Map(
+      rawChartData
+        .filter((row) => row.dateKey)
+        .map((row) => [row.dateKey as string, row])
+    )
+
+    const filled: GSCChartDataPoint[] = []
+    for (let cursor = startDate; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
+      const key = formatDateKey(cursor)
+      const existing = dataByDate.get(key)
+      filled.push({
+        date: formatDateLabel(cursor),
+        impressions: existing?.impressions ?? 0,
+        clicks: existing?.clicks ?? 0,
+        goals: existing?.goals ?? 0,
+      })
+    }
+
+    return filled
+  }, [rawChartData, period])
 
   const trendData = useMemo<GSCTrendData>(() => {
     const defaultTrend: GSCTrendData = {

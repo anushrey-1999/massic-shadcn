@@ -24,6 +24,7 @@ interface SourcesChannelsChartProps {
   data: SourcesChannelsData[]
   title?: string
   height?: number
+  fillHeight?: boolean
   isLoading?: boolean
   hasData?: boolean
 }
@@ -37,6 +38,7 @@ export function SourcesChannelsChart({
   data,
   title = "Sources/Channels",
   height = 320,
+  fillHeight = false,
   isLoading = false,
   hasData = true,
 }: SourcesChannelsChartProps) {
@@ -121,7 +123,7 @@ export function SourcesChannelsChart({
   return (
     <div
       className="flex flex-col gap-2.5 rounded-lg p-3 border border-general-border bg-white"
-      style={{ minHeight: height, height: computedHeight }}
+      style={fillHeight ? { minHeight: height, height: "100%" } : { minHeight: height, height: computedHeight }}
     >
       <div className="flex-1 min-h-0">
         <ChartContainer config={chartConfig} className="h-full w-full justify-start aspect-auto">

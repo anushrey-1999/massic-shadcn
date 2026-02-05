@@ -103,6 +103,7 @@ export default function PitchReportsPage() {
         });
       } catch (error: any) {
         if (error?.response?.status === 404) return null;
+        if (error?.response?.status === 403) return null;
         throw error;
       }
     },
@@ -382,6 +383,7 @@ export default function PitchReportsPage() {
         });
       } catch (error: any) {
         if (error?.response?.status === 404) return null;
+        if (error?.response?.status === 403) return null;
         throw error;
       }
     },
@@ -410,6 +412,7 @@ export default function PitchReportsPage() {
         });
       } catch (error: any) {
         if (error?.response?.status === 404) return null;
+        if (error?.response?.status === 403) return null;
         throw error;
       }
     },
@@ -942,9 +945,16 @@ export default function PitchReportsPage() {
                               setSnapshotStarted(false);
                               startQuickyMutation.reset();
                               fetchReportMutation.reset();
-                              await startQuickyMutation.mutateAsync({ businessId });
-                              queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                              setSnapshotStarted(true);
+                              try {
+                                await startQuickyMutation.mutateAsync({ businessId });
+                                queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                                setSnapshotStarted(true);
+                              } catch (error) {
+                                // Error is already handled by mutation's onError (toast)
+                                // Reset states to hide the processing UI
+                                setActiveReport(null);
+                                setSnapshotStarted(false);
+                              }
                             };
 
                             await handleGenerateWithCreditsCheck("snapshot", generateSnapshot);
@@ -972,9 +982,16 @@ export default function PitchReportsPage() {
                             setSnapshotStarted(false);
                             startQuickyMutation.reset();
                             fetchReportMutation.reset();
-                            await startQuickyMutation.mutateAsync({ businessId });
-                            queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                            setSnapshotStarted(true);
+                            try {
+                              await startQuickyMutation.mutateAsync({ businessId });
+                              queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                              setSnapshotStarted(true);
+                            } catch (error) {
+                              // Error is already handled by mutation's onError (toast)
+                              // Reset states to hide the processing UI
+                              setActiveReport(null);
+                              setSnapshotStarted(false);
+                            }
                           };
 
                           await handleGenerateWithCreditsCheck("snapshot", generateSnapshot);
@@ -1087,12 +1104,19 @@ export default function PitchReportsPage() {
                               setDetailedPolling(false);
                               generateDetailedReportMutation.reset();
                               fetchReportMutation.reset();
-                              await generateDetailedReportMutation.mutateAsync({ businessId });
-                              queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                              queryClient.invalidateQueries({
-                                queryKey: ["detailed", "status", "existing", businessId],
-                              });
-                              setDetailedPolling(true);
+                              try {
+                                await generateDetailedReportMutation.mutateAsync({ businessId });
+                                queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                                queryClient.invalidateQueries({
+                                  queryKey: ["detailed", "status", "existing", businessId],
+                                });
+                                setDetailedPolling(true);
+                              } catch (error) {
+                                // Error is already handled by mutation's onError (toast)
+                                // Reset states to hide the processing UI
+                                setActiveReport(null);
+                                setDetailedPolling(false);
+                              }
                             };
 
                             await handleGenerateWithCreditsCheck("detailed", generateDetailed);
@@ -1124,12 +1148,19 @@ export default function PitchReportsPage() {
                             setDetailedPolling(false);
                             generateDetailedReportMutation.reset();
                             fetchReportMutation.reset();
-                            await generateDetailedReportMutation.mutateAsync({ businessId });
-                            queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                            queryClient.invalidateQueries({
-                              queryKey: ["detailed", "status", "existing", businessId],
-                            });
-                            setDetailedPolling(true);
+                            try {
+                              await generateDetailedReportMutation.mutateAsync({ businessId });
+                              queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                              queryClient.invalidateQueries({
+                                queryKey: ["detailed", "status", "existing", businessId],
+                              });
+                              setDetailedPolling(true);
+                            } catch (error) {
+                              // Error is already handled by mutation's onError (toast)
+                              // Reset states to hide the processing UI
+                              setActiveReport(null);
+                              setDetailedPolling(false);
+                            }
                           };
 
                           await handleGenerateWithCreditsCheck("detailed", generateDetailed);

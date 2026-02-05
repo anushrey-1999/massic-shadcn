@@ -23,6 +23,46 @@ function normalizeStatus(value: unknown): string {
   return String(value || "").trim().toLowerCase();
 }
 
+function extractSubscriptionError(error: any): string | null {
+  if (!error) return null;
+
+  const response = error?.response;
+  if (!response) return null;
+
+  const status = response.status;
+  if (status !== 403) return null;
+
+  const data = response.data;
+  if (!data) return null;
+
+  const detail = data.detail;
+  if (!detail) return null;
+
+  // Handle string detail
+  if (typeof detail === "string") return detail;
+
+  // Handle object detail
+  if (typeof detail === "object") {
+    // Try to get message property
+    const message = detail.message;
+    if (typeof message === "string" && message) return message;
+
+    // Try to stringify the detail object to show it
+    try {
+      const jsonStr = JSON.stringify(detail);
+      if (jsonStr && jsonStr !== '{}') return jsonStr;
+    } catch {
+      // Ignore stringify errors
+    }
+  }
+
+  return null;
+}
+
+function is403Error(error: any): boolean {
+  return error?.response?.status === 403;
+}
+
 // Trigger workflow for detailed report and poll its status
 export function useTriggerWorkflow() {
   return useMutation<WorkflowStatusResponse, Error, { businessId: string }>({
@@ -39,8 +79,19 @@ export function useTriggerWorkflow() {
       return response;
     },
     onError: (error) => {
+      if (is403Error(error)) {
+        const subscriptionError = extractSubscriptionError(error);
+        if (subscriptionError) {
+          toast.error("Subscription Required", {
+            description: subscriptionError,
+          });
+          return;
+        }
+      }
+
+      const errorMessage = error.message || "Please try again.";
       toast.error("Failed to prepare workflow", {
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     },
   });
@@ -66,7 +117,7 @@ export function usePollWorkflowStatus(businessId: string | null, enabled: boolea
     refetchInterval: (query) => {
       const data = query.state.data as WorkflowStatusResponse | null;
       const status = String(data?.status || "").toLowerCase().trim();
-      
+
       if (status === "pending" || status === "processing") {
         return 20000; // Poll every 20 seconds
       }
@@ -122,8 +173,19 @@ export function useGenerateDetailedReport() {
       return response;
     },
     onError: (error) => {
+      if (is403Error(error)) {
+        const subscriptionError = extractSubscriptionError(error);
+        if (subscriptionError) {
+          toast.error("Subscription Required", {
+            description: subscriptionError,
+          });
+          return;
+        }
+      }
+
+      const errorMessage = error.message || "Please try again.";
       toast.error("Failed to generate detailed report", {
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     },
   });

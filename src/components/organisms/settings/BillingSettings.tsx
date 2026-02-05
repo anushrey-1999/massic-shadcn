@@ -29,6 +29,11 @@ import { useBusinessStore, BusinessProfile } from "@/store/business-store";
 import { useSubscription, SubscribeParams } from "@/hooks/use-subscription";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { Typography } from "@/components/ui/typography";
+import { useMassicOpportunitiesStatus, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
+import { MassicOpportunitiesModal } from "@/components/molecules/MassicOpportunitiesModal";
+import { useAuthStore } from "@/store/auth-store";
+import { api } from "@/hooks/use-api";
+import { toast } from "sonner";
 
 const toTitleCasePlan = (planType?: string) => {
   if (!planType) return "";
@@ -112,6 +117,7 @@ const defaultPlansData: PlanData[] = [
 
 export function BillingSettings() {
   const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [massicOpportunitiesModalOpen, setMassicOpportunitiesModalOpen] = useState(false);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(
     null
   );
@@ -131,6 +137,11 @@ export function BillingSettings() {
     purchaseCredits,
     refetchData: refetchCredits,
   } = useExecutionCredits();
+  const { data: massicOpportunitiesStatus } = useMassicOpportunitiesStatus();
+  const cancelMassicOpportunities = useCancelMassicOpportunities();
+  const subscribeMassicOpportunities = useSubscribeMassicOpportunities();
+  const reactivateMassicOpportunities = useReactivateMassicOpportunities();
+  const { user } = useAuthStore();
 
   const loading = subscriptionLoading || creditsLoading;
 
@@ -171,6 +182,22 @@ export function BillingSettings() {
         isAddOn: false,
       },
       {
+        planName: "Massic Opportunities",
+        price: "499",
+        businessesLinked: massicOpportunitiesStatus?.cancel_at_period_end
+          ? `Cancels ${massicOpportunitiesStatus?.current_period_end ? new Date(massicOpportunitiesStatus.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}`
+          : massicOpportunitiesStatus?.status === "active" && massicOpportunitiesStatus?.has_subscription
+            ? "Active"
+            : "Inactive",
+        iconName: "Target",
+        cardBackground: "#F5F5F5",
+        isGradientPlanName: false,
+        hasBorder: false,
+        isRecommended: false,
+        isAddOn: true,
+        isMassicOpportunitiesActive: massicOpportunitiesStatus?.status === "active" && massicOpportunitiesStatus?.has_subscription,
+      },
+      {
         planName: "100 Execution Credits",
         price: "100",
         businessesLinked: `${creditsBalance?.current_balance || 0} credits`,
@@ -182,7 +209,7 @@ export function BillingSettings() {
         isAddOn: true,
       },
     ],
-    [profiles, creditsBalance]
+    [profiles, creditsBalance, massicOpportunitiesStatus]
   );
 
   const handleManagePlan = useCallback((businessId: string) => {
@@ -290,7 +317,7 @@ export function BillingSettings() {
                     }`}
                 >
                   {planName}
-                  {trialLabel ?` ${trialLabel}` : ''}
+                  {trialLabel ? ` ${trialLabel}` : ''}
                 </Typography>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
@@ -376,6 +403,8 @@ export function BillingSettings() {
           currentCreditBalance={creditsBalance?.current_balance || 0}
           onPurchaseCredits={purchaseCredits}
           onCreditsRefresh={refetchCredits}
+          onMassicOpportunitiesClick={() => setMassicOpportunitiesModalOpen(true)}
+          onMassicOpportunitiesDeactivate={() => cancelMassicOpportunities.mutate()}
         />
       </div>
 
@@ -402,6 +431,30 @@ export function BillingSettings() {
         showFooterButtons={true}
         onSelectPlan={onSelectPlan}
         loading={loading}
+      />
+
+      <MassicOpportunitiesModal
+        open={massicOpportunitiesModalOpen}
+        onOpenChange={setMassicOpportunitiesModalOpen}
+        isActive={massicOpportunitiesStatus?.status === "active" && massicOpportunitiesStatus?.has_subscription}
+        isUpgrading={subscribeMassicOpportunities.isPending}
+        isDeactivating={cancelMassicOpportunities.isPending}
+        isReactivating={reactivateMassicOpportunities.isPending}
+        cancelAtPeriodEnd={massicOpportunitiesStatus?.cancel_at_period_end || false}
+        periodEndDate={massicOpportunitiesStatus?.current_period_end}
+        alertMessage={massicOpportunitiesStatus?.whitelisted ? "You have unlimited access to Massic Opportunities." : undefined}
+        onDeactivate={async () => {
+          await cancelMassicOpportunities.mutateAsync();
+          setMassicOpportunitiesModalOpen(false);
+        }}
+        onReactivate={async () => {
+          await reactivateMassicOpportunities.mutateAsync();
+          setMassicOpportunitiesModalOpen(false);
+        }}
+        onUpgrade={() => {
+          const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+          subscribeMassicOpportunities.mutate({ returnUrl: currentUrl });
+        }}
       />
     </div>
   );

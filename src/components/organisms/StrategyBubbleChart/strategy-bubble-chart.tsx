@@ -95,7 +95,10 @@ export function StrategyBubbleChart({
         data: {
           relevanceScore: topic.business_relevance_score,
           coverage: topic.topic_cluster_topic_coverage,
-          searchVolume: topic.total_search_volume,
+          searchVolume:
+            typeof topic.total_cluster_search_volume === "number"
+              ? topic.total_cluster_search_volume
+              : topic.total_search_volume,
           keywordsCount: topic.total_keywords,
         },
         children: topic.clusters.map((cluster) => ({

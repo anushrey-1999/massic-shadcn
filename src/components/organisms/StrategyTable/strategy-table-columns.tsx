@@ -108,8 +108,8 @@ export function getStrategyTableColumns({
       maxSize: 140,
     },
     {
-      id: "total_search_volume",
-      accessorKey: "total_search_volume",
+      id: "total_cluster_search_volume",
+      accessorKey: "total_cluster_search_volume",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Volume" />
       ),
@@ -126,7 +126,7 @@ export function getStrategyTableColumns({
         icon: TrendingUp,
       },
       enableColumnFilter: true,
-      enableSorting: false,
+      enableSorting: true,
       size: 130,
       minSize: 110,
       maxSize: 160,

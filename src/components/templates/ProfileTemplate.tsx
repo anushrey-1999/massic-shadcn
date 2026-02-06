@@ -119,6 +119,7 @@ const ProfileTemplate = ({
   const queryClient = useQueryClient();
   const profiles = useBusinessStore((state) => state.profiles);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
+  const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
   // Get setters from Zustand store (only for UI state)
   const setActiveSection = useBusinessStore((state) => state.setActiveSection);
 
@@ -1267,11 +1268,6 @@ const ProfileTemplate = ({
           ? "Workflow Processing..."
           : "Confirm & Proceed to Strategy";
 
-  // Always use Save Changes handler when there are changes, even during workflow operations
-  const handleButtonClick = hasChanges
-    ? handleSaveChanges
-    : handleConfirmAndProceed;
-
   // Check if CTAs have validation errors
   const hasCtaValidationErrors = useStore(form.store, (state: any) => {
     const ctasMeta = state.fieldMeta?.ctas;
@@ -1334,14 +1330,17 @@ const ProfileTemplate = ({
   ]);
 
   const handlePrimaryButtonClick = useCallback(async () => {
-    try {
-      await handleButtonClick();
-    } catch (e) {
-      toast.error("Something went wrong. Please try again.");
+    if (hasChanges) {
+      try {
+        await handleSaveChanges();
+      } catch (e) {
+        toast.error("Something went wrong. Please try again.");
+      }
+      return;
     }
-  }, [
-    handleButtonClick,
-  ]);
+
+    setIsStrategyConfirmOpen(true);
+  }, [hasChanges, handleSaveChanges]);
 
   // Determine loading state and message
   const isLoading = externalLoading || isSaving || isTriggeringWorkflow;
@@ -1516,6 +1515,38 @@ const ProfileTemplate = ({
                   disabled={!canPerformAction || unlinkOrDeleteMutation.isPending}
                 >
                   {unlinkOrDeleteMutation.isPending ? `${hasLinkedAuth ? "Unlinking" : "Deleting"}...` : hasLinkedAuth ? "Unlink" : "Delete"}
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Confirm & Proceed to Strategy Modal */}
+        <AlertDialog open={isStrategyConfirmOpen} onOpenChange={setIsStrategyConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm & Proceed to Strategy</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will trigger deep analysis of search data and build strategy for this business. It may take upto an hour.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isTriggeringWorkflow || isCheckingPlan}>
+                Do Later
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  onClick={async () => {
+                    setIsStrategyConfirmOpen(false);
+                    try {
+                      await handleConfirmAndProceed();
+                    } catch (e) {
+                      toast.error("Something went wrong. Please try again.");
+                    }
+                  }}
+                  disabled={isTriggeringWorkflow || isCheckingPlan}
+                >
+                  Confirm
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>

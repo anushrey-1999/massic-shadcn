@@ -16,6 +16,7 @@ import { StatsBadge } from "@/components/molecules/analytics";
 import {
 	MiniAreaChart,
 	type PreviewGraph,
+	type HomeTimePeriodValue,
 } from "@/components/molecules/home/MiniAreaChart";
 import { Typography } from "@/components/ui/typography";
 
@@ -102,6 +103,7 @@ export function BusinessPreviewCard({
 	impressions,
 	clicks,
 	goals,
+	period,
 	onConnectGoogle,
 	onClick,
 }: {
@@ -111,6 +113,7 @@ export function BusinessPreviewCard({
 	impressions?: PreviewStats;
 	clicks?: PreviewStats;
 	goals?: PreviewStats;
+	period?: HomeTimePeriodValue;
 	onConnectGoogle?: () => void;
 	onClick?: () => void;
 }) {
@@ -174,7 +177,7 @@ export function BusinessPreviewCard({
 				)}
 				{/* Connect Google Analytics -- END */}
 				<div className="flex-1 h-full flex items-end ">
-					<MiniAreaChart graph={graph} />
+					<MiniAreaChart graph={graph} period={period} />
 				</div>
 			</CardContent>
 			{/* </a> */}

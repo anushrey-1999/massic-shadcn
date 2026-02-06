@@ -383,9 +383,9 @@ export function OrganicPerformanceSection({
 
         {/* Area Chart with Funnel */}
         <div className="grid grid-cols-[minmax(0,1fr)_400px] rounded-lg overflow-hidden bg-white border border-general-border">
-          <div className="p-3 pr-8 border-r border-general-border">
+          <div className="p-3 pr-8 border-r border-general-border flex flex-col justify-between">
             {isLoading ? (
-              <div className="flex items-center justify-center h-[218px]">
+              <div className="flex items-center justify-center h-[190px]">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : hasData ? (
@@ -396,13 +396,13 @@ export function OrganicPerformanceSection({
                   onToggle={handleLegendToggle}
                 />
                 <div
-                  className="h-[218px] cursor-grab active:cursor-grabbing"
+                  className="h-[190px] cursor-grab active:cursor-grabbing"
                   ref={chartContainerRef}
                   onDoubleClick={handleChartDoubleClick}
                 >
                   <ChartContainer
                     config={chartConfig}
-                    className="h-full w-full"
+                    className="h-full w-full flex-coljustify-end items-stretch aspect-auto"
                   >
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart

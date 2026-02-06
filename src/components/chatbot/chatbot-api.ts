@@ -94,7 +94,14 @@ export async function sendChatbotMessage(
 
   return {
     conversation_id: data.conversation_id || conversationId || `conv-${Date.now()}`,
-    message: data.answer || data.message || data.response || "No response received",
+    message:
+      typeof data.answer === "string"
+        ? data.answer
+        : typeof data.message === "string"
+        ? data.message
+        : typeof data.response === "string"
+        ? data.response
+        : "No response received",
     callout,
   };
 }

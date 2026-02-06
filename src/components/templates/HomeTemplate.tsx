@@ -515,6 +515,7 @@ export function HomeTemplate() {
                               impressions={mainStats?.Impressions}
                               clicks={mainStats?.Clicks}
                               goals={mainStats?.goals}
+                              period={period}
                               onConnectGoogle={connectGoogleAccount}
                               onClick={() => handleOpen(uniqueId, preview.url)}
                             />
@@ -659,6 +660,7 @@ export function HomeTemplate() {
                               impressions={mainStats?.Impressions}
                               clicks={mainStats?.Clicks}
                               goals={mainStats?.goals}
+                              period={period}
                               onConnectGoogle={connectGoogleAccount}
                               onClick={() => handleOpen(uniqueId, preview.url)}
                             />

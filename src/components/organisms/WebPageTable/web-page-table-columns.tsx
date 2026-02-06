@@ -56,7 +56,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       meta: {
         label: "Type",
         placeholder: "Select page type...",
-        variant: "select",
+        variant: "multiSelect",
         options: [
           { label: "Blog", value: "blog" },
           { label: "Reviews Section", value: "reviews section" },
@@ -67,6 +67,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
           { label: "Audience", value: "audience" },
           { label: "Benefits", value: "benefits" },
         ],
+        operators: [{ label: "Has any of", value: "inArray" as const }],
         icon: Tag,
       },
       enableColumnFilter: true,

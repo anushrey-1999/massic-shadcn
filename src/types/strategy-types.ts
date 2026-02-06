@@ -6,6 +6,8 @@ export interface StrategyTopic {
   topic: string;
   business_relevance_score: number;
   topic_cluster_topic_coverage: number;
+  total_cluster_search_volume?: number;
+  total_search_volume?: number;
   offerings: string[];
   clusters: StrategyCluster[];
 }
@@ -29,7 +31,7 @@ export interface StrategyRow {
   cluster_names: string; // Comma-separated cluster names
   sub_topics_count: number; // Count of clusters (sub topics)
   total_keywords: number; // Total count of all keywords
-  total_search_volume: number; // Sum of all cluster search volumes
+  total_cluster_search_volume: number; // Sum of all cluster search volumes
 }
 
 // API Response structure

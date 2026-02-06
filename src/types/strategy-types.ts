@@ -32,6 +32,7 @@ export interface StrategyRow {
   sub_topics_count: number; // Count of clusters (sub topics)
   total_keywords: number; // Total count of all keywords
   total_cluster_search_volume: number; // Sum of all cluster search volumes
+  total_search_volume?: number; // Legacy/fallback field from API
 }
 
 // API Response structure

@@ -19,9 +19,12 @@ import type {
 } from "./types";
 import {
   sendChatbotMessage,
+  sendPlannerMessage,
   simulateStreamingResponse,
   getConversationList,
   getChatHistory,
+  getPlannerConversationList,
+  getPlannerHistory,
 } from "./chatbot-api";
 import { X, Loader2, Maximize2, Minimize2 } from "lucide-react";
 import { ChatHistoryList } from "./chat-history-list";
@@ -30,6 +33,7 @@ import { ReferencesMetadataTable } from "./references-metadata-table";
 import { ArrowLeft } from "lucide-react";
 
 type UiMode = "full" | "split";
+type ChatMode = "chat" | "planner";
 
 type PersistedChat = {
   conversationId: string | null;
@@ -47,10 +51,21 @@ function storageKey(businessId: string) {
   return `massic:chatbot:${businessId}`;
 }
 
+function plannerStorageKey(businessId: string) {
+  return `massic:chatbot:planner:${businessId}`;
+}
+
 function historyCacheKey(businessId: string) {
   return `massic:chatbot:history:${businessId}`;
 }
 
+function plannerHistoryCacheKey(businessId: string) {
+  return `massic:chatbot:planner-history:${businessId}`;
+}
+
+function plannerIdRegistryKey(businessId: string) {
+  return `massic:chatbot:planner-ids:${businessId}`;
+}
 function safeParseHistory(
   value: string | null
 ): PersistedConversationList | null {
@@ -83,6 +98,19 @@ function readConversationListCache(
   }
 }
 
+function readPlannerConversationListCache(
+  businessId: string
+): PersistedConversationList | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return safeParseHistory(
+      sessionStorage.getItem(plannerHistoryCacheKey(businessId))
+    );
+  } catch {
+    return null;
+  }
+}
+
 function writeConversationListCache(
   businessId: string,
   conversations: ConversationPreview[]
@@ -102,6 +130,49 @@ function writeConversationListCache(
   }
 }
 
+function writePlannerConversationListCache(
+  businessId: string,
+  conversations: ConversationPreview[]
+) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: PersistedConversationList = {
+      ts: Date.now(),
+      conversations,
+    };
+    sessionStorage.setItem(
+      plannerHistoryCacheKey(businessId),
+      JSON.stringify(payload)
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function readPlannerIdRegistry(businessId: string): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem(plannerIdRegistryKey(businessId));
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as string[];
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id) => typeof id === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function writePlannerIdRegistry(businessId: string, ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      plannerIdRegistryKey(businessId),
+      JSON.stringify(Array.from(ids))
+    );
+  } catch {
+    // ignore
+  }
+}
 function safeParseJson(value: string | null): PersistedChat | null {
   if (!value) return null;
   try {
@@ -109,6 +180,38 @@ function safeParseJson(value: string | null): PersistedChat | null {
   } catch {
     return null;
   }
+}
+
+function mergeConversationLists(
+  chatItems: ConversationPreview[],
+  plannerItems: ConversationPreview[],
+  plannerIds: Set<string>
+): ConversationPreview[] {
+  const merged = new Map<string, ConversationPreview>();
+
+  for (const item of chatItems) {
+    merged.set(item.conv_id, item);
+  }
+
+  for (const item of plannerItems) {
+    const existing = merged.get(item.conv_id);
+    const shouldMarkPlanner = plannerIds.has(item.conv_id);
+    if (existing) {
+      merged.set(item.conv_id, {
+        ...existing,
+        ...item,
+        kind: shouldMarkPlanner ? "planner" : existing.kind,
+        title: item.title || existing.title,
+      });
+    } else {
+      merged.set(item.conv_id, {
+        ...item,
+        kind: shouldMarkPlanner ? "planner" : "chat",
+      });
+    }
+  }
+
+  return Array.from(merged.values());
 }
 
 function normalizeReferences(references: ChatReference[]): ChatReference[] {
@@ -176,6 +279,97 @@ function ensureMessageCallout(message: ChatMessage): ChatMessage {
   return { ...message, callout };
 }
 
+function formatPlannerContent(content: unknown): string {
+  const parseJsonString = (value: string): unknown => {
+    const trimmed = value.trim();
+    const fenced = trimmed.startsWith("```")
+      ? trimmed.replace(/^```[a-zA-Z]*\n?/, "").replace(/```$/, "").trim()
+      : trimmed;
+    try {
+      return JSON.parse(fenced);
+    } catch {
+      return value;
+    }
+  };
+
+  if (typeof content === "string") {
+    const parsed = parseJsonString(content);
+    if (parsed !== content) return formatPlannerContent(parsed);
+    return content;
+  }
+  if (!content || typeof content !== "object") return "No response received";
+
+  const asAny = content as {
+    plan_meta?: { focus_summary?: string };
+    assumptions?: string[];
+    page_ideas?: Array<{
+      slot?: number;
+      title?: string;
+      page_type?: string;
+      primary_intent?: string;
+      brief?: string;
+      why_now?: string;
+      success_metric?: string;
+      target_keywords_or_cluster?: string[];
+    }>;
+  };
+
+  const lines: string[] = [];
+  const focusSummary = asAny.plan_meta?.focus_summary;
+  if (focusSummary) {
+    lines.push("**Focus Summary:**");
+    lines.push("");
+    lines.push(focusSummary);
+    lines.push("");
+  }
+  const assumptions = Array.isArray(asAny.assumptions) ? asAny.assumptions : [];
+  const ideas = Array.isArray(asAny.page_ideas) ? asAny.page_ideas : [];
+
+  if (assumptions.length > 0) {
+    if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
+    lines.push("**Assumptions:**");
+    lines.push("");
+    assumptions.forEach((item) => {
+      if (item) lines.push(`- ${item}`);
+    });
+    lines.push("");
+  }
+
+  if (ideas.length > 0) {
+    if (lines.length > 0 && lines[lines.length - 1] !== "") lines.push("");
+    lines.push("**Page Ideas:**");
+    lines.push("");
+    ideas.forEach((idea, idx) => {
+      const title = idea?.title || "Untitled";
+      lines.push(`${idx + 1}. ${title}`);
+      if (idea?.brief) lines.push(`${idea.brief}`);
+      if (idea?.why_now) {
+        lines.push("");
+        lines.push("**Why now:**");
+        lines.push("");
+        lines.push(`${idea.why_now}`);
+      }
+      const keywords = Array.isArray(idea?.target_keywords_or_cluster)
+        ? idea?.target_keywords_or_cluster.filter(Boolean).join(", ")
+        : "";
+      if (keywords) {
+        lines.push("");
+        lines.push("**Keywords:**");
+        lines.push("");
+        lines.push(`${keywords}`);
+      }
+      lines.push("");
+    });
+  }
+
+  return lines.join("\n").trim() || "No response received";
+}
+
+function normalizePlannerHistoryMessage(message: ChatMessage): ChatMessage {
+  if (typeof message.content === "string") return message;
+  return { ...message, content: formatPlannerContent(message.content) };
+}
+
 function persistChatSnapshot(
   businessId: string,
   conversationId: string | null,
@@ -206,6 +400,33 @@ function persistChatSnapshot(
   }
 }
 
+function persistPlannerSnapshot(
+  businessId: string,
+  conversationId: string | null,
+  messages: ChatMessage[]
+) {
+  if (typeof window === "undefined") return;
+  const key = plannerStorageKey(businessId);
+
+  if (!conversationId && messages.length === 0) {
+    try {
+      sessionStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
+  const payload: PersistedChat = {
+    conversationId,
+    messages: messages.slice(-60),
+  };
+  try {
+    sessionStorage.setItem(key, JSON.stringify(payload));
+  } catch {
+    // ignore
+  }
+}
 function PanelView({ panel }: { panel: PanelPayload | null }) {
   if (!panel) return null;
 
@@ -275,6 +496,7 @@ type ChatComposerProps = {
   onChange: (next: string) => void;
   onSend: () => void;
   isLoading: boolean;
+  placeholder?: string;
 };
 
 function ChatComposer({
@@ -282,6 +504,7 @@ function ChatComposer({
   onChange,
   onSend,
   isLoading,
+  placeholder,
 }: ChatComposerProps) {
   const canSend = value.trim().length > 0 && !isLoading;
 
@@ -292,7 +515,7 @@ function ChatComposer({
           <Textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder="Ask me anything..."
+            placeholder={placeholder || "Ask me anything..."}
             className="min-h-[52px] max-h-24 resize-none overflow-y-auto pr-14 rounded-lg shadow-none border-none py-3.5 leading-6 placeholder:text-base md:placeholder:text-sm placeholder:leading-6"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -347,16 +570,23 @@ export function AskMassicOverlay({
   const prevOverscrollRef = React.useRef<string | null>(null);
 
   const [ui, setUi] = React.useState<UiMode>("full");
-  const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+  const [activeMode, setActiveMode] = React.useState<ChatMode>("chat");
+  const [chatMessages, setChatMessages] = React.useState<ChatMessage[]>([]);
+  const [plannerMessages, setPlannerMessages] = React.useState<ChatMessage[]>(
+    []
+  );
   const [input, setInput] = React.useState("");
   const [activePanel, setActivePanel] = React.useState<PanelPayload | null>(
     null
   );
   const [isPanelFullscreen, setIsPanelFullscreen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [conversationId, setConversationId] = React.useState<string | null>(
-    null
-  );
+  const [chatConversationId, setChatConversationId] = React.useState<
+    string | null
+  >(null);
+  const [plannerConversationId, setPlannerConversationId] = React.useState<
+    string | null
+  >(null);
   const [error, setError] = React.useState<string | null>(null);
 
   // History state
@@ -439,6 +669,12 @@ export function AskMassicOverlay({
         ? null
         : sessionStorage.getItem(storageKey(businessId))
     );
+    const plannerPersisted = safeParseJson(
+      typeof window === "undefined"
+        ? null
+        : sessionStorage.getItem(plannerStorageKey(businessId))
+    );
+
 
     const hasPersistedChat = Boolean(
       persisted &&
@@ -447,10 +683,11 @@ export function AskMassicOverlay({
     );
 
     if (hasPersistedChat) {
-      setConversationId(persisted?.conversationId ?? null);
-      setMessages((persisted?.messages || []).map(ensureMessageCallout));
+      setChatConversationId(persisted?.conversationId ?? null);
+      setChatMessages((persisted?.messages || []).map(ensureMessageCallout));
       setShowHistory(false);
       setHistoryNextId(null);
+      setActiveMode("chat");
     } else {
       // Clean up any empty/invalid persisted snapshot so the next open is correct.
       try {
@@ -459,43 +696,105 @@ export function AskMassicOverlay({
         // ignore
       }
 
-      setConversationId(null);
-      setMessages([]);
+      setChatConversationId(null);
+      setChatMessages([]);
+      setPlannerConversationId(null);
+      setPlannerMessages([]);
       setShowHistory(true);
       setHistoryNextId(null);
 
       const cached = readConversationListCache(businessId);
+      const plannerCached = readPlannerConversationListCache(businessId);
       const isCacheFresh = Boolean(
         cached && Date.now() - cached.ts <= HISTORY_CACHE_TTL_MS
       );
+      const isPlannerCacheFresh = Boolean(
+        plannerCached && Date.now() - plannerCached.ts <= HISTORY_CACHE_TTL_MS
+      );
 
-      if (cached) {
-        setConversations(cached.conversations || []);
+      const plannerIds = readPlannerIdRegistry(businessId);
+      if (cached || plannerCached) {
+        const chatItems = (cached?.conversations || []).map((c) => ({
+          ...c,
+          kind: "chat" as const,
+        }));
+        const plannerItems = (plannerCached?.conversations || []).map((c) => ({
+          ...c,
+          kind: "planner" as const,
+        }));
+        setConversations(
+          mergeConversationLists(chatItems, plannerItems, plannerIds)
+        );
         setHistoryLoading(false);
       } else {
         setConversations([]);
         setHistoryLoading(true);
       }
 
-      // Refresh in background (avoid showing the loading state if we have cache).
       void getConversationList(businessId)
         .then((data) => {
           if (cancelled) return;
-          const next = data.conversations || [];
-          setConversations(next);
-          writeConversationListCache(businessId, next);
+          const next = (data.conversations || []).map((c) => ({
+            ...c,
+            kind: "chat" as const,
+          }));
+          setConversations((prev) => {
+            const plannerItems = prev.filter((c) => c.kind === "planner");
+            return mergeConversationLists(
+              next,
+              plannerItems,
+              readPlannerIdRegistry(businessId)
+            );
+          });
+          writeConversationListCache(businessId, data.conversations || []);
         })
         .catch((err) => {
           console.error("Failed to load conversation list:", err);
           if (cancelled) return;
-          // Only clear the list if we didn't have cache.
-          if (!cached) setConversations([]);
+          if (!cached) {
+            setConversations((prev) => prev.filter((c) => c.kind === "planner"));
+          }
         })
         .finally(() => {
           if (cancelled) return;
-          // If we had cache, keep the UI stable (no spinner).
           if (!cached || !isCacheFresh) setHistoryLoading(false);
         });
+
+      void getPlannerConversationList(businessId)
+        .then((data) => {
+          if (cancelled) return;
+          const next = (data.conversations || []).map((c) => ({
+            ...c,
+            kind: "planner" as const,
+          }));
+          setConversations((prev) => {
+            const chatItems = prev.filter((c) => c.kind === "chat");
+            return mergeConversationLists(
+              chatItems,
+              next,
+              readPlannerIdRegistry(businessId)
+            );
+          });
+          writePlannerConversationListCache(businessId, data.conversations || []);
+        })
+        .catch((err) => {
+          console.error("Failed to load planner conversation list:", err);
+          if (cancelled) return;
+          if (!plannerCached) {
+            setConversations((prev) => prev.filter((c) => c.kind === "chat"));
+          }
+        })
+        .finally(() => {
+          if (cancelled) return;
+          if (!plannerCached || !isPlannerCacheFresh) setHistoryLoading(false);
+        });
+    }
+
+    if (plannerPersisted) {
+      setPlannerConversationId(plannerPersisted.conversationId ?? null);
+      setPlannerMessages(
+        (plannerPersisted.messages || []).map(ensureMessageCallout)
+      );
     }
 
     setActivePanel(null);
@@ -511,7 +810,9 @@ export function AskMassicOverlay({
 
   const loadMoreHistory = React.useCallback(async () => {
     if (showHistory) return;
-    if (!conversationId) return;
+    const activeConversationId =
+      activeMode === "planner" ? plannerConversationId : chatConversationId;
+    if (!activeConversationId) return;
     if (!historyNextId) return;
     if (isLoadingMoreHistory) return;
 
@@ -525,11 +826,14 @@ export function AskMassicOverlay({
     const prevScrollTop = viewport?.scrollTop ?? 0;
 
     try {
-      const historyData = await getChatHistory(
-        businessId,
-        conversationId,
-        historyNextId
-      );
+      const historyData =
+        activeMode === "planner"
+          ? await getPlannerHistory(
+              businessId,
+              activeConversationId,
+              historyNextId
+            )
+          : await getChatHistory(businessId, activeConversationId, historyNextId);
 
       const baseTimestamp = Date.now();
       const chunk = historyData.messages || [];
@@ -539,12 +843,19 @@ export function AskMassicOverlay({
           ...msg,
           id:
             msg.id ||
-            `msg-${conversationId}-${historyNextId}-${baseTimestamp}-${idx}`,
+            `msg-${activeConversationId}-${historyNextId}-${baseTimestamp}-${idx}`,
         }))
-        .map(ensureMessageCallout);
+        .map(ensureMessageCallout)
+        .map((msg) =>
+          activeMode === "planner" ? normalizePlannerHistoryMessage(msg) : msg
+        );
 
       suppressNextAutoScrollRef.current = true;
-      setMessages((prev) => [...chunkWithIds, ...prev]);
+      if (activeMode === "planner") {
+        setPlannerMessages((prev) => [...chunkWithIds, ...prev]);
+      } else {
+        setChatMessages((prev) => [...chunkWithIds, ...prev]);
+      }
       setHistoryNextId(historyData.next_id ?? null);
 
       if (viewport) {
@@ -561,9 +872,11 @@ export function AskMassicOverlay({
     }
   }, [
     businessId,
-    conversationId,
+    chatConversationId,
+    plannerConversationId,
     historyNextId,
     isLoadingMoreHistory,
+    activeMode,
     showHistory,
   ]);
 
@@ -597,8 +910,17 @@ export function AskMassicOverlay({
 
   React.useEffect(() => {
     if (!open) return;
-    persistChatSnapshot(businessId, conversationId, messages);
-  }, [open, businessId, conversationId, messages]);
+    persistChatSnapshot(businessId, chatConversationId, chatMessages);
+  }, [open, businessId, chatConversationId, chatMessages]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    persistPlannerSnapshot(
+      businessId,
+      plannerConversationId,
+      plannerMessages
+    );
+  }, [open, businessId, plannerConversationId, plannerMessages]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -613,7 +935,14 @@ export function AskMassicOverlay({
     }, 50);
 
     return () => clearTimeout(timer);
-  }, [open, messages.length, ui, activePanel]);
+  }, [
+    open,
+    chatMessages.length,
+    plannerMessages.length,
+    ui,
+    activePanel,
+    activeMode,
+  ]);
 
   React.useEffect(() => {
     if (isPanelFullscreen) return;
@@ -645,6 +974,17 @@ export function AskMassicOverlay({
       streamCleanupRef.current = null;
     };
   }, []);
+
+  const addPlannerConversationId = React.useCallback(
+    (convId: string) => {
+      const next = readPlannerIdRegistry(businessId);
+      if (!next.has(convId)) {
+        next.add(convId);
+        writePlannerIdRegistry(businessId, next);
+      }
+    },
+    [businessId]
+  );
 
   const openPanel = (panel: PanelPayload) => {
     // Save scroll position before opening panel
@@ -716,47 +1056,93 @@ export function AskMassicOverlay({
     streamCleanupRef.current?.();
     streamCleanupRef.current = null;
 
-    setMessages((prev) => {
-      const next = [...prev, userMessage, botPlaceholder];
-      persistChatSnapshot(businessId, conversationId, next);
-      return next;
-    });
+    if (activeMode === "planner") {
+      setPlannerMessages((prev) => [...prev, userMessage, botPlaceholder]);
+    } else {
+      setChatMessages((prev) => {
+        const next = [...prev, userMessage, botPlaceholder];
+        persistChatSnapshot(businessId, chatConversationId, next);
+        return next;
+      });
+    }
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await sendChatbotMessage(
-        text,
-        businessId,
-        conversationId || undefined
-      );
+      const response =
+        activeMode === "planner"
+          ? await sendPlannerMessage(
+              text,
+              businessId,
+              plannerConversationId || undefined
+            )
+          : await sendChatbotMessage(
+              text,
+              businessId,
+              chatConversationId || undefined
+            );
 
-      setConversationId(response.conversation_id);
+      if (activeMode === "planner") {
+        setPlannerConversationId(response.conversation_id);
+        addPlannerConversationId(response.conversation_id);
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.conv_id === response.conversation_id
+              ? { ...conv, kind: "planner" }
+              : conv
+          )
+        );
+      } else {
+        setChatConversationId(response.conversation_id);
+      }
 
       streamCleanupRef.current = simulateStreamingResponse(
         response,
         (delta) => {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === botPlaceholder.id
-                ? { ...m, content: (m.content || "") + delta }
-                : m
-            )
-          );
+          if (activeMode === "planner") {
+            setPlannerMessages((prev) =>
+              prev.map((m) =>
+                m.id === botPlaceholder.id
+                  ? { ...m, content: (m.content || "") + delta }
+                  : m
+              )
+            );
+          } else {
+            setChatMessages((prev) =>
+              prev.map((m) =>
+                m.id === botPlaceholder.id
+                  ? { ...m, content: (m.content || "") + delta }
+                  : m
+              )
+            );
+          }
         },
         (finalMessage) => {
           console.log("Final message received:", finalMessage);
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id === botPlaceholder.id) {
-                const updated = { ...finalMessage, id: botPlaceholder.id };
-                console.log("Updating message with final:", updated);
-                return updated;
-              }
-              return m;
-            })
-          );
+          if (activeMode === "planner") {
+            setPlannerMessages((prev) =>
+              prev.map((m) => {
+                if (m.id === botPlaceholder.id) {
+                  const updated = { ...finalMessage, id: botPlaceholder.id };
+                  console.log("Updating message with final:", updated);
+                  return updated;
+                }
+                return m;
+              })
+            );
+          } else {
+            setChatMessages((prev) =>
+              prev.map((m) => {
+                if (m.id === botPlaceholder.id) {
+                  const updated = { ...finalMessage, id: botPlaceholder.id };
+                  console.log("Updating message with final:", updated);
+                  return updated;
+                }
+                return m;
+              })
+            );
+          }
           setIsLoading(false);
           streamCleanupRef.current = null;
         }
@@ -764,16 +1150,29 @@ export function AskMassicOverlay({
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to send message";
       setError(msg);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === botPlaceholder.id
-            ? {
-                ...m,
-                content: "Sorry, I encountered an error. Please try again.",
-              }
-            : m
-        )
-      );
+      if (activeMode === "planner") {
+        setPlannerMessages((prev) =>
+          prev.map((m) =>
+            m.id === botPlaceholder.id
+              ? {
+                  ...m,
+                  content: "Sorry, I encountered an error. Please try again.",
+                }
+              : m
+          )
+        );
+      } else {
+        setChatMessages((prev) =>
+          prev.map((m) =>
+            m.id === botPlaceholder.id
+              ? {
+                  ...m,
+                  content: "Sorry, I encountered an error. Please try again.",
+                }
+              : m
+          )
+        );
+      }
       setIsLoading(false);
     }
   };
@@ -798,10 +1197,13 @@ export function AskMassicOverlay({
     await sendInPlace(text);
   };
 
-  const handleSelectConversation = async (convId: string) => {
+  const handleSelectConversation = async (convId: string, mode: ChatMode) => {
     setHistoryLoading(true);
     try {
-      const historyData = await getChatHistory(businessId, convId);
+      const historyData =
+        mode === "planner"
+          ? await getPlannerHistory(businessId, convId)
+          : await getChatHistory(businessId, convId);
       // Ensure each message has a unique ID and reverse order if needed
       const baseTimestamp = Date.now();
       const messages = historyData.messages || [];
@@ -813,11 +1215,26 @@ export function AskMassicOverlay({
           ...msg,
           id: msg.id || `msg-${convId}-${baseTimestamp}-${idx}`,
         }))
-        .map(ensureMessageCallout);
+        .map(ensureMessageCallout)
+        .map((msg) =>
+          mode === "planner" ? normalizePlannerHistoryMessage(msg) : msg
+        );
 
-      setMessages(messagesWithIds);
+      if (mode === "planner") {
+        setPlannerMessages(messagesWithIds);
+        setPlannerConversationId(convId);
+        addPlannerConversationId(convId);
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.conv_id === convId ? { ...conv, kind: "planner" } : conv
+          )
+        );
+      } else {
+        setChatMessages(messagesWithIds);
+        setChatConversationId(convId);
+      }
       setHistoryNextId(historyData.next_id ?? null);
-      setConversationId(convId);
+      setActiveMode(mode);
       setShowHistory(false);
       setError(null);
     } catch (err) {
@@ -831,8 +1248,10 @@ export function AskMassicOverlay({
   };
 
   const handleBackToHistory = () => {
-    setConversationId(null);
-    setMessages([]);
+    setChatConversationId(null);
+    setChatMessages([]);
+    setPlannerConversationId(null);
+    setPlannerMessages([]);
     setShowHistory(true);
     setInput("");
     setError(null);
@@ -842,8 +1261,20 @@ export function AskMassicOverlay({
     setUi("full");
 
     const cached = readConversationListCache(businessId);
-    if (cached) {
-      setConversations(cached.conversations || []);
+    const plannerCached = readPlannerConversationListCache(businessId);
+    const plannerIds = readPlannerIdRegistry(businessId);
+    if (cached || plannerCached) {
+      const chatItems = (cached?.conversations || []).map((c) => ({
+        ...c,
+        kind: "chat" as const,
+      }));
+      const plannerItems = (plannerCached?.conversations || []).map((c) => ({
+        ...c,
+        kind: "planner" as const,
+      }));
+      setConversations(
+        mergeConversationLists(chatItems, plannerItems, plannerIds)
+      );
       setHistoryLoading(false);
     } else {
       setConversations([]);
@@ -852,22 +1283,63 @@ export function AskMassicOverlay({
 
     void getConversationList(businessId)
       .then((data) => {
-        const next = data.conversations || [];
-        setConversations(next);
-        writeConversationListCache(businessId, next);
+        const next = (data.conversations || []).map((c) => ({
+          ...c,
+          kind: "chat" as const,
+        }));
+        setConversations((prev) => {
+          const plannerItems = prev.filter((c) => c.kind === "planner");
+          return mergeConversationLists(
+            next,
+            plannerItems,
+            readPlannerIdRegistry(businessId)
+          );
+        });
+        writeConversationListCache(businessId, data.conversations || []);
       })
       .catch((err) => {
         console.error("Failed to load conversation list:", err);
-        if (!cached) setConversations([]);
+        if (!cached) {
+          setConversations((prev) => prev.filter((c) => c.kind === "planner"));
+        }
       })
       .finally(() => {
         if (!cached) setHistoryLoading(false);
+      });
+
+    void getPlannerConversationList(businessId)
+      .then((data) => {
+        const next = (data.conversations || []).map((c) => ({
+          ...c,
+          kind: "planner" as const,
+        }));
+        setConversations((prev) => {
+          const chatItems = prev.filter((c) => c.kind === "chat");
+          return mergeConversationLists(
+            chatItems,
+            next,
+            readPlannerIdRegistry(businessId)
+          );
+        });
+        writePlannerConversationListCache(businessId, data.conversations || []);
+      })
+      .catch((err) => {
+        console.error("Failed to load planner conversation list:", err);
+        if (!plannerCached) {
+          setConversations((prev) => prev.filter((c) => c.kind === "chat"));
+        }
+      })
+      .finally(() => {
+        if (!plannerCached) setHistoryLoading(false);
       });
   };
 
   const title = businessName ? `Ask Massic · ${businessName}` : "Ask Massic";
 
   if (!open) return null;
+
+  const activeMessages =
+    activeMode === "planner" ? plannerMessages : chatMessages;
 
   const content = (
     <div
@@ -906,7 +1378,7 @@ export function AskMassicOverlay({
 
         <div className="absolute inset-0 px-5 pb-0 pt-12">
           <div className="relative flex h-full w-full flex-col overflow-hidden rounded-tl-2xl shadow-xl bg-background">
-            {!showHistory && messages.length > 0 && !isPanelFullscreen && (
+            {!showHistory && activeMessages.length > 0 && !isPanelFullscreen && (
               <Button
                 type="button"
                 variant="ghost"
@@ -984,15 +1456,19 @@ export function AskMassicOverlay({
                       </div>
                     ) : null}
 
-                    {messages.map((m, idx) => {
+                    {activeMessages.map((m, idx) => {
                       const isCallout = Boolean(m.callout);
+                      const displayContent =
+                        activeMode === "planner" && m.role === "assistant"
+                          ? formatPlannerContent(m.content)
+                          : m.content;
 
                       const isLoadingPlaceholder =
                         isLoading &&
                         m.role === "assistant" &&
                         (m.content || "").trim().length === 0 &&
                         !isCallout &&
-                        idx === messages.length - 1;
+                        idx === activeMessages.length - 1;
 
                       if (isLoadingPlaceholder) {
                         return <ThinkingBubble key={m.id} />;
@@ -1032,7 +1508,7 @@ export function AskMassicOverlay({
                             }
                           >
                             <div className="text-sm leading-relaxed">
-                              {renderLightMarkdown(m.content)}
+                              {renderLightMarkdown(displayContent)}
                             </div>
                             {isCallout ? (
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -1113,11 +1589,43 @@ export function AskMassicOverlay({
             </div>
 
             <div className="shrink-0">
+              {showHistory ? (
+                <div className="max-w-[600px] w-full mx-auto px-6 pb-2">
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-full rounded-xl border px-4 py-3 text-left text-sm transition-colors",
+                      activeMode === "planner"
+                        ? "border-general-primary bg-general-primary-foreground text-general-foreground"
+                        : "border-general-border bg-background text-muted-foreground hover:text-general-foreground"
+                    )}
+                    onClick={() =>
+                      setActiveMode((prev) =>
+                        prev === "planner" ? "chat" : "planner"
+                      )
+                    }
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium">Planner</div>
+                      <span className="text-xs">
+                        {activeMode === "planner"
+                          ? "Back to chat"
+                          : "Start planning"}
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              ) : null}
               <ChatComposer
                 value={input}
                 onChange={setInput}
                 onSend={handleSend}
                 isLoading={isLoading}
+                placeholder={
+                  activeMode === "planner"
+                    ? "Ask for a plan..."
+                    : "Ask me anything..."
+                }
               />
             </div>
           </div>

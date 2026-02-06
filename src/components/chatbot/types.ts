@@ -27,6 +27,7 @@ export type ChatMessage = {
 export type ConversationPreview = {
   conv_id: string;
   title: string;
+  kind?: "chat" | "planner";
 };
 
 export type ChatHistoryResponse = {

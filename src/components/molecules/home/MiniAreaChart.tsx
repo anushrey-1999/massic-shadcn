@@ -16,6 +16,14 @@ export type PreviewGraph = {
   rows?: PreviewGraphRow[]
 }
 
+export type HomeTimePeriodValue =
+  | "7 days"
+  | "14 days"
+  | "28 days"
+  | "3 months"
+  | "6 months"
+  | "12 months"
+
 const miniChartConfig: ChartConfig = {
   impressionsNorm: { label: "Imp.", color: "#8662D0" },
   clicksNorm: { label: "Clicks", color: "#2563EB" },
@@ -37,20 +45,125 @@ function formatTooltipDate(input: unknown) {
   return `${day} ${month} ${year}`
 }
 
-export function MiniAreaChart({ graph }: { graph?: PreviewGraph }) {
+function normalizeDateKey(raw: string): string | null {
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`
+
+  const compactMatch = raw.match(/^(\d{4})(\d{2})(\d{2})$/)
+  if (compactMatch) return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`
+
+  return null
+}
+
+function dateFromKey(key: string): Date | null {
+  const match = key.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2]) - 1
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month, day))
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+function formatDateKey(date: Date): string {
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
+  const day = String(date.getUTCDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+function addDaysUtc(date: Date, days: number): Date {
+  const next = new Date(date)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next
+}
+
+function addMonthsUtc(date: Date, months: number): Date {
+  const next = new Date(date)
+  next.setUTCMonth(next.getUTCMonth() + months)
+  return next
+}
+
+function getPeriodStartDate(period: HomeTimePeriodValue, endDate: Date): Date {
+  switch (period) {
+    case "7 days":
+      return addDaysUtc(endDate, -7)
+    case "14 days":
+      return addDaysUtc(endDate, -14)
+    case "28 days":
+      return addDaysUtc(endDate, -28)
+    case "3 months":
+      return addMonthsUtc(endDate, -3)
+    case "6 months":
+      return addMonthsUtc(endDate, -6)
+    case "12 months":
+      return addMonthsUtc(endDate, -12)
+    default:
+      return addMonthsUtc(endDate, -3)
+  }
+}
+
+export function MiniAreaChart({
+  graph,
+  period = "3 months",
+}: {
+  graph?: PreviewGraph
+  period?: HomeTimePeriodValue
+}) {
   const impressionsGradientId = useId()
   const clicksGradientId = useId()
   const goalsGradientId = useId()
 
   const data = useMemo(() => {
     const rows = graph?.rows || []
-    return rows.map((row) => ({
-      date: row.keys?.[0] || "",
-      impressions: Number(row.impressions ?? 0),
-      clicks: Number(row.clicks ?? 0),
-      goals: Number(row.goal ?? 0),
-    }))
-  }, [graph?.rows])
+    const parsed = rows
+      .map((row) => {
+        const rawKey = row.keys?.[0] || ""
+        const dateKey = normalizeDateKey(rawKey)
+        return {
+          dateKey,
+          impressions: Number(row.impressions ?? 0),
+          clicks: Number(row.clicks ?? 0),
+          goals: Number(row.goal ?? 0),
+        }
+      })
+      .filter((row): row is { dateKey: string; impressions: number; clicks: number; goals: number } =>
+        Boolean(row.dateKey)
+      )
+
+    if (parsed.length === 0) return []
+
+    const availableDates = parsed
+      .map((row) => dateFromKey(row.dateKey))
+      .filter((value): value is Date => value instanceof Date)
+      .sort((a, b) => a.getTime() - b.getTime())
+
+    const endDate = availableDates[availableDates.length - 1]
+    if (!endDate) return []
+
+    const startDate = getPeriodStartDate(period, endDate)
+    const dataByDate = new Map(parsed.map((row) => [row.dateKey, row]))
+
+    const filled: Array<{
+      date: string
+      impressions: number
+      clicks: number
+      goals: number
+    }> = []
+
+    for (let cursor = startDate; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
+      const key = formatDateKey(cursor)
+      const existing = dataByDate.get(key)
+      filled.push({
+        date: key,
+        impressions: existing?.impressions ?? 0,
+        clicks: existing?.clicks ?? 0,
+        goals: existing?.goals ?? 0,
+      })
+    }
+
+    return filled
+  }, [graph?.rows, period])
 
   const normalizedData = useMemo(() => {
     if (data.length === 0) return []

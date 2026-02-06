@@ -51,6 +51,12 @@ export function useStrategy(businessId: string) {
         (sum: number, cluster: any) => sum + (cluster.total_search_volume || 0),
         0
       );
+      const totalClusterSearchVolume =
+        typeof topic.total_cluster_search_volume === "number"
+          ? topic.total_cluster_search_volume
+          : typeof topic.total_search_volume === "number"
+            ? topic.total_search_volume
+            : totalSearchVolume;
 
       // Create comma-separated cluster names
       const clusterNames = clusters
@@ -68,7 +74,7 @@ export function useStrategy(businessId: string) {
         cluster_names: clusterNames,
         sub_topics_count: clusters.length,
         total_keywords: totalKeywords,
-        total_search_volume: totalSearchVolume,
+        total_cluster_search_volume: totalClusterSearchVolume,
       });
     });
 

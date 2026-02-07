@@ -171,6 +171,7 @@ export function DataTable<TData>({
                       key={`${row.id}-${index}`}
                       data-selected-row={isSelected ? row.id : undefined}
                       className={cn(
+                        "group",
                         onRowClick && "cursor-pointer hover:bg-muted/70",
                         highlightSelectedRow && isSelected && "bg-primary/10"
                       )}

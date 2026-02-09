@@ -32,6 +32,15 @@ const miniChartConfig: ChartConfig = {
 
 function formatTooltipDate(input: unknown) {
   const raw = typeof input === "string" ? input : ""
+  const monthMatch = raw.match(/^(\d{4})-(\d{2})$/)
+  if (monthMatch) {
+    const year = Number(monthMatch[1])
+    const monthIndex = Number(monthMatch[2]) - 1
+    const date = new Date(Date.UTC(year, monthIndex, 1))
+    if (!Number.isFinite(date.getTime())) return raw
+    const month = new Intl.DateTimeFormat("en-US", { month: "short" }).format(date)
+    return `${month} ${year}`
+  }
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return raw
 
@@ -46,10 +55,17 @@ function formatTooltipDate(input: unknown) {
 }
 
 function normalizeDateKey(raw: string): string | null {
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const trimmed = raw.trim()
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`
 
-  const compactMatch = raw.match(/^(\d{4})(\d{2})(\d{2})$/)
+  const monthMatch = trimmed.match(/^(\d{4})-(\d{2})$/)
+  if (monthMatch) return `${monthMatch[1]}-${monthMatch[2]}-01`
+
+  const slashMatch = trimmed.match(/^(\d{4})\/(\d{2})\/(\d{2})$/)
+  if (slashMatch) return `${slashMatch[1]}-${slashMatch[2]}-${slashMatch[3]}`
+
+  const compactMatch = trimmed.match(/^(\d{4})(\d{2})(\d{2})$/)
   if (compactMatch) return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`
 
   return null
@@ -84,14 +100,23 @@ function addMonthsUtc(date: Date, months: number): Date {
   return next
 }
 
+function parseMetricValue(value: unknown): number {
+  if (value === null || value === undefined) return 0
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0
+  const cleaned = String(value).replace(/,/g, "").trim()
+  if (!cleaned) return 0
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
 function getPeriodStartDate(period: HomeTimePeriodValue, endDate: Date): Date {
   switch (period) {
     case "7 days":
-      return addDaysUtc(endDate, -7)
+      return addDaysUtc(endDate, -6)
     case "14 days":
-      return addDaysUtc(endDate, -14)
+      return addDaysUtc(endDate, -13)
     case "28 days":
-      return addDaysUtc(endDate, -28)
+      return addDaysUtc(endDate, -27)
     case "3 months":
       return addMonthsUtc(endDate, -3)
     case "6 months":
@@ -122,9 +147,9 @@ export function MiniAreaChart({
         const dateKey = normalizeDateKey(rawKey)
         return {
           dateKey,
-          impressions: Number(row.impressions ?? 0),
-          clicks: Number(row.clicks ?? 0),
-          goals: Number(row.goal ?? 0),
+          impressions: parseMetricValue(row.impressions),
+          clicks: parseMetricValue(row.clicks),
+          goals: parseMetricValue(row.goal),
         }
       })
       .filter((row): row is { dateKey: string; impressions: number; clicks: number; goals: number } =>
@@ -138,9 +163,10 @@ export function MiniAreaChart({
       .filter((value): value is Date => value instanceof Date)
       .sort((a, b) => a.getTime() - b.getTime())
 
-    const endDate = availableDates[availableDates.length - 1]
-    if (!endDate) return []
-
+    const now = new Date()
+    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    const lastAvailableDate = availableDates[availableDates.length - 1]
+    const endDate = lastAvailableDate ?? todayUtc
     const startDate = getPeriodStartDate(period, endDate)
     const dataByDate = new Map(parsed.map((row) => [row.dateKey, row]))
 
@@ -190,7 +216,7 @@ export function MiniAreaChart({
 
     return data.map((point) => ({
       ...point,
-      impressionsNorm: scaleValue(point.impressions),
+      impressionsNorm: Math.max(2, scaleValue(point.impressions) * 0.65),
       clicksNorm: scaleValue(point.clicks),
       goalsNorm: scaleValue(point.goals),
     }))

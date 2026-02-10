@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/molecules/PageHeader";
 import { type TimePeriodValue } from "@/hooks/use-gsc-analytics";
 import { useBusinessStore } from "@/store/business-store";
 import DiscoveryPerformanceSection from "@/components/organisms/analytics/DiscoveryPerformanceSection";
+import { LocalSearchSection } from "@/components/organisms/analytics/LocalSearchSection";
 import SourcesSection from "@/components/organisms/analytics/SourcesSection";
 import ConversionSection from "@/components/organisms/analytics/ConversionSection";
 
@@ -89,6 +90,13 @@ export function AnalyticsTemplate() {
     [businessName, businessId]
   );
 
+  const localSearchLocations = useMemo(() => {
+    const locs = (profileData as any)?.Locations ?? businessProfile?.Locations ?? [];
+    return (locs as { Name?: string; DisplayName?: string }[]).map((loc) => ({
+      value: loc.Name ?? "",
+      label: loc.DisplayName || loc.Name || "",
+    }));
+  }, [profileData, businessProfile]);
 
   return (
     <div className="flex flex-col min-h-screen scroll-smooth ">
@@ -137,6 +145,7 @@ export function AnalyticsTemplate() {
         <DiscoveryPerformanceSection period={selectedPeriod} />
         <SourcesSection period={selectedPeriod} />
         <ConversionSection period={selectedPeriod} />
+        <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
       </div>
     </div>
   );

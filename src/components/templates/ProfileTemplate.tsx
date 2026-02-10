@@ -935,6 +935,7 @@ const ProfileTemplate = ({
 
   const getPlanTypeFromData = useCallback(
     (data: any) => {
+      if (data?.status === "canceled") return "no_plan";
       const raw =
         currentProfile?.SubscriptionItems?.plan_type ||
         (externalProfileData as any)?.SubscriptionItems?.plan_type ||
@@ -967,6 +968,12 @@ const ProfileTemplate = ({
       const isWhitelisted =
         effectiveSubscription?.whitelisted === true ||
         effectiveSubscription?.status === "whitelisted";
+      const isCanceled = effectiveSubscription?.status === "canceled";
+
+      if (isCanceled) {
+        setPlanModalOpen(true);
+        return;
+      }
 
       const planType = getPlanTypeFromData(effectiveSubscription);
       const planLevels: Record<string, number> = {

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { GenericInput } from "@/components/ui/generic-input";
 import { Typography } from "@/components/ui/typography";
+import { Store } from "lucide-react";
 import { useBusinessStore } from "@/store/business-store";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "@tanstack/react-form";
@@ -55,15 +56,23 @@ export const BusinessInfoForm = React.memo(({
     <Card
       id="business-info"
       variant="profileCard"
-      className="py-6 px-4 bg-white border-none"
+      className="p-4 bg-white border-none shadow-none"
     >
       <CardHeader className="pb-4">
-        <CardTitle>
-          <Typography variant="h4">Business Info</Typography>
-        </CardTitle>
+        <div className="flex items-center gap-2">
+          <Store className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
+            <CardTitle>
+              <Typography variant="h4" className="!text-2xl">Business Info</Typography>
+            </CardTitle>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business.
+            </Typography>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Row 1 */}
           <Card variant="profileCard">
             <CardContent>

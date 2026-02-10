@@ -13,6 +13,7 @@ import { FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
+import { MicVocal } from "lucide-react";
 import { CTARow, StakeholderRow, CalendarEventRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
@@ -138,14 +139,22 @@ export const ContentCuesForm = ({
     <Card
       id="content-cues"
       variant="profileCard"
-      className="py-6 px-4 bg-white border-none mt-6"
+      className="p-4 bg-white border-none shadow-none mt-6"
     >
       <CardHeader className="pb-4">
-        <CardTitle>
-          <Typography variant="h4">Content Cues</Typography>
-        </CardTitle>
+        <div className="flex items-center gap-2">
+          <MicVocal className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
+            <CardTitle>
+              <Typography variant="h4" className="!text-2xl">Content Cues</Typography>
+            </CardTitle>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Guides tone, messaging, and calls-to-action so content sounds like you and converts better.
+            </Typography>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <Card variant="profileCard">
           <CardHeader className="">
             <CardTitle>
@@ -281,7 +290,7 @@ export const ContentCuesForm = ({
 
                     return (
                       <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <Card variant="profileCard" className="bg-white border-none ">
                             <CardHeader className="">
                               <CardTitle>

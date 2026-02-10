@@ -219,54 +219,6 @@ export function CreatePitchTemplate() {
     return Boolean((formValues.recurringRevenue ?? "").toString().trim());
   }, [formValues.recurringRevenue]);
 
-  const completionPercentage = React.useMemo(() => {
-    const totalFields = 11;
-    let filledFields = 0;
-
-    if (String(formValues.website ?? "").trim()) filledFields++;
-    if (String(formValues.businessName ?? "").trim()) filledFields++;
-    if (String(formValues.primaryLocation ?? "").trim()) filledFields++;
-    if (String(formValues.recurringRevenue ?? "").trim()) filledFields++;
-    if (String(formValues.serviceType ?? "").trim()) filledFields++;
-    if (String(formValues.offerings ?? "").trim()) filledFields++;
-    if (hasAtLeastOneOffering) filledFields++;
-
-    if (String(formValues.businessDescription ?? "").trim()) filledFields++;
-
-    if (formValues.avgOrderValue != null && formValues.avgOrderValue !== "") {
-      const avgOrderValueStr =
-        typeof formValues.avgOrderValue === "string"
-          ? formValues.avgOrderValue.trim()
-          : String(formValues.avgOrderValue);
-      if (avgOrderValueStr) filledFields++;
-    }
-
-    if (formValues.lifetimeValue != null && formValues.lifetimeValue !== "") {
-      const lifetimeValueStr =
-        typeof formValues.lifetimeValue === "string"
-          ? formValues.lifetimeValue.trim()
-          : String(formValues.lifetimeValue);
-      if (lifetimeValueStr) filledFields++;
-    }
-
-    if (String(formValues.brandTerms ?? "").trim()) filledFields++;
-
-    const percentage = Math.round((filledFields / totalFields) * 100);
-    return Math.max(0, Math.min(100, percentage));
-  }, [
-    formValues.avgOrderValue,
-    formValues.businessDescription,
-    formValues.businessName,
-    formValues.lifetimeValue,
-    formValues.offerings,
-    formValues.primaryLocation,
-    formValues.recurringRevenue,
-    formValues.serviceType,
-    formValues.website,
-    formValues.brandTerms,
-    hasAtLeastOneOffering,
-  ]);
-
   const canConfirmAndProceed =
     !hasSchemaValidationErrors &&
     !hasOfferingsValidationErrors &&
@@ -300,7 +252,6 @@ export function CreatePitchTemplate() {
             sections={sections}
             activeSection={activeSection}
             onSectionClick={handleSectionClick}
-            completionPercentage={completionPercentage}
             buttonText="Confirm and Proceed"
             onButtonClick={handleConfirmAndProceed}
             buttonDisabled={!canConfirmAndProceed || isSubmitting || isLoading}

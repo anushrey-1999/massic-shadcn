@@ -20,7 +20,7 @@ import { OfferingRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, PackageSearch } from "lucide-react";
 
 type BusinessInfoFormData = {
   website: string;
@@ -213,14 +213,22 @@ export const OfferingsForm = ({
     <Card
       id="offerings"
       variant="profileCard"
-      className="py-6 px-4 bg-white border-none mt-6"
+      className="p-4 bg-white border-none shadow-none mt-6"
     >
       <CardHeader className="pb-4">
-        <CardTitle>
-          <Typography variant="h4">Offerings</Typography>
-        </CardTitle>
+        <div className="flex items-center gap-2">
+          <PackageSearch className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
+            <CardTitle>
+              <Typography variant="h4" className="!text-2xl">Offerings</Typography>
+            </CardTitle>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Defines what you actually sell so recommendations focus on revenue-driving products and services.
+            </Typography>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <Card variant="profileCard">
           <CardContent>
             <GenericInput<BusinessInfoFormData>

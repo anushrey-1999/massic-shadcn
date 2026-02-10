@@ -809,108 +809,6 @@ const ProfileTemplate = ({
     };
   }, [formValues]);
 
-  // Calculate completion percentage based on filled fields
-  const completionPercentage = useMemo(() => {
-    const values = formValues;
-    const totalFields = 19; // Total number of fields to track
-
-    let filledFields = 0;
-
-    // Required fields
-    if (values.website?.trim()) filledFields++;
-    if (values.businessName?.trim()) filledFields++;
-    if (values.primaryLocation?.trim()) filledFields++;
-    if (values.recurringRevenue?.trim()) filledFields++;
-    if (values.serviceType) filledFields++;
-    if (values.offerings) filledFields++;
-
-    // Optional but tracked fields
-    if (values.businessDescription?.trim()) filledFields++;
-    // Number fields - handle both string and number types
-    if (values.avgOrderValue != null && values.avgOrderValue !== "") {
-      const avgOrderValueStr =
-        typeof values.avgOrderValue === "string"
-          ? values.avgOrderValue.trim()
-          : String(values.avgOrderValue);
-      if (avgOrderValueStr) filledFields++;
-    }
-
-    if (values.lifetimeValue != null && values.lifetimeValue !== "") {
-      const lifetimeValueStr =
-        typeof values.lifetimeValue === "string"
-          ? values.lifetimeValue.trim()
-          : String(values.lifetimeValue);
-      if (lifetimeValueStr) filledFields++;
-    }
-
-    // Array fields - check for rows with actual data
-    // Offerings: check if there are rows with names
-    const hasOfferings = (values.offeringsList || []).some((row: any) =>
-      row.name?.trim()
-    );
-    if (hasOfferings) filledFields++;
-
-    // USPs: check if there are any USPs
-    if (
-      values.usps &&
-      typeof values.usps === "string" &&
-      values.usps.trim().length > 0
-    ) {
-      filledFields++;
-    }
-
-    // CTAs: check if there are rows with button text and URL
-    const hasCTAs = (values.ctas || []).some(
-      (row: any) => row.buttonText?.trim() && row.url?.trim()
-    );
-    if (hasCTAs) filledFields++;
-
-    // Brand terms: check if there are any brand terms
-    if (
-      values.brandTerms &&
-      typeof values.brandTerms === "string" &&
-      values.brandTerms.trim().length > 0
-    ) {
-      filledFields++;
-    }
-
-    // Stakeholders: check if there are rows with data
-    const hasStakeholders = (values.stakeholders || []).some(
-      (row: any) => row.name?.trim() || row.title?.trim()
-    );
-    if (hasStakeholders) filledFields++;
-
-    // Locations: check if there are rows with data
-    const hasLocations = (values.locations || []).some(
-      (row: any) => row.name?.trim() || row.address?.trim()
-    );
-    if (hasLocations) filledFields++;
-
-    // Competitors: check if there are rows with URLs
-    const hasCompetitors = (values.competitors || []).some((row: any) =>
-      row.url?.trim()
-    );
-    if (hasCompetitors) filledFields++;
-
-    // Brand tone: check if at least one is selected
-    if (
-      values.brandToneSocial &&
-      Array.isArray(values.brandToneSocial) &&
-      values.brandToneSocial.length > 0
-    ) {
-      filledFields++;
-    }
-    if (
-      values.brandToneWeb &&
-      Array.isArray(values.brandToneWeb) &&
-      values.brandToneWeb.length > 0
-    ) {
-      filledFields++;
-    }
-
-    return Math.round((filledFields / totalFields) * 100);
-  }, [form.state.values]);
-
   // Handle Save Changes - memoized to prevent re-renders
   const handleSaveChanges = useCallback(async () => {
     setShowSubmitErrors(true);
@@ -1464,7 +1362,6 @@ const ProfileTemplate = ({
             sections={sections}
             activeSection={activeSection}
             onSectionClick={handleSectionClick}
-            completionPercentage={completionPercentage}
             buttonText={buttonText}
             onButtonClick={handlePrimaryButtonClick}
             buttonDisabled={isButtonDisabled}

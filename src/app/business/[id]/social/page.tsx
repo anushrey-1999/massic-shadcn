@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useSocial } from "@/hooks/use-social"
 import { Typography } from '@/components/ui/typography'
 import { BUSINESS_RELEVANCE_PALETTE } from '@/components/organisms/StrategyBubbleChart/strategy-bubble-chart'
+import { getWorkflowStatus, isWorkflowSuccess } from '@/lib/workflow-status'
 import {
   Select,
   SelectContent,
@@ -311,8 +312,10 @@ export default function BusinessSocialPage({ params, skipEntitlements = false, i
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)
-  const workflowStatus = jobDetails?.workflow_status?.status
-  const showMainContent = workflowStatus === "success"
+  const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
+  const showMainContent =
+    coreStatus === "success" &&
+    isWorkflowSuccess(jobDetails, "channel_analyzer")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
@@ -360,6 +363,7 @@ export default function BusinessSocialPage({ params, skipEntitlements = false, i
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
       <WorkflowStatusBanner
         businessId={businessId}
+        workflowKey="channel_analyzer"
         emptyStateHeight="min-h-[calc(100vh-12rem)]"
       />
     </div>

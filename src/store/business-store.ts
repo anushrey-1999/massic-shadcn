@@ -29,9 +29,14 @@ export interface BusinessProfile {
   USPs?: string[] | null;
   BusinessObjective?: string | null;
   Competitors?: { name: string; website: string }[] | null;
+  CalendarEvents?: CalendarEventRow[] | null;
   SubscriptionItems?: {
     plan_type?: string;
     status?: string;
+    cancel_at_period_end?: boolean;
+    cancelled_date?: string;
+    current_period_start?: string;
+    current_period_end?: string;
     [key: string]: any;
   };
   LinkedAuthId?: string | null;
@@ -63,6 +68,12 @@ export type LocationRow = {
 
 export type CompetitorRow = {
   url: string;
+};
+
+export type CalendarEventRow = {
+  eventName: string;
+  startDate: string | null;
+  endDate: string | null;
 };
 
 export type LocationOption = {

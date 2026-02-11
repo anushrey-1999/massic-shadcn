@@ -56,9 +56,10 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         <Typography variant="h2">Sources</Typography>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 items-start">
+      <div className="grid grid-cols-2 gap-3 items-stretch">
         <DataTable
-          className="w-full"
+          className="w-full h-full"
+          fillHeight
           icon={<Eye className="h-6 w-6" />}
           title="Top Sources"
           titleTooltip="Sources that drive the most conversion"

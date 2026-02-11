@@ -64,6 +64,7 @@ interface DataTableProps {
   firstColumnTruncate?: string
   titleTooltip?: string
   inlineHeader?: boolean
+  fillHeight?: boolean
 }
 
 export function DataTable({
@@ -90,6 +91,7 @@ export function DataTable({
   firstColumnTruncate,
   titleTooltip,
   inlineHeader = false,
+  fillHeight = false,
 }: DataTableProps) {
   const activeTab = controlledActiveTab || tabs?.find((t) => t.active)?.value || tabs?.[0]?.value || "tab-0"
   const displayData = maxRows ? data.slice(0, maxRows) : data
@@ -348,9 +350,15 @@ export function DataTable({
   }
 
   return (
-    <Card className={cn("p-0 shadow-none border border-general-border rounded-lg flex flex-col gap-0 overflow-hidden", className)}>
+    <Card
+      className={cn(
+        "p-0 shadow-none border border-general-border rounded-lg flex flex-col gap-0 overflow-hidden",
+        fillHeight && "h-full min-h-0",
+        className
+      )}
+    >
       {!inlineHeader && (
-        <CardHeader className="p-0 gap-0">
+        <CardHeader className="p-0 gap-0 shrink-0">
           <div className="flex items-center justify-between p-2 border-b border-general-border-four">
             <div className="flex items-center gap-1 ">
               {title && (
@@ -387,12 +395,31 @@ export function DataTable({
         </CardHeader>
       )}
 
-      <CardContent className="p-0">
-        {tableContent}
+      <CardContent className={cn("p-0", fillHeight && "flex-1 flex flex-col min-h-0")}>
+        {fillHeight ? (
+          <div className="flex flex-1 flex-col min-h-0">
+            {tableContent}
+            {onArrowClick && (
+              <div className="flex justify-end px-2 py-1.5 shrink-0">
+                <Button
+                  size="icon-sm"
+                  variant="secondary"
+                  className="rounded-lg cursor-pointer"
+                  onClick={onArrowClick}
+                >
+                  <ArrowRight className="h-3 w-3 text-foreground" />
+                </Button>
+              </div>
+            )}
+            <div className="flex-1 min-h-0" />
+          </div>
+        ) : (
+          tableContent
+        )}
       </CardContent>
 
-      {onArrowClick && (
-        <CardFooter className="justify-end px-2 py-1.5">
+      {!fillHeight && onArrowClick && (
+        <CardFooter className="justify-end px-2 py-1.5 shrink-0">
           <Button
             size="icon-sm"
             variant="secondary"

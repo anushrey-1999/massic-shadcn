@@ -62,6 +62,8 @@ interface DataTableProps {
   maxHeight?: string
   cellSize?: "sm" | "md"
   firstColumnTruncate?: string
+  titleTooltip?: string
+  inlineHeader?: boolean
 }
 
 export function DataTable({
@@ -86,6 +88,8 @@ export function DataTable({
   maxHeight,
   cellSize = "md",
   firstColumnTruncate,
+  titleTooltip,
+  inlineHeader = false,
 }: DataTableProps) {
   const activeTab = controlledActiveTab || tabs?.find((t) => t.active)?.value || tabs?.[0]?.value || "tab-0"
   const displayData = maxRows ? data.slice(0, maxRows) : data
@@ -130,16 +134,16 @@ export function DataTable({
 
   const cellStyles = {
     sm: {
-      header: "h-[33px] p-2",
-      cell: "h-10 max-h-10 p-2",
+      header: "h-[32px] max-h-[32px] py-1.5 px-2",
+      cell: "h-[32px] max-h-[32px] py-1.5 px-2",
       text: "text-xs",
       truncate: "max-w-[250px]",
       badge: "text-[10px]",
     },
     md: {
-      header: "h-11 p-2",
-      cell: "h-11 p-2",
-      text: "text-sm",
+      header: "h-[32px] max-h-[32px] py-1.5 px-2",
+      cell: "h-[32px] max-h-[32px] py-1.5 px-2",
+      text: "text-xs",
       truncate: "max-w-[380px]",
       badge: "text-[11px]",
     },
@@ -173,36 +177,71 @@ export function DataTable({
         >
           <Table className={stickyHeader ? "overflow-visible" : undefined}>
             <TableElement>
-              <TableHeader className="bg-foreground-light">
-                <TableRow className="bg-foreground-light hover:bg-transparent">
+              <TableHeader className="bg-white">
+                <TableRow className="bg-white hover:bg-transparent border-b border-[#A3A3A3]">
                   {columns.map((col, index) => (
                     <TableHead
                       key={col.key}
                       className={cn(
-                        "group",
-                        sortConfig?.column === col.key ? "bg-general-primary-foreground" : "bg-foreground-light",
+                        "group transition-colors",
+                        sortConfig?.column === col.key ? "bg-foreground-light hover:bg-muted" : "bg-white hover:bg-foreground-light",
+                        inlineHeader && index === 0 && "hover:bg-white",
                         stickyHeader && "sticky top-0 z-10",
                         styles.header,
                         isThreeColumnLayout && !col.width && (index === 0 ? firstColumnWidth : otherColumnWidth),
                         col.width
                       )}
                     >
-                      {col.sortable ? (
+                      {inlineHeader && index === 0 ? (
+                        <div className="flex h-full w-full items-center justify-start gap-2">
+                          {title && (
+                            titleTooltip ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="cursor-help text-[14px] font-medium text-general-secondary-foreground shrink-0">
+                                    {title}
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent>{titleTooltip}</TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <span className="text-[14px] font-medium text-general-secondary-foreground shrink-0">
+                                {title}
+                              </span>
+                            )
+                          )}
+                          {showTabs && tabs && (
+                            <Tabs value={activeTab} onValueChange={handleTabChange}>
+                              <TabsList className="h-auto p-0.5 bg-primary-foreground shrink-0">
+                                {tabs.map((tab, i) => (
+                                  <TabsTrigger
+                                    key={i}
+                                    value={tab.value || `tab-${i}`}
+                                    className="px-1.5 py-0.5 cursor-pointer"
+                                  >
+                                    {tab.icon && <span className="text-[#525252]">{tab.icon}</span>}
+                                  </TabsTrigger>
+                                ))}
+                              </TabsList>
+                            </Tabs>
+                          )}
+                        </div>
+                      ) : col.sortable ? (
                         <button
                           type="button"
                           onClick={() => handleSort(col.key)}
                           className={cn(
-                            "flex h-full w-full items-center justify-start text-left transition-colors",
-                            "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                            sortConfig?.column === col.key && "bg-general-primary-foreground hover:bg-general-primary-foreground"
+                            "flex h-full w-full items-center justify-start text-left",
+                            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            sortConfig?.column === col.key && "bg-transparent"
                           )}
                         >
                           <span className="inline-flex min-w-0 items-center justify-start gap-1.5">
                             <span
                               className={cn(
-                                "min-w-0 truncate font-medium leading-none tracking-wide text-general-muted-foreground",
+                                "min-w-0 truncate font-medium leading-none tracking-wide",
                                 cellSize === "md" ? "text-xs font-semibold" : "text-xs",
-                                sortConfig?.column === col.key && "text-foreground"
+                                sortConfig?.column === col.key ? "text-general-muted-foreground" : "text-foreground"
                               )}
                             >
                               {col.label}
@@ -217,7 +256,7 @@ export function DataTable({
                           </span>
                         </button>
                       ) : (
-                        <div className="flex w-full items-center justify-start gap-1">
+                        <div className="flex w-full items-center justify-start gap-1 min-h-full">
                           <span
                             className={cn(
                               "font-medium tracking-wide text-general-muted-foreground",
@@ -237,7 +276,7 @@ export function DataTable({
                   <TableRow
                     key={rowIndex}
                     className={cn(
-                      cellSize === "sm" ? "h-10 max-h-10" : "h-11 border-b border-border/40 transition-colors hover:bg-muted/30",
+                      cellSize === "sm" ? "h-[32px] max-h-[32px]" : "h-[32px] max-h-[32px] border-b border-border/40 transition-colors hover:bg-muted/30",
                       onRowClick && "cursor-pointer"
                     )}
                     onClick={() => onRowClick?.(row)}
@@ -309,29 +348,44 @@ export function DataTable({
   }
 
   return (
-    <Card className={cn("p-0 shadow-none border border-general-border rounded-lg flex flex-col gap-0", className)}>
-      <CardHeader className="p-0 gap-0">
-        <div className="flex items-center justify-between p-2 border-b border-general-border-four">
-          <div className="flex items-center gap-1 ">
-            {title && <CardTitle className="text-base font-medium text-general-secondary-foreground">{title}</CardTitle>}
+    <Card className={cn("p-0 shadow-none border border-general-border rounded-lg flex flex-col gap-0 overflow-hidden", className)}>
+      {!inlineHeader && (
+        <CardHeader className="p-0 gap-0">
+          <div className="flex items-center justify-between p-2 border-b border-general-border-four">
+            <div className="flex items-center gap-1 ">
+              {title && (
+                titleTooltip ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <CardTitle className="text-base font-medium text-general-secondary-foreground">{title}</CardTitle>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{titleTooltip}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <CardTitle className="text-base font-medium text-general-secondary-foreground">{title}</CardTitle>
+                )
+              )}
+            </div>
+            {showTabs && tabs && (
+              <Tabs value={activeTab} onValueChange={handleTabChange}>
+                <TabsList className="h-auto p-0.5 bg-primary-foreground">
+                  {tabs.map((tab, index) => (
+                    <TabsTrigger
+                      key={index}
+                      value={tab.value || `tab-${index}`}
+                      className="px-1.5 py-0.5 cursor-pointer"
+                    >
+                      {tab.icon && <span className="text-[#525252]">{tab.icon}</span>}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            )}
           </div>
-          {showTabs && tabs && (
-            <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="h-auto p-0.5 bg-primary-foreground">
-                {tabs.map((tab, index) => (
-                  <TabsTrigger
-                    key={index}
-                    value={tab.value || `tab-${index}`}
-                    className="px-1.5 py-0.5 cursor-pointer"
-                  >
-                    {tab.icon && <span className="text-[#525252]">{tab.icon}</span>}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          )}
-        </div>
-      </CardHeader>
+        </CardHeader>
+      )}
 
       <CardContent className="p-0">
         {tableContent}

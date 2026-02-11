@@ -27,6 +27,7 @@ interface ChartLegendProps {
   onToggle?: (key: string, checked: boolean) => void;
   className?: string;
   variant?: "default" | "box";
+  showToggle?: boolean;
 }
 
 export function ChartLegend({
@@ -34,13 +35,14 @@ export function ChartLegend({
   onToggle,
   className,
   variant = "default",
+  showToggle = true,
 }: ChartLegendProps) {
   if (variant === "box") {
     return (
       <div className={cn("flex items-center gap-0", className)}>
         {items.map((item, index) => (
           <Fragment key={item.key}>
-            <label className="relative shrink-0 h-8 w-fit cursor-pointer">
+            <div className="relative shrink-0 h-8 w-fit">
               <svg
                 className="absolute inset-0 w-full h-full"
                 viewBox="0 0 100 28"
@@ -55,13 +57,15 @@ export function ChartLegend({
                 />
               </svg>
               <div className="relative h-full flex items-center justify-center gap-1.5 px-4 py-1.5">
-                <Checkbox
-                  checked={item.checked ?? true}
-                  onCheckedChange={(checked) =>
-                    onToggle?.(item.key, checked as boolean)
-                  }
-                  className="cursor-pointer shrink-0"
-                />
+                {showToggle && (
+                  <Checkbox
+                    checked={item.checked ?? true}
+                    onCheckedChange={(checked) =>
+                      onToggle?.(item.key, checked as boolean)
+                    }
+                    className="cursor-pointer shrink-0"
+                  />
+                )}
                 <span
                   style={item.color ? { color: item.color } : undefined}
                   className={cn(
@@ -71,10 +75,7 @@ export function ChartLegend({
                 >
                   {item.icon}
                 </span>
-                <span
-                  className="text-xs font-medium"
-                  style={item.color ? { color: item.color } : undefined}
-                >
+                <span className="text-xs font-medium text-foreground">
                   {item.value}
                 </span>
                 <StatsBadge
@@ -83,7 +84,7 @@ export function ChartLegend({
                   className="flex items-baseline"
                 />
               </div>
-            </label>
+            </div>
             {item.funnelPercentage ? (
               <span className="text-xs text-muted-foreground px-2 shrink-0">
                 {item.funnelPercentage}
@@ -120,13 +121,7 @@ export function ChartLegend({
               {item.icon}
             </span>
             <div className="flex items-baseline gap-1 py-0.5 rounded">
-              <span
-                className="font-semibold leading-[120%] tracking-[-0.02em]"
-                style={{
-                  fontSize: "20px",
-                  ...(item.color ? { color: item.color } : {}),
-                }}
-              >
+              <span className="font-semibold leading-[120%] tracking-[-0.02em] text-foreground" style={{ fontSize: "20px" }}>
                 {item.value}
               </span>
               <StatsBadge

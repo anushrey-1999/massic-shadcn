@@ -47,12 +47,16 @@ const METRIC_ICONS: Record<string, React.ReactNode> = {
   "non-branded": <TrendingUp className="h-5 w-5" />,
 };
 
-interface OrganicPerformanceSectionProps {
+export interface OrganicPerformanceSectionProps {
   period?: TimePeriodValue;
+  visibleLines?: Record<string, boolean>;
+  onLegendToggle?: (key: string, checked: boolean) => void;
 }
 
 export function OrganicPerformanceSection({
   period = "3 months",
+  visibleLines: visibleLinesProp,
+  onLegendToggle: onLegendToggleProp,
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -117,26 +121,35 @@ export function OrganicPerformanceSection({
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
   const [brandedKeywordsModalOpen, setBrandedKeywordsModalOpen] = useState(false);
 
-  const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
+  const [visibleLinesLocal, setVisibleLinesLocal] = useState<
+    Record<string, boolean>
+  >({
     impressions: true,
     clicks: true,
     goals: true,
   });
 
+  const visibleLines =
+    visibleLinesProp !== undefined ? visibleLinesProp : visibleLinesLocal;
+  const handleLegendToggle = useCallback(
+    (key: string, checked: boolean) => {
+      if (onLegendToggleProp) {
+        onLegendToggleProp(key, checked);
+        return;
+      }
+      setVisibleLinesLocal((prev) => {
+        const checkedCount = Object.values(prev).filter(Boolean).length;
+        if (!checked && checkedCount <= 1) return prev;
+        return { ...prev, [key]: checked };
+      });
+    },
+    [onLegendToggleProp]
+  );
+
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomCenter, setZoomCenter] = useState<number | null>(null);
   const [graphFullScreen, setGraphFullScreen] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
-
-  const handleLegendToggle = useCallback((key: string, checked: boolean) => {
-    setVisibleLines((prev) => {
-      const checkedCount = Object.values(prev).filter(Boolean).length;
-      if (!checked && checkedCount <= 1) {
-        return prev;
-      }
-      return { ...prev, [key]: checked };
-    });
-  }, []);
 
   const funnelKeyToIndex: Record<string, number> = useMemo(
     () => ({ impressions: 0, clicks: 1, goals: 2 }),
@@ -427,6 +440,7 @@ export function OrganicPerformanceSection({
                   className="mb-3 shrink-0"
                   items={chartLegendWithIcons}
                   onToggle={handleLegendToggle}
+                  showToggle={false}
                 />
                 <div
                   className={

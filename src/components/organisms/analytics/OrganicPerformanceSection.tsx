@@ -10,7 +10,10 @@ import {
   Loader2,
   CircleCheckBig,
   AlertTriangle,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/molecules/analytics/MetricCard";
 import { AlertBar } from "@/components/molecules/analytics/AlertBar";
 import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet";
@@ -44,12 +47,16 @@ const METRIC_ICONS: Record<string, React.ReactNode> = {
   "non-branded": <TrendingUp className="h-5 w-5" />,
 };
 
-interface OrganicPerformanceSectionProps {
+export interface OrganicPerformanceSectionProps {
   period?: TimePeriodValue;
+  visibleLines?: Record<string, boolean>;
+  onLegendToggle?: (key: string, checked: boolean) => void;
 }
 
 export function OrganicPerformanceSection({
   period = "3 months",
+  visibleLines: visibleLinesProp,
+  onLegendToggle: onLegendToggleProp,
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -114,25 +121,40 @@ export function OrganicPerformanceSection({
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
   const [brandedKeywordsModalOpen, setBrandedKeywordsModalOpen] = useState(false);
 
-  const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
+  const [visibleLinesLocal, setVisibleLinesLocal] = useState<
+    Record<string, boolean>
+  >({
     impressions: true,
     clicks: true,
     goals: true,
   });
 
+  const visibleLines =
+    visibleLinesProp !== undefined ? visibleLinesProp : visibleLinesLocal;
+  const handleLegendToggle = useCallback(
+    (key: string, checked: boolean) => {
+      if (onLegendToggleProp) {
+        onLegendToggleProp(key, checked);
+        return;
+      }
+      setVisibleLinesLocal((prev) => {
+        const checkedCount = Object.values(prev).filter(Boolean).length;
+        if (!checked && checkedCount <= 1) return prev;
+        return { ...prev, [key]: checked };
+      });
+    },
+    [onLegendToggleProp]
+  );
+
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomCenter, setZoomCenter] = useState<number | null>(null);
+  const [graphFullScreen, setGraphFullScreen] = useState(false);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleLegendToggle = useCallback((key: string, checked: boolean) => {
-    setVisibleLines((prev) => {
-      const checkedCount = Object.values(prev).filter(Boolean).length;
-      if (!checked && checkedCount <= 1) {
-        return prev;
-      }
-      return { ...prev, [key]: checked };
-    });
-  }, []);
+  const funnelKeyToIndex: Record<string, number> = useMemo(
+    () => ({ impressions: 0, clicks: 1, goals: 2 }),
+    []
+  );
 
   const chartLegendWithIcons = useMemo(() => {
     const iconConfig: Record<string, { icon: React.ReactNode; color: string }> =
@@ -144,13 +166,23 @@ export function OrganicPerformanceSection({
       },
       goals: { icon: <Target className="h-6 w-6" />, color: "#059669" },
     };
-    return chartLegendItems.map((item) => ({
-      ...item,
-      icon: iconConfig[item.key]?.icon || <Eye className="h-4 w-4" />,
-      color: iconConfig[item.key]?.color,
-      checked: visibleLines[item.key] ?? true,
-    }));
-  }, [chartLegendItems, visibleLines]);
+    return chartLegendItems.map((item) => {
+      const stageIndex = funnelKeyToIndex[item.key];
+      const funnelPct =
+        graphFullScreen &&
+        hasFunnelData &&
+        funnelChartItems[stageIndex]?.percentage
+          ? funnelChartItems[stageIndex].percentage
+          : undefined;
+      return {
+        ...item,
+        icon: iconConfig[item.key]?.icon || <Eye className="h-4 w-4" />,
+        color: iconConfig[item.key]?.color,
+        checked: visibleLines[item.key] ?? true,
+        ...(funnelPct !== undefined && funnelPct !== "" ? { funnelPercentage: funnelPct } : {}),
+      };
+    });
+  }, [chartLegendItems, visibleLines, graphFullScreen, hasFunnelData, funnelChartItems, funnelKeyToIndex]);
 
   const zoomedChartData = useMemo(() => {
     if (zoomLevel <= 1 || zoomCenter === null || normalizedChartData.length === 0) {
@@ -381,28 +413,47 @@ export function OrganicPerformanceSection({
           )}
         </div>
 
-        {/* Area Chart with Funnel */}
-        <div className="grid grid-cols-[minmax(0,1fr)_400px] rounded-lg overflow-hidden bg-white border border-general-border">
-          <div className="p-3 pr-8 border-r border-general-border flex flex-col justify-between">
+        {/* Area Chart with Funnel - card height matches funnel; toggle keeps same height */}
+        <div className="relative rounded-lg overflow-hidden bg-white border border-general-border min-h-[320px]">
+          <div
+            className={
+              graphFullScreen
+                ? "grid grid-cols-1 min-h-[242px]"
+                : "grid grid-cols-[minmax(0,1fr)_400px] min-h-[320px]"
+            }
+          >
+            <div
+              className={
+                graphFullScreen
+                  ? "p-3 pr-8 flex flex-col min-h-full"
+                  : "p-3 pr-8 border-r border-general-border flex flex-col min-h-full"
+              }
+            >
             {isLoading ? (
-              <div className="flex items-center justify-center h-[190px]">
+              <div className="flex flex-1 items-center justify-center min-h-[240px]">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : hasData ? (
               <>
                 <ChartLegend
-                  className="mb-4"
+                  variant="box"
+                  className="mb-3 shrink-0"
                   items={chartLegendWithIcons}
                   onToggle={handleLegendToggle}
+                  showToggle={false}
                 />
                 <div
-                  className="h-[190px] cursor-grab active:cursor-grabbing"
+                  className={
+                    graphFullScreen
+                      ? "min-h-[242px] flex-1 cursor-grab active:cursor-grabbing"
+                      : "h-[242px] cursor-grab active:cursor-grabbing"
+                  }
                   ref={chartContainerRef}
                   onDoubleClick={handleChartDoubleClick}
                 >
                   <ChartContainer
                     config={chartConfig}
-                    className="h-full w-full flex-coljustify-end items-stretch aspect-auto"
+                    className="h-full w-full flex-col justify-end items-stretch aspect-auto"
                   >
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
@@ -547,25 +598,41 @@ export function OrganicPerformanceSection({
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center h-[290px] text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center min-h-[240px] text-muted-foreground">
                 No GSC data available. Please connect Google Search Console.
+              </div>
+            )}
+            </div>
+
+            {!graphFullScreen && (
+              <div className="h-full px-7 py-3 flex items-center justify-center min-h-0">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : hasFunnelData ? (
+                  <FunnelChart data={funnelChartItems} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    No funnel data available
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          <div className="h-full px-7 py-3">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : hasFunnelData ? (
-              <FunnelChart data={funnelChartItems} />
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute top-2 right-2 z-10 bg-white h-8 w-8"
+            onClick={() => setGraphFullScreen(!graphFullScreen)}
+          >
+            {graphFullScreen ? (
+              <Minimize2 className="h-2 w-2" />
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                No funnel data available
-              </div>
+              <Maximize2 className="h-3 w-3" />
             )}
-          </div>
+          </Button>
         </div>
       </div>
 

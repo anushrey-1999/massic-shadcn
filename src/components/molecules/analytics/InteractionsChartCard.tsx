@@ -79,29 +79,28 @@ export function InteractionsChartCard({
   };
 
   return (
-    <div className=" bg-white rounded-lg border border-general-border flex flex-col justify-between">
-      <div className="text-base text-general-secondary-foreground border-b border-general-border-four w-full p-2 font-medium mb-2">
+    <div className="bg-white rounded-lg border border-general-border flex flex-col min-h-0 h-full">
+      <div className="text-base text-general-secondary-foreground border-b border-general-border-four w-full p-2 font-medium flex-none">
         {title}
       </div>
 
-      <div className="px-2 flex flex-col gap-2">
+      <div className="px-2 pt-2 flex flex-col gap-2 flex-none">
         <div className="flex items-center gap-4">
-          <div className="">
-            <div className="bg-foreground-light rounded-lg p-2 flex flex-col gap-1">
-              <span className="text-sm text-general-muted-foreground font-medium">
-                {legend.label}
-              </span>
-              <div className="flex items-center gap-2 justify-between">
-                <span className="text-base font-medium">{legend.value}</span>
-                <StatsBadge value={legend.change} variant="plain" />
-              </div>
+          <div className="bg-foreground-light rounded-lg p-2 flex flex-col gap-1">
+            <span className="text-sm text-general-muted-foreground font-medium">
+              {legend.label}
+            </span>
+            <div className="flex items-center gap-2 justify-between">
+              <span className="text-base font-medium">{legend.value}</span>
+              <StatsBadge value={legend.change} variant="plain" />
             </div>
           </div>
         </div>
       </div>
+      <div className="flex-1 min-h-0" />
       <div
         ref={chartRef}
-        className="cursor-grab active:cursor-grabbing px-2"
+        className="cursor-grab active:cursor-grabbing px-2 pt-2 flex-none"
         style={{ height: chartHeight }}
         onDoubleClick={handleDoubleClick}
       >

@@ -429,7 +429,7 @@ export function useGSCAnalytics(
       {
         label: "Goals",
         value: funnelData.cnv.Value,
-        percentage: "",
+        percentage: funnelData.cnv.Percentage,
       },
     ]
   }, [funnelData])

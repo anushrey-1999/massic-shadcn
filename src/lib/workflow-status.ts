@@ -6,6 +6,7 @@ export type WorkflowStatusValue =
   | "success"
   | "error"
   | string
+  | null
   | undefined;
 
 export function getWorkflowStatus(

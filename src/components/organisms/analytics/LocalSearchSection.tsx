@@ -89,7 +89,7 @@ export function LocalSearchSection({
       </div>
 
       {locations.length === 0 ? (
-        <div className="flex items-center justify-center h-[200px] border rounded-lg bg-muted/20 mt-10">
+        <div className="flex items-center justify-center h-[200px] border rounded-lg bg-white mt-10">
           <p className="text-sm text-muted-foreground">
             No locations configured for this business
           </p>

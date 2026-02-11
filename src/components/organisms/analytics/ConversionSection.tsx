@@ -89,16 +89,18 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
 
   return (
     <div className="px-7 pb-10">
-      <div className="flex items-center gap-2 py-5 border-b border-general-muted-foreground">
+      <div className="flex items-center gap-2 pb-6">
         <ChartNoAxesCombined className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Conversions</Typography>
       </div>
 
-      <div className="flex flex-col gap-3 pt-10">
+      <div className="flex flex-col gap-3">
         <div className="grid grid-cols-2 gap-3 ">
           <DataTable
             icon={<Eye className="h-6 w-6" />}
-            title="Your tracked CTAs"
+            title="Tracked CTAs"
+            titleTooltip="Your tracked CTAs"
+            inlineHeader
             showTabs
             tabs={[
               { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
@@ -130,7 +132,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
             }}
             onSort={(column) => handleGoalsSort(column as GA4SortColumn)}
             onArrowClick={() => setGoalsModalOpen(true)}
-            maxRows={5}
+            maxRows={10}
           />
 
           <ClicksGoalsChartCard
@@ -155,7 +157,9 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
         <div className="grid grid-cols-2 gap-3  ">
           <DataTable
             icon={<Eye className="h-6 w-6" />}
-            title="Where conversions happen"
+            title="Page Groups"
+            titleTooltip="Where conversions happen"
+            inlineHeader
             showTabs
             tabs={[
               { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
@@ -186,12 +190,14 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
               handleContentGroupsSort(column as GA4SortColumn)
             }
             onArrowClick={() => setContentGroupsModalOpen(true)}
-            maxRows={5}
+            maxRows={10}
           />
 
           <DataTable
             icon={<Eye className="h-6 w-6" />}
-            title="Where conversions happen"
+            title="Top Pages"
+            titleTooltip="Where conversions happen"
+            inlineHeader
             showTabs
             tabs={[
               { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
@@ -221,7 +227,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
             }}
             onSort={(column) => handleTopPagesSort(column as GA4SortColumn)}
             onArrowClick={() => setTopPagesModalOpen(true)}
-            maxRows={5}
+            maxRows={10}
           />
         </div>
       </div>

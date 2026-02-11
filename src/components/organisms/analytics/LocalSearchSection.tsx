@@ -83,20 +83,20 @@ export function LocalSearchSection({
 
   return (
     <div className="px-7 pb-10">
-      <div className="flex items-center gap-2 py-5 border-b border-general-muted-foreground">
+      <div className="flex items-center gap-2 pb-6">
         <MapPin className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Local Search</Typography>
       </div>
 
       {locations.length === 0 ? (
-        <div className="flex items-center justify-center h-[200px] border rounded-lg bg-white mt-10">
+        <div className="flex items-center justify-center h-[200px] border rounded-lg bg-white mt-6">
           <p className="text-sm text-muted-foreground">
             No locations configured for this business
           </p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 pt-10">
+          <div className="grid grid-cols-2 gap-3">
             {isLoading ? (
               <div className="flex items-center justify-center h-[300px] border rounded-lg">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -113,11 +113,14 @@ export function LocalSearchSection({
                 }}
                 data={hasInteractionsData ? interactionsChartData : []}
                 dataKey="interactions"
+                chartHeight={252}
               />
             )}
 
             <DataTable
-              title="Local searches to discover you"
+              title="Top Queries"
+              titleTooltip="Local searches to discover you"
+              inlineHeader
               columns={[
                 { key: "query", label: "Query", width: "w-[250px]" },
                 { key: "searches", label: "Searches", sortable: true },
@@ -125,7 +128,7 @@ export function LocalSearchSection({
               data={tableData}
               isLoading={isLoading}
               hasData={hasQueriesData}
-              maxRows={5}
+              maxRows={10}
               sortConfig={sortConfig}
               onSort={handleSort}
               onArrowClick={() => setQueriesModalOpen(true)}

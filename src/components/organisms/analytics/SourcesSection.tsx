@@ -51,16 +51,19 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
 
   return (
     <div className="flex flex-col px-7 pb-10">
-      <div className="flex items-center gap-2 py-5 border-b border-general-muted-foreground">
+      <div className="flex items-center gap-2 pb-6">
         <ListChecks className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Sources</Typography>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 pt-10 items-stretch">
+      <div className="grid grid-cols-2 gap-3 items-stretch">
         <DataTable
-          className="h-full"
+          className="w-full h-full"
+          fillHeight
           icon={<Eye className="h-6 w-6" />}
-          title="Sources that drive the most conversion"
+          title="Top Sources"
+          titleTooltip="Sources that drive the most conversion"
+          inlineHeader
           showTabs
           tabs={[
             { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
@@ -84,7 +87,7 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
           sortConfig={{ column: topSourcesSort.column, direction: topSourcesSort.direction }}
           onSort={(column) => handleTopSourcesSort(column as GA4SortColumn)}
           onArrowClick={() => setTopSourcesModalOpen(true)}
-          maxRows={5}
+          maxRows={10}
         />
 
         <SourcesChannelsChart

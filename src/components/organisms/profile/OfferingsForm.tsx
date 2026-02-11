@@ -20,7 +20,7 @@ import { OfferingRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { toast } from "sonner";
-import { Loader2, PackageSearch } from "lucide-react";
+import { Loader2, PackageSearch, AlertCircle, X } from "lucide-react";
 
 type BusinessInfoFormData = {
   website: string;
@@ -73,6 +73,7 @@ export const OfferingsForm = ({
     isExtracting,
     extractedOfferings,
     extractionStatus,
+    extractionError,
     clearExtraction,
     taskId,
     extractionData,
@@ -291,7 +292,27 @@ export const OfferingsForm = ({
               ) : null}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {!isExtracting && extractionError ? (
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+                  <Typography variant="small" className="text-destructive">
+                    {extractionError}
+                  </Typography>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={clearExtraction}
+                  className="shrink-0"
+                >
+                  <X className="mr-1.5 h-4 w-4" />
+                  Dismiss
+                </Button>
+              </div>
+            ) : null}
             <CustomAddRowTable
               columns={offeringsColumns}
               data={offeringsData}

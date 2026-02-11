@@ -138,6 +138,7 @@ interface ExtractionStatusResponse {
     url?: string;
   }>;
   error?: string;
+  errors?: string[]; // API error format e.g. ["No JSON found in response"]
 }
 
 // Helper functions for localStorage persistence
@@ -216,6 +217,11 @@ export function useOfferingsExtractionStatus(
         `/offering-extractor?task_id=${taskId}`,
         "python"
       );
+
+      const errs = response?.errors;
+      if (Array.isArray(errs) && errs.length > 0) {
+        return { status: "failed", error: errs[0], errors: errs };
+      }
 
       return response;
     },
@@ -393,12 +399,11 @@ export function useOfferingsExtractor(businessId: string | null) {
 
       if (isFailed) {
         toast.error(
-          statusQuery.data.error || "Failed to extract offerings from website"
+          statusQuery.data.error || statusQuery.data.errors?.[0] || "Failed to extract offerings from website"
         );
         if (businessId) {
           clearTaskId(businessId);
         }
-        setTaskId(null);
       } else if (isComplete) {
         // Clear taskId from localStorage once extraction is complete and we have data
         // This ensures taskId is removed even if parent component doesn't process immediately
@@ -408,6 +413,14 @@ export function useOfferingsExtractor(businessId: string | null) {
       }
     }
   }, [statusQuery.data, businessId, taskId]);
+
+  // When status query errors (network/API throw), stop polling and clear taskId from localStorage
+  useEffect(() => {
+    if (!statusQuery.isError || !businessId) return;
+    setIsExtracting(false);
+    offeringsPollingService.stopExtraction(businessId);
+    clearTaskId(businessId);
+  }, [statusQuery.isError, businessId]);
   
   // Sync extraction state with service (for when user returns to page)
   useEffect(() => {
@@ -478,12 +491,23 @@ export function useOfferingsExtractor(businessId: string | null) {
     return undefined;
   }, [statusQuery.data]);
 
+  const extractionError = useMemo((): string | null => {
+    const data = statusQuery.data;
+    if (data?.status === "failed") {
+      return (data.error || data.errors?.[0]) ?? null;
+    }
+    if (statusQuery.isError && statusQuery.error) {
+      return statusQuery.error instanceof Error ? statusQuery.error.message : String(statusQuery.error);
+    }
+    return null;
+  }, [statusQuery.data, statusQuery.isError, statusQuery.error]);
+
   return {
     startExtraction,
     isExtracting: isExtracting || startExtractionMutation.isPending,
     extractedOfferings: getExtractedOfferings(),
     extractionStatus: inferredStatus,
-    extractionError: statusQuery.error,
+    extractionError,
     clearExtraction,
     taskId,
     // Expose raw query data for direct access if needed

@@ -231,7 +231,7 @@ export function CreatePitchTemplate() {
 
   const isLoading = isCreatingBusiness || isCreatingJob;
   const loadingMessage = React.useMemo(() => {
-    if (isCreatingJob) return "Creating job...";
+    if (isCreatingJob) return "Setting things up...";
     if (isCreatingBusiness) return "Creating business...";
     return undefined;
   }, [isCreatingBusiness, isCreatingJob]);

@@ -166,11 +166,17 @@ export function BillingSettings() {
   const [planSelectionResetKey, setPlanSelectionResetKey] = useState(0);
 
   const { profiles } = useBusinessStore();
+
+  // Derive whitelist status from profiles (agency-level check from backend)
+  const isAgencyWhitelisted = useMemo(() => {
+    // Backend adds isWhitelisted flag to each business profile (agency-level)
+    return profiles.some(profile => profile.isWhitelisted === true);
+  }, [profiles]);
+
   const {
     loading: subscriptionLoading,
     handleSubscribeToPlan,
-    data: subscriptionData,
-  } = useSubscription();
+  } = useSubscription({ isWhitelisted: isAgencyWhitelisted });
   const {
     loading: creditsLoading,
     creditsBalance,
@@ -376,10 +382,7 @@ export function BillingSettings() {
       {
         id: "plan",
         accessorFn: (row) => {
-          const isWhitelisted =
-            subscriptionData?.whitelisted === true ||
-            subscriptionData?.status === "whitelisted";
-          if (isWhitelisted) return "Whitelisted";
+          if (isAgencyWhitelisted) return "Whitelisted";
           const subscription = row.SubscriptionItems;
           if (subscription?.plan_type && subscription?.status !== "cancelled") {
             return toTitleCasePlan(subscription.plan_type);
@@ -393,11 +396,7 @@ export function BillingSettings() {
         size: 70,
         minSize: 70,
         cell: ({ row }) => {
-          const isWhitelisted =
-            subscriptionData?.whitelisted === true ||
-            subscriptionData?.status === "whitelisted";
-
-          if (isWhitelisted) {
+          if (isAgencyWhitelisted) {
             return (
               <div className="border border-general-border rounded-lg px-2 py-[5.5px] flex items-center justify-between">
                 <Typography variant="p" className="leading-none text-green-600">
@@ -518,16 +517,13 @@ export function BillingSettings() {
         size: 50,
         minSize: 50,
         cell: ({ row }) => {
-          const isWhitelisted =
-            subscriptionData?.whitelisted === true ||
-            subscriptionData?.status === "whitelisted";
           const subscription = row.original.SubscriptionItems;
           const hasSubscription =
             subscription?.plan_type &&
             subscription?.status &&
             subscription?.status !== "cancelled";
 
-          if (isWhitelisted || !hasSubscription) {
+          if (isAgencyWhitelisted || !hasSubscription) {
             return <span className="text-muted-foreground">-</span>;
           }
 
@@ -554,17 +550,13 @@ export function BillingSettings() {
         },
       },
     ],
-    [subscriptionData, handleManagePlan, loading, actionLoading, subscriptionAction, openSubscriptionAction]
+    [isAgencyWhitelisted, handleManagePlan, loading, actionLoading, subscriptionAction, openSubscriptionAction]
   );
 
   const table = useReactTable({
     data: useMemo(() => {
-      const isWhitelisted =
-        subscriptionData?.whitelisted === true ||
-        subscriptionData?.status === "whitelisted";
-
       const getHasPlan = (profile: BusinessProfile) => {
-        if (isWhitelisted) return true;
+        if (isAgencyWhitelisted) return true;
         const subscription = profile.SubscriptionItems;
         if (!subscription) return false;
         if (subscription.status === "cancelled") return false;
@@ -581,7 +573,7 @@ export function BillingSettings() {
       });
 
       return sorted;
-    }, [profiles, subscriptionData]),
+    }, [profiles, isAgencyWhitelisted]),
     columns,
     state: {
       sorting,

@@ -417,7 +417,6 @@ export function PitchProfileTemplate() {
               <OfferingsForm
                 form={form}
                 businessId={businessId ?? null}
-                hideFetchOfferingsFromWebsite
               />
               <Card
                 variant="profileCard"

@@ -1168,7 +1168,7 @@ const ProfileTemplate = ({
     : isCheckingPlan
       ? "Checking Plan..."
       : isTriggeringWorkflow
-        ? "Triggering Workflow..."
+        ? "Starting your analysis..."
         : isWorkflowProcessing
           ? "Workflow Processing..."
           : "Confirm & Proceed to Strategy";

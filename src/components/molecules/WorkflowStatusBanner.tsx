@@ -99,8 +99,8 @@ export function WorkflowStatusBanner({
   if (overallStatus === "processing" && effectiveStatus !== "success" && effectiveStatus !== "error") {
     return (
       <EmptyState
-        title="Workflow Processing"
-        description="Your workflows are being processed. Data will be available shortly."
+        title="Building your growth strategy"
+        description="This is a comprehensive analysis and may take up to an hour to complete. You can close this page and check back later - your results will be waiting for you."
         className={emptyStateHeight}
         cardClassName={cn("", className)}
         isProcessing={true}
@@ -111,8 +111,8 @@ export function WorkflowStatusBanner({
   if (effectiveStatus === "processing") {
     return (
       <EmptyState
-        title="Workflow Processing"
-        description="Your workflows are being processed. Data will be available shortly."
+        title="Building your growth strategy"
+        description="This is a comprehensive analysis and may take up to an hour to complete. You can close this page and check back later - your results will be waiting for you."
         className={emptyStateHeight}
         cardClassName={cn("", className)}
         isProcessing={true}

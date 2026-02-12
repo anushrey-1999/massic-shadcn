@@ -96,6 +96,15 @@ export const businessInfoSchema = z.object({
     .array(z.string())
     .max(3, "You can only select up to 3 options")
     .optional(),
+  calendarEvents: z
+    .array(
+      z.object({
+        eventName: z.string().optional(),
+        startDate: z.string().nullable().optional(),
+        endDate: z.string().nullable().optional(),
+      })
+    )
+    .optional(),
 });
 
 export type BusinessInfoFormData = z.infer<typeof businessInfoSchema>;

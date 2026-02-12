@@ -7,13 +7,19 @@ import {
   ArrowLeft,
   Bold,
   Copy,
+  ExternalLink,
   Italic,
+  Loader2,
   Link2,
+  Monitor,
   List,
   ListOrdered,
   Quote,
+  Smartphone,
   Strikethrough,
+  Tablet,
   Underline,
+  X,
   Globe,
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
@@ -22,10 +28,27 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Typography } from "@/components/ui/typography";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
 import { copyToClipboard } from "@/utils/clipboard";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
+import { ContentConverter } from "@/utils/content-converter";
+import { cn } from "@/lib/utils";
+import { useWordpressConnection } from "@/hooks/use-wordpress-connector";
+import {
+  useWordpressContentStatus,
+  useWordpressPreviewLink,
+  useWordpressPublish,
+} from "@/hooks/use-wordpress-publishing";
 
 function getTypeFromIntent(intent: string | null): WebActionType {
   return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
@@ -48,6 +71,21 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [mainContent, setMainContent] = React.useState("");
   const [metaDescription, setMetaDescription] = React.useState("");
   const [citations, setCitations] = React.useState<string[]>([]);
+  const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
+  const [lastPublishedData, setLastPublishedData] = React.useState<{
+    contentId: string;
+    wpId: number;
+    permalink: string | null;
+    editUrl: string | null;
+    status: string;
+    previewUrl?: string;
+  } | null>(null);
+  const [isEmbeddedPreviewOpen, setIsEmbeddedPreviewOpen] = React.useState(false);
+  const [embeddedPreviewUrl, setEmbeddedPreviewUrl] = React.useState("");
+  const [embeddedPreviewTitle, setEmbeddedPreviewTitle] = React.useState("Preview");
+  const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
+  const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
+  const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
 
   const lastSavedMainRef = React.useRef<string>("");
   const lastSavedMetaRef = React.useRef<string>("");
@@ -68,6 +106,11 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   });
 
   const data = contentQuery.data;
+  const wpConnectionQuery = useWordpressConnection(businessId || null);
+  const wpPublishMutation = useWordpressPublish();
+  const wpPreviewMutation = useWordpressPreviewLink();
+  const wpConnection = wpConnectionQuery.data?.connection || null;
+  const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
 
   React.useEffect(() => {
     if (!data) return;
@@ -140,6 +183,224 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const typeLabel = type === "blog" ? "blog" : "page";
   const outlineFromServer = cleanEscapedContent(data?.output_data?.page?.outline || "");
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
+  const hasFinalContent = !!mainContent && mainContent.trim().length > 0;
+
+  const inferPage = data?.output_data?.page || {};
+  const inferBlog = inferPage?.blog || {};
+  const publishTitle = inferBlog?.meta_title || keyword || "Untitled";
+  const publishContentId = inferPage?.page_id || pageId;
+  const publishSlug = typeof inferPage?.slug === "string" ? inferPage.slug.replace(/^\/+/, "") : null;
+  const publishType: "post" | "page" = type === "blog" ? "post" : "page";
+  const contentStatusQuery = useWordpressContentStatus(
+    wpConnection?.connectionId || null,
+    publishContentId ? String(publishContentId) : null
+  );
+  const persistedContent = contentStatusQuery.data?.content || null;
+  const persistedStatus = (persistedContent?.status || "").toLowerCase();
+  const isPersistedLive = persistedStatus === "publish";
+  const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive);
+
+  const liveUrl = React.useMemo(() => {
+    if (persistedContent?.permalink) return persistedContent.permalink;
+    if (lastPublishedData?.permalink) return lastPublishedData.permalink;
+    if (isPersistedLive && persistedContent?.wpId && wpConnection?.siteUrl) {
+      return `${String(wpConnection.siteUrl).replace(/\/+$/, "")}/?p=${persistedContent.wpId}`;
+    }
+    return null;
+  }, [
+    isPersistedLive,
+    lastPublishedData?.permalink,
+    persistedContent?.permalink,
+    persistedContent?.wpId,
+    wpConnection?.siteUrl,
+  ]);
+
+  const openEmbeddedPreview = React.useCallback((url: string, title: string) => {
+    if (!url) return;
+    setEmbeddedPreviewUrl(url);
+    setEmbeddedPreviewTitle(title);
+    setIsEmbeddedPreviewLoading(true);
+    setShowEmbedFallbackHint(false);
+    setPreviewViewport("desktop");
+    setIsEmbeddedPreviewOpen(true);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isEmbeddedPreviewOpen || !isEmbeddedPreviewLoading) return;
+
+    const timer = window.setTimeout(() => {
+      setShowEmbedFallbackHint(true);
+    }, 8000);
+
+    return () => window.clearTimeout(timer);
+  }, [isEmbeddedPreviewLoading, isEmbeddedPreviewOpen]);
+
+  const buildPublishPayload = React.useCallback(
+    (targetStatus: "draft" | "publish") => {
+      const excerpt = (metaDescription || inferBlog?.meta_description || "").trim();
+      return {
+        connectionId: String(wpConnection?.connectionId || ""),
+        status: targetStatus,
+        workflowSource: "infer_ai" as const,
+        workflowPayload: data || {},
+        contentId: String(publishContentId),
+        type: publishType,
+        title: String(publishTitle),
+        slug: publishSlug,
+        contentMarkdown: mainContent,
+        contentHtml: ContentConverter.markdownToHtml(mainContent),
+        excerpt: excerpt || null,
+        head: {
+          title: String(publishTitle),
+          meta: {
+            description: excerpt || undefined,
+          },
+        },
+      };
+    },
+    [
+      data,
+      inferBlog?.meta_description,
+      mainContent,
+      metaDescription,
+      publishContentId,
+      publishSlug,
+      publishTitle,
+      publishType,
+      wpConnection?.connectionId,
+    ]
+  );
+
+  const handleRedirectToChannels = React.useCallback(() => {
+    router.push(`/business/${businessId}/web?tab=channels`);
+    setIsPublishModalOpen(false);
+  }, [businessId, router]);
+
+  const handlePublishDraft = React.useCallback(async () => {
+    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!hasFinalContent) return;
+
+    const publishResult = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
+    const published = publishResult?.data;
+    if (!published) return;
+
+    setLastPublishedData({
+      contentId: published.contentId,
+      wpId: published.wpId,
+      permalink: published.permalink || null,
+      editUrl: published.editUrl || null,
+      status: published.status || "draft",
+    });
+    toast.success("Draft pushed to WordPress");
+
+    const previewResult = await wpPreviewMutation.mutateAsync({
+      connectionId: wpConnection.connectionId,
+      contentId: published.contentId,
+      wpId: published.wpId,
+    });
+
+    const previewUrl = previewResult?.data?.previewUrl;
+    if (previewUrl) {
+      setLastPublishedData((prev) =>
+        prev
+          ? {
+            ...prev,
+            previewUrl,
+          }
+          : prev
+      );
+      openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
+      toast.success("Preview ready");
+    }
+    void contentStatusQuery.refetch();
+  }, [
+    buildPublishPayload,
+    contentStatusQuery,
+    hasFinalContent,
+    isWpConnected,
+    wpConnection?.connectionId,
+    openEmbeddedPreview,
+    wpPreviewMutation,
+    wpPublishMutation,
+  ]);
+
+  const handlePublishLive = React.useCallback(async () => {
+    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!hasFinalContent) return;
+    if (!isPersistedDraftLike && !lastPublishedData?.wpId) {
+      toast.error("Publish draft first to generate a preview");
+      return;
+    }
+
+    const publishResult = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
+    const published = publishResult?.data;
+    if (!published) return;
+
+    setLastPublishedData((prev) => ({
+      contentId: published.contentId,
+      wpId: published.wpId,
+      permalink: published.permalink || null,
+      editUrl: published.editUrl || null,
+      status: published.status || "publish",
+      previewUrl: prev?.previewUrl,
+    }));
+
+    toast.success("Published live to WordPress");
+    void contentStatusQuery.refetch();
+    setIsPublishModalOpen(false);
+  }, [
+    buildPublishPayload,
+    contentStatusQuery,
+    hasFinalContent,
+    isWpConnected,
+    isPersistedDraftLike,
+    lastPublishedData?.wpId,
+    wpConnection?.connectionId,
+    wpPublishMutation,
+  ]);
+
+  const handleOpenPreview = React.useCallback(async () => {
+    const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
+    if (!wpConnection?.connectionId || !wpIdToUse) {
+      toast.error("Draft not found for preview");
+      return;
+    }
+
+    const previewResult = await wpPreviewMutation.mutateAsync({
+      connectionId: wpConnection.connectionId,
+      contentId: String(publishContentId),
+      wpId: Number(wpIdToUse),
+    });
+
+    const previewUrl = previewResult?.data?.previewUrl;
+    if (!previewUrl) return;
+
+    setLastPublishedData((prev) =>
+      prev
+        ? {
+          ...prev,
+          previewUrl,
+        }
+        : {
+          contentId: String(publishContentId),
+          wpId: Number(wpIdToUse),
+          permalink: persistedContent?.permalink || null,
+          editUrl: null,
+          status: persistedStatus || "draft",
+          previewUrl,
+        }
+    );
+    openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
+  }, [
+    lastPublishedData?.wpId,
+    persistedContent?.permalink,
+    persistedContent?.wpId,
+    persistedStatus,
+    publishContentId,
+    wpConnection?.connectionId,
+    openEmbeddedPreview,
+    wpPreviewMutation,
+  ]);
 
   const handleCopyAll = async () => {
     if (mainEditor) {
@@ -258,11 +519,15 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
               <Copy className="h-4 w-4" />
               Copy
             </Button>
-            {/* <Button className="gap-2" type="button" disabled title="Coming soon" aria-disabled="true">
+            <Button
+              className="gap-2"
+              type="button"
+              onClick={() => setIsPublishModalOpen(true)}
+              disabled={isProcessing || !hasFinalContent}
+            >
               <Globe className="h-4 w-4" />
-              <span>Publish</span>
-              <span className="ml-1 text-xs font-normal text-muted-foreground">Coming soon</span>
-            </Button> */}
+              Publish
+            </Button>
           </div>
         </div>
       </div>
@@ -385,6 +650,230 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           </>
         ) : null}
       </div>
+
+      <Dialog open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Publish to Channel</DialogTitle>
+            <DialogDescription>
+              Publish this {typeLabel} to WordPress. Draft publish is recommended first for preview.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!isWpConnected ? (
+            <div className="rounded-md border bg-background p-4 space-y-3">
+              <Typography className="text-sm">No WordPress channel is connected for this business.</Typography>
+              <Button onClick={handleRedirectToChannels}>Connect WordPress</Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Card className="p-4 space-y-2">
+                <Typography variant="h6">Connected WordPress</Typography>
+                <Typography className="text-sm text-muted-foreground">{wpConnection?.siteUrl}</Typography>
+                <Typography className="text-xs text-muted-foreground">Site ID: {wpConnection?.siteId}</Typography>
+              </Card>
+
+              <Card className="p-4 space-y-2">
+                <Typography variant="h6">Publish Payload</Typography>
+                <Typography className="text-sm">
+                  <span className="font-medium">Content ID:</span> {publishContentId}
+                </Typography>
+                <Typography className="text-sm">
+                  <span className="font-medium">Type:</span> {publishType}
+                </Typography>
+                <Typography className="text-sm line-clamp-2">
+                  <span className="font-medium">Title:</span> {publishTitle}
+                </Typography>
+                {publishSlug ? (
+                  <Typography className="text-sm">
+                    <span className="font-medium">Slug:</span> {publishSlug}
+                  </Typography>
+                ) : null}
+              </Card>
+
+              {lastPublishedData ? (
+                <Card className="p-4 space-y-2">
+                  <Typography variant="h6">Last Publish Result</Typography>
+                  <Typography className="text-sm">
+                    <span className="font-medium">WP ID:</span> {lastPublishedData.wpId}
+                  </Typography>
+                  <Typography className="text-sm">
+                    <span className="font-medium">Status:</span> {lastPublishedData.status}
+                  </Typography>
+                  {lastPublishedData.previewUrl ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => openEmbeddedPreview(lastPublishedData.previewUrl || "", "WordPress Draft Preview")}
+                    >
+                      Preview Draft
+                    </Button>
+                  ) : null}
+                </Card>
+              ) : null}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsPublishModalOpen(false)}
+              disabled={wpPublishMutation.isPending || wpPreviewMutation.isPending}
+            >
+              Close
+            </Button>
+            {isWpConnected ? (
+              <>
+                {isPersistedLive ? (
+                  <Button
+                    onClick={() => {
+                      if (liveUrl) {
+                        openEmbeddedPreview(liveUrl, "Published WordPress Blog");
+                      }
+                    }}
+                    disabled={!liveUrl}
+                  >
+                    View Blog
+                  </Button>
+                ) : isPersistedDraftLike ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={handleOpenPreview}
+                      disabled={!persistedContent?.wpId || wpPreviewMutation.isPending}
+                    >
+                      {wpPreviewMutation.isPending ? "Loading..." : "Preview Draft"}
+                    </Button>
+                    <Button
+                      onClick={handlePublishLive}
+                      disabled={!hasFinalContent || wpPublishMutation.isPending}
+                    >
+                      {wpPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={handlePublishDraft}
+                    disabled={
+                      !hasFinalContent ||
+                      contentStatusQuery.isLoading ||
+                      wpPublishMutation.isPending ||
+                      wpPreviewMutation.isPending
+                    }
+                  >
+                    {wpPublishMutation.isPending || wpPreviewMutation.isPending ? "Publishing..." : "Publish Draft"}
+                  </Button>
+                )}
+              </>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEmbeddedPreviewOpen} onOpenChange={setIsEmbeddedPreviewOpen}>
+        <DialogContent
+          className="w-[96vw] h-[90vh] max-w-[1400px] sm:max-w-[1400px] p-0 overflow-hidden"
+          showCloseButton={false}
+        >
+          <DialogTitle className="sr-only">Preview {embeddedPreviewTitle}</DialogTitle>
+          <div className="h-full flex flex-col bg-background">
+            <div className="shrink-0 border-b px-5 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <Typography variant="h6" className="truncate">{embeddedPreviewTitle}</Typography>
+                <Typography className="text-xs text-muted-foreground truncate">{embeddedPreviewUrl}</Typography>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="hidden md:flex items-center gap-1 rounded-md border p-1 bg-muted/40">
+                  <Button
+                    size="sm"
+                    variant={previewViewport === "desktop" ? "default" : "ghost"}
+                    className="gap-1.5"
+                    onClick={() => setPreviewViewport("desktop")}
+                  >
+                    <Monitor className="h-4 w-4" />
+                    Desktop
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={previewViewport === "tablet" ? "default" : "ghost"}
+                    className="gap-1.5"
+                    onClick={() => setPreviewViewport("tablet")}
+                  >
+                    <Tablet className="h-4 w-4" />
+                    Tablet
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={previewViewport === "mobile" ? "default" : "ghost"}
+                    className="gap-1.5"
+                    onClick={() => setPreviewViewport("mobile")}
+                  >
+                    <Smartphone className="h-4 w-4" />
+                    Mobile
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    if (embeddedPreviewUrl) {
+                      window.open(embeddedPreviewUrl, "_blank", "noopener,noreferrer");
+                    }
+                  }}
+                  disabled={!embeddedPreviewUrl}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open in New Tab
+                </Button>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon" aria-label="Close preview">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </DialogClose>
+              </div>
+            </div>
+
+            <div className="relative flex-1 bg-muted/20">
+              {isEmbeddedPreviewLoading ? (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/75 backdrop-blur-[1px]">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading preview...
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="h-full w-full overflow-auto p-4 md:p-5">
+                <div
+                  className={cn(
+                    "mx-auto h-full transition-all duration-300",
+                    previewViewport === "desktop" && "w-full",
+                    previewViewport === "tablet" && "w-full max-w-[900px]",
+                    previewViewport === "mobile" && "w-full max-w-[430px]"
+                  )}
+                >
+                  <iframe
+                    title={embeddedPreviewTitle}
+                    src={embeddedPreviewUrl}
+                    className={cn(
+                      "h-full w-full border-0 bg-white",
+                      previewViewport !== "desktop" && "rounded-xl border shadow-sm"
+                    )}
+                    onLoad={() => setIsEmbeddedPreviewLoading(false)}
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                </div>
+              </div>
+
+              {showEmbedFallbackHint ? (
+                <div className="absolute bottom-3 right-3 rounded-md border bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm">
+                  If preview is blocked, use "Open in New Tab".
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

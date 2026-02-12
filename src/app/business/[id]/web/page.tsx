@@ -10,10 +10,11 @@ import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { cn } from '@/lib/utils'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Typography } from '@/components/ui/typography'
 import { formatVolume } from '@/lib/format'
 import type { WebPageMetrics } from '@/types/web-page-types'
+import { WebChannelsTab } from '@/components/organisms/WebChannels/web-channels-tab'
 import { getWorkflowStatus, isWorkflowSuccess } from '@/lib/workflow-status'
 
 interface PageProps {
@@ -35,18 +36,35 @@ function WebNewPagesTab({
 export default function BusinessWebPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [isOptimizeSplitView, setIsOptimizeSplitView] = React.useState(false)
-  const [activeTab, setActiveTab] = React.useState<"new-pages" | "optimize">("new-pages")
+  const [activeTab, setActiveTab] = React.useState<"new-pages" | "optimize" | "channels">("new-pages")
   const [newPagesMetrics, setNewPagesMetrics] = React.useState<WebPageMetrics | null>(null)
 
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  React.useEffect(() => {
+    const tab = (searchParams.get("tab") || "").toLowerCase();
+    if (tab === "new-pages" || tab === "optimize" || tab === "channels") {
+      setActiveTab(tab);
+      if (tab !== "optimize") {
+        setIsOptimizeSplitView(false);
+      }
+    }
+  }, [searchParams]);
 
   const handleTabChange = React.useCallback(
     (value: string) => {
-      setActiveTab(value as "new-pages" | "optimize")
-      router.replace(pathname)
+      const nextTab = value as "new-pages" | "optimize" | "channels"
+      setActiveTab(nextTab)
+      if (nextTab !== "optimize") {
+        setIsOptimizeSplitView(false)
+      }
+      const nextParams = new URLSearchParams(searchParams.toString())
+      nextParams.set("tab", nextTab)
+      router.replace(`${pathname}?${nextParams.toString()}`)
     },
-    [router, pathname]
+    [router, pathname, searchParams]
   )
 
   const newPagesMetricsText = React.useMemo(() => {
@@ -68,6 +86,7 @@ export default function BusinessWebPage({ params }: PageProps) {
     isWorkflowSuccess(jobDetails, "blogs_and_pages_planner")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
+  const hideTabs = isOptimizeSplitView && activeTab === "optimize";
 
   const breadcrumbs = React.useMemo(
     () => [
@@ -107,11 +126,12 @@ export default function BusinessWebPage({ params }: PageProps) {
       >
         <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
-            {!isOptimizeSplitView && (
+            {!hideTabs && (
               <div className="shrink-0 flex items-center justify-between gap-4">
                 <TabsList>
                   <TabsTrigger value="new-pages">New Pages</TabsTrigger>
                   <TabsTrigger value="optimize">Optimize</TabsTrigger>
+                  <TabsTrigger value="channels">Channels</TabsTrigger>
                 </TabsList>
                 {activeTab === "new-pages" && showNewPagesContent && newPagesMetricsText && (
                   <Typography
@@ -123,7 +143,7 @@ export default function BusinessWebPage({ params }: PageProps) {
                 )}
               </div>
             )}
-            <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
+            <TabsContent value="new-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !hideTabs && "mt-4")}>
               {showNewPagesContent ? (
                 <WebNewPagesTab businessId={businessId} onMetricsChange={setNewPagesMetrics} />
               ) : (
@@ -134,10 +154,13 @@ export default function BusinessWebPage({ params }: PageProps) {
                 />
               )}
             </TabsContent>
-            <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !isOptimizeSplitView && "mt-4")}>
+            <TabsContent value="optimize" className={cn("flex-1 min-h-0 overflow-hidden", !hideTabs && "mt-4")}>
               <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
                 <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
               </EntitlementsGuard>
+            </TabsContent>
+            <TabsContent value="channels" className={cn("flex-1 min-h-0 overflow-hidden", !hideTabs && "mt-4")}>
+              <WebChannelsTab businessId={businessId} defaultSiteUrl={profileData?.Website || ""} />
             </TabsContent>
           </Tabs>
         </div>

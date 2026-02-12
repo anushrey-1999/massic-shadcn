@@ -273,7 +273,6 @@ export function CreatePitchTemplate() {
               <OfferingsForm
                 form={form}
                 businessId="create-pitch"
-                hideFetchOfferingsFromWebsite
               />
               <Card
                 variant="profileCard"

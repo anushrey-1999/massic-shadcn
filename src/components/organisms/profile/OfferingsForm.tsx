@@ -21,6 +21,11 @@ import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { toast } from "sonner";
 import { Loader2, PackageSearch, AlertCircle, X } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type BusinessInfoFormData = {
   website: string;
@@ -271,24 +276,35 @@ export const OfferingsForm = ({
                 </FieldLabel>
               </CardTitle>
               {!hideFetchOfferingsFromWebsite ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleFetchOfferings}
-                  disabled={isExtracting || !website}
-                  className="min-w-[200px]"
-                >
-                  {isExtracting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Extracting...
-                    </>
-                  ) : offeringsData.length > 0 ? (
-                    "Add More from Website"
-                  ) : (
-                    "Fetch Offerings from Website"
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleFetchOfferings}
+                        disabled={isExtracting || !website}
+                        className="min-w-[200px]"
+                      >
+                        {isExtracting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Extracting...
+                          </>
+                        ) : offeringsData.length > 0 ? (
+                          "Add More from Website"
+                        ) : (
+                          "Fetch Offerings from Website"
+                        )}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {(isExtracting || !website) && (
+                    <TooltipContent>
+                      Fill website URL to fetch offerings
+                    </TooltipContent>
                   )}
-                </Button>
+                </Tooltip>
               ) : null}
             </div>
           </CardHeader>

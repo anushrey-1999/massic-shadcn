@@ -52,6 +52,7 @@ import {
   StakeholderRow,
   LocationRow,
   CompetitorRow,
+  CalendarEventRow,
 } from "@/store/business-store";
 import { useUnlinkOrDeleteBusiness } from "@/hooks/use-business-actions";
 
@@ -177,6 +178,7 @@ const ProfileTemplate = ({
         stakeholders: [],
         locations: [],
         competitors: [],
+        calendarEvents: [],
         brandToneSocial: [],
         brandToneWeb: [],
       };
@@ -249,6 +251,14 @@ const ProfileTemplate = ({
     const competitorsList = parseArrayField(profileData.Competitors).map(
       (comp: any): CompetitorRow => ({
         url: cleanWebsiteUrl(comp.website || comp.Website),
+      })
+    );
+
+    const calendarEventsList = parseArrayField((profileData as any).CalendarEvents).map(
+      (event: any): CalendarEventRow => ({
+        eventName: event.eventName || "",
+        startDate: event.startDate || null,
+        endDate: event.endDate || null,
       })
     );
 
@@ -397,6 +407,7 @@ const ProfileTemplate = ({
       stakeholders: stakeholdersList,
       locations: locationsList,
       competitors: competitorsList,
+      calendarEvents: calendarEventsList,
       brandToneSocial: brandToneSocial,
       brandToneWeb: brandToneWeb,
       // ONLY offerings come from job API (if job exists)
@@ -534,6 +545,17 @@ const ProfileTemplate = ({
           Competitors: (value.competitors || [])?.map((comp: any) => ({
             website: cleanWebsiteUrl(comp.url),
           })),
+          CalendarEvents: (value.calendarEvents || [])
+            ?.filter((event: any) => {
+              const hasEventName = event.eventName && String(event.eventName).trim().length > 0;
+              const hasStartDate = event.startDate && String(event.startDate).trim().length > 0;
+              return hasEventName || hasStartDate;
+            })
+            ?.map((event: any) => ({
+              eventName: String(event.eventName || "").trim(),
+              startDate: event.startDate ? String(event.startDate).trim() : null,
+              endDate: event.endDate ? String(event.endDate).trim() : null,
+            })) || null,
           WebBrandVoice:
             value.brandToneWeb && value.brandToneWeb.length > 0
               ? value.brandToneWeb.map((v: string) => {
@@ -811,6 +833,7 @@ const ProfileTemplate = ({
 
   const getPlanTypeFromData = useCallback(
     (data: any) => {
+      if (data?.status === "canceled") return "no_plan";
       const raw =
         currentProfile?.SubscriptionItems?.plan_type ||
         (externalProfileData as any)?.SubscriptionItems?.plan_type ||
@@ -843,6 +866,12 @@ const ProfileTemplate = ({
       const isWhitelisted =
         effectiveSubscription?.whitelisted === true ||
         effectiveSubscription?.status === "whitelisted";
+      const isCanceled = effectiveSubscription?.status === "canceled";
+
+      if (isCanceled) {
+        setPlanModalOpen(true);
+        return;
+      }
 
       const planType = getPlanTypeFromData(effectiveSubscription);
       const planLevels: Record<string, number> = {

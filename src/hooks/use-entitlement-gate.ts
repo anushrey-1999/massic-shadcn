@@ -53,6 +53,7 @@ export function useEntitlementGate({
   const isWhitelisted =
     subscriptionData?.whitelisted === true ||
     subscriptionData?.status === "whitelisted";
+  const isCanceled = subscriptionData?.status === "canceled";
 
   const isTrialActive = (business as any)?.isTrialActive === true;
   const remainingTrialDays =
@@ -62,6 +63,7 @@ export function useEntitlementGate({
 
   const planType = React.useMemo(() => {
     if (isWhitelisted) return "whitelisted";
+    if (isCanceled) return "no_plan";
     if (isTrialActive) return "free_trial";
 
     const plan = business?.SubscriptionItems?.plan_type;
@@ -70,7 +72,7 @@ export function useEntitlementGate({
       return plan.toLowerCase();
     }
     return "no_plan";
-  }, [business, isWhitelisted, isTrialActive]);
+  }, [business, isWhitelisted, isCanceled, isTrialActive]);
 
   const entitlements = React.useMemo(() => {
     if (planType === "whitelisted") {

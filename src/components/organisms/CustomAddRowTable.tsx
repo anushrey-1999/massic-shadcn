@@ -28,6 +28,7 @@ export interface Column<T = any> {
   label: string;
   render?: (value: any, row: T, index: number) => React.ReactNode;
   validation?: ColumnValidation;
+  width?: string;
 }
 
 export interface CustomAddRowTableProps<T = Record<string, any>> {
@@ -200,7 +201,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
         newTouched[rowIndex] = {};
       }
       newTouched[rowIndex][field] = true;
-      
+
       const nextRow = {
         ...(data[rowIndex] || ({} as T)),
         [field]: value,
@@ -225,7 +226,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
         }
         return newErrors;
       });
-      
+
       return newTouched;
     });
   };
@@ -276,6 +277,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                 <TableHead
                   key={column.key}
                   className="text-general-muted-foreground font-medium text-sm h-12 px-2 bg-general-primary-foreground"
+                  style={column.width ? { width: column.width } : undefined}
                 >
                   {column.label}
                   {column.validation?.required && (
@@ -307,38 +309,38 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                               {column.render ? (
                                 column.render(row[column.key], row, rowIndex)
                               ) : onRowChange ? (
-                                    <Input
-                                      id={`table-input-${tableId}-${rowIndex}-${column.key}`}
-                                      type={column.validation?.url ? "url" : "text"}
-                                      variant="noBorder"
-                                      value={row[column.key] || ""}
-                                      onChange={(e) =>
-                                        handleRowChange(
-                                          rowIndex,
-                                          column.key,
-                                          e.target.value
-                                        )
-                                      }
-                                      onBlur={(e) =>
-                                        handleBlur(
-                                          rowIndex,
-                                          column.key,
-                                          e.target.value
-                                        )
-                                      }
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                          e.preventDefault();
-                                          onAddRow();
-                                        }
-                                      }}
-                                      placeholder="Enter value"
-                                      className={cn(
-                                        "w-full border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
-                                        isInvalid && "aria-invalid"
-                                      )}
-                                      aria-invalid={isInvalid}
-                                    />
+                                <Input
+                                  id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                                  type={column.validation?.url ? "url" : "text"}
+                                  variant="noBorder"
+                                  value={row[column.key] || ""}
+                                  onChange={(e) =>
+                                    handleRowChange(
+                                      rowIndex,
+                                      column.key,
+                                      e.target.value
+                                    )
+                                  }
+                                  onBlur={(e) =>
+                                    handleBlur(
+                                      rowIndex,
+                                      column.key,
+                                      e.target.value
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      onAddRow();
+                                    }
+                                  }}
+                                  placeholder="Enter value"
+                                  className={cn(
+                                    "w-full border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
+                                    isInvalid && "aria-invalid"
+                                  )}
+                                  aria-invalid={isInvalid}
+                                />
                               ) : (
                                 row[column.key] || "Enter value"
                               )}

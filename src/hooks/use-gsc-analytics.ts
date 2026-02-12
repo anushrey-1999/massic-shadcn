@@ -173,6 +173,10 @@ function normalizeDateKey(value: string): string | null {
   if (dashedMatch) {
     return `${dashedMatch[1]}-${dashedMatch[2]}-${dashedMatch[3]}`
   }
+  const monthMatch = /^(\d{4})-(\d{2})$/.exec(trimmed)
+  if (monthMatch) {
+    return `${monthMatch[1]}-${monthMatch[2]}-01`
+  }
   const compactMatch = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed)
   if (compactMatch) {
     return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`
@@ -181,13 +185,22 @@ function normalizeDateKey(value: string): string | null {
 }
 
 function dateFromKey(dateKey: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey)
-  if (!match) return null
-  const year = Number(match[1])
-  const month = Number(match[2]) - 1
-  const day = Number(match[3])
-  if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null
-  return new Date(Date.UTC(year, month, day))
+  const fullMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey)
+  if (fullMatch) {
+    const year = Number(fullMatch[1])
+    const month = Number(fullMatch[2]) - 1
+    const day = Number(fullMatch[3])
+    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null
+    return new Date(Date.UTC(year, month, day))
+  }
+  const monthOnly = /^(\d{4})-(\d{2})$/.exec(dateKey)
+  if (monthOnly) {
+    const year = Number(monthOnly[1])
+    const month = Number(monthOnly[2]) - 1
+    if (Number.isNaN(year) || Number.isNaN(month)) return null
+    return new Date(Date.UTC(year, month, 1))
+  }
+  return null
 }
 
 function formatDateKey(date: Date): string {
@@ -321,12 +334,19 @@ export function useGSCAnalytics(
   const chartData = useMemo<GSCChartDataPoint[]>(() => {
     const now = new Date()
     const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    const availableDates = rawChartData
-      .map((row) => (row.dateKey ? dateFromKey(row.dateKey) : null))
-      .filter((value): value is Date => value instanceof Date)
-      .sort((a, b) => a.getTime() - b.getTime())
-    const lastAvailableDate = availableDates[availableDates.length - 1]
-    const endDate = lastAvailableDate ?? todayUtc
+    const hasNonZero = (row: GSCChartDataPoint) =>
+      (row.impressions ?? 0) > 0 || (row.clicks ?? 0) > 0 || (row.goals ?? 0) > 0
+    const withDate = rawChartData
+      .map((row) => ({ row, dateObj: row.dateKey ? dateFromKey(row.dateKey) : null }))
+      .filter((x): x is { row: GSCChartDataPoint; dateObj: Date } => x.dateObj !== null)
+    const lastWithNonZero = withDate
+      .filter(({ row }) => hasNonZero(row))
+      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+    const lastDateWithData = lastWithNonZero.length > 0 ? lastWithNonZero[lastWithNonZero.length - 1].dateObj : null
+    const lastAvailableDate = withDate.length > 0
+      ? withDate.map((x) => x.dateObj).sort((a, b) => a.getTime() - b.getTime()).pop() ?? null
+      : null
+    const endDate = lastDateWithData ?? lastAvailableDate ?? todayUtc
     const startDate = getPeriodStartDate(period, endDate)
 
     const dataByDate = new Map(
@@ -347,6 +367,14 @@ export function useGSCAnalytics(
       })
     }
 
+    const trimToNonZero = period === "7 days" || period === "14 days" || period === "28 days" || period === "3 months"
+    if (trimToNonZero) {
+      const firstNonZeroIdx = filled.findIndex((d) => hasNonZero(d))
+      const lastNonZeroIdx = filled.length - 1 - [...filled].reverse().findIndex((d) => hasNonZero(d))
+      if (firstNonZeroIdx >= 0 && lastNonZeroIdx >= firstNonZeroIdx) {
+        return filled.slice(firstNonZeroIdx, lastNonZeroIdx + 1)
+      }
+    }
     return filled
   }, [rawChartData, period])
 
@@ -450,27 +478,42 @@ export function useGSCAnalytics(
     const clicksValues = chartData.map((d) => d.clicks || 0)
     const goalsValues = chartData.map((d) => d.goals || 0)
 
-    const minImpressions = Math.min(...impressionsValues)
+    const percentile = (arr: number[], p: number): number => {
+      const sorted = [...arr].sort((a, b) => a - b)
+      const idx = (p / 100) * (sorted.length - 1)
+      const lo = Math.floor(idx)
+      const hi = Math.ceil(idx)
+      if (lo === hi) return sorted[lo] ?? 0
+      return sorted[lo]! + (idx - lo) * (sorted[hi]! - sorted[lo]!)
+    }
+
+    const minImpressions = percentile(impressionsValues, 5)
     const maxImpressions = Math.max(...impressionsValues)
     const minClicks = Math.min(...clicksValues)
     const maxClicks = Math.max(...clicksValues)
     const minGoals = Math.min(...goalsValues)
     const maxGoals = Math.max(...goalsValues)
 
-    const scaleValueToBand = (value: number, min: number, max: number, bandStart: number, bandEnd: number): number => {
-      const numericValue = Number(value) || 0
-      if (numericValue === 0) return 0
-      if (max === min) return (bandStart + bandEnd) / 2
-      const normalized = (numericValue - min) / (max - min)
-      return bandStart + normalized * (bandEnd - bandStart)
+    const normalizeToZeroHundred = (value: number, min: number, max: number): number => {
+      const v = Number(value) || 0
+      if (max === min) return 50
+      const pad = (max - min) * 0.05 || 1
+      const lo = Math.max(0, min - pad)
+      const hi = max + pad
+      const normalized = (v - lo) / (hi - lo)
+      return Math.max(0, Math.min(100, normalized * 100))
     }
 
-    return chartData.map((point) => ({
-      ...point,
-      impressionsNorm: scaleValueToBand(point.impressions, minImpressions, maxImpressions, 60, 100),
-      clicksNorm: scaleValueToBand(point.clicks, minClicks, maxClicks, 30, 70),
-      goalsNorm: scaleValueToBand(point.goals || 0, minGoals, maxGoals, 0, 40),
-    }))
+    const impressionsMaxNorm = 78
+    return chartData.map((point) => {
+      const impNorm = normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions)
+      return {
+        ...point,
+        impressionsNorm: (impNorm / 100) * impressionsMaxNorm,
+        clicksNorm: normalizeToZeroHundred(point.clicks, minClicks, maxClicks),
+        goalsNorm: normalizeToZeroHundred(point.goals || 0, minGoals, maxGoals),
+      }
+    })
   }, [chartData])
 
   const hasData = chartData.some(

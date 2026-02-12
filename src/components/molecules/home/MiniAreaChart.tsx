@@ -25,9 +25,9 @@ export type HomeTimePeriodValue =
   | "12 months"
 
 const miniChartConfig: ChartConfig = {
-  impressionsNorm: { label: "Imp.", color: "#8662D0" },
-  clicksNorm: { label: "Clicks", color: "#2563EB" },
-  goalsNorm: { label: "Goals", color: "var(--general-unofficial-foreground-alt)" },
+  impressions: { label: "Imp.", color: "#8662D0" },
+  clicks: { label: "Clicks", color: "#2563EB" },
+  goals: { label: "Goals", color: "var(--general-unofficial-foreground-alt)" },
 }
 
 function formatTooltipDate(input: unknown) {
@@ -193,47 +193,53 @@ export function MiniAreaChart({
 
   const normalizedData = useMemo(() => {
     if (data.length === 0) return []
+    const impressionsValues = data.map((d) => d.impressions)
+    const clicksValues = data.map((d) => d.clicks)
+    const goalsValues = data.map((d) => d.goals)
+    const minImpressions = Math.min(...impressionsValues)
+    const maxImpressions = Math.max(...impressionsValues)
+    const minClicks = Math.min(...clicksValues)
+    const maxClicks = Math.max(...clicksValues)
+    const minGoals = Math.min(...goalsValues)
+    const maxGoals = Math.max(...goalsValues)
 
-    const maxImpressions = Math.max(...data.map((d) => d.impressions || 0))
-    const maxClicks = Math.max(...data.map((d) => d.clicks || 0))
-    const maxGoals = Math.max(...data.map((d) => d.goals || 0))
-    const globalMax = Math.max(maxImpressions, maxClicks, maxGoals)
+    const normalizeToZeroHundred = (value: number, min: number, max: number): number => {
+      const v = Number(value) || 0
+      if (v === 0) return 0
+      if (max === min) return 50
+      const pad = (max - min) * 0.05 || 1
+      const lo = Math.max(0, min - pad)
+      const hi = max + pad
+      const normalized = (v - lo) / (hi - lo)
+      return Math.max(0, Math.min(100, normalized * 100))
+    }
 
-    if (globalMax === 0) {
-      return data.map((point) => ({
+    const goalsMaxNorm = 78
+    return data.map((point) => {
+      const goalsNormRaw = normalizeToZeroHundred(point.goals, minGoals, maxGoals)
+      return {
         ...point,
-        impressionsNorm: 0,
-        clicksNorm: 0,
-        goalsNorm: 0,
-      }))
-    }
-
-    const logMax = Math.log10(globalMax + 1)
-    const scaleValue = (value: number): number => {
-      if (!value) return 2
-      return Math.max(2, (Math.log10(value + 1) / logMax) * 100)
-    }
-
-    return data.map((point) => ({
-      ...point,
-      impressionsNorm: Math.max(2, scaleValue(point.impressions) * 0.65),
-      clicksNorm: scaleValue(point.clicks),
-      goalsNorm: scaleValue(point.goals),
-    }))
+        impressionsNorm: normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions),
+        clicksNorm: normalizeToZeroHundred(point.clicks, minClicks, maxClicks),
+        goalsNorm: (goalsNormRaw / 100) * goalsMaxNorm,
+      }
+    })
   }, [data])
 
   if (data.length === 0) {
     return (
-      <div className="h-[115px] flex items-center justify-center">
-        <Skeleton className="h-[90px] w-full" />
+      <div className="h-[80px] flex items-center justify-center">
+        <Skeleton className="h-[60px] w-full" />
       </div>
     )
   }
 
+  const chartData = normalizedData.length > 0 ? normalizedData : data
+
   return (
-    <div className="h-[115px] w-full">
+    <div className="h-[80px] w-full self-end">
       <ChartContainer config={miniChartConfig} className="h-full w-full">
-        <AreaChart data={normalizedData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <AreaChart data={chartData} margin={{ top: 0, right: 4, left: 4, bottom: 0 }}>
           <defs>
             <linearGradient id={impressionsGradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#8662D0" stopOpacity={0.15} />
@@ -248,8 +254,43 @@ export function MiniAreaChart({
               <stop offset="100%" stopColor="var(--general-unofficial-foreground-alt)" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <XAxis dataKey="date" hide />
-          <YAxis hide domain={[0, 135]} />
+          <XAxis
+            dataKey="date"
+            tickLine={false}
+            axisLine={false}
+            hide
+            height={0}
+            width={0}
+          />
+          <YAxis
+            yAxisId="left"
+            orientation="left"
+            hide
+            width={0}
+            domain={normalizedData.length > 0 ? [0, 100] : undefined}
+            {...(normalizedData.length > 0
+              ? {}
+              : {
+                  domain: ([dataMin, dataMax]: [number, number]) => {
+                    const pad = (dataMax - dataMin) * 0.05 || 1
+                    const min = dataMin <= 0 ? 0 : Math.max(0, dataMin - pad)
+                    return [min, dataMax + pad]
+                  },
+                })}
+          />
+          {normalizedData.length === 0 && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              hide
+              width={0}
+              domain={([dataMin, dataMax]: [number, number]) => {
+                const pad = (dataMax - dataMin) * 0.05 || 1
+                const min = dataMin <= 0 ? 0 : Math.max(0, dataMin - pad)
+                return [min, dataMax + pad]
+              }}
+            />
+          )}
           <ChartTooltip
             content={
               <ChartTooltipContent
@@ -260,15 +301,19 @@ export function MiniAreaChart({
                   void _item
                   void _index
                   const seriesKey = String(name || "")
-                  const rawKey = seriesKey.endsWith("Norm") ? seriesKey.slice(0, -4) : seriesKey
                   const payloadObj = payload as Record<string, unknown> | undefined
+                  const rawKey =
+                    seriesKey === "impressionsNorm"
+                      ? "impressions"
+                      : seriesKey === "clicksNorm"
+                        ? "clicks"
+                        : seriesKey === "goalsNorm"
+                          ? "goals"
+                          : seriesKey
                   const rawValue = payloadObj ? payloadObj[rawKey] : undefined
                   const displayValue = typeof rawValue === "number" ? rawValue : Number(rawValue ?? 0)
-                  const label = seriesKey.startsWith("impressions")
-                    ? "Impr."
-                    : seriesKey.startsWith("clicks")
-                      ? "Clicks"
-                      : "Goals"
+                  const label =
+                    rawKey === "impressions" ? "Impr." : rawKey === "clicks" ? "Clicks" : "Goals"
 
                   return (
                     <>
@@ -283,26 +328,29 @@ export function MiniAreaChart({
             }
           />
           <Area
-            type="linear"
-            dataKey="impressionsNorm"
-            stroke="var(--color-impressionsNorm)"
+            type="monotone"
+            dataKey={normalizedData.length > 0 ? "impressionsNorm" : "impressions"}
+            yAxisId="left"
+            stroke="var(--color-impressions)"
             fill={`url(#${impressionsGradientId})`}
             strokeWidth={1}
             dot={false}
           />
           <Area
-            type="linear"
-            dataKey="goalsNorm"
-            stroke="var(--color-goalsNorm)"
-            fill={`url(#${goalsGradientId})`}
+            type="monotone"
+            dataKey={normalizedData.length > 0 ? "clicksNorm" : "clicks"}
+            yAxisId="left"
+            stroke="var(--color-clicks)"
+            fill={`url(#${clicksGradientId})`}
             strokeWidth={1}
             dot={false}
           />
           <Area
-            type="linear"
-            dataKey="clicksNorm"
-            stroke="var(--color-clicksNorm)"
-            fill={`url(#${clicksGradientId})`}
+            type="monotone"
+            dataKey={normalizedData.length > 0 ? "goalsNorm" : "goals"}
+            yAxisId="left"
+            stroke="var(--color-goals)"
+            fill={`url(#${goalsGradientId})`}
             strokeWidth={1}
             dot={false}
           />

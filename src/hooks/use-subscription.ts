@@ -19,6 +19,11 @@ export interface SubscribeParams {
   returnUrl?: string;
 }
 
+export interface UseSubscriptionParams {
+  businessId?: string;
+  isWhitelisted?: boolean;
+}
+
 interface UseSubscriptionResult {
   loading: boolean;
   isFetched: boolean;
@@ -30,7 +35,7 @@ interface UseSubscriptionResult {
   data: any;
 }
 
-export const useSubscription = (): UseSubscriptionResult => {
+export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscriptionParams = {}): UseSubscriptionResult => {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   // We use the node platform for billing APIs as per old UI "seedmain"
@@ -44,24 +49,28 @@ export const useSubscription = (): UseSubscriptionResult => {
     isFetching: isRefetching,
     isFetched,
   } = useQuery({
-    queryKey: ["subscription", user?.uniqueId],
+    queryKey: ["subscription", businessId, user?.uniqueId],
     queryFn: async () => {
-      if (!user?.uniqueId) return null;
-      try {
-        const response = await api.execute(`/billing/users/${user.uniqueId}/agencies/subscription`, { method: "GET" });
-        if (response?.success) {
-          return response.data;
+      // Prefer businessId if available, otherwise we can't fetch business-specific subscription
+      if (businessId) {
+        try {
+          const response = await api.execute(`/billing/businesses/${businessId}/subscription`, { method: "GET" });
+          if (response?.success) {
+            return response.data;
+          }
+          return null;
+        } catch (error) {
+          console.error("Failed to fetch subscription data", error);
+          return null;
         }
-        return null;
-      } catch (error) {
-        console.error("Failed to fetch subscription data", error);
-        return null;
       }
+      // If no businessId but we have user, return null (will be retried when businessId is available)
+      return null;
     },
     enabled: !!user?.uniqueId,
+    retry: false,
   });
 
-  const isWhitelisted = subscriptionData?.whitelisted === true || subscriptionData?.status === "whitelisted";
   const isCanceled = subscriptionData?.status === "canceled";
 
   // -- Actions --

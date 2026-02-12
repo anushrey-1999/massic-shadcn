@@ -40,6 +40,7 @@ export interface BusinessProfile {
   };
   LinkedAuthId?: string | null;
   IsActive?: boolean;
+  isWhitelisted?: boolean;
 }
 
 // Profile form table row types

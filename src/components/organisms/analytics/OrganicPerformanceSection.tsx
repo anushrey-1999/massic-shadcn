@@ -20,7 +20,14 @@ import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet"
 import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
 import { BrandedKeywordsModal } from "@/components/molecules/analytics/BrandedKeywordsModal";
-import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -37,7 +44,7 @@ import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, useCallback } from "react";
 
 const METRIC_ICONS: Record<string, React.ReactNode> = {
   "topic-coverage": <Target className="h-5 w-5" />,
@@ -86,7 +93,6 @@ export function OrganicPerformanceSection({
     hasFunnelData,
   } = useGSCAnalytics(businessUniqueId, website, period);
 
-
   const {
     metricCards,
     isLoading: isLoadingMetrics,
@@ -131,6 +137,22 @@ export function OrganicPerformanceSection({
 
   const visibleLines =
     visibleLinesProp !== undefined ? visibleLinesProp : visibleLinesLocal;
+
+  const visibleCount = [visibleLines.impressions, visibleLines.clicks, visibleLines.goals].filter(Boolean).length;
+  const singleMetricMode = visibleCount === 1;
+  const useNormalizedKeys = normalizedChartData.length > 0 && !singleMetricMode;
+  const chartDataToRender = useNormalizedKeys ? normalizedChartData : chartData;
+
+  const singleMetricYDomain = useMemo(() => {
+    if (!singleMetricMode || chartData.length === 0) return undefined;
+    const key = visibleLines.impressions ? "impressions" : visibleLines.clicks ? "clicks" : "goals";
+    const values = chartData.map((d) => Number(d[key as keyof typeof d]) || 0);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const pad = (max - min) * 0.05 || 1;
+    return [Math.max(0, min - pad), max + pad] as [number, number];
+  }, [singleMetricMode, chartData, visibleLines.impressions, visibleLines.clicks, visibleLines.goals]);
+
   const handleLegendToggle = useCallback(
     (key: string, checked: boolean) => {
       if (onLegendToggleProp) {
@@ -146,10 +168,22 @@ export function OrganicPerformanceSection({
     [onLegendToggleProp]
   );
 
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [zoomCenter, setZoomCenter] = useState<number | null>(null);
   const [graphFullScreen, setGraphFullScreen] = useState(false);
-  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  const xAxisTicks12Months = useMemo(() => {
+    if (period !== "12 months" || chartData.length === 0)
+      return undefined;
+    const ticks: string[] = [];
+    let lastMonth = "";
+    for (const d of chartData) {
+      const month = d.date.split(" ")[0];
+      if (month !== lastMonth) {
+        lastMonth = month;
+        ticks.push(d.date);
+      }
+    }
+    return ticks.length > 0 ? ticks : undefined;
+  }, [period, chartData]);
 
   const funnelKeyToIndex: Record<string, number> = useMemo(
     () => ({ impressions: 0, clicks: 1, goals: 2 }),
@@ -183,53 +217,6 @@ export function OrganicPerformanceSection({
       };
     });
   }, [chartLegendItems, visibleLines, graphFullScreen, hasFunnelData, funnelChartItems, funnelKeyToIndex]);
-
-  const zoomedChartData = useMemo(() => {
-    if (zoomLevel <= 1 || zoomCenter === null || normalizedChartData.length === 0) {
-      return normalizedChartData;
-    }
-    const totalPoints = normalizedChartData.length;
-    const visiblePoints = Math.max(2, Math.floor(totalPoints / zoomLevel));
-    const halfVisible = Math.floor(visiblePoints / 2);
-    let startIndex = Math.max(0, zoomCenter - halfVisible);
-    let endIndex = Math.min(totalPoints - 1, zoomCenter + halfVisible);
-    if (endIndex - startIndex + 1 < 2) {
-      if (startIndex === 0) endIndex = Math.min(totalPoints - 1, 1);
-      else startIndex = Math.max(0, totalPoints - 2);
-    }
-    return normalizedChartData.slice(startIndex, endIndex + 1);
-  }, [normalizedChartData, zoomLevel, zoomCenter]);
-
-  useEffect(() => {
-    const element = chartContainerRef.current;
-    if (!element) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const rect = element.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const chartWidth = rect.width - 20;
-      const relativeX = x / chartWidth;
-      const dataIndex = Math.floor(relativeX * normalizedChartData.length);
-      const centerIndex = Math.max(0, Math.min(normalizedChartData.length - 1, dataIndex));
-      setZoomCenter(centerIndex);
-      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-      setZoomLevel((prev) => {
-        const newZoom = prev * zoomFactor;
-        const maxZoom = normalizedChartData.length / 2;
-        return Math.max(1, Math.min(newZoom, maxZoom));
-      });
-    };
-
-    element.addEventListener('wheel', handleWheel, { passive: false });
-    return () => element.removeEventListener('wheel', handleWheel);
-  }, [normalizedChartData.length]);
-
-  const handleChartDoubleClick = useCallback(() => {
-    setZoomLevel(1);
-    setZoomCenter(null);
-  }, []);
 
   // Calculate total counts from both Goals and Traffic APIs
   const trafficCriticalCount = trafficData && trafficData.severity === "high" ? 1 : 0;
@@ -445,11 +432,9 @@ export function OrganicPerformanceSection({
                 <div
                   className={
                     graphFullScreen
-                      ? "min-h-[242px] flex-1 cursor-grab active:cursor-grabbing"
-                      : "h-[242px] cursor-grab active:cursor-grabbing"
+                      ? "min-h-[242px] flex-1"
+                      : "h-[242px]"
                   }
-                  ref={chartContainerRef}
-                  onDoubleClick={handleChartDoubleClick}
                 >
                   <ChartContainer
                     config={chartConfig}
@@ -457,8 +442,8 @@ export function OrganicPerformanceSection({
                   >
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
-                        data={zoomedChartData}
-                        margin={{ top: 0, right: 0, left: 20, bottom: 0 }}
+                        data={chartDataToRender}
+                        margin={{ top: 0, right: 8, left: 8, bottom: 0 }}
                       >
                         <defs>
                           <linearGradient
@@ -516,20 +501,59 @@ export function OrganicPerformanceSection({
                             />
                           </linearGradient>
                         </defs>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="#e5e7eb"
+                          vertical={false}
+                        />
                         <XAxis
                           dataKey="date"
                           tickLine={false}
                           axisLine={false}
                           tick={{ fontSize: 12, fill: "#9ca3af" }}
                           tickMargin={8}
-                          interval={zoomedChartData.length <= 7 ? 0 : zoomedChartData.length <= 14 ? 1 : zoomedChartData.length <= 30 ? Math.floor(zoomedChartData.length / 8) : zoomedChartData.length <= 90 ? Math.floor(zoomedChartData.length / 10) : Math.floor(zoomedChartData.length / 12)}
+                          ticks={xAxisTicks12Months}
+                          interval={
+                            xAxisTicks12Months
+                              ? 0
+                              : chartData.length <= 7
+                                ? 0
+                                : chartData.length <= 14
+                                  ? 1
+                                  : chartData.length <= 30
+                                    ? Math.floor(chartData.length / 8)
+                                    : chartData.length <= 90
+                                      ? Math.floor(chartData.length / 10)
+                                      : Math.floor(chartData.length / 12)
+                          }
                         />
                         <YAxis
+                          yAxisId="left"
+                          orientation="left"
                           hide
-                          allowDataOverflow
-                          domain={["dataMin", "dataMax"]}
-                          padding={{ top: 0, bottom: 0 }}
+                          width={0}
+                          domain={useNormalizedKeys ? [0, 100] : singleMetricYDomain}
+                          {...(useNormalizedKeys ? {} : !singleMetricMode ? {
+                            domain: ([dataMin, dataMax]: [number, number]) => {
+                              const pad = (dataMax - dataMin) * 0.05 || 1;
+                              const min = dataMin <= 0 ? 0 : Math.max(0, dataMin - pad);
+                              return [min, dataMax + pad];
+                            },
+                          } : {})}
                         />
+                        {!useNormalizedKeys && !singleMetricMode && (
+                          <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            hide
+                            width={0}
+                            domain={([dataMin, dataMax]: [number, number]) => {
+                              const pad = (dataMax - dataMin) * 0.05 || 1;
+                              const min = dataMin <= 0 ? 0 : Math.max(0, dataMin - pad);
+                              return [min, dataMax + pad];
+                            }}
+                          />
+                        )}
                         <ChartTooltip
                           content={({ active, payload, label }) => {
                             if (!active || !payload?.length) return null;
@@ -564,8 +588,9 @@ export function OrganicPerformanceSection({
                         />
                         {visibleLines.impressions && (
                           <Area
-                            type="linear"
-                            dataKey="impressionsNorm"
+                            type="monotone"
+                            dataKey={useNormalizedKeys ? "impressionsNorm" : "impressions"}
+                            yAxisId={useNormalizedKeys || singleMetricMode ? "left" : "right"}
                             stroke="#6b7280"
                             fill="url(#fillImpressions)"
                             strokeWidth={1}
@@ -574,8 +599,9 @@ export function OrganicPerformanceSection({
                         )}
                         {visibleLines.clicks && (
                           <Area
-                            type="linear"
-                            dataKey="clicksNorm"
+                            type="monotone"
+                            dataKey={useNormalizedKeys ? "clicksNorm" : "clicks"}
+                            yAxisId="left"
                             stroke="#2563eb"
                             fill="url(#fillClicks)"
                             strokeWidth={1}
@@ -584,8 +610,9 @@ export function OrganicPerformanceSection({
                         )}
                         {visibleLines.goals && (
                           <Area
-                            type="linear"
-                            dataKey="goalsNorm"
+                            type="monotone"
+                            dataKey={useNormalizedKeys ? "goalsNorm" : "goals"}
+                            yAxisId="left"
                             stroke="#059669"
                             fill="url(#fillGoals)"
                             strokeWidth={1}

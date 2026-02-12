@@ -367,13 +367,10 @@ export function useGSCAnalytics(
       })
     }
 
-    const trimToNonZero = period === "7 days" || period === "14 days" || period === "28 days" || period === "3 months"
-    if (trimToNonZero) {
-      const firstNonZeroIdx = filled.findIndex((d) => hasNonZero(d))
-      const lastNonZeroIdx = filled.length - 1 - [...filled].reverse().findIndex((d) => hasNonZero(d))
-      if (firstNonZeroIdx >= 0 && lastNonZeroIdx >= firstNonZeroIdx) {
-        return filled.slice(firstNonZeroIdx, lastNonZeroIdx + 1)
-      }
+    const firstNonZeroIdx = filled.findIndex((d) => hasNonZero(d))
+    const lastNonZeroIdx = filled.length - 1 - [...filled].reverse().findIndex((d) => hasNonZero(d))
+    if (firstNonZeroIdx >= 0 && lastNonZeroIdx >= firstNonZeroIdx) {
+      return filled.slice(firstNonZeroIdx, lastNonZeroIdx + 1)
     }
     return filled
   }, [rawChartData, period])
@@ -478,16 +475,7 @@ export function useGSCAnalytics(
     const clicksValues = chartData.map((d) => d.clicks || 0)
     const goalsValues = chartData.map((d) => d.goals || 0)
 
-    const percentile = (arr: number[], p: number): number => {
-      const sorted = [...arr].sort((a, b) => a - b)
-      const idx = (p / 100) * (sorted.length - 1)
-      const lo = Math.floor(idx)
-      const hi = Math.ceil(idx)
-      if (lo === hi) return sorted[lo] ?? 0
-      return sorted[lo]! + (idx - lo) * (sorted[hi]! - sorted[lo]!)
-    }
-
-    const minImpressions = percentile(impressionsValues, 5)
+    const minImpressions = Math.min(...impressionsValues)
     const maxImpressions = Math.max(...impressionsValues)
     const minClicks = Math.min(...clicksValues)
     const maxClicks = Math.max(...clicksValues)
@@ -504,14 +492,14 @@ export function useGSCAnalytics(
       return Math.max(0, Math.min(100, normalized * 100))
     }
 
-    const impressionsMaxNorm = 78
+    const goalsMaxNorm = 78
     return chartData.map((point) => {
-      const impNorm = normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions)
+      const goalsNormRaw = normalizeToZeroHundred(point.goals || 0, minGoals, maxGoals)
       return {
         ...point,
-        impressionsNorm: (impNorm / 100) * impressionsMaxNorm,
+        impressionsNorm: normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions),
         clicksNorm: normalizeToZeroHundred(point.clicks, minClicks, maxClicks),
-        goalsNorm: normalizeToZeroHundred(point.goals || 0, minGoals, maxGoals),
+        goalsNorm: (goalsNormRaw / 100) * goalsMaxNorm,
       }
     })
   }, [chartData])

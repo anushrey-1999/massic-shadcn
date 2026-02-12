@@ -9,7 +9,7 @@ const cardVariants = cva(
     variants: {
       variant: {
         default: "gap-6 rounded-xl py-6",
-        profileCard: "gap-0 rounded-lg p-2 bg-general-primary-foreground border-general-border shadow-none",
+        profileCard: "gap-0 rounded-lg p-2 bg-general-primary-foreground border-general-border shadow-xs",
       },
     },
     defaultVariants: {

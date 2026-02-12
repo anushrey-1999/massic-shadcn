@@ -1,5 +1,6 @@
 "use client"
 
+import { scaleBand } from "d3-scale"
 import {
   BarChart,
   Bar,
@@ -43,14 +44,14 @@ export function SourcesChannelsChart({
   hasData = true,
 }: SourcesChannelsChartProps) {
   const BAR_SIZE = 12
-  const CATEGORY_GAP = 4
+  const GAP_PX = 14
   const CHART_CHROME_HEIGHT = 60
   const Y_AXIS_WIDTH = 120
   const Y_LABEL_LEFT_PADDING = 15
-  const computedHeight = Math.max(
-    height,
-    data.length * (BAR_SIZE + CATEGORY_GAP) + CHART_CHROME_HEIGHT
-  )
+  const barAreaHeight = data.length * BAR_SIZE + (data.length - 1) * GAP_PX
+  const LABEL_VERTICAL_MARGIN = 10
+  const chartContentHeight = barAreaHeight + CHART_CHROME_HEIGHT + LABEL_VERTICAL_MARGIN * 2
+  const categoryScale = scaleBand().paddingInner(0).paddingOuter(0)
 
   const renderCategoryTick = (props: any) => {
     const { x, y, payload } = props
@@ -123,28 +124,31 @@ export function SourcesChannelsChart({
   return (
     <div
       className="flex flex-col gap-2.5 rounded-lg p-3 border border-general-border bg-white"
-      style={fillHeight ? { minHeight: height, height: "100%" } : { minHeight: height, height: computedHeight }}
+      style={fillHeight ? { minHeight: height, height: "100%" } : { minHeight: height, height }}
     >
-      <div className="flex-1 min-h-0">
-        <ChartContainer config={chartConfig} className="h-full w-full justify-start aspect-auto">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
+      <div className="flex-1 min-h-0 flex justify-center items-center">
+        <div className="w-full max-w-2xl" style={{ height: chartContentHeight }}>
+          <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
               data={data}
               layout="vertical"
-              margin={{ top: 0, right: 15, bottom: 0, left: 0 }}
+              margin={{ top: LABEL_VERTICAL_MARGIN, right: 15, bottom: LABEL_VERTICAL_MARGIN, left: 0 }}
               barSize={BAR_SIZE}
               barGap={-BAR_SIZE}
-              barCategoryGap={CATEGORY_GAP}
               maxBarSize={BAR_SIZE}
             >
               <XAxis type="number" hide domain={[0, 100]} />
               <YAxis
                 type="category"
                 dataKey="name"
+                scale={categoryScale}
                 axisLine={false}
                 tickLine={false}
                 tick={renderCategoryTick}
                 width={Y_AXIS_WIDTH}
+                interval={0}
+                tickCount={data.length}
               />
               <ChartTooltip
                 content={({ active, payload, label }) => {
@@ -193,9 +197,10 @@ export function SourcesChannelsChart({
                 isAnimationActive={false}
                 barSize={BAR_SIZE}
               />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </div>
       </div>
     </div>
   )

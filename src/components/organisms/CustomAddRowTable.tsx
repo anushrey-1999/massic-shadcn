@@ -296,7 +296,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                 const rowErrors = errors[rowIndex] || {};
                 return (
                   <React.Fragment key={rowIndex}>
-                    <TableRow className="border-b border-general-border">
+                    <TableRow className="group border-b border-general-border">
                       {columns.map((column) => {
                         const fieldError = rowErrors[column.key];
                         const isTouched = touched[rowIndex]?.[column.key] || false;
@@ -334,7 +334,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                                       }}
                                       placeholder="Enter value"
                                       className={cn(
-                                        "w-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
+                                        "w-full border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
                                         isInvalid && "aria-invalid"
                                       )}
                                       aria-invalid={isInvalid}
@@ -357,6 +357,10 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                             type="button"
                             variant="ghost"
                             size="icon"
+                            className={cn(
+                              "opacity-0 group-hover:opacity-100 transition-opacity",
+                              "h-8 w-8 text-[#dc2626] hover:text-[#dc2626] hover:bg-[#dc2626]/10 cursor-pointer border border-[#dc2626]/30 hover:border-[#dc2626]"
+                            )}
                             onClick={() => {
                               onDeleteRow(rowIndex);
                               // Clean up errors for deleted row
@@ -376,7 +380,6 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                                 return reindexed;
                               });
                             }}
-                            className="h-8 w-8 text-[#dc2626] hover:text-[#dc2626] hover:bg-[#dc2626]/10 cursor-pointer border border-[#dc2626]/30 hover:border-[#dc2626]"
                             title="Delete row"
                           >
                             <Trash2 className="h-4 w-4" />

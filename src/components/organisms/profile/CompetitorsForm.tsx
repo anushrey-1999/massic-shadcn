@@ -13,6 +13,7 @@ import { FieldLabel } from "@/components/ui/field";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
 import { CompetitorRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
+import { Users } from "lucide-react";
 
 type BusinessInfoFormData = {
   competitors?: Array<{ url: string }>;
@@ -59,14 +60,22 @@ export const CompetitorsForm = ({
     <Card
       id="competitors"
       variant="profileCard"
-      className="py-6 px-4 bg-white border-none mt-6"
+      className="p-4 bg-white border-none shadow-none mt-6"
     >
       <CardHeader className="pb-4">
-        <CardTitle>
-          <Typography variant="h4">Competitors</Typography>
-        </CardTitle>
+        <div className="flex items-center gap-2">
+          <Users className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
+            <CardTitle>
+              <Typography variant="h4" className="!text-2xl">Competitors</Typography>
+            </CardTitle>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities.
+            </Typography>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <Card variant="profileCard">
           <CardHeader className="">
             <CardTitle>

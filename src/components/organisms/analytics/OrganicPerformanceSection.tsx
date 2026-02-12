@@ -10,14 +10,24 @@ import {
   Loader2,
   CircleCheckBig,
   AlertTriangle,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/molecules/analytics/MetricCard";
 import { AlertBar } from "@/components/molecules/analytics/AlertBar";
 import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet";
 import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
 import { BrandedKeywordsModal } from "@/components/molecules/analytics/BrandedKeywordsModal";
-import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -34,7 +44,7 @@ import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
-import { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState, useCallback } from "react";
 
 const METRIC_ICONS: Record<string, React.ReactNode> = {
   "topic-coverage": <Target className="h-5 w-5" />,
@@ -44,12 +54,16 @@ const METRIC_ICONS: Record<string, React.ReactNode> = {
   "non-branded": <TrendingUp className="h-5 w-5" />,
 };
 
-interface OrganicPerformanceSectionProps {
+export interface OrganicPerformanceSectionProps {
   period?: TimePeriodValue;
+  visibleLines?: Record<string, boolean>;
+  onLegendToggle?: (key: string, checked: boolean) => void;
 }
 
 export function OrganicPerformanceSection({
   period = "3 months",
+  visibleLines: visibleLinesProp,
+  onLegendToggle: onLegendToggleProp,
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -78,7 +92,6 @@ export function OrganicPerformanceSection({
     hasData,
     hasFunnelData,
   } = useGSCAnalytics(businessUniqueId, website, period);
-
 
   const {
     metricCards,
@@ -114,25 +127,68 @@ export function OrganicPerformanceSection({
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
   const [brandedKeywordsModalOpen, setBrandedKeywordsModalOpen] = useState(false);
 
-  const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
+  const [visibleLinesLocal, setVisibleLinesLocal] = useState<
+    Record<string, boolean>
+  >({
     impressions: true,
     clicks: true,
     goals: true,
   });
 
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [zoomCenter, setZoomCenter] = useState<number | null>(null);
-  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const visibleLines =
+    visibleLinesProp !== undefined ? visibleLinesProp : visibleLinesLocal;
 
-  const handleLegendToggle = useCallback((key: string, checked: boolean) => {
-    setVisibleLines((prev) => {
-      const checkedCount = Object.values(prev).filter(Boolean).length;
-      if (!checked && checkedCount <= 1) {
-        return prev;
+  const visibleCount = [visibleLines.impressions, visibleLines.clicks, visibleLines.goals].filter(Boolean).length;
+  const singleMetricMode = visibleCount === 1;
+  const useNormalizedKeys = normalizedChartData.length > 0 && !singleMetricMode;
+  const chartDataToRender = useNormalizedKeys ? normalizedChartData : chartData;
+
+  const singleMetricYDomain = useMemo(() => {
+    if (!singleMetricMode || chartData.length === 0) return undefined;
+    const key = visibleLines.impressions ? "impressions" : visibleLines.clicks ? "clicks" : "goals";
+    const values = chartData.map((d) => Number(d[key as keyof typeof d]) || 0);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const pad = (max - min) * 0.05 || 1;
+    return [Math.max(0, min - pad), max + pad] as [number, number];
+  }, [singleMetricMode, chartData, visibleLines.impressions, visibleLines.clicks, visibleLines.goals]);
+
+  const handleLegendToggle = useCallback(
+    (key: string, checked: boolean) => {
+      if (onLegendToggleProp) {
+        onLegendToggleProp(key, checked);
+        return;
       }
-      return { ...prev, [key]: checked };
-    });
-  }, []);
+      setVisibleLinesLocal((prev) => {
+        const checkedCount = Object.values(prev).filter(Boolean).length;
+        if (!checked && checkedCount <= 1) return prev;
+        return { ...prev, [key]: checked };
+      });
+    },
+    [onLegendToggleProp]
+  );
+
+  const [graphFullScreen, setGraphFullScreen] = useState(false);
+
+  const xAxisTicks12Months = useMemo(() => {
+    if (period !== "12 months" || chartData.length === 0)
+      return undefined;
+    const ticks: string[] = [];
+    let lastMonth = "";
+    for (const d of chartData) {
+      const month = d.date.split(" ")[0];
+      if (month !== lastMonth) {
+        lastMonth = month;
+        ticks.push(d.date);
+      }
+    }
+    return ticks.length > 0 ? ticks : undefined;
+  }, [period, chartData]);
+
+  const funnelKeyToIndex: Record<string, number> = useMemo(
+    () => ({ impressions: 0, clicks: 1, goals: 2 }),
+    []
+  );
 
   const chartLegendWithIcons = useMemo(() => {
     const iconConfig: Record<string, { icon: React.ReactNode; color: string }> =
@@ -144,60 +200,23 @@ export function OrganicPerformanceSection({
       },
       goals: { icon: <Target className="h-6 w-6" />, color: "#059669" },
     };
-    return chartLegendItems.map((item) => ({
-      ...item,
-      icon: iconConfig[item.key]?.icon || <Eye className="h-4 w-4" />,
-      color: iconConfig[item.key]?.color,
-      checked: visibleLines[item.key] ?? true,
-    }));
-  }, [chartLegendItems, visibleLines]);
-
-  const zoomedChartData = useMemo(() => {
-    if (zoomLevel <= 1 || zoomCenter === null || normalizedChartData.length === 0) {
-      return normalizedChartData;
-    }
-    const totalPoints = normalizedChartData.length;
-    const visiblePoints = Math.max(2, Math.floor(totalPoints / zoomLevel));
-    const halfVisible = Math.floor(visiblePoints / 2);
-    let startIndex = Math.max(0, zoomCenter - halfVisible);
-    let endIndex = Math.min(totalPoints - 1, zoomCenter + halfVisible);
-    if (endIndex - startIndex + 1 < 2) {
-      if (startIndex === 0) endIndex = Math.min(totalPoints - 1, 1);
-      else startIndex = Math.max(0, totalPoints - 2);
-    }
-    return normalizedChartData.slice(startIndex, endIndex + 1);
-  }, [normalizedChartData, zoomLevel, zoomCenter]);
-
-  useEffect(() => {
-    const element = chartContainerRef.current;
-    if (!element) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const rect = element.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const chartWidth = rect.width - 20;
-      const relativeX = x / chartWidth;
-      const dataIndex = Math.floor(relativeX * normalizedChartData.length);
-      const centerIndex = Math.max(0, Math.min(normalizedChartData.length - 1, dataIndex));
-      setZoomCenter(centerIndex);
-      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-      setZoomLevel((prev) => {
-        const newZoom = prev * zoomFactor;
-        const maxZoom = normalizedChartData.length / 2;
-        return Math.max(1, Math.min(newZoom, maxZoom));
-      });
-    };
-
-    element.addEventListener('wheel', handleWheel, { passive: false });
-    return () => element.removeEventListener('wheel', handleWheel);
-  }, [normalizedChartData.length]);
-
-  const handleChartDoubleClick = useCallback(() => {
-    setZoomLevel(1);
-    setZoomCenter(null);
-  }, []);
+    return chartLegendItems.map((item) => {
+      const stageIndex = funnelKeyToIndex[item.key];
+      const funnelPct =
+        graphFullScreen &&
+        hasFunnelData &&
+        funnelChartItems[stageIndex]?.percentage
+          ? funnelChartItems[stageIndex].percentage
+          : undefined;
+      return {
+        ...item,
+        icon: iconConfig[item.key]?.icon || <Eye className="h-4 w-4" />,
+        color: iconConfig[item.key]?.color,
+        checked: visibleLines[item.key] ?? true,
+        ...(funnelPct !== undefined && funnelPct !== "" ? { funnelPercentage: funnelPct } : {}),
+      };
+    });
+  }, [chartLegendItems, visibleLines, graphFullScreen, hasFunnelData, funnelChartItems, funnelKeyToIndex]);
 
   // Calculate total counts from both Goals and Traffic APIs
   const trafficCriticalCount = trafficData && trafficData.severity === "high" ? 1 : 0;
@@ -381,33 +400,50 @@ export function OrganicPerformanceSection({
           )}
         </div>
 
-        {/* Area Chart with Funnel */}
-        <div className="grid grid-cols-[minmax(0,1fr)_400px] rounded-lg overflow-hidden bg-white border border-general-border">
-          <div className="p-3 pr-8 border-r border-general-border flex flex-col justify-between">
+        {/* Area Chart with Funnel - card height matches funnel; toggle keeps same height */}
+        <div className="relative rounded-lg overflow-hidden bg-white border border-general-border min-h-[320px]">
+          <div
+            className={
+              graphFullScreen
+                ? "grid grid-cols-1 min-h-[242px]"
+                : "grid grid-cols-[minmax(0,1fr)_400px] min-h-[320px]"
+            }
+          >
+            <div
+              className={
+                graphFullScreen
+                  ? "p-3 pr-8 flex flex-col min-h-full"
+                  : "p-3 pr-8 border-r border-general-border flex flex-col min-h-full"
+              }
+            >
             {isLoading ? (
-              <div className="flex items-center justify-center h-[190px]">
+              <div className="flex flex-1 items-center justify-center min-h-[240px]">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : hasData ? (
               <>
                 <ChartLegend
-                  className="mb-4"
+                  variant="box"
+                  className="mb-3 shrink-0"
                   items={chartLegendWithIcons}
                   onToggle={handleLegendToggle}
+                  showToggle={false}
                 />
                 <div
-                  className="h-[190px] cursor-grab active:cursor-grabbing"
-                  ref={chartContainerRef}
-                  onDoubleClick={handleChartDoubleClick}
+                  className={
+                    graphFullScreen
+                      ? "min-h-[242px] flex-1"
+                      : "h-[242px]"
+                  }
                 >
                   <ChartContainer
                     config={chartConfig}
-                    className="h-full w-full flex-coljustify-end items-stretch aspect-auto"
+                    className="h-full w-full flex-col justify-end items-stretch aspect-auto"
                   >
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
-                        data={zoomedChartData}
-                        margin={{ top: 0, right: 0, left: 20, bottom: 0 }}
+                        data={chartDataToRender}
+                        margin={{ top: 0, right: 8, left: 8, bottom: 0 }}
                       >
                         <defs>
                           <linearGradient
@@ -465,20 +501,59 @@ export function OrganicPerformanceSection({
                             />
                           </linearGradient>
                         </defs>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="#e5e7eb"
+                          vertical={false}
+                        />
                         <XAxis
                           dataKey="date"
                           tickLine={false}
                           axisLine={false}
                           tick={{ fontSize: 12, fill: "#9ca3af" }}
                           tickMargin={8}
-                          interval={zoomedChartData.length <= 7 ? 0 : zoomedChartData.length <= 14 ? 1 : zoomedChartData.length <= 30 ? Math.floor(zoomedChartData.length / 8) : zoomedChartData.length <= 90 ? Math.floor(zoomedChartData.length / 10) : Math.floor(zoomedChartData.length / 12)}
+                          ticks={xAxisTicks12Months}
+                          interval={
+                            xAxisTicks12Months
+                              ? 0
+                              : chartData.length <= 7
+                                ? 0
+                                : chartData.length <= 14
+                                  ? 1
+                                  : chartData.length <= 30
+                                    ? Math.floor(chartData.length / 8)
+                                    : chartData.length <= 90
+                                      ? Math.floor(chartData.length / 10)
+                                      : Math.floor(chartData.length / 12)
+                          }
                         />
                         <YAxis
+                          yAxisId="left"
+                          orientation="left"
                           hide
-                          allowDataOverflow
-                          domain={["dataMin", "dataMax"]}
-                          padding={{ top: 0, bottom: 0 }}
+                          width={0}
+                          domain={useNormalizedKeys ? [0, 100] : singleMetricYDomain}
+                          {...(useNormalizedKeys ? {} : !singleMetricMode ? {
+                            domain: ([dataMin, dataMax]: [number, number]) => {
+                              const pad = (dataMax - dataMin) * 0.05 || 1;
+                              const min = dataMin <= 0 ? 0 : Math.max(0, dataMin - pad);
+                              return [min, dataMax + pad];
+                            },
+                          } : {})}
                         />
+                        {!useNormalizedKeys && !singleMetricMode && (
+                          <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            hide
+                            width={0}
+                            domain={([dataMin, dataMax]: [number, number]) => {
+                              const pad = (dataMax - dataMin) * 0.05 || 1;
+                              const min = dataMin <= 0 ? 0 : Math.max(0, dataMin - pad);
+                              return [min, dataMax + pad];
+                            }}
+                          />
+                        )}
                         <ChartTooltip
                           content={({ active, payload, label }) => {
                             if (!active || !payload?.length) return null;
@@ -513,8 +588,9 @@ export function OrganicPerformanceSection({
                         />
                         {visibleLines.impressions && (
                           <Area
-                            type="linear"
-                            dataKey="impressionsNorm"
+                            type="monotone"
+                            dataKey={useNormalizedKeys ? "impressionsNorm" : "impressions"}
+                            yAxisId={useNormalizedKeys || singleMetricMode ? "left" : "right"}
                             stroke="#6b7280"
                             fill="url(#fillImpressions)"
                             strokeWidth={1}
@@ -523,8 +599,9 @@ export function OrganicPerformanceSection({
                         )}
                         {visibleLines.clicks && (
                           <Area
-                            type="linear"
-                            dataKey="clicksNorm"
+                            type="monotone"
+                            dataKey={useNormalizedKeys ? "clicksNorm" : "clicks"}
+                            yAxisId="left"
                             stroke="#2563eb"
                             fill="url(#fillClicks)"
                             strokeWidth={1}
@@ -533,8 +610,9 @@ export function OrganicPerformanceSection({
                         )}
                         {visibleLines.goals && (
                           <Area
-                            type="linear"
-                            dataKey="goalsNorm"
+                            type="monotone"
+                            dataKey={useNormalizedKeys ? "goalsNorm" : "goals"}
+                            yAxisId="left"
                             stroke="#059669"
                             fill="url(#fillGoals)"
                             strokeWidth={1}
@@ -547,25 +625,41 @@ export function OrganicPerformanceSection({
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center h-[290px] text-muted-foreground">
+              <div className="flex flex-1 items-center justify-center min-h-[240px] text-muted-foreground">
                 No GSC data available. Please connect Google Search Console.
+              </div>
+            )}
+            </div>
+
+            {!graphFullScreen && (
+              <div className="h-full px-7 py-3 flex items-center justify-center min-h-0">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : hasFunnelData ? (
+                  <FunnelChart data={funnelChartItems} />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                    No funnel data available
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          <div className="h-full px-7 py-3">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : hasFunnelData ? (
-              <FunnelChart data={funnelChartItems} />
+          <Button
+            variant="outline"
+            size="icon"
+            className="absolute top-2 right-2 z-10 bg-white h-8 w-8"
+            onClick={() => setGraphFullScreen(!graphFullScreen)}
+          >
+            {graphFullScreen ? (
+              <Minimize2 className="h-2 w-2" />
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                No funnel data available
-              </div>
+              <Maximize2 className="h-3 w-3" />
             )}
-          </div>
+          </Button>
         </div>
       </div>
 

@@ -256,16 +256,18 @@ const DiscoveryPerformanceSection = ({
 
   return (
     <div className="px-7 pb-10">
-      <div className="flex items-center gap-2 py-5 border-b border-general-muted-foreground">
+      <div className="flex items-center gap-2 pb-6">
         <Search className="h-8 w-8 text-general-foreground" />
         <Typography variant="h2">Discovery</Typography>
       </div>
 
-      <div className="flex flex-col gap-3 pt-10">
+      <div className="flex flex-col gap-3">
         <div className="">
           <div className="grid grid-cols-2 gap-3">
             <DataTable
-              title="Content people are seeing"
+              title="Content Group"
+              titleTooltip="Content people are seeing"
+              inlineHeader
               showTabs
               tabs={[
                 { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
@@ -280,7 +282,7 @@ const DiscoveryPerformanceSection = ({
                 handleContentGroupsFilterChange(value as TableFilterType)
               }
               columns={[
-                { key: "key", label: "Content Groups", width: "w-[200px]" },
+                { key: "key", label: "Content Group", width: "w-[200px]" },
                 { key: "impressions", label: "Impr.", sortable: true },
                 { key: "clicks", label: "Clicks", sortable: true },
               ]}
@@ -296,12 +298,14 @@ const DiscoveryPerformanceSection = ({
                 handleContentGroupsSort(column as "impressions" | "clicks")
               }
               onArrowClick={() => setContentGroupsModalOpen(true)}
-              maxRows={5}
+              maxRows={10}
             />
 
             <DataTable
               icon={<></>}
-              title="Content people are seeing"
+              title="Top Pages"
+              titleTooltip="Content people are seeing"
+              inlineHeader
               showTabs
               tabs={[
                 { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
@@ -333,7 +337,7 @@ const DiscoveryPerformanceSection = ({
                 handleTopPagesSort(column as "impressions" | "clicks")
               }
               onArrowClick={() => setTopPagesModalOpen(true)}
-              maxRows={5}
+              maxRows={10}
             />
           </div>
         </div>
@@ -343,7 +347,9 @@ const DiscoveryPerformanceSection = ({
           <div className="grid grid-cols-2 gap-3">
             <DataTable
               icon={<Eye className="h-4 w-4" />}
-              title="Searches to discover you"
+              title="Top Queries"
+              titleTooltip="Searches to discover you"
+              inlineHeader
               showTabs
               tabs={[
                 { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
@@ -374,7 +380,7 @@ const DiscoveryPerformanceSection = ({
                 handleTopQueriesSort(column as "impressions" | "clicks")
               }
               onArrowClick={() => setTopQueriesModalOpen(true)}
-              maxRows={5}
+              maxRows={10}
             />
             <PositionDistributionCard
               positions={positionLegendItems}

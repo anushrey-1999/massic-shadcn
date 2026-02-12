@@ -18,6 +18,7 @@ function combineWorkflowStatuses(statuses: WorkflowStatusValue[]): WorkflowStatu
   if (statuses.every((s) => s === "success")) return "success"
   if (statuses.some((s) => s === "processing")) return "processing"
   if (statuses.some((s) => s === "pending")) return "pending"
+  if (statuses.every((s) => s === null || s === undefined)) return null
   return undefined
 }
 
@@ -34,14 +35,22 @@ export function WorkflowStatusBanner({
   const overallStatus = jobDetails?.workflow_status?.status
   const workflowStatus = (() => {
     if (!effectiveWorkflowKey) return jobDetails?.workflow_status?.status
-    if (coreStatus && coreStatus !== "success") return coreStatus
+    if (coreStatus != null && coreStatus !== "success") return coreStatus
     if (Array.isArray(effectiveWorkflowKey)) {
       const statuses = effectiveWorkflowKey.map((key) => getWorkflowStatus(jobDetails, key))
       return combineWorkflowStatuses(statuses)
     }
     return getWorkflowStatus(jobDetails, effectiveWorkflowKey)
   })()
-  const effectiveStatus = workflowStatus ?? (jobDetails ? "processing" : undefined)
+  const overallStatusIsNull = jobDetails?.workflow_status?.status === null
+  const effectiveStatus =
+    workflowStatus !== undefined && workflowStatus !== null
+      ? workflowStatus
+      : overallStatusIsNull
+        ? null
+        : jobDetails
+          ? "processing"
+          : undefined
   const effectiveProfileHref = profileHref || `/business/${businessId}/profile`
 
   if (isLoading) {
@@ -68,11 +77,30 @@ export function WorkflowStatusBanner({
     )
   }
 
+  if (effectiveStatus === null) {
+    return (
+      <EmptyState
+        title="No Data Found"
+        className={emptyStateHeight}
+        cardClassName={cn("", className)}
+        description="Please trigger workflow to get the data"
+        buttons={[
+          {
+            label: "Go to Profile",
+            href: effectiveProfileHref,
+            variant: "outline",
+            size: "lg"
+          }
+        ]}
+      />
+    )
+  }
+
   if (overallStatus === "processing" && effectiveStatus !== "success" && effectiveStatus !== "error") {
     return (
       <EmptyState
-        title="Workflow Processing"
-        description="Your workflows are being processed. Data will be available shortly."
+        title="Building your growth strategy"
+        description="This is a comprehensive analysis and may take up to an hour to complete. You can close this page and check back later - your results will be waiting for you."
         className={emptyStateHeight}
         cardClassName={cn("", className)}
         isProcessing={true}
@@ -83,8 +111,8 @@ export function WorkflowStatusBanner({
   if (effectiveStatus === "processing") {
     return (
       <EmptyState
-        title="Workflow Processing"
-        description="Your workflows are being processed. Data will be available shortly."
+        title="Building your growth strategy"
+        description="This is a comprehensive analysis and may take up to an hour to complete. You can close this page and check back later - your results will be waiting for you."
         className={emptyStateHeight}
         cardClassName={cn("", className)}
         isProcessing={true}
@@ -111,21 +139,13 @@ export function WorkflowStatusBanner({
     )
   }
 
-  if (effectiveStatus === "pending") {
+  if (overallStatus === "pending" || effectiveStatus === "pending") {
     return (
       <EmptyState
-        title="No Data Found"
+        title="Workflow Queued"
         className={emptyStateHeight}
         cardClassName={cn("", className)}
-        description="Trigger workflow from Profile page to start the workflows"
-        buttons={[
-          {
-            label: "Go to Profile",
-            href: effectiveProfileHref,
-            variant: "outline",
-            size: "lg"
-          }
-        ]}
+        description="Please wait while the other workflow gets done"
       />
     )
   }

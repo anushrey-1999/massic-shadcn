@@ -28,6 +28,7 @@ export interface Column<T = any> {
   label: string;
   render?: (value: any, row: T, index: number) => React.ReactNode;
   validation?: ColumnValidation;
+  width?: string;
 }
 
 export interface CustomAddRowTableProps<T = Record<string, any>> {
@@ -200,7 +201,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
         newTouched[rowIndex] = {};
       }
       newTouched[rowIndex][field] = true;
-      
+
       const nextRow = {
         ...(data[rowIndex] || ({} as T)),
         [field]: value,
@@ -225,7 +226,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
         }
         return newErrors;
       });
-      
+
       return newTouched;
     });
   };
@@ -276,6 +277,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                 <TableHead
                   key={column.key}
                   className="text-general-muted-foreground font-medium text-sm h-12 px-2 bg-general-primary-foreground"
+                  style={column.width ? { width: column.width } : undefined}
                 >
                   {column.label}
                   {column.validation?.required && (
@@ -296,7 +298,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                 const rowErrors = errors[rowIndex] || {};
                 return (
                   <React.Fragment key={rowIndex}>
-                    <TableRow className="border-b border-general-border">
+                    <TableRow className="group border-b border-general-border">
                       {columns.map((column) => {
                         const fieldError = rowErrors[column.key];
                         const isTouched = touched[rowIndex]?.[column.key] || false;
@@ -307,38 +309,38 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                               {column.render ? (
                                 column.render(row[column.key], row, rowIndex)
                               ) : onRowChange ? (
-                                    <Input
-                                      id={`table-input-${tableId}-${rowIndex}-${column.key}`}
-                                      type={column.validation?.url ? "url" : "text"}
-                                      variant="noBorder"
-                                      value={row[column.key] || ""}
-                                      onChange={(e) =>
-                                        handleRowChange(
-                                          rowIndex,
-                                          column.key,
-                                          e.target.value
-                                        )
-                                      }
-                                      onBlur={(e) =>
-                                        handleBlur(
-                                          rowIndex,
-                                          column.key,
-                                          e.target.value
-                                        )
-                                      }
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                          e.preventDefault();
-                                          onAddRow();
-                                        }
-                                      }}
-                                      placeholder="Enter value"
-                                      className={cn(
-                                        "w-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
-                                        isInvalid && "aria-invalid"
-                                      )}
-                                      aria-invalid={isInvalid}
-                                    />
+                                <Input
+                                  id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                                  type={column.validation?.url ? "url" : "text"}
+                                  variant="noBorder"
+                                  value={row[column.key] || ""}
+                                  onChange={(e) =>
+                                    handleRowChange(
+                                      rowIndex,
+                                      column.key,
+                                      e.target.value
+                                    )
+                                  }
+                                  onBlur={(e) =>
+                                    handleBlur(
+                                      rowIndex,
+                                      column.key,
+                                      e.target.value
+                                    )
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      onAddRow();
+                                    }
+                                  }}
+                                  placeholder="Enter value"
+                                  className={cn(
+                                    "w-full border-0 bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none",
+                                    isInvalid && "aria-invalid"
+                                  )}
+                                  aria-invalid={isInvalid}
+                                />
                               ) : (
                                 row[column.key] || "Enter value"
                               )}
@@ -357,6 +359,10 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                             type="button"
                             variant="ghost"
                             size="icon"
+                            className={cn(
+                              "opacity-0 group-hover:opacity-100 transition-opacity",
+                              "h-8 w-8 text-[#dc2626] hover:text-[#dc2626] hover:bg-[#dc2626]/10 cursor-pointer border border-[#dc2626]/30 hover:border-[#dc2626]"
+                            )}
                             onClick={() => {
                               onDeleteRow(rowIndex);
                               // Clean up errors for deleted row
@@ -376,7 +382,6 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                                 return reindexed;
                               });
                             }}
-                            className="h-8 w-8 text-[#dc2626] hover:text-[#dc2626] hover:bg-[#dc2626]/10 cursor-pointer border border-[#dc2626]/30 hover:border-[#dc2626]"
                             title="Delete row"
                           >
                             <Trash2 className="h-4 w-4" />

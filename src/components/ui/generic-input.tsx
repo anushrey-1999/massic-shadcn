@@ -331,7 +331,7 @@ function GenericInput<
           "!h-10 !px-3 !py-1 !text-sm !rounded-md", // Match Select's h-10 (40px) height and text-sm font size
           "!min-w-0", // Match Input
           // Match Select noBorder variant exactly
-          "!border-0 !bg-white !shadow-none",
+          "!border-0 !bg-white !shadow-xs",
           // Override Button outline variant hover states
           "!hover:bg-white !hover:text-foreground",
           // Override dark mode styles

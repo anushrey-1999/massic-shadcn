@@ -15,6 +15,7 @@ import { Typography } from '@/components/ui/typography'
 import { formatVolume } from '@/lib/format'
 import type { WebPageMetrics } from '@/types/web-page-types'
 import { WebChannelsTab } from '@/components/organisms/WebChannels/web-channels-tab'
+import { getWorkflowStatus, isWorkflowSuccess } from '@/lib/workflow-status'
 
 interface PageProps {
   params: Promise<{
@@ -78,8 +79,11 @@ export default function BusinessWebPage({ params }: PageProps) {
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)
-  const workflowStatus = jobDetails?.workflow_status?.status
-  const showNewPagesContent = !jobDetailsLoading && workflowStatus === "success"
+  const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
+  const showNewPagesContent =
+    !jobDetailsLoading &&
+    coreStatus === "success" &&
+    isWorkflowSuccess(jobDetails, "blogs_and_pages_planner")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
   const hideTabs = isOptimizeSplitView && activeTab === "optimize";
@@ -145,6 +149,7 @@ export default function BusinessWebPage({ params }: PageProps) {
               ) : (
                 <WorkflowStatusBanner
                   businessId={businessId}
+                  workflowKey="blogs_and_pages_planner"
                   emptyStateHeight="min-h-[calc(100vh-16rem)]"
                 />
               )}

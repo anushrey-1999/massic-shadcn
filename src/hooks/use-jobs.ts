@@ -283,7 +283,7 @@ export function useJobByBusinessId(businessId: string | null) {
       // Poll every 20 seconds when workflow is processing or pending
       const data = query.state.data;
       const workflowStatus = data?.workflow_status?.status;
-      if (workflowStatus === "processing") {
+      if (workflowStatus === "processing" || workflowStatus === "pending") {
         return 20000; // 20 seconds
       }
       return false; // Stop polling when success or error

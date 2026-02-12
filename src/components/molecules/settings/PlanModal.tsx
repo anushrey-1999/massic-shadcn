@@ -36,6 +36,7 @@ interface PlanModalProps {
   alertSeverity?: "success" | "info" | "warning" | "error";
   isDescription?: boolean;
   loading?: boolean;
+  selectionResetKey?: number;
 }
 
 const defaultPlansData: PlanData[] = [
@@ -111,6 +112,7 @@ export function PlanModal({
   alertMessage,
   alertSeverity = "info",
   loading = false,
+  selectionResetKey,
 }: PlanModalProps) {
   const plans = plansData || defaultPlansData;
   const [selectedPlanName, setSelectedPlanName] = React.useState<string | null>(null);
@@ -120,6 +122,12 @@ export function PlanModal({
       setSelectedPlanName(null);
     }
   }, [loading]);
+
+  React.useEffect(() => {
+    if (selectionResetKey !== undefined) {
+      setSelectedPlanName(null);
+    }
+  }, [selectionResetKey]);
 
   const handleSelectPlan = async (
     planName: string,

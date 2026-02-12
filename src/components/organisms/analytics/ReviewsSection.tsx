@@ -39,7 +39,7 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
     return (
       <div className="flex flex-col gap-7">
         {/* <h2 className="text-base font-semibold">Reviews</h2> */}
-        <div className="flex items-center justify-center h-[120px] border rounded-lg bg-muted/20">
+        <div className="flex items-center justify-center h-[120px] border rounded-lg bg-white">
           <p className="text-sm text-muted-foreground">No locations configured for this business</p>
         </div>
       </div>

@@ -334,20 +334,18 @@ export function useGSCAnalytics(
   const chartData = useMemo<GSCChartDataPoint[]>(() => {
     const now = new Date()
     const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    const hasNonZero = (row: GSCChartDataPoint) =>
-      (row.impressions ?? 0) > 0 || (row.clicks ?? 0) > 0 || (row.goals ?? 0) > 0
     const withDate = rawChartData
       .map((row) => ({ row, dateObj: row.dateKey ? dateFromKey(row.dateKey) : null }))
       .filter((x): x is { row: GSCChartDataPoint; dateObj: Date } => x.dateObj !== null)
-    const lastWithNonZero = withDate
-      .filter(({ row }) => hasNonZero(row))
-      .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
-    const lastDateWithData = lastWithNonZero.length > 0 ? lastWithNonZero[lastWithNonZero.length - 1].dateObj : null
-    const lastAvailableDate = withDate.length > 0
-      ? withDate.map((x) => x.dateObj).sort((a, b) => a.getTime() - b.getTime()).pop() ?? null
-      : null
-    const endDate = lastDateWithData ?? lastAvailableDate ?? todayUtc
+    const lastAvailableDate =
+      withDate.length > 0
+        ? withDate.map((x) => x.dateObj).sort((a, b) => a.getTime() - b.getTime()).pop() ?? null
+        : null
+    const endDate = lastAvailableDate ?? todayUtc
     const startDate = getPeriodStartDate(period, endDate)
+    const displayStartDate = addDaysUtc(startDate, 3)
+    const rangeStart =
+      displayStartDate.getTime() <= endDate.getTime() ? displayStartDate : startDate
 
     const dataByDate = new Map(
       rawChartData
@@ -356,7 +354,7 @@ export function useGSCAnalytics(
     )
 
     const filled: GSCChartDataPoint[] = []
-    for (let cursor = startDate; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
+    for (let cursor = rangeStart; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
       const key = formatDateKey(cursor)
       const existing = dataByDate.get(key)
       filled.push({
@@ -367,11 +365,6 @@ export function useGSCAnalytics(
       })
     }
 
-    const firstNonZeroIdx = filled.findIndex((d) => hasNonZero(d))
-    const lastNonZeroIdx = filled.length - 1 - [...filled].reverse().findIndex((d) => hasNonZero(d))
-    if (firstNonZeroIdx >= 0 && lastNonZeroIdx >= firstNonZeroIdx) {
-      return filled.slice(firstNonZeroIdx, lastNonZeroIdx + 1)
-    }
     return filled
   }, [rawChartData, period])
 

@@ -127,6 +127,11 @@ const ProfileTemplate = ({
     (state) => state.profileForm.activeSection
   );
 
+  // Derive whitelist status from profiles (agency-level check)
+  const isAgencyWhitelisted = useMemo(() => {
+    return profiles.some(profile => profile.isWhitelisted === true);
+  }, [profiles]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [isCheckingPlan, setIsCheckingPlan] = useState(false);
@@ -138,7 +143,7 @@ const ProfileTemplate = ({
     data: subscriptionData,
     handleSubscribeToPlan,
     refetchData: refetchSubscriptionData,
-  } = useSubscription();
+  } = useSubscription({ isWhitelisted: isAgencyWhitelisted });
   const [showSubmitErrors, setShowSubmitErrors] = useState(false);
   const initialValuesRef = useRef<any>(null);
   const hasChangesRef = useRef(false);
@@ -811,6 +816,7 @@ const ProfileTemplate = ({
 
   const getPlanTypeFromData = useCallback(
     (data: any) => {
+      if (data?.status === "canceled") return "no_plan";
       const raw =
         currentProfile?.SubscriptionItems?.plan_type ||
         (externalProfileData as any)?.SubscriptionItems?.plan_type ||
@@ -838,25 +844,33 @@ const ProfileTemplate = ({
 
     try {
       setIsCheckingPlan(true);
-      const latestSubscription = await refetchSubscriptionData();
-      const effectiveSubscription = latestSubscription ?? subscriptionData;
-      const isWhitelisted =
-        effectiveSubscription?.whitelisted === true ||
-        effectiveSubscription?.status === "whitelisted";
 
-      const planType = getPlanTypeFromData(effectiveSubscription);
-      const planLevels: Record<string, number> = {
-        no_plan: 0,
-        starter: 1,
-        core: 2,
-        growth: 3,
-      };
-      const level = planLevels[planType] ?? 0;
-      const hasAboveStarterPlan = isWhitelisted || level > planLevels.starter;
+      // Check whitelist status first (agency-level)
+      if (!isAgencyWhitelisted) {
+        // For non-whitelisted users, check subscription and plan level
+        const latestSubscription = await refetchSubscriptionData();
+        const effectiveSubscription = latestSubscription ?? subscriptionData;
+        const isCanceled = effectiveSubscription?.status === "canceled";
 
-      if (!hasAboveStarterPlan) {
-        setPlanModalOpen(true);
-        return;
+        if (isCanceled) {
+          setPlanModalOpen(true);
+          return;
+        }
+
+        const planType = getPlanTypeFromData(effectiveSubscription);
+        const planLevels: Record<string, number> = {
+          no_plan: 0,
+          starter: 1,
+          core: 2,
+          growth: 3,
+        };
+        const level = planLevels[planType] ?? 0;
+        const hasAboveStarterPlan = level > planLevels.starter;
+
+        if (!hasAboveStarterPlan) {
+          setPlanModalOpen(true);
+          return;
+        }
       }
 
       setIsTriggeringWorkflow(true);

@@ -76,6 +76,10 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
         label: "Page",
         placeholder: "Search pages...",
         variant: "text",
+        operators: [
+          { label: "Contains", value: "iLike" },
+          { label: "Is", value: "eq" },
+        ],
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -98,6 +102,10 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
         label: "Opportunity",
         placeholder: "Search opportunities...",
         variant: "text",
+        operators: [
+          { label: "Contains", value: "iLike" },
+          { label: "Is", value: "eq" },
+        ],
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -122,7 +130,7 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
       meta: {
         label: "Priority",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -189,6 +197,11 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
         label: "Avg. Pos",
         variant: "range",
         range: [0, 100],
+        operators: [
+          { label: "Contains", value: "iLike" },
+          { label: "Is less than or equal to", value: "lte" },
+          { label: "Is greater than or equal to", value: "gte" },
+        ],
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -210,7 +223,12 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
       meta: {
         label: "CTR",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
+        operators: [
+          { label: "Contains", value: "iLike" },
+          { label: "Is less than or equal to", value: "lte" },
+          { label: "Is greater than or equal to", value: "gte" },
+        ],
       },
       enableColumnFilter: true,
       enableSorting: true,

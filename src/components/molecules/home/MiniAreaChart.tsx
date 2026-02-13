@@ -162,12 +162,14 @@ export function MiniAreaChart({
       .map((row) => dateFromKey(row.dateKey))
       .filter((value): value is Date => value instanceof Date)
       .sort((a, b) => a.getTime() - b.getTime())
-
     const now = new Date()
     const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    const lastAvailableDate = availableDates[availableDates.length - 1]
+    const lastAvailableDate = availableDates[availableDates.length - 1] ?? null
     const endDate = lastAvailableDate ?? todayUtc
     const startDate = getPeriodStartDate(period, endDate)
+    const displayStartDate = addDaysUtc(startDate, 3)
+    const rangeStart =
+      displayStartDate.getTime() <= endDate.getTime() ? displayStartDate : startDate
     const dataByDate = new Map(parsed.map((row) => [row.dateKey, row]))
 
     const filled: Array<{
@@ -177,7 +179,7 @@ export function MiniAreaChart({
       goals: number
     }> = []
 
-    for (let cursor = startDate; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
+    for (let cursor = rangeStart; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
       const key = formatDateKey(cursor)
       const existing = dataByDate.get(key)
       filled.push({

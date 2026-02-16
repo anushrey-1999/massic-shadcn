@@ -26,6 +26,18 @@ export interface WordpressPreviewResponse {
   };
 }
 
+export interface WordpressUnpublishResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    contentId: string;
+    wpId: number;
+    status: string;
+    permalink: string | null;
+  };
+}
+
 interface PublishPayload {
   connectionId: string;
   status?: "draft" | "pending" | "publish" | "private" | "future";
@@ -46,6 +58,11 @@ interface PreviewPayload {
   contentId?: string;
   wpId?: number;
   expiresIn?: number;
+}
+
+interface UnpublishPayload {
+  connectionId: string;
+  contentId: string;
 }
 
 interface ContentStatusResponse {
@@ -102,6 +119,23 @@ export function useWordpressPreviewLink() {
     },
     onError: (error) => {
       toast.error("Failed to create preview link", {
+        description: getErrorMessage(error, "Please try again."),
+      });
+    },
+  });
+}
+
+export function useWordpressUnpublish() {
+  return useMutation<WordpressUnpublishResponse, Error, UnpublishPayload>({
+    mutationFn: async (payload) => {
+      const res = await api.post<WordpressUnpublishResponse>("/cms/wordpress/unpublish", "node", payload);
+      if (!res?.success) {
+        throw new Error(res?.message || "Failed to unpublish from WordPress");
+      }
+      return res;
+    },
+    onError: (error) => {
+      toast.error("WordPress unpublish failed", {
         description: getErrorMessage(error, "Please try again."),
       });
     },

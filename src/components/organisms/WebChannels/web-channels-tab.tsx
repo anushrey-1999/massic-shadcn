@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Globe, Link2, PlugZap } from "lucide-react";
+import { ChevronDown, Link2, PlugZap } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,9 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { toast } from "sonner";
 import {
   useConnectWordpress,
   useDisconnectWordpress,
+  useStartWordpressOauthLink,
   useWordpressConnection,
 } from "@/hooks/use-wordpress-connector";
 
@@ -32,12 +35,19 @@ interface ConnectFormState {
   clientSecret: string;
 }
 
-const initialFormState: ConnectFormState = {
+const initialManualFormState: ConnectFormState = {
   siteUrl: "",
   siteId: "",
   pairingCode: "",
   clientSecret: "",
 };
+
+function normalizeSiteUrlInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
 
 function EmptyProviderCard({ name }: { name: string }) {
   return (
@@ -56,44 +66,70 @@ function EmptyProviderCard({ name }: { name: string }) {
 }
 
 export function WebChannelsTab({ businessId, defaultSiteUrl }: WebChannelsTabProps) {
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [form, setForm] = React.useState<ConnectFormState>({
-    ...initialFormState,
+  const [isRecommendedModalOpen, setIsRecommendedModalOpen] = React.useState(false);
+  const [isManualOpen, setIsManualOpen] = React.useState(false);
+  const [recommendedSiteUrl, setRecommendedSiteUrl] = React.useState(defaultSiteUrl || "");
+  const [manualForm, setManualForm] = React.useState<ConnectFormState>({
+    ...initialManualFormState,
     siteUrl: defaultSiteUrl || "",
   });
 
   const { data, isLoading } = useWordpressConnection(businessId);
   const connectMutation = useConnectWordpress();
   const disconnectMutation = useDisconnectWordpress(businessId);
+  const oauthStartLinkMutation = useStartWordpressOauthLink();
 
   const connected = Boolean(data?.connected && data?.connection);
   const connection = data?.connection || null;
 
   React.useEffect(() => {
-    if (isModalOpen) {
-      setForm((prev) => ({
-        ...prev,
-        siteUrl: prev.siteUrl || defaultSiteUrl || "",
-      }));
+    if (!recommendedSiteUrl && defaultSiteUrl) {
+      setRecommendedSiteUrl(defaultSiteUrl);
     }
-  }, [defaultSiteUrl, isModalOpen]);
+  }, [defaultSiteUrl, recommendedSiteUrl]);
 
-  const onChange = (key: keyof ConnectFormState, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const onManualChange = (key: keyof ConnectFormState, value: string) => {
+    setManualForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const submitConnect = async () => {
-    await connectMutation.mutateAsync({
+  const submitRecommended = async () => {
+    const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl);
+    if (!siteUrl) return;
+
+    const response = await oauthStartLinkMutation.mutateAsync({
       businessId,
-      siteUrl: form.siteUrl.trim(),
-      siteId: form.siteId.trim(),
-      pairingCode: form.pairingCode.trim(),
-      clientSecret: form.clientSecret.trim(),
+      siteUrl,
     });
 
-    setIsModalOpen(false);
-    setForm((prev) => ({
-      ...initialFormState,
+    const connectUrl = response?.data?.connectUrl;
+    if (!connectUrl) {
+      return;
+    }
+
+    const popup = window.open(connectUrl, "_blank", "noopener,noreferrer");
+    if (!popup) {
+      window.location.assign(connectUrl);
+      return;
+    }
+
+    toast.success("WordPress admin opened", {
+      description: "Click 'Connect to Massic (Recommended)' in your plugin page.",
+    });
+
+    setIsRecommendedModalOpen(false);
+  };
+
+  const submitManualConnect = async () => {
+    await connectMutation.mutateAsync({
+      businessId,
+      siteUrl: normalizeSiteUrlInput(manualForm.siteUrl),
+      siteId: manualForm.siteId.trim(),
+      pairingCode: manualForm.pairingCode.trim(),
+      clientSecret: manualForm.clientSecret.trim(),
+    });
+
+    setManualForm((prev) => ({
+      ...initialManualFormState,
       siteUrl: prev.siteUrl || defaultSiteUrl || "",
     }));
   };
@@ -103,11 +139,11 @@ export function WebChannelsTab({ businessId, defaultSiteUrl }: WebChannelsTabPro
     await disconnectMutation.mutateAsync({ connectionId: connection.connectionId });
   };
 
-  const canSubmit =
-    form.siteUrl.trim() &&
-    form.siteId.trim() &&
-    form.pairingCode.trim() &&
-    form.clientSecret.trim();
+  const canSubmitManual =
+    manualForm.siteUrl.trim() &&
+    manualForm.siteId.trim() &&
+    manualForm.pairingCode.trim() &&
+    manualForm.clientSecret.trim();
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto">
@@ -123,7 +159,7 @@ export function WebChannelsTab({ businessId, defaultSiteUrl }: WebChannelsTabPro
               <div className="space-y-1">
                 <p className="text-sm font-medium text-general-foreground">WordPress</p>
                 <p className="text-xs text-general-muted-foreground">
-                  Connect your WordPress site to publish and preview content.
+                  One-click connect is recommended. Manual pairing is available under advanced setup.
                 </p>
                 {connected && connection && (
                   <div className="pt-2 text-xs text-general-muted-foreground">
@@ -159,13 +195,81 @@ export function WebChannelsTab({ businessId, defaultSiteUrl }: WebChannelsTabPro
                     {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
                   </Button>
                 ) : (
-                  <Button size="sm" onClick={() => setIsModalOpen(true)}>
+                  <Button size="sm" onClick={() => setIsRecommendedModalOpen(true)}>
                     <Link2 className="mr-1 size-4" />
-                    Connect
+                    Connect WordPress (Recommended)
                   </Button>
                 )}
               </div>
             </div>
+
+            {!connected && (
+              <div className="mt-4 border-t pt-4">
+                <Collapsible open={isManualOpen} onOpenChange={setIsManualOpen}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" className="h-auto px-0 text-xs text-muted-foreground">
+                      Manual setup (Advanced)
+                      <ChevronDown className={cn("ml-1 size-4 transition-transform", isManualOpen && "rotate-180")} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3">
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="wp-manual-site-url">Site URL</Label>
+                        <Input
+                          id="wp-manual-site-url"
+                          placeholder="https://example.com"
+                          value={manualForm.siteUrl}
+                          onChange={(e) => onManualChange("siteUrl", e.target.value)}
+                          disabled={connectMutation.isPending}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="wp-manual-site-id">Site ID</Label>
+                        <Input
+                          id="wp-manual-site-id"
+                          placeholder="site_123"
+                          value={manualForm.siteId}
+                          onChange={(e) => onManualChange("siteId", e.target.value)}
+                          disabled={connectMutation.isPending}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="wp-manual-pairing-code">Pairing Code</Label>
+                        <Input
+                          id="wp-manual-pairing-code"
+                          placeholder="Paste pairing code"
+                          value={manualForm.pairingCode}
+                          onChange={(e) => onManualChange("pairingCode", e.target.value)}
+                          disabled={connectMutation.isPending}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="wp-manual-client-secret">Client Secret</Label>
+                        <Input
+                          id="wp-manual-client-secret"
+                          type="password"
+                          placeholder="Paste client secret"
+                          value={manualForm.clientSecret}
+                          onChange={(e) => onManualChange("clientSecret", e.target.value)}
+                          disabled={connectMutation.isPending}
+                          autoComplete="new-password"
+                        />
+                      </div>
+
+                      <div>
+                        <Button
+                          onClick={submitManualConnect}
+                          disabled={!canSubmitManual || connectMutation.isPending}
+                        >
+                          {connectMutation.isPending ? "Connecting..." : "Connect Manually"}
+                        </Button>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            )}
           </div>
 
           <EmptyProviderCard name="Webflow" />
@@ -173,73 +277,45 @@ export function WebChannelsTab({ businessId, defaultSiteUrl }: WebChannelsTabPro
         </div>
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[560px]" showCloseButton={!connectMutation.isPending}>
+      <Dialog open={isRecommendedModalOpen} onOpenChange={setIsRecommendedModalOpen}>
+        <DialogContent className="sm:max-w-[560px]" showCloseButton={!oauthStartLinkMutation.isPending}>
           <DialogHeader>
-            <DialogTitle>Connect WordPress</DialogTitle>
+            <DialogTitle>Connect WordPress (Recommended)</DialogTitle>
             <DialogDescription>
-              Enter your WordPress connector details from the plugin settings page.
+              Enter your WordPress site URL. We will open your WP admin plugin page where you can connect in one click.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-1">
             <div className="grid gap-2">
-              <Label htmlFor="wp-site-url">Site URL</Label>
+              <Label htmlFor="wp-recommended-site-url">Site URL</Label>
               <Input
-                id="wp-site-url"
+                id="wp-recommended-site-url"
                 placeholder="https://example.com"
-                value={form.siteUrl}
-                onChange={(e) => onChange("siteUrl", e.target.value)}
-                disabled={connectMutation.isPending}
+                value={recommendedSiteUrl}
+                onChange={(e) => setRecommendedSiteUrl(e.target.value)}
+                disabled={oauthStartLinkMutation.isPending}
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="wp-site-id">Site ID</Label>
-              <Input
-                id="wp-site-id"
-                placeholder="site_123"
-                value={form.siteId}
-                onChange={(e) => onChange("siteId", e.target.value)}
-                disabled={connectMutation.isPending}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="wp-pairing-code">Pairing Code</Label>
-              <Input
-                id="wp-pairing-code"
-                placeholder="Paste pairing code"
-                value={form.pairingCode}
-                onChange={(e) => onChange("pairingCode", e.target.value)}
-                disabled={connectMutation.isPending}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="wp-client-secret">Client Secret</Label>
-              <Input
-                id="wp-client-secret"
-                type="password"
-                placeholder="Paste client secret"
-                value={form.clientSecret}
-                onChange={(e) => onChange("clientSecret", e.target.value)}
-                disabled={connectMutation.isPending}
-                autoComplete="new-password"
-              />
+
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              After opening WordPress admin, click <strong>Connect to Massic (Recommended)</strong> in the plugin page.
             </div>
           </div>
 
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsModalOpen(false)}
-              disabled={connectMutation.isPending}
+              onClick={() => setIsRecommendedModalOpen(false)}
+              disabled={oauthStartLinkMutation.isPending}
             >
               Cancel
             </Button>
             <Button
-              onClick={submitConnect}
-              disabled={!canSubmit || connectMutation.isPending}
+              onClick={submitRecommended}
+              disabled={!recommendedSiteUrl.trim() || oauthStartLinkMutation.isPending}
             >
-              {connectMutation.isPending ? "Connecting..." : "Connect WordPress"}
+              {oauthStartLinkMutation.isPending ? "Opening..." : "Open WordPress Admin"}
             </Button>
           </DialogFooter>
         </DialogContent>

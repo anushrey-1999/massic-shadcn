@@ -48,6 +48,7 @@ import {
   useWordpressContentStatus,
   useWordpressPreviewLink,
   useWordpressPublish,
+  useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 
 function getTypeFromIntent(intent: string | null): WebActionType {
@@ -109,6 +110,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const wpConnectionQuery = useWordpressConnection(businessId || null);
   const wpPublishMutation = useWordpressPublish();
   const wpPreviewMutation = useWordpressPreviewLink();
+  const wpUnpublishMutation = useWordpressUnpublish();
   const wpConnection = wpConnectionQuery.data?.connection || null;
   const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
 
@@ -198,7 +200,23 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const persistedContent = contentStatusQuery.data?.content || null;
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
   const isPersistedLive = persistedStatus === "publish";
-  const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive);
+  const isPersistedTrashed = persistedStatus === "trash";
+  const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
+  const isPublishBusy = wpPublishMutation.isPending || wpPreviewMutation.isPending || wpUnpublishMutation.isPending;
+  const publishStateLabel = isPersistedLive
+    ? "Live"
+    : isPersistedDraftLike
+      ? "Draft"
+      : isPersistedTrashed
+        ? "In Trash"
+        : "Not Published";
+  const publishStateHint = isPersistedLive
+    ? "This content is live on WordPress."
+    : isPersistedDraftLike
+      ? "A draft exists in WordPress."
+      : isPersistedTrashed
+        ? "This content was moved to trash."
+        : "No WordPress post/page exists yet.";
 
   const liveUrl = React.useMemo(() => {
     if (persistedContent?.permalink) return persistedContent.permalink;
@@ -400,6 +418,40 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     wpConnection?.connectionId,
     openEmbeddedPreview,
     wpPreviewMutation,
+  ]);
+
+  const handleUnpublish = React.useCallback(async () => {
+    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!publishContentId) return;
+
+    const response = await wpUnpublishMutation.mutateAsync({
+      connectionId: String(wpConnection.connectionId),
+      contentId: String(publishContentId),
+    });
+    const unpublishData = response?.data;
+
+    if (unpublishData) {
+      setLastPublishedData((prev) =>
+        prev
+          ? {
+            ...prev,
+            status: unpublishData.status || "trash",
+            permalink: null,
+            previewUrl: undefined,
+          }
+          : prev
+      );
+    }
+
+    setIsEmbeddedPreviewOpen(false);
+    toast.success("Moved to trash in WordPress");
+    void contentStatusQuery.refetch();
+  }, [
+    contentStatusQuery,
+    isWpConnected,
+    publishContentId,
+    wpConnection?.connectionId,
+    wpUnpublishMutation,
   ]);
 
   const handleCopyAll = async () => {
@@ -652,90 +704,71 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       </div>
 
       <Dialog open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen}>
-        <DialogContent className="sm:max-w-[640px]">
+        <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle>Publish to Channel</DialogTitle>
+            <DialogTitle>Publish to WordPress</DialogTitle>
             <DialogDescription>
-              Publish this {typeLabel} to WordPress. Draft publish is recommended first for preview.
+              Choose what to do with this {typeLabel}.
             </DialogDescription>
           </DialogHeader>
 
           {!isWpConnected ? (
             <div className="rounded-md border bg-background p-4 space-y-3">
-              <Typography className="text-sm">No WordPress channel is connected for this business.</Typography>
+              <Typography className="text-sm">No WordPress channel connected.</Typography>
               <Button onClick={handleRedirectToChannels}>Connect WordPress</Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              <Card className="p-4 space-y-2">
-                <Typography variant="h6">Connected WordPress</Typography>
-                <Typography className="text-sm text-muted-foreground">{wpConnection?.siteUrl}</Typography>
-                <Typography className="text-xs text-muted-foreground">Site ID: {wpConnection?.siteId}</Typography>
-              </Card>
-
-              <Card className="p-4 space-y-2">
-                <Typography variant="h6">Publish Payload</Typography>
-                <Typography className="text-sm">
-                  <span className="font-medium">Content ID:</span> {publishContentId}
+            <div className="rounded-md border bg-muted/20 p-4 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Typography className="text-sm font-medium truncate">{wpConnection?.siteUrl}</Typography>
+                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  {publishStateLabel}
                 </Typography>
-                <Typography className="text-sm">
-                  <span className="font-medium">Type:</span> {publishType}
-                </Typography>
-                <Typography className="text-sm line-clamp-2">
-                  <span className="font-medium">Title:</span> {publishTitle}
-                </Typography>
-                {publishSlug ? (
-                  <Typography className="text-sm">
-                    <span className="font-medium">Slug:</span> {publishSlug}
-                  </Typography>
-                ) : null}
-              </Card>
-
-              {lastPublishedData ? (
-                <Card className="p-4 space-y-2">
-                  <Typography variant="h6">Last Publish Result</Typography>
-                  <Typography className="text-sm">
-                    <span className="font-medium">WP ID:</span> {lastPublishedData.wpId}
-                  </Typography>
-                  <Typography className="text-sm">
-                    <span className="font-medium">Status:</span> {lastPublishedData.status}
-                  </Typography>
-                  {lastPublishedData.previewUrl ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => openEmbeddedPreview(lastPublishedData.previewUrl || "", "WordPress Draft Preview")}
-                    >
-                      Preview Draft
-                    </Button>
-                  ) : null}
-                </Card>
-              ) : null}
+              </div>
+              <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
+              <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button
               variant="outline"
               onClick={() => setIsPublishModalOpen(false)}
-              disabled={wpPublishMutation.isPending || wpPreviewMutation.isPending}
+              disabled={isPublishBusy}
             >
-              Close
+              Cancel
             </Button>
             {isWpConnected ? (
               <>
                 {isPersistedLive ? (
-                  <Button
-                    onClick={() => {
-                      if (liveUrl) {
-                        openEmbeddedPreview(liveUrl, "Published WordPress Blog");
-                      }
-                    }}
-                    disabled={!liveUrl}
-                  >
-                    View Blog
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={handleUnpublish}
+                      disabled={wpUnpublishMutation.isPending}
+                    >
+                      {wpUnpublishMutation.isPending ? "Unpublishing..." : "Unpublish"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (liveUrl) {
+                          openEmbeddedPreview(liveUrl, "Published WordPress Blog");
+                        }
+                      }}
+                      disabled={!liveUrl}
+                    >
+                      View Live
+                    </Button>
+                  </>
                 ) : isPersistedDraftLike ? (
                   <>
+                    <Button
+                      variant="outline"
+                      onClick={handleUnpublish}
+                      disabled={wpUnpublishMutation.isPending}
+                    >
+                      {wpUnpublishMutation.isPending ? "Unpublishing..." : "Unpublish"}
+                    </Button>
                     <Button
                       variant="outline"
                       onClick={handleOpenPreview}
@@ -752,7 +785,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                   </>
                 ) : (
                   <Button
-                    variant="outline"
                     onClick={handlePublishDraft}
                     disabled={
                       !hasFinalContent ||

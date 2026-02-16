@@ -7,6 +7,6 @@ export const routesWithoutSidebar: string[] = [
   // '/auth/callback',
   '/login',
   '/signup',
-  '/team-signup'
+  '/team-signup',
+  '/wordpress/connect',
 ]
-

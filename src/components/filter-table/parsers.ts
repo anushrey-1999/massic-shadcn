@@ -68,9 +68,16 @@ export const getSortingStateParser = <TData>(
   });
 };
 
+const filterValueSchema = z.union([
+  z.string(),
+  z.number().transform(String),
+  z.array(z.string()),
+  z.array(z.union([z.string(), z.number()])).transform((arr) => arr.map(String)),
+]);
+
 const filterItemSchema = z.object({
   field: z.string(),
-  value: z.union([z.string(), z.array(z.string())]),
+  value: filterValueSchema,
   operator: z.enum(dataTableConfig.operators),
 });
 
@@ -114,10 +121,20 @@ export const getFiltersStateParser = <TData>(
     },
     serialize: (value: ExtendedColumnFilter<TData>[]) =>
       JSON.stringify(
-        value.map((item) => ({
-          ...item,
-          field: toQueryField(item.field),
-        })),
+        value.map((item) => {
+          const raw = item.value;
+          const valueSerialized =
+            typeof raw === "number"
+              ? String(raw)
+              : Array.isArray(raw)
+                ? raw.map(String)
+                : raw;
+          return {
+            ...item,
+            field: toQueryField(item.field),
+            value: valueSerialized,
+          };
+        }),
       ),
     eq: (a: ExtendedColumnFilter<TData>[], b: ExtendedColumnFilter<TData>[]) =>
       a.length === b.length &&

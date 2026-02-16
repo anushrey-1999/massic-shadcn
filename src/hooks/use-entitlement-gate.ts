@@ -27,12 +27,18 @@ export function useEntitlementGate({
   alertMessage,
 }: UseEntitlementGateArgs) {
   const { profiles } = useBusinessStore();
+
+  // Derive agency-level whitelist status from profiles
+  const isAgencyWhitelisted = React.useMemo(() => {
+    return profiles.some(profile => profile.isWhitelisted === true);
+  }, [profiles]);
+
   const {
     handleSubscribeToPlan,
     loading: subscriptionLoading,
     data: subscriptionData,
     isFetched: subscriptionFetched,
-  } = useSubscription();
+  } = useSubscription({ isWhitelisted: isAgencyWhitelisted });
 
   const effectiveBusinessId =
     businessId || (profiles.length === 1 ? profiles[0].UniqueId : undefined);
@@ -50,9 +56,8 @@ export function useEntitlementGate({
     );
   }, [profiles, effectiveBusinessId, profileData]);
 
-  const isWhitelisted =
-    subscriptionData?.whitelisted === true ||
-    subscriptionData?.status === "whitelisted";
+  // Use agency-level whitelist flag instead of subscription data
+  const isCanceled = subscriptionData?.status === "canceled";
 
   const isTrialActive = (business as any)?.isTrialActive === true;
   const remainingTrialDays =
@@ -61,7 +66,8 @@ export function useEntitlementGate({
       : undefined;
 
   const planType = React.useMemo(() => {
-    if (isWhitelisted) return "whitelisted";
+    if (isAgencyWhitelisted) return "whitelisted";
+    if (isCanceled) return "no_plan";
     if (isTrialActive) return "free_trial";
 
     const plan = business?.SubscriptionItems?.plan_type;
@@ -70,7 +76,7 @@ export function useEntitlementGate({
       return plan.toLowerCase();
     }
     return "no_plan";
-  }, [business, isWhitelisted, isTrialActive]);
+  }, [business, isAgencyWhitelisted, isCanceled, isTrialActive]);
 
   const entitlements = React.useMemo(() => {
     if (planType === "whitelisted") {
@@ -124,7 +130,7 @@ export function useEntitlementGate({
 
   const hasPlanSignal =
     !effectiveBusinessId ||
-    isWhitelisted ||
+    isAgencyWhitelisted ||
     isTrialActive ||
     typeof business?.SubscriptionItems?.status === "string" ||
     typeof business?.SubscriptionItems?.plan_type === "string";
@@ -143,7 +149,7 @@ export function useEntitlementGate({
   }, [business]);
 
   const computedAlertMessage = React.useMemo(() => {
-    if (isWhitelisted) {
+    if (isAgencyWhitelisted) {
       return "Your agency has unlimited access.";
     }
 
@@ -173,7 +179,7 @@ export function useEntitlementGate({
     }
 
     return `You're on ${current}. Upgrade your plan to access this feature.`;
-  }, [alertMessage, entitlement, getCurrentPlan, isWhitelisted, planType, remainingTrialDays]);
+  }, [alertMessage, entitlement, getCurrentPlan, isAgencyWhitelisted, planType, remainingTrialDays]);
 
   const handleSubscribe = React.useCallback(
     async (planName: string, action: "UPGRADE" | "DOWNGRADE" | "SUBSCRIBE") => {

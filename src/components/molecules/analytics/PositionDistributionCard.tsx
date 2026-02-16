@@ -127,15 +127,15 @@ export function PositionDistributionCard({
   }
 
   return (
-    <div className="flex flex-col bg-white rounded-lg border border-general-border">
-      <div className="flex items-center gap-1 p-2 border-b border-general-border-four">
+    <div className="flex flex-col bg-white rounded-lg border border-general-border h-full min-h-0">
+      <div className="flex items-center gap-1 p-2 border-b border-general-border-four flex-none">
         <span className="text-base font-medium text-general-secondary-foreground">
           {title}
         </span>
       </div>
 
-      <div className="flex flex-col gap-4 p-2">
-        <div className="flex gap-1.5 rounded-lg">
+      <div className="flex flex-col gap-4 p-2 flex-1 min-h-0">
+        <div className="flex gap-1.5 rounded-lg flex-none">
           {positions.map((position, index) => (
             <label
               key={position.key || index}
@@ -171,9 +171,10 @@ export function PositionDistributionCard({
           ))}
         </div>
 
+        <div className="flex-1 min-h-0" />
         <div
           ref={chartRef}
-          className="h-51 cursor-grab active:cursor-grabbing"
+          className="h-[250px] flex-none cursor-grab active:cursor-grabbing"
           onDoubleClick={handleDoubleClick}
         >
           <ChartContainer config={chartConfig} className="h-full w-full">

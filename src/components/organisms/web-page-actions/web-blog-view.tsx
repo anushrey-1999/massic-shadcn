@@ -86,9 +86,17 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     if (!shouldSyncFromServer) return;
 
     if (type === "blog") {
-      const rawBlog = data?.output_data?.page?.blog?.blog_post || "";
-      const rawMeta = data?.output_data?.page?.blog?.meta_description || "";
-      const rawCitations = data?.output_data?.page?.blog?.citations || [];
+      const blogData = data?.output_data?.page?.blog;
+      const rawBlog =
+        typeof blogData === "string" ? blogData : (blogData?.blog_post || "");
+      const rawMeta =
+        typeof blogData === "object" && blogData !== null
+          ? blogData?.meta_description || ""
+          : "";
+      const rawCitations =
+        typeof blogData === "object" && blogData !== null && Array.isArray(blogData?.citations)
+          ? blogData.citations
+          : [];
 
       setMainContent(cleanEscapedContent(rawBlog));
       setMetaDescription(cleanEscapedContent(rawMeta));

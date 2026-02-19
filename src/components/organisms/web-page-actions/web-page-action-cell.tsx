@@ -109,21 +109,22 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const isGenerating = status === "pending" || status === "processing";
 
   const outlineFromServer = cleanEscapedContent(content?.output_data?.page?.outline || "");
+  const blogFromContent = content?.output_data?.page?.blog;
   const finalFromServer =
     type === "blog"
-      ? cleanEscapedContent(content?.output_data?.page?.blog?.blog_post || "")
+      ? cleanEscapedContent(
+        (typeof blogFromContent === "string" ? blogFromContent : blogFromContent?.blog_post) || ""
+      )
       : cleanEscapedContent(content?.output_data?.page?.page_content?.page_content || "");
 
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
   const hasFinal = !!finalFromServer && finalFromServer.trim().length > 0;
 
   const handleViewAction = () => {
-    setOpen(false);
     navigateToView();
   };
 
   const handleViewOutline = () => {
-    setOpen(false);
     navigateToView("outline");
   };
 
@@ -140,7 +141,6 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       await startFinal(type, businessId, pageId);
       queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
       toast.success(type === "blog" ? "Final blog generation started." : "Final page generation started.");
-      setOpen(false);
       navigateToView("final");
     } catch (error: any) {
       if (error?.response?.status === 403) {
@@ -166,7 +166,6 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       await startOutline(type, businessId, pageId);
       queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
       toast.success(type === "blog" ? "Blog outline generation started." : "Page outline generation started.");
-      setOpen(false);
       navigateToView("outline");
     } catch (error: any) {
       if (error?.response?.status === 403) {
@@ -211,8 +210,27 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
         </TooltipContent>
       </Tooltip>
 
+      {/* Stop React synthetic event bubbling so row-level onClick/onRowClick
+          handlers are not triggered when the user clicks inside the dialog. */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent showCloseButton={false} className="sm:max-w-[520px] p-0">
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-[520px] p-0"
+          onPointerDownOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest?.("[data-slot=dialog-overlay]")) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest?.("[data-slot=dialog-overlay]")) {
+              e.preventDefault();
+            }
+          }}
+        >
           <div className="px-4 py-4">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-xl font-semibold leading-[1.2] tracking-[-0.4px] text-foreground">
@@ -234,7 +252,10 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
             ) : null}
           </div>
 
-          <DialogFooter className="px-4 py-4">
+          <DialogFooter
+            className="px-4 py-4"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             {contentLoading ? (
               <div className="flex w-full justify-center">
                 <Button type="button" disabled>
@@ -266,6 +287,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </>
   );
 }

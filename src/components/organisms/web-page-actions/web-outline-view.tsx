@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, Eye, Sparkles } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 
 import { Button } from "@/components/ui/button";
@@ -106,7 +106,11 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const typeLabel = type === "blog" ? "blog" : "page";
   const finalContent =
     type === "blog"
-      ? cleanEscapedContent(data?.output_data?.page?.blog?.blog_post || "")
+      ? cleanEscapedContent(
+          (typeof data?.output_data?.page?.blog === "string"
+            ? data?.output_data?.page?.blog
+            : data?.output_data?.page?.blog?.blog_post) || ""
+        )
       : cleanEscapedContent(data?.output_data?.page?.page_content?.page_content || "");
   const hasFinalContent = !!finalContent && finalContent.trim().length > 0;
   const hasOutline = !!outline && outline.trim().length > 0;
@@ -188,6 +192,14 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
     }
   };
 
+  const handleViewFinal = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("mode", "final");
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
+  const viewFinalLabel = type === "blog" ? "View Blog" : "View Page";
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0 space-y-4">
@@ -217,10 +229,17 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
               <Copy className="h-4 w-4" />
               Copy
             </Button>
-            <Button className="gap-2" onClick={handleGenerateFinal} disabled={loading || isProcessing}>
-              <Sparkles className="h-4 w-4" />
-              {loading ? "Generating..." : type === "blog" ? "Generate Blog" : "Generate Page"}
-            </Button>
+            {hasFinalContent ? (
+              <Button className="gap-2" variant="default" onClick={handleViewFinal}>
+                <Eye className="h-4 w-4" />
+                {viewFinalLabel}
+              </Button>
+            ) : (
+              <Button className="gap-2" onClick={handleGenerateFinal} disabled={loading || isProcessing}>
+                <Sparkles className="h-4 w-4" />
+                {loading ? "Generating..." : type === "blog" ? "Generate Blog" : "Generate Page"}
+              </Button>
+            )}
           </div>
         </div>
       </div>

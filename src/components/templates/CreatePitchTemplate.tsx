@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { useLocations } from "@/hooks/use-locations";
 import { useBusinessStore } from "@/store/business-store";
@@ -13,6 +14,7 @@ import {
 import { useCreateBusiness, useBusinessProfiles, fetchPitchBusinessProfiles } from "@/hooks/use-business-profiles";
 import { useCreateJob, type Offering, type BusinessProfilePayload } from "@/hooks/use-jobs";
 
+import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/molecules/PageHeader";
 import ProfileSidebar from "@/components/organisms/ProfileSidebar";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
@@ -24,6 +26,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Typography } from "@/components/ui/typography";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Loader2 } from "lucide-react";
+import { cleanWebsiteUrl } from "@/utils/utils";
+
+interface ProfileAutofillResponse {
+  business_url?: string;
+  profile_autofill?: {
+    url?: string;
+    market?: string;
+    ltv?: string;
+    sell?: string;
+    b2b_b2c?: string;
+    competitors?: string[];
+    segment?: number;
+  };
+  errors?: string | string[] | null;
+}
 
 const sections = [
   { id: "business-info", label: "Business Info" },
@@ -163,10 +186,10 @@ export function CreatePitchTemplate() {
           const num = Number.parseFloat(String(value.avgOrderValue ?? "").trim());
           return Number.isFinite(num) ? num : null;
         })(),
-        LTV: (() => {
-          const num = Number.parseFloat(String(value.lifetimeValue ?? "").trim());
-          return Number.isFinite(num) ? num : null;
-        })(),
+        LTV:
+          value.lifetimeValue === "high" || value.lifetimeValue === "low"
+            ? value.lifetimeValue
+            : null,
         BrandTerms: brandTermsArray.length > 0 ? brandTermsArray : null,
       };
 
@@ -185,6 +208,60 @@ export function CreatePitchTemplate() {
       router.push(`/pitches/${createdBusinessId}/reports`);
     },
   });
+
+  const [isAutofillLoading, setIsAutofillLoading] = useState(false);
+
+  const handleAutofillProfile = useCallback(async () => {
+    const values = form.state.values as BusinessInfoFormData;
+    const website = cleanWebsiteUrl(values?.website || "").trim();
+    if (!website) {
+      toast.error("Please enter a website URL first");
+      return;
+    }
+    setIsAutofillLoading(true);
+    try {
+      const res = await api.post<ProfileAutofillResponse>(
+        "/profile-autofill",
+        "python",
+        { business_url: website },
+        { timeout: 120000 }
+      );
+      if (res?.errors) {
+        toast.error("Failed to autofill profile");
+        return;
+      }
+      const pa = res?.profile_autofill;
+      if (!pa) return;
+
+      const market = (pa.market ?? "").toLowerCase();
+      if (market === "local" || market === "online") {
+        form.setFieldValue(
+          "serviceType" as any,
+          (market === "local" ? "physical" : "online") as any
+        );
+      }
+
+      const sell = (pa.sell ?? "products").toLowerCase();
+      const nextOfferings =
+        sell === "services"
+          ? "services"
+          : sell === "both"
+            ? "both"
+            : "products";
+      form.setFieldValue("offerings" as any, nextOfferings as any);
+
+      const ltvFromAutofill = (pa.ltv ?? "").toString().trim().toLowerCase();
+      if (ltvFromAutofill === "high" || ltvFromAutofill === "low") {
+        form.setFieldValue("lifetimeValue" as any, ltvFromAutofill as any);
+      }
+
+      toast.success("Profile fields updated from website");
+    } catch {
+      toast.error("Failed to autofill profile");
+    } finally {
+      setIsAutofillLoading(false);
+    }
+  }, [form]);
 
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -229,12 +306,13 @@ export function CreatePitchTemplate() {
   const isCreatingJob = createJobMutation.isPending;
   const isSubmitting = useStore(form.store, (state: any) => state.isSubmitting === true);
 
-  const isLoading = isCreatingBusiness || isCreatingJob;
+  const isLoading = isCreatingBusiness || isCreatingJob || isAutofillLoading;
   const loadingMessage = React.useMemo(() => {
+    if (isAutofillLoading) return "Autofilling profile...";
     if (isCreatingJob) return "Setting things up...";
     if (isCreatingBusiness) return "Creating business...";
     return undefined;
-  }, [isCreatingBusiness, isCreatingJob]);
+  }, [isAutofillLoading, isCreatingBusiness, isCreatingJob]);
 
   const handleConfirmAndProceed = React.useCallback(async () => {
     await form.handleSubmit();
@@ -269,7 +347,43 @@ export function CreatePitchTemplate() {
                 form.handleSubmit();
               }}
             >
-              <BusinessInfoForm form={form} disableWebsiteLock />
+              <BusinessInfoForm
+                form={form}
+                disableWebsiteLock
+                headerAction={
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-block">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAutofillProfile}
+                          disabled={
+                            isAutofillLoading ||
+                            !(formValues?.website ?? "").toString().trim()
+                          }
+                          className="gap-2"
+                        >
+                          {isAutofillLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Autofilling...
+                            </>
+                          ) : (
+                            "Autofill profile"
+                          )}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {(isAutofillLoading || !(formValues?.website ?? "").toString().trim()) && (
+                      <TooltipContent>
+                        Fill website URL to enable button
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                }
+              />
               <OfferingsForm
                 form={form}
                 businessId="create-pitch"

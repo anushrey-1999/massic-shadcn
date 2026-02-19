@@ -14,7 +14,7 @@ export interface BusinessProfile {
   Description?: string;
   UserDefinedBusinessDescription?: string;
   AOV?: number | null;
-  LTV?: number | null;
+  LTV?: string | null;
   BrandTerms?: string[] | null;
   RecurringFlag?: "yes" | "no" | "partial" | string | null;
   ProductsServices?: string[];

@@ -187,8 +187,6 @@ const ProfileTemplate = ({
         businessDescription: "",
         primaryLocation: "",
         serviceType: "physical",
-        recurringRevenue: "",
-        avgOrderValue: "",
         lifetimeValue: "",
         offerings: "products",
         offeringsList: [],
@@ -344,42 +342,6 @@ const ProfileTemplate = ({
         const objective = profileData.BusinessObjective?.toLowerCase();
         return objective === "local" ? "physical" : "online";
       })() as "physical" | "online",
-      recurringRevenue: (() => {
-        const normalize = (raw: unknown): "yes" | "no" | "partial" | "" => {
-          if (raw === null || raw === undefined) return "";
-          if (raw === true) return "yes";
-          if (raw === false) return "no";
-
-          const s = String(raw).trim().toLowerCase();
-          if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
-          if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
-          if (s === "partial" || s === "partially" || s === "sometimes") return "partial";
-          return "";
-        };
-
-        const recurringFromBusiness =
-          (profileData as any).RecurringFlag ??
-          (profileData as any).recurring_flag ??
-          (profileData as any).recurringFlag ??
-          (profileData as any).RecurringRevenue ??
-          (profileData as any).recurringRevenue;
-        const recurringFromJob =
-          (jobDetails as any)?.recurring_flag ??
-          (jobDetails as any)?.recurringFlag ??
-          (jobDetails as any)?.recurring_revenue;
-
-        return normalize(recurringFromBusiness ?? recurringFromJob);
-      })(),
-      avgOrderValue: (() => {
-        const aovFromBusiness = (profileData as any).AOV ?? (profileData as any).aov;
-        const aovFromJob = (jobDetails as any)?.aov;
-        const aov = aovFromBusiness ?? aovFromJob;
-        return typeof aov === "number" && Number.isFinite(aov)
-          ? String(aov)
-          : aov
-            ? String(aov)
-            : "";
-      })(),
       lifetimeValue: (() => {
         const ltvFromBusiness = (profileData as any).LTV ?? (profileData as any).ltv;
         const ltvFromJob = (jobDetails as any)?.ltv;
@@ -521,16 +483,6 @@ const ProfileTemplate = ({
                 ?.map((item: string) => item.trim())
                 ?.filter((item: string) => item.length > 0)
               : null,
-          RecurringFlag:
-            value.recurringRevenue && value.recurringRevenue.trim()
-              ? value.recurringRevenue.trim().toLowerCase() === "partial"
-                ? "sometimes"
-                : value.recurringRevenue.trim().toLowerCase()
-              : null,
-          AOV: (() => {
-            const num = Number.parseFloat(String(value.avgOrderValue || "").trim());
-            return Number.isFinite(num) ? num : null;
-          })(),
           LTV:
             value.lifetimeValue === "high" || value.lifetimeValue === "low"
               ? value.lifetimeValue
@@ -707,41 +659,6 @@ const ProfileTemplate = ({
 
   // Track job details to detect changes
   const lastJobDetailsRef = useRef<string | null>(null);
-
-  // Ensure recurring revenue flag is always hydrated (select needs exact yes|no|partial)
-  // This is intentionally separate from the broader mapping logic to avoid edge cases
-  // where the form doesn't rehydrate due to caching/heuristics.
-  useEffect(() => {
-    if (isSaving) return;
-
-    const normalize = (raw: unknown): "yes" | "no" | "partial" | "" => {
-      if (raw === null || raw === undefined) return "";
-      if (raw === true) return "yes";
-      if (raw === false) return "no";
-
-      const s = String(raw).trim().toLowerCase();
-      if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
-      if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
-      if (s === "partial" || s === "partially" || s === "sometimes") return "partial";
-      return "";
-    };
-
-    const recurringFromBusiness = externalProfileData
-      ? (externalProfileData as any).RecurringFlag ??
-      (externalProfileData as any).recurring_flag ??
-      (externalProfileData as any).recurringFlag ??
-      (externalProfileData as any).RecurringRevenue ??
-      (externalProfileData as any).recurringRevenue
-      : undefined;
-    const recurringFromJob = (externalJobDetails as any)?.recurring_flag ??
-      (externalJobDetails as any)?.recurringFlag ??
-      (externalJobDetails as any)?.recurring_revenue;
-
-    const nextValue = normalize(recurringFromBusiness ?? recurringFromJob);
-    if ((form.state.values as any)?.recurringRevenue !== nextValue) {
-      form.setFieldValue("recurringRevenue" as any, nextValue as any);
-    }
-  }, [externalProfileData, externalJobDetails, form, isSaving]);
 
   // Update form when external profile data or job details change
   // Job details only affect offerings, but we still need to update when job is created/updated

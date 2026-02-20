@@ -40,6 +40,7 @@ import {
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
 import { copyToClipboard } from "@/utils/clipboard";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
+import { resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { ContentConverter } from "@/utils/content-converter";
 import { cn } from "@/lib/utils";
@@ -50,16 +51,20 @@ import {
   useWordpressPublish,
 } from "@/hooks/use-wordpress-publishing";
 
-function getTypeFromIntent(intent: string | null): WebActionType {
+function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
+  const pt = (pageType || "").toLowerCase();
+  if (pt === "blog") return "blog";
+  if (pt) return "page";
   return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
 }
 
 export function WebBlogView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pageType = searchParams.get("pageType");
   const intent = searchParams.get("intent");
   const keyword = searchParams.get("keyword") || "";
-  const type = getTypeFromIntent(intent);
+  const type = getTypeFromPageType(pageType, intent);
 
   const { updateBlogContent, updatePageContent } = useWebPageActions();
 
@@ -148,12 +153,12 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       lastSavedMainRef.current = canonicalize(cleanEscapedContent(rawBlog));
       lastSavedMetaRef.current = canonicalize(cleanEscapedContent(rawMeta));
     } else {
-      const rawPage = data?.output_data?.page?.page_content?.page_content || "";
-      setMainContent(cleanEscapedContent(rawPage));
+      const rawPage = resolvePageContent(data);
+      setMainContent(rawPage);
       setMetaDescription("");
       setCitations([]);
 
-      lastSavedMainRef.current = canonicalize(cleanEscapedContent(rawPage));
+      lastSavedMainRef.current = canonicalize(rawPage);
       lastSavedMetaRef.current = "";
     }
 

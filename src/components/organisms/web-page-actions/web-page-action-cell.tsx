@@ -18,9 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
+import { resolvePageContent } from "@/utils/page-content-resolver";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
+  "updated",
   "update_required",
   "outline_only",
   "final_only",
@@ -36,13 +38,14 @@ function getRowAction(row: WebPageRow): { icon: typeof Sparkles; label: string }
     return { icon: Eye, label: "View" };
   }
 
-  const intent = (row.search_intent || "").toString().toLowerCase();
-  const label = intent === "informational" ? "Write" : "Build";
+  const pageType = (row.page_type ?? (row as any).pageType ?? "").toString().toLowerCase();
+  const label = pageType === "blog" ? "Write" : "Build";
   return { icon: Sparkles, label };
 }
 
 function getType(row: WebPageRow): WebActionType {
-  return (row.search_intent || "").toString().toLowerCase() === "informational" ? "blog" : "page";
+  const pageType = (row.page_type ?? (row as any).pageType ?? "").toString().toLowerCase();
+  return pageType === "blog" ? "blog" : "page";
 }
 
 export function WebPageActionCell({ businessId, row }: { businessId: string; row: WebPageRow }) {
@@ -64,12 +67,12 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       return;
     }
 
-    const intent = row.search_intent || "";
+    const pageType = row.page_type ?? (row as any).pageType ?? "";
     const keyword = row.keyword || "";
 
     const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : "";
     router.push(
-      `/business/${businessId}/web/page/${pageId}/view?intent=${encodeURIComponent(intent)}&keyword=${encodeURIComponent(keyword)}${modeParam}`
+      `/business/${businessId}/web/page/${pageId}/view?pageType=${encodeURIComponent(pageType)}&keyword=${encodeURIComponent(keyword)}${modeParam}`
     );
   };
 
@@ -115,7 +118,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       ? cleanEscapedContent(
         (typeof blogFromContent === "string" ? blogFromContent : blogFromContent?.blog_post) || ""
       )
-      : cleanEscapedContent(content?.output_data?.page?.page_content?.page_content || "");
+      : resolvePageContent(content);
 
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
   const hasFinal = !!finalFromServer && finalFromServer.trim().length > 0;

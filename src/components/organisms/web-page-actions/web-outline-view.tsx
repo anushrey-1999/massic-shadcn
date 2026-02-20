@@ -11,18 +11,23 @@ import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
+import { resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 
-function getTypeFromIntent(intent: string | null): WebActionType {
+function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
+  const pt = (pageType || "").toLowerCase();
+  if (pt === "blog") return "blog";
+  if (pt) return "page";
   return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
 }
 
 export function WebOutlineView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pageType = searchParams.get("pageType");
   const intent = searchParams.get("intent");
   const keyword = searchParams.get("keyword") || "";
-  const type = getTypeFromIntent(intent);
+  const type = getTypeFromPageType(pageType, intent);
 
   const { startFinal, updateOutline } = useWebPageActions();
 
@@ -111,7 +116,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
             ? data?.output_data?.page?.blog
             : data?.output_data?.page?.blog?.blog_post) || ""
         )
-      : cleanEscapedContent(data?.output_data?.page?.page_content?.page_content || "");
+      : resolvePageContent(data);
   const hasFinalContent = !!finalContent && finalContent.trim().length > 0;
   const hasOutline = !!outline && outline.trim().length > 0;
   const isGeneratingFinal = hasOutline && !hasFinalContent;

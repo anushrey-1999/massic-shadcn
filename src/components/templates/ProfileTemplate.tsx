@@ -28,7 +28,7 @@ import {
   normalizeWebsiteUrl,
 } from "@/utils/utils";
 import { Button } from "@/components/ui/button";
-import { Unlink } from "lucide-react";
+import { Loader2, Unlink } from "lucide-react";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useSubscription } from "@/hooks/use-subscription";
 import {
@@ -54,6 +54,20 @@ import {
   CompetitorRow,
 } from "@/store/business-store";
 import { useUnlinkOrDeleteBusiness } from "@/hooks/use-business-actions";
+
+interface ProfileAutofillResponse {
+  business_url?: string;
+  profile_autofill?: {
+    url?: string;
+    market?: string;
+    ltv?: string;
+    sell?: string;
+    b2b_b2c?: string;
+    competitors?: string[];
+    segment?: number;
+  };
+  errors?: string | string[] | null;
+}
 
 interface ProfileTemplateProps {
   businessId: string;
@@ -133,6 +147,7 @@ const ProfileTemplate = ({
   }, [profiles]);
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isAutofillLoading, setIsAutofillLoading] = useState(false);
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [isCheckingPlan, setIsCheckingPlan] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
@@ -359,11 +374,8 @@ const ProfileTemplate = ({
         const ltvFromBusiness = (profileData as any).LTV ?? (profileData as any).ltv;
         const ltvFromJob = (jobDetails as any)?.ltv;
         const ltv = ltvFromBusiness ?? ltvFromJob;
-        return typeof ltv === "number" && Number.isFinite(ltv)
-          ? String(ltv)
-          : ltv
-            ? String(ltv)
-            : "";
+        const s = ltv != null ? String(ltv).trim().toLowerCase() : "";
+        return s === "high" || s === "low" ? s : "";
       })(),
       offerings: (() => {
         const locationType = profileData.LocationType?.toLowerCase();
@@ -508,10 +520,10 @@ const ProfileTemplate = ({
             const num = Number.parseFloat(String(value.avgOrderValue || "").trim());
             return Number.isFinite(num) ? num : null;
           })(),
-          LTV: (() => {
-            const num = Number.parseFloat(String(value.lifetimeValue || "").trim());
-            return Number.isFinite(num) ? num : null;
-          })(),
+          LTV:
+            value.lifetimeValue === "high" || value.lifetimeValue === "low"
+              ? value.lifetimeValue
+              : null,
           CTAs:
             value.ctas && value.ctas.length > 0
               ? (value.ctas || [])?.map((cta: any) => ({
@@ -598,6 +610,78 @@ const ProfileTemplate = ({
       setActiveSection(sections[0].id);
     }
   }, []); // Only run on mount
+
+  const handleAutofillProfile = useCallback(async () => {
+    const values = form.state.values as BusinessInfoFormData;
+    const website = cleanWebsiteUrl(values?.website || "").trim();
+    if (!website) {
+      toast.error("Please enter a website URL first");
+      return;
+    }
+    setIsAutofillLoading(true);
+    try {
+      const res = await api.post<ProfileAutofillResponse>(
+        "/profile-autofill",
+        "python",
+        { business_url: website },
+        { timeout: 120000 }
+      );
+      if (res?.errors) {
+        toast.error("Failed to autofill profile");
+        return;
+      }
+      const pa = res?.profile_autofill;
+      if (!pa) return;
+
+      const market = (pa.market ?? "").toLowerCase();
+      if (market === "local" || market === "online") {
+        form.setFieldValue(
+          "serviceType" as any,
+          (market === "local" ? "physical" : "online") as any
+        );
+      }
+
+      const sell = (pa.sell ?? "products").toLowerCase();
+      const nextOfferings =
+        sell === "services"
+          ? "services"
+          : sell === "both"
+            ? "both"
+            : "products";
+      form.setFieldValue("offerings" as any, nextOfferings as any);
+
+      const existingCompetitors = (values?.competitors || []) as CompetitorRow[];
+      const existingUrls = new Set(
+        existingCompetitors
+          .map((c) => cleanWebsiteUrl(c?.url ?? "").trim())
+          .filter(Boolean)
+      );
+      if (Array.isArray(pa.competitors) && pa.competitors.length > 0) {
+        const fromApi = pa.competitors
+          .filter((url): url is string => Boolean(url && String(url).trim()))
+          .map((url) => cleanWebsiteUrl(String(url)))
+          .filter((url) => url && !existingUrls.has(url));
+        if (fromApi.length > 0) {
+          const merged = [
+            ...existingCompetitors,
+            ...fromApi.map((url) => ({ url })),
+          ];
+          form.setFieldValue("competitors" as any, merged as any);
+        }
+      }
+
+      const ltvFromAutofill = (pa.ltv ?? "").toString().trim().toLowerCase();
+      if (ltvFromAutofill === "high" || ltvFromAutofill === "low") {
+        form.setFieldValue("lifetimeValue" as any, ltvFromAutofill as any);
+      }
+
+      toast.success("Profile fields updated from website");
+    } catch {
+      toast.error("Failed to autofill profile");
+    } finally {
+      setIsAutofillLoading(false);
+    }
+  }, [form]);
 
   // Track job details to detect changes
   const lastJobDetailsRef = useRef<string | null>(null);
@@ -1233,13 +1317,15 @@ const ProfileTemplate = ({
   }, [hasChanges, handleSaveChanges]);
 
   // Determine loading state and message
-  const isLoading = externalLoading || isSaving || isTriggeringWorkflow;
+  const isLoading =
+    externalLoading || isSaving || isTriggeringWorkflow || isAutofillLoading;
   const loadingMessage = useMemo(() => {
+    if (isAutofillLoading) return "Autofilling profile...";
     if (isTriggeringWorkflow) return "Triggering workflow...";
     if (isSaving) return "Saving changes...";
     if (externalLoading) return "Loading profile data...";
     return undefined;
-  }, [isTriggeringWorkflow, isSaving, externalLoading]);
+  }, [isAutofillLoading, isTriggeringWorkflow, isSaving, externalLoading]);
 
   // Determine if we should show "Unlink" or "Delete" based on LinkedAuthId
   const hasLinkedAuth = !!currentProfile?.LinkedAuthId;
@@ -1362,7 +1448,31 @@ const ProfileTemplate = ({
                 form.handleSubmit();
               }}
             >
-              <BusinessInfoForm form={form} />
+              <BusinessInfoForm
+                form={form}
+                headerAction={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAutofillProfile}
+                    disabled={
+                      isAutofillLoading ||
+                      !(formValues?.website ?? "").toString().trim()
+                    }
+                    className="gap-2"
+                  >
+                    {isAutofillLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Autofilling...
+                      </>
+                    ) : (
+                      "Autofill profile"
+                    )}
+                  </Button>
+                }
+              />
               <OfferingsForm form={form} businessId={businessId} />
               <ContentCuesForm form={form} />
               <LocationsForm form={form} />

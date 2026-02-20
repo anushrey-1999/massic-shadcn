@@ -20,7 +20,7 @@ export interface BusinessProfilePayload {
   Description?: string;
   UserDefinedBusinessDescription?: string;
   AOV?: number | string | null;
-  LTV?: number | string | null;
+  LTV?: "high" | "low" | string | null;
   BrandTerms?: string[] | null;
   RecurringFlag?: string | null;
   PrimaryLocation?: {
@@ -193,8 +193,9 @@ function mapBusinessProfilePayloadToJobFormData(
   if (aov !== undefined && aov !== null && String(aov).trim() !== "") {
     formDataPayload.append("aov", String(aov));
   }
-  if (ltv !== undefined && ltv !== null && String(ltv).trim() !== "") {
-    formDataPayload.append("ltv", String(ltv));
+  const ltvStr = ltv != null ? String(ltv).trim().toLowerCase() : "";
+  if (ltvStr === "high" || ltvStr === "low") {
+    formDataPayload.append("ltv", ltvStr);
   }
   if (typeof recurringFlag === "string" && recurringFlag.trim()) {
     formDataPayload.append("recurring_flag", recurringFlag.trim().toLowerCase());

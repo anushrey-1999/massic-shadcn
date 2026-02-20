@@ -24,6 +24,7 @@ interface DownloadReportDialogProps {
   onClose: () => void;
   markdownContent: string;
   defaultFilename: string;
+  onDownloadPdf?: (filename: string) => Promise<void>;
 }
 
 type DownloadFormat = "pdf" | "md";
@@ -33,6 +34,7 @@ export function DownloadReportDialog({
   onClose,
   markdownContent,
   defaultFilename,
+  onDownloadPdf,
 }: DownloadReportDialogProps) {
   const [format, setFormat] = React.useState<DownloadFormat>("pdf");
   const [filename, setFilename] = React.useState(defaultFilename);
@@ -61,7 +63,11 @@ export function DownloadReportDialog({
         const pdfFilename = finalFilename.endsWith(".pdf")
           ? finalFilename
           : `${finalFilename}.pdf`;
-        await generatePdfFromMarkdown(markdownContent, pdfFilename);
+        if (onDownloadPdf) {
+          await onDownloadPdf(pdfFilename);
+        } else {
+          await generatePdfFromMarkdown(markdownContent, pdfFilename);
+        }
       } else {
         const mdFilename = finalFilename.endsWith(".md")
           ? finalFilename

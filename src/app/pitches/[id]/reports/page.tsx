@@ -24,10 +24,12 @@ import {
   useStartQuickyReport,
   useQuickyReportStatus,
   useFetchReportFromDownloadUrl,
+  extractExpressPitch,
   extractSnapshotSectionsMarkdown,
   extractDetailedSectionsMarkdown,
 } from "@/hooks/use-pitch-reports";
 import { PitchReportViewer } from "@/components/templates/PitchReportViewer";
+import { SnapshotReportViewer } from "@/components/templates/SnapshotReportViewer";
 import {
   useGenerateDetailedReport,
 } from "@/hooks/use-detailed-pitch-workflow";
@@ -40,6 +42,8 @@ import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { useCanExecuteMassicOpportunities, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useAuthStore } from "@/store/auth-store";
+import { formatDate, formatVolume } from "@/lib/format";
+import { useQuickEvaluation } from "@/hooks/use-quick-evaluation";
 
 export default function PitchReportsPage() {
   const params = useParams();
@@ -51,8 +55,11 @@ export default function PitchReportsPage() {
 
   const startQuickyMutation = useStartQuickyReport();
   const fetchReportMutation = useFetchReportFromDownloadUrl();
+  const quickEvaluationMutation = useQuickEvaluation();
   const [snapshotStarted, setSnapshotStarted] = React.useState(false);
   const [detailedPolling, setDetailedPolling] = React.useState(false);
+  const [downloadedSnapshotExpressPitch, setDownloadedSnapshotExpressPitch] =
+    React.useState<ReturnType<typeof extractExpressPitch>>(null);
 
   const [activeReport, setActiveReport] = React.useState<
     "snapshot" | "detailed" | null
@@ -164,6 +171,13 @@ export default function PitchReportsPage() {
     businessProfile?.Name,
     businessProfile?.DisplayName,
   ]);
+
+  const businessWebsite = React.useMemo(() => {
+    const profileFromList = profiles.find((p) => p.UniqueId === businessId) as any;
+    const fromList = String(profileFromList?.Website || "").trim();
+    const fromProfile = String((businessProfile as any)?.Website || "").trim();
+    return fromList || fromProfile;
+  }, [profiles, businessId, businessProfile]);
 
   const businessPitchRows = React.useMemo(() => {
     const rows = Array.isArray(businessPitchesQuery.data)
@@ -426,6 +440,122 @@ export default function PitchReportsPage() {
     },
   });
 
+  const snapshotExpressPitch = React.useMemo(() => {
+    return (
+      downloadedSnapshotExpressPitch ||
+      extractExpressPitch(quickyStatusQuery.data) ||
+      extractExpressPitch(startQuickyMutation.data) ||
+      extractExpressPitch(snapshotExistingQuery.data)
+    );
+  }, [
+    downloadedSnapshotExpressPitch,
+    quickyStatusQuery.data,
+    startQuickyMutation.data,
+    snapshotExistingQuery.data,
+  ]);
+
+  const snapshotProfileTags = React.useMemo(() => {
+    const tags: { label: string; value: string }[] = [];
+
+    const objective = String((businessProfile as any)?.BusinessObjective || "").trim().toLowerCase();
+    const market =
+      objective === "local"
+        ? "Local"
+        : objective === "online"
+          ? "Online"
+          : "";
+    if (market) tags.push({ label: "Market", value: market });
+
+    const locationType = String((businessProfile as any)?.LocationType || "").trim().toLowerCase();
+    const sells =
+      locationType === "products"
+        ? "Products"
+        : locationType === "services"
+          ? "Services"
+          : locationType === "both"
+            ? "Both"
+            : "";
+    if (sells) tags.push({ label: "Sells", value: sells });
+
+    const ltvRaw = (businessProfile as any)?.LTV ?? (businessProfile as any)?.ltv;
+    const ltvNum = typeof ltvRaw === "number" ? ltvRaw : Number(ltvRaw);
+    if (Number.isFinite(ltvNum) && ltvNum > 0) {
+      tags.push({ label: "LTV", value: `$${formatVolume(ltvNum)}` });
+    } else {
+      const ltvStr = String(ltvRaw ?? "").trim();
+      if (ltvStr) tags.push({ label: "LTV", value: ltvStr });
+    }
+
+    const segment = snapshotExpressPitch?.segment;
+    const segmentNum = typeof segment === "number" ? segment : Number(segment);
+    if (Number.isFinite(segmentNum)) {
+      tags.push({ label: "Segment", value: `#${segmentNum}` });
+    }
+
+    return tags;
+  }, [businessProfile, snapshotExpressPitch?.segment]);
+
+  const snapshotCompetitors = React.useMemo(() => {
+    const rows = (businessProfile as any)?.Competitors;
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((c: any) => ({
+        name: String(c?.name || "").trim() || null,
+        website: String(c?.website || "").trim(),
+      }))
+      .filter((c: any) => c.website);
+  }, [businessProfile]);
+
+  const snapshotFooterSummary = React.useMemo(() => {
+    const parts: string[] = [];
+    const segment = snapshotExpressPitch?.segment;
+    const segmentNum = typeof segment === "number" ? segment : Number(segment);
+    if (Number.isFinite(segmentNum)) parts.push(`Segment #${segmentNum}`);
+
+    for (const t of snapshotProfileTags) {
+      const label = String(t.label || "").trim().toLowerCase();
+      const value = String(t.value || "").trim();
+      if (label === "segment") continue;
+      if (!value) continue;
+
+      if (label === "ltv") {
+        const v = value.toLowerCase();
+        if (v === "high" || v === "medium" || v === "low") {
+          parts.push(`${v.charAt(0).toUpperCase()}${v.slice(1)} LTV`);
+          continue;
+        }
+      }
+
+      parts.push(value);
+    }
+
+    return parts.join(" · ");
+  }, [snapshotExpressPitch?.segment, snapshotProfileTags]);
+
+  const snapshotGeneratedAt = React.useMemo(() => {
+    const fromHistory = latestSuccessfulSnapshotCreatedAt
+      ? formatDate(latestSuccessfulSnapshotCreatedAt, "MMMM d, yyyy")
+      : "";
+    if (fromHistory) return fromHistory;
+    return formatDate(new Date(), "MMMM d, yyyy");
+  }, [latestSuccessfulSnapshotCreatedAt]);
+
+  const quickEvaluationBusinessUrl = React.useMemo(() => {
+    const fromSnapshot = String(snapshotExpressPitch?.url || "").trim();
+    if (fromSnapshot) return fromSnapshot;
+    return String(businessWebsite || "").trim();
+  }, [snapshotExpressPitch?.url, businessWebsite]);
+
+  const triggerQuickEvaluation = React.useCallback(
+    (urlOverride?: string) => {
+      const url = String(urlOverride || quickEvaluationBusinessUrl || "").trim();
+      if (!url) return;
+      if (quickEvaluationMutation.isPending) return;
+      quickEvaluationMutation.mutate({ businessUrl: url });
+    },
+    [quickEvaluationBusinessUrl, quickEvaluationMutation]
+  );
+
   const breadcrumbs = [
     { label: "Home", href: "/" },
     { label: "Pitches", href: "/pitches" },
@@ -477,8 +607,11 @@ export default function PitchReportsPage() {
 
     fetchReportMutation
       .mutateAsync({ downloadUrl })
-      .then((content) => {
-        setReportContent(content);
+      .then((result) => {
+        setReportContent(result.content);
+        if (result.expressPitch) {
+          setDownloadedSnapshotExpressPitch(result.expressPitch);
+        }
       })
       .catch(() => {
         // toast handled in hook
@@ -637,8 +770,8 @@ export default function PitchReportsPage() {
     if (downloadUrl && !reportContent.trim() && !fetchReportMutation.isPending) {
       fetchReportMutation
         .mutateAsync({ downloadUrl })
-        .then((text) => {
-          setReportContent(text);
+        .then((result) => {
+          setReportContent(result.content);
           setDetailedPolling(false);
         })
         .catch(() => {
@@ -703,8 +836,10 @@ export default function PitchReportsPage() {
     setReportContent("");
     setSnapshotStarted(false);
     setDetailedPolling(false);
+    setDownloadedSnapshotExpressPitch(null);
     startQuickyMutation.reset();
     fetchReportMutation.reset();
+    quickEvaluationMutation.reset();
     generateDetailedReportMutation.reset();
 
     router.replace(`/pitches/${businessId}/reports`);
@@ -726,8 +861,10 @@ export default function PitchReportsPage() {
       setReportContent("");
       setSnapshotStarted(false);
       setDetailedPolling(false);
+      setDownloadedSnapshotExpressPitch(null);
       startQuickyMutation.reset();
       fetchReportMutation.reset();
+      quickEvaluationMutation.reset();
       generateDetailedReportMutation.reset();
     }
     prevOpenParamRef.current = openParam;
@@ -757,10 +894,22 @@ export default function PitchReportsPage() {
     queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
     setActiveReport("snapshot");
     setReportContent("");
+    setDownloadedSnapshotExpressPitch(null);
     setSnapshotStarted(true);
+    quickEvaluationMutation.reset();
+    triggerQuickEvaluation();
     startQuickyMutation.reset();
     fetchReportMutation.reset();
-  }, [openSnapshot, businessId, activeReport, queryClient, startQuickyMutation, fetchReportMutation]);
+  }, [
+    openSnapshot,
+    businessId,
+    activeReport,
+    queryClient,
+    triggerQuickEvaluation,
+    startQuickyMutation,
+    fetchReportMutation,
+    quickEvaluationMutation,
+  ]);
 
   return (
     <div className="flex flex-col h-screen">
@@ -782,6 +931,7 @@ export default function PitchReportsPage() {
                     if (!businessId) return;
 
                     const generateSnapshot = async () => {
+                      triggerQuickEvaluation();
                       queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                       setActiveReport("snapshot");
                       setReportContent("");
@@ -821,25 +971,51 @@ export default function PitchReportsPage() {
                 ]}
               />
             ) : (
-              <PitchReportViewer
-                content={reportContent}
-                reportTitle={reportTitle}
-                isEditable={true}
-                isGenerating={isGenerating}
-                showStatus={
-                  activeReport === "snapshot" &&
-                  !reportContent.trim() &&
-                  (snapshotStarted ||
-                    startQuickyMutation.isPending ||
-                    Boolean(startQuickyMutation.data?.status))
-                }
-                statusText={quickyStatus ? `Status: ${quickyStatus}` : "Status: generating"}
-                showWorkflowMessage={viewerShowWorkflowMessage}
-                workflowStatus={viewerWorkflowStatus}
-                onBack={() => {
-                  router.push(businessId ? `/pitches/${businessId}/reports?view=cards` : "/pitches");
-                }}
-              />
+              activeReport === "snapshot" && snapshotExpressPitch ? (
+                <SnapshotReportViewer
+                  expressPitch={snapshotExpressPitch}
+                  generatedAt={snapshotGeneratedAt}
+                  profileTags={snapshotProfileTags}
+                  competitors={snapshotCompetitors}
+                  footerSummary={snapshotFooterSummary}
+                  quickEvaluation={quickEvaluationMutation.data}
+                  quickEvaluationLoading={quickEvaluationMutation.isPending}
+                  quickEvaluationErrorMessage={quickEvaluationMutation.error?.message}
+                  onBack={() => {
+                    router.push(
+                      businessId
+                        ? `/pitches/${businessId}/reports?view=cards`
+                        : "/pitches"
+                    );
+                  }}
+                />
+              ) : (
+                <PitchReportViewer
+                  content={reportContent}
+                  reportTitle={reportTitle}
+                  isEditable={true}
+                  isGenerating={isGenerating}
+                  showStatus={
+                    activeReport === "snapshot" &&
+                    !reportContent.trim() &&
+                    (snapshotStarted ||
+                      startQuickyMutation.isPending ||
+                      Boolean(startQuickyMutation.data?.status))
+                  }
+                  statusText={
+                    quickyStatus ? `Status: ${quickyStatus}` : "Status: generating"
+                  }
+                  showWorkflowMessage={viewerShowWorkflowMessage}
+                  workflowStatus={viewerWorkflowStatus}
+                  onBack={() => {
+                    router.push(
+                      businessId
+                        ? `/pitches/${businessId}/reports?view=cards`
+                        : "/pitches"
+                    );
+                  }}
+                />
+              )
             )
           )
         ) : (
@@ -916,6 +1092,7 @@ export default function PitchReportsPage() {
                               setShowUpgradeModal(true);
                               return;
                             }
+                            triggerQuickEvaluation();
                             queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                             setActiveReport("snapshot");
                             setReportContent("");
@@ -939,6 +1116,7 @@ export default function PitchReportsPage() {
                             if (!businessId) return;
 
                             const generateSnapshot = async () => {
+                              triggerQuickEvaluation();
                               queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                               setActiveReport("snapshot");
                               setReportContent("");
@@ -976,6 +1154,7 @@ export default function PitchReportsPage() {
                           if (!businessId) return;
 
                           const generateSnapshot = async () => {
+                            triggerQuickEvaluation();
                             queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                             setActiveReport("snapshot");
                             setReportContent("");

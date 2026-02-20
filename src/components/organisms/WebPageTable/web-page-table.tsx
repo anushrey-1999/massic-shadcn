@@ -80,6 +80,7 @@ export function WebPageTable({
         const status = (row.status || "").toString().toLowerCase();
         const VIEW_ACTION_STATUSES = new Set([
           "success",
+          "updated",
           "update_required",
           "outline_only",
           "final_only",

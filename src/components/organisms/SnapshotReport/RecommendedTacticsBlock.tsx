@@ -66,7 +66,7 @@ export function RecommendedTacticsBlock({ tactics, onTacticChange }: Recommended
                   </div>
                 </div>
 
-                <div className="h-px bg-general-unofficial-outline ml-12 w-full" />
+                <div className="h-px bg-general-unofficial-outline ml-12" />
               </div>
             );
           })}

@@ -4,6 +4,22 @@ import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 
+export type ExpressPitchTactic = {
+  priority: number;
+  tactic: string;
+  context: string;
+};
+
+export type ExpressPitch = {
+  url?: string;
+  segment?: number;
+  tier?: number;
+  tier_label?: string;
+  why?: string;
+  tactics?: ExpressPitchTactic[];
+  [key: string]: any;
+};
+
 function toStringOrJson(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
@@ -13,6 +29,67 @@ function toStringOrJson(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function isNonNullObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function coerceExpressPitch(value: unknown): ExpressPitch | null {
+  if (!isNonNullObject(value)) return null;
+
+  const tacticsRaw = (value as any).tactics;
+  const tactics: ExpressPitchTactic[] | undefined = Array.isArray(tacticsRaw)
+    ? (tacticsRaw
+        .map((t: unknown) => {
+          if (!isNonNullObject(t)) return null;
+          const priority = Number((t as any).priority);
+          const tactic = String((t as any).tactic || "");
+          const context = String((t as any).context || "");
+          if (!Number.isFinite(priority) || !tactic.trim() || !context.trim()) return null;
+          return { priority, tactic, context };
+        })
+        .filter(Boolean) as ExpressPitchTactic[])
+    : undefined;
+
+  const result: ExpressPitch = {
+    ...(value as any),
+    url: (value as any).url != null ? String((value as any).url) : undefined,
+    segment: (value as any).segment != null ? Number((value as any).segment) : undefined,
+    tier: (value as any).tier != null ? Number((value as any).tier) : undefined,
+    tier_label:
+      (value as any).tier_label != null ? String((value as any).tier_label) : undefined,
+    why: (value as any).why != null ? String((value as any).why) : undefined,
+    tactics,
+  };
+
+  const hasAnyUsefulField =
+    Boolean(result.url?.trim()) ||
+    Boolean(result.tier_label?.trim()) ||
+    Boolean(result.why?.trim()) ||
+    Boolean(result.tactics?.length) ||
+    Number.isFinite(result.tier) ||
+    Number.isFinite(result.segment);
+
+  return hasAnyUsefulField ? result : null;
+}
+
+export function extractExpressPitch(payload: unknown): ExpressPitch | null {
+  const asAny = payload as any;
+
+  const candidates: unknown[] = [
+    asAny?.express_pitch,
+    asAny?.output_data?.quicky?.express_pitch,
+    asAny?.output_data?.express_pitch,
+    asAny?.output_data?.output_data?.quicky?.express_pitch,
+  ];
+
+  for (const candidate of candidates) {
+    const coerced = coerceExpressPitch(candidate);
+    if (coerced) return coerced;
+  }
+
+  return null;
 }
 
 function getSnapshotSections(payload: any): Record<string, unknown> | null {
@@ -273,14 +350,22 @@ export function useQuickyReportStatus(params: {
 }
 
 export function useFetchReportFromDownloadUrl() {
-  return useMutation<string, Error, { downloadUrl: string }>({
+  return useMutation<
+    { content: string; expressPitch: ExpressPitch | null; payload: unknown },
+    Error,
+    { downloadUrl: string }
+  >({
     mutationFn: async ({ downloadUrl }) => {
       if (!downloadUrl) {
         throw new Error("download_url is required");
       }
 
       const response = await api.get(downloadUrl, "python");
-      return cleanEscapedContent(extractReportText(response));
+      return {
+        content: cleanEscapedContent(extractReportText(response)),
+        expressPitch: extractExpressPitch(response),
+        payload: response,
+      };
     },
     onError: (error) => {
       toast.error("Failed to fetch report", {

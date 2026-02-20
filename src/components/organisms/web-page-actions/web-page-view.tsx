@@ -22,7 +22,10 @@ function getTypeFromPageType(pageType: string | null, intent?: string | null): W
 
 function getFinalContent(type: WebActionType, data: any): string {
   if (type === "blog") {
-    return cleanEscapedContent(data?.output_data?.page?.blog?.blog_post || "");
+    const blog = data?.output_data?.page?.blog;
+    return cleanEscapedContent(
+      (typeof blog === "string" ? blog : blog?.blog_post) || ""
+    );
   }
 
   return resolvePageContent(data);

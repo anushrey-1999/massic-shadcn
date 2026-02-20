@@ -21,7 +21,7 @@ type QuickEvaluation = {
   businessInfo?: {
     socialMediaLinks?: Record<string, string | null | undefined> | null;
     revenueModel?: string | null;
-    ctaButtons?: string[] | null;
+    ctaButtons?: unknown[] | null;
   };
   meta?: {
     pageTitle?: string | null;
@@ -60,6 +60,23 @@ function formatDomainAgeYears(value: unknown): string {
   if (!Number.isFinite(n) || n <= 0) return "Not detected";
   const fixed = n % 1 === 0 ? n.toFixed(0) : n.toFixed(1);
   return `${fixed} years`;
+}
+
+type CtaButton = { text?: string; url?: string };
+
+function toCtaButton(value: unknown): CtaButton | null {
+  if (!isNonNullObject(value)) return null;
+  const text = line((value as any).text);
+  const url = line((value as any).url);
+  if (!text && !url) return null;
+  return { text, url };
+}
+
+function formatCtaLabel(cta: CtaButton): string {
+  const text = line(cta.text);
+  const url = line(cta.url);
+  if (text && url) return `${text} → ${url}`;
+  return text || url;
 }
 
 function markdownTable(rows: Array<[string, string]>): string {
@@ -145,12 +162,23 @@ export function snapshotReportToMarkdown(args: {
     const schema = Array.isArray(qe.meta?.schemaOrgTypes) ? qe.meta?.schemaOrgTypes : [];
     parts.push(`- **Schema**: ${schema.length ? schema.join(", ") : "_None detected_"}`);
 
-    const ctas = Array.isArray(qe.businessInfo?.ctaButtons) ? qe.businessInfo?.ctaButtons : [];
+    const ctasRaw = Array.isArray(qe.businessInfo?.ctaButtons) ? qe.businessInfo?.ctaButtons : [];
+    const ctas = ctasRaw
+      .map((v) => (typeof v === "string" ? { text: line(v) } : toCtaButton(v)))
+      .filter(Boolean) as CtaButton[];
+    const seenCtas = new Set<string>();
+    const dedupedCtas: string[] = [];
+    for (const c of ctas) {
+      const label = formatCtaLabel(c);
+      const key = label.toLowerCase();
+      if (!label || seenCtas.has(key)) continue;
+      seenCtas.add(key);
+      dedupedCtas.push(label);
+    }
     parts.push(`### CTAs detected`);
-    if (ctas.length) {
-      for (const c of ctas) {
-        const v = line(c);
-        if (v) parts.push(`- ${v}`);
+    if (dedupedCtas.length) {
+      for (const v of dedupedCtas) {
+        parts.push(`- ${v}`);
       }
     } else {
       parts.push(`- None`);

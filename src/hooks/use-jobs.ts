@@ -184,10 +184,11 @@ function mapBusinessProfilePayloadToJobFormData(
 
   formDataPayload.append("trigger_workflow", "False");
 
-  // Extra business metrics fields (python API expects snake_case)
+  // Extra business fields (python API expects snake_case)
   const aov = (businessProfilePayload as any).AOV ?? (businessProfilePayload as any).aov;
   const ltv = (businessProfilePayload as any).LTV ?? (businessProfilePayload as any).ltv;
-  const recurringFlag = (businessProfilePayload as any).RecurringFlag ?? (businessProfilePayload as any).recurring_flag;
+  const recurringFlag =
+    (businessProfilePayload as any).RecurringFlag ?? (businessProfilePayload as any).recurring_flag;
   const brandTerms = (businessProfilePayload as any).BrandTerms ?? (businessProfilePayload as any).brand_terms;
 
   if (aov !== undefined && aov !== null && String(aov).trim() !== "") {

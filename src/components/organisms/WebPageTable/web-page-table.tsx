@@ -80,6 +80,7 @@ export function WebPageTable({
         const status = (row.status || "").toString().toLowerCase();
         const VIEW_ACTION_STATUSES = new Set([
           "success",
+          "updated",
           "update_required",
           "outline_only",
           "final_only",
@@ -129,6 +130,11 @@ export function WebPageTable({
       const target = event.target as Element;
 
       if (!tableContainerRef.current) return;
+
+      // Never collapse while a dialog/modal is open — portal content renders
+      // outside tableContainerRef so every in-modal click would otherwise
+      // be treated as "outside".
+      if (target.closest?.('[role="dialog"]')) return;
 
       const isOutsideContainer = !tableContainerRef.current.contains(target);
 

@@ -33,7 +33,7 @@ type QuickEvaluation = {
   businessInfo?: {
     socialMediaLinks?: Record<string, string | null | undefined> | null;
     revenueModel?: string | null;
-    ctaButtons?: string[] | null;
+    ctaButtons?: unknown[] | null;
   };
   meta?: {
     pageTitle?: string | null;
@@ -140,7 +140,7 @@ function Pill({
 }) {
   const cls =
     variant === "info"
-      ? "border-blue-200 text-blue-700 bg-blue-50/60"
+      ? "border-[#BFDBFE] text-[#2563EB] bg-[#EFF6FF]"
       : "border-general-border text-general-muted-foreground bg-white";
   return (
     <span
@@ -152,6 +152,31 @@ function Pill({
       {children}
     </span>
   );
+}
+
+type CtaButton = {
+  text?: string;
+  url?: string;
+  type?: string;
+  category?: string;
+};
+
+function toCtaButton(value: unknown): CtaButton | null {
+  if (!isNonNullObject(value)) return null;
+  const text = String((value as any).text ?? "").trim();
+  const url = String((value as any).url ?? "").trim();
+  const type = String((value as any).type ?? "").trim();
+  const category = String((value as any).category ?? "").trim();
+
+  if (!text && !url) return null;
+  return { text, url, type, category };
+}
+
+function formatCtaLabel(cta: CtaButton): string {
+  const text = String(cta.text || "").trim();
+  const url = String(cta.url || "").trim();
+  if (text && url) return `${text} → ${url}`;
+  return text || url;
 }
 
 export function QuickEvaluationBlock({
@@ -167,9 +192,25 @@ export function QuickEvaluationBlock({
   const registrar = qe?.domain_info?.domainRegistrar ?? null;
   const domainAge = qe?.domain_info?.domainAge ?? null;
   const revenueModel = qe?.businessInfo?.revenueModel ?? null;
-  const ctaButtons = Array.isArray(qe?.businessInfo?.ctaButtons)
-    ? qe?.businessInfo?.ctaButtons
-    : [];
+  const ctaButtons = React.useMemo(() => {
+    const raw = Array.isArray(qe?.businessInfo?.ctaButtons)
+      ? qe?.businessInfo?.ctaButtons
+      : [];
+
+    const mapped = raw
+      .map((v) => (typeof v === "string" ? { text: String(v).trim() } : toCtaButton(v)))
+      .filter(Boolean) as CtaButton[];
+
+    const seen = new Set<string>();
+    const deduped: CtaButton[] = [];
+    for (const c of mapped) {
+      const key = `${String(c.text || "").toLowerCase()}|${String(c.url || "").toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(c);
+    }
+    return deduped;
+  }, [qe?.businessInfo?.ctaButtons]);
   const socialMediaLinks = qe?.businessInfo?.socialMediaLinks;
   const socialEntries = React.useMemo(() => {
     if (!socialMediaLinks || typeof socialMediaLinks !== "object") return [];
@@ -354,11 +395,14 @@ export function QuickEvaluationBlock({
 
             <div className="flex flex-wrap gap-2">
               {ctaButtons.length ? (
-                ctaButtons.map((cta, idx) => (
-                  <Pill key={`${cta}-${idx}`} variant="info">
-                    {String(cta || "").trim() || "CTA"}
-                  </Pill>
-                ))
+                ctaButtons.map((cta, idx) => {
+                  const label = formatCtaLabel(cta) || "CTA";
+                  return (
+                    <Pill key={`${label}-${idx}`} variant="info">
+                      {label}
+                    </Pill>
+                  );
+                })
               ) : (
                 <Pill>No CTAs detected</Pill>
               )}

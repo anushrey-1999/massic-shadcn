@@ -43,7 +43,7 @@ type QuickEvaluation = {
   businessInfo?: {
     socialMediaLinks?: Record<string, string | null | undefined> | null;
     revenueModel?: string | null;
-    ctaButtons?: string[] | null;
+    ctaButtons?: unknown[] | null;
   };
   meta?: {
     pageTitle?: string | null;
@@ -781,7 +781,32 @@ function snapshotHtmlFromData(args: {
         <div class="section">
           <div class="sectionTitle">CTAs detected</div>
           <div class="ctaStrip">
-            ${ctas.length ? ctas.map((c) => `<div class="ctaTag">${escapeHtml(String(c || "").trim())}</div>`).join("") : `<div class="socialTag">No CTAs detected</div>`}
+            ${(() => {
+              const mapped = ctas
+                .map((c) => {
+                  if (typeof c === "string") {
+                    const t = String(c || "").trim();
+                    return t ? { text: t, url: "" } : null;
+                  }
+                  if (!isNonNullObject(c)) return null;
+                  const text = String((c as any).text || "").trim();
+                  const url = String((c as any).url || "").trim();
+                  if (!text && !url) return null;
+                  return { text, url };
+                })
+                .filter(Boolean) as Array<{ text: string; url: string }>;
+
+              const seen = new Set<string>();
+              const pills: string[] = [];
+              for (const c of mapped) {
+                const label = c.text && c.url ? `${c.text} → ${c.url}` : c.text || c.url;
+                const key = label.toLowerCase();
+                if (!label || seen.has(key)) continue;
+                seen.add(key);
+                pills.push(`<div class="ctaTag">${escapeHtml(label)}</div>`);
+              }
+              return pills.length ? pills.join("") : `<div class="socialTag">No CTAs detected</div>`;
+            })()}
           </div>
         </div>
 

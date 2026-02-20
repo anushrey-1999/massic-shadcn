@@ -289,6 +289,16 @@ body::-webkit-scrollbar,
     margin: 0.75rem 0 !important;
   }
 
+  /* Snapshot tactics: no paragraph/list spacing */
+  .tiptap-content.tactics-editor p {
+    margin: 0 !important;
+  }
+
+  .tiptap-content.tactics-editor ul,
+  .tiptap-content.tactics-editor ol {
+    margin: 0 !important;
+  }
+
   .tiptap-content ul {
     list-style: disc !important;
     padding-left: 1.5rem !important;

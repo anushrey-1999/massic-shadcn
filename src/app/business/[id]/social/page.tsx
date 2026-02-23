@@ -28,8 +28,6 @@ interface PageProps {
   params: Promise<{
     id: string
   }>
-  skipEntitlements?: boolean
-  isReadOnly?: boolean
 }
 
 function SocialEntitledContent({
@@ -295,7 +293,7 @@ function SocialEntitledContent({
   )
 }
 
-export default function BusinessSocialPage({ params, skipEntitlements = false, isReadOnly }: PageProps) {
+export default function BusinessSocialPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [selectedChannel, setSelectedChannel] = useQueryState(
     "channel_name",
@@ -357,7 +355,6 @@ export default function BusinessSocialPage({ params, skipEntitlements = false, i
       businessId={businessId}
       selectedChannel={selectedChannel || null}
       onChannelSelect={(channel) => setSelectedChannel(channel)}
-      isReadOnly={isReadOnly}
     />
   ) : (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
@@ -374,10 +371,6 @@ export default function BusinessSocialPage({ params, skipEntitlements = false, i
       <PageHeader
         breadcrumbs={breadcrumbs}
       />
-  {
-    skipEntitlements ? (
-      content
-    ) : (
       <EntitlementsGuard
         entitlement="content"
         businessId={businessId}
@@ -385,8 +378,6 @@ export default function BusinessSocialPage({ params, skipEntitlements = false, i
       >
         {content}
       </EntitlementsGuard>
-    )
-  }
-    </div >
+    </div>
   )
 }

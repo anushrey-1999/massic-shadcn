@@ -18,12 +18,16 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
   
   // Determine color based on number of filled bars
   let barColor: string;
+  let emptyBarColor: string;
   if (barsToFill === 1) {
-    barColor = "hsl(0, 84%, 60%)"; // Red
+    barColor = "#dc2626"; // red-600
+    emptyBarColor = "#fecaca"; // red-200
   } else if (barsToFill === 2) {
-    barColor = "hsl(45, 93%, 47%)"; // Yellow
+    barColor = "#d97706"; // amber-600
+    emptyBarColor = "#fde68a"; // amber-200
   } else {
-    barColor = "#84cc16"; // lime-600 (3 or 4 bars)
+    barColor = "#65a30d"; // lime-600 (3 or 4 bars)
+    emptyBarColor = "#d9f99d"; // lime-200
   }
   
   // Calculate score percentage for display
@@ -48,7 +52,7 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
                 heights[barIndex - 1]
               )}
               style={{
-                backgroundColor: isFilled ? barColor : "#e5e7eb",
+                backgroundColor: isFilled ? barColor : emptyBarColor,
               }}
             />
           );

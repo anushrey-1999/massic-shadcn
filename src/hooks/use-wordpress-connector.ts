@@ -82,6 +82,33 @@ interface WordpressOauthStartLinkResponse {
   };
 }
 
+export interface WordpressStyleProfileData {
+  connected: boolean;
+  connection: {
+    connectionId: string;
+    siteUrl: string;
+    siteId: string;
+    status: "active" | "revoked";
+  };
+  latestExtraction: {
+    id: string;
+    trigger: "connect" | "reconnect" | "manual";
+    status: "running" | "success" | "partial" | "failed";
+    qualityScore: number | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+  profile: Record<string, unknown> | null;
+  provenance: Record<string, unknown> | null;
+}
+
+interface WordpressStyleProfileResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: WordpressStyleProfileData;
+}
+
 const getErrorMessage = (error: any, fallback: string) => {
   return (
     error?.response?.data?.message ||
@@ -235,5 +262,25 @@ export function useStartWordpressOauthLink() {
         description: getErrorMessage(error, "Please verify the site URL and try again."),
       });
     },
+  });
+}
+
+export function useWordpressStyleProfile(connectionId: string | null) {
+  return useQuery<WordpressStyleProfileData | null>({
+    queryKey: ["wordpress-style-profile", connectionId],
+    enabled: Boolean(connectionId),
+    queryFn: async () => {
+      const res = await api.get<WordpressStyleProfileResponse>(
+        `/cms/wordpress/style-profile?connectionId=${encodeURIComponent(String(connectionId))}`,
+        "node"
+      );
+
+      if (!res?.success) {
+        throw new Error(res?.message || "Failed to fetch WordPress style profile");
+      }
+
+      return res.data || null;
+    },
+    staleTime: 30 * 1000,
   });
 }

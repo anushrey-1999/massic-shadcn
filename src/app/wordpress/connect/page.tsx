@@ -2,13 +2,28 @@
 
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useAuthStore } from "@/store/auth-store";
 import { useBusinessProfiles } from "@/hooks/use-business-profiles";
 import {
   useApproveWordpressOauth,
   useWordpressOauthSession,
 } from "@/hooks/use-wordpress-connector";
+import { cn } from "@/lib/utils";
 
 export default function WordpressConnectPage() {
   const router = useRouter();
@@ -26,6 +41,7 @@ export default function WordpressConnectPage() {
   const { profiles, sidebarDataLoading } = useBusinessProfiles();
 
   const [selectedBusinessId, setSelectedBusinessId] = React.useState<string>("");
+  const [businessSelectOpen, setBusinessSelectOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (isAuthenticated || hasTokenCookie) return;
@@ -120,21 +136,58 @@ export default function WordpressConnectPage() {
         <label htmlFor="business-select" className="mb-2 block text-sm font-medium text-general-foreground">
           Select Business
         </label>
-        <select
-          id="business-select"
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          value={selectedBusinessId}
-          onChange={(event) => setSelectedBusinessId(event.target.value)}
-        >
-          {profiles.length === 0 && (
-            <option value="">No businesses available</option>
-          )}
-          {profiles.map((profile) => (
-            <option key={profile.UniqueId} value={profile.UniqueId}>
-              {profile.DisplayName || profile.Name}
-            </option>
-          ))}
-        </select>
+        <Popover open={businessSelectOpen} onOpenChange={setBusinessSelectOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              id="business-select"
+              variant="outline"
+              role="combobox"
+              aria-expanded={businessSelectOpen}
+              aria-label="Select business"
+              className={cn(
+                "w-full justify-between font-normal",
+                !selectedBusinessId && "text-general-muted-foreground"
+              )}
+            >
+              {selectedBusinessId
+                ? profiles.find((p) => p.UniqueId === selectedBusinessId)?.DisplayName ||
+                  profiles.find((p) => p.UniqueId === selectedBusinessId)?.Name ||
+                  "Select business"
+                : "Select business"}
+              <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Search business..." className="h-9" />
+              <CommandList className="max-h-[280px]">
+                <CommandEmpty>
+                  {profiles.length === 0 ? "No businesses available" : "No business found."}
+                </CommandEmpty>
+                <CommandGroup>
+                  {profiles.map((profile) => {
+                    const label = profile.DisplayName || profile.Name || profile.UniqueId;
+                    const isSelected = selectedBusinessId === profile.UniqueId;
+                    return (
+                      <CommandItem
+                        key={profile.UniqueId}
+                        value={label}
+                        onSelect={() => {
+                          setSelectedBusinessId(profile.UniqueId);
+                          setBusinessSelectOpen(false);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <span className="flex-1 truncate">{label}</span>
+                        <Check className={cn("size-4 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                      </CommandItem>
+                    );
+                  })}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="mt-6 flex items-center gap-2">

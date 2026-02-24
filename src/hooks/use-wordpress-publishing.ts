@@ -63,6 +63,7 @@ interface PreviewPayload {
 interface UnpublishPayload {
   connectionId: string;
   contentId: string;
+  targetStatus?: "draft" | "trash";
 }
 
 interface ContentStatusResponse {

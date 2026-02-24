@@ -477,6 +477,7 @@ export function useGSCAnalytics(
 
     const normalizeToZeroHundred = (value: number, min: number, max: number): number => {
       const v = Number(value) || 0
+      if (v === 0) return 0
       if (max === min) return 50
       const pad = (max - min) * 0.05 || 1
       const lo = Math.max(0, min - pad)

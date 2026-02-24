@@ -37,18 +37,30 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
 import { copyToClipboard } from "@/utils/clipboard";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { ContentConverter } from "@/utils/content-converter";
+import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { cn } from "@/lib/utils";
 import { useWordpressConnection } from "@/hooks/use-wordpress-connector";
 import {
   useWordpressContentStatus,
   useWordpressPreviewLink,
   useWordpressPublish,
+  useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 
 function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
@@ -91,6 +103,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
   const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
 
   const lastSavedMainRef = React.useRef<string>("");
   const lastSavedMetaRef = React.useRef<string>("");
@@ -114,6 +128,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const wpConnectionQuery = useWordpressConnection(businessId || null);
   const wpPublishMutation = useWordpressPublish();
   const wpPreviewMutation = useWordpressPreviewLink();
+  const wpUnpublishMutation = useWordpressUnpublish();
   const wpConnection = wpConnectionQuery.data?.connection || null;
   const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
 
@@ -211,7 +226,23 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const persistedContent = contentStatusQuery.data?.content || null;
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
   const isPersistedLive = persistedStatus === "publish";
-  const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive);
+  const isPersistedTrashed = persistedStatus === "trash";
+  const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
+  const isPublishBusy = wpPublishMutation.isPending || wpPreviewMutation.isPending || wpUnpublishMutation.isPending;
+  const publishStateLabel = isPersistedLive
+    ? "Live"
+    : isPersistedDraftLike
+      ? "Draft"
+      : isPersistedTrashed
+        ? "In Trash"
+        : "Not Published";
+  const publishStateHint = isPersistedLive
+    ? "This content is live on WordPress."
+    : isPersistedDraftLike
+      ? "A draft exists in WordPress."
+      : isPersistedTrashed
+        ? "This content was moved to trash."
+        : "No WordPress post/page exists yet.";
 
   const liveUrl = React.useMemo(() => {
     if (persistedContent?.permalink) return persistedContent.permalink;
@@ -285,7 +316,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   );
 
   const handleRedirectToChannels = React.useCallback(() => {
-    router.push(`/business/${businessId}/web?tab=channels`);
+    router.push(`/business/${businessId}/web?integrations=1`);
     setIsPublishModalOpen(false);
   }, [businessId, router]);
 
@@ -415,38 +446,77 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     wpPreviewMutation,
   ]);
 
-  const handleCopyAll = async () => {
-    if (mainEditor) {
-      const htmlContent = mainEditor.getHTML();
-      if (htmlContent && htmlContent.trim()) {
-        try {
-          if (typeof ClipboardItem !== "undefined") {
-            const clipboardItem = new ClipboardItem({
-              "text/html": new Blob([htmlContent], { type: "text/html" }),
-              "text/plain": new Blob([mainEditor.getText()], { type: "text/plain" }),
-            });
-            await navigator.clipboard.write([clipboardItem]);
-          } else {
-            await navigator.clipboard.writeText(mainEditor.getText());
+  const handleChangeWordpressStatus = React.useCallback(async (targetStatus: "draft" | "trash") => {
+    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!publishContentId) return;
+
+    const response = await wpUnpublishMutation.mutateAsync({
+      connectionId: String(wpConnection.connectionId),
+      contentId: String(publishContentId),
+      targetStatus,
+    });
+    const unpublishData = response?.data;
+
+    if (unpublishData) {
+      setLastPublishedData((prev) =>
+        prev
+          ? {
+            ...prev,
+            status: unpublishData.status || targetStatus,
+            permalink: null,
+            previewUrl: undefined,
           }
-          toast.success("Copied");
-          return;
-        } catch {
-          try {
-            await navigator.clipboard.writeText(mainEditor.getText());
-            toast.success("Copied");
-            return;
-          } catch {
-            toast.error("Copy failed");
-            return;
-          }
-        }
-      }
+          : prev
+      );
     }
 
-    const ok = await copyToClipboard(mainContent || "");
-    if (ok) toast.success("Copied");
+    setIsEmbeddedPreviewOpen(false);
+    toast.success(targetStatus === "trash" ? "Deleted in WordPress (moved to trash)" : "Moved to draft in WordPress");
+    await contentStatusQuery.refetch();
+    if (targetStatus === "trash") {
+      setIsPublishModalOpen(false);
+    }
+  }, [
+    contentStatusQuery,
+    isWpConnected,
+    publishContentId,
+    wpConnection?.connectionId,
+    wpUnpublishMutation,
+  ]);
+
+  const handleCopyText = async () => {
+    const textContent = mainEditor?.getText() || mainContent || "";
+    const ok = await copyToClipboard(textContent);
+    if (ok) toast.success("Text copied");
     else toast.error("Copy failed");
+  };
+
+  const handleCopyHtml = async () => {
+    const htmlContent = (mainEditor?.getHTML() || ContentConverter.markdownToHtml(mainContent || "") || "").trim();
+    if (!htmlContent) {
+      toast.error("Nothing to copy");
+      return;
+    }
+
+    const baseCss = await getMassicCssText();
+    const styledHtml = buildStyledMassicHtml(htmlContent, { baseCss });
+
+    try {
+      if (typeof ClipboardItem !== "undefined") {
+        const clipboardItem = new ClipboardItem({
+          "text/html": new Blob([styledHtml], { type: "text/html" }),
+          "text/plain": new Blob([styledHtml], { type: "text/plain" }),
+        });
+        await navigator.clipboard.write([clipboardItem]);
+      } else {
+        await copyToClipboard(styledHtml);
+      }
+      toast.success("HTML copied with styles");
+    } catch {
+      const ok = await copyToClipboard(styledHtml);
+      if (ok) toast.success("HTML copied with styles");
+      else toast.error("Copy failed");
+    }
   };
 
   const handleCopyMeta = async () => {
@@ -503,6 +573,19 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
   };
 
+  const confirmAndRunPublishAction = React.useCallback(async () => {
+    const action = confirmPublishAction;
+    setConfirmPublishAction(null);
+    if (!action) return;
+
+    if (action === "draft") {
+      await handlePublishDraft();
+      return;
+    }
+
+    await handlePublishLive();
+  }, [confirmPublishAction, handlePublishDraft, handlePublishLive]);
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0 space-y-4">
@@ -528,9 +611,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleCopyAll} disabled={isProcessing}>
+            <Button variant="outline" className="gap-2" onClick={handleCopyHtml} disabled={isProcessing}>
               <Copy className="h-4 w-4" />
-              Copy
+              Copy HTML
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={handleCopyText} disabled={isProcessing}>
+              <Copy className="h-4 w-4" />
+              Copy Text
             </Button>
             <Button
               className="gap-2"
@@ -539,7 +626,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
               disabled={isProcessing || !hasFinalContent}
             >
               <Globe className="h-4 w-4" />
-              Publish
+              Actions
             </Button>
           </div>
         </div>
@@ -665,90 +752,71 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       </div>
 
       <Dialog open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen}>
-        <DialogContent className="sm:max-w-[640px]">
+        <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle>Publish to Channel</DialogTitle>
+            <DialogTitle>Publish to WordPress</DialogTitle>
             <DialogDescription>
-              Publish this {typeLabel} to WordPress. Draft publish is recommended first for preview.
+              Choose what to do with this {typeLabel}.
             </DialogDescription>
           </DialogHeader>
 
           {!isWpConnected ? (
             <div className="rounded-md border bg-background p-4 space-y-3">
-              <Typography className="text-sm">No WordPress channel is connected for this business.</Typography>
+              <Typography className="text-sm">No WordPress channel connected.</Typography>
               <Button onClick={handleRedirectToChannels}>Connect WordPress</Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              <Card className="p-4 space-y-2">
-                <Typography variant="h6">Connected WordPress</Typography>
-                <Typography className="text-sm text-muted-foreground">{wpConnection?.siteUrl}</Typography>
-                <Typography className="text-xs text-muted-foreground">Site ID: {wpConnection?.siteId}</Typography>
-              </Card>
-
-              <Card className="p-4 space-y-2">
-                <Typography variant="h6">Publish Payload</Typography>
-                <Typography className="text-sm">
-                  <span className="font-medium">Content ID:</span> {publishContentId}
+            <div className="rounded-md border bg-muted/20 p-4 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Typography className="text-sm font-medium truncate">{wpConnection?.siteUrl}</Typography>
+                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  {publishStateLabel}
                 </Typography>
-                <Typography className="text-sm">
-                  <span className="font-medium">Type:</span> {publishType}
-                </Typography>
-                <Typography className="text-sm line-clamp-2">
-                  <span className="font-medium">Title:</span> {publishTitle}
-                </Typography>
-                {publishSlug ? (
-                  <Typography className="text-sm">
-                    <span className="font-medium">Slug:</span> {publishSlug}
-                  </Typography>
-                ) : null}
-              </Card>
-
-              {lastPublishedData ? (
-                <Card className="p-4 space-y-2">
-                  <Typography variant="h6">Last Publish Result</Typography>
-                  <Typography className="text-sm">
-                    <span className="font-medium">WP ID:</span> {lastPublishedData.wpId}
-                  </Typography>
-                  <Typography className="text-sm">
-                    <span className="font-medium">Status:</span> {lastPublishedData.status}
-                  </Typography>
-                  {lastPublishedData.previewUrl ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => openEmbeddedPreview(lastPublishedData.previewUrl || "", "WordPress Draft Preview")}
-                    >
-                      Preview Draft
-                    </Button>
-                  ) : null}
-                </Card>
-              ) : null}
+              </div>
+              <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
+              <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-2">
             <Button
               variant="outline"
               onClick={() => setIsPublishModalOpen(false)}
-              disabled={wpPublishMutation.isPending || wpPreviewMutation.isPending}
+              disabled={isPublishBusy}
             >
-              Close
+              Cancel
             </Button>
             {isWpConnected ? (
               <>
                 {isPersistedLive ? (
-                  <Button
-                    onClick={() => {
-                      if (liveUrl) {
-                        openEmbeddedPreview(liveUrl, "Published WordPress Blog");
-                      }
-                    }}
-                    disabled={!liveUrl}
-                  >
-                    View Blog
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleChangeWordpressStatus("draft")}
+                      disabled={wpUnpublishMutation.isPending}
+                    >
+                      {wpUnpublishMutation.isPending ? "Updating..." : "Move to Draft"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (liveUrl) {
+                          openEmbeddedPreview(liveUrl, "Published WordPress Blog");
+                        }
+                      }}
+                      disabled={!liveUrl}
+                    >
+                      View Live
+                    </Button>
+                  </>
                 ) : isPersistedDraftLike ? (
                   <>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setIsDeleteConfirmOpen(true)}
+                      disabled={wpUnpublishMutation.isPending}
+                    >
+                      {wpUnpublishMutation.isPending ? "Deleting..." : "Delete"}
+                    </Button>
                     <Button
                       variant="outline"
                       onClick={handleOpenPreview}
@@ -757,7 +825,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                       {wpPreviewMutation.isPending ? "Loading..." : "Preview Draft"}
                     </Button>
                     <Button
-                      onClick={handlePublishLive}
+                      onClick={() => setConfirmPublishAction("live")}
                       disabled={!hasFinalContent || wpPublishMutation.isPending}
                     >
                       {wpPublishMutation.isPending ? "Publishing..." : "Publish Live"}
@@ -765,8 +833,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                   </>
                 ) : (
                   <Button
-                    variant="outline"
-                    onClick={handlePublishDraft}
+                    onClick={() => setConfirmPublishAction("draft")}
                     disabled={
                       !hasFinalContent ||
                       contentStatusQuery.isLoading ||
@@ -782,6 +849,55 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmPublishAction !== null} onOpenChange={(open) => !open && setConfirmPublishAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmPublishAction === "live" ? "Publish Live to WordPress?" : "Publish Draft to WordPress?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmPublishAction === "live"
+                ? "This will update the live WordPress content visible to visitors."
+                : "This will create or update the WordPress draft and keep it non-live."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button onClick={confirmAndRunPublishAction} disabled={isPublishBusy}>
+                {confirmPublishAction === "live" ? "Confirm Publish Live" : "Confirm Publish Draft"}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete WordPress Draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move the WordPress content to trash. You can restore it later from WordPress admin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  setIsDeleteConfirmOpen(false);
+                  await handleChangeWordpressStatus("trash");
+                }}
+                disabled={isPublishBusy}
+              >
+                Confirm Delete
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={isEmbeddedPreviewOpen} onOpenChange={setIsEmbeddedPreviewOpen}>
         <DialogContent

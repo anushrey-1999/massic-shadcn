@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
 } from "@/hooks/use-wordpress-connector";
 import { cn } from "@/lib/utils";
 
-export default function WordpressConnectPage() {
+function WordpressConnectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuthStore();
@@ -202,5 +202,19 @@ export default function WordpressConnectPage() {
         </Button>
       </div>
     </div>
+  );
+}
+
+export default function WordpressConnectPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto mt-20 max-w-xl rounded-lg border bg-card p-6">
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      }
+    >
+      <WordpressConnectContent />
+    </Suspense>
   );
 }

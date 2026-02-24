@@ -59,18 +59,6 @@ function normalizeOfferingsList(jobOfferings: any): Array<{ name: string; descri
     .filter((o) => Boolean(o.name));
 }
 
-function normalizeRecurring(raw: unknown): "yes" | "no" | "partial" | "" {
-  if (raw === null || raw === undefined) return "";
-  if (raw === true) return "yes";
-  if (raw === false) return "no";
-
-  const s = String(raw).trim().toLowerCase();
-  if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
-  if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
-  if (s === "partial" || s === "partially" || s === "sometimes") return "partial";
-  return "";
-}
-
 interface ProfileAutofillResponse {
   business_url?: string;
   profile_autofill?: {
@@ -123,8 +111,6 @@ export function PitchProfileTemplate() {
       businessName: "",
       businessDescription: "",
       primaryLocation: "",
-      recurringRevenue: "",
-      avgOrderValue: "",
       lifetimeValue: "",
       serviceType: "" as any,
       offerings: "" as any,
@@ -188,8 +174,6 @@ export function PitchProfileTemplate() {
         },
         BusinessObjective: normalizedServeCustomers,
         LocationType: normalizedOfferType,
-        RecurringFlag: value.recurringRevenue || null,
-        AOV: value.avgOrderValue ?? null,
         LTV:
           value.lifetimeValue === "high" ||
           value.lifetimeValue === "low"
@@ -198,7 +182,13 @@ export function PitchProfileTemplate() {
         BrandTerms: brandTermsArray.length > 0 ? brandTermsArray : null,
       };
 
-      await updateBusinessProfileMutation.mutateAsync(businessProfilePayload);
+      // Inputs for some business metrics were removed from the UI, but the backend may still return them.
+      // Preserve any existing non-editable fields by merging current profile data into the update payload.
+      const payloadForUpdate: BusinessProfilePayload = profileData
+        ? ({ ...(profileData as any), ...(businessProfilePayload as any) } as any)
+        : businessProfilePayload;
+
+      await updateBusinessProfileMutation.mutateAsync(payloadForUpdate as any);
 
       const jobDetails = jobQuery.data;
       const jobExists = Boolean(jobDetails && jobDetails.job_id);
@@ -206,13 +196,13 @@ export function PitchProfileTemplate() {
       if (jobExists) {
         await updateJobMutation.mutateAsync({
           businessId,
-          businessProfilePayload,
+          businessProfilePayload: payloadForUpdate,
           offerings,
         });
       } else {
         await createJobMutation.mutateAsync({
           businessId,
-          businessProfilePayload,
+          businessProfilePayload: payloadForUpdate,
           offerings,
         });
       }
@@ -363,29 +353,6 @@ export function PitchProfileTemplate() {
     }
     if (!String(formValues.serviceType || "").trim() && serviceType) form.setFieldValue("serviceType", serviceType as any);
 
-    const recurringFlag = normalizeRecurring(
-      profileAny?.RecurringFlag ??
-        profileAny?.recurring_flag ??
-        profileAny?.recurringFlag ??
-        profileAny?.RecurringRevenue ??
-        profileAny?.recurringRevenue ??
-        (jobDetails as any)?.recurring_flag ??
-        (jobDetails as any)?.recurringFlag ??
-        (jobDetails as any)?.recurring_revenue
-    );
-    if (!String(formValues.recurringRevenue || "").trim() && recurringFlag) {
-      form.setFieldValue("recurringRevenue", recurringFlag);
-    }
-
-    const aovFromBusiness = profileAny?.AOV ?? profileAny?.aov;
-    const aovFromJob = (jobDetails as any)?.aov;
-    const aov = aovFromBusiness ?? aovFromJob;
-    const aovStr =
-      typeof aov === "number" && Number.isFinite(aov) ? String(aov) : aov ? String(aov) : "";
-    if ((formValues.avgOrderValue == null || String(formValues.avgOrderValue).trim() === "") && aovStr) {
-      form.setFieldValue("avgOrderValue", aovStr as any);
-    }
-
     const ltvFromBusiness = profileAny?.LTV ?? profileAny?.ltv;
     const ltvFromJob = (jobDetails as any)?.ltv;
     const ltv = ltvFromBusiness ?? ltvFromJob;
@@ -435,14 +402,9 @@ export function PitchProfileTemplate() {
     return list.some((row) => Boolean(row?.name?.trim()));
   }, [formValues.offeringsList]);
 
-  const hasRecurringRevenue = React.useMemo(() => {
-    return Boolean((formValues.recurringRevenue ?? "").toString().trim());
-  }, [formValues.recurringRevenue]);
-
   const canConfirmAndProceed =
     !hasSchemaValidationErrors &&
     !hasOfferingsValidationErrors &&
-    hasRecurringRevenue &&
     hasAtLeastOneOffering;
 
   const isSavingBusiness = updateBusinessProfileMutation.isPending;

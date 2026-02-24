@@ -84,8 +84,6 @@ export function CreatePitchTemplate() {
     businessDescription: "",
     primaryLocation: "",
     serviceType: "",
-    recurringRevenue: "",
-    avgOrderValue: "",
     lifetimeValue: "",
     offerings: "",
     offeringsList: [],
@@ -177,15 +175,6 @@ export function CreatePitchTemplate() {
         },
         BusinessObjective: normalizedServeCustomers,
         LocationType: normalizedOfferType,
-        RecurringFlag: value.recurringRevenue
-          ? String(value.recurringRevenue).trim().toLowerCase() === "partial"
-            ? "sometimes"
-            : String(value.recurringRevenue).trim().toLowerCase()
-          : null,
-        AOV: (() => {
-          const num = Number.parseFloat(String(value.avgOrderValue ?? "").trim());
-          return Number.isFinite(num) ? num : null;
-        })(),
         LTV:
           value.lifetimeValue === "high" || value.lifetimeValue === "low"
             ? value.lifetimeValue
@@ -292,14 +281,9 @@ export function CreatePitchTemplate() {
     return list.some((row) => Boolean(row?.name?.trim()));
   }, [formValues.offeringsList]);
 
-  const hasRecurringRevenue = React.useMemo(() => {
-    return Boolean((formValues.recurringRevenue ?? "").toString().trim());
-  }, [formValues.recurringRevenue]);
-
   const canConfirmAndProceed =
     !hasSchemaValidationErrors &&
     !hasOfferingsValidationErrors &&
-    hasRecurringRevenue &&
     hasAtLeastOneOffering;
 
   const isCreatingBusiness = createBusiness.isPending;

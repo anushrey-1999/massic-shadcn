@@ -5,28 +5,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  Bold,
   Copy,
   ExternalLink,
-  Italic,
-  Loader2,
-  Link2,
-  Monitor,
-  List,
-  ListOrdered,
-  Quote,
-  Smartphone,
-  Strikethrough,
-  Tablet,
-  Underline,
-  X,
   Globe,
+  Loader2,
+  Monitor,
+  Smartphone,
+  Tablet,
+  X,
 } from "lucide-react";
-import type { Editor } from "@tiptap/react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { Typography } from "@/components/ui/typography";
 import {
   Dialog,
@@ -47,15 +37,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
-import { copyToClipboard } from "@/utils/clipboard";
-import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { resolvePageContent } from "@/utils/page-content-resolver";
-import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
-import { ContentConverter } from "@/utils/content-converter";
-import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { cn } from "@/lib/utils";
-import { useWordpressConnection } from "@/hooks/use-wordpress-connector";
+import { copyToClipboard } from "@/utils/clipboard";
+import { resolvePageContent } from "@/utils/page-content-resolver";
+import { api } from "@/hooks/use-api";
+import { ensureMassicContentWrapper } from "@/utils/page-content-format";
+import {
+  applyTextEditsToHtml,
+  buildEditableHtmlModel,
+  canonicalizeHtml,
+  extractPlainTextFromHtml,
+  sanitizePageHtml,
+  type EditableTextNodeRef,
+} from "@/utils/page-html-editor";
+import { buildMassicCssVariableOverrides } from "@/utils/massic-style-overrides";
+import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
+import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
+import { useWordpressConnection, useWordpressStyleProfile } from "@/hooks/use-wordpress-connector";
 import {
   useWordpressContentStatus,
   useWordpressPreviewLink,
@@ -63,31 +61,49 @@ import {
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 
-function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
-  const pt = (pageType || "").toLowerCase();
-  if (pt === "blog") return "blog";
-  if (pt) return "page";
-  return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
+type SaveReason = "debounce" | "blur" | "unmount";
+
+function isEditableSpan(target: EventTarget | null): target is HTMLElement {
+  return target instanceof HTMLElement && Boolean(target.dataset.massicTextId);
 }
 
-export function WebBlogView({ businessId, pageId }: { businessId: string; pageId: string }) {
+function updateEditFromElement(edits: Record<string, string>, element: HTMLElement) {
+  const id = element.dataset.massicTextId;
+  if (!id) return edits;
+  return {
+    ...edits,
+    [id]: element.textContent ?? "",
+  };
+}
+
+function insertPlainTextAtCursor(text: string) {
+  if (!text) return;
+
+  if (typeof document !== "undefined" && document.queryCommandSupported?.("insertText")) {
+    document.execCommand("insertText", false, text);
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const textNode = document.createTextNode(text);
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.setEndAfter(textNode);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pageType = searchParams.get("pageType");
-  const intent = searchParams.get("intent");
   const keyword = searchParams.get("keyword") || "";
-  const type = getTypeFromPageType(pageType, intent);
 
-  const { updateBlogContent, updatePageContent } = useWebPageActions();
-
-  const [isInitialLoad, setIsInitialLoad] = React.useState(true);
-  const isInitialLoadRef = React.useRef(true);
-  const lastStatusRef = React.useRef<string>("");
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
-
-  const [mainContent, setMainContent] = React.useState("");
-  const [metaDescription, setMetaDescription] = React.useState("");
-  const [citations, setCitations] = React.useState<string[]>([]);
+  const [previewHtml, setPreviewHtml] = React.useState("");
+  const [textNodeIndex, setTextNodeIndex] = React.useState<EditableTextNodeRef[]>([]);
   const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
   const [lastPublishedData, setLastPublishedData] = React.useState<{
     contentId: string;
@@ -106,17 +122,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
 
-  const lastSavedMainRef = React.useRef<string>("");
-  const lastSavedMetaRef = React.useRef<string>("");
-
-  const canonicalize = React.useCallback((value: string) => {
-    return (value || "").replace(/\r\n/g, "\n").replace(/\u00A0/g, " ").trimEnd();
-  }, []);
-
-  const [mainEditor, setMainEditor] = React.useState<Editor | null>(null);
-
   const contentQuery = useWebActionContentQuery({
-    type,
+    type: "page",
     businessId,
     pageId,
     enabled: !!businessId && !!pageId,
@@ -126,99 +133,62 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const data = contentQuery.data;
   const wpConnectionQuery = useWordpressConnection(businessId || null);
+  const wpConnection = wpConnectionQuery.data?.connection || null;
+  const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
+  const wpStyleProfileQuery = useWordpressStyleProfile(wpConnection?.connectionId || null);
   const wpPublishMutation = useWordpressPublish();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
-  const wpConnection = wpConnectionQuery.data?.connection || null;
-  const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
 
-  React.useEffect(() => {
-    if (!data) return;
+  const sourceHtmlRef = React.useRef("");
+  const textNodeIndexRef = React.useRef<EditableTextNodeRef[]>([]);
+  const editsRef = React.useRef<Record<string, string>>({});
+  const saveTimerRef = React.useRef<number | null>(null);
+  const isSavingRef = React.useRef(false);
+  const queuedSaveRef = React.useRef(false);
+  const previewContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const isEditorFocusedRef = React.useRef(false);
+  const isInitialLoadRef = React.useRef(true);
+  const lastSavedHtmlRef = React.useRef("");
+  const lastStatusRef = React.useRef<string>("");
+  const hasLocalEditsRef = React.useRef(false);
+  const isEditingSessionRef = React.useRef(false);
+  const lastCommittedHtmlRef = React.useRef("");
+  const pendingBackgroundRefetchRef = React.useRef(false);
 
-    const status = (data?.status || "").toString().toLowerCase();
-    const prevStatus = lastStatusRef.current;
-    const wasPolling = prevStatus === "pending" || prevStatus === "processing";
-    const isPolling = status === "pending" || status === "processing";
-    const transitionedFromPollingToTerminal = wasPolling && !isPolling;
+  const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
+  const shouldApplyWpStyle = isWpConnected && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
+  const cssVarOverrides = React.useMemo(
+    () =>
+      shouldApplyWpStyle
+        ? buildMassicCssVariableOverrides({ normalizedProfile: wpStyleProfileQuery.data?.profile })
+        : {},
+    [shouldApplyWpStyle, wpStyleProfileQuery.data?.profile]
+  );
 
-    const editorFocused = !!mainEditor?.isFocused;
-    const shouldSyncFromServer =
-      !editorFocused && (isInitialLoadRef.current || isPolling || transitionedFromPollingToTerminal);
-
-    lastStatusRef.current = status;
-    if (!shouldSyncFromServer) return;
-
-    if (type === "blog") {
-      const blogData = data?.output_data?.page?.blog;
-      const rawBlog =
-        typeof blogData === "string" ? blogData : (blogData?.blog_post || "");
-      const rawMeta =
-        typeof blogData === "object" && blogData !== null
-          ? blogData?.meta_description || ""
-          : "";
-      const rawCitations =
-        typeof blogData === "object" && blogData !== null && Array.isArray(blogData?.citations)
-          ? blogData.citations
-          : [];
-
-      setMainContent(cleanEscapedContent(rawBlog));
-      setMetaDescription(cleanEscapedContent(rawMeta));
-      setCitations(Array.isArray(rawCitations) ? rawCitations : []);
-
-      lastSavedMainRef.current = canonicalize(cleanEscapedContent(rawBlog));
-      lastSavedMetaRef.current = canonicalize(cleanEscapedContent(rawMeta));
-    } else {
-      const rawPage = resolvePageContent(data);
-      setMainContent(rawPage);
-      setMetaDescription("");
-      setCitations([]);
-
-      lastSavedMainRef.current = canonicalize(rawPage);
-      lastSavedMetaRef.current = "";
+  const previewStyleVars = React.useMemo(() => {
+    const style: React.CSSProperties = {};
+    for (const [key, value] of Object.entries(cssVarOverrides)) {
+      (style as Record<string, string>)[key] = value;
     }
-
-    if (isInitialLoadRef.current) {
-      window.setTimeout(() => {
-        isInitialLoadRef.current = false;
-        setIsInitialLoad(false);
-      }, 250);
-    }
-  }, [data, type, mainEditor]);
-
-  React.useEffect(() => {
-    const status = (data?.status || "").toString().toLowerCase();
-    if (status !== "pending") {
-      setPollingDisabled(false);
-    }
-  }, [data?.status]);
-
-  React.useEffect(() => {
-    if (!data) return;
-    const status = (data?.status || "").toString().toLowerCase();
-    if (status !== "pending") return;
-
-    const timeout = window.setTimeout(() => {
-      setPollingDisabled(true);
-      toast.warning("Generation seems to be stuck. Please try again.");
-    }, 300000);
-
-    return () => window.clearTimeout(timeout);
-  }, [data?.status]);
+    return style;
+  }, [cssVarOverrides]);
+  const previewMassicVarCss = React.useMemo(() => {
+    const entries = Object.entries(cssVarOverrides);
+    if (!entries.length) return "";
+    const declarations = entries.map(([key, value]) => `${key}: ${value};`).join(" ");
+    return `.massic-html-preview .massic-content { ${declarations} }`;
+  }, [cssVarOverrides]);
 
   const status = (data?.status || "").toString().toLowerCase();
   const isProcessing = status === "pending" || status === "processing";
-
-  const typeLabel = type === "blog" ? "blog" : "page";
-  const outlineFromServer = cleanEscapedContent(data?.output_data?.page?.outline || "");
-  const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
-  const hasFinalContent = !!mainContent && mainContent.trim().length > 0;
+  const hasFinalContent = canonicalizeHtml(sourceHtmlRef.current).length > 0;
 
   const inferPage = data?.output_data?.page || {};
   const inferBlog = inferPage?.blog || {};
-  const publishTitle = inferBlog?.meta_title || keyword || "Untitled";
+  const publishTitle = inferPage?.meta_title || inferBlog?.meta_title || keyword || "Untitled";
   const publishContentId = inferPage?.page_id || pageId;
   const publishSlug = typeof inferPage?.slug === "string" ? inferPage.slug.replace(/^\/+/, "") : null;
-  const publishType: "post" | "page" = type === "blog" ? "post" : "page";
   const contentStatusQuery = useWordpressContentStatus(
     wpConnection?.connectionId || null,
     publishContentId ? String(publishContentId) : null
@@ -242,13 +212,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       ? "A draft exists in WordPress."
       : isPersistedTrashed
         ? "This content was moved to trash."
-        : "No WordPress post/page exists yet.";
+        : "No WordPress page exists yet.";
 
   const liveUrl = React.useMemo(() => {
     if (persistedContent?.permalink) return persistedContent.permalink;
     if (lastPublishedData?.permalink) return lastPublishedData.permalink;
     if (isPersistedLive && persistedContent?.wpId && wpConnection?.siteUrl) {
-      return `${String(wpConnection.siteUrl).replace(/\/+$/, "")}/?p=${persistedContent.wpId}`;
+      return `${String(wpConnection.siteUrl).replace(/\/+$/, "")}/?page_id=${persistedContent.wpId}`;
     }
     return null;
   }, [
@@ -258,6 +228,215 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     persistedContent?.wpId,
     wpConnection?.siteUrl,
   ]);
+
+  const composeCurrentHtml = React.useCallback(() => {
+    const merged = applyTextEditsToHtml(sourceHtmlRef.current, textNodeIndexRef.current, editsRef.current);
+    return ensureMassicContentWrapper(sanitizePageHtml(merged));
+  }, []);
+
+  const updatePageContentRequest = React.useCallback(
+    async (content: string) => {
+      const endpoint = `/client/update-page-builder-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+      await api.post(
+        endpoint,
+        "python",
+        { content },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            accept: "application/json",
+          },
+        }
+      );
+    },
+    [businessId, pageId]
+  );
+
+  const runBackgroundRefetch = React.useCallback(
+    async (attempt = 0) => {
+      const result = await contentQuery.refetch();
+      const latestData = result.data;
+      if (!latestData) return;
+
+      const serverCanonical = canonicalizeHtml(
+        ensureMassicContentWrapper(sanitizePageHtml(resolvePageContent(latestData)))
+      );
+      const committedCanonical = canonicalizeHtml(lastCommittedHtmlRef.current);
+      if (!committedCanonical) return;
+
+      if (serverCanonical === committedCanonical) {
+        hasLocalEditsRef.current = false;
+        if (!isEditorFocusedRef.current && Object.keys(editsRef.current).length === 0 && !isSavingRef.current) {
+          isEditingSessionRef.current = false;
+          setPollingDisabled(false);
+        }
+        return;
+      }
+
+      if (attempt < 2 && !isEditorFocusedRef.current) {
+        window.setTimeout(() => {
+          void runBackgroundRefetch(attempt + 1);
+        }, 800);
+      }
+    },
+    [contentQuery]
+  );
+
+  const flushSave = React.useCallback(
+    async (reason: SaveReason) => {
+      const nextHtml = composeCurrentHtml();
+      if (!nextHtml) return;
+      if (canonicalizeHtml(nextHtml) === canonicalizeHtml(lastSavedHtmlRef.current)) return;
+      hasLocalEditsRef.current = true;
+      isEditingSessionRef.current = true;
+
+      if (isSavingRef.current) {
+        queuedSaveRef.current = true;
+        return;
+      }
+
+      isSavingRef.current = true;
+      const submittedEdits = { ...editsRef.current };
+      try {
+        await updatePageContentRequest(nextHtml);
+        sourceHtmlRef.current = nextHtml;
+        lastSavedHtmlRef.current = canonicalizeHtml(nextHtml);
+        lastCommittedHtmlRef.current = canonicalizeHtml(nextHtml);
+        // Keep newer edits typed while this save was in-flight.
+        const remainingEdits = { ...editsRef.current };
+        for (const [id, value] of Object.entries(submittedEdits)) {
+          if (remainingEdits[id] === value) {
+            delete remainingEdits[id];
+          }
+        }
+        editsRef.current = remainingEdits;
+
+        // Commit local HTML into rendered preview so rerenders cannot snap back.
+        if (!isEditorFocusedRef.current) {
+          const committedModel = buildEditableHtmlModel(nextHtml);
+          textNodeIndexRef.current = committedModel.textNodeIndex;
+          setTextNodeIndex(committedModel.textNodeIndex);
+          setPreviewHtml(committedModel.previewHtml);
+        }
+
+        if (isEditorFocusedRef.current && reason === "debounce") {
+          pendingBackgroundRefetchRef.current = true;
+        } else {
+          pendingBackgroundRefetchRef.current = false;
+          window.setTimeout(() => {
+            void runBackgroundRefetch();
+          }, 500);
+        }
+        if (reason === "blur") {
+          toast.success("Changes Saved");
+        }
+      } catch {
+        toast.error("Failed to save changes to server");
+      } finally {
+        isSavingRef.current = false;
+        if (queuedSaveRef.current) {
+          queuedSaveRef.current = false;
+          void flushSave("debounce");
+        }
+      }
+    },
+    [composeCurrentHtml, runBackgroundRefetch, updatePageContentRequest]
+  );
+
+  const scheduleDebouncedSave = React.useCallback(() => {
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = window.setTimeout(() => {
+      void flushSave("debounce");
+    }, 1200);
+  }, [flushSave]);
+
+  React.useEffect(() => {
+    if (!data) return;
+
+    const nextStatus = (data?.status || "").toString().toLowerCase();
+    const previousStatus = lastStatusRef.current;
+    const wasPolling = previousStatus === "pending" || previousStatus === "processing";
+    const isPolling = nextStatus === "pending" || nextStatus === "processing";
+    const transitionedFromPollingToTerminal = wasPolling && !isPolling;
+    const rawPage = resolvePageContent(data);
+    const sanitized = ensureMassicContentWrapper(sanitizePageHtml(rawPage));
+    const serverCanonical = canonicalizeHtml(sanitized);
+    const localCanonical = canonicalizeHtml(lastSavedHtmlRef.current);
+    const hasPendingEdits = Object.keys(editsRef.current).length > 0;
+    const localChangeInProgress = hasLocalEditsRef.current || hasPendingEdits || isSavingRef.current;
+    const serverMatchesLocal = localCanonical.length > 0 && serverCanonical === localCanonical;
+
+    if (isEditingSessionRef.current) {
+      if (serverMatchesLocal && !hasPendingEdits && !isSavingRef.current && !isEditorFocusedRef.current) {
+        hasLocalEditsRef.current = false;
+        isEditingSessionRef.current = false;
+        setPollingDisabled(false);
+      }
+      lastStatusRef.current = nextStatus;
+      return;
+    }
+
+    // Guard against stale GET responses overwriting local edits.
+    if (localChangeInProgress && !serverMatchesLocal) {
+      lastStatusRef.current = nextStatus;
+      return;
+    }
+
+    if (serverMatchesLocal) {
+      hasLocalEditsRef.current = false;
+    }
+
+    const shouldSyncFromServer =
+      !isEditorFocusedRef.current && (isInitialLoadRef.current || isPolling || transitionedFromPollingToTerminal);
+
+    lastStatusRef.current = nextStatus;
+    if (!shouldSyncFromServer) return;
+    const model = buildEditableHtmlModel(sanitized);
+
+    sourceHtmlRef.current = sanitized;
+    textNodeIndexRef.current = model.textNodeIndex;
+    editsRef.current = {};
+    lastSavedHtmlRef.current = canonicalizeHtml(sanitized);
+    setTextNodeIndex(model.textNodeIndex);
+    setPreviewHtml(model.previewHtml);
+
+    if (isInitialLoadRef.current) {
+      window.setTimeout(() => {
+        isInitialLoadRef.current = false;
+      }, 250);
+    }
+  }, [data]);
+
+  React.useEffect(() => {
+    const nextStatus = (data?.status || "").toString().toLowerCase();
+    if (nextStatus !== "pending" && !isEditingSessionRef.current) {
+      setPollingDisabled(false);
+    }
+  }, [data?.status]);
+
+  React.useEffect(() => {
+    if (!data) return;
+    const nextStatus = (data?.status || "").toString().toLowerCase();
+    if (nextStatus !== "pending") return;
+
+    const timeout = window.setTimeout(() => {
+      setPollingDisabled(true);
+      toast.warning("Generation seems to be stuck. Please try again.");
+    }, 300000);
+
+    return () => window.clearTimeout(timeout);
+  }, [data?.status]);
+
+  React.useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+      void flushSave("unmount");
+    };
+  }, [flushSave]);
 
   const openEmbeddedPreview = React.useCallback((url: string, title: string) => {
     if (!url) return;
@@ -271,48 +450,32 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   React.useEffect(() => {
     if (!isEmbeddedPreviewOpen || !isEmbeddedPreviewLoading) return;
-
     const timer = window.setTimeout(() => {
       setShowEmbedFallbackHint(true);
     }, 8000);
-
     return () => window.clearTimeout(timer);
   }, [isEmbeddedPreviewLoading, isEmbeddedPreviewOpen]);
 
   const buildPublishPayload = React.useCallback(
     (targetStatus: "draft" | "publish") => {
-      const excerpt = (metaDescription || inferBlog?.meta_description || "").trim();
+      const safeHtml = composeCurrentHtml();
       return {
         connectionId: String(wpConnection?.connectionId || ""),
         status: targetStatus,
         workflowSource: "infer_ai" as const,
         workflowPayload: data || {},
         contentId: String(publishContentId),
-        type: publishType,
+        type: "page" as const,
         title: String(publishTitle),
         slug: publishSlug,
-        contentMarkdown: mainContent,
-        contentHtml: ContentConverter.markdownToHtml(mainContent),
-        excerpt: excerpt || null,
+        contentHtml: safeHtml,
+        excerpt: null,
         head: {
           title: String(publishTitle),
-          meta: {
-            description: excerpt || undefined,
-          },
         },
       };
     },
-    [
-      data,
-      inferBlog?.meta_description,
-      mainContent,
-      metaDescription,
-      publishContentId,
-      publishSlug,
-      publishTitle,
-      publishType,
-      wpConnection?.connectionId,
-    ]
+    [composeCurrentHtml, data, publishContentId, publishSlug, publishTitle, wpConnection?.connectionId]
   );
 
   const handleRedirectToChannels = React.useCallback(() => {
@@ -362,8 +525,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     contentStatusQuery,
     hasFinalContent,
     isWpConnected,
-    wpConnection?.connectionId,
     openEmbeddedPreview,
+    wpConnection?.connectionId,
     wpPreviewMutation,
     wpPublishMutation,
   ]);
@@ -396,8 +559,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     buildPublishPayload,
     contentStatusQuery,
     hasFinalContent,
-    isWpConnected,
     isPersistedDraftLike,
+    isWpConnected,
     lastPublishedData?.wpId,
     wpConnection?.connectionId,
     wpPublishMutation,
@@ -437,12 +600,12 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
   }, [
     lastPublishedData?.wpId,
+    openEmbeddedPreview,
     persistedContent?.permalink,
     persistedContent?.wpId,
     persistedStatus,
     publishContentId,
     wpConnection?.connectionId,
-    openEmbeddedPreview,
     wpPreviewMutation,
   ]);
 
@@ -485,21 +648,25 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   ]);
 
   const handleCopyText = async () => {
-    const textContent = mainEditor?.getText() || mainContent || "";
-    const ok = await copyToClipboard(textContent);
+    const safeHtml = composeCurrentHtml();
+    const plainText = extractPlainTextFromHtml(safeHtml);
+    const ok = await copyToClipboard(plainText);
     if (ok) toast.success("Text copied");
     else toast.error("Copy failed");
   };
 
   const handleCopyHtml = async () => {
-    const htmlContent = (mainEditor?.getHTML() || ContentConverter.markdownToHtml(mainContent || "") || "").trim();
-    if (!htmlContent) {
+    const safeHtml = composeCurrentHtml();
+    const baseCss = await getMassicCssText();
+    const styledHtml = buildStyledMassicHtml(safeHtml, {
+      baseCss,
+      cssVarOverrides,
+    });
+
+    if (!styledHtml) {
       toast.error("Nothing to copy");
       return;
     }
-
-    const baseCss = await getMassicCssText();
-    const styledHtml = buildStyledMassicHtml(htmlContent, { baseCss });
 
     try {
       if (typeof ClipboardItem !== "undefined") {
@@ -519,57 +686,66 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
   };
 
-  const handleCopyMeta = async () => {
-    const ok = await copyToClipboard(metaDescription || "");
-    if (ok) toast.success("Copied");
-    else toast.error("Copy failed");
+  const handleInputCapture = (event: React.FormEvent<HTMLDivElement>) => {
+    if (!isEditableSpan(event.target)) return;
+    hasLocalEditsRef.current = true;
+    isEditingSessionRef.current = true;
+    editsRef.current = updateEditFromElement(editsRef.current, event.target);
+    scheduleDebouncedSave();
   };
 
-  const handleCopyCitations = async () => {
-    const ok = await copyToClipboard((citations || []).join("\n"));
-    if (ok) toast.success("Copied");
-    else toast.error("Copy failed");
-  };
+  const handleBlurCapture = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (!isEditableSpan(event.target)) return;
+    editsRef.current = updateEditFromElement(editsRef.current, event.target);
 
-  const handleSaveMainContent = async (markdown: string) => {
-    if (isInitialLoad) return;
-
-    const next = canonicalize(markdown);
-    if (next === canonicalize(lastSavedMainRef.current)) return;
-
-    try {
-      if (type === "blog") {
-        await updateBlogContent(businessId, pageId, {
-          blog_post: next,
-          meta_description: metaDescription,
-        });
-      } else {
-        await updatePageContent(businessId, pageId, next);
+    const nextTarget = event.relatedTarget as HTMLElement | null;
+    const movingWithinEditable = Boolean(nextTarget?.dataset?.massicTextId);
+    if (!movingWithinEditable) {
+      isEditorFocusedRef.current = false;
+      // Snapshot current edited DOM immediately to avoid any intermediate rerender rollback.
+      if (previewContainerRef.current) {
+        setPreviewHtml(previewContainerRef.current.innerHTML);
       }
-      lastSavedMainRef.current = next;
-      setMainContent(next);
-      toast.success("Changes Saved");
-    } catch {
-      toast.error("Failed to save changes to server");
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      void flushSave("blur").finally(() => {
+        if (pendingBackgroundRefetchRef.current && !isEditorFocusedRef.current) {
+          pendingBackgroundRefetchRef.current = false;
+          void runBackgroundRefetch();
+        }
+      });
     }
   };
 
-  const handleMetaBlur = async () => {
-    if (isInitialLoad) return;
-    if (type !== "blog") return;
+  const handleFocusCapture = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (!isEditableSpan(event.target)) return;
+    isEditorFocusedRef.current = true;
+    isEditingSessionRef.current = true;
+    if (!pollingDisabled) {
+      setPollingDisabled(true);
+    }
+  };
 
-    const nextMeta = canonicalize(metaDescription);
-    if (nextMeta === canonicalize(lastSavedMetaRef.current)) return;
+  const handlePasteCapture = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (!isEditableSpan(event.target)) return;
+    event.preventDefault();
+    const text = event.clipboardData?.getData("text/plain") || "";
+    insertPlainTextAtCursor(text);
+  };
 
-    try {
-      await updateBlogContent(businessId, pageId, {
-        blog_post: mainContent,
-        meta_description: nextMeta,
-      });
-      lastSavedMetaRef.current = nextMeta;
-      toast.success("Changes Saved");
-    } catch {
-      toast.error("Failed to save changes to server");
+  const handleKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!isEditableSpan(event.target)) return;
+    const key = event.key.toLowerCase();
+    if ((event.metaKey || event.ctrlKey) && ["b", "i", "u", "k"].includes(key)) {
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      insertPlainTextAtCursor("\n");
     }
   };
 
@@ -602,7 +778,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
         <div className="flex items-start justify-between gap-4">
           <div>
-            <Typography variant="h4">{type === "blog" ? "Blog" : "Page"}</Typography>
+            <Typography variant="h4">Page</Typography>
             {keyword ? (
               <Typography variant="muted" className="mt-1">
                 {keyword}
@@ -657,97 +833,34 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         ) : null}
 
         {!isProcessing && status !== "error" ? (
-          <>
-            <Card className="p-4 space-y-3">
-              <div className="flex items-center gap-2 border rounded-md px-2 py-1">
-                {[Bold, Italic, Underline, Strikethrough, Quote, List, ListOrdered, Link2].map((Icon, idx) => (
-                  <Button
-                    key={idx}
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      if (!mainEditor) return;
-
-                      switch (idx) {
-                        case 0:
-                          mainEditor.chain().focus().toggleBold().run();
-                          break;
-                        case 1:
-                          mainEditor.chain().focus().toggleItalic().run();
-                          break;
-                        case 2:
-                          mainEditor.chain().focus().toggleUnderline().run();
-                          break;
-                        case 3:
-                          mainEditor.chain().focus().toggleStrike().run();
-                          break;
-                        case 4:
-                          mainEditor.chain().focus().toggleBlockquote().run();
-                          break;
-                        case 5:
-                          mainEditor.chain().focus().toggleBulletList().run();
-                          break;
-                        case 6:
-                          mainEditor.chain().focus().toggleOrderedList().run();
-                          break;
-                        case 7: {
-                          const url = window.prompt("Enter URL:");
-                          if (url) {
-                            mainEditor.chain().focus().setLink({ href: url }).run();
-                          }
-                          break;
-                        }
-                      }
-                    }}
-                    disabled={!mainEditor}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </Button>
-                ))}
-              </div>
-
-              <InlineTipTapEditor
-                content={mainContent}
-                onEditorReady={setMainEditor}
-                onSave={handleSaveMainContent}
-                placeholder={type === "blog" ? "Write your blog content here..." : "Write your page content here..."}
-              />
-            </Card>
-
-            {type === "blog" ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card className="p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Typography variant="h6">Meta Description</Typography>
-                    <Button variant="ghost" size="icon" onClick={handleCopyMeta} type="button">
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Textarea
-                    value={metaDescription}
-                    onChange={(e) => setMetaDescription(e.target.value)}
-                    onBlur={handleMetaBlur}
-                    placeholder="Write your meta description here..."
-                    className="min-h-[120px]"
-                  />
-                </Card>
-
-                <Card className="p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Typography variant="h6">Suggested Citations</Typography>
-                    <Button variant="ghost" size="icon" onClick={handleCopyCitations} type="button">
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {(citations || []).length > 0 ? citations.map((c) => `• ${c}`).join("\n") : ""}
-                  </div>
-                </Card>
-              </div>
-            ) : null}
-          </>
+          <Card className="p-4 space-y-3">
+            <Typography variant="muted" className="text-xs">
+              Text-only editing is enabled in preview. HTML structure and classes are preserved.
+            </Typography>
+            <div
+              ref={previewContainerRef}
+              className="massic-html-preview min-h-[420px] overflow-auto rounded-md border bg-background p-4"
+              style={previewStyleVars}
+              onInputCapture={handleInputCapture}
+              onBlurCapture={handleBlurCapture}
+              onFocusCapture={handleFocusCapture}
+              onPasteCapture={handlePasteCapture}
+              onKeyDownCapture={handleKeyDownCapture}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+            <style>{`
+              ${previewMassicVarCss}
+              .massic-html-preview .massic-text-editable {
+                border-radius: 4px;
+                outline: none;
+                transition: background-color 120ms ease, box-shadow 120ms ease;
+              }
+              .massic-html-preview .massic-text-editable:focus {
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 8%, transparent);
+                box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 35%, transparent);
+              }
+            `}</style>
+          </Card>
         ) : null}
       </div>
 
@@ -756,7 +869,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           <DialogHeader>
             <DialogTitle>Publish to WordPress</DialogTitle>
             <DialogDescription>
-              Choose what to do with this {typeLabel}.
+              Choose what to do with this page.
             </DialogDescription>
           </DialogHeader>
 
@@ -800,7 +913,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     <Button
                       onClick={() => {
                         if (liveUrl) {
-                          openEmbeddedPreview(liveUrl, "Published WordPress Blog");
+                          openEmbeddedPreview(liveUrl, "Published WordPress Page");
                         }
                       }}
                       disabled={!liveUrl}
@@ -858,7 +971,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmPublishAction === "live"
-                ? "This will update the live WordPress content visible to visitors."
+                ? "This will update the live WordPress page visible to visitors."
                 : "This will create or update the WordPress draft and keep it non-live."}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -878,7 +991,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           <AlertDialogHeader>
             <AlertDialogTitle>Delete WordPress Draft?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will move the WordPress content to trash. You can restore it later from WordPress admin.
+              This will move the WordPress page to trash. You can restore it later from WordPress admin.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

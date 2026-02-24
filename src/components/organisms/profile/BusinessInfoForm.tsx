@@ -20,9 +20,7 @@ type BusinessInfoFormData = {
   businessDescription: string;
   primaryLocation: string;
   serviceType: "physical" | "online";
-  recurringRevenue: string;
-  avgOrderValue: string | number;
-  lifetimeValue: string | number;
+  lifetimeValue: "" | "high" | "low";
   offerings: "products" | "services" | "both";
   offeringsList?: Array<{
     name: string;
@@ -34,11 +32,13 @@ type BusinessInfoFormData = {
 interface BusinessInfoFormProps {
   form: any; // TanStack Form instance
   disableWebsiteLock?: boolean;
+  headerAction?: React.ReactNode;
 }
 
 export const BusinessInfoForm = React.memo(({
   form,
   disableWebsiteLock = false,
+  headerAction,
 }: BusinessInfoFormProps) => {
   const websiteValue = useStore(form.store, (state: any) => state.values?.website || "");
   const isWebsiteLocked =
@@ -59,16 +59,19 @@ export const BusinessInfoForm = React.memo(({
       className="p-4 bg-white border-none shadow-none"
     >
       <CardHeader className="pb-4">
-        <div className="flex items-center gap-2">
-          <Store className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
-          <div className="space-y-0">
-            <CardTitle>
-              <Typography variant="h4" className="!text-2xl">Business Info</Typography>
-            </CardTitle>
-            <Typography variant="muted" className="text-xs text-general-muted-foreground">
-              Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business.
-            </Typography>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Store className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+            <div className="space-y-0">
+              <CardTitle>
+                <Typography variant="h4" className="!text-2xl">Business Info</Typography>
+              </CardTitle>
+              <Typography variant="muted" className="text-xs text-general-muted-foreground">
+                Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business.
+              </Typography>
+            </div>
           </div>
+          {headerAction}
         </div>
       </CardHeader>
       <CardContent>
@@ -158,47 +161,15 @@ export const BusinessInfoForm = React.memo(({
             <CardContent>
               <GenericInput<BusinessInfoFormData>
                 form={form as any}
-                fieldName="recurringRevenue"
-                type="select"
-                inputVariant="noBorder"
-                label="Recurring Revenue"
-                placeholder="Is your revenue earned on a set schedule?"
-                options={[
-                  {
-                    value: "",
-                    label: "Select an option",
-                    disabled: true,
-                  },
-                  { value: "yes", label: "Yes" },
-                  { value: "no", label: "No" },
-                  { value: "partial", label: "Partial" },
-                ]}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Row 4 */}
-          <Card variant="profileCard">
-            <CardContent>
-              <GenericInput<BusinessInfoFormData>
-                form={form as any}
-                fieldName="avgOrderValue"
-                type="number"
-                inputVariant="noBorder"
-                label="Avg. Order Value ($)"
-                placeholder="Total amount of a single order in USD"
-              />
-            </CardContent>
-          </Card>
-          <Card variant="profileCard">
-            <CardContent>
-              <GenericInput<BusinessInfoFormData>
-                form={form as any}
                 fieldName="lifetimeValue"
-                type="number"
-                inputVariant="noBorder"
-                label="Lifetime Value ($)"
-                placeholder="Total amount earned on all orders in USD"
+                type="radio-group"
+                label="Lifetime Value"
+                required={false}
+                orientation="horizontal"
+                options={[
+                  { value: "high", label: "High" },
+                  { value: "low", label: "Low" },
+                ]}
               />
             </CardContent>
           </Card>

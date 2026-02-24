@@ -33,8 +33,6 @@ type BusinessInfoFormData = {
   businessDescription: string;
   primaryLocation: string;
   serviceType: "physical" | "online";
-  recurringRevenue: string;
-  avgOrderValue: string;
   lifetimeValue: string;
   offerings: "products" | "services" | "both";
   offeringsList?: Array<{
@@ -226,7 +224,7 @@ export const OfferingsForm = ({
           <PackageSearch className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
           <div className="space-y-0">
             <CardTitle>
-              <Typography variant="h4" className="!text-2xl">Offerings</Typography>
+              <Typography variant="h4" className="text-2xl!">Offerings</Typography>
             </CardTitle>
             <Typography variant="muted" className="text-xs text-general-muted-foreground">
               Defines what you actually sell so recommendations focus on revenue-driving products and services.

@@ -1,10 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { api } from "@/hooks/use-api";
 import { useLocations } from "@/hooks/use-locations";
 import { useBusinessStore } from "@/store/business-store";
 import {
@@ -14,6 +15,7 @@ import {
 import { useBusinessProfileById, useUpdateBusinessProfile } from "@/hooks/use-business-profiles";
 import { useCreateJob, useJobByBusinessId, useUpdateJob, type Offering, type BusinessProfilePayload } from "@/hooks/use-jobs";
 
+import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/molecules/PageHeader";
 import ProfileSidebar from "@/components/organisms/ProfileSidebar";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
@@ -28,6 +30,8 @@ import {
 import { FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Typography } from "@/components/ui/typography";
+import { Loader2 } from "lucide-react";
+import { cleanWebsiteUrl } from "@/utils/utils";
 
 const sections = [
   { id: "business-info", label: "Business Info" },
@@ -55,16 +59,18 @@ function normalizeOfferingsList(jobOfferings: any): Array<{ name: string; descri
     .filter((o) => Boolean(o.name));
 }
 
-function normalizeRecurring(raw: unknown): "yes" | "no" | "partial" | "" {
-  if (raw === null || raw === undefined) return "";
-  if (raw === true) return "yes";
-  if (raw === false) return "no";
-
-  const s = String(raw).trim().toLowerCase();
-  if (s === "yes" || s === "y" || s === "true" || s === "1") return "yes";
-  if (s === "no" || s === "n" || s === "false" || s === "0") return "no";
-  if (s === "partial" || s === "partially" || s === "sometimes") return "partial";
-  return "";
+interface ProfileAutofillResponse {
+  business_url?: string;
+  profile_autofill?: {
+    url?: string;
+    market?: string;
+    ltv?: string;
+    sell?: string;
+    b2b_b2c?: string;
+    competitors?: string[];
+    segment?: number;
+  };
+  errors?: string | string[] | null;
 }
 
 export function PitchProfileTemplate() {
@@ -87,6 +93,8 @@ export function PitchProfileTemplate() {
   const createJobMutation = useCreateJob();
   const updateJobMutation = useUpdateJob();
 
+  const [isAutofillLoading, setIsAutofillLoading] = useState(false);
+
   React.useEffect(() => {
     resetProfileForm();
     return () => resetProfileForm();
@@ -103,8 +111,6 @@ export function PitchProfileTemplate() {
       businessName: "",
       businessDescription: "",
       primaryLocation: "",
-      recurringRevenue: "",
-      avgOrderValue: "",
       lifetimeValue: "",
       serviceType: "" as any,
       offerings: "" as any,
@@ -168,13 +174,21 @@ export function PitchProfileTemplate() {
         },
         BusinessObjective: normalizedServeCustomers,
         LocationType: normalizedOfferType,
-        RecurringFlag: value.recurringRevenue || null,
-        AOV: value.avgOrderValue ?? null,
-        LTV: value.lifetimeValue ?? null,
+        LTV:
+          value.lifetimeValue === "high" ||
+          value.lifetimeValue === "low"
+            ? value.lifetimeValue
+            : null,
         BrandTerms: brandTermsArray.length > 0 ? brandTermsArray : null,
       };
 
-      await updateBusinessProfileMutation.mutateAsync(businessProfilePayload);
+      // Inputs for some business metrics were removed from the UI, but the backend may still return them.
+      // Preserve any existing non-editable fields by merging current profile data into the update payload.
+      const payloadForUpdate: BusinessProfilePayload = profileData
+        ? ({ ...(profileData as any), ...(businessProfilePayload as any) } as any)
+        : businessProfilePayload;
+
+      await updateBusinessProfileMutation.mutateAsync(payloadForUpdate as any);
 
       const jobDetails = jobQuery.data;
       const jobExists = Boolean(jobDetails && jobDetails.job_id);
@@ -182,13 +196,13 @@ export function PitchProfileTemplate() {
       if (jobExists) {
         await updateJobMutation.mutateAsync({
           businessId,
-          businessProfilePayload,
+          businessProfilePayload: payloadForUpdate,
           offerings,
         });
       } else {
         await createJobMutation.mutateAsync({
           businessId,
-          businessProfilePayload,
+          businessProfilePayload: payloadForUpdate,
           offerings,
         });
       }
@@ -196,6 +210,58 @@ export function PitchProfileTemplate() {
       toast.success("Profile updated");
     },
   });
+
+  const handleAutofillProfile = useCallback(async () => {
+    const values = form.state.values as BusinessInfoFormData;
+    const website = cleanWebsiteUrl(values?.website || "").trim();
+    if (!website) {
+      toast.error("Please enter a website URL first");
+      return;
+    }
+    setIsAutofillLoading(true);
+    try {
+      const res = await api.post<ProfileAutofillResponse>(
+        "/profile-autofill",
+        "python",
+        { business_url: website },
+        { timeout: 120000 }
+      );
+      if (res?.errors) {
+        toast.error("Failed to autofill profile");
+        return;
+      }
+      const pa = res?.profile_autofill;
+      if (!pa) return;
+
+      const market = (pa.market ?? "").toLowerCase();
+      if (market === "local" || market === "online") {
+        form.setFieldValue(
+          "serviceType" as any,
+          (market === "local" ? "physical" : "online") as any
+        );
+      }
+
+      const sell = (pa.sell ?? "products").toLowerCase();
+      const nextOfferings =
+        sell === "services"
+          ? "services"
+          : sell === "both"
+            ? "both"
+            : "products";
+      form.setFieldValue("offerings" as any, nextOfferings as any);
+
+      const ltvFromAutofill = (pa.ltv ?? "").toString().trim().toLowerCase();
+      if (ltvFromAutofill === "high" || ltvFromAutofill === "low") {
+        form.setFieldValue("lifetimeValue" as any, ltvFromAutofill as any);
+      }
+
+      toast.success("Profile fields updated from website");
+    } catch {
+      toast.error("Failed to autofill profile");
+    } finally {
+      setIsAutofillLoading(false);
+    }
+  }, [form]);
 
   const formValues = useStore(form.store, (state: any) => state.values) as BusinessInfoFormData;
 
@@ -287,36 +353,13 @@ export function PitchProfileTemplate() {
     }
     if (!String(formValues.serviceType || "").trim() && serviceType) form.setFieldValue("serviceType", serviceType as any);
 
-    const recurringFlag = normalizeRecurring(
-      profileAny?.RecurringFlag ??
-        profileAny?.recurring_flag ??
-        profileAny?.recurringFlag ??
-        profileAny?.RecurringRevenue ??
-        profileAny?.recurringRevenue ??
-        (jobDetails as any)?.recurring_flag ??
-        (jobDetails as any)?.recurringFlag ??
-        (jobDetails as any)?.recurring_revenue
-    );
-    if (!String(formValues.recurringRevenue || "").trim() && recurringFlag) {
-      form.setFieldValue("recurringRevenue", recurringFlag);
-    }
-
-    const aovFromBusiness = profileAny?.AOV ?? profileAny?.aov;
-    const aovFromJob = (jobDetails as any)?.aov;
-    const aov = aovFromBusiness ?? aovFromJob;
-    const aovStr =
-      typeof aov === "number" && Number.isFinite(aov) ? String(aov) : aov ? String(aov) : "";
-    if ((formValues.avgOrderValue == null || String(formValues.avgOrderValue).trim() === "") && aovStr) {
-      form.setFieldValue("avgOrderValue", aovStr as any);
-    }
-
     const ltvFromBusiness = profileAny?.LTV ?? profileAny?.ltv;
     const ltvFromJob = (jobDetails as any)?.ltv;
     const ltv = ltvFromBusiness ?? ltvFromJob;
-    const ltvStr =
-      typeof ltv === "number" && Number.isFinite(ltv) ? String(ltv) : ltv ? String(ltv) : "";
-    if ((formValues.lifetimeValue == null || String(formValues.lifetimeValue).trim() === "") && ltvStr) {
-      form.setFieldValue("lifetimeValue", ltvStr as any);
+    const ltvStr = ltv != null ? String(ltv).trim().toLowerCase() : "";
+    const ltvValue = ltvStr === "high" || ltvStr === "low" ? ltvStr : "";
+    if ((formValues.lifetimeValue == null || String(formValues.lifetimeValue).trim() === "") && ltvValue) {
+      form.setFieldValue("lifetimeValue", ltvValue as any);
     }
 
     if (!String(formValues.offerings || "").trim()) form.setFieldValue("offerings", offerings as any);
@@ -359,26 +402,22 @@ export function PitchProfileTemplate() {
     return list.some((row) => Boolean(row?.name?.trim()));
   }, [formValues.offeringsList]);
 
-  const hasRecurringRevenue = React.useMemo(() => {
-    return Boolean((formValues.recurringRevenue ?? "").toString().trim());
-  }, [formValues.recurringRevenue]);
-
   const canConfirmAndProceed =
     !hasSchemaValidationErrors &&
     !hasOfferingsValidationErrors &&
-    hasRecurringRevenue &&
     hasAtLeastOneOffering;
 
   const isSavingBusiness = updateBusinessProfileMutation.isPending;
   const isSavingJob = createJobMutation.isPending || updateJobMutation.isPending;
   const isSubmitting = useStore(form.store, (state: any) => state.isSubmitting === true);
 
-  const isLoading = isSavingBusiness || isSavingJob;
+  const isLoading = isSavingBusiness || isSavingJob || isAutofillLoading;
   const loadingMessage = React.useMemo(() => {
+    if (isAutofillLoading) return "Autofilling profile...";
     if (isSavingJob) return "Saving job...";
     if (isSavingBusiness) return "Saving business...";
     return undefined;
-  }, [isSavingBusiness, isSavingJob]);
+  }, [isAutofillLoading, isSavingBusiness, isSavingJob]);
 
   const handleConfirmAndProceed = React.useCallback(async () => {
     await form.handleSubmit();
@@ -413,7 +452,32 @@ export function PitchProfileTemplate() {
                 form.handleSubmit();
               }}
             >
-              <BusinessInfoForm form={form} disableWebsiteLock />
+              <BusinessInfoForm
+                form={form}
+                disableWebsiteLock
+                headerAction={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAutofillProfile}
+                    disabled={
+                      isAutofillLoading ||
+                      !(formValues?.website ?? "").toString().trim()
+                    }
+                    className="gap-2"
+                  >
+                    {isAutofillLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Autofilling...
+                      </>
+                    ) : (
+                      "Autofill profile"
+                    )}
+                  </Button>
+                }
+              />
               <OfferingsForm
                 form={form}
                 businessId={businessId ?? null}

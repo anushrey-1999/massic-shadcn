@@ -47,6 +47,68 @@ interface DisconnectResponse {
   message?: string;
 }
 
+interface WordpressOauthSessionResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    sessionId: string;
+    siteUrl: string;
+    siteId: string;
+    status: "pending" | "approved" | "finalized" | "expired";
+    expiresAt: string;
+    returnUrl: string;
+    businessId: string | null;
+  };
+}
+
+interface WordpressOauthApproveResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    sessionId: string;
+    connectionId: string;
+    redirectUrl: string;
+  };
+}
+
+interface WordpressOauthStartLinkResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    connectUrl: string;
+  };
+}
+
+export interface WordpressStyleProfileData {
+  connected: boolean;
+  connection: {
+    connectionId: string;
+    siteUrl: string;
+    siteId: string;
+    status: "active" | "revoked";
+  };
+  latestExtraction: {
+    id: string;
+    trigger: "connect" | "reconnect" | "manual";
+    status: "running" | "success" | "partial" | "failed";
+    qualityScore: number | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+  profile: Record<string, unknown> | null;
+  provenance: Record<string, unknown> | null;
+}
+
+interface WordpressStyleProfileResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: WordpressStyleProfileData;
+}
+
 const getErrorMessage = (error: any, fallback: string) => {
   return (
     error?.response?.data?.message ||
@@ -126,5 +188,99 @@ export function useDisconnectWordpress(businessId: string | null) {
         description: getErrorMessage(error, "Please try again."),
       });
     },
+  });
+}
+
+export function useWordpressOauthSession(sessionId: string | null) {
+  return useQuery({
+    queryKey: ["wordpress-oauth-session", sessionId],
+    enabled: Boolean(sessionId),
+    queryFn: async () => {
+      const res = await api.get<WordpressOauthSessionResponse>(
+        `/cms/wordpress/oauth/session?sessionId=${encodeURIComponent(String(sessionId))}`,
+        "node"
+      );
+
+      if (!res?.success || !res.data) {
+        throw new Error(res?.message || "Failed to load WordPress connect session");
+      }
+
+      return res.data;
+    },
+    staleTime: 5 * 1000,
+  });
+}
+
+export function useApproveWordpressOauth() {
+  return useMutation<
+    WordpressOauthApproveResponse,
+    Error,
+    { sessionId: string; businessId: string }
+  >({
+    mutationFn: async (payload) => {
+      const res = await api.post<WordpressOauthApproveResponse>(
+        "/cms/wordpress/oauth/approve",
+        "node",
+        payload
+      );
+
+      if (!res?.success) {
+        throw new Error(res?.message || "Failed to approve WordPress connection");
+      }
+
+      return res;
+    },
+    onError: (error) => {
+      toast.error("WordPress authorization failed", {
+        description: getErrorMessage(error, "Please try again."),
+      });
+    },
+  });
+}
+
+export function useStartWordpressOauthLink() {
+  return useMutation<
+    WordpressOauthStartLinkResponse,
+    Error,
+    { businessId: string; siteUrl: string }
+  >({
+    mutationFn: async (payload) => {
+      const res = await api.post<WordpressOauthStartLinkResponse>(
+        "/cms/wordpress/oauth/start-link",
+        "node",
+        payload
+      );
+
+      if (!res?.success || !res.data?.connectUrl) {
+        throw new Error(res?.message || "Failed to generate WordPress admin link");
+      }
+
+      return res;
+    },
+    onError: (error) => {
+      toast.error("Failed to create WordPress connect link", {
+        description: getErrorMessage(error, "Please verify the site URL and try again."),
+      });
+    },
+  });
+}
+
+export function useWordpressStyleProfile(connectionId: string | null) {
+  return useQuery<WordpressStyleProfileData | null>({
+    queryKey: ["wordpress-style-profile", connectionId],
+    enabled: Boolean(connectionId),
+    queryFn: async () => {
+      const res = await api.get<WordpressStyleProfileResponse>(
+        `/cms/wordpress/style-profile?connectionId=${encodeURIComponent(String(connectionId))}`,
+        "node"
+      );
+
+      if (!res?.success) {
+        throw new Error(res?.message || "Failed to fetch WordPress style profile");
+      }
+
+      return res.data || null;
+    },
+    staleTime: 30 * 1000,
   });
 }

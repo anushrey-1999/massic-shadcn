@@ -20,7 +20,7 @@ export interface BusinessProfilePayload {
   Description?: string;
   UserDefinedBusinessDescription?: string;
   AOV?: number | string | null;
-  LTV?: number | string | null;
+  LTV?: "high" | "low" | string | null;
   BrandTerms?: string[] | null;
   RecurringFlag?: string | null;
   PrimaryLocation?: {
@@ -184,17 +184,19 @@ function mapBusinessProfilePayloadToJobFormData(
 
   formDataPayload.append("trigger_workflow", "False");
 
-  // Extra business metrics fields (python API expects snake_case)
+  // Extra business fields (python API expects snake_case)
   const aov = (businessProfilePayload as any).AOV ?? (businessProfilePayload as any).aov;
   const ltv = (businessProfilePayload as any).LTV ?? (businessProfilePayload as any).ltv;
-  const recurringFlag = (businessProfilePayload as any).RecurringFlag ?? (businessProfilePayload as any).recurring_flag;
+  const recurringFlag =
+    (businessProfilePayload as any).RecurringFlag ?? (businessProfilePayload as any).recurring_flag;
   const brandTerms = (businessProfilePayload as any).BrandTerms ?? (businessProfilePayload as any).brand_terms;
 
   if (aov !== undefined && aov !== null && String(aov).trim() !== "") {
     formDataPayload.append("aov", String(aov));
   }
-  if (ltv !== undefined && ltv !== null && String(ltv).trim() !== "") {
-    formDataPayload.append("ltv", String(ltv));
+  const ltvStr = ltv != null ? String(ltv).trim().toLowerCase() : "";
+  if (ltvStr === "high" || ltvStr === "low") {
+    formDataPayload.append("ltv", ltvStr);
   }
   if (typeof recurringFlag === "string" && recurringFlag.trim()) {
     formDataPayload.append("recurring_flag", recurringFlag.trim().toLowerCase());

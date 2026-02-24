@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Copy, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, Eye, Sparkles } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 
 import { Button } from "@/components/ui/button";
@@ -11,18 +11,23 @@ import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
+import { resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 
-function getTypeFromIntent(intent: string | null): WebActionType {
+function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
+  const pt = (pageType || "").toLowerCase();
+  if (pt === "blog") return "blog";
+  if (pt) return "page";
   return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
 }
 
 export function WebOutlineView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pageType = searchParams.get("pageType");
   const intent = searchParams.get("intent");
   const keyword = searchParams.get("keyword") || "";
-  const type = getTypeFromIntent(intent);
+  const type = getTypeFromPageType(pageType, intent);
 
   const { startFinal, updateOutline } = useWebPageActions();
 
@@ -106,8 +111,12 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const typeLabel = type === "blog" ? "blog" : "page";
   const finalContent =
     type === "blog"
-      ? cleanEscapedContent(data?.output_data?.page?.blog?.blog_post || "")
-      : cleanEscapedContent(data?.output_data?.page?.page_content?.page_content || "");
+      ? cleanEscapedContent(
+          (typeof data?.output_data?.page?.blog === "string"
+            ? data?.output_data?.page?.blog
+            : data?.output_data?.page?.blog?.blog_post) || ""
+        )
+      : resolvePageContent(data);
   const hasFinalContent = !!finalContent && finalContent.trim().length > 0;
   const hasOutline = !!outline && outline.trim().length > 0;
   const isGeneratingFinal = hasOutline && !hasFinalContent;
@@ -188,6 +197,14 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
     }
   };
 
+  const handleViewFinal = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("mode", "final");
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
+  const viewFinalLabel = type === "blog" ? "View Blog" : "View Page";
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0 space-y-4">
@@ -217,10 +234,17 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
               <Copy className="h-4 w-4" />
               Copy
             </Button>
-            <Button className="gap-2" onClick={handleGenerateFinal} disabled={loading || isProcessing}>
-              <Sparkles className="h-4 w-4" />
-              {loading ? "Generating..." : type === "blog" ? "Generate Blog" : "Generate Page"}
-            </Button>
+            {hasFinalContent ? (
+              <Button className="gap-2" variant="default" onClick={handleViewFinal}>
+                <Eye className="h-4 w-4" />
+                {viewFinalLabel}
+              </Button>
+            ) : (
+              <Button className="gap-2" onClick={handleGenerateFinal} disabled={loading || isProcessing}>
+                <Sparkles className="h-4 w-4" />
+                {loading ? "Generating..." : type === "blog" ? "Generate Blog" : "Generate Page"}
+              </Button>
+            )}
           </div>
         </div>
       </div>

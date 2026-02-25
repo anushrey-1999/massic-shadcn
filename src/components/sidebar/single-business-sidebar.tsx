@@ -171,6 +171,7 @@ export default function SingleBusinessSidebar() {
   const businessNavItems = [
     { label: 'Analytics', slug: 'analytics', icon: BarChart3 },
     { label: 'Strategy', slug: 'strategy', icon: Target },
+    { label: 'Actions', slug: 'actions', icon: Tv },
     { label: 'Web', slug: 'web', icon: Globe },
     { label: 'Social', slug: 'social', icon: Share2 },
     { label: 'Reviews', slug: 'reviews', icon: Star },

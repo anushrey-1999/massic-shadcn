@@ -95,8 +95,9 @@ export function snapshotReportToMarkdown(args: {
   quickEvaluation?: unknown;
   competitors?: Competitor[];
   footerSummary?: string;
+  poweredByName?: string;
 }): string {
-  const { expressPitch, generatedAt, profileTags, quickEvaluation, competitors, footerSummary } =
+  const { expressPitch, generatedAt, profileTags, quickEvaluation, competitors, footerSummary, poweredByName } =
     args;
 
   const url = line(expressPitch?.url);
@@ -224,8 +225,9 @@ export function snapshotReportToMarkdown(args: {
   }
 
   if (footerSummary) {
+    const poweredBy = line(poweredByName) || "Massic";
     parts.push(`---`);
-    parts.push(`Powered by MASSIC — ${String(footerSummary).trim()}`);
+    parts.push(`Powered by ${poweredBy} — ${String(footerSummary).trim()}`);
   }
 
   return parts.filter(Boolean).join("\n\n").trim();

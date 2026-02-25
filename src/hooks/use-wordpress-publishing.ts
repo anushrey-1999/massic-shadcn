@@ -1,17 +1,20 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 
 export interface WordpressPublishResponse {
   success: boolean;
   err: boolean;
+  code?: string;
   message?: string;
+  details?: Record<string, any>;
   data?: {
     contentId: string;
     wpId: number;
     permalink: string | null;
     editUrl: string | null;
     status: string;
+    slug?: string | null;
   };
 }
 
@@ -38,6 +41,34 @@ export interface WordpressUnpublishResponse {
   };
 }
 
+export interface WordpressSlugConflictInfo {
+  wpId: number;
+  title: string;
+  status: string;
+  wpType: "post" | "page";
+  permalink: string | null;
+  editUrl: string | null;
+  slug?: string;
+  typeMismatch?: boolean;
+  reason?: "slug_exists" | "type_mismatch" | "parent_type_conflict" | string;
+}
+
+export interface WordpressSlugCheckResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    slug: string;
+    publishUrl: string | null;
+    exists: boolean;
+    sameMappedContent: boolean;
+    conflict: WordpressSlugConflictInfo | null;
+    suggestedSlug?: string | null;
+    mappedToDifferentContent: boolean;
+    mappedContentId: string | null;
+  };
+}
+
 interface PublishPayload {
   connectionId: string;
   status?: "draft" | "pending" | "publish" | "private" | "future";
@@ -51,6 +82,13 @@ interface PublishPayload {
   head?: Record<string, any>;
   workflowSource?: "infer_ai";
   workflowPayload?: Record<string, any>;
+}
+
+interface SlugCheckPayload {
+  connectionId: string;
+  contentId: string;
+  type: "post" | "page";
+  slug: string;
 }
 
 interface PreviewPayload {
@@ -78,9 +116,24 @@ interface ContentStatusResponse {
       wpType: "post" | "page" | null;
       permalink: string | null;
       status: string | null;
+      slug: string | null;
       updatedAt: string | null;
     } | null;
   };
+}
+
+export class WordpressPublishError extends Error {
+  code?: string;
+  details?: Record<string, any>;
+  statusCode?: number;
+
+  constructor(message: string, code?: string, details?: Record<string, any>, statusCode?: number) {
+    super(message);
+    this.name = "WordpressPublishError";
+    this.code = code;
+    this.details = details;
+    this.statusCode = statusCode;
+  }
 }
 
 const getErrorMessage = (error: any, fallback: string) => {
@@ -92,19 +145,75 @@ const getErrorMessage = (error: any, fallback: string) => {
   );
 };
 
+function toWordpressPublishError(error: any, fallbackMessage: string) {
+  if (error instanceof WordpressPublishError) {
+    return error;
+  }
+
+  const responseData = error?.response?.data;
+  const message = responseData?.message || error?.message || fallbackMessage;
+  const code = responseData?.code;
+  const details = responseData?.details;
+  const statusCode = typeof error?.response?.status === "number" ? error.response.status : undefined;
+
+  return new WordpressPublishError(message, code, details, statusCode);
+}
+
 export function useWordpressPublish() {
-  return useMutation<WordpressPublishResponse, Error, PublishPayload>({
+  const queryClient = useQueryClient();
+
+  return useMutation<WordpressPublishResponse, WordpressPublishError, PublishPayload>({
     mutationFn: async (payload) => {
-      const res = await api.post<WordpressPublishResponse>("/cms/wordpress/publish", "node", payload);
-      if (!res?.success) {
-        throw new Error(res?.message || "Failed to publish to WordPress");
+      try {
+        const res = await api.post<WordpressPublishResponse>("/cms/wordpress/publish", "node", payload);
+        if (!res?.success) {
+          throw new WordpressPublishError(
+            res?.message || "Failed to publish to WordPress",
+            res?.code,
+            res?.details,
+            undefined
+          );
+        }
+        return res;
+      } catch (error: any) {
+        throw toWordpressPublishError(error, "Failed to publish to WordPress");
       }
-      return res;
     },
     onError: (error) => {
+      if (error?.code === "slug_conflict") {
+        toast.error("WordPress slug conflict", {
+          description: error.message || "This slug already exists in WordPress.",
+        });
+        return;
+      }
+
       toast.error("WordPress publish failed", {
         description: getErrorMessage(error, "Please try again."),
       });
+    },
+    onSuccess: (_data, variables) => {
+      if (variables?.connectionId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["wordpress-content-status", variables.connectionId],
+        });
+        return;
+      }
+
+      void queryClient.invalidateQueries({
+        queryKey: ["wordpress-content-status"],
+      });
+    },
+  });
+}
+
+export function useWordpressSlugCheck() {
+  return useMutation<WordpressSlugCheckResponse, Error, SlugCheckPayload>({
+    mutationFn: async (payload) => {
+      const res = await api.post<WordpressSlugCheckResponse>("/cms/wordpress/slug-check", "node", payload);
+      if (!res?.success) {
+        throw new Error(res?.message || "Failed to check WordPress slug");
+      }
+      return res;
     },
   });
 }
@@ -127,6 +236,8 @@ export function useWordpressPreviewLink() {
 }
 
 export function useWordpressUnpublish() {
+  const queryClient = useQueryClient();
+
   return useMutation<WordpressUnpublishResponse, Error, UnpublishPayload>({
     mutationFn: async (payload) => {
       const res = await api.post<WordpressUnpublishResponse>("/cms/wordpress/unpublish", "node", payload);
@@ -138,6 +249,18 @@ export function useWordpressUnpublish() {
     onError: (error) => {
       toast.error("WordPress unpublish failed", {
         description: getErrorMessage(error, "Please try again."),
+      });
+    },
+    onSuccess: (_data, variables) => {
+      if (variables?.connectionId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["wordpress-content-status", variables.connectionId],
+        });
+        return;
+      }
+
+      void queryClient.invalidateQueries({
+        queryKey: ["wordpress-content-status"],
       });
     },
   });
@@ -163,5 +286,6 @@ export function useWordpressContentStatus(connectionId: string | null, contentId
       };
     },
     staleTime: 10 * 1000,
+    refetchOnMount: "always",
   });
 }

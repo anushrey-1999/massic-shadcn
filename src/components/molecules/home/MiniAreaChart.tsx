@@ -330,7 +330,7 @@ export function MiniAreaChart({
             }
           />
           <Area
-            type="monotone"
+            type="linear"
             dataKey={normalizedData.length > 0 ? "impressionsNorm" : "impressions"}
             yAxisId="left"
             stroke="var(--color-impressions)"
@@ -339,7 +339,7 @@ export function MiniAreaChart({
             dot={false}
           />
           <Area
-            type="monotone"
+            type="linear"
             dataKey={normalizedData.length > 0 ? "clicksNorm" : "clicks"}
             yAxisId="left"
             stroke="var(--color-clicks)"
@@ -348,7 +348,7 @@ export function MiniAreaChart({
             dot={false}
           />
           <Area
-            type="monotone"
+            type="linear"
             dataKey={normalizedData.length > 0 ? "goalsNorm" : "goals"}
             yAxisId="left"
             stroke="var(--color-goals)"

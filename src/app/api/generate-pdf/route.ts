@@ -628,8 +628,9 @@ function snapshotHtmlFromData(args: {
   quickEvaluation?: unknown;
   competitors?: Competitor[];
   footerSummary?: string;
+  poweredByName?: string;
 }): string {
-  const { expressPitch, title, generatedAt, profileTags, quickEvaluation, competitors, footerSummary } = args;
+  const { expressPitch, title, generatedAt, profileTags, quickEvaluation, competitors, footerSummary, poweredByName } = args;
 
   const url = String(expressPitch?.url || "").trim();
   const displayUrl = stripProtocol(url);
@@ -714,6 +715,8 @@ function snapshotHtmlFromData(args: {
     })
     .filter(Boolean)
     .join("");
+
+  const poweredBy = String(poweredByName || "").trim() || "Massic";
 
   return `
     <div class="container">
@@ -842,7 +845,7 @@ function snapshotHtmlFromData(args: {
       ${footerSummary ? `
         <div class="spacer"></div>
         <div class="footer">
-          <div class="footerMuted">Powered by MASSIC</div>
+          <div class="footerMuted">Powered by ${escapeHtml(poweredBy)}</div>
           <div class="footerMono">${escapeHtml(String(footerSummary || ""))}</div>
         </div>
       ` : ""}
@@ -853,7 +856,7 @@ function snapshotHtmlFromData(args: {
 export async function POST(request: NextRequest) {
   let page = null;
   try {
-    const { markdown, title, template, html, expressPitch, generatedAt, quickEvaluation, profileTags, competitors, footerSummary } =
+    const { markdown, title, template, html, expressPitch, generatedAt, quickEvaluation, profileTags, competitors, footerSummary, poweredByName } =
       await request.json();
 
     const normalizedTitle = String(title || "Document");
@@ -871,6 +874,7 @@ export async function POST(request: NextRequest) {
         profileTags: Array.isArray(profileTags) ? (profileTags as ProfileTag[]) : undefined,
         competitors: Array.isArray(competitors) ? (competitors as Competitor[]) : undefined,
         footerSummary: String(footerSummary || ""),
+        poweredByName: String(poweredByName || ""),
       });
       css = SNAPSHOT_CSS;
     } else if (typeof html === "string" && html.trim()) {

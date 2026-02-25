@@ -44,6 +44,7 @@ import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useAuthStore } from "@/store/auth-store";
 import { formatDate, formatVolume } from "@/lib/format";
 import { useQuickEvaluation } from "@/hooks/use-quick-evaluation";
+import { useAgencyInfo } from "@/hooks/use-agency-settings";
 
 export default function PitchReportsPage() {
   const params = useParams();
@@ -52,6 +53,7 @@ export default function PitchReportsPage() {
   const queryClient = useQueryClient();
   const businessId = (params as any)?.id as string | undefined;
   const { user } = useAuthStore();
+  const { agencyInfo } = useAgencyInfo();
 
   const startQuickyMutation = useStartQuickyReport();
   const fetchReportMutation = useFetchReportFromDownloadUrl();
@@ -978,6 +980,7 @@ export default function PitchReportsPage() {
                   profileTags={snapshotProfileTags}
                   competitors={snapshotCompetitors}
                   footerSummary={snapshotFooterSummary}
+                  poweredByName={agencyInfo?.name}
                   quickEvaluation={quickEvaluationMutation.data}
                   quickEvaluationLoading={quickEvaluationMutation.isPending}
                   quickEvaluationErrorMessage={quickEvaluationMutation.error?.message}

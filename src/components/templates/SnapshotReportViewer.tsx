@@ -26,6 +26,7 @@ type SnapshotReportViewerProps = {
   profileTags?: ProfileTag[];
   competitors?: Competitor[];
   footerSummary?: string;
+  poweredByName?: string;
   quickEvaluation?: unknown;
   quickEvaluationLoading?: boolean;
   quickEvaluationErrorMessage?: string;
@@ -60,6 +61,7 @@ export function SnapshotReportViewer({
   profileTags,
   competitors,
   footerSummary,
+  poweredByName,
   quickEvaluation,
   quickEvaluationLoading = false,
   quickEvaluationErrorMessage,
@@ -93,8 +95,9 @@ export function SnapshotReportViewer({
       quickEvaluation,
       competitors,
       footerSummary,
+      poweredByName,
     });
-  }, [draft, generatedAt, profileTags, quickEvaluation, competitors, footerSummary]);
+  }, [draft, generatedAt, profileTags, quickEvaluation, competitors, footerSummary, poweredByName]);
 
   const defaultFilename = React.useMemo(() => {
     const raw = String(draft.url || "").trim();
@@ -218,7 +221,7 @@ export function SnapshotReportViewer({
           }
         />
 
-        <ReportFooter summary={footerSummary} />
+        <ReportFooter poweredByName={poweredByName} summary={footerSummary} />
       </div>
 
       <DownloadReportDialog
@@ -233,6 +236,7 @@ export function SnapshotReportViewer({
             profileTags,
             competitors,
             footerSummary,
+            poweredByName,
             filename,
             generatedAt,
           })

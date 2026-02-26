@@ -78,7 +78,7 @@ export function PitchesHistoryTable({
       emptyMessage="No pitches found."
       showPagination={false}
       disableHorizontalScroll={true}
-      className="h-[calc(100vh-45rem)]"
+      className="h-full min-h-[240px]"
     />
   );
 }

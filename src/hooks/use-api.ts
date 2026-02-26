@@ -80,7 +80,8 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
         useAuthStore.getState().logout();
 
         if (typeof window !== "undefined") {
-          window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+          const currentPath = `${window.location.pathname}${window.location.search || ""}`;
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
         }
 
         return Promise.reject(new Error("Token expired"));

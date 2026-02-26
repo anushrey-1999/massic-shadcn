@@ -25,9 +25,9 @@ export type HomeTimePeriodValue =
   | "12 months"
 
 const miniChartConfig: ChartConfig = {
-  impressions: { label: "Imp.", color: "#8662D0" },
-  clicks: { label: "Clicks", color: "#2563EB" },
-  goals: { label: "Goals", color: "var(--general-unofficial-foreground-alt)" },
+  impressions: { label: "Imp.", color: "#6b7280" },
+  clicks: { label: "Clicks", color: "#2563eb" },
+  goals: { label: "Goals", color: "#059669" },
 }
 
 function formatTooltipDate(input: unknown) {
@@ -244,16 +244,16 @@ export function MiniAreaChart({
         <AreaChart data={chartData} margin={{ top: 0, right: 4, left: 4, bottom: 0 }}>
           <defs>
             <linearGradient id={impressionsGradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8662D0" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="#8662D0" stopOpacity={0} />
+              <stop offset="0%" stopColor="#6b7280" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#6b7280" stopOpacity={0} />
             </linearGradient>
             <linearGradient id={clicksGradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#2563EB" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
+              <stop offset="0%" stopColor="#2563eb" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
             </linearGradient>
             <linearGradient id={goalsGradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--general-unofficial-foreground-alt)" stopOpacity={0.15} />
-              <stop offset="100%" stopColor="var(--general-unofficial-foreground-alt)" stopOpacity={0} />
+              <stop offset="0%" stopColor="#059669" stopOpacity={0.15} />
+              <stop offset="100%" stopColor="#059669" stopOpacity={0} />
             </linearGradient>
           </defs>
           <XAxis

@@ -1240,117 +1240,13 @@ export default function PitchReportsPage() {
               </div> */}
 
                   <div className="mt-4">
-                    {hasExistingDetailed ? (
-                      <div className="flex gap-2">
-                        <Button
-                          size="lg"
-                          className="flex-1"
-                          disabled={!businessId || isDetailedProcessing}
-                          onClick={() => {
-                            if (!businessId) return;
-                            if (!canExecuteDetailed) {
-                              setUpgradeModalMessage("Subscribe to Massic Opportunities to view detailed reports.");
-                              setShowUpgradeModal(true);
-                              return;
-                            }
-                            queryClient.removeQueries({
-                              queryKey: ["detailed-report", businessId],
-                            });
-                            setActiveReport("detailed");
-                            setReportContent("");
-                            setDetailedPolling(true);
-                            generateDetailedReportMutation.reset();
-                            fetchReportMutation.reset();
-                          }}
-                        >
-                          View
-                        </Button>
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          className="flex-1"
-                          disabled={
-                            !businessId ||
-                            generateDetailedReportMutation.isPending ||
-                            isDetailedProcessing
-                          }
-                          onClick={async () => {
-                            if (!businessId) return;
-
-                            const generateDetailed = async () => {
-                              queryClient.removeQueries({
-                                queryKey: ["detailed-report", businessId],
-                              });
-                              setActiveReport("detailed");
-                              setReportContent("");
-                              setDetailedPolling(false);
-                              generateDetailedReportMutation.reset();
-                              fetchReportMutation.reset();
-                              try {
-                                await generateDetailedReportMutation.mutateAsync({ businessId });
-                                queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                                queryClient.invalidateQueries({
-                                  queryKey: ["detailed", "status", "existing", businessId],
-                                });
-                                setDetailedPolling(true);
-                              } catch (error) {
-                                // Error is already handled by mutation's onError (toast)
-                                // Reset states to hide the processing UI
-                                setActiveReport(null);
-                                setDetailedPolling(false);
-                              }
-                            };
-
-                            await handleGenerateWithCreditsCheck("detailed", generateDetailed);
-                          }}
-                        >
-                          {generateDetailedReportMutation.isPending
-                            ? "Generating..."
-                            : "Regenerate"}
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        size="lg"
-                        className="w-full"
-                        disabled={
-                          !businessId ||
-                          generateDetailedReportMutation.isPending ||
-                          isDetailedProcessing
-                        }
-                        onClick={async () => {
-                          if (!businessId) return;
-
-                          const generateDetailed = async () => {
-                            queryClient.removeQueries({
-                              queryKey: ["detailed-report", businessId],
-                            });
-                            setActiveReport("detailed");
-                            setReportContent("");
-                            setDetailedPolling(false);
-                            generateDetailedReportMutation.reset();
-                            fetchReportMutation.reset();
-                            try {
-                              await generateDetailedReportMutation.mutateAsync({ businessId });
-                              queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                              queryClient.invalidateQueries({
-                                queryKey: ["detailed", "status", "existing", businessId],
-                              });
-                              setDetailedPolling(true);
-                            } catch (error) {
-                              // Error is already handled by mutation's onError (toast)
-                              // Reset states to hide the processing UI
-                              setActiveReport(null);
-                              setDetailedPolling(false);
-                            }
-                          };
-
-                          await handleGenerateWithCreditsCheck("detailed", generateDetailed);
-                        }}
-                      >
-                        {generateDetailedReportMutation.isPending ? "Generating..." : "Generate"}
-                      </Button>
-                    )}
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      disabled
+                    >
+                      Coming Soon
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

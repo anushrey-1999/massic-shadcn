@@ -1034,9 +1034,9 @@ export default function PitchReportsPage() {
               </Button>
             </div>
 
-            <div className="flex gap-4 items-stretch justify-center ">
-              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none">
-                <CardContent className="p-0 h-full flex flex-col gap-4">
+            <div className="flex gap-4 items-stretch justify-center shrink-0 min-h-0 max-h-[44vh] overflow-hidden">
+              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none h-full min-h-0 flex flex-col">
+                <CardContent className="p-0 h-full flex flex-col gap-4 min-h-0">
                   <div className="flex items-center gap-2">
                     <Zap className="h-7.5 w-7.5 text-general-primary" />
                     <Typography
@@ -1068,7 +1068,7 @@ export default function PitchReportsPage() {
                     </div>
                   )}
 
-                  <div className="flex-1">
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     <Typography variant="p" className="text-primary">
                       A super-fast, low-cost snapshot of your SEO opportunity. In
                       10-20 seconds, it gives you a personalized, high-impact teaser
@@ -1186,8 +1186,8 @@ export default function PitchReportsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none ">
-                <CardContent className="p-0 h-full flex flex-col gap-4">
+              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none h-full min-h-0 flex flex-col">
+                <CardContent className="p-0 h-full flex flex-col gap-4 min-h-0">
                   <div className="flex items-center gap-2">
                     <ListChecks className="h-7.5 w-7.5 text-general-primary" />
                     <Typography
@@ -1219,7 +1219,7 @@ export default function PitchReportsPage() {
                     </div>
                   )}
 
-                  <div className="flex-1">
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     <Typography
                       variant="p"
                       className="text-primary leading-relaxed"
@@ -1252,8 +1252,8 @@ export default function PitchReportsPage() {
               </Card>
             </div>
 
-            <div className="flex-1 min-h-0 rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between mb-3">
+            <div className="flex-1 min-h-[260px] min-w-0 rounded-lg overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between mb-3 shrink-0">
                 <Typography variant="h4">Pitch history</Typography>
               </div>
 

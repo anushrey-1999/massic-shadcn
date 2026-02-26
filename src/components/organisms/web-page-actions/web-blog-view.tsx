@@ -98,6 +98,18 @@ function toSlug(value: string) {
   return segments.join("/");
 }
 
+function normalizeBlogEditableSlug(value: string | null | undefined) {
+  const normalized = toSlug(value || "");
+  if (!normalized) return "";
+
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.length > 1 && (segments[0] === "blog" || segments[0] === "blogs")) {
+    return segments.slice(1).join("/");
+  }
+
+  return segments.join("/");
+}
+
 function slugToDisplay(value: string | null | undefined, fallback: string) {
   const normalized = (value || "").trim();
   if (!normalized) return fallback;
@@ -277,17 +289,18 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   );
   const generatedSlugFallback = React.useMemo(() => toSlug(publishTitle || keyword || ""), [keyword, publishTitle]);
   const generatedSlug = React.useMemo(() => {
-    if (inferSlug) return inferSlug;
-    return generatedSlugFallback;
+    if (inferSlug) return normalizeBlogEditableSlug(inferSlug);
+    return normalizeBlogEditableSlug(generatedSlugFallback);
   }, [generatedSlugFallback, inferSlug]);
-  const normalizedEditableSlug = React.useMemo(() => toSlug(editableSlug), [editableSlug]);
+  const normalizedEditableSlug = React.useMemo(() => normalizeBlogEditableSlug(editableSlug), [editableSlug]);
+  const hasInvalidBlogSlug = React.useMemo(
+    () => Boolean(normalizedEditableSlug && normalizedEditableSlug.includes("/")),
+    [normalizedEditableSlug]
+  );
   const normalizedSlugForPublish = React.useMemo(() => {
-    if (!normalizedEditableSlug) return "";
-    if (normalizedEditableSlug === "blogs" || normalizedEditableSlug.startsWith("blogs/")) {
-      return normalizedEditableSlug;
-    }
-    return `blogs/${normalizedEditableSlug}`;
-  }, [normalizedEditableSlug]);
+    if (!normalizedEditableSlug || hasInvalidBlogSlug) return "";
+    return normalizedEditableSlug;
+  }, [hasInvalidBlogSlug, normalizedEditableSlug]);
   const publishType: "post" | "page" = type === "blog" ? "post" : "page";
   const contentStatusQuery = useWordpressContentStatus(
     wpConnection?.connectionId || null,
@@ -296,10 +309,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const persistedContent = contentStatusQuery.data?.content || null;
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
   const isPersistedTrashed = persistedStatus === "trash";
-  const persistedSlug = React.useMemo(() => toSlug(persistedContent?.slug || ""), [persistedContent?.slug]);
+  const persistedSlug = React.useMemo(() => normalizeBlogEditableSlug(persistedContent?.slug || ""), [persistedContent?.slug]);
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
-    if (!isPersistedTrashed && lastPublishedData?.slug) return toSlug(lastPublishedData.slug);
+    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeBlogEditableSlug(lastPublishedData.slug);
     if (generatedSlug) return generatedSlug;
     return generatedSlugFallback;
   }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug]);
@@ -344,7 +357,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   ]);
   const publishUrlPreview = React.useMemo(() => {
     const siteUrl = String(wpConnection?.siteUrl || "").replace(/\/+$/, "");
-    const slugForPreview = normalizedSlugForPublish || toSlug(slugCheckResult?.slug || "");
+    const slugForPreview = normalizedSlugForPublish || normalizeBlogEditableSlug(slugCheckResult?.slug || "");
     if (!siteUrl || !slugForPreview) {
       return null;
     }
@@ -420,6 +433,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       return null;
     }
 
+    if (hasInvalidBlogSlug) {
+      setSlugCheckResult(null);
+      setSlugCheckError("Blog slug must be a single segment (no nested '/' paths).");
+      lastAutoSlugCheckKeyRef.current = "";
+      return null;
+    }
+
     const checkKey = `${wpConnection.connectionId}:${String(publishContentId)}:${publishType}:${normalizedSlugForPublish}`;
     if (!force && lastAutoSlugCheckKeyRef.current === checkKey) {
       return null;
@@ -452,6 +472,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       setIsSlugChecking(false);
     }
   }, [
+    hasInvalidBlogSlug,
     isWpConnected,
     normalizedEditableSlug,
     normalizedSlugForPublish,
@@ -473,6 +494,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       return;
     }
 
+    if (hasInvalidBlogSlug) {
+      setSlugCheckResult(null);
+      setSlugCheckError("Blog slug must be a single segment (no nested '/' paths).");
+      lastAutoSlugCheckKeyRef.current = "";
+      return;
+    }
+
     const delayMs = isSlugEdited ? 350 : 0;
     const timer = window.setTimeout(() => {
       void runSlugCheck();
@@ -481,6 +509,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     return () => window.clearTimeout(timer);
   }, [
     isPublishModalOpen,
+    hasInvalidBlogSlug,
     isWpConnected,
     isSlugEdited,
     normalizedEditableSlug,
@@ -859,6 +888,12 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       return;
     }
 
+    if (hasInvalidBlogSlug || !normalizedSlugForPublish) {
+      setSlugCheckError("Blog slug must be a single segment (no nested '/' paths).");
+      toast.error("Blog slug must be a single segment");
+      return;
+    }
+
     const check = await runSlugCheck({ force: true });
     if (!check) {
       return;
@@ -881,7 +916,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
 
     await handlePublishLive();
-  }, [confirmPublishAction, handlePublishDraft, handlePublishLive, normalizedEditableSlug, runSlugCheck]);
+  }, [confirmPublishAction, handlePublishDraft, handlePublishLive, hasInvalidBlogSlug, normalizedEditableSlug, normalizedSlugForPublish, runSlugCheck]);
 
   const autoResolveSlug = React.useCallback(async () => {
     const suggestedSlug = slugCheckResult?.suggestedSlug || null;
@@ -891,7 +926,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
 
     setIsAutoResolvingSlug(true);
-    const normalizedSuggestion = toSlug(suggestedSlug);
+    const normalizedSuggestion = normalizeBlogEditableSlug(suggestedSlug);
     setEditableSlug(normalizedSuggestion);
     setIsSlugEdited(true);
     setSlugCheckError(null);
@@ -1106,10 +1141,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                 <Input
                   value={editableSlug}
                   onChange={(event) => {
-                    setEditableSlug(event.target.value);
+                    setEditableSlug(normalizeBlogEditableSlug(event.target.value));
                     setIsSlugEdited(true);
                   }}
-                  placeholder="enter-content-slug"
+                  placeholder="enter-blog-slug"
                   disabled={isSlugInputBusy}
                 />
               </div>
@@ -1193,7 +1228,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     </Button>
                     <Button
                       onClick={() => setConfirmPublishAction("live")}
-                      disabled={!hasFinalContent || !normalizedEditableSlug || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
                     >
                       {wpPublishMutation.isPending ? "Publishing..." : "Publish Live"}
                     </Button>
@@ -1203,7 +1238,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     onClick={() => setConfirmPublishAction("draft")}
                     disabled={
                       !hasFinalContent ||
-                      !normalizedEditableSlug ||
+                      !normalizedSlugForPublish ||
                       hasSlugConflict ||
                       isSlugChecking ||
                       contentStatusQuery.isLoading ||

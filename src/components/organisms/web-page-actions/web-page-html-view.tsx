@@ -43,6 +43,7 @@ import { copyToClipboard } from "@/utils/clipboard";
 import { resolvePageContent } from "@/utils/page-content-resolver";
 import { api } from "@/hooks/use-api";
 import { ensureMassicContentWrapper } from "@/utils/page-content-format";
+import { normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import {
   applyTextEditsToHtml,
   buildEditableHtmlModel,
@@ -98,35 +99,6 @@ function insertPlainTextAtCursor(text: string) {
   range.setEndAfter(textNode);
   selection.removeAllRanges();
   selection.addRange(range);
-}
-
-function toSlug(value: string) {
-  const normalized = (value || "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/\\/g, "/");
-
-  const segments = normalized
-    .split("/")
-    .map((segment) =>
-      segment
-        .trim()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-+|-+$/g, "")
-    )
-    .filter(Boolean);
-
-  return segments.join("/");
-}
-
-function slugToDisplay(value: string | null | undefined, fallback: string) {
-  const normalized = (value || "").trim();
-  if (!normalized) return fallback;
-  return normalized.startsWith("/") ? normalized : `/${normalized}`;
 }
 
 export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pageId: string }) {
@@ -243,12 +215,15 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     () => (typeof inferPage?.slug === "string" ? String(inferPage.slug).trim() : ""),
     [inferPage?.slug]
   );
-  const generatedSlugFallback = React.useMemo(() => toSlug(publishTitle || keyword || ""), [keyword, publishTitle]);
+  const generatedSlugFallback = React.useMemo(
+    () => normalizeWordpressSlugPath(publishTitle || keyword || ""),
+    [keyword, publishTitle]
+  );
   const generatedSlug = React.useMemo(() => {
-    if (inferSlug) return inferSlug;
+    if (inferSlug) return normalizeWordpressSlugPath(inferSlug);
     return generatedSlugFallback;
   }, [generatedSlugFallback, inferSlug]);
-  const normalizedEditableSlug = React.useMemo(() => toSlug(editableSlug), [editableSlug]);
+  const normalizedEditableSlug = React.useMemo(() => normalizeWordpressSlugPath(editableSlug), [editableSlug]);
   const contentStatusQuery = useWordpressContentStatus(
     wpConnection?.connectionId || null,
     publishContentId ? String(publishContentId) : null
@@ -256,10 +231,13 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const persistedContent = contentStatusQuery.data?.content || null;
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
   const isPersistedTrashed = persistedStatus === "trash";
-  const persistedSlug = React.useMemo(() => toSlug(persistedContent?.slug || ""), [persistedContent?.slug]);
+  const persistedSlug = React.useMemo(
+    () => normalizeWordpressSlugPath(persistedContent?.slug || ""),
+    [persistedContent?.slug]
+  );
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
-    if (!isPersistedTrashed && lastPublishedData?.slug) return toSlug(lastPublishedData.slug);
+    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressSlugPath(lastPublishedData.slug);
     if (generatedSlug) return generatedSlug;
     return generatedSlugFallback;
   }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug]);
@@ -304,7 +282,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   ]);
   const publishUrlPreview = React.useMemo(() => {
     const siteUrl = String(wpConnection?.siteUrl || "").replace(/\/+$/, "");
-    const slugForPreview = normalizedEditableSlug || toSlug(slugCheckResult?.slug || "");
+    const slugForPreview = normalizedEditableSlug || normalizeWordpressSlugPath(slugCheckResult?.slug || "");
     if (!siteUrl || !slugForPreview) {
       return null;
     }
@@ -315,7 +293,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   React.useEffect(() => {
     if (!isPublishModalOpen) return;
     if (isSlugEdited) return;
-    setEditableSlug(effectiveModalSlug);
+    setEditableSlug(normalizeWordpressSlugPath(effectiveModalSlug));
   }, [effectiveModalSlug, isPublishModalOpen, isSlugEdited]);
 
   React.useEffect(() => {
@@ -1048,11 +1026,11 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     }
 
     setIsAutoResolvingSlug(true);
-    const normalizedSuggestion = toSlug(suggestedSlug);
+    const normalizedSuggestion = normalizeWordpressSlugPath(suggestedSlug);
     setEditableSlug(normalizedSuggestion);
     setIsSlugEdited(true);
     setSlugCheckError(null);
-    toast.success(`Slug updated to ${slugToDisplay(normalizedSuggestion, "/untitled-page")}`);
+    toast.success(`Slug updated to ${wordpressSlugToDisplay(normalizedSuggestion, "/untitled-page")}`);
     setIsAutoResolvingSlug(false);
   }, [slugCheckResult?.suggestedSlug]);
 
@@ -1184,14 +1162,14 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
               <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
-                <Typography className="text-sm font-mono break-all">{slugToDisplay(effectiveModalSlug, "/untitled-page")}</Typography>
+                <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-page")}</Typography>
               </div>
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
                 <Input
                   value={editableSlug}
                   onChange={(event) => {
-                    setEditableSlug(event.target.value);
+                    setEditableSlug(normalizeWordpressSlugPath(event.target.value));
                     setIsSlugEdited(true);
                   }}
                   placeholder="enter-page-slug"
@@ -1222,7 +1200,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                       onClick={autoResolveSlug}
                       disabled={isSlugActionBusy}
                     >
-                      {isAutoResolvingSlug ? "Resolving..." : `Auto-resolve to ${slugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
+                      {isAutoResolvingSlug ? "Resolving..." : `Auto-resolve to ${wordpressSlugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
                     </Button>
                   ) : null}
                 </div>

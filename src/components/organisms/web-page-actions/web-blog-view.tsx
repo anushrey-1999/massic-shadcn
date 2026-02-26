@@ -56,6 +56,7 @@ import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { ContentConverter } from "@/utils/content-converter";
 import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { detectPageContentFormat } from "@/utils/page-content-format";
+import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import { cn } from "@/lib/utils";
 import { useWordpressConnection } from "@/hooks/use-wordpress-connector";
 import {
@@ -73,47 +74,6 @@ function getTypeFromPageType(pageType: string | null, intent?: string | null): W
   if (pt === "blog") return "blog";
   if (pt) return "page";
   return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
-}
-
-function toSlug(value: string) {
-  const normalized = (value || "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim()
-    .replace(/\\/g, "/");
-
-  const segments = normalized
-    .split("/")
-    .map((segment) =>
-      segment
-        .trim()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-+|-+$/g, "")
-    )
-    .filter(Boolean);
-
-  return segments.join("/");
-}
-
-function normalizeBlogEditableSlug(value: string | null | undefined) {
-  const normalized = toSlug(value || "");
-  if (!normalized) return "";
-
-  const segments = normalized.split("/").filter(Boolean);
-  if (segments.length > 1 && (segments[0] === "blog" || segments[0] === "blogs")) {
-    return segments.slice(1).join("/");
-  }
-
-  return segments.join("/");
-}
-
-function slugToDisplay(value: string | null | undefined, fallback: string) {
-  const normalized = (value || "").trim();
-  if (!normalized) return fallback;
-  return normalized.startsWith("/") ? normalized : `/${normalized}`;
 }
 
 export function WebBlogView({ businessId, pageId }: { businessId: string; pageId: string }) {
@@ -287,12 +247,15 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     () => (typeof inferPage?.slug === "string" ? String(inferPage.slug).trim() : ""),
     [inferPage?.slug]
   );
-  const generatedSlugFallback = React.useMemo(() => toSlug(publishTitle || keyword || ""), [keyword, publishTitle]);
+  const generatedSlugFallback = React.useMemo(
+    () => normalizeWordpressSlugPath(publishTitle || keyword || ""),
+    [keyword, publishTitle]
+  );
   const generatedSlug = React.useMemo(() => {
-    if (inferSlug) return normalizeBlogEditableSlug(inferSlug);
-    return normalizeBlogEditableSlug(generatedSlugFallback);
+    if (inferSlug) return normalizeWordpressBlogEditableSlug(inferSlug);
+    return normalizeWordpressBlogEditableSlug(generatedSlugFallback);
   }, [generatedSlugFallback, inferSlug]);
-  const normalizedEditableSlug = React.useMemo(() => normalizeBlogEditableSlug(editableSlug), [editableSlug]);
+  const normalizedEditableSlug = React.useMemo(() => normalizeWordpressBlogEditableSlug(editableSlug), [editableSlug]);
   const hasInvalidBlogSlug = React.useMemo(
     () => Boolean(normalizedEditableSlug && normalizedEditableSlug.includes("/")),
     [normalizedEditableSlug]
@@ -309,10 +272,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const persistedContent = contentStatusQuery.data?.content || null;
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
   const isPersistedTrashed = persistedStatus === "trash";
-  const persistedSlug = React.useMemo(() => normalizeBlogEditableSlug(persistedContent?.slug || ""), [persistedContent?.slug]);
+  const persistedSlug = React.useMemo(
+    () => normalizeWordpressBlogEditableSlug(persistedContent?.slug || ""),
+    [persistedContent?.slug]
+  );
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
-    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeBlogEditableSlug(lastPublishedData.slug);
+    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
     if (generatedSlug) return generatedSlug;
     return generatedSlugFallback;
   }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug]);
@@ -357,7 +323,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   ]);
   const publishUrlPreview = React.useMemo(() => {
     const siteUrl = String(wpConnection?.siteUrl || "").replace(/\/+$/, "");
-    const slugForPreview = normalizedSlugForPublish || normalizeBlogEditableSlug(slugCheckResult?.slug || "");
+    const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
     if (!siteUrl || !slugForPreview) {
       return null;
     }
@@ -368,7 +334,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   React.useEffect(() => {
     if (!isPublishModalOpen) return;
     if (isSlugEdited) return;
-    setEditableSlug(effectiveModalSlug);
+    setEditableSlug(normalizeWordpressBlogEditableSlug(effectiveModalSlug));
   }, [effectiveModalSlug, isPublishModalOpen, isSlugEdited]);
 
   React.useEffect(() => {
@@ -926,11 +892,11 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
 
     setIsAutoResolvingSlug(true);
-    const normalizedSuggestion = normalizeBlogEditableSlug(suggestedSlug);
+    const normalizedSuggestion = normalizeWordpressBlogEditableSlug(suggestedSlug);
     setEditableSlug(normalizedSuggestion);
     setIsSlugEdited(true);
     setSlugCheckError(null);
-    toast.success(`Slug updated to ${slugToDisplay(normalizedSuggestion, "/untitled-content")}`);
+    toast.success(`Slug updated to ${wordpressSlugToDisplay(normalizedSuggestion, "/untitled-content")}`);
     setIsAutoResolvingSlug(false);
   }, [slugCheckResult?.suggestedSlug]);
 
@@ -1134,14 +1100,14 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
               <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
-                <Typography className="text-sm font-mono break-all">{slugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>
+                <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>
               </div>
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
                 <Input
                   value={editableSlug}
                   onChange={(event) => {
-                    setEditableSlug(normalizeBlogEditableSlug(event.target.value));
+                    setEditableSlug(normalizeWordpressBlogEditableSlug(event.target.value));
                     setIsSlugEdited(true);
                   }}
                   placeholder="enter-blog-slug"
@@ -1172,7 +1138,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                       onClick={autoResolveSlug}
                       disabled={isSlugActionBusy}
                     >
-                      {isAutoResolvingSlug ? "Resolving..." : `Auto-resolve to ${slugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
+                      {isAutoResolvingSlug ? "Resolving..." : `Auto-resolve to ${wordpressSlugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
                     </Button>
                   ) : null}
                 </div>

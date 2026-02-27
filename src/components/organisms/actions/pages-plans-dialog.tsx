@@ -4,8 +4,6 @@ import * as React from "react"
 import {
   getCoreRowModel,
   getPaginationRowModel,
-  getSortedRowModel,
-  type SortingState,
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table"
@@ -13,8 +11,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2 } from "lucide-react"
 
 import { DataTable } from "@/components/filter-table"
-import { DataTableSortList } from "@/components/filter-table/data-table-sort-list"
-import { DataTableViewOptions } from "@/components/filter-table/data-table-view-options"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -50,7 +46,6 @@ type Props = {
 export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
   const pagePlanner = usePagePlanner()
   const queryClient = useQueryClient()
-  const [sorting, setSorting] = React.useState<SortingState>([])
 
   const plansQuery = useQuery({
     queryKey: [PAGE_PLANS_QUERY_KEY, businessId],
@@ -78,37 +73,30 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
     return [
       {
         id: "active",
-        header: () => <span className="text-xs text-muted-foreground">Active</span>,
+        header: () => (
+          <div className="flex justify-center">
+            <span className="text-xs text-muted-foreground">Active</span>
+          </div>
+        ),
         cell: ({ row }) => {
           const plan = row.original
           return getIsActive(plan) ? (
-            <Badge variant="secondary" className="gap-1">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Active
-            </Badge>
+            <div className="flex justify-center">
+              <Badge variant="secondary" className="gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Active
+              </Badge>
+            </div>
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <div className="flex justify-center">
+              <span className="text-muted-foreground">—</span>
+            </div>
           )
         },
-        enableSorting: true,
-        accessorFn: (row) => (getIsActive(row) ? 1 : 0),
+        enableSorting: false,
         size: 90,
         minSize: 90,
         maxSize: 120,
-      },
-      {
-        id: "id",
-        accessorKey: "id",
-        header: () => <span className="text-xs text-muted-foreground">Plan ID</span>,
-        cell: ({ row }) => (
-          <Typography variant="p" className="font-mono text-xs">
-            {row.getValue<number>("id")}
-          </Typography>
-        ),
-        enableSorting: true,
-        size: 80,
-        minSize: 80,
-        maxSize: 110,
       },
       {
         id: "status",
@@ -119,7 +107,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
             {row.getValue<string>("status") || "—"}
           </Typography>
         ),
-        enableSorting: true,
+        enableSorting: false,
         size: 120,
         minSize: 110,
         maxSize: 180,
@@ -133,7 +121,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
             {formatMaybeDate(row.getValue<string | null>("proposed_at"))}
           </Typography>
         ),
-        enableSorting: true,
+        enableSorting: false,
         size: 140,
         minSize: 130,
         maxSize: 180,
@@ -147,7 +135,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
             {formatMaybeDate(row.getValue<string | null>("activated_at"))}
           </Typography>
         ),
-        enableSorting: true,
+        enableSorting: false,
         size: 140,
         minSize: 130,
         maxSize: 180,
@@ -155,34 +143,30 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
       {
         id: "timeframe",
         accessorKey: "timeframe",
-        header: () => <span className="text-xs text-muted-foreground">Timeframe</span>,
-        cell: ({ row }) => (
-          <Typography variant="p" className="text-xs">
-            {row.getValue<number | null>("timeframe") ?? "—"}
-          </Typography>
+        header: () => (
+          <div className="flex justify-center">
+            <span className="text-xs text-muted-foreground">Items</span>
+          </div>
         ),
-        enableSorting: true,
+        cell: ({ row }) => (
+          <div className="flex justify-center">
+            <Typography variant="p" className="text-xs tabular-nums">
+              {row.getValue<number | null>("timeframe") ?? "—"}
+            </Typography>
+          </div>
+        ),
+        enableSorting: false,
         size: 110,
         minSize: 100,
         maxSize: 140,
       },
       {
-        id: "valid",
-        accessorKey: "valid",
-        header: () => <span className="text-xs text-muted-foreground">Valid</span>,
-        cell: ({ row }) => (
-          <Typography variant="p" className="text-xs">
-            {row.getValue<boolean>("valid") ? "Yes" : "No"}
-          </Typography>
-        ),
-        enableSorting: true,
-        size: 80,
-        minSize: 70,
-        maxSize: 100,
-      },
-      {
         id: "actions",
-        header: () => <span className="text-xs text-muted-foreground">Actions</span>,
+        header: () => (
+          <div className="flex justify-end">
+            <span className="text-xs text-muted-foreground">Action</span>
+          </div>
+        ),
         cell: ({ row }) => {
           const plan = row.original
           const isActive = getIsActive(plan)
@@ -217,10 +201,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
   const table = useReactTable({
     data: plansQuery.data ?? [],
     columns,
-    state: { sorting },
-    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   })
 
@@ -240,19 +221,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
             showPagination={false}
             disableHorizontalScroll={true}
             className="[&_tbody_tr]:h-10 [&_tbody_td]:py-0.5"
-          >
-            <div
-              role="toolbar"
-              aria-orientation="horizontal"
-              className="flex w-full items-start justify-between gap-2 p-1"
-            >
-              <div className="flex flex-1 flex-wrap items-center gap-2" />
-              <div className="flex items-center gap-2">
-                <DataTableSortList table={table} align="start" />
-                <DataTableViewOptions table={table} align="end" />
-              </div>
-            </div>
-          </DataTable>
+          />
         </div>
       </DialogContent>
     </Dialog>

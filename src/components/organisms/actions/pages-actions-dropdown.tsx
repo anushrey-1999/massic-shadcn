@@ -11,7 +11,6 @@ import {
   Hammer,
   Loader2,
   RotateCw,
-  Settings2,
   Sparkles,
 } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -553,9 +552,9 @@ export function PagesActionsDropdown({
       id={contentId}
       className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg border border-general-border bg-white"
     >
-          <div className="flex h-9 shrink-0 items-center">
+          <div className={cn("flex h-9 shrink-0 items-center", isSelectable && "gap-2 px-2")}>
             {isSelectable ? (
-              <div className="w-10 px-2 py-[7.5px]">
+              <div className="flex w-10 items-center justify-center py-[7.5px]">
                 <Checkbox
                   checked={allSelected || (someSelected && "indeterminate")}
                   onCheckedChange={(value) => toggleAllSelected(Boolean(value))}
@@ -588,7 +587,8 @@ export function PagesActionsDropdown({
                 }
               }}
               className={cn(
-                "flex flex-1 items-center gap-2 px-2 py-[7.5px] cursor-pointer select-none rounded-md",
+                "flex flex-1 items-center gap-2 py-[7.5px] cursor-pointer select-none rounded-md",
+                !isSelectable && "px-2",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               )}
             >
@@ -603,7 +603,7 @@ export function PagesActionsDropdown({
                 <ArrowUpDown className="h-4 w-4 opacity-50" />
               )}
             </div>
-            <div className="w-[52px] px-2 py-[7.5px]" />
+            <div className={cn("w-[52px] py-[7.5px]", !isSelectable && "px-2")} />
           </div>
           <div className="h-px w-full shrink-0 bg-general-border" />
 
@@ -742,13 +742,20 @@ export function PagesActionsDropdown({
                         showContentBorder && "border-b border-general-border"
                       )}
                     >
-                      <div className="flex items-center bg-[#FAFAFA]">
-                        <div className="flex flex-1 items-center gap-2 px-2 py-1.5">
+                      <div className={cn("flex bg-[#FAFAFA]", isSelectable ? "items-start" : "items-center")}>
+                        <div
+                          className={cn(
+                            "flex-1 px-2 py-1.5",
+                            isSelectable
+                              ? "grid grid-cols-2 gap-2"
+                              : "flex flex-wrap items-center gap-2"
+                          )}
+                        >
                           {item.metrics.map((pill) => (
                             <MetricPillView key={`${item.id}-${pill.label}`} pill={pill} />
                           ))}
                         </div>
-                        <div className="flex w-[52px] items-center justify-end px-2 py-1.5">
+                        <div className={cn("flex w-[52px] justify-end px-2 py-1.5", isSelectable ? "items-start" : "items-center")}>
                           <Button
                             type="button"
                             variant={isDone ? "outline" : "default"}
@@ -861,16 +868,6 @@ export function PagesActionsDropdown({
             }}
           >
             Plans
-          </Button>
-
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 rounded-lg border-general-border-three bg-transparent"
-            aria-label="Settings"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Settings2 className="h-[13px] w-[13px]" />
           </Button>
 
           <Button

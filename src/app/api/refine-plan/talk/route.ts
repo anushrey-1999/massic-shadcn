@@ -47,7 +47,7 @@ export async function POST(request: Request) {
         ...(body?.conversation_id ? { conversation_id: body.conversation_id } : {}),
         calendar_events: [],
         plan_type: planType,
-        page_ideas_required: 5,
+        page_ideas_required: 30,
       }),
       signal: controller.signal,
       cache: "no-store",

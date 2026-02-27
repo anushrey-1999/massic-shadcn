@@ -11,10 +11,13 @@ export type RefinePlanSource = "pages" | "posts"
 type RefinePlanOverlayContextValue = {
   open: (source: RefinePlanSource) => void
   close: () => void
+  pagesBusy: boolean
+  pagesBusyLabel: string | null
   pagesRegenerating: boolean
   pagesRegenerateError: string | null
   pagesOverridePlanItems: PagePlannerPlanItem[] | null
   regeneratePagesPlan: (args: { regenerate: boolean }) => void
+  acceptPagesPlan: (args: { planItems: PagePlannerPlanItem[]; planId?: number | null }) => void
 }
 
 const RefinePlanOverlayContext = React.createContext<
@@ -40,6 +43,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
   const [overlayOpen, setOverlayOpen] = React.useState(false)
   const [source, setSource] = React.useState<RefinePlanSource>("pages")
   const [pagesRegenerating, setPagesRegenerating] = React.useState(false)
+  const [pagesAccepting, setPagesAccepting] = React.useState(false)
   const [pagesRegenerateError, setPagesRegenerateError] = React.useState<string | null>(null)
   const [pagesOverridePlanItems, setPagesOverridePlanItems] = React.useState<PagePlannerPlanItem[] | null>(
     null
@@ -56,7 +60,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
 
   const regeneratePagesPlan = React.useCallback(
     (args: { regenerate: boolean }) => {
-      if (!businessId || pagesRegenerating) return
+      if (!businessId || pagesRegenerating || pagesAccepting) return
 
       setPagesRegenerateError(null)
       setPagesRegenerating(true)
@@ -71,19 +75,6 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
 
           const plan = Array.isArray(response?.plan) ? response.plan : []
           setPagesOverridePlanItems(plan)
-
-          await queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
-          const plans = await pagePlanner.listPlans(businessId)
-          const pagesPlans = (Array.isArray(plans?.plans) ? plans.plans : []).filter(isPagesPlan)
-          const newestId =
-            pagesPlans.length > 0 ? Math.max(...pagesPlans.map((p) => (typeof p.id === "number" ? p.id : 0))) : null
-
-          if (typeof newestId === "number" && newestId > 0) {
-            await pagePlanner.setActivePlan(businessId, newestId)
-          }
-
-          await queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
-          await queryClient.invalidateQueries({ queryKey: ["page-planner-plan", businessId] })
         } catch (err: any) {
           const status = err?.response?.status
           const server =
@@ -100,18 +91,70 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
         }
       })()
     },
-    [businessId, pagePlanner, pagesRegenerating, queryClient]
+    [businessId, pagePlanner, pagesRegenerating, pagesAccepting, queryClient]
   )
+
+  const acceptPagesPlan = React.useCallback(
+    (args: { planItems: PagePlannerPlanItem[]; planId?: number | null }) => {
+      if (!businessId || pagesRegenerating || pagesAccepting) return
+
+      setPagesRegenerateError(null)
+      setPagesAccepting(true)
+      setPagesOverridePlanItems(args.planItems)
+
+      void (async () => {
+        try {
+          let planId = typeof args.planId === "number" ? args.planId : null
+          if (!(typeof planId === "number" && planId > 0)) {
+            await queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
+            const plans = await pagePlanner.listPlans(businessId)
+            const pagesPlans = (Array.isArray(plans?.plans) ? plans.plans : []).filter(isPagesPlan)
+            planId =
+              pagesPlans.length > 0
+                ? Math.max(...pagesPlans.map((p) => (typeof p.id === "number" ? p.id : 0)))
+                : null
+          }
+
+          if (typeof planId === "number" && planId > 0) {
+            await pagePlanner.setActivePlan(businessId, planId)
+          }
+
+          await queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
+          await queryClient.invalidateQueries({ queryKey: ["page-planner-plan", businessId] })
+        } catch (err: any) {
+          const status = err?.response?.status
+          const server =
+            err?.response?.data != null
+              ? typeof err.response.data === "string"
+                ? err.response.data
+                : JSON.stringify(err.response.data)
+              : null
+          setPagesRegenerateError(
+            server || err?.message || (status ? `Request failed (${status})` : "Request failed")
+          )
+        } finally {
+          setPagesAccepting(false)
+        }
+      })()
+    },
+    [businessId, pagePlanner, pagesRegenerating, pagesAccepting, queryClient]
+  )
+
+  const pagesBusy = pagesRegenerating || pagesAccepting
+  const pagesBusyLabel = pagesAccepting ? "Applying plan…" : pagesRegenerating ? "Regenerating plan…" : null
 
   return (
     <RefinePlanOverlayContext.Provider
       value={{
         open,
         close,
+        pagesBusy,
+        pagesBusyLabel,
         pagesRegenerating,
         pagesRegenerateError,
         pagesOverridePlanItems,
         regeneratePagesPlan,
+        acceptPagesPlan,
       }}
     >
       {children}

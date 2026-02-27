@@ -57,6 +57,8 @@ type Props = {
   onOpenChange?: (open: boolean) => void
   mode?: "section" | "table"
   planItemsOverride?: PagePlannerPlanItem[] | null
+  externalBusy?: boolean
+  externalBusyLabel?: string | null
   onTableContextChange?: (ctx: {
     planId: number | null
     planItems: PagePlannerPlanItem[]
@@ -129,7 +131,20 @@ function extractPlanItems(payload: unknown): PagePlannerPlanItem[] | null {
 }
 
 function getPlanItemRowId(item: PagePlannerPlanItem, index: number) {
-  return item.page_id || item.keyword || `row-${index}`
+  // page_id / keyword can collide across rows; include index to guarantee uniqueness for React keys + selection.
+  const base = item.page_id || item.keyword || "row"
+  return `${base}-${index}`
+}
+
+function ensureUniqueRowIds(items: PagesActionsItem[]): PagesActionsItem[] {
+  const seen = new Map<string, number>()
+  return items.map((item) => {
+    const raw = (item.id || "").trim() || "row"
+    const count = seen.get(raw) ?? 0
+    seen.set(raw, count + 1)
+    if (count === 0) return item
+    return { ...item, id: `${raw}-${count}` }
+  })
 }
 
 function StatusPill({ status }: { status: ActionStatus }) {
@@ -215,6 +230,8 @@ export function PagesActionsDropdown({
   onOpenChange,
   mode = "section",
   planItemsOverride = null,
+  externalBusy = false,
+  externalBusyLabel = null,
   onTableContextChange,
 }: Props) {
   const refinePlan = useRefinePlanOverlayOptional()
@@ -233,7 +250,8 @@ export function PagesActionsDropdown({
   const [planItems, setPlanItems] = React.useState<PagePlannerPlanItem[]>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
 
-  const pagesRegenerating = Boolean(refinePlan?.pagesRegenerating)
+  const pagesBusy = Boolean(refinePlan?.pagesBusy)
+  const pagesBusyLabel = refinePlan?.pagesBusyLabel ?? null
   const pagesOverridePlanItems = refinePlan?.pagesOverridePlanItems ?? null
   const pagesRegenerateError = refinePlan?.pagesRegenerateError ?? null
   const isSelectable = mode === "table"
@@ -316,7 +334,7 @@ export function PagesActionsDropdown({
   React.useEffect(() => {
     if (!hasAnyPlans) return
     if (typeof activePlanId !== "number") return
-    if (pagesRegenerating) return
+    if (pagesBusy) return
 
     const extracted = extractPlanItems(activePlanQuery.data)
     if (!extracted || extracted.length === 0) return
@@ -329,7 +347,7 @@ export function PagesActionsDropdown({
       const vol = typeof item.search_volume === "number" ? item.search_volume : 0
       const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
       return {
-        id: item.page_id || item.keyword || `row-${idx}`,
+        id: getPlanItemRowId(item, idx),
         title: item.keyword || "Untitled",
         status: "build",
         description: item.rationale || undefined,
@@ -342,15 +360,16 @@ export function PagesActionsDropdown({
       }
     })
 
-    setRows(nextRows)
-    setOpenItemId(nextRows[0]?.id ?? null)
+    const uniqRows = ensureUniqueRowIds(nextRows)
+    setRows(uniqRows)
+    setOpenItemId(uniqRows[0]?.id ?? null)
     setDoneIds(new Set())
     setSourceMode("active")
-  }, [activePlanId, activePlanQuery.data, hasAnyPlans, pagesRegenerating])
+  }, [activePlanId, activePlanQuery.data, hasAnyPlans, pagesBusy])
 
   React.useEffect(() => {
     if (!pagesOverridePlanItems || pagesOverridePlanItems.length === 0) return
-    if (pagesRegenerating) return
+    if (pagesBusy) return
 
     setPlanItems(pagesOverridePlanItems)
     setRowSelection({})
@@ -361,7 +380,7 @@ export function PagesActionsDropdown({
       const vol = typeof item.search_volume === "number" ? item.search_volume : 0
       const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
       return {
-        id: item.page_id || item.keyword || `row-${idx}`,
+        id: getPlanItemRowId(item, idx),
         title: item.keyword || "Untitled",
         status: "build",
         description: item.rationale || undefined,
@@ -374,11 +393,12 @@ export function PagesActionsDropdown({
       }
     })
 
-    setRows(nextRows)
-    setOpenItemId(nextRows[0]?.id ?? null)
+    const uniqRows = ensureUniqueRowIds(nextRows)
+    setRows(uniqRows)
+    setOpenItemId(uniqRows[0]?.id ?? null)
     setDoneIds(new Set())
     setSourceMode("generated")
-  }, [pagesOverridePlanItems, pagesRegenerating])
+  }, [pagesOverridePlanItems, pagesBusy])
 
   React.useEffect(() => {
     // Only apply caller-provided items (e.g. storybook). In product we default to [].
@@ -391,8 +411,9 @@ export function PagesActionsDropdown({
       setVisibleCount(10)
       return
     }
-    setRows(items)
-    setOpenItemId(items[0]?.id ?? null)
+    const uniqRows = ensureUniqueRowIds(items)
+    setRows(uniqRows)
+    setOpenItemId(uniqRows[0]?.id ?? null)
     setDoneIds(new Set())
     setSourceMode("placeholder")
     setVisibleCount(10)
@@ -417,7 +438,7 @@ export function PagesActionsDropdown({
         const vol = typeof item.search_volume === "number" ? item.search_volume : 0
         const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
         return {
-          id: item.page_id || item.keyword || `row-${idx}`,
+          id: getPlanItemRowId(item, idx),
           title: item.keyword || "Untitled",
           status: "build",
           description: item.rationale || undefined,
@@ -430,8 +451,9 @@ export function PagesActionsDropdown({
         }
       })
 
-      setRows(nextRows)
-      setOpenItemId(nextRows[0]?.id ?? null)
+      const uniqRows = ensureUniqueRowIds(nextRows)
+      setRows(uniqRows)
+      setOpenItemId(uniqRows[0]?.id ?? null)
       setDoneIds(new Set())
       setSourceMode("generated")
       await queryClient.invalidateQueries({ queryKey: [PAGE_PLANS_QUERY_KEY, businessId] })
@@ -470,7 +492,7 @@ export function PagesActionsDropdown({
     })
   }, [rows, sortDirection])
 
-  const isTableBusy = pagesRegenerating || isGenerating
+  const isTableBusy = pagesBusy || isGenerating || externalBusy
   const displayRows = isTableBusy ? [] : sortedRows
   const isLoadMoreEnabled = mode === "section"
   const visibleRows = React.useMemo(() => {
@@ -508,13 +530,13 @@ export function PagesActionsDropdown({
   )
 
   const showGenerateButton = !isPlansLoading && !hasAnyPlans
-  const generateLabel = pagesRegenerating
-    ? "Regenerating…"
+  const generateLabel = pagesBusy
+    ? pagesBusyLabel || "Updating…"
     : isPlansLoading
       ? "Loading…"
     : showGenerateButton
       ? "Generate"
-      : "Regenerate"
+      : "Refine Plan"
 
   const handlePrimaryAction = React.useCallback(() => {
     if (isPlansLoading) return
@@ -522,9 +544,9 @@ export function PagesActionsDropdown({
       void handleGenerate()
       return
     }
-    if (pagesRegenerating) return
+    if (pagesBusy) return
     refinePlan?.open("pages")
-  }, [handleGenerate, refinePlan, showGenerateButton, pagesRegenerating, isPlansLoading])
+  }, [handleGenerate, refinePlan, showGenerateButton, pagesBusy, isPlansLoading])
 
   const table = isPanelOpen ? (
     <div
@@ -586,11 +608,17 @@ export function PagesActionsDropdown({
           <div className="h-px w-full shrink-0 bg-general-border" />
 
           <div className="relative flex min-h-0 flex-col overflow-y-auto">
-            {pagesRegenerating || isGenerating ? (
+            {pagesBusy || isGenerating || externalBusy ? (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>{pagesRegenerating ? "Regenerating plan…" : "Generating plan…"}</span>
+                  <span>
+                    {pagesBusy
+                      ? pagesBusyLabel || "Updating plan…"
+                      : externalBusy
+                        ? externalBusyLabel || "Updating plan…"
+                        : "Generating plan…"}
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -853,7 +881,7 @@ export function PagesActionsDropdown({
               e.stopPropagation()
               handlePrimaryAction()
             }}
-            disabled={!businessId || isGenerating || pagesRegenerating || isPlansLoading}
+            disabled={!businessId || isGenerating || pagesBusy || isPlansLoading}
           >
             <RotateCw className="h-[13px] w-[13px]" />
             {generateLabel}

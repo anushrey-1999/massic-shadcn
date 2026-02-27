@@ -71,6 +71,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [input, setInput] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
+  const [isPreviewGenerating, setIsPreviewGenerating] = React.useState(false)
   const [regenerateOpen, setRegenerateOpen] = React.useState(false)
   const [regenerateMode, setRegenerateMode] = React.useState<RegenerateMode>("full")
   const [pagesTableCtx, setPagesTableCtx] = React.useState<{
@@ -79,6 +80,10 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     selectedKeywords: string[]
   } | null>(null)
   const [overridePlanItems, setOverridePlanItems] = React.useState<PagePlannerPlanItem[] | null>(null)
+  const [acceptCandidate, setAcceptCandidate] = React.useState<{
+    planItems: PagePlannerPlanItem[]
+    planId?: number | null
+  } | null>(null)
 
   React.useEffect(() => {
     if (typeof document === "undefined") return
@@ -93,10 +98,12 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     setMessages([])
     setInput("")
     setIsSending(false)
+    setIsPreviewGenerating(false)
     setRegenerateOpen(false)
     setRegenerateMode("full")
     setPagesTableCtx(null)
     setOverridePlanItems(null)
+    setAcceptCandidate(null)
   }, [open, source])
 
   React.useEffect(() => {
@@ -182,7 +189,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
           selected_pages,
           user_prompt: text,
           calendar_events: [],
-          page_ideas_required: 5,
+          page_ideas_required: 30,
         })
       } catch (err: any) {
         const status = err?.response?.status
@@ -212,7 +219,15 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
         null
 
       if (itemsMaybe) {
-        setOverridePlanItems(itemsMaybe as PagePlannerPlanItem[])
+        const planItems = itemsMaybe as PagePlannerPlanItem[]
+        setOverridePlanItems(planItems)
+        const extractedPlanId =
+          (typeof payload?.plan_id === "number" && payload.plan_id) ||
+          (typeof payload?.planId === "number" && payload.planId) ||
+          (typeof payload?.id === "number" && payload.id) ||
+          (typeof payload?.plan_meta?.id === "number" && payload.plan_meta.id) ||
+          null
+        setAcceptCandidate({ planItems, planId: extractedPlanId })
       }
 
       const assistantText =
@@ -243,19 +258,31 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
       <div className="absolute inset-0 p-5">
         <div className="h-full w-full max-w-[1224px] overflow-hidden rounded-2xl bg-white">
           <div className="flex h-full flex-col">
-            <div className="flex items-center gap-3 px-6 pt-6">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9"
-              onClick={handleClose}
-              aria-label="Back"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="text-xl font-semibold text-general-foreground">Refine Plan</div>
-          </div>
+            <div className="flex items-center justify-between gap-3 px-6 pt-6">
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={handleClose}
+                  aria-label="Back"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <div className="text-xl font-semibold text-general-foreground">Refine Plan</div>
+              </div>
+
+              <Button
+                type="button"
+                variant="default"
+                className="h-9 rounded-lg bg-general-primary px-4 text-primary-foreground"
+                onClick={() => setRegenerateOpen(true)}
+                disabled={overlayCtx?.pagesBusy || isPreviewGenerating}
+              >
+                Regenerate
+              </Button>
+            </div>
 
             <div className="flex flex-1 min-h-0 flex-col px-6 pb-6 pt-2">
               <div className="grid flex-1 min-h-0 grid-cols-1 gap-6 md:grid-cols-2">
@@ -265,21 +292,32 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
                       businessId={businessId}
                       mode="table"
                       planItemsOverride={overridePlanItems}
+                      externalBusy={isPreviewGenerating}
+                      externalBusyLabel="Generating plan…"
                       onTableContextChange={setPagesTableCtx}
                     />
                   ) : (
                     <PostsActionsDropdown mode="table" />
                   )}
 
-                  <Button
-                    type="button"
-                    size={'lg'}
-                    className="mt-2 w-full rounded-md bg-general-primary text-primary-foreground"
-                    onClick={() => setRegenerateOpen(true)}
-                    disabled={overlayCtx?.pagesRegenerating}
-                  >
-                    Regenerate Plan
-                  </Button>
+                  {source === "pages" && acceptCandidate ? (
+                    <div className="mt-3">
+                      <Button
+                        type="button"
+                        className="h-10 w-full rounded-lg bg-general-primary px-4 text-primary-foreground"
+                        disabled={Boolean(overlayCtx?.pagesBusy) || isSending || isPreviewGenerating}
+                        onClick={() => {
+                          onOpenChange(false)
+                          overlayCtx?.acceptPagesPlan({
+                            planItems: acceptCandidate.planItems,
+                            planId: acceptCandidate.planId ?? null,
+                          })
+                        }}
+                      >
+                        Accept this plan
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex min-h-0 flex-col items-center">
@@ -429,17 +467,46 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
             <Button
               type="button"
               className="h-10 w-full rounded-lg bg-general-primary text-primary-foreground"
-              disabled={overlayCtx?.pagesRegenerating || !businessId}
+              disabled={overlayCtx?.pagesBusy || !businessId || isPreviewGenerating}
               onClick={async () => {
                 if (source !== "pages") {
                   setRegenerateOpen(false)
                   return
                 }
 
-                // UX: close split-view and show loading on main accordion while regenerating.
                 setRegenerateOpen(false)
-                onOpenChange(false)
-                overlayCtx?.regeneratePagesPlan({ regenerate: regenerateMode === "remaining" })
+                setIsPreviewGenerating(true)
+                setAcceptCandidate(null)
+
+                try {
+                  const response = await pagePlanner.generatePlan(businessId, {
+                    page_ideas_required: 30,
+                    calendar_events: [],
+                    regenerate: regenerateMode === "remaining",
+                  })
+
+                  const plan = Array.isArray((response as any)?.plan) ? (response as any).plan : []
+                  setOverridePlanItems(plan as PagePlannerPlanItem[])
+                  setAcceptCandidate({ planItems: plan as PagePlannerPlanItem[] })
+                } catch (err: any) {
+                  const status = err?.response?.status
+                  const server =
+                    err?.response?.data != null
+                      ? typeof err.response.data === "string"
+                        ? err.response.data
+                        : JSON.stringify(err.response.data)
+                      : null
+                  const msg =
+                    server ||
+                    err?.message ||
+                    (status ? `Request failed (${status})` : "Request failed")
+                  setMessages((prev) => [
+                    ...prev,
+                    { id: `a-${Date.now()}`, role: "assistant", content: msg },
+                  ])
+                } finally {
+                  setIsPreviewGenerating(false)
+                }
               }}
             >
               Regenerate

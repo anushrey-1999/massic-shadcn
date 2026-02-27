@@ -10,6 +10,12 @@ export type ApiPlatform = "node" | "python" | "dotnet";
 const REFRESH_WINDOW_SECONDS = 60 * 10 * 60; // 10 minutes
 const REFRESH_COOLDOWN_MS = 60 * 1000; // at most once per minute
 
+const DEFAULT_TIMEOUT_MS: Record<ApiPlatform, number> = {
+  node: 120000,
+  dotnet: 120000,
+  python: 300000,
+};
+
 let refreshPromise: Promise<string | null> | null = null;
 let lastRefreshAttemptAtMs = 0;
 
@@ -65,7 +71,7 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
 
   const instance = axios.create({
     baseURL,
-    timeout: 30000,
+    timeout: DEFAULT_TIMEOUT_MS[platform] ?? 30000,
     headers: {
       "Content-Type": "application/json",
     },

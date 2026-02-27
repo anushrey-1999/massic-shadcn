@@ -9,18 +9,25 @@ import {
   ChevronUp,
   Eye,
   Hammer,
-  Plus,
+  Loader2,
   RotateCw,
   Settings2,
   Sparkles,
 } from "lucide-react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { RelevancePill } from "@/components/ui/relevance-pill"
 import { cn } from "@/lib/utils"
+import { PagesPlansDialog } from "./pages-plans-dialog"
+import { usePagePlanner } from "@/hooks/use-page-planner"
+import type { PagePlannerPlanItem, PagePlannerPlanMeta } from "@/types/page-planner-types"
+import { formatVolume } from "@/lib/format"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
+import type { RowSelectionState } from "@tanstack/react-table"
 
 type ActionStatus = "build" | "optimize"
 type SortDirection = "asc" | "desc" | null
@@ -41,6 +48,7 @@ export type PagesActionsItem = {
 }
 
 type Props = {
+  businessId: string
   title?: string
   lastUpdatedLabel?: string
   items?: PagesActionsItem[]
@@ -48,71 +56,81 @@ type Props = {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   mode?: "section" | "table"
+  planItemsOverride?: PagePlannerPlanItem[] | null
+  onTableContextChange?: (ctx: {
+    planId: number | null
+    planItems: PagePlannerPlanItem[]
+    selectedKeywords: string[]
+  }) => void
 }
 
-const DEFAULT_ITEMS: PagesActionsItem[] = [
-  {
-    id: "1",
-    title: "Lorem ipsum dolor sit",
-    status: "build",
-  },
-  {
-    id: "2",
-    title: "Consectetur adipiscing elit ut et massa mi",
-    status: "optimize",
-    description:
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut et massa mi. Aliquam in hendrerit urna.",
-    metrics: [
-      {
-        label: "Relevance",
-        value: "66",
-      },
-      { label: "Type", value: "Transactional" },
-      { label: "Vol", value: "397k" },
-      { label: "Opp Score", value: "High", valueClassName: "text-lime-600" },
-    ],
-  },
-  {
-    id: "3",
-    title: "Lorem ipsum dolor sit",
-    status: "build",
-  },
-  {
-    id: "4",
-    title: "Consectetur adipiscing elit ut et massa mi",
-    status: "optimize",
-  },
-  {
-    id: "5",
-    title: "Lorem ipsum dolor sit",
-    status: "build",
-  },
-  {
-    id: "6",
-    title: "Consectetur adipiscing elit ut et massa mi",
-    status: "optimize",
-  },
-  {
-    id: "7",
-    title: "Lorem ipsum dolor sit",
-    status: "build",
-  },
-  {
-    id: "8",
-    title: "Consectetur adipiscing elit ut et massa mi",
-    status: "optimize",
-  },
-  {
-    id: "9",
-    title: "Lorem ipsum dolor sit",
-    status: "build",
-  },
-  {
-    id: "10",
-    title: "Consectetur adipiscing elit ut et massa mi",
-    status: "optimize",
-  },
-]
+const DEFAULT_ITEMS: PagesActionsItem[] = []
+
+const PAGE_PLANS_QUERY_KEY = "page-planner-plans"
+
+function isActivePlan(plan: PagePlannerPlanMeta): boolean {
+  const status = (plan.status || "").toString().toLowerCase()
+  return (
+    (status === "active" || Boolean(plan.activated_at)) &&
+    !plan.archived_at &&
+    plan.valid === true
+  )
+}
+
+function toTitleCase(value: string): string {
+  const s = (value || "").trim()
+  if (!s) return ""
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function oppScoreLabel(score: number | undefined): "High" | "Medium" | "Low" {
+  const v = typeof score === "number" && Number.isFinite(score) ? score : 0
+  if (v >= 0.67) return "High"
+  if (v >= 0.34) return "Medium"
+  return "Low"
+}
+
+function extractPlanItems(payload: unknown): PagePlannerPlanItem[] | null {
+  const seen = new Set<unknown>()
+
+  const walk = (node: unknown, depth: number): PagePlannerPlanItem[] | null => {
+    if (depth > 5) return null
+    if (!node || typeof node !== "object") return null
+    if (seen.has(node)) return null
+    seen.add(node)
+
+    if (Array.isArray(node)) {
+      const arr = node as any[]
+      if (arr.length === 0) return []
+      const looksLikeItems = arr.every(
+        (x) => x && typeof x === "object" && typeof (x as any).keyword === "string"
+      )
+      return looksLikeItems ? (arr as PagePlannerPlanItem[]) : null
+    }
+
+    const obj = node as Record<string, unknown>
+
+    for (const key of ["plan", "items", "output_data", "data", "result"]) {
+      if (key in obj) {
+        const found = walk(obj[key], depth + 1)
+        if (found) return found
+      }
+    }
+
+    for (const value of Object.values(obj)) {
+      const found = walk(value, depth + 1)
+      if (found) return found
+    }
+
+    return null
+  }
+
+  return walk(payload, 0)
+}
+
+function getPlanItemRowId(item: PagePlannerPlanItem, index: number) {
+  return item.page_id || item.keyword || `row-${index}`
+}
 
 function StatusPill({ status }: { status: ActionStatus }) {
   const label = status === "build" ? "Build" : "Optimize"
@@ -188,6 +206,7 @@ function getRelevanceSortValue(item: PagesActionsItem): number {
 }
 
 export function PagesActionsDropdown({
+  businessId,
   title = "Pages",
   lastUpdatedLabel = "Last updated 12 Feb",
   items = DEFAULT_ITEMS,
@@ -195,14 +214,29 @@ export function PagesActionsDropdown({
   open,
   onOpenChange,
   mode = "section",
+  planItemsOverride = null,
+  onTableContextChange,
 }: Props) {
   const refinePlan = useRefinePlanOverlayOptional()
+  const pagePlanner = usePagePlanner()
+  const queryClient = useQueryClient()
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(true)
-  const [rows, setRows] = React.useState<PagesActionsItem[]>(items)
-  const [openItemId, setOpenItemId] = React.useState<string | null>(items[1]?.id ?? null)
+  const [rows, setRows] = React.useState<PagesActionsItem[]>(() => (items?.length ? items : []))
+  const [openItemId, setOpenItemId] = React.useState<string | null>(() => (items?.[0]?.id ?? null))
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null)
   const [doneIds, setDoneIds] = React.useState<Set<string>>(() => new Set())
+  const [visibleCount, setVisibleCount] = React.useState(10)
   const contentId = React.useId()
+  const [plansOpen, setPlansOpen] = React.useState(false)
+  const [isGenerating, setIsGenerating] = React.useState(false)
+  const [sourceMode, setSourceMode] = React.useState<"active" | "generated" | "placeholder">("placeholder")
+  const [planItems, setPlanItems] = React.useState<PagePlannerPlanItem[]>([])
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+
+  const pagesRegenerating = Boolean(refinePlan?.pagesRegenerating)
+  const pagesOverridePlanItems = refinePlan?.pagesOverridePlanItems ?? null
+  const pagesRegenerateError = refinePlan?.pagesRegenerateError ?? null
+  const isSelectable = mode === "table"
 
   const isPanelOpen = mode === "table" ? true : open ?? uncontrolledOpen
   const setPanelOpen = React.useCallback(
@@ -213,11 +247,217 @@ export function PagesActionsDropdown({
     [onOpenChange, open]
   )
 
+  const plansQuery = useQuery({
+    queryKey: [PAGE_PLANS_QUERY_KEY, businessId],
+    enabled: Boolean(businessId),
+    queryFn: async () => {
+      const data = await pagePlanner.listPlans(businessId)
+      const all = Array.isArray(data?.plans) ? data.plans : []
+      return all.filter((p) => (p.plan_type || "").toString().toLowerCase() === "pages")
+    },
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 1,
+  })
+
+  const hasAnyPlans = (plansQuery.data?.length ?? 0) > 0
+  const isPlansLoading = plansQuery.isLoading
+
+  const activePlanId = React.useMemo(() => {
+    const plans = plansQuery.data ?? []
+    const active = plans.find(isActivePlan)
+    return active?.id ?? null
+  }, [plansQuery.data])
+
+  const activePlanQuery = useQuery({
+    queryKey: ["page-planner-plan", businessId, activePlanId],
+    enabled: Boolean(businessId) && typeof activePlanId === "number",
+    queryFn: async () => {
+      return pagePlanner.getPlanById(businessId, activePlanId as number)
+    },
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 1,
+  })
+
   React.useEffect(() => {
-    setRows(items)
-    setOpenItemId(items[1]?.id ?? null)
+    if (!planItemsOverride) return
+    setPlanItems(planItemsOverride)
+    setRowSelection({})
+    setVisibleCount(10)
+  }, [planItemsOverride])
+
+  const selectedKeywords = React.useMemo(() => {
+    const selectedIds = Object.entries(rowSelection)
+      .filter(([, v]) => Boolean(v))
+      .map(([k]) => k)
+
+    if (selectedIds.length === 0) return []
+
+    const out: string[] = []
+    for (let i = 0; i < planItems.length; i++) {
+      const id = getPlanItemRowId(planItems[i]!, i)
+      if (selectedIds.includes(id)) {
+        const kw = (planItems[i]?.keyword || "").trim()
+        if (kw) out.push(kw)
+      }
+    }
+    return out
+  }, [planItems, rowSelection])
+
+  React.useEffect(() => {
+    onTableContextChange?.({
+      planId: typeof activePlanId === "number" ? activePlanId : null,
+      planItems,
+      selectedKeywords,
+    })
+  }, [activePlanId, onTableContextChange, planItems, selectedKeywords])
+
+  React.useEffect(() => {
+    if (!hasAnyPlans) return
+    if (typeof activePlanId !== "number") return
+    if (pagesRegenerating) return
+
+    const extracted = extractPlanItems(activePlanQuery.data)
+    if (!extracted || extracted.length === 0) return
+    setPlanItems(extracted)
+    setRowSelection({})
+    setVisibleCount(10)
+
+    const nextRows: PagesActionsItem[] = extracted.map((item, idx) => {
+      const relevance = typeof item.business_relevance_score === "number" ? item.business_relevance_score : 0
+      const vol = typeof item.search_volume === "number" ? item.search_volume : 0
+      const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
+      return {
+        id: item.page_id || item.keyword || `row-${idx}`,
+        title: item.keyword || "Untitled",
+        status: "build",
+        description: item.rationale || undefined,
+        metrics: [
+          { label: "Relevance", value: String(relevance) },
+          { label: "Type", value: toTitleCase(item.page_type || "") || "—" },
+          { label: "Vol", value: formatVolume(vol) },
+          { label: "Opp Score", value: opp },
+        ],
+      }
+    })
+
+    setRows(nextRows)
+    setOpenItemId(nextRows[0]?.id ?? null)
     setDoneIds(new Set())
-  }, [items])
+    setSourceMode("active")
+  }, [activePlanId, activePlanQuery.data, hasAnyPlans, pagesRegenerating])
+
+  React.useEffect(() => {
+    if (!pagesOverridePlanItems || pagesOverridePlanItems.length === 0) return
+    if (pagesRegenerating) return
+
+    setPlanItems(pagesOverridePlanItems)
+    setRowSelection({})
+    setVisibleCount(10)
+
+    const nextRows: PagesActionsItem[] = pagesOverridePlanItems.map((item, idx) => {
+      const relevance = typeof item.business_relevance_score === "number" ? item.business_relevance_score : 0
+      const vol = typeof item.search_volume === "number" ? item.search_volume : 0
+      const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
+      return {
+        id: item.page_id || item.keyword || `row-${idx}`,
+        title: item.keyword || "Untitled",
+        status: "build",
+        description: item.rationale || undefined,
+        metrics: [
+          { label: "Relevance", value: String(relevance) },
+          { label: "Type", value: toTitleCase(item.page_type || "") || "—" },
+          { label: "Vol", value: formatVolume(vol) },
+          { label: "Opp Score", value: opp },
+        ],
+      }
+    })
+
+    setRows(nextRows)
+    setOpenItemId(nextRows[0]?.id ?? null)
+    setDoneIds(new Set())
+    setSourceMode("generated")
+  }, [pagesOverridePlanItems, pagesRegenerating])
+
+  React.useEffect(() => {
+    // Only apply caller-provided items (e.g. storybook). In product we default to [].
+    if (hasAnyPlans) return
+    if (!items?.length) {
+      setRows([])
+      setOpenItemId(null)
+      setDoneIds(new Set())
+      setSourceMode("placeholder")
+      setVisibleCount(10)
+      return
+    }
+    setRows(items)
+    setOpenItemId(items[0]?.id ?? null)
+    setDoneIds(new Set())
+    setSourceMode("placeholder")
+    setVisibleCount(10)
+  }, [items, hasAnyPlans])
+
+  const handleGenerate = React.useCallback(async () => {
+    if (!businessId || isGenerating) return
+    setIsGenerating(true)
+    try {
+      const response = await pagePlanner.generatePlan(businessId, {
+        page_ideas_required: 30,
+        calendar_events: [],
+        regenerate: false,
+      })
+
+      const plan = Array.isArray(response?.plan) ? response.plan : []
+      setPlanItems(plan)
+      setRowSelection({})
+      setVisibleCount(10)
+      const nextRows: PagesActionsItem[] = plan.map((item, idx) => {
+        const relevance = typeof item.business_relevance_score === "number" ? item.business_relevance_score : 0
+        const vol = typeof item.search_volume === "number" ? item.search_volume : 0
+        const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
+        return {
+          id: item.page_id || item.keyword || `row-${idx}`,
+          title: item.keyword || "Untitled",
+          status: "build",
+          description: item.rationale || undefined,
+          metrics: [
+            { label: "Relevance", value: String(relevance) },
+            { label: "Type", value: toTitleCase(item.page_type || "") || "—" },
+            { label: "Vol", value: formatVolume(vol) },
+            { label: "Opp Score", value: opp },
+          ],
+        }
+      })
+
+      setRows(nextRows)
+      setOpenItemId(nextRows[0]?.id ?? null)
+      setDoneIds(new Set())
+      setSourceMode("generated")
+      await queryClient.invalidateQueries({ queryKey: [PAGE_PLANS_QUERY_KEY, businessId] })
+
+      // First plan UX: immediately make the newly generated plan active.
+      try {
+        const plans = await pagePlanner.listPlans(businessId)
+        const pagesPlans = (Array.isArray(plans?.plans) ? plans.plans : []).filter(
+          (p) => (p.plan_type || "").toString().toLowerCase() === "pages"
+        )
+        const newestId =
+          pagesPlans.length > 0
+            ? Math.max(...pagesPlans.map((p) => (typeof p.id === "number" ? p.id : 0)))
+            : null
+        if (typeof newestId === "number" && newestId > 0) {
+          await pagePlanner.setActivePlan(businessId, newestId)
+          await queryClient.invalidateQueries({ queryKey: [PAGE_PLANS_QUERY_KEY, businessId] })
+          await queryClient.invalidateQueries({ queryKey: ["page-planner-plan", businessId, newestId] })
+        }
+      } catch {
+        // If activation fails, keep showing the generated plan as a fallback.
+      }
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [businessId, isGenerating, pagePlanner, queryClient])
 
   const sortedRows = React.useMemo(() => {
     if (!sortDirection) return rows
@@ -230,25 +470,61 @@ export function PagesActionsDropdown({
     })
   }, [rows, sortDirection])
 
-  const handleLoadMore = React.useCallback(() => {
-    setRows((prev) => {
-      if (prev.length >= totalRows) return prev
-      const start = prev.length + 1
-      const count = Math.min(20, totalRows - prev.length)
-      const next: PagesActionsItem[] = Array.from({ length: count }, (_, i) => {
-        const n = start + i
-        const status: ActionStatus = n % 2 === 0 ? "optimize" : "build"
-        return {
-          id: `more-${n}`,
-          title: `Lorem ipsum dolor sit ${n}`,
-          status,
-          description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut et massa mi. Aliquam in hendrerit urna.",
-        }
+  const isTableBusy = pagesRegenerating || isGenerating
+  const displayRows = isTableBusy ? [] : sortedRows
+  const isLoadMoreEnabled = mode === "section"
+  const visibleRows = React.useMemo(() => {
+    if (!isLoadMoreEnabled) return displayRows
+    return displayRows.slice(0, Math.max(0, visibleCount))
+  }, [displayRows, isLoadMoreEnabled, visibleCount])
+  const remainingCount = isLoadMoreEnabled ? Math.max(0, displayRows.length - visibleRows.length) : 0
+  const nextBatchCount = Math.min(20, remainingCount)
+
+  const selectableRowIds = React.useMemo(() => {
+    if (!isSelectable) return []
+    return planItems.map((item, idx) => getPlanItemRowId(item, idx))
+  }, [isSelectable, planItems])
+
+  const allSelected =
+    isSelectable &&
+    selectableRowIds.length > 0 &&
+    selectableRowIds.every((id) => Boolean((rowSelection as any)?.[id]))
+
+  const someSelected =
+    isSelectable &&
+    selectableRowIds.some((id) => Boolean((rowSelection as any)?.[id])) &&
+    !allSelected
+
+  const toggleAllSelected = React.useCallback(
+    (next: boolean) => {
+      if (!isSelectable) return
+      setRowSelection(() => {
+        const out: RowSelectionState = {}
+        for (const id of selectableRowIds) out[id] = next
+        return out
       })
-      return [...prev, ...next]
-    })
-  }, [totalRows])
+    },
+    [isSelectable, selectableRowIds]
+  )
+
+  const showGenerateButton = !isPlansLoading && !hasAnyPlans
+  const generateLabel = pagesRegenerating
+    ? "Regenerating…"
+    : isPlansLoading
+      ? "Loading…"
+    : showGenerateButton
+      ? "Generate"
+      : "Regenerate"
+
+  const handlePrimaryAction = React.useCallback(() => {
+    if (isPlansLoading) return
+    if (showGenerateButton) {
+      void handleGenerate()
+      return
+    }
+    if (pagesRegenerating) return
+    refinePlan?.open("pages")
+  }, [handleGenerate, refinePlan, showGenerateButton, pagesRegenerating, isPlansLoading])
 
   const table = isPanelOpen ? (
     <div
@@ -256,6 +532,15 @@ export function PagesActionsDropdown({
       className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg border border-general-border bg-white"
     >
           <div className="flex h-9 shrink-0 items-center">
+            {isSelectable ? (
+              <div className="w-10 px-2 py-[7.5px]">
+                <Checkbox
+                  checked={allSelected || (someSelected && "indeterminate")}
+                  onCheckedChange={(value) => toggleAllSelected(Boolean(value))}
+                  aria-label="Select all"
+                />
+              </div>
+            ) : null}
             <div
               role="button"
               tabIndex={0}
@@ -300,8 +585,32 @@ export function PagesActionsDropdown({
           </div>
           <div className="h-px w-full shrink-0 bg-general-border" />
 
-          <div className="flex min-h-0 flex-col overflow-y-auto">
-            {sortedRows.map((item) => {
+          <div className="relative flex min-h-0 flex-col overflow-y-auto">
+            {pagesRegenerating || isGenerating ? (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{pagesRegenerating ? "Regenerating plan…" : "Generating plan…"}</span>
+                </div>
+              </div>
+            ) : null}
+
+            {displayRows.length === 0 &&
+            (isTableBusy || plansQuery.isLoading || activePlanQuery.isLoading) ? (
+              <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+                Loading…
+              </div>
+            ) : displayRows.length === 0 && showGenerateButton && !plansQuery.isLoading ? (
+              <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+                No Data
+              </div>
+            ) : displayRows.length === 0 ? (
+              <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+                No pages found.
+              </div>
+            ) : null}
+
+            {visibleRows.map((item) => {
               const open = openItemId === item.id
               const hasMetrics = Boolean(item.metrics?.length)
               const showBottomBorder = true
@@ -309,6 +618,7 @@ export function PagesActionsDropdown({
               const showContentBorder = showBottomBorder && hasMetrics
               const badgeStatus: ActionStatus = item.status ?? "build"
               const isDone = doneIds.has(item.id)
+              const isChecked = Boolean((rowSelection as any)?.[item.id])
 
               return (
                 <Collapsible
@@ -334,6 +644,23 @@ export function PagesActionsDropdown({
                         showTriggerBorder && "border-b border-general-border"
                       )}
                     >
+                      {isSelectable ? (
+                        <div
+                          className="flex w-10 shrink-0 items-center justify-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(value) =>
+                              setRowSelection((prev) => ({
+                                ...(prev as any),
+                                [item.id]: Boolean(value),
+                              }))
+                            }
+                            aria-label="Select row"
+                          />
+                        </div>
+                      ) : null}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span
@@ -424,26 +751,38 @@ export function PagesActionsDropdown({
               )
             })}
 
-            {rows.length < totalRows ? (
-              <div className="px-2 py-2">
+            {isLoadMoreEnabled && nextBatchCount > 0 ? (
+              <div className="sticky bottom-0 mt-auto bg-white p-2">
+                <div className="flex justify-start">
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="h-9 rounded-lg px-4 text-general-secondary-foreground"
-                  onClick={handleLoadMore}
+                  className="w-fit rounded-md px-3"
+                  onClick={() => setVisibleCount((prev) => prev + nextBatchCount)}
+                  disabled={isTableBusy}
                 >
-                  <Plus className="h-[13px] w-[13px]" />
-                  20 more
+                  + {nextBatchCount} more
                 </Button>
+                </div>
               </div>
             ) : null}
+
           </div>
         </div>
   ) : null
 
   if (mode === "table") {
-    return <div className="flex min-h-0 flex-1 flex-col">{table}</div>
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {table}
+        {pagesRegenerateError ? (
+          <div className="mt-3 text-xs text-destructive">
+            {pagesRegenerateError}
+          </div>
+        ) : null}
+      </div>
+    )
   }
 
   return (
@@ -485,6 +824,18 @@ export function PagesActionsDropdown({
           </span>
 
           <Button
+            variant="secondary"
+            size="sm"
+            className="h-9 rounded-lg px-4"
+            onClick={(e) => {
+              e.stopPropagation()
+              setPlansOpen(true)
+            }}
+          >
+            Plans
+          </Button>
+
+          <Button
             variant="outline"
             size="icon"
             className="h-9 w-9 rounded-lg border-general-border-three bg-transparent"
@@ -500,11 +851,12 @@ export function PagesActionsDropdown({
             className="h-9 rounded-lg bg-general-primary px-4 text-primary-foreground"
             onClick={(e) => {
               e.stopPropagation()
-              refinePlan?.open("pages")
+              handlePrimaryAction()
             }}
+            disabled={!businessId || isGenerating || pagesRegenerating || isPlansLoading}
           >
             <RotateCw className="h-[13px] w-[13px]" />
-            Regenerate
+            {generateLabel}
           </Button>
         </div>
 
@@ -523,6 +875,14 @@ export function PagesActionsDropdown({
       </div>
 
       {table}
+
+      {pagesRegenerateError ? (
+        <div className="mt-3 text-xs text-destructive">
+          {pagesRegenerateError}
+        </div>
+      ) : null}
+
+      <PagesPlansDialog open={plansOpen} onOpenChange={setPlansOpen} businessId={businessId} />
     </Card>
   )
 }

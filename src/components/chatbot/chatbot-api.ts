@@ -121,8 +121,6 @@ export async function sendPlannerMessage(
         ...(conversationId ? { conversation_id: conversationId } : {}),
         calendar_events: [],
         plan_type: "weekly",
-        start_date: null,
-        end_date: null,
         page_ideas_required: 5,
       }),
     }

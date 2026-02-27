@@ -13,7 +13,9 @@ import { cn } from "@/lib/utils"
 import { PagesActionsDropdown } from "./pages-actions-dropdown"
 import { PostsActionsDropdown } from "./posts-actions-dropdown"
 import type { RefinePlanSource } from "./refine-plan-overlay-provider"
-import { sendRefinePlanMessage } from "./refine-plan-chatbot-api"
+import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
+import { usePagePlanner } from "@/hooks/use-page-planner"
+import type { PagePlannerPlanItem } from "@/types/page-planner-types"
 
 type ChatMessage = {
   id: string
@@ -29,6 +31,17 @@ type Props = {
 }
 
 type RegenerateMode = "full" | "remaining"
+
+function buildSelectedPages(args: {
+  planItems: Array<{ keyword?: string }>
+  selectedKeywords: string[]
+}): string[] {
+  const selected = args.selectedKeywords.map((s) => (s || "").trim()).filter(Boolean)
+  if (selected.length > 0) return selected
+  return args.planItems
+    .map((x) => String(x.keyword || "").trim())
+    .filter(Boolean)
+}
 
 function Bubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user"
@@ -49,6 +62,8 @@ function Bubble({ message }: { message: ChatMessage }) {
 }
 
 export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Props) {
+  const overlayCtx = useRefinePlanOverlayOptional()
+  const pagePlanner = usePagePlanner()
   const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null)
   const prevOverflowRef = React.useRef<string | null>(null)
   const prevOverscrollRef = React.useRef<string | null>(null)
@@ -56,9 +71,14 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [input, setInput] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
-  const [conversationId, setConversationId] = React.useState<string | null>(null)
   const [regenerateOpen, setRegenerateOpen] = React.useState(false)
   const [regenerateMode, setRegenerateMode] = React.useState<RegenerateMode>("full")
+  const [pagesTableCtx, setPagesTableCtx] = React.useState<{
+    planId: number | null
+    planItems: PagePlannerPlanItem[]
+    selectedKeywords: string[]
+  } | null>(null)
+  const [overridePlanItems, setOverridePlanItems] = React.useState<PagePlannerPlanItem[] | null>(null)
 
   React.useEffect(() => {
     if (typeof document === "undefined") return
@@ -70,31 +90,13 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
 
   React.useEffect(() => {
     if (!open) return
-    setMessages([
-      {
-        id: "a-1",
-        role: "assistant",
-        content:
-          "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut et massa mi. Aliquam in hendrerit urna. Pellentesque sit amet sapien fringilla, mattis ligula consectetur, ultrices mauris.",
-      },
-      {
-        id: "u-1",
-        role: "user",
-        content:
-          "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut et massa mi. Aliquam in hendrerit urna. Pellentesque sit amet sapien fringilla, mattis ligula consectetur, ultrices mauris.",
-      },
-      {
-        id: "a-2",
-        role: "assistant",
-        content:
-          "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut et massa mi. Aliquam in hendrerit urna. Pellentesque sit amet sapien fringilla, mattis ligula consectetur, ultrices mauris.",
-      },
-    ])
+    setMessages([])
     setInput("")
     setIsSending(false)
-    setConversationId(null)
     setRegenerateOpen(false)
     setRegenerateMode("full")
+    setPagesTableCtx(null)
+    setOverridePlanItems(null)
   }, [open, source])
 
   React.useEffect(() => {
@@ -138,21 +140,91 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     setIsSending(true)
 
     try {
-      const response = await sendRefinePlanMessage({
-        message: text,
-        businessId,
-        source,
-        conversationId: conversationId || undefined,
+      if (source !== "pages") {
+        setMessages((prev) => [
+          ...prev,
+          { id: `a-${Date.now()}`, role: "assistant", content: "Posts refine is not implemented yet." },
+        ])
+        return
+      }
+
+      const ctx = pagesTableCtx
+      if (!ctx?.planId) {
+        setMessages((prev) => [
+          ...prev,
+          { id: `a-${Date.now()}`, role: "assistant", content: "No active plan found to refine." },
+        ])
+        return
+      }
+
+      const selected_pages = buildSelectedPages({
+        planItems: ctx.planItems,
+        selectedKeywords: ctx.selectedKeywords,
       })
-      setConversationId(response.conversationId)
-      setMessages((prev) => [
-        ...prev,
-        { id: `a-${Date.now()}`, role: "assistant", content: response.message },
-      ])
+
+      if (selected_pages.length === 0) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `a-${Date.now()}`,
+            role: "assistant",
+            content:
+              "Select pages from the table (or keep none selected to refine the full plan).",
+          },
+        ])
+        return
+      }
+
+      let response: unknown
+      try {
+        response = await pagePlanner.refinePlan(businessId, {
+          plan_id: ctx.planId,
+          selected_pages,
+          user_prompt: text,
+          calendar_events: [],
+          page_ideas_required: 5,
+        })
+      } catch (err: any) {
+        const status = err?.response?.status
+        const server =
+          err?.response?.data != null
+            ? typeof err.response.data === "string"
+              ? err.response.data
+              : JSON.stringify(err.response.data)
+            : null
+        const msg =
+          server ||
+          err?.message ||
+          (status ? `Request failed (${status})` : "Request failed")
+        setMessages((prev) => [
+          ...prev,
+          { id: `a-${Date.now()}`, role: "assistant", content: msg },
+        ])
+        return
+      }
+
+      const payload: any = response
+      const itemsMaybe =
+        (Array.isArray(payload?.plan) && payload.plan) ||
+        (Array.isArray(payload?.items) && payload.items) ||
+        (Array.isArray(payload?.output_data?.plan) && payload.output_data.plan) ||
+        (Array.isArray(payload?.output_data?.items) && payload.output_data.items) ||
+        null
+
+      if (itemsMaybe) {
+        setOverridePlanItems(itemsMaybe as PagePlannerPlanItem[])
+      }
+
+      const assistantText =
+        (typeof payload?.message === "string" && payload.message) ||
+        (typeof payload?.answer === "string" && payload.answer) ||
+        "Updated the plan based on your request."
+
+      setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "assistant", content: assistantText }])
     } finally {
       setIsSending(false)
     }
-  }, [input, isSending, businessId, source, conversationId])
+  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx])
 
   if (!open) return null
 
@@ -189,7 +261,12 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
               <div className="grid flex-1 min-h-0 grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="flex min-h-0 flex-col">
                   {source === "pages" ? (
-                    <PagesActionsDropdown mode="table" />
+                    <PagesActionsDropdown
+                      businessId={businessId}
+                      mode="table"
+                      planItemsOverride={overridePlanItems}
+                      onTableContextChange={setPagesTableCtx}
+                    />
                   ) : (
                     <PostsActionsDropdown mode="table" />
                   )}
@@ -199,6 +276,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
                     size={'lg'}
                     className="mt-2 w-full rounded-md bg-general-primary text-primary-foreground"
                     onClick={() => setRegenerateOpen(true)}
+                    disabled={overlayCtx?.pagesRegenerating}
                   >
                     Regenerate Plan
                   </Button>
@@ -351,9 +429,17 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
             <Button
               type="button"
               className="h-10 w-full rounded-lg bg-general-primary text-primary-foreground"
-              onClick={() => {
-                // API hook will be added once endpoint is ready.
+              disabled={overlayCtx?.pagesRegenerating || !businessId}
+              onClick={async () => {
+                if (source !== "pages") {
+                  setRegenerateOpen(false)
+                  return
+                }
+
+                // UX: close split-view and show loading on main accordion while regenerating.
                 setRegenerateOpen(false)
+                onOpenChange(false)
+                overlayCtx?.regeneratePagesPlan({ regenerate: regenerateMode === "remaining" })
               }}
             >
               Regenerate

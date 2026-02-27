@@ -62,13 +62,14 @@ export default function BusinessActionsPage({ params }: PageProps) {
             >
               <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-hidden">
                 <PagesActionsDropdown
+                  businessId={businessId}
                   open={openSection === "pages"}
                   onOpenChange={(next) => setOpenSection(next ? "pages" : null)}
                 />
-                <PostsActionsDropdown
+                {/* <PostsActionsDropdown
                   open={openSection === "posts"}
                   onOpenChange={(next) => setOpenSection(next ? "posts" : null)}
-                />
+                /> */}
               </div>
             </div>
           </RefinePlanOverlayProvider>

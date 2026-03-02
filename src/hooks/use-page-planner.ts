@@ -15,6 +15,15 @@ function businessIdQuery(businessId: string) {
   return `business_id=${encodeURIComponent(businessId)}`
 }
 
+function isPlannerFailureResponse(payload: unknown): { ok: boolean; message?: string } {
+  if (!payload || typeof payload !== "object") return { ok: true }
+  const p: any = payload as any
+  if (p.err === true) return { ok: false, message: p.message || p.error }
+  if (p.success === false) return { ok: false, message: p.message || p.error }
+  if (typeof p.status === "number" && p.status >= 400) return { ok: false, message: p.message || p.error }
+  return { ok: true }
+}
+
 export function usePagePlanner() {
   const withPlannerDefaults = <T extends { page_ideas_required?: number }>(body: T) => {
     return {
@@ -41,7 +50,12 @@ export function usePagePlanner() {
   const setActivePlan = async (businessId: string, planId: number) => {
     const endpoint = `/page-planner/set-active-plan?${businessIdQuery(businessId)}`
     const body: PagePlannerSetActivePlanRequest = { plan_id: planId }
-    return api.post(endpoint, "python", body)
+    const response = await api.post<unknown>(endpoint, "python", body)
+    const verdict = isPlannerFailureResponse(response)
+    if (!verdict.ok) {
+      throw new Error(verdict.message || "Failed to activate plan")
+    }
+    return response
   }
 
   const refinePlan = async (businessId: string, body: PagePlannerRefinePlanRequest) => {

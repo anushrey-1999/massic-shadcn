@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogOverlay, DialogTitle } from "@/components/
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
 import { PagesActionsDropdown } from "./pages-actions-dropdown"
 import { PostsActionsDropdown } from "./posts-actions-dropdown"
@@ -30,17 +31,26 @@ type Props = {
   source: RefinePlanSource
 }
 
-type RegenerateMode = "full" | "remaining"
-
 function buildSelectedPages(args: {
   planItems: Array<{ keyword?: string }>
   selectedKeywords: string[]
 }): string[] {
-  const selected = args.selectedKeywords.map((s) => (s || "").trim()).filter(Boolean)
-  if (selected.length > 0) return selected
-  return args.planItems
-    .map((x) => String(x.keyword || "").trim())
-    .filter(Boolean)
+  // Preserve exact keywords as provided by the plan API; do not trim/normalize.
+  const planKeywordsOrdered = args.planItems
+    .map((x) => (typeof x.keyword === "string" ? x.keyword : ""))
+    .filter((s) => s.length > 0)
+
+  const planKeywordsSet = new Set(planKeywordsOrdered)
+
+  const selectedRaw = args.selectedKeywords.filter((s) => typeof s === "string" && s.length > 0)
+  if (selectedRaw.length > 0) {
+    // If user selected rows but they no longer exist in the plan (stale selection), return []
+    // so the caller can show a "reselect" message instead of accidentally refining the full plan.
+    return selectedRaw.filter((s) => planKeywordsSet.has(s))
+  }
+
+  // No selection => refine entire plan, preserving plan order.
+  return planKeywordsOrdered
 }
 
 function Bubble({ message }: { message: ChatMessage }) {
@@ -64,6 +74,7 @@ function Bubble({ message }: { message: ChatMessage }) {
 export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Props) {
   const overlayCtx = useRefinePlanOverlayOptional()
   const pagePlanner = usePagePlanner()
+  const queryClient = useQueryClient()
   const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null)
   const prevOverflowRef = React.useRef<string | null>(null)
   const prevOverscrollRef = React.useRef<string | null>(null)
@@ -72,14 +83,13 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
   const [input, setInput] = React.useState("")
   const [isSending, setIsSending] = React.useState(false)
   const [isPreviewGenerating, setIsPreviewGenerating] = React.useState(false)
-  const [regenerateOpen, setRegenerateOpen] = React.useState(false)
-  const [regenerateMode, setRegenerateMode] = React.useState<RegenerateMode>("full")
   const [pagesTableCtx, setPagesTableCtx] = React.useState<{
     planId: number | null
     planItems: PagePlannerPlanItem[]
     selectedKeywords: string[]
   } | null>(null)
   const [overridePlanItems, setOverridePlanItems] = React.useState<PagePlannerPlanItem[] | null>(null)
+  const [highlightKeywords, setHighlightKeywords] = React.useState<string[] | null>(null)
   const [acceptCandidate, setAcceptCandidate] = React.useState<{
     planItems: PagePlannerPlanItem[]
     planId?: number | null
@@ -99,12 +109,21 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     setInput("")
     setIsSending(false)
     setIsPreviewGenerating(false)
-    setRegenerateOpen(false)
-    setRegenerateMode("full")
     setPagesTableCtx(null)
     setOverridePlanItems(null)
+    setHighlightKeywords(null)
     setAcceptCandidate(null)
   }, [open, source])
+
+  React.useEffect(() => {
+    if (!open) return
+    if (source !== "pages") return
+    const items = overlayCtx?.pagesOverridePlanItems
+    if (!items || items.length === 0) return
+    setOverridePlanItems(items)
+    setHighlightKeywords(null)
+    setAcceptCandidate({ planItems: items, planId: null })
+  }, [open, overlayCtx?.pagesOverridePlanItems, source])
 
   React.useEffect(() => {
     if (!portalTarget) return
@@ -221,6 +240,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
       if (itemsMaybe) {
         const planItems = itemsMaybe as PagePlannerPlanItem[]
         setOverridePlanItems(planItems)
+        setHighlightKeywords(selected_pages)
         const extractedPlanId =
           (typeof payload?.plan_id === "number" && payload.plan_id) ||
           (typeof payload?.planId === "number" && payload.planId) ||
@@ -229,6 +249,9 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
           null
         setAcceptCandidate({ planItems, planId: extractedPlanId })
       }
+
+      // A refine call creates/updates plans server-side; ensure "All plans" reflects it immediately.
+      queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
 
       const assistantText =
         (typeof payload?.message === "string" && payload.message) ||
@@ -239,7 +262,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     } finally {
       setIsSending(false)
     }
-  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx])
+  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx, queryClient])
 
   if (!open) return null
 
@@ -273,15 +296,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
                 <div className="text-xl font-semibold text-general-foreground">Refine Plan</div>
               </div>
 
-              <Button
-                type="button"
-                variant="default"
-                className="h-9 rounded-lg bg-general-primary px-4 text-primary-foreground"
-                onClick={() => setRegenerateOpen(true)}
-                disabled={overlayCtx?.pagesBusy || isPreviewGenerating}
-              >
-                Regenerate
-              </Button>
+              <div />
             </div>
 
             <div className="flex flex-1 min-h-0 flex-col px-6 pb-6 pt-2">
@@ -292,6 +307,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
                       businessId={businessId}
                       mode="table"
                       planItemsOverride={overridePlanItems}
+                      highlightKeywords={highlightKeywords}
                       externalBusy={isPreviewGenerating}
                       externalBusyLabel="Generating plan…"
                       onTableContextChange={setPagesTableCtx}
@@ -391,129 +407,6 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
         </div>
       </div>
 
-      <Dialog open={regenerateOpen} onOpenChange={setRegenerateOpen}>
-        <DialogOverlay className="z-60 bg-black/50 backdrop-blur-sm" />
-        <DialogContent
-          className={cn(
-            "z-61 w-[600px] max-w-[calc(100vw-2rem)] p-6 gap-4 rounded-xl",
-            "border border-general-border shadow-lg"
-          )}
-          showCloseButton={false}
-        >
-          <div className="flex items-center">
-            <DialogTitle className="text-2xl font-semibold tracking-[-0.48px] text-general-foreground">
-              Regenerate Plan?
-            </DialogTitle>
-          </div>
-
-          <Separator className="w-full" />
-
-          <div className="flex flex-col gap-8">
-            <div className="text-sm font-normal leading-relaxed tracking-[0.07px] text-general-foreground/80">
-              This generates a new proposed plan. Your active plan remains unchanged until you
-              confirm.
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setRegenerateMode("full")}
-                className={cn(
-                  "flex-1 rounded-xl p-3 text-left",
-                  "flex flex-col gap-3",
-                  regenerateMode === "full"
-                    ? "border border-[#2e6a56] bg-[rgba(110,193,166,0.1)]"
-                    : "border border-transparent bg-secondary"
-                )}
-                aria-pressed={regenerateMode === "full"}
-              >
-                <div className="text-base font-medium leading-relaxed text-general-foreground">
-                  Full Plan
-                </div>
-                <div className="text-xs font-normal leading-relaxed tracking-[0.18px] text-general-foreground/80">
-                  Regenerate all pages, including those that have already been executed.
-                </div>
-                <div className="text-[10px] font-medium leading-relaxed tracking-[0.15px] text-general-muted-foreground">
-                  30 new pages will be regenerated.
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setRegenerateMode("remaining")}
-                className={cn(
-                  "flex-1 rounded-xl p-3 text-left",
-                  "flex flex-col gap-3",
-                  regenerateMode === "remaining"
-                    ? "border border-[#2e6a56] bg-[rgba(110,193,166,0.1)]"
-                    : "border border-transparent bg-secondary"
-                )}
-                aria-pressed={regenerateMode === "remaining"}
-              >
-                <div className="text-base font-medium leading-relaxed text-general-foreground">
-                  Remaining Only
-                </div>
-                <div className="text-xs font-normal leading-relaxed tracking-[0.18px] text-general-foreground/80">
-                  Only regenerates pages that have not been executed.
-                </div>
-                <div className="text-[10px] font-medium leading-relaxed tracking-[0.15px] text-general-muted-foreground">
-                  6 new pages will be regenerated.
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-0">
-            <Button
-              type="button"
-              className="h-10 w-full rounded-lg bg-general-primary text-primary-foreground"
-              disabled={overlayCtx?.pagesBusy || !businessId || isPreviewGenerating}
-              onClick={async () => {
-                if (source !== "pages") {
-                  setRegenerateOpen(false)
-                  return
-                }
-
-                setRegenerateOpen(false)
-                setIsPreviewGenerating(true)
-                setAcceptCandidate(null)
-
-                try {
-                  const response = await pagePlanner.generatePlan(businessId, {
-                    page_ideas_required: 30,
-                    calendar_events: [],
-                    regenerate: regenerateMode === "remaining",
-                  })
-
-                  const plan = Array.isArray((response as any)?.plan) ? (response as any).plan : []
-                  setOverridePlanItems(plan as PagePlannerPlanItem[])
-                  setAcceptCandidate({ planItems: plan as PagePlannerPlanItem[] })
-                } catch (err: any) {
-                  const status = err?.response?.status
-                  const server =
-                    err?.response?.data != null
-                      ? typeof err.response.data === "string"
-                        ? err.response.data
-                        : JSON.stringify(err.response.data)
-                      : null
-                  const msg =
-                    server ||
-                    err?.message ||
-                    (status ? `Request failed (${status})` : "Request failed")
-                  setMessages((prev) => [
-                    ...prev,
-                    { id: `a-${Date.now()}`, role: "assistant", content: msg },
-                  ])
-                } finally {
-                  setIsPreviewGenerating(false)
-                }
-              }}
-            >
-              Regenerate
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 

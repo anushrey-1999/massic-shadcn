@@ -7,12 +7,9 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Eye,
   Hammer,
   Loader2,
   RotateCw,
-  Settings2,
-  Sparkles,
 } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 
@@ -20,7 +17,9 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Dialog, DialogContent, DialogOverlay, DialogTitle } from "@/components/ui/dialog"
 import { RelevancePill } from "@/components/ui/relevance-pill"
+import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { PagesPlansDialog } from "./pages-plans-dialog"
 import { usePagePlanner } from "@/hooks/use-page-planner"
@@ -28,6 +27,8 @@ import type { PagePlannerPlanItem, PagePlannerPlanMeta } from "@/types/page-plan
 import { formatVolume } from "@/lib/format"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
 import type { RowSelectionState } from "@tanstack/react-table"
+import type { WebPageRow } from "@/types/web-page-types"
+import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell"
 
 type ActionStatus = "build" | "optimize"
 type SortDirection = "asc" | "desc" | null
@@ -45,6 +46,11 @@ export type PagesActionsItem = {
   status?: ActionStatus
   description?: string
   metrics?: MetricPill[]
+  planItemStatus?: string | null
+  pageId?: string | null
+  pageType?: string | null
+  intent?: string | null
+  keyword?: string | null
 }
 
 type Props = {
@@ -57,6 +63,7 @@ type Props = {
   onOpenChange?: (open: boolean) => void
   mode?: "section" | "table"
   planItemsOverride?: PagePlannerPlanItem[] | null
+  highlightKeywords?: string[] | null
   externalBusy?: boolean
   externalBusyLabel?: string | null
   onTableContextChange?: (ctx: {
@@ -70,19 +77,103 @@ const DEFAULT_ITEMS: PagesActionsItem[] = []
 
 const PAGE_PLANS_QUERY_KEY = "page-planner-plans"
 
+function isTruthyFlag(value: unknown): boolean {
+  if (value === true) return true
+  if (value === false) return false
+  if (value == null) return false
+  if (typeof value === "number") return value !== 0
+  const s = String(value).trim().toLowerCase()
+  if (!s) return false
+  if (s === "false" || s === "0" || s === "no" || s === "null" || s === "undefined") return false
+  return true
+}
+
+function isArchived(value: unknown): boolean {
+  if (value == null) return false
+  const s = String(value).trim().toLowerCase()
+  if (!s || s === "null" || s === "undefined") return false
+  return true
+}
+
 function isActivePlan(plan: PagePlannerPlanMeta): boolean {
   const status = (plan.status || "").toString().toLowerCase()
-  return (
-    (status === "active" || Boolean(plan.activated_at)) &&
-    !plan.archived_at &&
-    plan.valid === true
-  )
+  // Server is source-of-truth: some "active" plans still have archived_at set.
+  if (status === "active") return true
+  // Fallback when older records don't have status populated.
+  return Boolean(plan.activated_at) && !isArchived((plan as any).archived_at)
+}
+
+function coercePlanId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  const parsed = Number.parseInt(String(value ?? ""), 10)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function toTitleCase(value: string): string {
   const s = (value || "").trim()
   if (!s) return ""
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function firstNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const s = value.trim()
+  return s ? s : null
+}
+
+function getRawKeywordFromAny(obj: any): string | null {
+  if (!obj || typeof obj !== "object") return null
+  const kw = obj?.keyword
+  return typeof kw === "string" && kw.length > 0 ? kw : null
+}
+
+function getStringFromAny(obj: any, keys: string[]): string | null {
+  if (!obj || typeof obj !== "object") return null
+  for (const key of keys) {
+    const v = firstNonEmptyString(obj?.[key])
+    if (v) return v
+  }
+  return null
+}
+
+function getNumberFromAny(obj: any, keys: string[]): number | null {
+  if (!obj || typeof obj !== "object") return null
+  for (const key of keys) {
+    const raw = obj?.[key]
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw
+    if (typeof raw === "string" && raw.trim()) {
+      const n = Number(raw)
+      if (Number.isFinite(n)) return n
+    }
+  }
+  return null
+}
+
+function getItemTitle(item: any): string {
+  return (
+    getStringFromAny(item, [
+      "keyword",
+      "page_keyword",
+      "pageKeyword",
+      "title",
+      "name",
+      "slug",
+      "page_id",
+      "pageId",
+    ]) || "Untitled"
+  )
+}
+
+function getItemRationale(item: any): string | null {
+  return getStringFromAny(item, ["rationale", "reason", "description", "explanation", "why"])
+}
+
+function getPlanItemStatus(item: any): string | null {
+  return getStringFromAny(item, ["status", "page_status", "pageStatus"])
+}
+
+function isSuccessStatus(value: unknown): boolean {
+  return String(value || "").trim().toLowerCase() === "success"
 }
 
 function oppScoreLabel(score: number | undefined): "High" | "Medium" | "Low" {
@@ -97,22 +188,72 @@ function extractPlanItems(payload: unknown): PagePlannerPlanItem[] | null {
 
   const walk = (node: unknown, depth: number): PagePlannerPlanItem[] | null => {
     if (depth > 5) return null
-    if (!node || typeof node !== "object") return null
+    if (!node) return null
+    if (typeof node === "string") {
+      const s = node.trim()
+      if (s.startsWith("{") || s.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(s)
+          return walk(parsed, depth + 1)
+        } catch {
+          return null
+        }
+      }
+      return null
+    }
+    if (typeof node !== "object") return null
     if (seen.has(node)) return null
     seen.add(node)
+
+    const looksLikeItem = (x: any) => {
+      if (!x || typeof x !== "object") return false
+      const keyword = typeof x.keyword === "string" ? x.keyword.trim() : ""
+      const title = typeof x.title === "string" ? x.title.trim() : ""
+      const slug = typeof x.slug === "string" ? x.slug.trim() : ""
+      const pageId = typeof x.page_id === "string" ? x.page_id.trim() : ""
+      const hasScores =
+        typeof x.business_relevance_score === "number" ||
+        typeof x.relevance_score === "number" ||
+        typeof x.search_volume === "number" ||
+        typeof x.volume === "number" ||
+        typeof x.page_opportunity_score === "number"
+      return Boolean(keyword || title || slug || pageId || hasScores)
+    }
 
     if (Array.isArray(node)) {
       const arr = node as any[]
       if (arr.length === 0) return []
-      const looksLikeItems = arr.every(
-        (x) => x && typeof x === "object" && typeof (x as any).keyword === "string"
-      )
-      return looksLikeItems ? (arr as PagePlannerPlanItem[]) : null
+      const objects = arr.filter((x) => x && typeof x === "object")
+      if (objects.length === 0) return null
+      const anyLooksLike = objects.some(looksLikeItem)
+      return anyLooksLike ? (objects as PagePlannerPlanItem[]) : null
     }
 
     const obj = node as Record<string, unknown>
 
-    for (const key of ["plan", "items", "output_data", "data", "result"]) {
+    if (looksLikeItem(obj)) {
+      return [obj as PagePlannerPlanItem]
+    }
+
+    const objValues = Object.values(obj).filter((x) => x && typeof x === "object")
+    if (objValues.length > 0 && objValues.every(looksLikeItem)) {
+      return objValues as PagePlannerPlanItem[]
+    }
+
+    for (const key of [
+      "plan",
+      "items",
+      "output_data",
+      "data",
+      "result",
+      "plan_items",
+      "planItems",
+      "pages",
+      "page_plan",
+      "pagePlan",
+      "plan_output",
+      "planOutput",
+    ]) {
       if (key in obj) {
         const found = walk(obj[key], depth + 1)
         if (found) return found
@@ -128,6 +269,19 @@ function extractPlanItems(payload: unknown): PagePlannerPlanItem[] | null {
   }
 
   return walk(payload, 0)
+}
+
+function extractPlanItemsFromDetail(payload: unknown): PagePlannerPlanItem[] | null {
+  const p: any = payload as any
+  const direct =
+    (Array.isArray(p?.plan) && p.plan) ||
+    (Array.isArray(p?.items) && p.items) ||
+    (Array.isArray(p?.output_data?.plan) && p.output_data.plan) ||
+    (Array.isArray(p?.output_data?.items) && p.output_data.items) ||
+    (Array.isArray(p?.plan_json) && p.plan_json) ||
+    null
+  if (direct) return direct as PagePlannerPlanItem[]
+  return extractPlanItems(payload)
 }
 
 function getPlanItemRowId(item: PagePlannerPlanItem, index: number) {
@@ -230,11 +384,22 @@ export function PagesActionsDropdown({
   onOpenChange,
   mode = "section",
   planItemsOverride = null,
+  highlightKeywords = null,
   externalBusy = false,
   externalBusyLabel = null,
   onTableContextChange,
 }: Props) {
   const refinePlan = useRefinePlanOverlayOptional()
+  const refineApi = refinePlan as unknown as
+    | {
+        open: (source: "pages" | "posts") => void
+        regeneratePagesPlan: (args: {
+          mode: "full" | "remaining"
+          planId: number | null
+          planItems: PagePlannerPlanItem[]
+        }) => void
+      }
+    | undefined
   const pagePlanner = usePagePlanner()
   const queryClient = useQueryClient()
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(true)
@@ -245,10 +410,69 @@ export function PagesActionsDropdown({
   const [visibleCount, setVisibleCount] = React.useState(10)
   const contentId = React.useId()
   const [plansOpen, setPlansOpen] = React.useState(false)
+  const [refineDialogOpen, setRefineDialogOpen] = React.useState(false)
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [sourceMode, setSourceMode] = React.useState<"active" | "generated" | "placeholder">("placeholder")
   const [planItems, setPlanItems] = React.useState<PagePlannerPlanItem[]>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const highlightKeywordsSet = React.useMemo(() => {
+    const arr = Array.isArray(highlightKeywords) ? highlightKeywords : []
+    const out = new Set<string>()
+    for (const kw of arr) {
+      if (typeof kw === "string" && kw.length > 0) out.add(kw)
+    }
+    return out
+  }, [highlightKeywords])
+
+  const buildRowsFromPlanItems = React.useCallback(
+    (items: PagePlannerPlanItem[]): PagesActionsItem[] => {
+      return (items || []).map((item, idx) => {
+        const raw: any = item as any
+        const relevance =
+          getNumberFromAny(raw, [
+            "business_relevance_score",
+            "businessRelevanceScore",
+            "relevance_score",
+            "relevanceScore",
+            "relevance",
+            "score",
+          ]) ?? 0
+        const vol = getNumberFromAny(raw, ["search_volume", "searchVolume", "volume"]) ?? 0
+        const opp = oppScoreLabel(
+          getNumberFromAny(raw, [
+            "page_opportunity_score",
+            "pageOpportunityScore",
+            "opportunity_score",
+            "opportunityScore",
+          ]) ?? 0
+        )
+        const pageType = getStringFromAny(raw, ["page_type", "pageType", "type"]) || ""
+        const pageId = getStringFromAny(raw, ["page_id", "pageId", "id"]) || null
+        const intent = getStringFromAny(raw, ["search_intent", "intent"]) || null
+        const keyword =
+          getRawKeywordFromAny(raw) ?? getStringFromAny(raw, ["keyword", "page_keyword", "pageKeyword"]) ?? null
+
+        return {
+          id: getPlanItemRowId(item, idx),
+          title: getItemTitle(raw),
+          status: "build",
+          description: getItemRationale(raw) || undefined,
+          planItemStatus: getPlanItemStatus(raw),
+          pageId,
+          pageType: pageType || null,
+          intent,
+          keyword,
+          metrics: [
+            { label: "Relevance", value: String(relevance) },
+            { label: "Type", value: toTitleCase(pageType) || "—" },
+            { label: "Vol", value: formatVolume(vol) },
+            { label: "Opp Score", value: opp },
+          ],
+        }
+      })
+    },
+    []
+  )
 
   const pagesBusy = Boolean(refinePlan?.pagesBusy)
   const pagesBusyLabel = refinePlan?.pagesBusyLabel ?? null
@@ -274,7 +498,7 @@ export function PagesActionsDropdown({
       return all.filter((p) => (p.plan_type || "").toString().toLowerCase() === "pages")
     },
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true,
     retry: 1,
   })
 
@@ -284,7 +508,7 @@ export function PagesActionsDropdown({
   const activePlanId = React.useMemo(() => {
     const plans = plansQuery.data ?? []
     const active = plans.find(isActivePlan)
-    return active?.id ?? null
+    return coercePlanId((active as any)?.id)
   }, [plansQuery.data])
 
   const activePlanQuery = useQuery({
@@ -294,7 +518,7 @@ export function PagesActionsDropdown({
       return pagePlanner.getPlanById(businessId, activePlanId as number)
     },
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true,
     retry: 1,
   })
 
@@ -305,6 +529,26 @@ export function PagesActionsDropdown({
     setVisibleCount(10)
   }, [planItemsOverride])
 
+  React.useEffect(() => {
+    // In split-view we pass planItemsOverride after refine/regenerate; rebuild rows so highlighting works.
+    if (!planItemsOverride || planItemsOverride.length === 0) return
+    const nextRows = buildRowsFromPlanItems(planItemsOverride)
+    const uniqRows = ensureUniqueRowIds(nextRows)
+    setRows(uniqRows)
+    setOpenItemId(uniqRows[0]?.id ?? null)
+    setDoneIds(new Set())
+    setSourceMode("generated")
+  }, [buildRowsFromPlanItems, planItemsOverride])
+
+  const nonSelectableRowIds = React.useMemo(() => {
+    if (!isSelectable) return new Set<string>()
+    const out = new Set<string>()
+    for (const r of rows) {
+      if (isSuccessStatus(r.planItemStatus)) out.add(r.id)
+    }
+    return out
+  }, [isSelectable, rows])
+
   const selectedKeywords = React.useMemo(() => {
     const selectedIds = Object.entries(rowSelection)
       .filter(([, v]) => Boolean(v))
@@ -312,16 +556,23 @@ export function PagesActionsDropdown({
 
     if (selectedIds.length === 0) return []
 
-    const out: string[] = []
-    for (let i = 0; i < planItems.length; i++) {
-      const id = getPlanItemRowId(planItems[i]!, i)
-      if (selectedIds.includes(id)) {
-        const kw = (planItems[i]?.keyword || "").trim()
-        if (kw) out.push(kw)
+    const idToKeyword = new Map<string, string>()
+    for (let idx = 0; idx < planItems.length; idx++) {
+      const raw: any = planItems[idx] as any
+      const kw = raw?.keyword
+      if (typeof kw === "string" && kw.length > 0) {
+        idToKeyword.set(getPlanItemRowId(planItems[idx], idx), kw)
       }
     }
+
+    const out: string[] = []
+    for (const id of selectedIds) {
+      if (nonSelectableRowIds.has(id)) continue
+      const kw = idToKeyword.get(id)
+      if (kw) out.push(kw)
+    }
     return out
-  }, [planItems, rowSelection])
+  }, [nonSelectableRowIds, planItems, rowSelection])
 
   React.useEffect(() => {
     onTableContextChange?.({
@@ -336,24 +587,45 @@ export function PagesActionsDropdown({
     if (typeof activePlanId !== "number") return
     if (pagesBusy) return
 
-    const extracted = extractPlanItems(activePlanQuery.data)
-    if (!extracted || extracted.length === 0) return
+    const extracted = extractPlanItemsFromDetail(activePlanQuery.data)
+    if (!extracted || extracted.length === 0) {
+      setPlanItems([])
+      setRowSelection({})
+      setVisibleCount(10)
+      setRows([])
+      setOpenItemId(null)
+      setDoneIds(new Set())
+      setSourceMode("active")
+      return
+    }
     setPlanItems(extracted)
     setRowSelection({})
     setVisibleCount(10)
 
     const nextRows: PagesActionsItem[] = extracted.map((item, idx) => {
-      const relevance = typeof item.business_relevance_score === "number" ? item.business_relevance_score : 0
-      const vol = typeof item.search_volume === "number" ? item.search_volume : 0
-      const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
+      const raw: any = item as any
+      const relevance =
+        getNumberFromAny(raw, ["business_relevance_score", "businessRelevanceScore", "relevance_score", "relevanceScore", "relevance", "score"]) ??
+        0
+      const vol = getNumberFromAny(raw, ["search_volume", "searchVolume", "volume"]) ?? 0
+      const opp = oppScoreLabel(getNumberFromAny(raw, ["page_opportunity_score", "pageOpportunityScore", "opportunity_score", "opportunityScore"]) ?? 0)
+      const pageType = getStringFromAny(raw, ["page_type", "pageType", "type"]) || ""
+      const pageId = getStringFromAny(raw, ["page_id", "pageId", "id"]) || null
+      const intent = getStringFromAny(raw, ["search_intent", "intent"]) || null
+      const keyword = getRawKeywordFromAny(raw) ?? getStringFromAny(raw, ["keyword", "page_keyword", "pageKeyword"]) ?? null
       return {
         id: getPlanItemRowId(item, idx),
-        title: item.keyword || "Untitled",
+        title: getItemTitle(raw),
         status: "build",
-        description: item.rationale || undefined,
+        description: getItemRationale(raw) || undefined,
+        planItemStatus: getPlanItemStatus(raw),
+        pageId,
+        pageType: pageType || null,
+        intent,
+        keyword,
         metrics: [
           { label: "Relevance", value: String(relevance) },
-          { label: "Type", value: toTitleCase(item.page_type || "") || "—" },
+          { label: "Type", value: toTitleCase(pageType) || "—" },
           { label: "Vol", value: formatVolume(vol) },
           { label: "Opp Score", value: opp },
         ],
@@ -376,17 +648,29 @@ export function PagesActionsDropdown({
     setVisibleCount(10)
 
     const nextRows: PagesActionsItem[] = pagesOverridePlanItems.map((item, idx) => {
-      const relevance = typeof item.business_relevance_score === "number" ? item.business_relevance_score : 0
-      const vol = typeof item.search_volume === "number" ? item.search_volume : 0
-      const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
+      const raw: any = item as any
+      const relevance =
+        getNumberFromAny(raw, ["business_relevance_score", "businessRelevanceScore", "relevance_score", "relevanceScore", "relevance", "score"]) ??
+        0
+      const vol = getNumberFromAny(raw, ["search_volume", "searchVolume", "volume"]) ?? 0
+      const opp = oppScoreLabel(getNumberFromAny(raw, ["page_opportunity_score", "pageOpportunityScore", "opportunity_score", "opportunityScore"]) ?? 0)
+      const pageType = getStringFromAny(raw, ["page_type", "pageType", "type"]) || ""
+      const pageId = getStringFromAny(raw, ["page_id", "pageId", "id"]) || null
+      const intent = getStringFromAny(raw, ["search_intent", "intent"]) || null
+      const keyword = getRawKeywordFromAny(raw) ?? getStringFromAny(raw, ["keyword", "page_keyword", "pageKeyword"]) ?? null
       return {
         id: getPlanItemRowId(item, idx),
-        title: item.keyword || "Untitled",
+        title: getItemTitle(raw),
         status: "build",
-        description: item.rationale || undefined,
+        description: getItemRationale(raw) || undefined,
+        planItemStatus: getPlanItemStatus(raw),
+        pageId,
+        pageType: pageType || null,
+        intent,
+        keyword,
         metrics: [
           { label: "Relevance", value: String(relevance) },
-          { label: "Type", value: toTitleCase(item.page_type || "") || "—" },
+          { label: "Type", value: toTitleCase(pageType) || "—" },
           { label: "Vol", value: formatVolume(vol) },
           { label: "Opp Score", value: opp },
         ],
@@ -434,17 +718,29 @@ export function PagesActionsDropdown({
       setRowSelection({})
       setVisibleCount(10)
       const nextRows: PagesActionsItem[] = plan.map((item, idx) => {
-        const relevance = typeof item.business_relevance_score === "number" ? item.business_relevance_score : 0
-        const vol = typeof item.search_volume === "number" ? item.search_volume : 0
-        const opp = oppScoreLabel(typeof item.page_opportunity_score === "number" ? item.page_opportunity_score : 0)
+        const raw: any = item as any
+        const relevance =
+          getNumberFromAny(raw, ["business_relevance_score", "businessRelevanceScore", "relevance_score", "relevanceScore", "relevance", "score"]) ??
+          0
+        const vol = getNumberFromAny(raw, ["search_volume", "searchVolume", "volume"]) ?? 0
+        const opp = oppScoreLabel(getNumberFromAny(raw, ["page_opportunity_score", "pageOpportunityScore", "opportunity_score", "opportunityScore"]) ?? 0)
+        const pageType = getStringFromAny(raw, ["page_type", "pageType", "type"]) || ""
+        const pageId = getStringFromAny(raw, ["page_id", "pageId", "id"]) || null
+        const intent = getStringFromAny(raw, ["search_intent", "intent"]) || null
+        const keyword = getRawKeywordFromAny(raw) ?? getStringFromAny(raw, ["keyword", "page_keyword", "pageKeyword"]) ?? null
         return {
           id: getPlanItemRowId(item, idx),
-          title: item.keyword || "Untitled",
+          title: getItemTitle(raw),
           status: "build",
-          description: item.rationale || undefined,
+          description: getItemRationale(raw) || undefined,
+          planItemStatus: getPlanItemStatus(raw),
+          pageId,
+          pageType: pageType || null,
+          intent,
+          keyword,
           metrics: [
             { label: "Relevance", value: String(relevance) },
-            { label: "Type", value: toTitleCase(item.page_type || "") || "—" },
+            { label: "Type", value: toTitleCase(pageType) || "—" },
             { label: "Vol", value: formatVolume(vol) },
             { label: "Opp Score", value: opp },
           ],
@@ -504,8 +800,8 @@ export function PagesActionsDropdown({
 
   const selectableRowIds = React.useMemo(() => {
     if (!isSelectable) return []
-    return planItems.map((item, idx) => getPlanItemRowId(item, idx))
-  }, [isSelectable, planItems])
+    return rows.filter((r) => !isSuccessStatus(r.planItemStatus)).map((r) => r.id)
+  }, [isSelectable, rows])
 
   const allSelected =
     isSelectable &&
@@ -545,17 +841,17 @@ export function PagesActionsDropdown({
       return
     }
     if (pagesBusy) return
-    refinePlan?.open("pages")
-  }, [handleGenerate, refinePlan, showGenerateButton, pagesBusy, isPlansLoading])
+    setRefineDialogOpen(true)
+  }, [handleGenerate, showGenerateButton, pagesBusy, isPlansLoading])
 
   const table = isPanelOpen ? (
     <div
       id={contentId}
       className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-lg border border-general-border bg-white"
     >
-          <div className="flex h-9 shrink-0 items-center">
+          <div className={cn("flex h-9 shrink-0 items-center", isSelectable && "gap-2 px-2")}>
             {isSelectable ? (
-              <div className="w-10 px-2 py-[7.5px]">
+              <div className="flex w-10 items-center justify-center py-[7.5px]">
                 <Checkbox
                   checked={allSelected || (someSelected && "indeterminate")}
                   onCheckedChange={(value) => toggleAllSelected(Boolean(value))}
@@ -588,7 +884,8 @@ export function PagesActionsDropdown({
                 }
               }}
               className={cn(
-                "flex flex-1 items-center gap-2 px-2 py-[7.5px] cursor-pointer select-none rounded-md",
+                "flex flex-1 items-center gap-2 py-[7.5px] cursor-pointer select-none rounded-md",
+                !isSelectable && "px-2",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               )}
             >
@@ -603,7 +900,7 @@ export function PagesActionsDropdown({
                 <ArrowUpDown className="h-4 w-4 opacity-50" />
               )}
             </div>
-            <div className="w-[52px] px-2 py-[7.5px]" />
+            <div className={cn("w-[52px] py-[7.5px]", !isSelectable && "px-2")} />
           </div>
           <div className="h-px w-full shrink-0 bg-general-border" />
 
@@ -647,6 +944,26 @@ export function PagesActionsDropdown({
               const badgeStatus: ActionStatus = item.status ?? "build"
               const isDone = doneIds.has(item.id)
               const isChecked = Boolean((rowSelection as any)?.[item.id])
+              const showHighlight =
+                isSelectable &&
+                typeof item.keyword === "string" &&
+                item.keyword.length > 0 &&
+                highlightKeywordsSet.has(item.keyword)
+              const statusForCell = String(item.planItemStatus || "").trim().toLowerCase()
+              const webRow = {
+                id: item.id,
+                keyword: (item.keyword || item.title || "").trim() || "N/A",
+                page_type: (item.pageType || "").trim() || "page",
+                search_volume: 0,
+                business_relevance_score: 0,
+                page_opportunity_score: 0,
+                sub_topics_count: 0,
+                status: statusForCell,
+                supporting_keywords: [],
+                page_id: (item.pageId || undefined) as any,
+                search_intent: item.intent || undefined,
+                slug: undefined,
+              } as WebPageRow
 
               return (
                 <Collapsible
@@ -669,6 +986,7 @@ export function PagesActionsDropdown({
                         "group flex min-h-11 items-center gap-2 px-2 py-1.5 select-none cursor-pointer",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                         open && "bg-[#FAFAFA]",
+                        showHighlight && "bg-amber-50/40 border-l-2 border-amber-400",
                         showTriggerBorder && "border-b border-general-border"
                       )}
                     >
@@ -679,12 +997,14 @@ export function PagesActionsDropdown({
                         >
                           <Checkbox
                             checked={isChecked}
-                            onCheckedChange={(value) =>
+                            disabled={nonSelectableRowIds.has(item.id)}
+                            onCheckedChange={(value) => {
+                              if (nonSelectableRowIds.has(item.id)) return
                               setRowSelection((prev) => ({
                                 ...(prev as any),
                                 [item.id]: Boolean(value),
                               }))
-                            }
+                            }}
                             aria-label="Select row"
                           />
                         </div>
@@ -742,36 +1062,27 @@ export function PagesActionsDropdown({
                         showContentBorder && "border-b border-general-border"
                       )}
                     >
-                      <div className="flex items-center bg-[#FAFAFA]">
-                        <div className="flex flex-1 items-center gap-2 px-2 py-1.5">
+                      <div className={cn("flex bg-[#FAFAFA]", isSelectable ? "items-start" : "items-center")}>
+                        <div
+                          className={cn(
+                            "flex-1 px-2 py-1.5",
+                            isSelectable
+                              ? "grid grid-cols-2 gap-2"
+                              : "flex flex-wrap items-center gap-2"
+                          )}
+                        >
                           {item.metrics.map((pill) => (
                             <MetricPillView key={`${item.id}-${pill.label}`} pill={pill} />
                           ))}
                         </div>
-                        <div className="flex w-[52px] items-center justify-end px-2 py-1.5">
-                          <Button
-                            type="button"
-                            variant={isDone ? "outline" : "default"}
-                            size="icon-sm"
-                            className={cn(
-                              "h-8 w-8 rounded-lg",
-                              isDone
-                                ? "border-general-border-three bg-transparent"
-                                : "bg-general-primary text-primary-foreground"
-                            )}
-                            aria-label={isDone ? "View" : "Generate"}
-                            onClick={() => {
-                              if (isDone) return
-                              setDoneIds((prev) => {
-                                const next = new Set(prev)
-                                next.add(item.id)
-                                return next
-                              })
-                            }}
-                          >
-                            {isDone ? <Eye /> : <Sparkles />}
-                          </Button>
-                        </div>
+                      <div
+                        className={cn(
+                          "flex w-[52px] justify-end px-2 py-1.5",
+                          isSelectable ? "items-start" : "items-center"
+                        )}
+                      >
+                        <WebPageActionCell businessId={businessId} row={webRow} />
+                      </div>
                       </div>
                     </CollapsibleContent>
                   ) : null}
@@ -799,6 +1110,93 @@ export function PagesActionsDropdown({
           </div>
         </div>
   ) : null
+
+  const refinePlanDialog = (
+    <Dialog open={refineDialogOpen} onOpenChange={setRefineDialogOpen}>
+      <DialogOverlay className="z-60 bg-black/50 backdrop-blur-sm" />
+      <DialogContent
+        className={cn(
+          "z-61 w-[600px] max-w-[calc(100vw-2rem)] p-6 gap-4 rounded-xl",
+          "border border-general-border shadow-lg"
+        )}
+        showCloseButton={false}
+      >
+        <div className="flex items-center">
+          <DialogTitle className="text-2xl font-semibold tracking-[-0.48px] text-general-foreground">
+            Refine Plan?
+          </DialogTitle>
+        </div>
+
+        <Separator className="w-full" />
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => {
+              setRefineDialogOpen(false)
+              refineApi?.open("pages")
+              refineApi?.regeneratePagesPlan({
+                mode: "full",
+                planId: typeof activePlanId === "number" ? activePlanId : null,
+                planItems,
+              })
+            }}
+            className={cn(
+              "flex-1 rounded-xl p-3 text-left",
+              "flex flex-col gap-3",
+              "cursor-pointer border border-transparent bg-secondary hover:border-[#2e6a56] hover:bg-[rgba(110,193,166,0.1)]"
+            )}
+          >
+            <div className="text-base font-medium leading-relaxed text-general-foreground">Full Plan</div>
+            <div className="text-xs font-normal leading-relaxed tracking-[0.18px] text-general-foreground/80">
+              Regenerate all pages, including those that have already been executed.
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setRefineDialogOpen(false)
+              refineApi?.open("pages")
+              refineApi?.regeneratePagesPlan({
+                mode: "remaining",
+                planId: typeof activePlanId === "number" ? activePlanId : null,
+                planItems,
+              })
+            }}
+            className={cn(
+              "flex-1 rounded-xl p-3 text-left",
+              "flex flex-col gap-3",
+              "cursor-pointer border border-transparent bg-secondary hover:border-[#2e6a56] hover:bg-[rgba(110,193,166,0.1)]"
+            )}
+          >
+            <div className="text-base font-medium leading-relaxed text-general-foreground">Remaining Only</div>
+            <div className="text-xs font-normal leading-relaxed tracking-[0.18px] text-general-foreground/80">
+              Only regenerates pages that have not been executed.
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setRefineDialogOpen(false)
+              refineApi?.open("pages")
+            }}
+            className={cn(
+              "flex-1 rounded-xl p-3 text-left",
+              "flex flex-col gap-3",
+              "cursor-pointer border border-transparent bg-secondary hover:border-[#2e6a56] hover:bg-[rgba(110,193,166,0.1)]"
+            )}
+          >
+            <div className="text-base font-medium leading-relaxed text-general-foreground">Custom</div>
+            <div className="text-xs font-normal leading-relaxed tracking-[0.18px] text-general-foreground/80">
+              Open the active plan in split view to refine using chat.
+            </div>
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
 
   if (mode === "table") {
     return (
@@ -864,16 +1262,6 @@ export function PagesActionsDropdown({
           </Button>
 
           <Button
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 rounded-lg border-general-border-three bg-transparent"
-            aria-label="Settings"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Settings2 className="h-[13px] w-[13px]" />
-          </Button>
-
-          <Button
             variant="default"
             size="sm"
             className="h-9 rounded-lg bg-general-primary px-4 text-primary-foreground"
@@ -903,6 +1291,7 @@ export function PagesActionsDropdown({
       </div>
 
       {table}
+      {refinePlanDialog}
 
       {pagesRegenerateError ? (
         <div className="mt-3 text-xs text-destructive">

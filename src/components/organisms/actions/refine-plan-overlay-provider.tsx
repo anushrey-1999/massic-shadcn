@@ -8,6 +8,8 @@ import type { PagePlannerPlanItem, PagePlannerPlanMeta } from "@/types/page-plan
 
 export type RefinePlanSource = "pages" | "posts"
 
+export type PagesRegenerateMode = "full" | "remaining"
+
 type RefinePlanOverlayContextValue = {
   open: (source: RefinePlanSource) => void
   close: () => void
@@ -16,7 +18,11 @@ type RefinePlanOverlayContextValue = {
   pagesRegenerating: boolean
   pagesRegenerateError: string | null
   pagesOverridePlanItems: PagePlannerPlanItem[] | null
-  regeneratePagesPlan: (args: { regenerate: boolean }) => void
+  regeneratePagesPlan: (args: {
+    mode: PagesRegenerateMode
+    planId: number | null
+    planItems: PagePlannerPlanItem[]
+  }) => void
   acceptPagesPlan: (args: { planItems: PagePlannerPlanItem[]; planId?: number | null }) => void
 }
 
@@ -37,6 +43,22 @@ function isPagesPlan(plan: PagePlannerPlanMeta): boolean {
   return (plan.plan_type || "").toString().toLowerCase() === "pages"
 }
 
+function isSuccessStatus(value: unknown): boolean {
+  return String(value || "").trim().toLowerCase() === "success"
+}
+
+function extractPlanItemsFromResponse(payload: unknown): PagePlannerPlanItem[] {
+  const p: any = payload as any
+  const direct =
+    (Array.isArray(p?.plan) && p.plan) ||
+    (Array.isArray(p?.items) && p.items) ||
+    (Array.isArray(p?.output_data?.plan) && p.output_data.plan) ||
+    (Array.isArray(p?.output_data?.items) && p.output_data.items) ||
+    (Array.isArray(p?.plan_json) && p.plan_json) ||
+    []
+  return Array.isArray(direct) ? (direct as PagePlannerPlanItem[]) : []
+}
+
 export function RefinePlanOverlayProvider({ businessId, children }: Props) {
   const pagePlanner = usePagePlanner()
   const queryClient = useQueryClient()
@@ -51,6 +73,10 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
 
   const open = React.useCallback((nextSource: RefinePlanSource) => {
     setSource(nextSource)
+    // Opening the overlay should always start from the active plan view.
+    // Any preview/override should only appear after a regenerate/refine action.
+    setPagesOverridePlanItems(null)
+    setPagesRegenerateError(null)
     setOverlayOpen(true)
   }, [])
 
@@ -59,7 +85,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
   }, [])
 
   const regeneratePagesPlan = React.useCallback(
-    (args: { regenerate: boolean }) => {
+    (args: { mode: PagesRegenerateMode; planId: number | null; planItems: PagePlannerPlanItem[] }) => {
       if (!businessId || pagesRegenerating || pagesAccepting) return
 
       setPagesRegenerateError(null)
@@ -67,14 +93,45 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
 
       void (async () => {
         try {
+          if (args.mode === "remaining") {
+            const planId = args.planId
+            if (!(typeof planId === "number" && planId > 0)) {
+              throw new Error("No active plan found to regenerate.")
+            }
+
+            // Preserve selected_pages exactly as received from the plan API (order + casing).
+            const remainingKeywords = (args.planItems || [])
+              .filter((x: any) => !isSuccessStatus(x?.status))
+              .map((x: any) => (typeof x?.keyword === "string" ? x.keyword : ""))
+              .filter((kw) => typeof kw === "string" && kw.length > 0)
+
+            if (remainingKeywords.length === 0) {
+              throw new Error("No remaining pages found to regenerate.")
+            }
+
+            const response = await pagePlanner.refinePlan(businessId, {
+              plan_id: planId,
+              selected_pages: remainingKeywords,
+              user_prompt: "",
+              calendar_events: [],
+              page_ideas_required: 30,
+            })
+
+            setPagesOverridePlanItems(extractPlanItemsFromResponse(response))
+            await queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
+            await queryClient.refetchQueries({ queryKey: ["page-planner-plans", businessId] })
+            return
+          }
+
           const response = await pagePlanner.generatePlan(businessId, {
             page_ideas_required: 30,
             calendar_events: [],
-            regenerate: args.regenerate,
+            regenerate: false,
           })
 
-          const plan = Array.isArray(response?.plan) ? response.plan : []
-          setPagesOverridePlanItems(plan)
+          setPagesOverridePlanItems(extractPlanItemsFromResponse(response))
+          await queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
+          await queryClient.refetchQueries({ queryKey: ["page-planner-plans", businessId] })
         } catch (err: any) {
           const status = err?.response?.status
           const server =

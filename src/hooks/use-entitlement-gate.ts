@@ -13,7 +13,8 @@ export type EntitlementKey =
   | "ads"
   | "content"
   | "reviews"
-  | "aiChat";
+  | "aiChat"
+  | "actions";
 
 type UseEntitlementGateArgs = {
   entitlement: EntitlementKey;
@@ -89,6 +90,7 @@ export function useEntitlementGate({
         aiChat: true,
         content: true,
         reviews: true,
+        actions: true,
       };
     }
 
@@ -102,6 +104,7 @@ export function useEntitlementGate({
         aiChat: false,
         content: false,
         reviews: false,
+        actions: false,
       };
     }
 
@@ -123,6 +126,7 @@ export function useEntitlementGate({
       aiChat: level >= 2,
       content: level >= 3,
       reviews: level >= 3,
+      actions: level >= 3,
     };
   }, [planType]);
 

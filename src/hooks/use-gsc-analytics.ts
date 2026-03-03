@@ -401,19 +401,23 @@ export function useGSCAnalytics(
   }, [rawData])
 
   const chartLegendItems = useMemo<ChartLegendItem[]>(() => {
+    const signedChange = (diff: string, trend: "up" | "down") => {
+      const value = parsePercentageChange(diff)
+      return trend === "down" ? -value : value
+    }
     return [
       {
         key: "impressions",
         icon: null,
         value: formatNumber(trendData.Imp.Total),
-        change: parsePercentageChange(trendData.Imp.Diff),
+        change: signedChange(trendData.Imp.Diff, trendData.Imp.Trend),
         checked: true,
       },
       {
         key: "clicks",
         icon: null,
         value: formatNumber(trendData.Clk.Total),
-        change: parsePercentageChange(trendData.Clk.Diff),
+        change: signedChange(trendData.Clk.Diff, trendData.Clk.Trend),
         checked: true,
       },
       ...(trendData.goals
@@ -422,7 +426,7 @@ export function useGSCAnalytics(
             key: "goals",
             icon: null,
             value: formatNumber(trendData.goals.Total),
-            change: parsePercentageChange(trendData.goals.Diff),
+            change: signedChange(trendData.goals.Diff, trendData.goals.Trend),
             checked: true,
           },
         ]

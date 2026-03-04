@@ -122,8 +122,11 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     if (!items || items.length === 0) return
     setOverridePlanItems(items)
     setHighlightKeywords(null)
-    setAcceptCandidate({ planItems: items, planId: null })
-  }, [open, overlayCtx?.pagesOverridePlanItems, source])
+    setAcceptCandidate({
+      planItems: items,
+      planId: overlayCtx?.pagesOverridePlanId ?? null,
+    })
+  }, [open, overlayCtx?.pagesOverridePlanItems, overlayCtx?.pagesOverridePlanId, source])
 
   React.useEffect(() => {
     if (!portalTarget) return
@@ -175,7 +178,10 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
       }
 
       const ctx = pagesTableCtx
-      if (!ctx?.planId) {
+      const effectivePlanItems = overridePlanItems ?? ctx?.planItems ?? []
+      const effectivePlanId =
+        acceptCandidate?.planId ?? overlayCtx?.pagesOverridePlanId ?? ctx?.planId ?? null
+      if (!(typeof effectivePlanId === "number" && effectivePlanId > 0)) {
         setMessages((prev) => [
           ...prev,
           { id: `a-${Date.now()}`, role: "assistant", content: "No active plan found to refine." },
@@ -184,8 +190,8 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
       }
 
       const selected_pages = buildSelectedPages({
-        planItems: ctx.planItems,
-        selectedKeywords: ctx.selectedKeywords,
+        planItems: effectivePlanItems,
+        selectedKeywords: ctx?.selectedKeywords ?? [],
       })
 
       if (selected_pages.length === 0) {
@@ -204,7 +210,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
       let response: unknown
       try {
         response = await pagePlanner.refinePlan(businessId, {
-          plan_id: ctx.planId,
+          plan_id: effectivePlanId,
           selected_pages,
           user_prompt: text,
           calendar_events: [],
@@ -262,7 +268,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     } finally {
       setIsSending(false)
     }
-  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx, queryClient])
+  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx, queryClient, acceptCandidate, overridePlanItems, overlayCtx?.pagesOverridePlanId])
 
   if (!open) return null
 

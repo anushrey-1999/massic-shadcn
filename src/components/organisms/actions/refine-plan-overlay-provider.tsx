@@ -10,6 +10,17 @@ export type RefinePlanSource = "pages" | "posts"
 
 export type PagesRegenerateMode = "full" | "remaining"
 
+function extractPlanIdFromResponse(payload: unknown): number | null {
+  const p = payload as any
+  return (
+    (typeof p?.plan_id === "number" && p.plan_id) ||
+    (typeof p?.planId === "number" && p.planId) ||
+    (typeof p?.id === "number" && p.id) ||
+    (typeof p?.plan_meta?.id === "number" && p.plan_meta?.id) ||
+    null
+  )
+}
+
 type RefinePlanOverlayContextValue = {
   open: (source: RefinePlanSource) => void
   close: () => void
@@ -18,6 +29,7 @@ type RefinePlanOverlayContextValue = {
   pagesRegenerating: boolean
   pagesRegenerateError: string | null
   pagesOverridePlanItems: PagePlannerPlanItem[] | null
+  pagesOverridePlanId: number | null
   regeneratePagesPlan: (args: {
     mode: PagesRegenerateMode
     planId: number | null
@@ -70,18 +82,26 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
   const [pagesOverridePlanItems, setPagesOverridePlanItems] = React.useState<PagePlannerPlanItem[] | null>(
     null
   )
+  const [pagesOverridePlanId, setPagesOverridePlanId] = React.useState<number | null>(null)
 
   const open = React.useCallback((nextSource: RefinePlanSource) => {
     setSource(nextSource)
-    // Opening the overlay should always start from the active plan view.
-    // Any preview/override should only appear after a regenerate/refine action.
     setPagesOverridePlanItems(null)
+    setPagesOverridePlanId(null)
     setPagesRegenerateError(null)
     setOverlayOpen(true)
   }, [])
 
   const close = React.useCallback(() => {
     setOverlayOpen(false)
+  }, [])
+
+  const handleOverlayOpenChange = React.useCallback((open: boolean) => {
+    if (!open) {
+      setPagesOverridePlanItems(null)
+      setPagesOverridePlanId(null)
+    }
+    setOverlayOpen(open)
   }, [])
 
   const regeneratePagesPlan = React.useCallback(
@@ -118,6 +138,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
             })
 
             setPagesOverridePlanItems(extractPlanItemsFromResponse(response))
+            setPagesOverridePlanId(extractPlanIdFromResponse(response))
             await queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
             await queryClient.refetchQueries({ queryKey: ["page-planner-plans", businessId] })
             return
@@ -130,6 +151,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
           })
 
           setPagesOverridePlanItems(extractPlanItemsFromResponse(response))
+          setPagesOverridePlanId(extractPlanIdFromResponse(response))
           await queryClient.invalidateQueries({ queryKey: ["page-planner-plans", businessId] })
           await queryClient.refetchQueries({ queryKey: ["page-planner-plans", businessId] })
         } catch (err: any) {
@@ -210,6 +232,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
         pagesRegenerating,
         pagesRegenerateError,
         pagesOverridePlanItems,
+        pagesOverridePlanId,
         regeneratePagesPlan,
         acceptPagesPlan,
       }}
@@ -217,7 +240,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
       {children}
       <RefinePlanOverlay
         open={overlayOpen}
-        onOpenChange={setOverlayOpen}
+        onOpenChange={handleOverlayOpenChange}
         businessId={businessId}
         source={source}
       />

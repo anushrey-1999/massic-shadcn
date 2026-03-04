@@ -2,6 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Stepper, type StepperStep } from "@/components/ui/stepper";
 import { cn } from "@/lib/utils";
 
 interface SectionItem {
@@ -18,6 +19,9 @@ interface ProfileSidebarProps {
   buttonDisabled?: boolean;
   buttonHelperText?: string;
   isWorkflowProcessing?: boolean;
+  stepperSteps?: StepperStep[];
+  stepperStep?: number;
+  onStepperStepClick?: (index: number) => void;
 }
 
 export function ProfileSidebar({
@@ -29,35 +33,51 @@ export function ProfileSidebar({
   buttonDisabled = false,
   buttonHelperText,
   isWorkflowProcessing = false,
+  stepperSteps,
+  stepperStep = 0,
+  onStepperStepClick,
 }: ProfileSidebarProps) {
   const helperTextClass =
     buttonHelperText === "Checking your plan..."
       ? "text-foreground"
       : "text-destructive";
 
+  const isStepperMode = stepperSteps && stepperSteps.length > 0;
+
   return (
     <div className="flex flex-col gap-2 sticky top-20">
-      {/* Section Navigation */}
-      <Card className="w-[250px] shrink-0 h-fit bg-white border border-general-border shadow-none rounded-lg py-0 overflow-hidden">
-        <CardContent className="p-0">
-          <div className="flex flex-col">
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                onClick={() => onSectionClick(section.id)}
-                className={cn(
-                  "flex items-center p-3 text-sm text-left transition-colors font-medium hover:bg-primary-foreground cursor-pointer",
-                  activeSection === section.id
-                    ? "bg-primary-foreground text-foreground"
-                    : "text-general-muted-foreground"
-                )}
-              >
-                {section.label}
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {isStepperMode ? (
+        <Card className="w-[250px] shrink-0 h-fit bg-white border border-general-border shadow-none rounded-lg p-4 overflow-hidden">
+          <CardContent className="p-0">
+            <Stepper
+              steps={stepperSteps}
+              currentStep={stepperStep}
+              onStepClick={onStepperStepClick}
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="w-[250px] shrink-0 h-fit bg-white border border-general-border shadow-none rounded-lg py-0 overflow-hidden">
+          <CardContent className="p-0">
+            <div className="flex flex-col">
+              {sections.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => onSectionClick(section.id)}
+                  className={cn(
+                    "flex items-center p-3 text-sm text-left transition-colors font-medium hover:bg-primary-foreground cursor-pointer",
+                    activeSection === section.id
+                      ? "bg-primary-foreground text-foreground"
+                      : "text-general-muted-foreground"
+                  )}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Progress Section */}
       <Card className="w-[250px] shrink-0  h-fit bg-white border-none shadow-none rounded-lg px-2 py-3 overflow-hidden">

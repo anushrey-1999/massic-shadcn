@@ -90,6 +90,8 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
   name?: string;
   // Layout for radio/checkbox groups
   orientation?: "horizontal" | "vertical";
+  radioGroupVariant?: "default" | "cards";
+  radioCardIcons?: Record<string, React.ReactNode>;
   // LocationSelect specific
   loading?: boolean;
   addon?: {
@@ -206,6 +208,8 @@ function GenericInput<
   loading,
   required = false,
   inputVariant,
+  radioGroupVariant = "default",
+  radioCardIcons,
   ...props
 }: GenericInputProps<TFormData>) {
   // If formField is provided, extract field values and handlers
@@ -543,6 +547,64 @@ function GenericInput<
     if ((type === "radio-group" || (type === "radio" && options)) && options) {
       const currentValue = value;
       const groupOrientation = props.orientation || "vertical";
+
+      if (radioGroupVariant === "cards") {
+        return (
+          <div
+            id={inputId}
+            data-slot="radio-group"
+            aria-invalid={isInvalid}
+            className={cn(
+              "flex gap-4",
+              groupOrientation === "horizontal"
+                ? "flex-row flex-wrap"
+                : "flex-col gap-2",
+              className
+            )}
+          >
+            {options.map((option) => {
+              const optionKey = String(option.value);
+              const icon = radioCardIcons?.[optionKey];
+              return (
+                <label key={option.value} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name={props.name}
+                    value={option.value}
+                    checked={currentValue === option.value}
+                    disabled={option.disabled}
+                    onChange={(e) => {
+                      if (onChange) {
+                        const syntheticEvent = {
+                          target: { value: e.target.value },
+                        } as React.ChangeEvent<HTMLInputElement>;
+                        onChange(syntheticEvent);
+                      }
+                    }}
+                    onBlur={props.onBlur}
+                    className="peer sr-only"
+                  />
+                  <div
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-2 rounded-2xl border bg-[#f5f5f5] px-8 py-5 min-h-[88px] min-w-[160px]",
+                      "text-general-muted-foreground/60",
+                      "transition-colors",
+                      "peer-checked:bg-white peer-checked:border-general-primary peer-checked:text-general-primary",
+                      "peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
+                      option.disabled && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    {icon ? (
+                      <span className="shrink-0">{icon}</span>
+                    ) : null}
+                    <span className="text-sm font-medium">{option.label}</span>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        );
+      }
 
       return (
         <div

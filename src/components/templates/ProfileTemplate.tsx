@@ -28,7 +28,10 @@ import {
   normalizeWebsiteUrl,
 } from "@/utils/utils";
 import { Button } from "@/components/ui/button";
-import { Loader2, Unlink } from "lucide-react";
+import { GenericInput } from "@/components/ui/generic-input";
+import { Stepper } from "@/components/ui/stepper";
+import { ProfileStepCard } from "@/components/ui/profile-step-card";
+import { ChevronRight, Loader2, Unlink } from "lucide-react";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useSubscription } from "@/hooks/use-subscription";
 import {
@@ -84,6 +87,22 @@ const sections = [
   { id: "locations-addresses", label: "Locations & Addresses" },
   { id: "competitors", label: "Competitors" },
 ];
+
+const PROFILE_STEPPER_STEPS = [
+  { id: "basic-details", label: "Basic Details" },
+  { id: "content-cues", label: "Content Cues" },
+  { id: "competitors", label: "Competitors" },
+] as const;
+
+const basicDetailsSchema = businessInfoSchema.pick({
+  website: true,
+  businessName: true,
+  primaryLocation: true,
+  serviceType: true,
+  lifetimeValue: true,
+  offerings: true,
+  offeringsList: true,
+});
 
 // Scroll configuration
 const SCROLL_HEADER_OFFSET = 100;
@@ -160,6 +179,7 @@ const ProfileTemplate = ({
     refetchData: refetchSubscriptionData,
   } = useSubscription({ isWhitelisted: isAgencyWhitelisted });
   const [showSubmitErrors, setShowSubmitErrors] = useState(false);
+  const [profileStep, setProfileStep] = useState(0);
   const initialValuesRef = useRef<any>(null);
   const hasChangesRef = useRef(false);
   const rafIdRef = useRef<number | null>(null);
@@ -1171,6 +1191,13 @@ const ProfileTemplate = ({
     return offeringsMeta?.hasValidationErrors === true;
   });
 
+  const hasBasicDetailsSchemaValidationErrors = useMemo(() => {
+    return !basicDetailsSchema.safeParse(formValues).success;
+  }, [formValues]);
+
+  const hasBasicDetailsValidationErrors =
+    hasBasicDetailsSchemaValidationErrors || hasOfferingsValidationErrors;
+
   const hasSchemaValidationErrors = useMemo(() => {
     return !businessInfoSchema.safeParse(formValues).success;
   }, [formValues]);
@@ -1219,6 +1246,29 @@ const ProfileTemplate = ({
     isCheckingPlan,
     isTriggeringWorkflow,
   ]);
+
+  const handleStepperStepClick = useCallback(
+    (nextStep: number) => {
+      if (nextStep <= profileStep) {
+        setProfileStep(nextStep);
+        return;
+      }
+
+      if (profileStep === 0 && hasBasicDetailsValidationErrors) {
+        toast.error("Please fix the highlighted fields before continuing.");
+        (["website", "businessName", "primaryLocation"] as const).forEach((key) => {
+          form.setFieldMeta(key as any, (prev: any) => ({
+            ...prev,
+            isTouched: true,
+          }));
+        });
+        return;
+      }
+
+      setProfileStep(nextStep);
+    },
+    [form, hasBasicDetailsValidationErrors, profileStep]
+  );
 
   const handlePrimaryButtonClick = useCallback(async () => {
     if (hasChanges) {
@@ -1346,54 +1396,181 @@ const ProfileTemplate = ({
 
         {/* Scrollable Content */}
         <div className="w-full max-w-[1224px] flex gap-6 p-5 items-start">
-          <ProfileSidebar
-            sections={sections}
-            activeSection={activeSection}
-            onSectionClick={handleSectionClick}
-            buttonText={buttonText}
-            onButtonClick={handlePrimaryButtonClick}
-            buttonDisabled={isButtonDisabled}
-            buttonHelperText={buttonHelperText}
-            isWorkflowProcessing={isWorkflowProcessing}
-          />
-          {/* Loader overlay only on the right panel (form content) */}
-
-          <div className="flex-1">
+          {!externalJobDetails?.job_id && (
+            <ProfileSidebar
+              sections={sections}
+              activeSection={activeSection}
+              onSectionClick={handleSectionClick}
+              buttonText={buttonText}
+              onButtonClick={handlePrimaryButtonClick}
+              buttonDisabled={isButtonDisabled}
+              buttonHelperText={buttonHelperText}
+              isWorkflowProcessing={isWorkflowProcessing}
+            />
+          )}
+          <div className="flex-1 flex flex-col gap-6">
+            {externalJobDetails?.job_id && (
+              <Stepper
+                steps={[...PROFILE_STEPPER_STEPS]}
+                currentStep={profileStep}
+                onStepClick={handleStepperStepClick}
+                className="bg-white border border-general-border rounded-lg p-4 shadow-none"
+              />
+            )}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 form.handleSubmit();
               }}
+              className="flex flex-col gap-0"
             >
-              <BusinessInfoForm
-                form={form}
-                headerAction={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAutofillProfile}
-                    disabled={
-                      isAutofillLoading ||
-                      !(formValues?.website ?? "").toString().trim()
+              {externalJobDetails?.job_id ? (
+                <>
+                  {profileStep === 0 && (
+                    <ProfileStepCard
+                      title="Basic Details"
+                      description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
+                      rightAction={
+                        <Button
+                          type="button"
+                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                          disabled={hasBasicDetailsValidationErrors}
+                          onClick={() =>
+                            setProfileStep((s) => Math.min(2, s + 1))
+                          }
+                        >
+                          Next
+                          <ChevronRight className="size-4 shrink-0" />
+                        </Button>
+                      }
+                    >
+                      <BusinessInfoForm
+                        form={form}
+                        embedded
+                        primaryLocationAction={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="default"
+                            onClick={handleAutofillProfile}
+                            disabled={
+                              isAutofillLoading ||
+                              !(formValues?.website ?? "").toString().trim()
+                            }
+                            className="gap-2 border-general-border-three text-general-foreground"
+                          >
+                            {isAutofillLoading ? (
+                              <>
+                                <Loader2 className="size-4 animate-spin" />
+                                Autofilling...
+                              </>
+                            ) : (
+                              "Autofill Profile"
+                            )}
+                          </Button>
+                        }
+                      />
+                      <OfferingsForm
+                        form={form}
+                        businessId={businessId}
+                        embedded
+                      />
+                      <div className="flex w-[60%] gap-6 items-end">
+                        <div className="flex flex-1 min-w-0 flex-col gap-0.5">
+                          <GenericInput<BusinessInfoFormData>
+                            form={form as any}
+                            fieldName="businessDescription"
+                            type="textarea"
+                            label={
+                              <>
+                                Anything else we should know about your business?{" "}
+                                <span className="text-general-muted-foreground font-normal">
+                                  (optional)
+                                </span>
+                              </>
+                            }
+                            placeholder="Provide any additional info"
+                            rows={3}
+                          />
+                        </div>
+                        <div className="min-w-[160px]" />
+                      </div>
+                    </ProfileStepCard>
+                  )}
+                  {profileStep === 1 && (
+                    <ProfileStepCard
+                      title="Content Cues"
+                      description="Guides tone, messaging, and calls-to-action so content sounds like you and converts better."
+                      rightAction={
+                        <Button
+                          type="button"
+                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                          onClick={() =>
+                            setProfileStep((s) => Math.min(2, s + 1))
+                          }
+                        >
+                          Next
+                          <ChevronRight className="size-4 shrink-0" />
+                        </Button>
+                      }
+                    >
+                      <ContentCuesForm form={form} embedded />
+                      <LocationsForm form={form} embedded />
+                    </ProfileStepCard>
+                  )}
+                  {profileStep === 2 && (
+                    <ProfileStepCard
+                      title="Competitors"
+                      description="Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities."
+                      rightAction={
+                        <Button
+                          type="button"
+                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                          onClick={handlePrimaryButtonClick}
+                          disabled={isButtonDisabled}
+                        >
+                          Proceed to Strategy
+                          <ChevronRight className="size-4 shrink-0" />
+                        </Button>
+                      }
+                    >
+                      <CompetitorsForm form={form} embedded />
+                    </ProfileStepCard>
+                  )}
+                </>
+              ) : (
+                <>
+                  <BusinessInfoForm
+                    form={form}
+                    headerAction={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAutofillProfile}
+                        disabled={
+                          isAutofillLoading ||
+                          !(formValues?.website ?? "").toString().trim()
+                        }
+                        className="gap-2"
+                      >
+                        {isAutofillLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Autofilling...
+                          </>
+                        ) : (
+                          "Autofill profile"
+                        )}
+                      </Button>
                     }
-                    className="gap-2"
-                  >
-                    {isAutofillLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Autofilling...
-                      </>
-                    ) : (
-                      "Autofill profile"
-                    )}
-                  </Button>
-                }
-              />
-              <OfferingsForm form={form} businessId={businessId} />
-              <ContentCuesForm form={form} />
-              <LocationsForm form={form} />
-              <CompetitorsForm form={form} />
+                  />
+                  <OfferingsForm form={form} businessId={businessId} />
+                  <ContentCuesForm form={form} />
+                  <LocationsForm form={form} />
+                  <CompetitorsForm form={form} />
+                </>
+              )}
             </form>
             <div className="mt-6 flex justify-end">
               <Button

@@ -1369,8 +1369,7 @@ const ProfileTemplate = ({
   return (
     <div
       className={cn(
-        "flex flex-col min-h-full relative",
-        isLoading ? "overflow-hidden" : ""
+        "flex flex-col h-screen max-h-screen min-h-0 relative overflow-hidden"
       )}
     >
       <PlanModal
@@ -1386,16 +1385,18 @@ const ProfileTemplate = ({
         loading={subscriptionLoading}
       />
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
-        {/* Sticky Page Header */}
-        <div className="sticky top-0 z-10">
-          <PageHeader
-            breadcrumbs={breadcrumbs}
-            showAskMassic={Boolean(externalJobDetails?.job_id)}
-          />
-        </div>
+        <div className="flex flex-col flex-1 min-h-0 min-w-0">
+          {/* Sticky Page Header */}
+          <div className="sticky top-0 z-10 shrink-0 bg-background">
+            <PageHeader
+              breadcrumbs={breadcrumbs}
+              showAskMassic={Boolean(externalJobDetails?.job_id)}
+            />
+          </div>
 
-        {/* Scrollable Content */}
-        <div className="w-full max-w-[1224px] flex gap-6 p-5 items-start">
+          {/* Content area: takes remaining height, scroll lives inside form column */}
+          <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
+            <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
           {!externalJobDetails?.job_id && (
             <ProfileSidebar
               sections={sections}
@@ -1408,28 +1409,29 @@ const ProfileTemplate = ({
               isWorkflowProcessing={isWorkflowProcessing}
             />
           )}
-          <div className="flex-1 flex flex-col gap-6">
+          <div className="flex-1 flex flex-col gap-7 min-h-0 min-w-0 overflow-hidden">
             {externalJobDetails?.job_id && (
               <Stepper
                 steps={[...PROFILE_STEPPER_STEPS]}
                 currentStep={profileStep}
                 onStepClick={handleStepperStepClick}
-                className="bg-white border border-general-border rounded-lg p-4 shadow-none"
+                className="shrink-0 bg-white border border-general-border rounded-lg p-4 shadow-none"
               />
             )}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                form.handleSubmit();
-              }}
-              className="flex flex-col gap-0"
-            >
-              {externalJobDetails?.job_id ? (
-                <>
+            {externalJobDetails?.job_id ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  form.handleSubmit();
+                }}
+                className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
+              >
                   {profileStep === 0 && (
                     <ProfileStepCard
                       title="Basic Details"
                       description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
+                      className="flex-1"
+                      scrollableContent
                       rightAction={
                         <Button
                           type="button"
@@ -1475,25 +1477,22 @@ const ProfileTemplate = ({
                         businessId={businessId}
                         embedded
                       />
-                      <div className="flex w-[60%] gap-6 items-end">
-                        <div className="flex flex-1 min-w-0 flex-col gap-0.5">
-                          <GenericInput<BusinessInfoFormData>
-                            form={form as any}
-                            fieldName="businessDescription"
-                            type="textarea"
-                            label={
-                              <>
-                                Anything else we should know about your business?{" "}
-                                <span className="text-general-muted-foreground font-normal">
-                                  (optional)
-                                </span>
-                              </>
-                            }
-                            placeholder="Provide any additional info"
-                            rows={3}
-                          />
-                        </div>
-                        <div className="min-w-[160px]" />
+                      <div className="w-1/2">
+                        <GenericInput<BusinessInfoFormData>
+                          form={form as any}
+                          fieldName="businessDescription"
+                          type="textarea"
+                          label={
+                            <>
+                              Anything else we should know about your business?{" "}
+                              <span className="text-general-muted-foreground font-normal">
+                                (optional)
+                              </span>
+                            </>
+                          }
+                          placeholder="Provide any additional info"
+                          rows={3}
+                        />
                       </div>
                     </ProfileStepCard>
                   )}
@@ -1501,6 +1500,8 @@ const ProfileTemplate = ({
                     <ProfileStepCard
                       title="Content Cues"
                       description="Guides tone, messaging, and calls-to-action so content sounds like you and converts better."
+                      className="flex-1"
+                      scrollableContent
                       rightAction={
                         <Button
                           type="button"
@@ -1522,14 +1523,17 @@ const ProfileTemplate = ({
                     <ProfileStepCard
                       title="Competitors"
                       description="Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities."
+                      className="flex-1"
+                      scrollableContent
                       rightAction={
                         <Button
                           type="button"
                           className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
                           onClick={handlePrimaryButtonClick}
                           disabled={isButtonDisabled}
+                          title={buttonHelperText}
                         >
-                          Proceed to Strategy
+                          {buttonText}
                           <ChevronRight className="size-4 shrink-0" />
                         </Button>
                       }
@@ -1537,8 +1541,16 @@ const ProfileTemplate = ({
                       <CompetitorsForm form={form} embedded />
                     </ProfileStepCard>
                   )}
-                </>
-              ) : (
+              </form>
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto min-w-0 flex flex-col">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    form.handleSubmit();
+                  }}
+                  className="flex flex-col gap-0"
+                >
                 <>
                   <BusinessInfoForm
                     form={form}
@@ -1570,9 +1582,10 @@ const ProfileTemplate = ({
                   <LocationsForm form={form} />
                   <CompetitorsForm form={form} />
                 </>
-              )}
-            </form>
-            <div className="mt-6 flex justify-end">
+                </form>
+              </div>
+            )}
+            <div className="shrink-0 mt-6 flex justify-end">
               <Button
                 variant="destructive"
                 onClick={() => setIsUnlinkModalOpen(true)}
@@ -1584,6 +1597,8 @@ const ProfileTemplate = ({
               </Button>
             </div>
           </div>
+            </div>
+        </div>
         </div>
 
         {/* Unlink/Delete Confirmation Modal (shadcn) */}

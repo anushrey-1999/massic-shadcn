@@ -89,7 +89,7 @@ export const ContentCuesForm = ({
 
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
   const innerContent = (
-    <div className="space-y-6">
+    <div className="space-y-7">
         <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
@@ -156,7 +156,6 @@ export const ContentCuesForm = ({
               children={(field: any) => {
                 return (
                   <Input
-                    variant="noBorder"
                     value={field.state.value || ""}
                     onChange={(e) => field.handleChange(e.target.value)}
                     placeholder="List the words, separating each one with a comma"
@@ -233,15 +232,15 @@ export const ContentCuesForm = ({
 
                     return (
                       <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <Card variant={cardVariant} className="bg-white border-none ">
-                            <CardHeader className="">
+                        <div className="flex flex-col gap-3">
+                          <Card variant={'profileCard'} className="bg-white shadow-none p-0 overflow-hidden">
+                            <CardHeader className="bg-foreground-light pt-2 px-2.5">
                               <CardTitle>
-                                <FieldLabel className="gap-0">Social</FieldLabel>
+                                <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Social</FieldLabel>
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
-                              <div className="grid grid-cols-3 gap-3">
+                              <div className="grid grid-cols-3 gap-3 p-2">
                                 {toneOptions.map((option) => {
                                   const isChecked = socialValues.includes(option.value);
                                   return (
@@ -258,7 +257,7 @@ export const ContentCuesForm = ({
                                         disabled={
                                           !isChecked && socialValues.length >= 3
                                         }
-                                        className="h-4 w-4 rounded border border-input bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer transition-colors aria-invalid:border-destructive"
+                                        className="h-4 w-4 shrink-0 rounded border border-input bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer transition-colors aria-invalid:border-destructive"
                                         style={{
                                           backgroundImage: isChecked
                                             ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'white\' stroke-width=\'3\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'20 6 9 17 4 12\'%3E%3C/polyline%3E%3C/svg%3E")'
@@ -278,14 +277,14 @@ export const ContentCuesForm = ({
                             </CardContent>
                           </Card>
 
-                          <Card variant={cardVariant} className="bg-white border-none">
-                            <CardHeader className="">
+                          <Card variant={'profileCard'} className="bg-white shadow-none p-0 overflow-hidden">
+                            <CardHeader className="bg-foreground-light pt-2 px-2.5">
                               <CardTitle>
-                                <FieldLabel className="gap-0">Web</FieldLabel>
+                                <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Web</FieldLabel>
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
-                              <div className="grid grid-cols-3 gap-3">
+                              <div className="grid grid-cols-3 gap-3 p-2">
                                 {toneOptions.map((option) => {
                                   const isChecked = webValues.includes(option.value);
                                   return (
@@ -388,7 +387,7 @@ export const ContentCuesForm = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-7">
         {innerContent}
       </CardContent>
     </Card>

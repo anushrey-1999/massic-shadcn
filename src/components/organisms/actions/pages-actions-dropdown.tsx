@@ -1080,7 +1080,7 @@ export function PagesActionsDropdown({
                                     value:
                                       (item.planItemStatus ?? "")
                                         .trim()
-                                        .replace(/^./, (c) => c.toUpperCase()) || "Build",
+                                        .replace(/^./, (c: string) => c.toUpperCase()) || "Build",
                                   }
                                 : pill
                             return (

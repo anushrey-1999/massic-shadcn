@@ -516,7 +516,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
                                         value:
                                           (row.planItemStatus ?? "")
                                             .trim()
-                                            .replace(/^./, (c) => c.toUpperCase()) || "Build",
+                                            .replace(/^./, (c: string) => c.toUpperCase()) || "Build",
                                       }
                                     : pill
                                 return (

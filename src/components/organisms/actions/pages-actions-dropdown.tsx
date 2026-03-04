@@ -7,7 +7,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Hammer,
   Loader2,
   RotateCw,
 } from "lucide-react"
@@ -24,7 +23,7 @@ import { cn } from "@/lib/utils"
 import { PagesPlansDialog } from "./pages-plans-dialog"
 import { usePagePlanner } from "@/hooks/use-page-planner"
 import type { PagePlannerPlanItem, PagePlannerPlanMeta } from "@/types/page-planner-types"
-import { formatVolume } from "@/lib/format"
+import { formatDate, formatVolume } from "@/lib/format"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
 import type { RowSelectionState } from "@tanstack/react-table"
 import type { WebPageRow } from "@/types/web-page-types"
@@ -301,12 +300,10 @@ function ensureUniqueRowIds(items: PagesActionsItem[]): PagesActionsItem[] {
   })
 }
 
-function StatusPill({ status }: { status: ActionStatus }) {
-  const label = status === "build" ? "Build" : "Optimize"
-  const Icon = Hammer
+function TypePill({ pageType }: { pageType?: string | null }) {
+  const label = pageType ? toTitleCase(pageType) : "—"
   return (
-    <div className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-secondary px-2 py-1.5">
-      <Icon className="h-3 w-3 text-[#D4D4D4]" />
+    <div className="inline-flex items-center justify-center rounded-lg bg-secondary px-2 py-1.5">
       <span className="text-[10px] font-medium leading-normal tracking-[0.15px] text-general-muted-foreground">
         {label}
       </span>
@@ -505,11 +502,16 @@ export function PagesActionsDropdown({
   const hasAnyPlans = (plansQuery.data?.length ?? 0) > 0
   const isPlansLoading = plansQuery.isLoading
 
-  const activePlanId = React.useMemo(() => {
-    const plans = plansQuery.data ?? []
-    const active = plans.find(isActivePlan)
-    return coercePlanId((active as any)?.id)
-  }, [plansQuery.data])
+  const plans = plansQuery.data ?? []
+  const activePlan = React.useMemo(() => plans.find(isActivePlan) ?? null, [plans])
+  const activePlanId = React.useMemo(() => coercePlanId((activePlan as any)?.id), [activePlan])
+
+  const lastUpdatedLabelDisplay = React.useMemo(() => {
+    const activatedAt = (activePlan as PagePlannerPlanMeta | null)?.activated_at
+    if (!activatedAt) return lastUpdatedLabel ?? "—"
+    const formatted = formatDate(activatedAt, "d MMM")
+    return formatted ? `Last updated on ${formatted}` : (lastUpdatedLabel ?? "—")
+  }, [activePlan, lastUpdatedLabel])
 
   const activePlanQuery = useQuery({
     queryKey: ["page-planner-plan", businessId, activePlanId],
@@ -941,7 +943,6 @@ export function PagesActionsDropdown({
               const showBottomBorder = true
               const showTriggerBorder = showBottomBorder && !(open && hasMetrics)
               const showContentBorder = showBottomBorder && hasMetrics
-              const badgeStatus: ActionStatus = item.status ?? "build"
               const isDone = doneIds.has(item.id)
               const isChecked = Boolean((rowSelection as any)?.[item.id])
               const showHighlight =
@@ -1021,7 +1022,7 @@ export function PagesActionsDropdown({
                           </span>
                           {!open ? (
                             <>
-                              <StatusPill status={badgeStatus} />
+                              <TypePill pageType={item.pageType} />
                               {isDone ? <CompletedPill /> : null}
                             </>
                           ) : null}
@@ -1071,9 +1072,24 @@ export function PagesActionsDropdown({
                               : "flex flex-wrap items-center gap-2"
                           )}
                         >
-                          {item.metrics.map((pill) => (
-                            <MetricPillView key={`${item.id}-${pill.label}`} pill={pill} />
-                          ))}
+                          {item.metrics.map((pill) => {
+                            const displayPill =
+                              pill.label === "Type"
+                                ? {
+                                    label: "Status",
+                                    value:
+                                      (item.planItemStatus ?? "")
+                                        .trim()
+                                        .replace(/^./, (c: string) => c.toUpperCase()) || "Build",
+                                  }
+                                : pill
+                            return (
+                              <MetricPillView
+                                key={`${item.id}-${displayPill.label}`}
+                                pill={displayPill}
+                              />
+                            )
+                          })}
                         </div>
                       <div
                         className={cn(
@@ -1246,7 +1262,7 @@ export function PagesActionsDropdown({
 
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-general-muted-foreground">
-            {lastUpdatedLabel}
+            {lastUpdatedLabelDisplay}
           </span>
 
           <Button

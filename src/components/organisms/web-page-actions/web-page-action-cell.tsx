@@ -22,7 +22,6 @@ import { resolvePageContent } from "@/utils/page-content-resolver";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
-  "updated",
   "update_required",
   "outline_only",
   "final_only",

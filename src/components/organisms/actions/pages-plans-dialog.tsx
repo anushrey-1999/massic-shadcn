@@ -8,7 +8,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Check, ChevronDown, ChevronUp, Eye, Hammer } from "lucide-react"
+import { Check, ChevronDown, ChevronUp, Eye } from "lucide-react"
 import { toast } from "sonner"
 
 import { DataTable } from "@/components/filter-table"
@@ -52,12 +52,18 @@ function oppScoreLabel(score: number | undefined): "High" | "Medium" | "Low" {
   return "Low"
 }
 
-function StatusPill() {
+function toTitleCase(value: string): string {
+  const s = (value || "").trim()
+  if (!s) return ""
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function TypePill({ pageType }: { pageType?: string | null }) {
+  const label = pageType ? toTitleCase(pageType) : "—"
   return (
-    <div className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-secondary px-2 py-1.5">
-      <Hammer className="h-3 w-3 text-[#D4D4D4]" />
+    <div className="inline-flex items-center justify-center rounded-lg bg-secondary px-2 py-1.5">
       <span className="text-[10px] font-medium leading-normal tracking-[0.15px] text-general-muted-foreground">
-        Build
+        {label}
       </span>
     </div>
   )
@@ -223,6 +229,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
         title: keyword || "Untitled",
         description: rationale || null,
         planItemStatus: status,
+        pageType: pageType || null,
         metrics: [
           { label: "Relevance", value: String(relevance) },
           { label: "Type", value: pageType ? pageType.charAt(0).toUpperCase() + pageType.slice(1) : "—" },
@@ -475,7 +482,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
                                 <span className="truncate text-sm font-normal tracking-[0.07px] text-general-foreground">
                                   {row.title}
                                 </span>
-                                {!open ? <StatusPill /> : null}
+                                {!open ? <TypePill pageType={row.pageType} /> : null}
                               </div>
                               {open && row.description ? (
                                 <div className="mt-0.5 truncate text-xs font-normal tracking-[0.18px] text-general-muted-foreground">
@@ -501,9 +508,24 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
                         <CollapsibleContent className="bg-[#FAFAFA]">
                           <div className="flex items-start justify-between gap-2 px-2 py-1.5">
                             <div className="flex flex-1 flex-wrap items-center gap-2">
-                              {row.metrics.map((pill) => (
-                                <MetricPillView key={`${row.id}-${pill.label}`} pill={pill} />
-                              ))}
+                              {row.metrics.map((pill) => {
+                                const displayPill =
+                                  pill.label === "Type"
+                                    ? {
+                                        label: "Status",
+                                        value:
+                                          (row.planItemStatus ?? "")
+                                            .trim()
+                                            .replace(/^./, (c) => c.toUpperCase()) || "Build",
+                                      }
+                                    : pill
+                                return (
+                                  <MetricPillView
+                                    key={`${row.id}-${displayPill.label}`}
+                                    pill={displayPill}
+                                  />
+                                )
+                              })}
                             </div>
                             <div className="w-[52px]" />
                           </div>

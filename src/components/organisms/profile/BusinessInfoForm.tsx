@@ -57,7 +57,7 @@ export const BusinessInfoForm = React.memo(({
   );
 
   const gridContent = (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
           {/* Row 1 */}
           <Card variant="profileCard">
             <CardContent>
@@ -171,9 +171,9 @@ export const BusinessInfoForm = React.memo(({
   );
 
   const embeddedContent = (
-    <div id="business-info" className="flex flex-col gap-6">
-      <div className="flex w-[60%] gap-6 items-end">
-        <div className="flex flex-1 min-w-0 flex-col gap-0.5">
+    <div id="business-info" className="flex flex-col gap-7">
+      <div className="flex items-end gap-4 w-full">
+        <div className="w-1/2 min-w-0">
           <GenericInput<BusinessInfoFormData>
             form={form as any}
             fieldName="website"
@@ -184,76 +184,65 @@ export const BusinessInfoForm = React.memo(({
             disabled={isWebsiteLocked}
           />
         </div>
-        <div className="min-w-[160px]" />
-      </div>
-      <div className="flex w-[60%] gap-6 items-end">
-        <div className="flex flex-1 min-w-0 flex-col gap-0.5">
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="primaryLocation"
-            type="location-select"
-            label="Primary Location"
-            required={true}
-            placeholder={
-              locationsLoading
-                ? "Loading locations..."
-                : "Where are your customers primarily located?"
-            }
-            options={locationOptions}
-            disabled={locationsLoading}
-            loading={locationsLoading}
-          />
-        </div>
-        <div className="min-w-[160px] shrink-0 flex justify-end">
+        <div className="flex-1 min-w-0" />
+        <div className="shrink-0">
           {primaryLocationAction}
         </div>
       </div>
-      <div className="flex w-[60%] gap-6 items-end">
-        <div className="flex flex-1 min-w-0 flex-col gap-0.5">
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="businessName"
-            type="input"
-            label="Business Name"
-            required
-            placeholder="Provide the brand name of your business"
-          />
-        </div>
-        <div className="min-w-[160px]" />
+      <div className="w-1/2">
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
+          fieldName="primaryLocation"
+          type="location-select"
+          label="Primary Location"
+          required={true}
+          placeholder={
+            locationsLoading
+              ? "Loading locations..."
+              : "Where are your customers primarily located?"
+          }
+          options={locationOptions}
+          disabled={locationsLoading}
+          loading={locationsLoading}
+        />
       </div>
-      <div className="flex w-[60%] gap-6 items-end">
-        <div className="flex flex-1 min-w-0 flex-col gap-1.5">
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="serviceType"
-            type="radio-group"
-            label="Where do you primarily serve your customers?"
-            required={true}
-            orientation="horizontal"
-            options={[
-              { value: "physical", label: "Physical" },
-              { value: "online", label: "Online" },
-            ]}
-          />
-        </div>
-        <div className="min-w-[160px]" />
+      <div className="w-1/2">
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
+          fieldName="businessName"
+          type="input"
+          label="Business Name"
+          required
+          placeholder="Provide the brand name of your business"
+        />
       </div>
-      <div className="flex w-[60%] gap-6 items-end">
-        <div className="flex flex-1 min-w-0 flex-col gap-1.5">
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="lifetimeValue"
-            type="radio-group"
-            label="Lifetime Value"
-            required={false}
-            orientation="horizontal"
-            options={[
-              { value: "high", label: "High" },
-              { value: "low", label: "Low" },
-            ]}
-          />
-        </div>
-        <div className="min-w-[160px]" />
+      <div className="w-1/2">
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
+          fieldName="serviceType"
+          type="radio-group"
+          label="Where do you primarily serve your customers?"
+          required={true}
+          orientation="horizontal"
+          options={[
+            { value: "physical", label: "Physical" },
+            { value: "online", label: "Online" },
+          ]}
+        />
+      </div>
+      <div className="w-1/2">
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
+          fieldName="lifetimeValue"
+          type="radio-group"
+          label="Lifetime Value"
+          required={false}
+          orientation="horizontal"
+          options={[
+            { value: "high", label: "High" },
+            { value: "low", label: "Low" },
+          ]}
+        />
       </div>
     </div>
   );

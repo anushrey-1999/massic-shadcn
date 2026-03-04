@@ -217,7 +217,7 @@ export const OfferingsForm = ({
   }, [extractionStatus, extractionData, extractedOfferings, offeringsData, form, clearExtraction, taskId]);
 
   const offeringsTypeInput = (
-    <div className={cn(embedded ? "w-[60%]" : "w-1/2")}>
+    <div className="w-1/2">
       <GenericInput<BusinessInfoFormData>
         form={form as any}
         fieldName="offerings"
@@ -235,7 +235,7 @@ export const OfferingsForm = ({
   );
 
   const innerContent = (
-    <div className="space-y-6">
+    <div className="space-y-7">
         {embedded ? (
           offeringsTypeInput
         ) : (
@@ -361,7 +361,7 @@ export const OfferingsForm = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-7">
         {innerContent}
       </CardContent>
     </Card>

@@ -200,7 +200,7 @@ export const LocationsForm = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-7">
         {innerContent}
       </CardContent>
     </Card>

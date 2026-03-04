@@ -10,6 +10,8 @@ interface ProfileStepCardProps {
   children: React.ReactNode;
   rightAction?: React.ReactNode;
   className?: string;
+  scrollableContent?: boolean;
+  contentClassName?: string;
 }
 
 export function ProfileStepCard({
@@ -18,11 +20,13 @@ export function ProfileStepCard({
   children,
   rightAction,
   className,
+  scrollableContent = false,
+  contentClassName,
 }: ProfileStepCardProps) {
   return (
     <Card
       className={cn(
-        "flex flex-col gap-6 shadow-none overflow-hidden rounded-lg border border-general-border-three bg-white p-0 pb-6",
+        "flex flex-col gap-7 shadow-none overflow-hidden rounded-lg border border-general-border-three bg-white p-0 pb-6 min-h-0",
         className
       )}
     >
@@ -37,7 +41,13 @@ export function ProfileStepCard({
         </div>
         {rightAction}
       </div>
-      <CardContent className="flex flex-col gap-7 px-6">
+      <CardContent
+        className={cn(
+          "flex flex-col gap-7 px-6",
+          scrollableContent && "flex-1 min-h-0 overflow-y-auto",
+          contentClassName
+        )}
+      >
         {children}
       </CardContent>
     </Card>

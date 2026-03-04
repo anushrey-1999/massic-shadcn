@@ -588,6 +588,7 @@ export function PagesActionsDropdown({
     if (!hasAnyPlans) return
     if (typeof activePlanId !== "number") return
     if (pagesBusy) return
+    if (pagesOverridePlanItems && pagesOverridePlanItems.length > 0) return
 
     const extracted = extractPlanItemsFromDetail(activePlanQuery.data)
     if (!extracted || extracted.length === 0) {
@@ -639,7 +640,7 @@ export function PagesActionsDropdown({
     setOpenItemId(uniqRows[0]?.id ?? null)
     setDoneIds(new Set())
     setSourceMode("active")
-  }, [activePlanId, activePlanQuery.data, hasAnyPlans, pagesBusy])
+  }, [activePlanId, activePlanQuery.data, hasAnyPlans, pagesBusy, pagesOverridePlanItems])
 
   React.useEffect(() => {
     if (!pagesOverridePlanItems || pagesOverridePlanItems.length === 0) return

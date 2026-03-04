@@ -31,11 +31,19 @@ type Props = {
   source: RefinePlanSource
 }
 
+function isSuccessStatus(value: unknown): boolean {
+  return String(value || "").trim().toLowerCase() === "success"
+}
+
+function getItemStatus(item: { status?: string; page_status?: string; pageStatus?: string }): string | null {
+  const s = item?.status ?? item?.page_status ?? (item as any)?.pageStatus
+  return typeof s === "string" && s.length > 0 ? s : null
+}
+
 function buildSelectedPages(args: {
-  planItems: Array<{ keyword?: string }>
+  planItems: Array<{ keyword?: string; status?: string; page_status?: string; pageStatus?: string }>
   selectedKeywords: string[]
 }): string[] {
-  // Preserve exact keywords as provided by the plan API; do not trim/normalize.
   const planKeywordsOrdered = args.planItems
     .map((x) => (typeof x.keyword === "string" ? x.keyword : ""))
     .filter((s) => s.length > 0)
@@ -44,13 +52,19 @@ function buildSelectedPages(args: {
 
   const selectedRaw = args.selectedKeywords.filter((s) => typeof s === "string" && s.length > 0)
   if (selectedRaw.length > 0) {
-    // If user selected rows but they no longer exist in the plan (stale selection), return []
-    // so the caller can show a "reselect" message instead of accidentally refining the full plan.
-    return selectedRaw.filter((s) => planKeywordsSet.has(s))
+    const nonSuccessSelected = selectedRaw.filter((s) => {
+      if (!planKeywordsSet.has(s)) return false
+      const item = args.planItems.find((p) => p.keyword === s)
+      return item == null || !isSuccessStatus(getItemStatus(item))
+    })
+    return nonSuccessSelected
   }
 
-  // No selection => refine entire plan, preserving plan order.
-  return planKeywordsOrdered
+  const nonSuccessOrdered = args.planItems
+    .filter((x) => !isSuccessStatus(getItemStatus(x)))
+    .map((x) => (typeof x.keyword === "string" ? x.keyword : ""))
+    .filter((s) => s.length > 0)
+  return nonSuccessOrdered
 }
 
 function Bubble({ message }: { message: ChatMessage }) {

@@ -119,9 +119,10 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
               throw new Error("No active plan found to regenerate.")
             }
 
-            // Preserve selected_pages exactly as received from the plan API (order + casing).
+            const itemStatus = (x: any) =>
+              x?.status ?? x?.page_status ?? x?.pageStatus ?? null
             const remainingKeywords = (args.planItems || [])
-              .filter((x: any) => !isSuccessStatus(x?.status))
+              .filter((x: any) => !isSuccessStatus(itemStatus(x)))
               .map((x: any) => (typeof x?.keyword === "string" ? x.keyword : ""))
               .filter((kw) => typeof kw === "string" && kw.length > 0)
 

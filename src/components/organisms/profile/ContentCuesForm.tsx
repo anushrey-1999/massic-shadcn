@@ -30,10 +30,12 @@ type BusinessInfoFormData = {
 
 interface ContentCuesFormProps {
   form: any; // TanStack Form instance
+  embedded?: boolean;
 }
 
 export const ContentCuesForm = ({
   form,
+  embedded = false,
 }: ContentCuesFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
@@ -85,33 +87,17 @@ export const ContentCuesForm = ({
     emptyRowFactory: () => ({ name: "", title: "" }),
   });
 
-  return (
-    <Card
-      id="content-cues"
-      variant="profileCard"
-      className="p-4 bg-white border-none shadow-none mt-6"
-    >
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-2">
-          <MicVocal className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
-          <div className="space-y-0">
-            <CardTitle>
-              <Typography variant="h4" className="!text-2xl">Content Cues</Typography>
-            </CardTitle>
-            <Typography variant="muted" className="text-xs text-general-muted-foreground">
-              Guides tone, messaging, and calls-to-action so content sounds like you and converts better.
-            </Typography>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Card variant="profileCard">
+  const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
+  const innerContent = (
+    <div className="space-y-6">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">USPs</FieldLabel>
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <form.Field
               name="usps"
               children={(field: any) => {
@@ -126,10 +112,11 @@ export const ContentCuesForm = ({
                 );
               }}
             />
+            </div>
           </CardContent>
         </Card>
 
-        <Card variant="profileCard">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
@@ -138,6 +125,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <CustomAddRowTable
               columns={ctaColumns}
               data={ctasData}
@@ -147,11 +135,13 @@ export const ContentCuesForm = ({
               addButtonText="Add Button"
               onValidationChange={setHasCtaErrors}
               showErrorsWithoutTouch={hasCtaErrors}
+              variant="card"
             />
+            </div>
           </CardContent>
         </Card>
 
-        <Card variant="profileCard">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
@@ -160,6 +150,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <form.Field
               name="brandTerms"
               children={(field: any) => {
@@ -174,10 +165,11 @@ export const ContentCuesForm = ({
                 );
               }}
             />
+            </div>
           </CardContent>
         </Card>
 
-        <Card variant="profileCard">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
@@ -186,6 +178,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <form.Field
               name="brandToneSocial"
               children={(socialField: any) => (
@@ -241,7 +234,7 @@ export const ContentCuesForm = ({
                     return (
                       <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <Card variant="profileCard" className="bg-white border-none ">
+                          <Card variant={cardVariant} className="bg-white border-none ">
                             <CardHeader className="">
                               <CardTitle>
                                 <FieldLabel className="gap-0">Social</FieldLabel>
@@ -285,7 +278,7 @@ export const ContentCuesForm = ({
                             </CardContent>
                           </Card>
 
-                          <Card variant="profileCard" className="bg-white border-none">
+                          <Card variant={cardVariant} className="bg-white border-none">
                             <CardHeader className="">
                               <CardTitle>
                                 <FieldLabel className="gap-0">Web</FieldLabel>
@@ -342,11 +335,12 @@ export const ContentCuesForm = ({
                 />
               )}
             />
+            </div>
          
           </CardContent>
         </Card>
 
-        <Card variant="profileCard">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
@@ -355,6 +349,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <CustomAddRowTable
               columns={stakeholdersColumns}
               data={stakeholdersData}
@@ -362,9 +357,39 @@ export const ContentCuesForm = ({
               onRowChange={handleStakeholderRowChange}
               onDeleteRow={handleStakeholderDeleteRow}
               addButtonText="Add Person"
+              variant="card"
             />
+            </div>
           </CardContent>
         </Card>
+    </div>
+  );
+
+  if (embedded) {
+    return <div id="content-cues">{innerContent}</div>;
+  }
+
+  return (
+    <Card
+      id="content-cues"
+      variant="profileCard"
+      className="p-4 bg-white border-none shadow-none mt-6"
+    >
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-2">
+          <MicVocal className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
+            <CardTitle>
+              <Typography variant="h4" className="text-2xl!">Content Cues</Typography>
+            </CardTitle>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Guides tone, messaging, and calls-to-action so content sounds like you and converts better.
+            </Typography>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {innerContent}
       </CardContent>
     </Card>
   );

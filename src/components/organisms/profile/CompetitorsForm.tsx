@@ -21,10 +21,12 @@ type BusinessInfoFormData = {
 
 interface CompetitorsFormProps {
   form: any; // TanStack Form instance
+  embedded?: boolean;
 }
 
 export const CompetitorsForm = ({
   form,
+  embedded = false,
 }: CompetitorsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
@@ -56,6 +58,38 @@ export const CompetitorsForm = ({
     emptyRowFactory: () => ({ url: "" }),
   });
 
+  const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
+  const innerContent = (
+    <Card variant={cardVariant}>
+      <CardHeader className="">
+        <CardTitle>
+          <FieldLabel className="gap-0">
+            Websites of businesses that have similar offerings
+          </FieldLabel>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="w-1/2">
+<CustomAddRowTable
+              columns={competitorsColumns}
+              data={competitorsData}
+              onAddRow={handleAddRow}
+              onRowChange={handleRowChange}
+              onDeleteRow={handleDeleteRow}
+              addButtonText="Add URL"
+              onValidationChange={setHasCompetitorErrors}
+              showErrorsWithoutTouch={hasCompetitorErrors}
+              variant="card"
+            />
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  if (embedded) {
+    return <div id="competitors">{innerContent}</div>;
+  }
+
   return (
     <Card
       id="competitors"
@@ -67,7 +101,7 @@ export const CompetitorsForm = ({
           <Users className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
           <div className="space-y-0">
             <CardTitle>
-              <Typography variant="h4" className="!text-2xl">Competitors</Typography>
+              <Typography variant="h4" className="text-2xl!">Competitors</Typography>
             </CardTitle>
             <Typography variant="muted" className="text-xs text-general-muted-foreground">
               Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities.
@@ -76,27 +110,7 @@ export const CompetitorsForm = ({
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <Card variant="profileCard">
-          <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">
-                Websites of businesses that have similar offerings
-              </FieldLabel>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CustomAddRowTable
-              columns={competitorsColumns}
-              data={competitorsData}
-              onAddRow={handleAddRow}
-              onRowChange={handleRowChange}
-              onDeleteRow={handleDeleteRow}
-              addButtonText="Add URL"
-              onValidationChange={setHasCompetitorErrors}
-              showErrorsWithoutTouch={hasCompetitorErrors}
-            />
-          </CardContent>
-        </Card>
+        {innerContent}
       </CardContent>
     </Card>
   );

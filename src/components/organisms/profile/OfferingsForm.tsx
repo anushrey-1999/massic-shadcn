@@ -21,6 +21,7 @@ import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { toast } from "sonner";
 import { Loader2, PackageSearch, AlertCircle, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -47,12 +48,14 @@ interface OfferingsFormProps {
   form: any; // TanStack Form instance
   businessId?: string | null; // Business ID for offerings extraction
   hideFetchOfferingsFromWebsite?: boolean;
+  embedded?: boolean;
 }
 
 export const OfferingsForm = ({
   form,
   businessId,
   hideFetchOfferingsFromWebsite = false,
+  embedded = false,
 }: OfferingsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
@@ -213,44 +216,34 @@ export const OfferingsForm = ({
     clearExtraction();
   }, [extractionStatus, extractionData, extractedOfferings, offeringsData, form, clearExtraction, taskId]);
 
-  return (
-    <Card
-      id="offerings"
-      variant="profileCard"
-      className="p-4 bg-white border-none shadow-none mt-6"
-    >
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-2">
-          <PackageSearch className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
-          <div className="space-y-0">
-            <CardTitle>
-              <Typography variant="h4" className="text-2xl!">Offerings</Typography>
-            </CardTitle>
-            <Typography variant="muted" className="text-xs text-general-muted-foreground">
-              Defines what you actually sell so recommendations focus on revenue-driving products and services.
-            </Typography>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Card variant="profileCard">
-          <CardContent>
-            <GenericInput<BusinessInfoFormData>
-              form={form as any}
-              fieldName="offerings"
-              type="radio-group"
-              label="What type of offerings do you provide your customers?"
-              required={true}
-              orientation="horizontal"
-              options={[
-                { value: "products", label: "Products" },
-                { value: "services", label: "Services" },
-                { value: "both", label: "Both" },
-              ]}
-            />
-          </CardContent>
-        </Card>
-        <Card variant="profileCard" className="relative">
+  const offeringsTypeInput = (
+    <div className={cn(embedded ? "w-[60%]" : "w-1/2")}>
+      <GenericInput<BusinessInfoFormData>
+        form={form as any}
+        fieldName="offerings"
+        type="radio-group"
+        label="What type of offerings do you provide your customers?"
+        required={true}
+        orientation="horizontal"
+        options={[
+          { value: "products", label: "Products" },
+          { value: "services", label: "Services" },
+          { value: "both", label: "Both" },
+        ]}
+      />
+    </div>
+  );
+
+  const innerContent = (
+    <div className="space-y-6">
+        {embedded ? (
+          offeringsTypeInput
+        ) : (
+          <Card variant="noBorderShadowCard">
+            <CardContent>{offeringsTypeInput}</CardContent>
+          </Card>
+        )}
+        <Card variant="noBorderShadowCard" className="relative">
           {/* Loading overlay for offerings extraction */}
           {isExtracting && (
             <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 rounded-lg">
@@ -307,6 +300,7 @@ export const OfferingsForm = ({
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="w-1/2">
             {!isExtracting && extractionError ? (
               <div className="flex items-center justify-between gap-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
                 <div className="flex items-center gap-2 min-w-0">
@@ -335,10 +329,40 @@ export const OfferingsForm = ({
               onDeleteRow={handleDeleteRow}
               addButtonText="Add Product/Service"
               onValidationChange={setHasOfferingsErrors}
-                showErrorsWithoutTouch={hasOfferingsErrors}
+              showErrorsWithoutTouch={hasOfferingsErrors}
+              variant="card"
             />
+            </div>
           </CardContent>
         </Card>
+    </div>
+  );
+
+  if (embedded) {
+    return <div id="offerings">{innerContent}</div>;
+  }
+
+  return (
+    <Card
+      id="offerings"
+      variant="profileCard"
+      className="p-4 bg-transparent border-none shadow-none mt-6"
+    >
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-2">
+          <PackageSearch className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
+            <CardTitle>
+              <Typography variant="h4" className="text-2xl!">Offerings</Typography>
+            </CardTitle>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Defines what you actually sell so recommendations focus on revenue-driving products and services.
+            </Typography>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {innerContent}
       </CardContent>
     </Card>
   );

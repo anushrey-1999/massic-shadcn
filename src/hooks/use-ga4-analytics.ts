@@ -7,78 +7,35 @@ export type TableFilterType = "popular" | "growing" | "decaying"
 export type GA4SortColumn = "sessions" | "goals"
 export type SortDirection = "asc" | "desc"
 
-interface GA4MetricValue {
-  Item: string
-  Value: string
-  Diff: string
-  Trend: "up" | "down"
-  Tag?: string
+interface V2Ranges {
+  currentStart: string
+  currentEnd: string
+  previousStart: string
+  previousEnd: string
 }
 
-interface GA4TableRow {
-  "Landing page"?: string
-  sessionSource?: string
-  pagePath?: string
-  eventName?: string
-  Group?: "Growing" | "Decaying"
-  Sessions?: GA4MetricValue
-  "Key events"?: GA4MetricValue
-  sessions?: GA4MetricValue
-  keyEvents?: GA4MetricValue
-  [key: string]: any
-}
-
-interface GA4ChannelRow {
-  "FirstUser DefaultChannelGroup": string
-  curData: {
-    Sessions: string
-    "Key events": string
+interface V2Response<T = any> {
+  success: boolean
+  data: {
+    ranges: V2Ranges
+    current: T[]
+    previous: T[]
   }
 }
 
-interface GA4ChartDataPoint {
-  curDate: string
-  preDate: string
-  curData: {
-    Sessions?: string
-    keyEvents?: string
-    [key: string]: any
-  }
-  preData: {
-    Sessions?: string
-    keyEvents?: string
-    [key: string]: any
-  }
+interface Ga4MetricRow {
+  keys?: string[]
+  sessions?: number
+  keyEvents?: number
 }
 
-interface GA4MainStats {
-  Sessions: {
-    Total: string
-    Diff: string
-    Trend: "up" | "down"
-  }
-  keyEvents: {
-    Total: string
-    Diff: string
-    Trend: "up" | "down"
-  }
-}
-
-interface GA4DateData {
-  data: string
-  mainStats: string
-}
-
-export interface GA4ApiResponse {
-  err?: boolean
-  message?: string
-  date?: GA4DateData
-  landingPage?: string
-  landingPageContentGroup?: string
-  firstUserDefaultChannelGroup?: string
-  sessionSource?: string
-  pagePath?: string
-  eventName?: string
+interface TimescaleGa4Response {
+  date: V2Response<Ga4MetricRow>
+  contentGroup: V2Response<Ga4MetricRow>
+  page: V2Response<Ga4MetricRow>
+  eventName: V2Response<Ga4MetricRow>
+  sourceMedium: V2Response<Ga4MetricRow>
+  channelGroup: V2Response<Ga4MetricRow>
 }
 
 export interface GA4ChartDataFormatted {
@@ -104,11 +61,12 @@ export interface GA4GoalDataFormatted {
   goals: { value: number; change: number }
 }
 
-function parsePercentageChange(diff: string, trend: "up" | "down"): number {
-  if (!diff) return 0
-  const numericValue = parseFloat(diff.replace("%", ""))
-  const value = isNaN(numericValue) ? 0 : Math.round(numericValue)
-  return trend === "down" ? -value : value
+interface TimescaleTableInternal {
+  key: string
+  sessions: number
+  goals: number
+  sessionsChange: number
+  goalsChange: number
 }
 
 function formatNumber(value: number | string): string {
@@ -116,53 +74,151 @@ function formatNumber(value: number | string): string {
     if (/[KMkm]$/.test(value.trim())) {
       return value
     }
+
     const cleanValue = value.replace(/,/g, "")
     const num = parseFloat(cleanValue)
-    if (isNaN(num)) return "0"
-    if (num >= 1000000) {
-      return `${(num / 1000000).toFixed(1)}M`
-    }
-    if (num >= 1000) {
-      return `${(num / 1000).toFixed(1)}K`
-    }
+    if (!Number.isFinite(num)) return "0"
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
     return num.toLocaleString()
   }
-  if (isNaN(value)) return "0"
-  if (value >= 1000000) {
-    return `${(value / 1000000).toFixed(1)}M`
-  }
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(1)}K`
-  }
+
+  if (!Number.isFinite(value)) return "0"
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
   return value.toLocaleString()
 }
 
 function formatDate(dateString: string): string {
-  if (!dateString || dateString.length !== 8) return dateString
+  if (!dateString) return ""
   try {
-    const year = dateString.slice(0, 4)
-    const month = dateString.slice(4, 6)
-    const day = dateString.slice(6, 8)
-    const date = new Date(`${year}-${month}-${day}`)
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) return dateString
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
   } catch {
     return dateString
   }
 }
 
-function parseNumericValue(value: string | number): number {
-  if (typeof value === "number") return value
-  const cleanValue = String(value).replace(/[,%]/g, "")
-  if (cleanValue.endsWith("K")) {
-    return parseFloat(cleanValue) * 1000
+function normalizeDateKey(value: string): string | null {
+  const trimmed = String(value || "").trim()
+  if (!trimmed) return null
+
+  const dashed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
+  if (dashed) return `${dashed[1]}-${dashed[2]}-${dashed[3]}`
+
+  const compact = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed)
+  if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`
+
+  return null
+}
+
+function normalizePageForDisplay(value: string): string {
+  const raw = String(value || "").trim()
+  if (!raw) return "/"
+
+  try {
+    const candidate = raw.startsWith("/")
+      ? `https://placeholder.local${raw}`
+      : raw.startsWith("http://") || raw.startsWith("https://")
+        ? raw
+        : `https://${raw}`
+
+    const parsed = new URL(candidate)
+    const pathname = (parsed.pathname || "/").replace(/\/+/g, "/")
+    const normalizedPath = pathname === "/" ? "/" : pathname.replace(/\/+$/g, "")
+    return `${normalizedPath}${parsed.search || ""}`
+  } catch {
+    if (raw.startsWith("/")) return raw
+    const stripped = raw
+      .replace(/^[a-z]+:\/\//i, "")
+      .replace(/^[^/]+/, "")
+    return stripped || "/"
   }
-  if (cleanValue.endsWith("M")) {
-    return parseFloat(cleanValue) * 1000000
+}
+
+function asNumber(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function signedChange(current: number, previous: number): number {
+  if (previous <= 0) {
+    return current > 0 ? Infinity : 0
   }
-  return parseFloat(cleanValue) || 0
+
+  const pct = ((current - previous) / previous) * 100
+  return Number.isFinite(pct) ? Math.round(pct) : 0
+}
+
+function sumRows(rows: Ga4MetricRow[], metric: "sessions" | "keyEvents"): number {
+  return (rows || []).reduce((sum, row) => sum + asNumber(row?.[metric]), 0)
+}
+
+function buildEmptyV2Response(): V2Response<Ga4MetricRow> {
+  return {
+    success: true,
+    data: {
+      ranges: {
+        currentStart: "",
+        currentEnd: "",
+        previousStart: "",
+        previousEnd: "",
+      },
+      current: [],
+      previous: [],
+    },
+  }
+}
+
+function buildTimescaleTableRows(current: Ga4MetricRow[], previous: Ga4MetricRow[]): TimescaleTableInternal[] {
+  const previousMap = new Map<string, Ga4MetricRow>()
+
+  for (const row of previous || []) {
+    const key = String(row?.keys?.[0] || "").trim().toLowerCase()
+    if (!key) continue
+    previousMap.set(key, row)
+  }
+
+  return (current || []).map((row) => {
+    const keyRaw = String(row?.keys?.[0] || "").trim()
+    const keyNormalized = keyRaw.toLowerCase()
+    const previousRow = previousMap.get(keyNormalized)
+
+    const sessionsCurrent = asNumber(row?.sessions)
+    const sessionsPrevious = asNumber(previousRow?.sessions)
+    const goalsCurrent = asNumber(row?.keyEvents)
+    const goalsPrevious = asNumber(previousRow?.keyEvents)
+
+    return {
+      key: keyRaw,
+      sessions: sessionsCurrent,
+      goals: goalsCurrent,
+      sessionsChange: signedChange(sessionsCurrent, sessionsPrevious),
+      goalsChange: signedChange(goalsCurrent, goalsPrevious),
+    }
+  })
+}
+
+function includeTimescaleRow(row: TimescaleTableInternal, filter: TableFilterType): boolean {
+  if (filter === "popular") return true
+
+  if (filter === "growing") {
+    return row.sessionsChange > 0 || row.goalsChange > 0
+  }
+
+  return row.sessionsChange < 0 || row.goalsChange < 0
+}
+
+function sortTimescaleRows(
+  rows: TimescaleTableInternal[],
+  sort: { column: GA4SortColumn; direction: SortDirection }
+): TimescaleTableInternal[] {
+  return [...rows].sort((a, b) => {
+    const aValue = sort.column === "sessions" ? a.sessions : a.goals
+    const bValue = sort.column === "sessions" ? b.sessions : b.goals
+    return sort.direction === "desc" ? bValue - aValue : aValue - bValue
+  })
 }
 
 export function useGA4Analytics(
@@ -181,276 +237,214 @@ export function useGA4Analytics(
   const [topPagesSort, setTopPagesSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "sessions", direction: "desc" })
 
   const {
-    data: rawData,
+    data: timescaleRaw,
     isLoading,
     isFetching,
     error,
     refetch,
-  } = useQuery<GA4ApiResponse>({
-    queryKey: ["ga4-analytics", businessUniqueId, website, period],
+  } = useQuery<TimescaleGa4Response>({
+    queryKey: ["ga4-analytics-timescale", businessUniqueId, website, period],
     queryFn: async () => {
       if (!businessUniqueId || !website) {
         throw new Error("Missing business ID or website")
       }
 
-      const payload = {
-        uniqueId: businessUniqueId,
-        website: website,
-        origin: "ui",
-        period: period,
-        mode: "changemetric",
-        dimensions: [
-          {
-            name: "landingPage",
-            metrics: [
-              { name: "sessions" },
-              { name: "engagementRate" },
-              { name: "bounceRate" },
-              { name: "keyEvents" },
-            ],
-          },
-          {
-            name: "firstUserDefaultChannelGroup",
-            metrics: [
-              { name: "sessions" },
-              { name: "keyEvents" },
-            ],
-          },
-          {
-            name: "date",
-            metrics: [
-              { name: "Key events" },
-              { name: "Sessions" },
-            ],
-          },
-          {
-            name: "eventName",
-            metrics: [{ name: "keyEvents" }],
-          },
-          {
-            name: "sessionSource",
-            metrics: [
-              { name: "sessions" },
-              { name: "keyEvents" },
-            ],
-          },
-          {
-            name: "pagePath",
-            metrics: [
-              { name: "sessions" },
-              { name: "keyEvents" },
-            ],
-          },
-        ],
+      const basePayload = {
+        site_url: website,
+        period,
+        traffic_scope: "all",
       }
 
-      const response = await api.post<GA4ApiResponse>(
-        "/fetch-ga4-data",
-        "node",
-        payload
-      )
+      const [date, contentGroup, page, eventName, sourceMedium, channelGroup] = await Promise.all([
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "date",
+        }).catch(() => buildEmptyV2Response()),
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "content_group",
+          limit: 200,
+        }).catch(() => buildEmptyV2Response()),
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "page",
+          limit: 300,
+        }).catch(() => buildEmptyV2Response()),
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "event_name",
+          limit: 200,
+        }).catch(() => buildEmptyV2Response()),
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "source_medium",
+          limit: 200,
+        }).catch(() => buildEmptyV2Response()),
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "channel_group",
+          limit: 100,
+        }).catch(() => buildEmptyV2Response()),
+      ])
 
-      if (response.err) {
-        throw new Error(response.message || "Failed to fetch GA4 data")
+      return {
+        date,
+        contentGroup,
+        page,
+        eventName,
+        sourceMedium,
+        channelGroup,
       }
-
-      return response
     },
     enabled: !!businessUniqueId && !!website,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
 
+  const dateRows = timescaleRaw?.date?.data.current ?? []
+  const previousDateRows = timescaleRaw?.date?.data.previous ?? []
+
   const chartData = useMemo<GA4ChartDataFormatted[]>(() => {
-    if (!rawData?.date?.data) return []
+    return dateRows
+      .map((row) => {
+        const dateKey = normalizeDateKey(String(row?.keys?.[0] || ""))
+        if (!dateKey) return null
 
-    try {
-      const parsed: GA4ChartDataPoint[] = JSON.parse(rawData.date.data)
-      if (!Array.isArray(parsed)) return []
-
-      return parsed.map((point) => ({
-        date: formatDate(point.curDate),
-        sessions: parseInt(point.curData?.Sessions || "0", 10),
-        goals: parseInt(point.curData?.keyEvents || "0", 10),
-      }))
-    } catch {
-      return []
-    }
-  }, [rawData])
-
-  const mainStats = useMemo<GA4MainStats | null>(() => {
-    if (!rawData?.date?.mainStats) return null
-
-    try {
-      return JSON.parse(rawData.date.mainStats)
-    } catch {
-      return null
-    }
-  }, [rawData])
+        return {
+          date: formatDate(dateKey),
+          sessions: asNumber(row?.sessions),
+          goals: asNumber(row?.keyEvents),
+        }
+      })
+      .filter((row): row is GA4ChartDataFormatted => row !== null)
+  }, [dateRows])
 
   const sessionsMetric = useMemo(() => {
-    if (!mainStats?.Sessions) {
-      return { value: "0", change: 0 }
-    }
+    const current = sumRows(dateRows, "sessions")
+    const previous = sumRows(previousDateRows, "sessions")
     return {
-      value: formatNumber(mainStats.Sessions.Total),
-      change: parsePercentageChange(mainStats.Sessions.Diff, mainStats.Sessions.Trend),
+      value: formatNumber(current),
+      change: signedChange(current, previous),
     }
-  }, [mainStats])
+  }, [dateRows, previousDateRows])
 
   const goalsMetric = useMemo(() => {
-    if (!mainStats?.keyEvents) {
-      return { value: "0", change: 0 }
-    }
+    const current = sumRows(dateRows, "keyEvents")
+    const previous = sumRows(previousDateRows, "keyEvents")
     return {
-      value: formatNumber(mainStats.keyEvents.Total),
-      change: parsePercentageChange(mainStats.keyEvents.Diff, mainStats.keyEvents.Trend),
+      value: formatNumber(current),
+      change: signedChange(current, previous),
     }
-  }, [mainStats])
+  }, [dateRows, previousDateRows])
 
-  const parseTableData = useCallback((jsonString: string | undefined): GA4TableRow[] => {
-    if (!jsonString) return []
-    try {
-      const parsed = JSON.parse(jsonString)
-      if (!Array.isArray(parsed)) return []
-      return parsed
-    } catch {
-      return []
-    }
-  }, [])
+  const goalsRows = useMemo(() => {
+    return buildTimescaleTableRows(
+      timescaleRaw?.eventName?.data.current ?? [],
+      timescaleRaw?.eventName?.data.previous ?? []
+    )
+  }, [timescaleRaw?.eventName?.data.current, timescaleRaw?.eventName?.data.previous])
 
-  const goalsRawData = useMemo<GA4TableRow[]>(() => {
-    return parseTableData(rawData?.eventName)
-  }, [rawData, parseTableData])
+  const contentGroupRows = useMemo(() => {
+    return buildTimescaleTableRows(
+      timescaleRaw?.contentGroup?.data.current ?? [],
+      timescaleRaw?.contentGroup?.data.previous ?? []
+    )
+  }, [timescaleRaw?.contentGroup?.data.current, timescaleRaw?.contentGroup?.data.previous])
 
-  const topSourcesRawData = useMemo<GA4TableRow[]>(() => {
-    return parseTableData(rawData?.sessionSource)
-  }, [rawData, parseTableData])
+  const topPageRows = useMemo(() => {
+    return buildTimescaleTableRows(
+      timescaleRaw?.page?.data.current ?? [],
+      timescaleRaw?.page?.data.previous ?? []
+    )
+  }, [timescaleRaw?.page?.data.current, timescaleRaw?.page?.data.previous])
 
-  const contentGroupsRawData = useMemo<GA4TableRow[]>(() => {
-    return parseTableData(rawData?.landingPageContentGroup)
-  }, [rawData, parseTableData])
+  const sourceMediumRows = useMemo(() => {
+    return buildTimescaleTableRows(
+      timescaleRaw?.sourceMedium?.data.current ?? [],
+      timescaleRaw?.sourceMedium?.data.previous ?? []
+    )
+  }, [timescaleRaw?.sourceMedium?.data.current, timescaleRaw?.sourceMedium?.data.previous])
 
-  const topPagesRawData = useMemo<GA4TableRow[]>(() => {
-    return parseTableData(rawData?.pagePath)
-  }, [rawData, parseTableData])
+  const channelRows = useMemo(() => {
+    return buildTimescaleTableRows(
+      timescaleRaw?.channelGroup?.data.current ?? [],
+      timescaleRaw?.channelGroup?.data.previous ?? []
+    )
+  }, [timescaleRaw?.channelGroup?.data.current, timescaleRaw?.channelGroup?.data.previous])
 
-  const channelsRawData = useMemo<GA4ChannelRow[]>(() => {
-    if (!rawData?.firstUserDefaultChannelGroup) return []
-    try {
-      const parsed = JSON.parse(rawData.firstUserDefaultChannelGroup)
-      if (!Array.isArray(parsed)) return []
-      return parsed
-    } catch {
-      return []
-    }
-  }, [rawData])
+  const goalsData = useMemo<GA4GoalDataFormatted[]>(() => {
+    return sortTimescaleRows(
+      goalsRows.filter((row) => includeTimescaleRow(row, goalsFilter)),
+      goalsSort
+    ).map((row) => ({
+      goal: row.key,
+      goals: {
+        value: row.goals,
+        change: row.goalsChange,
+      },
+    }))
+  }, [goalsFilter, goalsRows, goalsSort])
 
-  const filterAndSortTableData = useCallback((
-    data: GA4TableRow[],
-    filter: TableFilterType,
-    sort: { column: GA4SortColumn; direction: SortDirection },
-    keyField: string
-  ): GA4TableDataFormatted[] => {
-    const filterMap: Record<TableFilterType, string> = {
-      popular: "Popular",
-      growing: "Growing",
-      decaying: "Decaying",
-    }
+  const topSourcesData = useMemo<GA4TableDataFormatted[]>(() => {
+    return sortTimescaleRows(
+      sourceMediumRows.filter((row) => includeTimescaleRow(row, topSourcesFilter)),
+      topSourcesSort
+    ).map((row) => ({
+      key: row.key,
+      sessions: {
+        value: formatNumber(row.sessions),
+        change: row.sessionsChange,
+      },
+      goals: {
+        value: formatNumber(row.goals),
+        change: row.goalsChange,
+      },
+    }))
+  }, [sourceMediumRows, topSourcesFilter, topSourcesSort])
 
-    let filteredData = filter === "popular"
-      ? data
-      : data.filter((item) => item.Group === filterMap[filter])
+  const contentGroupsData = useMemo<GA4TableDataFormatted[]>(() => {
+    return sortTimescaleRows(
+      contentGroupRows.filter((row) => includeTimescaleRow(row, contentGroupsFilter)),
+      contentGroupsSort
+    ).map((row) => ({
+      key: row.key,
+      sessions: {
+        value: formatNumber(row.sessions),
+        change: row.sessionsChange,
+      },
+      goals: {
+        value: formatNumber(row.goals),
+        change: row.goalsChange,
+      },
+    }))
+  }, [contentGroupRows, contentGroupsFilter, contentGroupsSort])
 
-    filteredData = [...filteredData].sort((a, b) => {
-      const aValue = parseNumericValue(
-        sort.column === "sessions"
-          ? (a.Sessions?.Value || a.sessions?.Value || "0")
-          : (a["Key events"]?.Value || a.keyEvents?.Value || "0")
-      )
-      const bValue = parseNumericValue(
-        sort.column === "sessions"
-          ? (b.Sessions?.Value || b.sessions?.Value || "0")
-          : (b["Key events"]?.Value || b.keyEvents?.Value || "0")
-      )
-      return sort.direction === "desc" ? bValue - aValue : aValue - bValue
-    })
-
-    return filteredData.map((row) => {
-      const sessionsData = row.Sessions || row.sessions
-      const goalsData = row["Key events"] || row.keyEvents
-
-      return {
-        key: row[keyField] || "",
-        sessions: {
-          value: sessionsData?.Value || "0",
-          change: sessionsData ? parsePercentageChange(sessionsData.Diff, sessionsData.Trend) : 0,
-        },
-        goals: {
-          value: goalsData?.Value || "0",
-          change: goalsData ? parsePercentageChange(goalsData.Diff, goalsData.Trend) : 0,
-        },
-      }
-    })
-  }, [])
-
-  const filterAndSortGoalsData = useCallback((
-    data: GA4TableRow[],
-    filter: TableFilterType,
-    sort: { column: GA4SortColumn; direction: SortDirection }
-  ): GA4GoalDataFormatted[] => {
-    const filterMap: Record<TableFilterType, string> = {
-      popular: "Popular",
-      growing: "Growing",
-      decaying: "Decaying",
-    }
-
-    let filteredData = filter === "popular"
-      ? data
-      : data.filter((item) => item.Group === filterMap[filter])
-
-    filteredData = [...filteredData].sort((a, b) => {
-      const aValue = parseNumericValue(a.keyEvents?.Value || "0")
-      const bValue = parseNumericValue(b.keyEvents?.Value || "0")
-      return sort.direction === "desc" ? bValue - aValue : aValue - bValue
-    })
-
-    return filteredData.map((row) => {
-      const goalsData = row.keyEvents
-
-      return {
-        goal: row.eventName || "",
-        goals: {
-          value: parseNumericValue(goalsData?.Value || "0"),
-          change: goalsData ? parsePercentageChange(goalsData.Diff, goalsData.Trend) : 0,
-        },
-      }
-    })
-  }, [])
-
-  const goalsData = useMemo(() => {
-    return filterAndSortGoalsData(goalsRawData, goalsFilter, goalsSort)
-  }, [goalsRawData, goalsFilter, goalsSort, filterAndSortGoalsData])
-
-  const topSourcesData = useMemo(() => {
-    return filterAndSortTableData(topSourcesRawData, topSourcesFilter, topSourcesSort, "sessionSource")
-  }, [topSourcesRawData, topSourcesFilter, topSourcesSort, filterAndSortTableData])
-
-  const contentGroupsData = useMemo(() => {
-    return filterAndSortTableData(contentGroupsRawData, contentGroupsFilter, contentGroupsSort, "Landing page")
-  }, [contentGroupsRawData, contentGroupsFilter, contentGroupsSort, filterAndSortTableData])
-
-  const topPagesData = useMemo(() => {
-    return filterAndSortTableData(topPagesRawData, topPagesFilter, topPagesSort, "pagePath")
-  }, [topPagesRawData, topPagesFilter, topPagesSort, filterAndSortTableData])
+  const topPagesData = useMemo<GA4TableDataFormatted[]>(() => {
+    return sortTimescaleRows(
+      topPageRows.filter((row) => includeTimescaleRow(row, topPagesFilter)),
+      topPagesSort
+    ).map((row) => ({
+      key: normalizePageForDisplay(row.key),
+      sessions: {
+        value: formatNumber(row.sessions),
+        change: row.sessionsChange,
+      },
+      goals: {
+        value: formatNumber(row.goals),
+        change: row.goalsChange,
+      },
+    }))
+  }, [topPageRows, topPagesFilter, topPagesSort])
 
   const channelsData = useMemo<GA4ChannelDataFormatted[]>(() => {
-    return channelsRawData.map((item) => ({
-      name: item["FirstUser DefaultChannelGroup"] || "",
-      sessions: parseInt(item.curData?.Sessions || "0", 10),
-      goals: parseInt(item.curData?.["Key events"] || "0", 10),
-    })).sort((a, b) => b.sessions - a.sessions)
-  }, [channelsRawData])
+    return [...channelRows]
+      .sort((a, b) => b.sessions - a.sessions)
+      .map((row) => ({
+        name: row.key || "(not set)",
+        sessions: row.sessions,
+        goals: row.goals,
+      }))
+  }, [channelRows])
 
   const normalizedChartData = useMemo(() => {
     if (chartData.length === 0) return []
@@ -544,12 +538,12 @@ export function useGA4Analytics(
     }))
   }, [])
 
-  const hasChartData = chartData.length > 0
-  const hasGoalsData = goalsRawData.length > 0
-  const hasTopSourcesData = topSourcesRawData.length > 0
-  const hasContentGroupsData = contentGroupsRawData.length > 0
-  const hasTopPagesData = topPagesRawData.length > 0
-  const hasChannelsData = channelsRawData.length > 0
+  const hasChartData = chartData.some((row) => row.sessions > 0 || row.goals > 0)
+  const hasGoalsData = goalsData.length > 0
+  const hasTopSourcesData = topSourcesData.length > 0
+  const hasContentGroupsData = contentGroupsData.length > 0
+  const hasTopPagesData = topPagesData.length > 0
+  const hasChannelsData = channelsData.length > 0
 
   return {
     chartData,
@@ -557,7 +551,7 @@ export function useGA4Analytics(
     normalizedChannelsData,
     sessionsMetric,
     goalsMetric,
-    mainStats,
+    mainStats: null,
     goalsData,
     topSourcesData,
     contentGroupsData,

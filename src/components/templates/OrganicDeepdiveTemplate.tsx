@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState, useMemo, Suspense, useCallback } from "react";
+import { usePathname } from "next/navigation";
+import { Eye, MousePointerClick, Target } from "lucide-react";
 import { useBusinessStore } from "@/store/business-store";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { type TimePeriodValue } from "@/hooks/use-gsc-chart-data";
@@ -20,19 +21,34 @@ import {
 } from "@/components/organisms/organic-deepdive/skeletons";
 import {
   useOrganicDeepdiveFilters,
-  type DeepdiveFilter,
 } from "@/hooks/use-organic-deepdive-filters";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+const CHART_LINE_KEYS = ["impressions", "clicks", "goals"] as const;
 
 export function OrganicDeepdiveTemplate() {
-  const router = useRouter();
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
   const [period, setPeriod] = useState<TimePeriodValue>("3 months");
+  const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
+    impressions: true,
+    clicks: true,
+    goals: true,
+  });
   const { filters, filtersForApi, addFilter, removeFilter } = useOrganicDeepdiveFilters();
 
   const handlePeriodChange = (value: AnalyticsTimePeriodValue) => {
     setPeriod(value as TimePeriodValue);
   };
+
+  const handleChartLineToggle = useCallback((key: string, checked: boolean) => {
+    setVisibleLines((prev) => {
+      const checkedCount = Object.values(prev).filter(Boolean).length;
+      if (!checked && checkedCount <= 1) return prev;
+      return { ...prev, [key]: checked };
+    });
+  }, []);
 
   const handleQueryClick = (query: string) => {
     addFilter({ dimension: "query", expression: query, operator: "equals" });
@@ -80,7 +96,39 @@ export function OrganicDeepdiveTemplate() {
 
         <div className="w-full max-w-[1224px] px-7 flex items-center justify-between gap-4 py-4">
           <AnalyticsPageTabs businessId={businessUniqueId} />
-          <PeriodSelector value={period} onValueChange={handlePeriodChange} />
+          <div className="flex items-center gap-2">
+            {CHART_LINE_KEYS.map((key) => (
+              <Button
+                key={key}
+                variant="outline"
+                size="icon"
+                className={cn(
+                  "h-8 w-8 shrink-0",
+                  visibleLines[key] ? "bg-white" : "bg-transparent"
+                )}
+                onClick={() =>
+                  handleChartLineToggle(key, !visibleLines[key])
+                }
+                title={
+                  key === "impressions"
+                    ? "Impressions"
+                    : key === "clicks"
+                      ? "Clicks"
+                      : "Goals"
+                }
+                aria-pressed={visibleLines[key]}
+              >
+                {key === "impressions" ? (
+                  <Eye className="h-4 w-4 text-gray-500" />
+                ) : key === "clicks" ? (
+                  <MousePointerClick className="h-4 w-4 text-blue-600 rotate-90" />
+                ) : (
+                  <Target className="h-4 w-4 text-emerald-600" />
+                )}
+              </Button>
+            ))}
+            <PeriodSelector value={period} onValueChange={handlePeriodChange} />
+          </div>
         </div>
 
         {filters.length > 0 ? (
@@ -101,6 +149,8 @@ export function OrganicDeepdiveTemplate() {
               website={website}
               period={period}
               filters={filtersForApi}
+              visibleLines={visibleLines}
+              onLegendToggle={handleChartLineToggle}
             />
           </Suspense>
 

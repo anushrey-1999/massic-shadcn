@@ -209,33 +209,9 @@ function normalizeContentGroupKey(value: string): string | null {
 }
 
 function normalizePageKey(value: string): string | null {
-  let raw = String(value || "").trim()
+  const raw = String(value || "").trim()
   if (!raw) return null
-
-  try {
-    if (raw.startsWith("sc-domain:")) {
-      raw = raw.replace("sc-domain:", "")
-      raw = `https://${raw}`
-    }
-
-    if (raw.startsWith("/")) {
-      const pathOnly = raw.split("#")[0]
-      const [pathname, query = ""] = pathOnly.split("?")
-      const fixedPath = pathname.replace(/\/+/g, "/") || "/"
-      return `${fixedPath}${query ? `?${query}` : ""}`.toLowerCase()
-    }
-
-    if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
-      raw = `https://${raw}`
-    }
-
-    const parsed = new URL(raw)
-    const pathname = (parsed.pathname || "/").replace(/\/+/g, "/")
-    const normalizedPath = pathname === "/" ? "/" : pathname.replace(/\/$/, "")
-    return `${parsed.host.toLowerCase()}${normalizedPath}${parsed.search || ""}`
-  } catch {
-    return raw.toLowerCase()
-  }
+  return raw
 }
 
 function getSignedChange(current: number, previous: number): number {

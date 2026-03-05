@@ -41,24 +41,20 @@ interface DiscoveryPerformanceSectionProps {
 function normalizePageForDisplay(value: string): string {
   const raw = String(value || "").trim();
   if (!raw) return "/";
+  if (raw.startsWith("/")) return raw;
+  if (raw.startsWith("?") || raw.startsWith("#")) return `/${raw}`;
 
-  try {
-    const candidate = raw.startsWith("/")
-      ? `https://placeholder.local${raw}`
-      : raw.startsWith("http://") || raw.startsWith("https://")
-        ? raw
-        : `https://${raw}`;
-    const parsed = new URL(candidate);
-    const pathname = (parsed.pathname || "/").replace(/\/+/g, "/");
-    const normalizedPath = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
-    return `${normalizedPath}${parsed.search || ""}`;
-  } catch {
-    if (raw.startsWith("/")) return raw;
-    const stripped = raw
-      .replace(/^[a-z]+:\/\//i, "")
-      .replace(/^[^/]+/, "");
-    return stripped || "/";
+  const noScheme = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  const noLeadingSlashes = noScheme.replace(/^\/\//, "");
+  const firstSlashIndex = noLeadingSlashes.indexOf("/");
+  if (firstSlashIndex < 0) return "/";
+
+  const maybeHost = noLeadingSlashes.slice(0, firstSlashIndex);
+  if (maybeHost.includes(".") || maybeHost.includes(":") || maybeHost === "localhost") {
+    return noLeadingSlashes.slice(firstSlashIndex) || "/";
   }
+
+  return raw;
 }
 
 function withZeroFallback<T extends { value: string | number; change?: number }>(

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
 import { useMemo, useState, useCallback } from "react"
+import { calculateTrend, sumMetrics } from "@/utils/gsc-deepdive-utils"
+import type { DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters"
 
 export const TIME_PERIODS = [
   { id: 1, label: "7 days", value: "7 days" },
@@ -13,7 +15,7 @@ export const TIME_PERIODS = [
 
 export type TimePeriodValue = (typeof TIME_PERIODS)[number]["value"]
 export type TableFilterType = "popular" | "growing" | "decaying"
-export type SortColumn = "impressions" | "clicks"
+export type SortColumn = "impressions" | "clicks" | "sessions" | "goals"
 export type SortDirection = "asc" | "desc"
 
 interface TrendDetail {
@@ -22,18 +24,10 @@ interface TrendDetail {
   Trend: "up" | "down"
 }
 
-interface TrendStats {
-  Item: string
-  Tag: string
-  Trend: "up" | "down" | "neutral"
-  Previous: string
-  Percentage: string
-  Diff: string
-}
-
 export interface GSCTrendData {
   Clk: TrendDetail
   Imp: TrendDetail
+  sessions?: TrendDetail
   goals?: TrendDetail
 }
 
@@ -42,13 +36,14 @@ export interface GSCChartDataPoint {
   dateKey?: string
   impressions: number
   clicks: number
+  sessions?: number
   goals?: number
 }
 
 export interface GSCFunnelData {
   impressions: { Value: number; Percentage: string }
   clicks: { Value: number; Percentage: string }
-  cnv: { Value: number; Percentage: string }
+  cnv: { Value: number; Percentage?: string }
 }
 
 export interface ChartLegendItem {
@@ -65,92 +60,111 @@ export interface FunnelChartItem {
   percentage?: string
 }
 
-interface GSCDataRow {
-  keys: string[]
-  impressions: number
-  clicks: number
-  goal?: number
-}
-
-interface GSCTableRow {
-  keys: string[]
-  impressions: string | number
-  clicks: string | number
-  ctr: string | number
-  position: string | number
-  Group: "Popular" | "Growing" | "Decaying"
-  status1?: TrendStats
-  status2?: TrendStats
-  stats1?: TrendStats
-  stats2?: TrendStats
+interface MetricCell {
+  value: string | number
+  change?: number
 }
 
 export interface GSCTableDataFormatted {
   key: string
-  impressions: { value: string | number; change: number }
-  clicks: { value: string | number; change: number }
+  impressions: MetricCell
+  clicks: MetricCell
+  sessions?: MetricCell
+  goals?: MetricCell
 }
 
-interface GSCTableResponse {
-  rows: GSCTableRow[]
+interface V2Ranges {
+  currentStart: string
+  currentEnd: string
+  previousStart: string
+  previousEnd: string
 }
 
-interface GSCDateResponse {
-  rows: GSCDataRow[]
+interface V2Response<T = any> {
+  success: boolean
+  data: {
+    ranges: V2Ranges
+    current: T[]
+    previous: T[]
+  }
 }
 
-interface GSCApiResponse {
-  err?: boolean
-  message?: string
-  data: Array<
-    | { date: string }
-    | { page: string }
-    | { query: string }
-    | { queryclusters: string }
-    | { contentgroups: string }
-  >
-  cards?: string
-  trenddata?: string
-  funnelData?: string
+interface GscMetricRow {
+  keys?: string[]
+  group?: string
+  displayName?: string
+  impressions?: number
+  clicks?: number
 }
 
-function parsePercentageChange(diff: string): number {
-  if (!diff) return 0
-  const numericValue = parseFloat(diff.replace("%", ""))
-  return isNaN(numericValue) ? 0 : Math.round(numericValue)
+interface Ga4MetricRow {
+  keys?: string[]
+  sessions?: number
+  keyEvents?: number
+}
+
+interface TimescaleOverviewResponse {
+  gscDate: V2Response<GscMetricRow>
+  gscContentGroups: V2Response<GscMetricRow>
+  gscTopPages: V2Response<GscMetricRow>
+  gscTopQueries: V2Response<GscMetricRow>
+  ga4Date: V2Response<Ga4MetricRow> | null
+  ga4ContentGroups: V2Response<Ga4MetricRow> | null
+  ga4TopPages: V2Response<Ga4MetricRow> | null
+}
+
+interface MergedMetric {
+  current: number
+  previous: number
+  available: boolean
+  change?: number
+}
+
+interface MergedRow {
+  key: string
+  impressions: MergedMetric
+  clicks: MergedMetric
+  sessions: MergedMetric
+  goals: MergedMetric
+}
+
+interface AggregatedGscRow {
+  key: string
+  impressions: number
+  clicks: number
+  bestScore: number
+}
+
+interface AggregatedGa4Row {
+  key: string
+  sessions: number
+  keyEvents: number
+  bestScore: number
+}
+
+function asNumber(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 function formatNumber(value: number | string): string {
   if (typeof value === "string") {
-    // If already has K/M suffix, return as-is
     if (/[KMkm]$/.test(value.trim())) {
       return value
     }
-    // Remove any commas before parsing
+
     const cleanValue = value.replace(/,/g, "")
     const num = parseFloat(cleanValue)
     if (isNaN(num)) return "0"
-    if (num >= 1000000) {
-      const formatted = (num / 1000000).toFixed(1)
-      return `${formatted}M`
-    }
-    if (num >= 1000) {
-      const formatted = (num / 1000).toFixed(1)
-      return `${formatted}K`
-    }
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
     return num.toLocaleString()
   }
-  const num = value
-  if (isNaN(num)) return "0"
-  if (num >= 1000000) {
-    const formatted = (num / 1000000).toFixed(1)
-    return `${formatted}M`
-  }
-  if (num >= 1000) {
-    const formatted = (num / 1000).toFixed(1)
-    return `${formatted}K`
-  }
-  return num.toLocaleString()
+
+  if (!Number.isFinite(value)) return "0"
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
+  return value.toLocaleString()
 }
 
 function formatDate(dateString: string): string {
@@ -167,92 +181,395 @@ function formatDate(dateString: string): string {
 }
 
 function normalizeDateKey(value: string): string | null {
-  if (!value) return null
-  const trimmed = value.trim()
-  const dashedMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
-  if (dashedMatch) {
-    return `${dashedMatch[1]}-${dashedMatch[2]}-${dashedMatch[3]}`
-  }
-  const monthMatch = /^(\d{4})-(\d{2})$/.exec(trimmed)
-  if (monthMatch) {
-    return `${monthMatch[1]}-${monthMatch[2]}-01`
-  }
-  const compactMatch = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed)
-  if (compactMatch) {
-    return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`
-  }
+  const trimmed = String(value || "").trim()
+  if (!trimmed) return null
+
+  const dashed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed)
+  if (dashed) return `${dashed[1]}-${dashed[2]}-${dashed[3]}`
+
+  const compact = /^(\d{4})(\d{2})(\d{2})$/.exec(trimmed)
+  if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`
+
   return null
 }
 
-function dateFromKey(dateKey: string): Date | null {
-  const fullMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey)
-  if (fullMatch) {
-    const year = Number(fullMatch[1])
-    const month = Number(fullMatch[2]) - 1
-    const day = Number(fullMatch[3])
-    if (Number.isNaN(year) || Number.isNaN(month) || Number.isNaN(day)) return null
-    return new Date(Date.UTC(year, month, day))
+function normalizeContentGroupKey(value: string): string | null {
+  const raw = String(value || "").trim()
+  if (!raw) return null
+
+  let normalized = raw
+  if (!normalized.startsWith("/")) {
+    normalized = `/${normalized}`
   }
-  const monthOnly = /^(\d{4})-(\d{2})$/.exec(dateKey)
-  if (monthOnly) {
-    const year = Number(monthOnly[1])
-    const month = Number(monthOnly[2]) - 1
-    if (Number.isNaN(year) || Number.isNaN(month)) return null
-    return new Date(Date.UTC(year, month, 1))
-  }
-  return null
+
+  normalized = normalized.replace(/\/+$/g, "")
+  normalized = normalized.replace(/\/+/g, "/")
+  if (!normalized) return "/"
+  return normalized.toLowerCase()
 }
 
-function formatDateKey(date: Date): string {
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
-  const day = String(date.getUTCDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
+function normalizePageKey(value: string): string | null {
+  let raw = String(value || "").trim()
+  if (!raw) return null
+
+  try {
+    if (raw.startsWith("sc-domain:")) {
+      raw = raw.replace("sc-domain:", "")
+      raw = `https://${raw}`
+    }
+
+    if (raw.startsWith("/")) {
+      const pathOnly = raw.split("#")[0]
+      const [pathname, query = ""] = pathOnly.split("?")
+      const fixedPath = pathname.replace(/\/+/g, "/") || "/"
+      return `${fixedPath}${query ? `?${query}` : ""}`.toLowerCase()
+    }
+
+    if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
+      raw = `https://${raw}`
+    }
+
+    const parsed = new URL(raw)
+    const pathname = (parsed.pathname || "/").replace(/\/+/g, "/")
+    const normalizedPath = pathname === "/" ? "/" : pathname.replace(/\/$/, "")
+    return `${parsed.host.toLowerCase()}${normalizedPath}${parsed.search || ""}`
+  } catch {
+    return raw.toLowerCase()
+  }
 }
 
-function formatDateLabel(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
+function getSignedChange(current: number, previous: number): number {
+  const trend = calculateTrend(current, previous)
+  if (trend.isInfinity) {
+    return current > 0 ? Infinity : 0
+  }
+
+  if (trend.trend === "down") return -trend.value
+  if (trend.trend === "up") return trend.value
+  return 0
+}
+
+function toTrendDetail(current: number, previous: number): TrendDetail {
+  const signedChange = getSignedChange(current, previous)
+  const absValue = Number.isFinite(signedChange) ? Math.abs(signedChange) : "∞"
+
+  return {
+    Total: formatNumber(current),
+    Diff: `${absValue}%`,
+    Trend: signedChange < 0 ? "down" : "up",
+  }
+}
+
+function percentage(part: number, whole: number): string {
+  if (whole <= 0) return "0%"
+  return `${((part / whole) * 100).toFixed(1)}%`
+}
+
+function toMetricCell(metric: MergedMetric): MetricCell {
+  if (!metric.available) {
+    return { value: "—" }
+  }
+
+  return {
+    value: formatNumber(metric.current),
+    change: metric.change,
+  }
+}
+
+function includeByFilter(row: MergedRow, filter: TableFilterType, includeGa4: boolean): boolean {
+  if (filter === "popular") return true
+
+  const changes = [
+    row.impressions.change,
+    row.clicks.change,
+    ...(includeGa4 ? [row.sessions.change, row.goals.change] : []),
+  ].filter((value): value is number => value !== undefined)
+
+  if (filter === "growing") return changes.some((value) => value > 0)
+  return changes.some((value) => value < 0)
+}
+
+function compareBySort(a: MergedRow, b: MergedRow, sort: { column: SortColumn; direction: SortDirection }): number {
+  const pick = (row: MergedRow): number | null => {
+    const metric = row[sort.column]
+    if (!metric?.available) return null
+    return metric.current
+  }
+
+  const aVal = pick(a)
+  const bVal = pick(b)
+
+  if (aVal === null && bVal === null) return 0
+  if (aVal === null) return 1
+  if (bVal === null) return -1
+
+  return sort.direction === "desc" ? bVal - aVal : aVal - bVal
+}
+
+function buildMap<T>(rows: T[], getKey: (row: T) => string | null, getDisplay: (row: T) => string): Map<string, { key: string; row: T }> {
+  const map = new Map<string, { key: string; row: T }>()
+
+  for (const row of rows || []) {
+    const normalizedKey = getKey(row)
+    if (!normalizedKey) continue
+
+    const displayKey = getDisplay(row)
+    const existing = map.get(normalizedKey)
+
+    if (!existing) {
+      map.set(normalizedKey, { key: displayKey, row })
+      continue
+    }
+
+    // Prefer non-empty and longer display key to preserve readable URLs/paths.
+    if ((displayKey || "").length > (existing.key || "").length) {
+      existing.key = displayKey
+    }
+  }
+
+  return map
+}
+
+function aggregateGscRows(
+  rows: GscMetricRow[],
+  keyNormalizer: (value: string) => string | null,
+  displayResolver: (row: GscMetricRow) => string
+): Map<string, AggregatedGscRow> {
+  const map = new Map<string, AggregatedGscRow>()
+
+  for (const row of rows || []) {
+    const displayKey = displayResolver(row)
+    const normalizedKey = keyNormalizer(displayKey)
+    if (!normalizedKey) continue
+
+    const impressions = asNumber(row.impressions)
+    const clicks = asNumber(row.clicks)
+    const score = impressions + clicks
+    const existing = map.get(normalizedKey)
+
+    if (!existing) {
+      map.set(normalizedKey, {
+        key: displayKey,
+        impressions,
+        clicks,
+        bestScore: score,
+      })
+      continue
+    }
+
+    existing.impressions += impressions
+    existing.clicks += clicks
+
+    // Keep representative key from the row with stronger contribution.
+    if (score > existing.bestScore && displayKey) {
+      existing.key = displayKey
+      existing.bestScore = score
+    }
+  }
+
+  return map
+}
+
+function aggregateGa4Rows(
+  rows: Ga4MetricRow[],
+  keyNormalizer: (value: string) => string | null,
+  displayResolver: (row: Ga4MetricRow) => string
+): Map<string, AggregatedGa4Row> {
+  const map = new Map<string, AggregatedGa4Row>()
+
+  for (const row of rows || []) {
+    const displayKey = displayResolver(row)
+    const normalizedKey = keyNormalizer(displayKey)
+    if (!normalizedKey) continue
+
+    const sessions = asNumber(row.sessions)
+    const keyEvents = asNumber(row.keyEvents)
+    const score = sessions + keyEvents
+    const existing = map.get(normalizedKey)
+
+    if (!existing) {
+      map.set(normalizedKey, {
+        key: displayKey,
+        sessions,
+        keyEvents,
+        bestScore: score,
+      })
+      continue
+    }
+
+    existing.sessions += sessions
+    existing.keyEvents += keyEvents
+
+    if (score > existing.bestScore && displayKey) {
+      existing.key = displayKey
+      existing.bestScore = score
+    }
+  }
+
+  return map
+}
+
+function buildMergedRows({
+  gscCurrent,
+  gscPrevious,
+  ga4Current,
+  ga4Previous,
+  keyNormalizer,
+  gscDisplayResolver,
+  ga4DisplayResolver,
+}: {
+  gscCurrent: GscMetricRow[]
+  gscPrevious: GscMetricRow[]
+  ga4Current: Ga4MetricRow[]
+  ga4Previous: Ga4MetricRow[]
+  keyNormalizer: (value: string) => string | null
+  gscDisplayResolver: (row: GscMetricRow) => string
+  ga4DisplayResolver: (row: Ga4MetricRow) => string
+}): MergedRow[] {
+  const gscCurrentMap = aggregateGscRows(gscCurrent, keyNormalizer, gscDisplayResolver)
+  const gscPreviousMap = aggregateGscRows(gscPrevious, keyNormalizer, gscDisplayResolver)
+  const ga4CurrentMap = aggregateGa4Rows(ga4Current, keyNormalizer, ga4DisplayResolver)
+  const ga4PreviousMap = aggregateGa4Rows(ga4Previous, keyNormalizer, ga4DisplayResolver)
+
+  const keys = new Set<string>([
+    ...Array.from(gscCurrentMap.keys()),
+    ...Array.from(ga4CurrentMap.keys()),
+  ])
+
+  const rows: MergedRow[] = []
+
+  for (const key of keys) {
+    const gscCurrentRow = gscCurrentMap.get(key)
+    const gscPreviousRow = gscPreviousMap.get(key)
+    const ga4CurrentRow = ga4CurrentMap.get(key)
+    const ga4PreviousRow = ga4PreviousMap.get(key)
+
+    const gscAvailable = !!gscCurrentMap.get(key) || !!gscPreviousMap.get(key)
+    const ga4Available = !!ga4CurrentMap.get(key) || !!ga4PreviousMap.get(key)
+
+    const impressionsCurrent = asNumber(gscCurrentRow?.impressions)
+    const impressionsPrevious = asNumber(gscPreviousRow?.impressions)
+    const clicksCurrent = asNumber(gscCurrentRow?.clicks)
+    const clicksPrevious = asNumber(gscPreviousRow?.clicks)
+
+    const sessionsCurrent = asNumber(ga4CurrentRow?.sessions)
+    const sessionsPrevious = asNumber(ga4PreviousRow?.sessions)
+    const goalsCurrent = asNumber(ga4CurrentRow?.keyEvents)
+    const goalsPrevious = asNumber(ga4PreviousRow?.keyEvents)
+
+    rows.push({
+      key: gscCurrentMap.get(key)?.key || ga4CurrentMap.get(key)?.key || key,
+      impressions: {
+        current: impressionsCurrent,
+        previous: impressionsPrevious,
+        available: gscAvailable,
+        change: gscAvailable ? getSignedChange(impressionsCurrent, impressionsPrevious) : undefined,
+      },
+      clicks: {
+        current: clicksCurrent,
+        previous: clicksPrevious,
+        available: gscAvailable,
+        change: gscAvailable ? getSignedChange(clicksCurrent, clicksPrevious) : undefined,
+      },
+      sessions: {
+        current: sessionsCurrent,
+        previous: sessionsPrevious,
+        available: ga4Available,
+        change: ga4Available ? getSignedChange(sessionsCurrent, sessionsPrevious) : undefined,
+      },
+      goals: {
+        current: goalsCurrent,
+        previous: goalsPrevious,
+        available: ga4Available,
+        change: ga4Available ? getSignedChange(goalsCurrent, goalsPrevious) : undefined,
+      },
+    })
+  }
+
+  return rows
+}
+
+function buildGscOnlyRows(current: GscMetricRow[], previous: GscMetricRow[]): MergedRow[] {
+  const currentMap = buildMap(
+    current,
+    (row) => (row.keys?.[0] || "").trim().toLowerCase(),
+    (row) => row.keys?.[0] || ""
+  )
+  const previousMap = buildMap(
+    previous,
+    (row) => (row.keys?.[0] || "").trim().toLowerCase(),
+    (row) => row.keys?.[0] || ""
+  )
+
+  return Array.from(currentMap.entries()).map(([key, currentEntry]) => {
+    const previousRow = previousMap.get(key)?.row
+
+    const impressionsCurrent = asNumber(currentEntry.row.impressions)
+    const impressionsPrevious = asNumber(previousRow?.impressions)
+    const clicksCurrent = asNumber(currentEntry.row.clicks)
+    const clicksPrevious = asNumber(previousRow?.clicks)
+
+    return {
+      key: currentEntry.key,
+      impressions: {
+        current: impressionsCurrent,
+        previous: impressionsPrevious,
+        available: true,
+        change: getSignedChange(impressionsCurrent, impressionsPrevious),
+      },
+      clicks: {
+        current: clicksCurrent,
+        previous: clicksPrevious,
+        available: true,
+        change: getSignedChange(clicksCurrent, clicksPrevious),
+      },
+      sessions: { current: 0, previous: 0, available: false },
+      goals: { current: 0, previous: 0, available: false },
+    }
   })
 }
 
-function addDaysUtc(date: Date, days: number): Date {
-  const next = new Date(date)
-  next.setUTCDate(next.getUTCDate() + days)
-  return next
+function extractDateMap(rows: Array<GscMetricRow | Ga4MetricRow>, metric: "impressions" | "clicks" | "sessions" | "keyEvents"): Map<string, number> {
+  const map = new Map<string, number>()
+
+  for (const row of rows || []) {
+    const rawKey = row.keys?.[0] || ""
+    const dateKey = normalizeDateKey(rawKey)
+    if (!dateKey) continue
+
+    const value = metric === "keyEvents"
+      ? asNumber((row as Ga4MetricRow).keyEvents)
+      : metric === "sessions"
+        ? asNumber((row as Ga4MetricRow).sessions)
+        : asNumber((row as GscMetricRow)[metric])
+
+    map.set(dateKey, value)
+  }
+
+  return map
 }
 
-function addMonthsUtc(date: Date, months: number): Date {
-  const next = new Date(date)
-  next.setUTCMonth(next.getUTCMonth() + months)
-  return next
-}
-
-function getPeriodStartDate(period: TimePeriodValue, endDate: Date): Date {
-  switch (period) {
-    case "7 days":
-      return addDaysUtc(endDate, -6)
-    case "14 days":
-      return addDaysUtc(endDate, -13)
-    case "28 days":
-      return addDaysUtc(endDate, -27)
-    case "3 months":
-      return addMonthsUtc(endDate, -3)
-    case "6 months":
-      return addMonthsUtc(endDate, -6)
-    case "12 months":
-      return addMonthsUtc(endDate, -12)
-    default:
-      return addMonthsUtc(endDate, -3)
+function buildEmptyV2Response(): V2Response<any> {
+  return {
+    success: true,
+    data: {
+      ranges: {
+        currentStart: "",
+        currentEnd: "",
+        previousStart: "",
+        previousEnd: "",
+      },
+      current: [],
+      previous: [],
+    },
   }
 }
 
 export function useGSCAnalytics(
   businessUniqueId: string | null,
   website: string | null,
-  period: TimePeriodValue = "3 months"
+  period: TimePeriodValue = "3 months",
+  filters: DeepdiveFilter[] = []
 ) {
   const [contentGroupsFilter, setContentGroupsFilter] = useState<TableFilterType>("popular")
   const [topPagesFilter, setTopPagesFilter] = useState<TableFilterType>("popular")
@@ -261,6 +578,7 @@ export function useGSCAnalytics(
   const [contentGroupsSort, setContentGroupsSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
   const [topPagesSort, setTopPagesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
   const [topQueriesSort, setTopQueriesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
+  const filtersQueryKey = useMemo(() => JSON.stringify(filters ?? []), [filters])
 
   const {
     data: rawData,
@@ -268,171 +586,194 @@ export function useGSCAnalytics(
     isFetching,
     error,
     refetch,
-  } = useQuery<GSCApiResponse>({
-    queryKey: ["gsc-analytics", businessUniqueId, period],
+  } = useQuery<TimescaleOverviewResponse>({
+    queryKey: ["gsc-analytics-v2-overview", businessUniqueId, website, period, filtersQueryKey],
     queryFn: async () => {
       if (!businessUniqueId || !website) {
         throw new Error("Missing business ID or website")
       }
 
-      const payload = {
-        uniqueId: businessUniqueId,
-        website: website,
-        origin: "ui",
-        Period: period,
-        dimensions: ["date", "page", "query"],
+      const basePayload = {
+        period,
+        site_url: website,
+        ...(filters.length > 0 ? { filters } : {}),
       }
 
-      const response = await api.post<GSCApiResponse>(
-        "/fetch-gcs-data",
-        "node",
-        payload
-      )
+      const [gscDate, gscContentGroups, gscTopPages, gscTopQueries, ga4Date, ga4ContentGroups, ga4TopPages] = await Promise.all([
+        api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "date",
+        }),
+        api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "content_group",
+          limit: 200,
+        }),
+        api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "page",
+          limit: 500,
+        }),
+        api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "query",
+          limit: 200,
+        }),
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "date",
+          traffic_scope: "organic",
+        }).catch(() => null),
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "content_group",
+          limit: 200,
+          traffic_scope: "organic",
+        }).catch(() => null),
+        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "page",
+          limit: 500,
+          traffic_scope: "organic",
+        }).catch(() => null),
+      ])
 
-      if (response.err) {
-        throw new Error(response.message || "Failed to fetch GSC data")
+      return {
+        gscDate,
+        gscContentGroups,
+        gscTopPages,
+        gscTopQueries,
+        ga4Date,
+        ga4ContentGroups,
+        ga4TopPages,
       }
-
-      return response
     },
     enabled: !!businessUniqueId && !!website,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
 
-  const rawChartData = useMemo<GSCChartDataPoint[]>(() => {
-    if (!rawData?.data) return []
+  const gscDateData = rawData?.gscDate ?? buildEmptyV2Response()
+  const gscContentData = rawData?.gscContentGroups ?? buildEmptyV2Response()
+  const gscPagesData = rawData?.gscTopPages ?? buildEmptyV2Response()
+  const gscQueriesData = rawData?.gscTopQueries ?? buildEmptyV2Response()
 
-    const dateItem = rawData.data.find(
-      (item): item is { date: string } => "date" in item
-    )
-    if (!dateItem?.date) return []
-
-    try {
-      const parsed: GSCDateResponse = JSON.parse(dateItem.date)
-      if (!parsed.rows || !Array.isArray(parsed.rows)) return []
-
-      return parsed.rows
-        .map((row) => {
-          const rawKey = row.keys?.[0] ?? ""
-          const dateKey = normalizeDateKey(rawKey)
-          const dateFromRow = dateKey ? dateFromKey(dateKey) : null
-          return {
-            date: dateFromRow ? formatDateLabel(dateFromRow) : formatDate(rawKey),
-            dateKey: dateKey ?? rawKey,
-            impressions: row.impressions ?? 0,
-            clicks: row.clicks ?? 0,
-            goals: row.goal ?? 0,
-          }
-        })
-        .filter((row) => row.dateKey)
-    } catch {
-      return []
-    }
-  }, [rawData])
+  const ga4DateData = rawData?.ga4Date ?? buildEmptyV2Response()
+  const ga4ContentData = rawData?.ga4ContentGroups ?? buildEmptyV2Response()
+  const ga4PagesData = rawData?.ga4TopPages ?? buildEmptyV2Response()
 
   const chartData = useMemo<GSCChartDataPoint[]>(() => {
-    const now = new Date()
-    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-    const withDate = rawChartData
-      .map((row) => ({ row, dateObj: row.dateKey ? dateFromKey(row.dateKey) : null }))
-      .filter((x): x is { row: GSCChartDataPoint; dateObj: Date } => x.dateObj !== null)
-    const lastAvailableDate =
-      withDate.length > 0
-        ? withDate.map((x) => x.dateObj).sort((a, b) => a.getTime() - b.getTime()).pop() ?? null
-        : null
-    const endDate = lastAvailableDate ?? todayUtc
-    const startDate = getPeriodStartDate(period, endDate)
-    const displayStartDate = addDaysUtc(startDate, 3)
-    const rangeStart =
-      displayStartDate.getTime() <= endDate.getTime() ? displayStartDate : startDate
+    const gscImpressionsMap = extractDateMap(gscDateData.data.current, "impressions")
+    const gscClicksMap = extractDateMap(gscDateData.data.current, "clicks")
+    const ga4SessionsMap = extractDateMap(ga4DateData.data.current, "sessions")
+    const ga4GoalsMap = extractDateMap(ga4DateData.data.current, "keyEvents")
 
-    const dataByDate = new Map(
-      rawChartData
-        .filter((row) => row.dateKey)
-        .map((row) => [row.dateKey as string, row])
-    )
+    const keys = Array.from(new Set<string>([
+      ...Array.from(gscImpressionsMap.keys()),
+      ...Array.from(gscClicksMap.keys()),
+      ...Array.from(ga4SessionsMap.keys()),
+      ...Array.from(ga4GoalsMap.keys()),
+    ])).sort((a, b) => a.localeCompare(b))
 
-    const filled: GSCChartDataPoint[] = []
-    for (let cursor = rangeStart; cursor <= endDate; cursor = addDaysUtc(cursor, 1)) {
-      const key = formatDateKey(cursor)
-      const existing = dataByDate.get(key)
-      filled.push({
-        date: formatDateLabel(cursor),
-        impressions: existing?.impressions ?? 0,
-        clicks: existing?.clicks ?? 0,
-        goals: existing?.goals ?? 0,
-      })
+    return keys.map((dateKey) => ({
+      date: formatDate(dateKey),
+      dateKey,
+      impressions: gscImpressionsMap.get(dateKey) ?? 0,
+      clicks: gscClicksMap.get(dateKey) ?? 0,
+      sessions: ga4SessionsMap.get(dateKey) ?? 0,
+      goals: ga4GoalsMap.get(dateKey) ?? 0,
+    }))
+  }, [gscDateData.data.current, ga4DateData.data.current])
+
+  const totals = useMemo(() => {
+    const currentImpressions = sumMetrics(gscDateData.data.current, "impressions")
+    const previousImpressions = sumMetrics(gscDateData.data.previous, "impressions")
+
+    const currentClicks = sumMetrics(gscDateData.data.current, "clicks")
+    const previousClicks = sumMetrics(gscDateData.data.previous, "clicks")
+
+    const currentSessions = sumMetrics(ga4DateData.data.current, "sessions")
+    const previousSessions = sumMetrics(ga4DateData.data.previous, "sessions")
+
+    const currentGoals = sumMetrics(ga4DateData.data.current, "keyEvents")
+    const previousGoals = sumMetrics(ga4DateData.data.previous, "keyEvents")
+
+    return {
+      currentImpressions,
+      previousImpressions,
+      currentClicks,
+      previousClicks,
+      currentSessions,
+      previousSessions,
+      currentGoals,
+      previousGoals,
     }
-
-    return filled
-  }, [rawChartData, period])
+  }, [gscDateData.data.current, gscDateData.data.previous, ga4DateData.data.current, ga4DateData.data.previous])
 
   const trendData = useMemo<GSCTrendData>(() => {
-    const defaultTrend: GSCTrendData = {
-      Clk: { Total: "0", Diff: "0%", Trend: "down" },
-      Imp: { Total: "0", Diff: "0%", Trend: "down" },
+    return {
+      Imp: toTrendDetail(totals.currentImpressions, totals.previousImpressions),
+      Clk: toTrendDetail(totals.currentClicks, totals.previousClicks),
+      sessions: toTrendDetail(totals.currentSessions, totals.previousSessions),
+      goals: toTrendDetail(totals.currentGoals, totals.previousGoals),
     }
-
-    if (!rawData?.trenddata) return defaultTrend
-
-    try {
-      const parsed = JSON.parse(rawData.trenddata)
-      return {
-        Clk: parsed.Clk || defaultTrend.Clk,
-        Imp: parsed.Imp || defaultTrend.Imp,
-        goals: parsed.goals,
-      }
-    } catch {
-      return defaultTrend
-    }
-  }, [rawData])
-
-  const funnelData = useMemo<GSCFunnelData | null>(() => {
-    if (!rawData?.funnelData) return null
-
-    try {
-      const parsed = JSON.parse(rawData.funnelData)
-      if (!parsed.impressions || !parsed.clicks || !parsed.cnv) return null
-      return parsed
-    } catch {
-      return null
-    }
-  }, [rawData])
+  }, [totals])
 
   const chartLegendItems = useMemo<ChartLegendItem[]>(() => {
+    const impressionsChange = getSignedChange(totals.currentImpressions, totals.previousImpressions)
+    const clicksChange = getSignedChange(totals.currentClicks, totals.previousClicks)
+    const sessionsChange = getSignedChange(totals.currentSessions, totals.previousSessions)
+    const goalsChange = getSignedChange(totals.currentGoals, totals.previousGoals)
+
     return [
       {
         key: "impressions",
         icon: null,
-        value: formatNumber(trendData.Imp.Total),
-        change: parsePercentageChange(trendData.Imp.Diff),
+        value: formatNumber(totals.currentImpressions),
+        change: impressionsChange,
         checked: true,
       },
       {
         key: "clicks",
         icon: null,
-        value: formatNumber(trendData.Clk.Total),
-        change: parsePercentageChange(trendData.Clk.Diff),
+        value: formatNumber(totals.currentClicks),
+        change: clicksChange,
         checked: true,
       },
-      ...(trendData.goals
-        ? [
-          {
-            key: "goals",
-            icon: null,
-            value: formatNumber(trendData.goals.Total),
-            change: parsePercentageChange(trendData.goals.Diff),
-            checked: true,
-          },
-        ]
-        : []),
+      {
+        key: "sessions",
+        icon: null,
+        value: formatNumber(totals.currentSessions),
+        change: sessionsChange,
+        checked: true,
+      },
+      {
+        key: "goals",
+        icon: null,
+        value: formatNumber(totals.currentGoals),
+        change: goalsChange,
+        checked: true,
+      },
     ]
-  }, [trendData])
+  }, [totals])
+
+  const funnelData = useMemo<GSCFunnelData>(() => {
+    return {
+      impressions: {
+        Value: totals.currentImpressions,
+        Percentage: percentage(totals.currentClicks, totals.currentImpressions),
+      },
+      clicks: {
+        Value: totals.currentClicks,
+        Percentage: percentage(totals.currentGoals, totals.currentClicks),
+      },
+      cnv: {
+        Value: totals.currentGoals,
+      },
+    }
+  }, [totals])
 
   const funnelChartItems = useMemo<FunnelChartItem[]>(() => {
-    if (!funnelData) return []
-
     return [
       {
         label: "Impressions",
@@ -447,7 +788,6 @@ export function useGSCAnalytics(
       {
         label: "Goals",
         value: funnelData.cnv.Value,
-        percentage: funnelData.cnv.Percentage,
       },
     ]
   }, [funnelData])
@@ -456,6 +796,7 @@ export function useGSCAnalytics(
     () => ({
       impressions: { label: "Impressions", color: "#6b7280" },
       clicks: { label: "Clicks", color: "#2563eb" },
+      sessions: { label: "Sessions", color: "#e11d48" },
       goals: { label: "Goals", color: "#059669" },
     }),
     []
@@ -466,12 +807,15 @@ export function useGSCAnalytics(
 
     const impressionsValues = chartData.map((d) => d.impressions || 0)
     const clicksValues = chartData.map((d) => d.clicks || 0)
+    const sessionsValues = chartData.map((d) => d.sessions || 0)
     const goalsValues = chartData.map((d) => d.goals || 0)
 
     const minImpressions = Math.min(...impressionsValues)
     const maxImpressions = Math.max(...impressionsValues)
     const minClicks = Math.min(...clicksValues)
     const maxClicks = Math.max(...clicksValues)
+    const minSessions = Math.min(...sessionsValues)
+    const maxSessions = Math.max(...sessionsValues)
     const minGoals = Math.min(...goalsValues)
     const maxGoals = Math.max(...goalsValues)
 
@@ -493,125 +837,79 @@ export function useGSCAnalytics(
         ...point,
         impressionsNorm: normalizeToZeroHundred(point.impressions, minImpressions, maxImpressions),
         clicksNorm: normalizeToZeroHundred(point.clicks, minClicks, maxClicks),
+        sessionsNorm: normalizeToZeroHundred(point.sessions || 0, minSessions, maxSessions),
         goalsNorm: (goalsNormRaw / 100) * goalsMaxNorm,
       }
     })
   }, [chartData])
 
-  const hasData = chartData.some(
-    (point) =>
-      (point.impressions ?? 0) > 0 ||
-      (point.clicks ?? 0) > 0 ||
-      (point.goals ?? 0) > 0
-  )
-  const hasFunnelData = funnelData !== null
+  const mergedContentGroupRows = useMemo(() => {
+    return buildMergedRows({
+      gscCurrent: gscContentData.data.current,
+      gscPrevious: gscContentData.data.previous,
+      ga4Current: ga4ContentData.data.current,
+      ga4Previous: ga4ContentData.data.previous,
+      keyNormalizer: normalizeContentGroupKey,
+      gscDisplayResolver: (row) => row.keys?.[0] || row.group || row.displayName || "",
+      ga4DisplayResolver: (row) => row.keys?.[0] || "",
+    })
+  }, [gscContentData.data.current, gscContentData.data.previous, ga4ContentData.data.current, ga4ContentData.data.previous])
 
-  const parseTableData = useCallback((jsonString: string): GSCTableRow[] => {
-    try {
-      const parsed: GSCTableResponse = JSON.parse(jsonString)
-      if (!parsed.rows || !Array.isArray(parsed.rows)) return []
-      return parsed.rows
-    } catch {
-      return []
-    }
-  }, [])
+  const mergedTopPageRows = useMemo(() => {
+    return buildMergedRows({
+      gscCurrent: gscPagesData.data.current,
+      gscPrevious: gscPagesData.data.previous,
+      ga4Current: ga4PagesData.data.current,
+      ga4Previous: ga4PagesData.data.previous,
+      keyNormalizer: normalizePageKey,
+      gscDisplayResolver: (row) => row.keys?.[0] || "",
+      ga4DisplayResolver: (row) => row.keys?.[0] || "",
+    })
+  }, [gscPagesData.data.current, gscPagesData.data.previous, ga4PagesData.data.current, ga4PagesData.data.previous])
 
-  const contentGroupsRawData = useMemo<GSCTableRow[]>(() => {
-    if (!rawData?.data) return []
-    const item = rawData.data.find(
-      (d): d is { contentgroups: string } => "contentgroups" in d
-    )
-    if (!item?.contentgroups) return []
-    return parseTableData(item.contentgroups)
-  }, [rawData, parseTableData])
+  const topQueryRows = useMemo(() => {
+    return buildGscOnlyRows(gscQueriesData.data.current, gscQueriesData.data.previous)
+  }, [gscQueriesData.data.current, gscQueriesData.data.previous])
 
-  const topPagesRawData = useMemo<GSCTableRow[]>(() => {
-    if (!rawData?.data) return []
-    const item = rawData.data.find(
-      (d): d is { page: string } => "page" in d
-    )
-    if (!item?.page) return []
-    return parseTableData(item.page)
-  }, [rawData, parseTableData])
-
-  const topQueriesRawData = useMemo<GSCTableRow[]>(() => {
-    if (!rawData?.data) return []
-    const item = rawData.data.find(
-      (d): d is { query: string } => "query" in d
-    )
-    if (!item?.query) return []
-    return parseTableData(item.query)
-  }, [rawData, parseTableData])
-
-  const parseNumericValue = useCallback((value: string | number): number => {
-    if (typeof value === "number") return value
-    const cleanValue = value.replace(/[,%]/g, "")
-    if (cleanValue.endsWith("K")) {
-      return parseFloat(cleanValue) * 1000
-    }
-    if (cleanValue.endsWith("M")) {
-      return parseFloat(cleanValue) * 1000000
-    }
-    return parseFloat(cleanValue) || 0
-  }, [])
-
-  const filterAndSortTableData = useCallback((
-    data: GSCTableRow[],
+  const filterAndSortMergedTableData = useCallback((
+    data: MergedRow[],
     filter: TableFilterType,
-    sort: { column: SortColumn; direction: SortDirection }
+    sort: { column: SortColumn; direction: SortDirection },
+    includeGa4Columns: boolean
   ): GSCTableDataFormatted[] => {
-    const filterMap: Record<TableFilterType, string> = {
-      popular: "Popular",
-      growing: "Growing",
-      decaying: "Decaying",
-    }
+    let filteredData = data
+      .filter((row) => includeByFilter(row, filter, includeGa4Columns))
+      .sort((a, b) => compareBySort(a, b, sort))
 
-    let filteredData = filter === "popular"
-      ? data
-      : data.filter((item) => item.Group === filterMap[filter])
-
-    filteredData = [...filteredData].sort((a, b) => {
-      const aValue = parseNumericValue(a[sort.column])
-      const bValue = parseNumericValue(b[sort.column])
-      return sort.direction === "desc" ? bValue - aValue : aValue - bValue
-    })
-
-    return filteredData.map((row) => {
-      const impStats = row.status2 || row.stats2
-      const clickStats = row.status1 || row.stats1
-
-      const impressionsChange = impStats
-        ? parsePercentageChange(impStats.Percentage) * (impStats.Trend === "down" ? -1 : 1)
-        : 0
-      const clicksChange = clickStats
-        ? parsePercentageChange(clickStats.Percentage) * (clickStats.Trend === "down" ? -1 : 1)
-        : 0
-
-      return {
-        key: row.keys?.[0] || "",
-        impressions: {
-          value: row.impressions,
-          change: impressionsChange,
-        },
-        clicks: {
-          value: row.clicks,
-          change: clicksChange,
-        },
-      }
-    })
-  }, [parseNumericValue])
+    return filteredData.map((row) => ({
+      key: row.key,
+      impressions: toMetricCell(row.impressions),
+      clicks: toMetricCell(row.clicks),
+      ...(includeGa4Columns
+        ? {
+          sessions: toMetricCell(row.sessions),
+          goals: toMetricCell(row.goals),
+        }
+        : {}),
+    }))
+  }, [])
 
   const contentGroupsData = useMemo(() => {
-    return filterAndSortTableData(contentGroupsRawData, contentGroupsFilter, contentGroupsSort)
-  }, [contentGroupsRawData, contentGroupsFilter, contentGroupsSort, filterAndSortTableData])
+    return filterAndSortMergedTableData(mergedContentGroupRows, contentGroupsFilter, contentGroupsSort, true)
+  }, [mergedContentGroupRows, contentGroupsFilter, contentGroupsSort, filterAndSortMergedTableData])
 
   const topPagesData = useMemo(() => {
-    return filterAndSortTableData(topPagesRawData, topPagesFilter, topPagesSort)
-  }, [topPagesRawData, topPagesFilter, topPagesSort, filterAndSortTableData])
+    return filterAndSortMergedTableData(mergedTopPageRows, topPagesFilter, topPagesSort, true)
+  }, [mergedTopPageRows, topPagesFilter, topPagesSort, filterAndSortMergedTableData])
 
   const topQueriesData = useMemo(() => {
-    return filterAndSortTableData(topQueriesRawData, topQueriesFilter, topQueriesSort)
-  }, [topQueriesRawData, topQueriesFilter, topQueriesSort, filterAndSortTableData])
+    const topQuerySort: { column: SortColumn; direction: SortDirection } =
+      topQueriesSort.column === "sessions" || topQueriesSort.column === "goals"
+        ? { column: "impressions", direction: topQueriesSort.direction }
+        : topQueriesSort
+
+    return filterAndSortMergedTableData(topQueryRows, topQueriesFilter, topQuerySort, false)
+  }, [topQueryRows, topQueriesFilter, topQueriesSort, filterAndSortMergedTableData])
 
   const handleContentGroupsFilterChange = useCallback((filter: TableFilterType) => {
     setContentGroupsFilter(filter)
@@ -640,15 +938,28 @@ export function useGSCAnalytics(
   }, [])
 
   const handleTopQueriesSort = useCallback((column: SortColumn) => {
+    const safeColumn = column === "sessions" || column === "goals" ? "impressions" : column
+
     setTopQueriesSort((prev) => ({
-      column,
-      direction: prev.column === column && prev.direction === "desc" ? "asc" : "desc",
+      column: safeColumn,
+      direction: prev.column === safeColumn && prev.direction === "desc" ? "asc" : "desc",
     }))
   }, [])
 
-  const hasContentGroupsData = contentGroupsRawData.length > 0
-  const hasTopPagesData = topPagesRawData.length > 0
-  const hasTopQueriesData = topQueriesRawData.length > 0
+  const hasData = chartData.some(
+    (point) =>
+      (point.impressions ?? 0) > 0 ||
+      (point.clicks ?? 0) > 0 ||
+      (point.sessions ?? 0) > 0 ||
+      (point.goals ?? 0) > 0
+  )
+
+  const hasFunnelData =
+    totals.currentImpressions > 0 || totals.currentClicks > 0 || totals.currentGoals > 0
+
+  const hasContentGroupsData = mergedContentGroupRows.length > 0
+  const hasTopPagesData = mergedTopPageRows.length > 0
+  const hasTopQueriesData = topQueryRows.length > 0
 
   return {
     chartData,

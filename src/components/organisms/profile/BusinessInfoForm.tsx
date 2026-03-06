@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { GenericInput } from "@/components/ui/generic-input";
 import { Typography } from "@/components/ui/typography";
-import { Store } from "lucide-react";
+import { Boxes, Laptop, Store } from "lucide-react";
 import { useBusinessStore } from "@/store/business-store";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "@tanstack/react-form";
@@ -19,7 +19,7 @@ type BusinessInfoFormData = {
   businessName: string;
   businessDescription: string;
   primaryLocation: string;
-  serviceType: "physical" | "online";
+  serviceType: "physical" | "online" | "both";
   lifetimeValue: "" | "high" | "low";
   offerings: "products" | "services" | "both";
   offeringsList?: Array<{
@@ -35,6 +35,8 @@ interface BusinessInfoFormProps {
   headerAction?: React.ReactNode;
   embedded?: boolean;
   primaryLocationAction?: React.ReactNode;
+  embeddedVariant?: "full" | "autofillGate";
+  disabledFields?: Partial<Record<keyof BusinessInfoFormData, boolean>>;
 }
 
 export const BusinessInfoForm = React.memo(({
@@ -43,6 +45,8 @@ export const BusinessInfoForm = React.memo(({
   headerAction,
   embedded = false,
   primaryLocationAction,
+  embeddedVariant = "full",
+  disabledFields,
 }: BusinessInfoFormProps) => {
   const websiteValue = useStore(form.store, (state: any) => state.values?.website || "");
   const isWebsiteLocked =
@@ -137,13 +141,20 @@ export const BusinessInfoForm = React.memo(({
                 <GenericInput<BusinessInfoFormData>
                   form={form as any}
                   fieldName="serviceType"
-                  type="radio-group"
+                  type="radio-cards"
                   label="Where do you primarily serve your customers?"
                   required={true}
                   orientation="horizontal"
+                  radioCardSize="sm"
+                  radioCardIcons={{
+                    physical: <Store className="size-7" strokeWidth={1.5} />,
+                    online: <Laptop className="size-7" strokeWidth={1.5} />,
+                    both: <Boxes className="size-7" strokeWidth={1.5} />,
+                  }}
                   options={[
                     { value: "physical", label: "Physical" },
                     { value: "online", label: "Online" },
+                    { value: "both", label: "Both" },
                   ]}
                 />
               </div>
@@ -155,10 +166,11 @@ export const BusinessInfoForm = React.memo(({
                 <GenericInput<BusinessInfoFormData>
                   form={form as any}
                   fieldName="lifetimeValue"
-                  type="radio-group"
+                  type="radio-cards"
                   label="Lifetime Value"
                   required={false}
                   orientation="horizontal"
+                  radioCardSize="sm"
                   options={[
                     { value: "high", label: "High" },
                     { value: "low", label: "Low" },
@@ -181,7 +193,7 @@ export const BusinessInfoForm = React.memo(({
             label="Website"
             required={true}
             placeholder="Provide the official url of your business website"
-            disabled={isWebsiteLocked}
+            disabled={isWebsiteLocked || disabledFields?.website}
           />
         </div>
         <div className="flex-1 min-w-0" />
@@ -202,7 +214,7 @@ export const BusinessInfoForm = React.memo(({
               : "Where are your customers primarily located?"
           }
           options={locationOptions}
-          disabled={locationsLoading}
+          disabled={locationsLoading || disabledFields?.primaryLocation}
           loading={locationsLoading}
         />
       </div>
@@ -214,19 +226,28 @@ export const BusinessInfoForm = React.memo(({
           label="Business Name"
           required
           placeholder="Provide the brand name of your business"
+          disabled={disabledFields?.businessName}
         />
       </div>
       <div className="w-1/2">
         <GenericInput<BusinessInfoFormData>
           form={form as any}
           fieldName="serviceType"
-          type="radio-group"
+          type="radio-cards"
           label="Where do you primarily serve your customers?"
           required={true}
           orientation="horizontal"
+          disabled={disabledFields?.serviceType}
+          radioCardSize="sm"
+          radioCardIcons={{
+            physical: <Store className="size-7" strokeWidth={1.5} />,
+            online: <Laptop className="size-7" strokeWidth={1.5} />,
+            both: <Boxes className="size-7" strokeWidth={1.5} />,
+          }}
           options={[
             { value: "physical", label: "Physical" },
             { value: "online", label: "Online" },
+            { value: "both", label: "Both" },
           ]}
         />
       </div>
@@ -234,10 +255,12 @@ export const BusinessInfoForm = React.memo(({
         <GenericInput<BusinessInfoFormData>
           form={form as any}
           fieldName="lifetimeValue"
-          type="radio-group"
+          type="radio-cards"
           label="Lifetime Value"
           required={false}
           orientation="horizontal"
+          disabled={disabledFields?.lifetimeValue}
+          radioCardSize="sm"
           options={[
             { value: "high", label: "High" },
             { value: "low", label: "Low" },

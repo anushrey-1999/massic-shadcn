@@ -33,10 +33,12 @@ type BusinessInfoFormData = {
 
 interface ContentCuesFormProps {
   form: any; // TanStack Form instance
+  embedded?: boolean;
 }
 
 export const ContentCuesForm = ({
   form,
+  embedded = false,
 }: ContentCuesFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
@@ -64,15 +66,6 @@ export const ContentCuesForm = ({
   const stakeholdersColumns: Column<StakeholderRow>[] = useMemo(() => [
     { key: "name", label: "Name", validation: { required: false } },
     { key: "title", label: "Title", validation: { required: false } },
-  ], []);
-
-  const calendarEventsColumns: Column<CalendarEventRow>[] = useMemo(() => [
-    { key: "eventName", label: "Upcoming Events", validation: { required: false } },
-    {
-      key: "startDate",
-      label: "Date",
-      validation: { required: false }
-    },
   ], []);
 
   // Own handlers - encapsulated logic
@@ -106,80 +99,78 @@ export const ContentCuesForm = ({
     data: calendarEventsData,
     formFieldName: "calendarEvents",
     setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
+    getCurrentData: () => {
+      const currentState = form.state.values.calendarEvents || [];
+      return currentState as CalendarEventRow[];
+    },
     emptyRowFactory: () => ({ eventName: "", startDate: null, endDate: null }),
   });
 
-  // Define calendar events columns with dependency on handler
+  const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
+
   const calendarEventsColumnsWithHandlers: Column<CalendarEventRow>[] = useMemo(() => [
-    { key: "eventName", label: "Upcoming Events", validation: { required: false }, width: "50%" },
+    { key: "eventName", label: "Upcoming Events", validation: { required: true }, width: "50%" },
     {
       key: "startDate",
       label: "Date",
-      validation: { required: false },
+      validation: {
+        required: true,
+      },
       width: "50%",
-      render: (value: any, row: CalendarEventRow, index: number) => {
+      render: (_value: any, row: CalendarEventRow, _index: number, helpers) => {
         return (
-          <DateRangePicker
-            startDate={row.startDate}
-            endDate={row.endDate}
-            onChange={(startDate, endDate) => {
-              const updatedData = [...calendarEventsData];
-              updatedData[index] = { ...row, startDate, endDate };
-              form.setFieldValue("calendarEvents" as keyof BusinessInfoFormData, updatedData);
-            }}
-            placeholder="Select date"
-            className="w-full"
-          />
+          <div className="flex flex-col gap-1">
+            <DateRangePicker
+              startDate={row.startDate}
+              endDate={row.endDate}
+              onChange={(startDate, endDate) => {
+                helpers.setRowValue("startDate", startDate, {
+                  ...row,
+                  startDate,
+                  endDate,
+                });
+              }}
+              placeholder="Select date"
+              className="w-full"
+            />
+            {helpers.touched && helpers.error ? (
+              <FieldError className="text-xs mt-0.5">{helpers.error}</FieldError>
+            ) : null}
+          </div>
         );
       }
     },
-  ], [calendarEventsData, form]);
+  ], []);
 
-  return (
-    <Card
-      id="content-cues"
-      variant="profileCard"
-      className="p-4 bg-white border-none shadow-none mt-6"
-    >
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-2">
-          <MicVocal className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
-          <div className="space-y-0">
-            <CardTitle>
-              <Typography variant="h4" className="!text-2xl">Content Cues</Typography>
-            </CardTitle>
-            <Typography variant="muted" className="text-xs text-general-muted-foreground">
-              Guides tone, messaging, and calls-to-action so content sounds like you and converts better.
-            </Typography>
+  const innerContent = (
+    <>
+      <Card variant={cardVariant}>
+        <CardHeader className="">
+          <CardTitle>
+            <FieldLabel className="gap-0">USPs</FieldLabel>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="w-1/2">
+          <form.Field
+            name="usps"
+            children={(field: any) => {
+              return (
+                <Textarea
+                  value={field.state.value || ""}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Add the top benefits or features you want customers to notice"
+                  className="w-full min-h-[100px] resize-none"
+                  disabled
+                />
+              );
+            }}
+          />
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <Card variant="profileCard">
-          <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">USPs</FieldLabel>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form.Field
-              name="usps"
-              children={(field: any) => {
-                return (
-                  <Textarea
-                    value={field.state.value || ""}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="Add the top benefits or features you want customers to notice"
-                    className="w-full min-h-[100px] resize-none"
-                    disabled
-                  />
-                );
-              }}
-            />
-          </CardContent>
-        </Card>
+        </CardContent>
+      </Card>
 
-        <Card variant="profileCard">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
@@ -188,6 +179,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <CustomAddRowTable
               columns={ctaColumns}
               data={ctasData}
@@ -197,11 +189,13 @@ export const ContentCuesForm = ({
               addButtonText="Add Button"
               onValidationChange={setHasCtaErrors}
               showErrorsWithoutTouch={hasCtaErrors}
+              variant="card"
             />
+            </div>
           </CardContent>
         </Card>
 
-        <Card variant="profileCard">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
@@ -210,12 +204,12 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <form.Field
               name="brandTerms"
               children={(field: any) => {
                 return (
                   <Input
-                    variant="noBorder"
                     value={field.state.value || ""}
                     onChange={(e) => field.handleChange(e.target.value)}
                     placeholder="List the words, separating each one with a comma"
@@ -224,10 +218,11 @@ export const ContentCuesForm = ({
                 );
               }}
             />
+            </div>
           </CardContent>
         </Card>
 
-        <Card variant="profileCard">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
@@ -236,6 +231,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <form.Field
               name="brandToneSocial"
               children={(socialField: any) => (
@@ -290,15 +286,15 @@ export const ContentCuesForm = ({
 
                     return (
                       <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <Card variant="profileCard" className="bg-white border-none ">
-                            <CardHeader className="">
+                        <div className="flex flex-col gap-3">
+                          <Card variant={'profileCard'} className="bg-white shadow-none p-0 overflow-hidden">
+                            <CardHeader className="bg-foreground-light pt-2 px-2.5">
                               <CardTitle>
-                                <FieldLabel className="gap-0">Social</FieldLabel>
+                                <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Social</FieldLabel>
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
-                              <div className="grid grid-cols-3 gap-3">
+                              <div className="grid grid-cols-3 gap-3 p-2">
                                 {toneOptions.map((option) => {
                                   const isChecked = socialValues.includes(option.value);
                                   return (
@@ -315,7 +311,7 @@ export const ContentCuesForm = ({
                                         disabled={
                                           !isChecked && socialValues.length >= 3
                                         }
-                                        className="h-4 w-4 rounded border border-input bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer transition-colors aria-invalid:border-destructive"
+                                        className="h-4 w-4 shrink-0 rounded border border-input bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer transition-colors aria-invalid:border-destructive"
                                         style={{
                                           backgroundImage: isChecked
                                             ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'white\' stroke-width=\'3\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'20 6 9 17 4 12\'%3E%3C/polyline%3E%3C/svg%3E")'
@@ -335,14 +331,14 @@ export const ContentCuesForm = ({
                             </CardContent>
                           </Card>
 
-                          <Card variant="profileCard" className="bg-white border-none">
-                            <CardHeader className="">
+                          <Card variant={'profileCard'} className="bg-white shadow-none p-0 overflow-hidden">
+                            <CardHeader className="bg-foreground-light pt-2 px-2.5">
                               <CardTitle>
-                                <FieldLabel className="gap-0">Web</FieldLabel>
+                                <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Web</FieldLabel>
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
-                              <div className="grid grid-cols-3 gap-3">
+                              <div className="grid grid-cols-3 gap-3 p-2">
                                 {toneOptions.map((option) => {
                                   const isChecked = webValues.includes(option.value);
                                   return (
@@ -392,11 +388,11 @@ export const ContentCuesForm = ({
                 />
               )}
             />
-
+            </div>
           </CardContent>
         </Card>
 
-        <Card variant="profileCard">
+        <Card variant={cardVariant}>
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
@@ -405,6 +401,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="w-1/2">
             <CustomAddRowTable
               columns={stakeholdersColumns}
               data={stakeholdersData}
@@ -412,29 +409,66 @@ export const ContentCuesForm = ({
               onRowChange={handleStakeholderRowChange}
               onDeleteRow={handleStakeholderDeleteRow}
               addButtonText="Add Person"
+              variant="card"
             />
+            </div>
           </CardContent>
         </Card>
 
-        <Card variant="profileCard">
-          <CardHeader className="">
+      <Card variant={cardVariant}>
+        <CardHeader className="">
+          <CardTitle>
+            <FieldLabel className="gap-0">
+              Calendar Events
+            </FieldLabel>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="w-1/2">
+          <CustomAddRowTable
+            columns={calendarEventsColumnsWithHandlers}
+            data={calendarEventsData}
+            onAddRow={handleAddCalendarEventRow}
+            onRowChange={handleCalendarEventRowChange}
+            onDeleteRow={handleCalendarEventDeleteRow}
+            addButtonText="Add Custom Event"
+            variant="card"
+          />
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div id="content-cues" className="space-y-7">
+        {innerContent}
+      </div>
+    );
+  }
+
+  return (
+    <Card
+      id="content-cues"
+      variant="profileCard"
+      className="p-4 bg-white border-none shadow-none mt-6"
+    >
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-2">
+          <MicVocal className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
             <CardTitle>
-              <FieldLabel className="gap-0">
-                Calendar Events
-              </FieldLabel>
+              <Typography variant="h4" className="text-2xl!">Content Cues</Typography>
             </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CustomAddRowTable
-              columns={calendarEventsColumnsWithHandlers}
-              data={calendarEventsData}
-              onAddRow={handleAddCalendarEventRow}
-              onRowChange={handleCalendarEventRowChange}
-              onDeleteRow={handleCalendarEventDeleteRow}
-              addButtonText="Add Custom Event"
-            />
-          </CardContent>
-        </Card>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Guides tone, messaging, and calls-to-action so content sounds like you and converts better.
+            </Typography>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-7">
+        {innerContent}
       </CardContent>
     </Card>
   );

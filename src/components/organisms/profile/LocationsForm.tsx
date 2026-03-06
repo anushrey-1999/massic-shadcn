@@ -28,10 +28,12 @@ type BusinessInfoFormData = {
 
 interface LocationsFormProps {
   form: any; // TanStack Form instance
+  embedded?: boolean;
 }
 
 export const LocationsForm = ({
   form,
+  embedded = false,
 }: LocationsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
@@ -149,6 +151,36 @@ export const LocationsForm = ({
     },
   ], [TimezoneSelectCell, timezoneOptions, handleRowChange]);
 
+  const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
+  const innerContent = (
+    <Card variant={cardVariant}>
+<CardHeader className="">
+            <CardTitle>
+              <FieldLabel className="gap-0">
+                Addresses from which your business operates
+              </FieldLabel>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="w-1/2">
+<CustomAddRowTable
+              columns={locationsColumns}
+              data={locationsData}
+              onAddRow={handleAddRow}
+              onRowChange={handleRowChange}
+              onDeleteRow={handleDeleteRow}
+              addButtonText="Add Location"
+              variant="card"
+            />
+            </div>
+          </CardContent>
+        </Card>
+  );
+
+  if (embedded) {
+    return <div id="locations-addresses">{innerContent}</div>;
+  }
+
   return (
     <Card
       id="locations-addresses"
@@ -160,7 +192,7 @@ export const LocationsForm = ({
           <MapPin className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
           <div className="space-y-0">
             <CardTitle>
-              <Typography variant="h4" className="!text-2xl">Locations & Addresses</Typography>
+              <Typography variant="h4" className="text-2xl!">Locations & Addresses</Typography>
             </CardTitle>
             <Typography variant="muted" className="text-xs text-general-muted-foreground">
               Ensures strategies are localized for the markets where your customers actually are.
@@ -168,26 +200,8 @@ export const LocationsForm = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <Card variant="profileCard">
-          <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">
-                Addresses from which your business operates
-              </FieldLabel>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CustomAddRowTable
-              columns={locationsColumns}
-              data={locationsData}
-              onAddRow={handleAddRow}
-              onRowChange={handleRowChange}
-              onDeleteRow={handleDeleteRow}
-              addButtonText="Add Location"
-            />
-          </CardContent>
-        </Card>
+      <CardContent className="space-y-7">
+        {innerContent}
       </CardContent>
     </Card>
   );

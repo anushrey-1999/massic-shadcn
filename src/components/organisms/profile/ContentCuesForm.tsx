@@ -115,12 +115,6 @@ export const ContentCuesForm = ({
       label: "Date",
       validation: {
         required: true,
-        customValidator: (_value: any, row?: CalendarEventRow) => {
-          if (!row?.startDate || !row?.endDate) {
-            return "Please select a start and end date";
-          }
-          return undefined;
-        },
       },
       width: "50%",
       render: (_value: any, row: CalendarEventRow, _index: number, helpers) => {

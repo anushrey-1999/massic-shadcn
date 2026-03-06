@@ -38,7 +38,6 @@ import {
   useGSCAnalytics,
   type TimePeriodValue,
 } from "@/hooks/use-gsc-analytics";
-import { useOverviewFunnelData } from "@/hooks/use-overview-funnel-data";
 import { useGapAnalysis } from "@/hooks/use-gap-analysis";
 import { useBrandedNonBranded } from "@/hooks/use-branded-nonbranded";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
@@ -92,15 +91,11 @@ export function OrganicPerformanceSection({
     normalizedChartData,
     chartConfig,
     chartLegendItems,
-    isLoading,
-    hasData,
-  } = useGSCAnalytics(businessUniqueId, website, period, filters);
-
-  const {
     funnelChartItems,
     hasFunnelData,
-    isLoading: isFunnelLoading,
-  } = useOverviewFunnelData(businessUniqueId, website, period);
+    loadingState,
+    hasData,
+  } = useGSCAnalytics(businessUniqueId, website, period, filters);
 
   const {
     metricCards,
@@ -240,6 +235,8 @@ export function OrganicPerformanceSection({
   const totalAnomaliesCount = totalCriticalCount + totalPositiveCount;
   
   const hasAnomalies = totalAnomaliesCount > 0;
+  const showChartLoader = loadingState.chart && !hasData;
+  const showFunnelLoader = loadingState.funnel && !hasFunnelData;
 
   return (
     <div className="flex flex-col gap-3">
@@ -429,7 +426,7 @@ export function OrganicPerformanceSection({
                   : "p-3 pr-8 border-r border-general-border flex flex-col min-h-full"
               }
             >
-            {isLoading ? (
+            {showChartLoader ? (
               <div className="flex flex-1 items-center justify-center min-h-[240px]">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
@@ -681,7 +678,7 @@ export function OrganicPerformanceSection({
 
             {!graphFullScreen && (
               <div className="h-full px-7 py-3 flex items-center justify-center min-h-0">
-                {isFunnelLoading ? (
+                {showFunnelLoader ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>

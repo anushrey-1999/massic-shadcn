@@ -99,7 +99,7 @@ const DiscoveryPerformanceSection = ({
   }, [pathname, profiles]);
 
   const {
-    isLoading,
+    loadingState,
     contentGroupsData,
     topPagesData,
     topQueriesData,
@@ -347,6 +347,9 @@ const DiscoveryPerformanceSection = ({
     [visibleMetrics]
   );
   const hasGscMetricSelected = metricVisibility.impressions || metricVisibility.clicks;
+  const showContentGroupsLoader = loadingState.contentGroups && !hasContentGroupsData;
+  const showTopPagesLoader = loadingState.topPages && !hasTopPagesData;
+  const showTopQueriesLoader = loadingState.topQueries && !hasTopQueriesData;
 
   const contentGroupColumns = useMemo<DataTableColumn[]>(() => {
     const columns: DataTableColumn[] = [
@@ -510,7 +513,7 @@ const DiscoveryPerformanceSection = ({
               }
               columns={contentGroupColumns}
               data={contentGroupsTableData}
-              isLoading={isLoading}
+              isLoading={showContentGroupsLoader}
               hasData={hasContentGroupsData}
               sortConfig={contentGroupsSort}
               onSort={(column) =>
@@ -545,7 +548,7 @@ const DiscoveryPerformanceSection = ({
               firstColumnTruncate="max-w-[300px]"
               columns={topPagesColumns}
               data={topPagesTableData}
-              isLoading={isLoading}
+              isLoading={showTopPagesLoader}
               hasData={hasTopPagesData}
               sortConfig={topPagesSort}
               onSort={(column) =>
@@ -585,7 +588,7 @@ const DiscoveryPerformanceSection = ({
                 }
                 columns={topQueriesColumns}
                 data={topQueriesTableData}
-                isLoading={isLoading}
+                isLoading={showTopQueriesLoader}
                 hasData={hasTopQueriesData}
                 sortConfig={topQueriesSort}
                 onSort={(column) =>
@@ -679,7 +682,7 @@ const DiscoveryPerformanceSection = ({
             column as "impressions" | "clicks" | "sessions" | "goals"
           )
         }
-        isLoading={isLoading}
+        isLoading={showContentGroupsLoader}
         onRowClick={handleContentGroupRowClick}
         dynamicFirstColumn
       />
@@ -718,7 +721,7 @@ const DiscoveryPerformanceSection = ({
             column as "impressions" | "clicks" | "sessions" | "goals"
           )
         }
-        isLoading={isLoading}
+        isLoading={showTopPagesLoader}
         onRowClick={handleTopPageRowClick}
         dynamicFirstColumn
       />
@@ -756,7 +759,7 @@ const DiscoveryPerformanceSection = ({
           onSort={(column) =>
             handleTopQueriesSort(column as "impressions" | "clicks")
           }
-          isLoading={isLoading}
+          isLoading={showTopQueriesLoader}
           onRowClick={handleTopQueryRowClick}
           dynamicFirstColumn
         />

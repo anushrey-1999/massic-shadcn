@@ -29,15 +29,6 @@ interface Ga4MetricRow {
   keyEvents?: number
 }
 
-interface TimescaleGa4Response {
-  date: V2Response<Ga4MetricRow>
-  contentGroup: V2Response<Ga4MetricRow>
-  page: V2Response<Ga4MetricRow>
-  eventName: V2Response<Ga4MetricRow>
-  sourceMedium: V2Response<Ga4MetricRow>
-  channelGroup: V2Response<Ga4MetricRow>
-}
-
 export interface GA4ChartDataFormatted {
   date: string
   sessions: number
@@ -67,6 +58,15 @@ interface TimescaleTableInternal {
   goals: number
   sessionsChange: number
   goalsChange: number
+}
+
+export interface GA4AnalyticsLoadingState {
+  chart: boolean
+  goals: boolean
+  topSources: boolean
+  channels: boolean
+  contentGroups: boolean
+  topPages: boolean
 }
 
 function formatNumber(value: number | string): string {
@@ -221,6 +221,14 @@ function sortTimescaleRows(
   })
 }
 
+function buildBasePayload(period: TimePeriodValue, website: string) {
+  return {
+    site_url: website,
+    period,
+    traffic_scope: "all",
+  }
+}
+
 export function useGA4Analytics(
   businessUniqueId: string | null,
   website: string | null,
@@ -236,73 +244,152 @@ export function useGA4Analytics(
   const [contentGroupsSort, setContentGroupsSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "sessions", direction: "desc" })
   const [topPagesSort, setTopPagesSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "sessions", direction: "desc" })
 
-  const {
-    data: timescaleRaw,
-    isLoading,
-    isFetching,
-    error,
-    refetch,
-  } = useQuery<TimescaleGa4Response>({
-    queryKey: ["ga4-analytics-timescale", businessUniqueId, website, period],
+  const enabled = Boolean(businessUniqueId && website)
+  const basePayload = useMemo(
+    () => (website ? buildBasePayload(period, website) : null),
+    [period, website]
+  )
+
+  const dateQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-date-all", businessUniqueId, website, period],
     queryFn: async () => {
-      if (!businessUniqueId || !website) {
+      if (!basePayload) {
         throw new Error("Missing business ID or website")
       }
 
-      const basePayload = {
-        site_url: website,
-        period,
-        traffic_scope: "all",
-      }
-
-      const [date, contentGroup, page, eventName, sourceMedium, channelGroup] = await Promise.all([
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
           ...basePayload,
           dimension: "date",
-        }).catch(() => buildEmptyV2Response()),
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "content_group",
-          limit: 200,
-        }).catch(() => buildEmptyV2Response()),
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "page",
-          limit: 300,
-        }).catch(() => buildEmptyV2Response()),
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "event_name",
-          limit: 200,
-        }).catch(() => buildEmptyV2Response()),
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "source_medium",
-          limit: 200,
-        }).catch(() => buildEmptyV2Response()),
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "channel_group",
-          limit: 100,
-        }).catch(() => buildEmptyV2Response()),
-      ])
-
-      return {
-        date,
-        contentGroup,
-        page,
-        eventName,
-        sourceMedium,
-        channelGroup,
+        })
+      } catch {
+        return buildEmptyV2Response()
       }
     },
-    enabled: !!businessUniqueId && !!website,
+    enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
 
-  const dateRows = timescaleRaw?.date?.data.current ?? []
-  const previousDateRows = timescaleRaw?.date?.data.previous ?? []
+  const contentGroupQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-content-group-all", businessUniqueId, website, period],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "content_group",
+          limit: 200,
+        })
+      } catch {
+        return buildEmptyV2Response()
+      }
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const pageQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-page-all", businessUniqueId, website, period],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "page",
+          limit: 300,
+        })
+      } catch {
+        return buildEmptyV2Response()
+      }
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const eventNameQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-event-name", businessUniqueId, website, period],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "event_name",
+          limit: 200,
+        })
+      } catch {
+        return buildEmptyV2Response()
+      }
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const sourceMediumQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-source-medium", businessUniqueId, website, period],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "source_medium",
+          limit: 200,
+        })
+      } catch {
+        return buildEmptyV2Response()
+      }
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const channelGroupQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-channel-group", businessUniqueId, website, period],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "channel_group",
+          limit: 100,
+        })
+      } catch {
+        return buildEmptyV2Response()
+      }
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const dateData = dateQuery.data ?? buildEmptyV2Response()
+  const contentGroupData = contentGroupQuery.data ?? buildEmptyV2Response()
+  const pageData = pageQuery.data ?? buildEmptyV2Response()
+  const eventNameData = eventNameQuery.data ?? buildEmptyV2Response()
+  const sourceMediumData = sourceMediumQuery.data ?? buildEmptyV2Response()
+  const channelGroupData = channelGroupQuery.data ?? buildEmptyV2Response()
+
+  const dateRows = dateData.data.current
+  const previousDateRows = dateData.data.previous
 
   const chartData = useMemo<GA4ChartDataFormatted[]>(() => {
     return dateRows
@@ -338,39 +425,24 @@ export function useGA4Analytics(
   }, [dateRows, previousDateRows])
 
   const goalsRows = useMemo(() => {
-    return buildTimescaleTableRows(
-      timescaleRaw?.eventName?.data.current ?? [],
-      timescaleRaw?.eventName?.data.previous ?? []
-    )
-  }, [timescaleRaw?.eventName?.data.current, timescaleRaw?.eventName?.data.previous])
+    return buildTimescaleTableRows(eventNameData.data.current, eventNameData.data.previous)
+  }, [eventNameData.data.current, eventNameData.data.previous])
 
   const contentGroupRows = useMemo(() => {
-    return buildTimescaleTableRows(
-      timescaleRaw?.contentGroup?.data.current ?? [],
-      timescaleRaw?.contentGroup?.data.previous ?? []
-    )
-  }, [timescaleRaw?.contentGroup?.data.current, timescaleRaw?.contentGroup?.data.previous])
+    return buildTimescaleTableRows(contentGroupData.data.current, contentGroupData.data.previous)
+  }, [contentGroupData.data.current, contentGroupData.data.previous])
 
   const topPageRows = useMemo(() => {
-    return buildTimescaleTableRows(
-      timescaleRaw?.page?.data.current ?? [],
-      timescaleRaw?.page?.data.previous ?? []
-    )
-  }, [timescaleRaw?.page?.data.current, timescaleRaw?.page?.data.previous])
+    return buildTimescaleTableRows(pageData.data.current, pageData.data.previous)
+  }, [pageData.data.current, pageData.data.previous])
 
   const sourceMediumRows = useMemo(() => {
-    return buildTimescaleTableRows(
-      timescaleRaw?.sourceMedium?.data.current ?? [],
-      timescaleRaw?.sourceMedium?.data.previous ?? []
-    )
-  }, [timescaleRaw?.sourceMedium?.data.current, timescaleRaw?.sourceMedium?.data.previous])
+    return buildTimescaleTableRows(sourceMediumData.data.current, sourceMediumData.data.previous)
+  }, [sourceMediumData.data.current, sourceMediumData.data.previous])
 
   const channelRows = useMemo(() => {
-    return buildTimescaleTableRows(
-      timescaleRaw?.channelGroup?.data.current ?? [],
-      timescaleRaw?.channelGroup?.data.previous ?? []
-    )
-  }, [timescaleRaw?.channelGroup?.data.current, timescaleRaw?.channelGroup?.data.previous])
+    return buildTimescaleTableRows(channelGroupData.data.current, channelGroupData.data.previous)
+  }, [channelGroupData.data.current, channelGroupData.data.previous])
 
   const goalsData = useMemo<GA4GoalDataFormatted[]>(() => {
     return sortTimescaleRows(
@@ -545,6 +617,36 @@ export function useGA4Analytics(
   const hasTopPagesData = topPagesData.length > 0
   const hasChannelsData = channelsData.length > 0
 
+  const loadingState: GA4AnalyticsLoadingState = {
+    chart: dateQuery.isLoading,
+    goals: eventNameQuery.isLoading,
+    topSources: sourceMediumQuery.isLoading,
+    channels: channelGroupQuery.isLoading,
+    contentGroups: contentGroupQuery.isLoading,
+    topPages: pageQuery.isLoading,
+  }
+
+  const isLoading = Object.values(loadingState).some(Boolean)
+  const isFetching = [
+    dateQuery,
+    contentGroupQuery,
+    pageQuery,
+    eventNameQuery,
+    sourceMediumQuery,
+    channelGroupQuery,
+  ].some((query) => query.isFetching)
+
+  const refetch = useCallback(async () => {
+    return Promise.allSettled([
+      dateQuery.refetch(),
+      contentGroupQuery.refetch(),
+      pageQuery.refetch(),
+      eventNameQuery.refetch(),
+      sourceMediumQuery.refetch(),
+      channelGroupQuery.refetch(),
+    ])
+  }, [channelGroupQuery, contentGroupQuery, dateQuery, eventNameQuery, pageQuery, sourceMediumQuery])
+
   return {
     chartData,
     normalizedChartData,
@@ -575,7 +677,7 @@ export function useGA4Analytics(
     handleTopPagesSort,
     isLoading,
     isFetching,
-    error,
+    error: null,
     refetch,
     hasChartData,
     hasGoalsData,
@@ -583,5 +685,6 @@ export function useGA4Analytics(
     hasContentGroupsData,
     hasTopPagesData,
     hasChannelsData,
+    loadingState,
   }
 }

@@ -42,12 +42,14 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
     topSourcesSort,
     handleTopSourcesFilterChange,
     handleTopSourcesSort,
-    isLoading,
+    loadingState,
     hasTopSourcesData,
     hasChannelsData,
   } = useGA4Analytics(businessUniqueId, website, period);
 
   const [topSourcesModalOpen, setTopSourcesModalOpen] = useState(false);
+  const showTopSourcesLoader = loadingState.topSources && !hasTopSourcesData;
+  const showChannelsLoader = loadingState.channels && !hasChannelsData;
 
   return (
     <div className="flex flex-col px-7 pb-10">
@@ -82,7 +84,7 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
             sessions: item.sessions,
             goals: item.goals,
           }))}
-          isLoading={isLoading}
+          isLoading={showTopSourcesLoader}
           hasData={hasTopSourcesData}
           sortConfig={{ column: topSourcesSort.column, direction: topSourcesSort.direction }}
           onSort={(column) => handleTopSourcesSort(column as GA4SortColumn)}
@@ -93,7 +95,7 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         <SourcesChannelsChart
           fillHeight
           data={normalizedChannelsData}
-          isLoading={isLoading}
+          isLoading={showChannelsLoader}
           hasData={hasChannelsData}
         />
       </div>
@@ -123,7 +125,7 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         }))}
         sortConfig={{ column: topSourcesSort.column, direction: topSourcesSort.direction }}
         onSort={(column) => handleTopSourcesSort(column as GA4SortColumn)}
-        isLoading={isLoading}
+        isLoading={showTopSourcesLoader}
       />
     </div>
   );

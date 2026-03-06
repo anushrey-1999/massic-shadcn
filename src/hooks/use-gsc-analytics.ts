@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
 import { useMemo, useState, useCallback } from "react"
-import { calculateTrend, sumMetrics } from "@/utils/gsc-deepdive-utils"
+import { calculateTrend } from "@/utils/gsc-deepdive-utils"
 import type { DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters"
 
 export const TIME_PERIODS = [
@@ -80,7 +80,7 @@ interface V2Ranges {
   previousEnd: string
 }
 
-interface V2Response<T = any> {
+export interface V2Response<T = any> {
   success: boolean
   data: {
     ranges: V2Ranges
@@ -101,16 +101,6 @@ interface Ga4MetricRow {
   keys?: string[]
   sessions?: number
   keyEvents?: number
-}
-
-interface TimescaleOverviewResponse {
-  gscDate: V2Response<GscMetricRow>
-  gscContentGroups: V2Response<GscMetricRow>
-  gscTopPages: V2Response<GscMetricRow>
-  gscTopQueries: V2Response<GscMetricRow>
-  ga4Date: V2Response<Ga4MetricRow> | null
-  ga4ContentGroups: V2Response<Ga4MetricRow> | null
-  ga4TopPages: V2Response<Ga4MetricRow> | null
 }
 
 interface MergedMetric {
@@ -140,6 +130,14 @@ interface AggregatedGa4Row {
   sessions: number
   keyEvents: number
   bestScore: number
+}
+
+export interface GSCAnalyticsLoadingState {
+  chart: boolean
+  funnel: boolean
+  contentGroups: boolean
+  topPages: boolean
+  topQueries: boolean
 }
 
 function asNumber(value: unknown): number {
@@ -297,7 +295,6 @@ function buildMap<T>(rows: T[], getKey: (row: T) => string | null, getDisplay: (
       continue
     }
 
-    // Prefer non-empty and longer display key to preserve readable URLs/paths.
     if ((displayKey || "").length > (existing.key || "").length) {
       existing.key = displayKey
     }
@@ -336,7 +333,6 @@ function aggregateGscRows(
     existing.impressions += impressions
     existing.clicks += clicks
 
-    // Keep representative key from the row with stronger contribution.
     if (score > existing.bestScore && displayKey) {
       existing.key = displayKey
       existing.bestScore = score
@@ -525,7 +521,7 @@ function extractDateMap(rows: Array<GscMetricRow | Ga4MetricRow>, metric: "impre
   return map
 }
 
-function buildEmptyV2Response(): V2Response<any> {
+export function buildEmptyV2Response<T = any>(): V2Response<T> {
   return {
     success: true,
     data: {
@@ -538,6 +534,14 @@ function buildEmptyV2Response(): V2Response<any> {
       current: [],
       previous: [],
     },
+  }
+}
+
+function buildBasePayload(period: TimePeriodValue, website: string, filters: DeepdiveFilter[]) {
+  return {
+    period,
+    site_url: website,
+    ...(filters.length > 0 ? { filters } : {}),
   }
 }
 
@@ -554,89 +558,161 @@ export function useGSCAnalytics(
   const [contentGroupsSort, setContentGroupsSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
   const [topPagesSort, setTopPagesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
   const [topQueriesSort, setTopQueriesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
-  const filtersQueryKey = useMemo(() => JSON.stringify(filters ?? []), [filters])
 
-  const {
-    data: rawData,
-    isLoading,
-    isFetching,
-    error,
-    refetch,
-  } = useQuery<TimescaleOverviewResponse>({
-    queryKey: ["gsc-analytics-v2-overview", businessUniqueId, website, period, filtersQueryKey],
+  const filtersQueryKey = useMemo(() => JSON.stringify(filters ?? []), [filters])
+  const enabled = Boolean(businessUniqueId && website)
+  const basePayload = useMemo(
+    () => (website ? buildBasePayload(period, website, filters) : null),
+    [filters, period, website]
+  )
+
+  const gscDateQuery = useQuery<V2Response<GscMetricRow>>({
+    queryKey: ["gsc-date", businessUniqueId, website, period, filtersQueryKey],
     queryFn: async () => {
-      if (!businessUniqueId || !website) {
+      if (!basePayload) {
         throw new Error("Missing business ID or website")
       }
 
-      const basePayload = {
-        period,
-        site_url: website,
-        ...(filters.length > 0 ? { filters } : {}),
-      }
-
-      const [gscDate, gscContentGroups, gscTopPages, gscTopQueries, ga4Date, ga4ContentGroups, ga4TopPages] = await Promise.all([
-        api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "date",
-        }),
-        api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "content_group",
-          limit: 200,
-        }),
-        api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "page",
-          limit: 500,
-        }),
-        api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "query",
-          limit: 200,
-        }),
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "date",
-          traffic_scope: "organic",
-        }).catch(() => null),
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "content_group",
-          limit: 200,
-          traffic_scope: "organic",
-        }).catch(() => null),
-        api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
-          ...basePayload,
-          dimension: "page",
-          limit: 500,
-          traffic_scope: "organic",
-        }).catch(() => null),
-      ])
-
-      return {
-        gscDate,
-        gscContentGroups,
-        gscTopPages,
-        gscTopQueries,
-        ga4Date,
-        ga4ContentGroups,
-        ga4TopPages,
-      }
+      return api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+        ...basePayload,
+        dimension: "date",
+      })
     },
-    enabled: !!businessUniqueId && !!website,
+    enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
 
-  const gscDateData = rawData?.gscDate ?? buildEmptyV2Response()
-  const gscContentData = rawData?.gscContentGroups ?? buildEmptyV2Response()
-  const gscPagesData = rawData?.gscTopPages ?? buildEmptyV2Response()
-  const gscQueriesData = rawData?.gscTopQueries ?? buildEmptyV2Response()
+  const gscContentGroupsQuery = useQuery<V2Response<GscMetricRow>>({
+    queryKey: ["gsc-content-groups", businessUniqueId, website, period, filtersQueryKey],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
 
-  const ga4DateData = rawData?.ga4Date ?? buildEmptyV2Response()
-  const ga4ContentData = rawData?.ga4ContentGroups ?? buildEmptyV2Response()
-  const ga4PagesData = rawData?.ga4TopPages ?? buildEmptyV2Response()
+      return api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+        ...basePayload,
+        dimension: "content_group",
+        limit: 200,
+      })
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const gscTopPagesQuery = useQuery<V2Response<GscMetricRow>>({
+    queryKey: ["gsc-top-pages", businessUniqueId, website, period, filtersQueryKey],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      return api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+        ...basePayload,
+        dimension: "page",
+        limit: 500,
+      })
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const gscTopQueriesQuery = useQuery<V2Response<GscMetricRow>>({
+    queryKey: ["gsc-top-queries", businessUniqueId, website, period, filtersQueryKey],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      return api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+        ...basePayload,
+        dimension: "query",
+        limit: 200,
+      })
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const ga4DateQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-date-organic", businessUniqueId, website, period, filtersQueryKey],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "date",
+          traffic_scope: "organic",
+        })
+      } catch {
+        return buildEmptyV2Response<Ga4MetricRow>()
+      }
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const ga4ContentGroupsQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-content-groups-organic", businessUniqueId, website, period, filtersQueryKey],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "content_group",
+          limit: 200,
+          traffic_scope: "organic",
+        })
+      } catch {
+        return buildEmptyV2Response<Ga4MetricRow>()
+      }
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const ga4TopPagesQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-top-pages-organic", businessUniqueId, website, period, filtersQueryKey],
+    queryFn: async () => {
+      if (!basePayload) {
+        throw new Error("Missing business ID or website")
+      }
+
+      try {
+        return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
+          ...basePayload,
+          dimension: "page",
+          limit: 500,
+          traffic_scope: "organic",
+        })
+      } catch {
+        return buildEmptyV2Response<Ga4MetricRow>()
+      }
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  })
+
+  const gscDateData = gscDateQuery.data ?? buildEmptyV2Response<GscMetricRow>()
+  const gscContentData = gscContentGroupsQuery.data ?? buildEmptyV2Response<GscMetricRow>()
+  const gscPagesData = gscTopPagesQuery.data ?? buildEmptyV2Response<GscMetricRow>()
+  const gscQueriesData = gscTopQueriesQuery.data ?? buildEmptyV2Response<GscMetricRow>()
+
+  const ga4DateData = ga4DateQuery.data ?? buildEmptyV2Response<Ga4MetricRow>()
+  const ga4ContentData = ga4ContentGroupsQuery.data ?? buildEmptyV2Response<Ga4MetricRow>()
+  const ga4PagesData = ga4TopPagesQuery.data ?? buildEmptyV2Response<Ga4MetricRow>()
 
   const chartData = useMemo<GSCChartDataPoint[]>(() => {
     const gscImpressionsMap = extractDateMap(gscDateData.data.current, "impressions")
@@ -659,20 +735,20 @@ export function useGSCAnalytics(
       sessions: ga4SessionsMap.get(dateKey) ?? 0,
       goals: ga4GoalsMap.get(dateKey) ?? 0,
     }))
-  }, [gscDateData.data.current, ga4DateData.data.current])
+  }, [ga4DateData.data.current, gscDateData.data.current])
 
   const totals = useMemo(() => {
-    const currentImpressions = sumMetrics(gscDateData.data.current, "impressions")
-    const previousImpressions = sumMetrics(gscDateData.data.previous, "impressions")
+    const currentImpressions = gscDateData.data.current.reduce((sum, row) => sum + asNumber(row.impressions), 0)
+    const previousImpressions = gscDateData.data.previous.reduce((sum, row) => sum + asNumber(row.impressions), 0)
 
-    const currentClicks = sumMetrics(gscDateData.data.current, "clicks")
-    const previousClicks = sumMetrics(gscDateData.data.previous, "clicks")
+    const currentClicks = gscDateData.data.current.reduce((sum, row) => sum + asNumber(row.clicks), 0)
+    const previousClicks = gscDateData.data.previous.reduce((sum, row) => sum + asNumber(row.clicks), 0)
 
-    const currentSessions = sumMetrics(ga4DateData.data.current, "sessions")
-    const previousSessions = sumMetrics(ga4DateData.data.previous, "sessions")
+    const currentSessions = ga4DateData.data.current.reduce((sum, row) => sum + asNumber(row.sessions), 0)
+    const previousSessions = ga4DateData.data.previous.reduce((sum, row) => sum + asNumber(row.sessions), 0)
 
-    const currentGoals = sumMetrics(ga4DateData.data.current, "keyEvents")
-    const previousGoals = sumMetrics(ga4DateData.data.previous, "keyEvents")
+    const currentGoals = ga4DateData.data.current.reduce((sum, row) => sum + asNumber(row.keyEvents), 0)
+    const previousGoals = ga4DateData.data.previous.reduce((sum, row) => sum + asNumber(row.keyEvents), 0)
 
     return {
       currentImpressions,
@@ -684,7 +760,7 @@ export function useGSCAnalytics(
       currentGoals,
       previousGoals,
     }
-  }, [gscDateData.data.current, gscDateData.data.previous, ga4DateData.data.current, ga4DateData.data.previous])
+  }, [ga4DateData.data.current, ga4DateData.data.previous, gscDateData.data.current, gscDateData.data.previous])
 
   const trendData = useMemo<GSCTrendData>(() => {
     return {
@@ -796,13 +872,13 @@ export function useGSCAnalytics(
     const maxGoals = Math.max(...goalsValues)
 
     const normalizeToZeroHundred = (value: number, min: number, max: number): number => {
-      const v = Number(value) || 0
-      if (v === 0) return 0
+      const numericValue = Number(value) || 0
+      if (numericValue === 0) return 0
       if (max === min) return 50
       const pad = (max - min) * 0.05 || 1
       const lo = Math.max(0, min - pad)
       const hi = max + pad
-      const normalized = (v - lo) / (hi - lo)
+      const normalized = (numericValue - lo) / (hi - lo)
       return Math.max(0, Math.min(100, normalized * 100))
     }
 
@@ -829,7 +905,7 @@ export function useGSCAnalytics(
       gscDisplayResolver: (row) => row.keys?.[0] || row.group || row.displayName || "",
       ga4DisplayResolver: (row) => row.keys?.[0] || "",
     })
-  }, [gscContentData.data.current, gscContentData.data.previous, ga4ContentData.data.current, ga4ContentData.data.previous])
+  }, [ga4ContentData.data.current, ga4ContentData.data.previous, gscContentData.data.current, gscContentData.data.previous])
 
   const mergedTopPageRows = useMemo(() => {
     return buildMergedRows({
@@ -841,7 +917,7 @@ export function useGSCAnalytics(
       gscDisplayResolver: (row) => row.keys?.[0] || "",
       ga4DisplayResolver: (row) => row.keys?.[0] || "",
     })
-  }, [gscPagesData.data.current, gscPagesData.data.previous, ga4PagesData.data.current, ga4PagesData.data.previous])
+  }, [ga4PagesData.data.current, ga4PagesData.data.previous, gscPagesData.data.current, gscPagesData.data.previous])
 
   const topQueryRows = useMemo(() => {
     return buildGscOnlyRows(gscQueriesData.data.current, gscQueriesData.data.previous)
@@ -853,30 +929,29 @@ export function useGSCAnalytics(
     sort: { column: SortColumn; direction: SortDirection },
     includeGa4Columns: boolean
   ): GSCTableDataFormatted[] => {
-    let filteredData = data
+    return data
       .filter((row) => includeByFilter(row, filter, includeGa4Columns))
       .sort((a, b) => compareBySort(a, b, sort))
-
-    return filteredData.map((row) => ({
-      key: row.key,
-      impressions: toMetricCell(row.impressions),
-      clicks: toMetricCell(row.clicks),
-      ...(includeGa4Columns
-        ? {
-          sessions: toMetricCell(row.sessions),
-          goals: toMetricCell(row.goals),
-        }
-        : {}),
-    }))
+      .map((row) => ({
+        key: row.key,
+        impressions: toMetricCell(row.impressions),
+        clicks: toMetricCell(row.clicks),
+        ...(includeGa4Columns
+          ? {
+            sessions: toMetricCell(row.sessions),
+            goals: toMetricCell(row.goals),
+          }
+          : {}),
+      }))
   }, [])
 
   const contentGroupsData = useMemo(() => {
     return filterAndSortMergedTableData(mergedContentGroupRows, contentGroupsFilter, contentGroupsSort, true)
-  }, [mergedContentGroupRows, contentGroupsFilter, contentGroupsSort, filterAndSortMergedTableData])
+  }, [contentGroupsFilter, contentGroupsSort, filterAndSortMergedTableData, mergedContentGroupRows])
 
   const topPagesData = useMemo(() => {
     return filterAndSortMergedTableData(mergedTopPageRows, topPagesFilter, topPagesSort, true)
-  }, [mergedTopPageRows, topPagesFilter, topPagesSort, filterAndSortMergedTableData])
+  }, [filterAndSortMergedTableData, mergedTopPageRows, topPagesFilter, topPagesSort])
 
   const topQueriesData = useMemo(() => {
     const topQuerySort: { column: SortColumn; direction: SortDirection } =
@@ -885,7 +960,7 @@ export function useGSCAnalytics(
         : topQueriesSort
 
     return filterAndSortMergedTableData(topQueryRows, topQueriesFilter, topQuerySort, false)
-  }, [topQueryRows, topQueriesFilter, topQueriesSort, filterAndSortMergedTableData])
+  }, [filterAndSortMergedTableData, topQueriesFilter, topQueriesSort, topQueryRows])
 
   const handleContentGroupsFilterChange = useCallback((filter: TableFilterType) => {
     setContentGroupsFilter(filter)
@@ -930,12 +1005,55 @@ export function useGSCAnalytics(
       (point.goals ?? 0) > 0
   )
 
-  const hasFunnelData =
-    totals.currentImpressions > 0 || totals.currentClicks > 0 || totals.currentGoals > 0
-
+  const hasFunnelData = funnelChartItems.some((item) => item.value > 0)
   const hasContentGroupsData = mergedContentGroupRows.length > 0
   const hasTopPagesData = mergedTopPageRows.length > 0
   const hasTopQueriesData = topQueryRows.length > 0
+
+  const loadingState: GSCAnalyticsLoadingState = {
+    chart: gscDateQuery.isLoading || ga4DateQuery.isLoading,
+    funnel: gscDateQuery.isLoading || ga4DateQuery.isLoading,
+    contentGroups: gscContentGroupsQuery.isLoading || ga4ContentGroupsQuery.isLoading,
+    topPages: gscTopPagesQuery.isLoading || ga4TopPagesQuery.isLoading,
+    topQueries: gscTopQueriesQuery.isLoading,
+  }
+
+  const isLoading = Object.values(loadingState).some(Boolean)
+  const isFetching = [
+    gscDateQuery,
+    gscContentGroupsQuery,
+    gscTopPagesQuery,
+    gscTopQueriesQuery,
+    ga4DateQuery,
+    ga4ContentGroupsQuery,
+    ga4TopPagesQuery,
+  ].some((query) => query.isFetching)
+
+  const error =
+    gscDateQuery.error ||
+    gscContentGroupsQuery.error ||
+    gscTopPagesQuery.error ||
+    gscTopQueriesQuery.error
+
+  const refetch = useCallback(async () => {
+    return Promise.allSettled([
+      gscDateQuery.refetch(),
+      gscContentGroupsQuery.refetch(),
+      gscTopPagesQuery.refetch(),
+      gscTopQueriesQuery.refetch(),
+      ga4DateQuery.refetch(),
+      ga4ContentGroupsQuery.refetch(),
+      ga4TopPagesQuery.refetch(),
+    ])
+  }, [
+    ga4ContentGroupsQuery,
+    ga4DateQuery,
+    ga4TopPagesQuery,
+    gscContentGroupsQuery,
+    gscDateQuery,
+    gscTopPagesQuery,
+    gscTopQueriesQuery,
+  ])
 
   return {
     chartData,
@@ -969,5 +1087,6 @@ export function useGSCAnalytics(
     hasContentGroupsData,
     hasTopPagesData,
     hasTopQueriesData,
+    loadingState,
   }
 }

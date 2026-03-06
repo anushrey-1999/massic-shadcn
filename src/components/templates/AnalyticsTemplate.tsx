@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, startTransition } from "react";
 import { usePathname } from "next/navigation";
 import { Eye, MousePointerClick, Target, BarChart3 } from "lucide-react";
 import {
@@ -39,6 +39,7 @@ export function AnalyticsTemplate() {
   const [selectedPeriod, setSelectedPeriod] =
     useState<TimePeriodValue>("3 months");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [showDeferredSections, setShowDeferredSections] = useState(false);
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     impressions: true,
     clicks: true,
@@ -134,6 +135,44 @@ export function AnalyticsTemplate() {
   const handleOverviewFilterSelect = useCallback((filter: DeepdiveFilter) => {
     addFilter(filter);
   }, [addFilter]);
+
+  useEffect(() => {
+    setShowDeferredSections(false);
+
+    let completed = false;
+    let timeoutId: number | undefined;
+    let idleId: number | undefined;
+
+    const revealDeferredSections = () => {
+      if (completed) return;
+      completed = true;
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+      if (idleId !== undefined && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      startTransition(() => {
+        setShowDeferredSections(true);
+      });
+    };
+
+    timeoutId = window.setTimeout(revealDeferredSections, 250);
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(revealDeferredSections);
+    }
+
+    return () => {
+      completed = true;
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+      if (idleId !== undefined && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+    };
+  }, [businessId]);
 
   return (
     <div className="flex flex-col min-h-screen scroll-smooth ">
@@ -232,9 +271,13 @@ export function AnalyticsTemplate() {
           filters={filtersForApi}
           onSelectFilter={handleOverviewFilterSelect}
         />
-        <SourcesSection period={selectedPeriod} />
-        <ConversionSection period={selectedPeriod} />
-        <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
+        {showDeferredSections ? (
+          <>
+            <SourcesSection period={selectedPeriod} />
+            <ConversionSection period={selectedPeriod} />
+            <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
+          </>
+        ) : null}
       </div>
     </div>
   );

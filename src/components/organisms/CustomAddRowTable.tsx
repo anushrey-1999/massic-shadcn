@@ -42,6 +42,7 @@ export interface CustomAddRowTableProps<T = Record<string, any>> {
   onValidationChange?: (hasErrors: boolean) => void;
   showErrorsWithoutTouch?: boolean;
   variant?: "table" | "card";
+  disabled?: boolean;
 }
 
 // Validation helper
@@ -59,8 +60,13 @@ const validateField = (
   }
 
   // URL validation
-  if (validation.url && stringValue && !isValidWebsiteUrl(stringValue)) {
-    return "Please enter a valid URL";
+  if (validation.url && stringValue) {
+    const isTel = /^tel:\s*\+?[0-9().\-\s]+$/i.test(stringValue);
+    const isMailto = /^mailto:/i.test(stringValue);
+    const isValid = isTel || isMailto || isValidWebsiteUrl(stringValue);
+    if (!isValid) {
+      return "Please enter a valid URL";
+    }
   }
 
   // Custom validator
@@ -83,6 +89,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   onValidationChange,
   showErrorsWithoutTouch = false,
   variant = "table",
+  disabled = false,
 }: CustomAddRowTableProps<T>) {
   // Error state: { rowIndex: { fieldKey: errorMessage } }
   const [errors, setErrors] = useState<Record<number, Record<string, string>>>({});
@@ -201,6 +208,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
     field: string,
     value: any
   ) => {
+    if (disabled) return;
     // Update the value
     if (onRowChange) {
       onRowChange(rowIndex, field, value);
@@ -244,6 +252,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   };
 
   const handleBlur = (rowIndex: number, field: string, value: any) => {
+    if (disabled) return;
     // Mark field as touched when user leaves the field
     setTouched((prev) => {
       const newTouched = { ...prev };
@@ -280,6 +289,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   };
 
   const handleDeleteRow = (rowIndex: number) => {
+    if (disabled) return;
     onDeleteRow?.(rowIndex);
     setFocusedRowIndex((prev) => {
       if (prev === null) return prev;
@@ -335,6 +345,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                           type={column.validation?.url ? "url" : "text"}
                           variant="default"
                           value={row[column.key] || ""}
+                          disabled={disabled}
                           onChange={(e) =>
                             handleRowChange(rowIndex, column.key, e.target.value)
                           }
@@ -354,7 +365,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
-                              onAddRow();
+                              if (!disabled) onAddRow();
                             }
                           }}
                           placeholder={column.label || "Enter value"}
@@ -387,6 +398,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                     className="opacity-0 group-hover:opacity-100 transition-opacity min-h-9 min-w-9 h-9 w-9 shrink-0 rounded-lg p-2 text-destructive hover:text-destructive hover:bg-destructive/10"
                     onClick={() => handleDeleteRow(rowIndex)}
                     title="Delete row"
+                    disabled={disabled}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -400,8 +412,11 @@ export function CustomAddRowTable<T extends Record<string, any>>({
         <Button
           type="button"
           variant="ghost"
-          onClick={onAddRow}
+          onClick={() => {
+            if (!disabled) onAddRow();
+          }}
           className="flex items-center justify-center gap-1.5 h-8 min-h-8 px-3 py-2 rounded-lg text-general-primary hover:text-general-primary hover:bg-general-primary/10 w-fit"
+          disabled={disabled}
         >
           <Plus className="h-4 w-4" />
           {addButtonText}
@@ -459,6 +474,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                                       type={column.validation?.url ? "url" : "text"}
                                       variant="noBorder"
                                       value={row[column.key] || ""}
+                                      disabled={disabled}
                                       onChange={(e) =>
                                         handleRowChange(
                                           rowIndex,
@@ -476,7 +492,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                                       onKeyDown={(e) => {
                                         if (e.key === "Enter") {
                                           e.preventDefault();
-                                          onAddRow();
+                                          if (!disabled) onAddRow();
                                         }
                                       }}
                                       placeholder="Enter value"
@@ -505,6 +521,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                             )}
                             onClick={() => handleDeleteRow(rowIndex)}
                             title="Delete row"
+                            disabled={disabled}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -546,8 +563,11 @@ export function CustomAddRowTable<T extends Record<string, any>>({
         <Button
           type="button"
           variant="outline"
-          onClick={onAddRow}
+          onClick={() => {
+            if (!disabled) onAddRow();
+          }}
           className="rounded-md border border-general-border bg-white hover:bg-secondary text-general-foreground"
+          disabled={disabled}
         >
           <Plus className="h-4 w-4" />
           {addButtonText}

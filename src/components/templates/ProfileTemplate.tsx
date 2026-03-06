@@ -10,7 +10,6 @@ import React, {
 import { useRouter } from "next/navigation";
 import PageHeader from "../molecules/PageHeader";
 import { useBusinessStore } from "@/store/business-store";
-import ProfileSidebar from "../organisms/ProfileSidebar";
 import { BusinessInfoForm } from "../organisms/profile/BusinessInfoForm";
 import { OfferingsForm } from "../organisms/profile/OfferingsForm";
 import { ContentCuesForm } from "../organisms/profile/ContentCuesForm";
@@ -31,9 +30,12 @@ import { Button } from "@/components/ui/button";
 import { GenericInput } from "@/components/ui/generic-input";
 import { Stepper } from "@/components/ui/stepper";
 import { ProfileStepCard } from "@/components/ui/profile-step-card";
-import { ChevronRight, Loader2, Unlink } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useSubscription } from "@/hooks/use-subscription";
+import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,11 +58,11 @@ import {
   LocationRow,
   CompetitorRow,
 } from "@/store/business-store";
-import { useUnlinkOrDeleteBusiness } from "@/hooks/use-business-actions";
 
 interface ProfileAutofillResponse {
   business_url?: string;
   profile_autofill?: {
+    business_name?: string;
     url?: string;
     market?: string;
     ltv?: string;
@@ -68,6 +70,10 @@ interface ProfileAutofillResponse {
     b2b_b2c?: string;
     competitors?: string[];
     segment?: number;
+    ctas?: Array<{ text?: string; url?: string }>;
+    brand_terms?: string[];
+    web_tone?: string[];
+    social_tone?: string[];
   };
   errors?: string | string[] | null;
 }
@@ -79,14 +85,6 @@ interface ProfileTemplateProps {
   isLoading?: boolean;
   onUpdateProfile?: (payload: any, formValues?: any) => Promise<void>;
 }
-
-const sections = [
-  { id: "business-info", label: "Business Info" },
-  { id: "offerings", label: "Offerings" },
-  { id: "content-cues", label: "Content Cues" },
-  { id: "locations-addresses", label: "Locations & Addresses" },
-  { id: "competitors", label: "Competitors" },
-];
 
 const PROFILE_STEPPER_STEPS = [
   { id: "basic-details", label: "Basic Details" },
@@ -104,40 +102,6 @@ const basicDetailsSchema = businessInfoSchema.pick({
   offeringsList: true,
 });
 
-// Scroll configuration
-const SCROLL_HEADER_OFFSET = 100;
-const SCROLL_DETECTION_OFFSET = 150;
-
-// Helper function to find the scrollable container
-const findScrollableContainer = (element: HTMLElement): HTMLElement | null => {
-  let parent: HTMLElement | null = element.parentElement;
-
-  while (parent) {
-    const style = window.getComputedStyle(parent);
-    if (
-      style.overflowY === "auto" ||
-      style.overflowY === "scroll" ||
-      style.overflow === "auto" ||
-      style.overflow === "scroll"
-    ) {
-      return parent;
-    }
-    parent = parent.parentElement;
-  }
-
-  return null;
-};
-
-// Helper function to get element position relative to scrollable container
-const getElementScrollPosition = (
-  element: HTMLElement,
-  container: HTMLElement
-): number => {
-  const elementRect = element.getBoundingClientRect();
-  const containerRect = container.getBoundingClientRect();
-  return elementRect.top - containerRect.top + container.scrollTop;
-};
-
 // Form schema and types are imported from @/schemas/ProfileFormSchema
 
 const ProfileTemplate = ({
@@ -152,13 +116,8 @@ const ProfileTemplate = ({
   const profiles = useBusinessStore((state) => state.profiles);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
-  // Get setters from Zustand store (only for UI state)
-  const setActiveSection = useBusinessStore((state) => state.setActiveSection);
-
-  // Zustand selectors - only what's needed for template-level concerns
-  const activeSection = useBusinessStore(
-    (state) => state.profileForm.activeSection
-  );
+  const isJobCreated = Boolean(externalJobDetails?.job_id);
+  const offeringsExtractor = useOfferingsExtractor(businessId);
 
   // Derive whitelist status from profiles (agency-level check)
   const isAgencyWhitelisted = useMemo(() => {
@@ -170,8 +129,7 @@ const ProfileTemplate = ({
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [isCheckingPlan, setIsCheckingPlan] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
-  const [isUnlinkModalOpen, setIsUnlinkModalOpen] = useState(false);
-  const unlinkOrDeleteMutation = useUnlinkOrDeleteBusiness();
+  const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
   const {
     loading: subscriptionLoading,
     data: subscriptionData,
@@ -350,8 +308,10 @@ const ProfileTemplate = ({
       primaryLocation: primaryLocation,
       serviceType: (() => {
         const objective = profileData.BusinessObjective?.toLowerCase();
-        return objective === "local" ? "physical" : "online";
-      })() as "physical" | "online",
+        if (objective === "local") return "physical";
+        if (objective === "hybrid") return "both";
+        return "online";
+      })() as "physical" | "online" | "both",
       lifetimeValue: (() => {
         const ltvFromBusiness = (profileData as any).LTV ?? (profileData as any).ltv;
         const ltvFromJob = (jobDetails as any)?.ltv;
@@ -471,7 +431,12 @@ const ProfileTemplate = ({
           Name: value.businessName,
           Website: normalizeWebsiteUrl(cleanWebsiteUrl(value.website)),
           UserDefinedBusinessDescription: value.businessDescription,
-          BusinessObjective: value.serviceType === "physical" ? "local" : "online",
+          BusinessObjective:
+            value.serviceType === "physical"
+              ? "local"
+              : value.serviceType === "both"
+                ? "hybrid"
+              : "online",
           LocationType:
             value.offerings === "products"
               ? "products"
@@ -504,6 +469,7 @@ const ProfileTemplate = ({
                   const raw = String(cta?.url || "");
                   const cleaned = raw.replace(/^sc-domain:/i, "").trim();
                   if (!cleaned) return "";
+                  if (/^(tel:|mailto:)/i.test(cleaned)) return cleaned;
                   if (/^https?:\/\//i.test(cleaned)) {
                     return cleaned.replace(/^http:\/\//i, "https://");
                   }
@@ -576,13 +542,6 @@ const ProfileTemplate = ({
     },
   });
 
-  // Initialize active section on mount
-  useEffect(() => {
-    if (activeSection !== sections[0].id) {
-      setActiveSection(sections[0].id);
-    }
-  }, []); // Only run on mount
-
   const handleAutofillProfile = useCallback(async () => {
     const values = form.state.values as BusinessInfoFormData;
     const website = cleanWebsiteUrl(values?.website || "").trim();
@@ -591,6 +550,9 @@ const ProfileTemplate = ({
       return;
     }
     setIsAutofillLoading(true);
+    // Start offerings extraction in parallel (same click as Profile Autofill)
+    // Do not await here so Profile Autofill UX isn't blocked.
+    void offeringsExtractor.startExtraction(website).catch(() => {});
     try {
       const res = await api.post<ProfileAutofillResponse>(
         "/profile-autofill",
@@ -605,15 +567,54 @@ const ProfileTemplate = ({
       const pa = res?.profile_autofill;
       if (!pa) return;
 
-      const market = (pa.market ?? "").toLowerCase();
-      if (market === "local" || market === "online") {
-        form.setFieldValue(
-          "serviceType" as any,
-          (market === "local" ? "physical" : "online") as any
-        );
+      const ensureHttpsUrl = (raw: unknown): string => {
+        const s = String(raw ?? "")
+          .replace(/^sc-domain:/i, "")
+          .trim();
+        if (!s) return "";
+        if (/^(tel:|mailto:)/i.test(s)) return s;
+        if (/^https?:\/\//i.test(s)) {
+          return s.replace(/^http:\/\//i, "https://");
+        }
+        return `https://${s}`;
+      };
+
+      // Overwrite fields from autofill response (NOTE: this overwrites user-entered data)
+      const nextWebsite = (() => {
+        const raw = pa.url || res?.business_url || website;
+        return cleanWebsiteUrl(String(raw ?? ""));
+      })();
+      if (nextWebsite) {
+        form.setFieldValue("website" as any, nextWebsite as any);
       }
 
-      const sell = (pa.sell ?? "products").toLowerCase();
+      const nextBusinessName = String(pa.business_name ?? "").trim();
+      if (nextBusinessName) {
+        form.setFieldValue("businessName" as any, nextBusinessName as any);
+      }
+
+      const market = (pa.market ?? "").toString().trim().toLowerCase();
+      const nextServiceType =
+        market === "online"
+          ? "online"
+          : market === "local"
+            ? "physical"
+            : market === "hybrid"
+              ? "both"
+              : undefined;
+      if (nextServiceType) {
+        form.setFieldValue("serviceType" as any, nextServiceType as any);
+      }
+
+      const ltvFromAutofill = (pa.ltv ?? "").toString().trim().toLowerCase();
+      form.setFieldValue(
+        "lifetimeValue" as any,
+        (ltvFromAutofill === "high" || ltvFromAutofill === "low"
+          ? ltvFromAutofill
+          : "") as any
+      );
+
+      const sell = (pa.sell ?? "products").toString().trim().toLowerCase();
       const nextOfferings =
         sell === "services"
           ? "services"
@@ -622,38 +623,65 @@ const ProfileTemplate = ({
             : "products";
       form.setFieldValue("offerings" as any, nextOfferings as any);
 
-      const existingCompetitors = (values?.competitors || []) as CompetitorRow[];
-      const existingUrls = new Set(
-        existingCompetitors
-          .map((c) => cleanWebsiteUrl(c?.url ?? "").trim())
-          .filter(Boolean)
-      );
-      if (Array.isArray(pa.competitors) && pa.competitors.length > 0) {
-        const fromApi = pa.competitors
+      // Competitors (overwrite)
+      const competitorsFromApi = Array.isArray(pa.competitors)
+        ? pa.competitors
           .filter((url): url is string => Boolean(url && String(url).trim()))
           .map((url) => cleanWebsiteUrl(String(url)))
-          .filter((url) => url && !existingUrls.has(url));
-        if (fromApi.length > 0) {
-          const merged = [
-            ...existingCompetitors,
-            ...fromApi.map((url) => ({ url })),
-          ];
-          form.setFieldValue("competitors" as any, merged as any);
-        }
-      }
+          .filter(Boolean)
+        : [];
+      form.setFieldValue(
+        "competitors" as any,
+        competitorsFromApi.map((url) => ({ url })) as any
+      );
 
-      const ltvFromAutofill = (pa.ltv ?? "").toString().trim().toLowerCase();
-      if (ltvFromAutofill === "high" || ltvFromAutofill === "low") {
-        form.setFieldValue("lifetimeValue" as any, ltvFromAutofill as any);
-      }
+      // CTAs (overwrite)
+      const ctasFromApi = Array.isArray(pa.ctas)
+        ? pa.ctas
+          .map((cta) => ({
+            buttonText: String(cta?.text ?? "").trim(),
+            url: ensureHttpsUrl(cta?.url),
+          }))
+          .filter((cta) => Boolean(cta.buttonText && cta.url))
+        : [];
+      form.setFieldValue("ctas" as any, ctasFromApi as any);
 
+      // Brand terms (overwrite as comma-separated string)
+      const brandTermsFromApi = Array.isArray(pa.brand_terms)
+        ? pa.brand_terms.map((t) => String(t).trim()).filter(Boolean)
+        : [];
+      form.setFieldValue("brandTerms" as any, brandTermsFromApi.join(", ") as any);
+
+      // Tone fields (overwrite, max 3, allowed options only)
+      const allowedToneOptions = new Set([
+        "professional",
+        "bold",
+        "friendly",
+        "innovative",
+        "playful",
+        "trustworthy",
+      ]);
+      const normalizeTones = (raw: unknown): string[] => {
+        if (!Array.isArray(raw)) return [];
+        return raw
+          .map((v) => String(v).toLowerCase().trim())
+          .filter((v) => allowedToneOptions.has(v))
+          .slice(0, 3);
+      };
+      form.setFieldValue("brandToneWeb" as any, normalizeTones(pa.web_tone) as any);
+      form.setFieldValue(
+        "brandToneSocial" as any,
+        normalizeTones(pa.social_tone) as any
+      );
+
+      setHasAutofilledProfile(true);
       toast.success("Profile fields updated from website");
     } catch {
       toast.error("Failed to autofill profile");
     } finally {
       setIsAutofillLoading(false);
     }
-  }, [form]);
+  }, [form, offeringsExtractor]);
 
   // Track job details to detect changes
   const lastJobDetailsRef = useRef<string | null>(null);
@@ -998,168 +1026,8 @@ const ProfileTemplate = ({
     ],
     [businessName, businessId]
   );
-
-  // Cache scroll container ref
-  const scrollContainerRef = useRef<HTMLElement | null>(null);
-  // Flag to prevent scroll detection from overriding clicked section
-  const isScrollingRef = useRef(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // Track the last clicked section to give it priority
-  const lastClickedSectionRef = useRef<string | null>(null);
-
-  const handleSectionClick = useCallback((sectionId: string) => {
-    setActiveSection(sectionId);
-    lastClickedSectionRef.current = sectionId;
-    const element = document.getElementById(sectionId);
-
-    if (!element) {
-      console.warn(`Section with id "${sectionId}" not found`);
-      return;
-    }
-
-    // Set flag to prevent scroll detection from updating active section
-    isScrollingRef.current = true;
-
-    // Clear any existing timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
-
-    // Find or use cached scroll container
-    if (!scrollContainerRef.current) {
-      scrollContainerRef.current = findScrollableContainer(element);
-    }
-
-    const scrollContainer = scrollContainerRef.current;
-    const isWindow =
-      !scrollContainer || scrollContainer === document.documentElement;
-
-    if (isWindow) {
-      const rect = element.getBoundingClientRect();
-      const scrollY = window.scrollY || 0;
-      const targetScroll = rect.top + scrollY - SCROLL_HEADER_OFFSET;
-
-      window.scrollTo({
-        top: Math.max(0, targetScroll),
-        behavior: "smooth",
-      });
-    } else {
-      const targetScroll =
-        getElementScrollPosition(element, scrollContainer) -
-        SCROLL_HEADER_OFFSET;
-      scrollContainer.scrollTo({
-        top: Math.max(0, targetScroll),
-        behavior: "smooth",
-      });
-    }
-
-    // Re-enable scroll detection after smooth scroll completes
-    // Use a longer timeout to ensure smooth scroll is fully complete
-    scrollTimeoutRef.current = setTimeout(() => {
-      isScrollingRef.current = false;
-      // Keep the clicked section active for a bit longer to ensure it's visible
-      setTimeout(() => {
-        lastClickedSectionRef.current = null;
-      }, 500);
-    }, 1200);
-  }, []);
-
-  // Update active section based on scroll position
-  useEffect(() => {
-    // Initialize scroll container cache
-    const firstSection = document.getElementById("business-info");
-    if (firstSection && !scrollContainerRef.current) {
-      scrollContainerRef.current = findScrollableContainer(firstSection);
-    }
-
-    const scrollContainer = scrollContainerRef.current;
-    const isWindow =
-      !scrollContainer || scrollContainer === document.documentElement;
-    const targetElement = isWindow ? window : scrollContainer;
-
-    const handleScroll = () => {
-      // Don't update active section if we're programmatically scrolling
-      if (isScrollingRef.current) {
-        return;
-      }
-
-      // If we recently clicked a section, prioritize it
-      if (lastClickedSectionRef.current) {
-        const clickedElement = document.getElementById(
-          lastClickedSectionRef.current
-        );
-        if (clickedElement) {
-          const scrollPosition = isWindow
-            ? window.scrollY || 0
-            : scrollContainer.scrollTop;
-
-          const elementTop = isWindow
-            ? clickedElement.getBoundingClientRect().top + scrollPosition
-            : getElementScrollPosition(clickedElement, scrollContainer);
-
-          const viewportTop = scrollPosition + SCROLL_DETECTION_OFFSET;
-          const elementBottom = elementTop + clickedElement.offsetHeight;
-
-          // If clicked section is still in viewport, keep it active
-          if (viewportTop >= elementTop && viewportTop < elementBottom) {
-            setActiveSection(lastClickedSectionRef.current);
-            return;
-          }
-        }
-      }
-
-      const scrollPosition = isWindow
-        ? window.scrollY || 0
-        : scrollContainer.scrollTop;
-
-      let currentSection = sections[0].id;
-      let closestToTop = Infinity;
-
-      // Find the section that's closest to the top of the viewport
-      // This ensures we select the section actually at the top, not just any visible section
-      for (const section of sections) {
-        const element = document.getElementById(section.id);
-        if (!element) continue;
-
-        const elementTop = isWindow
-          ? element.getBoundingClientRect().top + scrollPosition
-          : getElementScrollPosition(element, scrollContainer);
-
-        const viewportTop = scrollPosition + SCROLL_DETECTION_OFFSET;
-
-        // Calculate distance from viewport top to element top
-        const distanceFromTop = Math.abs(elementTop - viewportTop);
-
-        // Only consider sections that are at or above the viewport top
-        // and find the one closest to the viewport top
-        if (elementTop <= viewportTop + 50) {
-          // Allow 50px tolerance
-          if (distanceFromTop < closestToTop) {
-            closestToTop = distanceFromTop;
-            currentSection = section.id;
-          }
-        }
-      }
-
-      setActiveSection(currentSection);
-    };
-
-    targetElement.addEventListener("scroll", handleScroll, { passive: true });
-    // Initial check after DOM is ready
-    setTimeout(handleScroll, 100);
-
-    return () => {
-      if (targetElement === window) {
-        window.removeEventListener("scroll", handleScroll);
-      } else {
-        targetElement.removeEventListener("scroll", handleScroll);
-      }
-      // Cleanup timeout on unmount
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, []);
+  const profileTabValue =
+    PROFILE_STEPPER_STEPS[profileStep]?.id ?? PROFILE_STEPPER_STEPS[0].id;
 
   // Check if workflow is currently processing
   const isWorkflowProcessing = useMemo(() => {
@@ -1198,6 +1066,11 @@ const ProfileTemplate = ({
   const hasBasicDetailsValidationErrors =
     hasBasicDetailsSchemaValidationErrors || hasOfferingsValidationErrors;
 
+  const isAutofillGateActive = !isJobCreated && !hasAutofilledProfile;
+  const canAdvanceFromStep0 =
+    !isAutofillGateActive &&
+    !hasBasicDetailsValidationErrors;
+
   const hasSchemaValidationErrors = useMemo(() => {
     return !businessInfoSchema.safeParse(formValues).success;
   }, [formValues]);
@@ -1205,6 +1078,8 @@ const ProfileTemplate = ({
   // Combine all validation errors
   const hasAnyValidationErrors =
     hasSchemaValidationErrors || hasCtaValidationErrors || hasOfferingsValidationErrors;
+
+  const canAdvanceFromStep1 = !hasAnyValidationErrors;
 
   // Disable button logic:
   // - For "Save Changes": disable if loading, saving, or has any validation errors
@@ -1254,23 +1129,49 @@ const ProfileTemplate = ({
         return;
       }
 
-      if (profileStep === 0 && hasBasicDetailsValidationErrors) {
+      if (profileStep === 0) {
+        if (isAutofillGateActive) {
+          toast.error("Please use Autofill Profile before continuing.");
+          return;
+        }
+        if (hasBasicDetailsValidationErrors) {
+          toast.error("Please fix the highlighted fields before continuing.");
+          (["website", "businessName", "primaryLocation"] as const).forEach((key) => {
+            form.setFieldMeta(key as any, (prev: any) => ({
+              ...prev,
+              isTouched: true,
+            }));
+          });
+          return;
+        }
+      }
+
+      if (profileStep === 1 && !canAdvanceFromStep1) {
         toast.error("Please fix the highlighted fields before continuing.");
-        (["website", "businessName", "primaryLocation"] as const).forEach((key) => {
-          form.setFieldMeta(key as any, (prev: any) => ({
-            ...prev,
-            isTouched: true,
-          }));
-        });
         return;
       }
 
       setProfileStep(nextStep);
     },
-    [form, hasBasicDetailsValidationErrors, profileStep]
+    [
+      form,
+      hasBasicDetailsValidationErrors,
+      canAdvanceFromStep1,
+      isAutofillGateActive,
+      profileStep,
+    ]
   );
 
   const handlePrimaryButtonClick = useCallback(async () => {
+    if (!isJobCreated) {
+      try {
+        await handleSaveChanges();
+      } catch {
+        toast.error("Something went wrong. Please try again.");
+      }
+      return;
+    }
+
     if (hasChanges) {
       try {
         await handleSaveChanges();
@@ -1281,7 +1182,7 @@ const ProfileTemplate = ({
     }
 
     setIsStrategyConfirmOpen(true);
-  }, [hasChanges, handleSaveChanges]);
+  }, [handleSaveChanges, hasChanges, isJobCreated]);
 
   // Determine loading state and message
   const isLoading =
@@ -1293,20 +1194,6 @@ const ProfileTemplate = ({
     if (externalLoading) return "Loading profile data...";
     return undefined;
   }, [isAutofillLoading, isTriggeringWorkflow, isSaving, externalLoading]);
-
-  // Determine if we should show "Unlink" or "Delete" based on LinkedAuthId
-  const hasLinkedAuth = !!currentProfile?.LinkedAuthId;
-  const isActive = currentProfile?.IsActive === true;
-  const businessDbId = currentProfile?.Id;
-
-  // Can unlink if: has LinkedAuthId AND is active AND has database Id
-  const canUnlink = hasLinkedAuth && isActive && !!businessDbId;
-
-  // Can delete if: no LinkedAuthId AND is active AND has database Id
-  const canDelete = !hasLinkedAuth && isActive && !!businessDbId;
-
-  const canPerformAction = canUnlink || canDelete;
-  const actionLabel = hasLinkedAuth ? "Unlink Business" : "Delete Business";
 
   const currentPlanLabel = useMemo(() => {
     const planType = getPlanTypeFromData(subscriptionData);
@@ -1332,44 +1219,10 @@ const ProfileTemplate = ({
     [currentProfile, externalProfileData, handleSubscribeToPlan]
   );
 
-  const handleConfirmAction = useCallback(async () => {
-    if (!currentProfile) {
-      toast.error(`Unable to ${actionLabel.toLowerCase()}`, {
-        description: "Business profile not found.",
-      });
-      return;
-    }
-
-    if (!businessDbId) {
-      toast.error(`Unable to ${actionLabel.toLowerCase()}`, {
-        description: "This business has not been saved yet.",
-      });
-      return;
-    }
-
-    if (!isActive) {
-      toast.info(`Business is already ${hasLinkedAuth ? "unlinked" : "deleted"}`);
-      setIsUnlinkModalOpen(false);
-      return;
-    }
-
-    try {
-      await unlinkOrDeleteMutation.mutateAsync({
-        businessId,
-        businessDbId,
-        hasLinkedAuth,
-        isActive,
-      });
-      setIsUnlinkModalOpen(false);
-    } catch (error) {
-      // Error handling is done in the mutation hook
-    }
-  }, [currentProfile, businessDbId, isActive, hasLinkedAuth, actionLabel, businessId, unlinkOrDeleteMutation]);
-
   return (
     <div
       className={cn(
-        "flex flex-col h-screen max-h-screen min-h-0 relative overflow-hidden"
+        "flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden"
       )}
     >
       <PlanModal
@@ -1397,28 +1250,46 @@ const ProfileTemplate = ({
           {/* Content area: takes remaining height, scroll lives inside form column */}
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
             <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
-          {!externalJobDetails?.job_id && (
-            <ProfileSidebar
-              sections={sections}
-              activeSection={activeSection}
-              onSectionClick={handleSectionClick}
-              buttonText={buttonText}
-              onButtonClick={handlePrimaryButtonClick}
-              buttonDisabled={isButtonDisabled}
-              buttonHelperText={buttonHelperText}
-              isWorkflowProcessing={isWorkflowProcessing}
-            />
-          )}
           <div className="flex-1 flex flex-col gap-7 min-h-0 min-w-0 overflow-hidden">
-            {externalJobDetails?.job_id && (
+            {!isJobCreated ? (
               <Stepper
                 steps={[...PROFILE_STEPPER_STEPS]}
                 currentStep={profileStep}
                 onStepClick={handleStepperStepClick}
-                className="shrink-0 bg-white border border-general-border rounded-lg p-4 shadow-none"
+                isStepEnabled={(idx) => {
+                  if (idx <= profileStep) return true;
+                  if (idx === 1) return canAdvanceFromStep0;
+                  if (idx === 2) return canAdvanceFromStep0 && canAdvanceFromStep1;
+                  return true;
+                }}
+                className="shrink-0"
               />
+            ) : (
+              <Tabs
+                value={profileTabValue}
+                onValueChange={(value) => {
+                  const nextIndex = PROFILE_STEPPER_STEPS.findIndex(
+                    (s) => s.id === value
+                  );
+                  setProfileStep(nextIndex >= 0 ? nextIndex : 0);
+                }}
+                className="shrink-0"
+              >
+                <TabsList className="w-fit self-start">
+                  {PROFILE_STEPPER_STEPS.map((s) => (
+                    <TabsTrigger
+                      key={s.id}
+                      value={s.id}
+                      className="py-2 flex-none px-4"
+                    >
+                      {s.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             )}
-            {externalJobDetails?.job_id ? (
+
+            {!isJobCreated ? (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -1433,22 +1304,43 @@ const ProfileTemplate = ({
                       className="flex-1"
                       scrollableContent
                       rightAction={
-                        <Button
-                          type="button"
-                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                          disabled={hasBasicDetailsValidationErrors}
-                          onClick={() =>
-                            setProfileStep((s) => Math.min(2, s + 1))
-                          }
-                        >
-                          Next
-                          <ChevronRight className="size-4 shrink-0" />
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-block">
+                              <Button
+                                type="button"
+                                className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                                disabled={!canAdvanceFromStep0}
+                                onClick={() =>
+                                  setProfileStep((s) => Math.min(2, s + 1))
+                                }
+                              >
+                                Next
+                                <ChevronRight className="size-4 shrink-0" />
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {!canAdvanceFromStep0 && isAutofillGateActive ? (
+                            <TooltipContent sideOffset={8}>
+                              Autofill Profile using the button below to proceed
+                            </TooltipContent>
+                          ) : null}
+                        </Tooltip>
                       }
                     >
                       <BusinessInfoForm
                         form={form}
                         embedded
+                        embeddedVariant="full"
+                        disabledFields={
+                          isAutofillGateActive
+                            ? {
+                                businessName: true,
+                                serviceType: true,
+                                lifetimeValue: true,
+                              }
+                            : undefined
+                        }
                         primaryLocationAction={
                           <Button
                             type="button"
@@ -1457,6 +1349,7 @@ const ProfileTemplate = ({
                             onClick={handleAutofillProfile}
                             disabled={
                               isAutofillLoading ||
+                              offeringsExtractor.isExtracting ||
                               !(formValues?.website ?? "").toString().trim()
                             }
                             className="gap-2 border-general-border-three text-general-foreground"
@@ -1476,12 +1369,17 @@ const ProfileTemplate = ({
                         form={form}
                         businessId={businessId}
                         embedded
+                        disabled={isAutofillGateActive}
+                        hideFetchOfferingsFromWebsite
+                            extractionController={offeringsExtractor}
                       />
                       <div className="w-1/2">
                         <GenericInput<BusinessInfoFormData>
                           form={form as any}
                           fieldName="businessDescription"
                           type="textarea"
+                          disabled={isAutofillGateActive}
+                          className="min-h-[160px]"
                           label={
                             <>
                               Anything else we should know about your business?{" "}
@@ -1491,7 +1389,7 @@ const ProfileTemplate = ({
                             </>
                           }
                           placeholder="Provide any additional info"
-                          rows={3}
+                          rows={6}
                         />
                       </div>
                     </ProfileStepCard>
@@ -1506,6 +1404,7 @@ const ProfileTemplate = ({
                         <Button
                           type="button"
                           className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                          disabled={!canAdvanceFromStep1}
                           onClick={() =>
                             setProfileStep((s) => Math.min(2, s + 1))
                           }
@@ -1530,6 +1429,161 @@ const ProfileTemplate = ({
                           type="button"
                           className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
                           onClick={handlePrimaryButtonClick}
+                          disabled={
+                            externalLoading ||
+                            isSaving ||
+                            hasAnyValidationErrors ||
+                            isAutofillLoading ||
+                            offeringsExtractor.isExtracting
+                          }
+                          title={buttonHelperText}
+                        >
+                          {isSaving ? "Saving..." : "Save Changes"}
+                          <ChevronRight className="size-4 shrink-0" />
+                        </Button>
+                      }
+                    >
+                      <CompetitorsForm form={form} embedded />
+                    </ProfileStepCard>
+                  )}
+              </form>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  form.handleSubmit();
+                }}
+                className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
+              >
+                <Tabs
+                  value={profileTabValue}
+                  onValueChange={(value) => {
+                    const nextIndex = PROFILE_STEPPER_STEPS.findIndex(
+                      (s) => s.id === value
+                    );
+                    setProfileStep(nextIndex >= 0 ? nextIndex : 0);
+                  }}
+                  className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
+                >
+                  <TabsContent
+                    value="basic-details"
+                    className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0"
+                  >
+                    <ProfileStepCard
+                      title="Basic Details"
+                      description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
+                      className="flex-1"
+                      scrollableContent
+                      rightAction={
+                        <Button
+                          type="button"
+                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                          onClick={handlePrimaryButtonClick}
+                          disabled={isButtonDisabled}
+                          title={buttonHelperText}
+                        >
+                          {buttonText}
+                          <ChevronRight className="size-4 shrink-0" />
+                        </Button>
+                      }
+                    >
+                      <BusinessInfoForm
+                        form={form}
+                        embedded
+                        embeddedVariant="full"
+                        primaryLocationAction={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="default"
+                            onClick={handleAutofillProfile}
+                            disabled={
+                              isAutofillLoading ||
+                              offeringsExtractor.isExtracting ||
+                              !(formValues?.website ?? "").toString().trim()
+                            }
+                            className="gap-2 border-general-border-three text-general-foreground"
+                          >
+                            {isAutofillLoading ? (
+                              <>
+                                <Loader2 className="size-4 animate-spin" />
+                                Autofilling...
+                              </>
+                            ) : (
+                              "Autofill Profile"
+                            )}
+                          </Button>
+                        }
+                      />
+                      <OfferingsForm
+                        form={form}
+                        businessId={businessId}
+                        embedded
+                        hideFetchOfferingsFromWebsite
+                        extractionController={offeringsExtractor}
+                      />
+                      <div className="w-1/2">
+                        <GenericInput<BusinessInfoFormData>
+                          form={form as any}
+                          fieldName="businessDescription"
+                          type="textarea"
+                          className="min-h-[160px]"
+                          label={
+                            <>
+                              Anything else we should know about your business?{" "}
+                              <span className="text-general-muted-foreground font-normal">
+                                (optional)
+                              </span>
+                            </>
+                          }
+                          placeholder="Provide any additional info"
+                          rows={6}
+                        />
+                      </div>
+                    </ProfileStepCard>
+                  </TabsContent>
+
+                  <TabsContent
+                    value="content-cues"
+                    className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0"
+                  >
+                    <ProfileStepCard
+                      title="Content Cues"
+                      description="Guides tone, messaging, and calls-to-action so content sounds like you and converts better."
+                      className="flex-1"
+                      scrollableContent
+                      rightAction={
+                        <Button
+                          type="button"
+                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                          onClick={handlePrimaryButtonClick}
+                          disabled={isButtonDisabled}
+                          title={buttonHelperText}
+                        >
+                          {buttonText}
+                          <ChevronRight className="size-4 shrink-0" />
+                        </Button>
+                      }
+                    >
+                      <ContentCuesForm form={form} embedded />
+                      <LocationsForm form={form} embedded />
+                    </ProfileStepCard>
+                  </TabsContent>
+
+                  <TabsContent
+                    value="competitors"
+                    className="flex flex-col flex-1 min-h-0 overflow-hidden mt-0"
+                  >
+                    <ProfileStepCard
+                      title="Competitors"
+                      description="Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities."
+                      className="flex-1"
+                      scrollableContent
+                      rightAction={
+                        <Button
+                          type="button"
+                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                          onClick={handlePrimaryButtonClick}
                           disabled={isButtonDisabled}
                           title={buttonHelperText}
                         >
@@ -1540,94 +1594,14 @@ const ProfileTemplate = ({
                     >
                       <CompetitorsForm form={form} embedded />
                     </ProfileStepCard>
-                  )}
+                  </TabsContent>
+                </Tabs>
               </form>
-            ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto min-w-0 flex flex-col">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    form.handleSubmit();
-                  }}
-                  className="flex flex-col gap-0"
-                >
-                <>
-                  <BusinessInfoForm
-                    form={form}
-                    headerAction={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAutofillProfile}
-                        disabled={
-                          isAutofillLoading ||
-                          !(formValues?.website ?? "").toString().trim()
-                        }
-                        className="gap-2"
-                      >
-                        {isAutofillLoading ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Autofilling...
-                          </>
-                        ) : (
-                          "Autofill profile"
-                        )}
-                      </Button>
-                    }
-                  />
-                  <OfferingsForm form={form} businessId={businessId} />
-                  <ContentCuesForm form={form} />
-                  <LocationsForm form={form} />
-                  <CompetitorsForm form={form} />
-                </>
-                </form>
-              </div>
             )}
-            <div className="shrink-0 mt-6 flex justify-end">
-              <Button
-                variant="destructive"
-                onClick={() => setIsUnlinkModalOpen(true)}
-                className="flex items-center gap-2"
-                disabled={!canPerformAction || unlinkOrDeleteMutation.isPending}
-              >
-                <Unlink className="size-4" />
-                {actionLabel}
-              </Button>
-            </div>
           </div>
             </div>
         </div>
         </div>
-
-        {/* Unlink/Delete Confirmation Modal (shadcn) */}
-        <AlertDialog open={isUnlinkModalOpen} onOpenChange={setIsUnlinkModalOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure you want to {hasLinkedAuth ? "unlink" : "delete"} this business?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {hasLinkedAuth
-                  ? "Unlinking this business will deactivate it, cancel any associated subscription, and remove it from your profile along with all linked accounts (GSC, GA4, GBP). This impacts your strategy and execution. Only do this if your business goals have significantly changed."
-                  : "Deleting this business will permanently deactivate it and cancel any associated subscription. This action will remove the business from your profile."}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={unlinkOrDeleteMutation.isPending}>
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction asChild>
-                <Button
-                  variant="destructive"
-                  onClick={handleConfirmAction}
-                  disabled={!canPerformAction || unlinkOrDeleteMutation.isPending}
-                >
-                  {unlinkOrDeleteMutation.isPending ? `${hasLinkedAuth ? "Unlinking" : "Deleting"}...` : hasLinkedAuth ? "Unlink" : "Delete"}
-                </Button>
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         {/* Confirm & Proceed to Strategy Modal */}
         <AlertDialog open={isStrategyConfirmOpen} onOpenChange={setIsStrategyConfirmOpen}>

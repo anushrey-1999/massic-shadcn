@@ -13,6 +13,7 @@ interface StepperProps {
   steps: ReadonlyArray<StepperStep>;
   currentStep: number;
   onStepClick?: (index: number) => void;
+  isStepEnabled?: (index: number) => boolean;
   className?: string;
 }
 
@@ -43,7 +44,7 @@ function StepNode({
           isActive && "bg-general-primary",
           !isActive && !isCompleted && "bg-general-muted-foreground",
           isClickable && "cursor-pointer hover:opacity-90",
-          !isClickable && "cursor-default"
+          !isClickable && "cursor-default opacity-60"
         )}
         aria-current={isActive ? "step" : undefined}
         aria-label={`${step.label}${isCompleted ? ", completed" : ""}`}
@@ -70,6 +71,7 @@ export function Stepper({
   steps,
   currentStep,
   onStepClick,
+  isStepEnabled,
   className,
 }: StepperProps) {
   const isClickable = typeof onStepClick === "function";
@@ -81,8 +83,9 @@ export function Stepper({
       {steps.map((step, index) => {
         const isActive = index === currentStep;
         const isCompleted = index < currentStep;
-        const isFirst = index === 0;
         const isLast = index === steps.length - 1;
+        const stepEnabled = isStepEnabled ? isStepEnabled(index) : true;
+        const stepClickable = isClickable && stepEnabled;
 
         return (
           <React.Fragment key={step.id}>
@@ -91,7 +94,7 @@ export function Stepper({
               index={index}
               isActive={isActive}
               isCompleted={isCompleted}
-              isClickable={isClickable}
+              isClickable={stepClickable}
               onStepClick={onStepClick}
             />
             {!isLast && (

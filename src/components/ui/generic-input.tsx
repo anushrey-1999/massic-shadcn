@@ -66,6 +66,7 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
   | "checkbox-group"
   | "radio"
   | "radio-group"
+  | "radio-cards"
   | "number"
   | "email"
   | "password"
@@ -91,6 +92,7 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
   // Layout for radio/checkbox groups
   orientation?: "horizontal" | "vertical";
   radioGroupVariant?: "default" | "cards";
+  radioCardSize?: "sm" | "md";
   radioCardIcons?: Record<string, React.ReactNode>;
   // LocationSelect specific
   loading?: boolean;
@@ -209,6 +211,7 @@ function GenericInput<
   required = false,
   inputVariant,
   radioGroupVariant = "default",
+  radioCardSize = "md",
   radioCardIcons,
   ...props
 }: GenericInputProps<TFormData>) {
@@ -290,6 +293,9 @@ function GenericInput<
             rows={rows}
             options={options}
             orientation={props.orientation}
+            radioGroupVariant={radioGroupVariant}
+            radioCardSize={radioCardSize}
+            radioCardIcons={radioCardIcons}
             addon={addon}
             className={className}
             disabled={shouldDisable}
@@ -544,11 +550,23 @@ function GenericInput<
     }
 
     // Handle radio group
-    if ((type === "radio-group" || (type === "radio" && options)) && options) {
+    if (
+      (type === "radio-group" ||
+        type === "radio-cards" ||
+        (type === "radio" && options)) &&
+      options
+    ) {
       const currentValue = value;
       const groupOrientation = props.orientation || "vertical";
+      const effectiveRadioGroupVariant =
+        type === "radio-cards" ? "cards" : radioGroupVariant;
 
-      if (radioGroupVariant === "cards") {
+      if (effectiveRadioGroupVariant === "cards") {
+        const groupDisabled = Boolean(props.disabled);
+        const cardClassName =
+          radioCardSize === "sm"
+            ? "rounded-xl w-24 h-24 p-3"
+            : "rounded-2xl px-8 py-5 min-h-[88px] min-w-[160px]";
         return (
           <div
             id={inputId}
@@ -565,6 +583,7 @@ function GenericInput<
             {options.map((option) => {
               const optionKey = String(option.value);
               const icon = radioCardIcons?.[optionKey];
+              const isOptionDisabled = groupDisabled || Boolean(option.disabled);
               return (
                 <label key={option.value} className="cursor-pointer">
                   <input
@@ -572,7 +591,7 @@ function GenericInput<
                     name={props.name}
                     value={option.value}
                     checked={currentValue === option.value}
-                    disabled={option.disabled}
+                    disabled={isOptionDisabled}
                     onChange={(e) => {
                       if (onChange) {
                         const syntheticEvent = {
@@ -586,16 +605,18 @@ function GenericInput<
                   />
                   <div
                     className={cn(
-                      "flex flex-col items-center justify-center gap-2 rounded-2xl border bg-[#f5f5f5] px-8 py-5 min-h-[88px] min-w-[160px]",
-                      "text-general-muted-foreground/60",
+                      "flex flex-col items-center justify-center gap-2 border border-transparent bg-[#f5f5f5]",
+                      cardClassName,
+                      "text-[#737373]",
                       "transition-colors",
-                      "peer-checked:bg-white peer-checked:border-general-primary peer-checked:text-general-primary",
+                      "peer-checked:border-general-primary peer-checked:text-general-primary",
                       "peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
-                      option.disabled && "opacity-50 cursor-not-allowed"
+                      !isOptionDisabled && "hover:border-general-primary/60",
+                      isOptionDisabled && "opacity-50 cursor-not-allowed"
                     )}
                   >
                     {icon ? (
-                      <span className="shrink-0">{icon}</span>
+                      <span className="shrink-0 opacity-40">{icon}</span>
                     ) : null}
                     <span className="text-sm font-medium">{option.label}</span>
                   </div>
@@ -621,6 +642,7 @@ function GenericInput<
         >
           {options.map((option) => {
             const isChecked = currentValue === option.value;
+            const isOptionDisabled = Boolean(props.disabled) || Boolean(option.disabled);
             return (
               <label
                 key={option.value}
@@ -631,7 +653,7 @@ function GenericInput<
                   name={props.name}
                   value={option.value}
                   checked={isChecked}
-                  disabled={option.disabled}
+                  disabled={isOptionDisabled}
                   onChange={(e) => {
                     if (onChange) {
                       const syntheticEvent = {

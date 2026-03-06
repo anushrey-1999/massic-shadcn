@@ -88,6 +88,41 @@ export const ContentCuesForm = ({
   });
 
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
+
+  // const calendarEventsColumnsWithHandlers: Column<CalendarEventRow>[] = useMemo(() => [
+  //   { key: "eventName", label: "Upcoming Events", validation: { required: true }, width: "50%" },
+  //   {
+  //     key: "startDate",
+  //     label: "Date",
+  //     validation: {
+  //       required: true,
+  //     },
+  //     width: "50%",
+  //     render: (_value: any, row: CalendarEventRow, _index: number, helpers) => {
+  //       return (
+  //         <div className="flex flex-col gap-1">
+  //           <DateRangePicker
+  //             startDate={row.startDate}
+  //             endDate={row.endDate}
+  //             onChange={(startDate, endDate) => {
+  //               helpers.setRowValue("startDate", startDate, {
+  //                 ...row,
+  //                 startDate,
+  //                 endDate,
+  //               });
+  //             }}
+  //             placeholder="Select date"
+  //             className="w-full"
+  //           />
+  //           {helpers.touched && helpers.error ? (
+  //             <FieldError className="text-xs mt-0.5">{helpers.error}</FieldError>
+  //           ) : null}
+  //         </div>
+  //       );
+  //     }
+  //   },
+  // ], []);
+
   const innerContent = (
     <div className="space-y-7">
         <Card variant={cardVariant}>

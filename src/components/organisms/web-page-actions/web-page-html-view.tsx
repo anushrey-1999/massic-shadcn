@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Copy,
   ExternalLink,
+  Globe,
   Loader2,
   Monitor,
   Smartphone,
@@ -16,6 +17,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Typography } from "@/components/ui/typography";
 import {
   Dialog,
@@ -26,10 +28,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/clipboard";
 import { resolvePageContent } from "@/utils/page-content-resolver";
 import { api } from "@/hooks/use-api";
+import { ensureMassicContentWrapper } from "@/utils/page-content-format";
+import { normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import {
   applyTextEditsToHtml,
   buildEditableHtmlModel,
@@ -38,7 +52,19 @@ import {
   sanitizePageHtml,
   type EditableTextNodeRef,
 } from "@/utils/page-html-editor";
+import { buildMassicCssVariableOverrides } from "@/utils/massic-style-overrides";
+import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
+import { useWordpressConnection, useWordpressStyleProfile } from "@/hooks/use-wordpress-connector";
+import {
+  type WordpressSlugConflictInfo,
+  WordpressPublishError,
+  useWordpressContentStatus,
+  useWordpressPreviewLink,
+  useWordpressPublish,
+  useWordpressSlugCheck,
+  useWordpressUnpublish,
+} from "@/hooks/use-wordpress-publishing";
 
 type SaveReason = "debounce" | "blur" | "unmount";
 
@@ -83,12 +109,39 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
   const [previewHtml, setPreviewHtml] = React.useState("");
   const [textNodeIndex, setTextNodeIndex] = React.useState<EditableTextNodeRef[]>([]);
+  const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
+  const [lastPublishedData, setLastPublishedData] = React.useState<{
+    contentId: string;
+    wpId: number;
+    permalink: string | null;
+    editUrl: string | null;
+    status: string;
+    slug?: string | null;
+    previewUrl?: string;
+  } | null>(null);
   const [isEmbeddedPreviewOpen, setIsEmbeddedPreviewOpen] = React.useState(false);
   const [embeddedPreviewUrl, setEmbeddedPreviewUrl] = React.useState("");
   const [embeddedPreviewTitle, setEmbeddedPreviewTitle] = React.useState("Preview");
   const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
   const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
+  const [editableSlug, setEditableSlug] = React.useState("");
+  const [isSlugEdited, setIsSlugEdited] = React.useState(false);
+  const [slugCheckResult, setSlugCheckResult] = React.useState<{
+    slug: string;
+    publishUrl: string | null;
+    exists: boolean;
+    sameMappedContent: boolean;
+    conflict: WordpressSlugConflictInfo | null;
+    suggestedSlug?: string | null;
+    mappedToDifferentContent: boolean;
+    mappedContentId: string | null;
+  } | null>(null);
+  const [slugCheckError, setSlugCheckError] = React.useState<string | null>(null);
+  const [isSlugChecking, setIsSlugChecking] = React.useState(false);
+  const [isAutoResolvingSlug, setIsAutoResolvingSlug] = React.useState(false);
 
   const contentQuery = useWebActionContentQuery({
     type: "page",
@@ -100,6 +153,14 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   });
 
   const data = contentQuery.data;
+  const wpConnectionQuery = useWordpressConnection(businessId || null);
+  const wpConnection = wpConnectionQuery.data?.connection || null;
+  const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
+  const wpStyleProfileQuery = useWordpressStyleProfile(wpConnection?.connectionId || null);
+  const wpPublishMutation = useWordpressPublish();
+  const { mutateAsync: slugCheckMutateAsync } = useWordpressSlugCheck();
+  const wpPreviewMutation = useWordpressPreviewLink();
+  const wpUnpublishMutation = useWordpressUnpublish();
 
   const sourceHtmlRef = React.useRef("");
   const textNodeIndexRef = React.useRef<EditableTextNodeRef[]>([]);
@@ -116,13 +177,22 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const isEditingSessionRef = React.useRef(false);
   const lastCommittedHtmlRef = React.useRef("");
   const pendingBackgroundRefetchRef = React.useRef(false);
+  const lastAutoSlugCheckKeyRef = React.useRef("");
 
-  const cssVarOverrides = React.useMemo(() => ({}), []);
+  const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
+  const shouldApplyWpStyle = isWpConnected && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
+  const cssVarOverrides = React.useMemo(
+    () =>
+      shouldApplyWpStyle
+        ? buildMassicCssVariableOverrides({ normalizedProfile: wpStyleProfileQuery.data?.profile })
+        : {},
+    [shouldApplyWpStyle, wpStyleProfileQuery.data?.profile]
+  );
 
   const previewStyleVars = React.useMemo(() => {
     const style: React.CSSProperties = {};
     for (const [key, value] of Object.entries(cssVarOverrides)) {
-      (style as Record<string, string>)[key] = value as string;
+      (style as Record<string, string>)[key] = value;
     }
     return style;
   }, [cssVarOverrides]);
@@ -135,10 +205,129 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
   const status = (data?.status || "").toString().toLowerCase();
   const isProcessing = status === "pending" || status === "processing";
+  const hasFinalContent = canonicalizeHtml(sourceHtmlRef.current).length > 0;
+
+  const inferPage = data?.output_data?.page || {};
+  const inferBlog = inferPage?.blog || {};
+  const publishTitle = inferPage?.meta_title || inferBlog?.meta_title || keyword || "Untitled";
+  const publishContentId = inferPage?.page_id || pageId;
+  const inferSlug = React.useMemo(
+    () => (typeof inferPage?.slug === "string" ? String(inferPage.slug).trim() : ""),
+    [inferPage?.slug]
+  );
+  const generatedSlugFallback = React.useMemo(
+    () => normalizeWordpressSlugPath(publishTitle || keyword || ""),
+    [keyword, publishTitle]
+  );
+  const generatedSlug = React.useMemo(() => {
+    if (inferSlug) return normalizeWordpressSlugPath(inferSlug);
+    return generatedSlugFallback;
+  }, [generatedSlugFallback, inferSlug]);
+  const normalizedEditableSlug = React.useMemo(() => normalizeWordpressSlugPath(editableSlug), [editableSlug]);
+  const contentStatusQuery = useWordpressContentStatus(
+    wpConnection?.connectionId || null,
+    publishContentId ? String(publishContentId) : null
+  );
+  const persistedContent = contentStatusQuery.data?.content || null;
+  const persistedStatus = (persistedContent?.status || "").toLowerCase();
+  const isPersistedTrashed = persistedStatus === "trash";
+  const persistedSlug = React.useMemo(
+    () => normalizeWordpressSlugPath(persistedContent?.slug || ""),
+    [persistedContent?.slug]
+  );
+  const effectiveModalSlug = React.useMemo(() => {
+    if (!isPersistedTrashed && persistedSlug) return persistedSlug;
+    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressSlugPath(lastPublishedData.slug);
+    if (generatedSlug) return generatedSlug;
+    return generatedSlugFallback;
+  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug]);
+  const isPersistedLive = persistedStatus === "publish";
+  const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
+  const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
+  const slugConflictReason = slugCheckResult?.conflict?.reason || null;
+  const isPublishBusy =
+    wpPublishMutation.isPending ||
+    wpPreviewMutation.isPending ||
+    wpUnpublishMutation.isPending;
+  const isSlugInputBusy = isPublishBusy || isAutoResolvingSlug;
+  const isSlugActionBusy = isPublishBusy || isSlugChecking || isAutoResolvingSlug;
+  const publishStateLabel = isPersistedLive
+    ? "Live"
+    : isPersistedDraftLike
+      ? "Draft"
+      : isPersistedTrashed
+        ? "In Trash"
+        : "Not Published";
+  const publishStateHint = isPersistedLive
+    ? "This content is live on WordPress."
+    : isPersistedDraftLike
+      ? "A draft exists in WordPress."
+      : isPersistedTrashed
+        ? "This content was moved to trash."
+        : "No WordPress page exists yet.";
+
+  const liveUrl = React.useMemo(() => {
+    if (persistedContent?.permalink) return persistedContent.permalink;
+    if (lastPublishedData?.permalink) return lastPublishedData.permalink;
+    if (isPersistedLive && persistedContent?.wpId && wpConnection?.siteUrl) {
+      return `${String(wpConnection.siteUrl).replace(/\/+$/, "")}/?page_id=${persistedContent.wpId}`;
+    }
+    return null;
+  }, [
+    isPersistedLive,
+    lastPublishedData?.permalink,
+    persistedContent?.permalink,
+    persistedContent?.wpId,
+    wpConnection?.siteUrl,
+  ]);
+  const publishUrlPreview = React.useMemo(() => {
+    const siteUrl = String(wpConnection?.siteUrl || "").replace(/\/+$/, "");
+    const slugForPreview = normalizedEditableSlug || normalizeWordpressSlugPath(slugCheckResult?.slug || "");
+    if (!siteUrl || !slugForPreview) {
+      return null;
+    }
+
+    return `${siteUrl}/${slugForPreview}`;
+  }, [normalizedEditableSlug, slugCheckResult?.slug, wpConnection?.siteUrl]);
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen) return;
+    if (isSlugEdited) return;
+    setEditableSlug(normalizeWordpressSlugPath(effectiveModalSlug));
+  }, [effectiveModalSlug, isPublishModalOpen, isSlugEdited]);
+
+  React.useEffect(() => {
+    if (isPublishModalOpen) {
+      // Freeze background content polling while publish modal is active.
+      setPollingDisabled(true);
+      return;
+    }
+
+    if (!isEditorFocusedRef.current && !isEditingSessionRef.current) {
+      setPollingDisabled(false);
+    }
+  }, [isPublishModalOpen]);
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen || !isWpConnected || !wpConnection?.connectionId || !publishContentId) {
+      return;
+    }
+
+    void contentStatusQuery.refetch();
+  }, [isPublishModalOpen, isWpConnected, publishContentId, wpConnection?.connectionId]);
+
+  React.useEffect(() => {
+    if (isPublishModalOpen) return;
+    setIsSlugEdited(false);
+    setSlugCheckResult(null);
+    setSlugCheckError(null);
+    setIsAutoResolvingSlug(false);
+    lastAutoSlugCheckKeyRef.current = "";
+  }, [isPublishModalOpen]);
 
   const composeCurrentHtml = React.useCallback(() => {
     const merged = applyTextEditsToHtml(sourceHtmlRef.current, textNodeIndexRef.current, editsRef.current);
-    return sanitizePageHtml(merged);
+    return ensureMassicContentWrapper(sanitizePageHtml(merged));
   }, []);
 
   const updatePageContentRequest = React.useCallback(
@@ -165,7 +354,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const latestData = result.data;
       if (!latestData) return;
 
-      const serverCanonical = canonicalizeHtml(sanitizePageHtml(resolvePageContent(latestData)));
+      const serverCanonical = canonicalizeHtml(
+        ensureMassicContentWrapper(sanitizePageHtml(resolvePageContent(latestData)))
+      );
       const committedCanonical = canonicalizeHtml(lastCommittedHtmlRef.current);
       if (!committedCanonical) return;
 
@@ -266,7 +457,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const isPolling = nextStatus === "pending" || nextStatus === "processing";
     const transitionedFromPollingToTerminal = wasPolling && !isPolling;
     const rawPage = resolvePageContent(data);
-    const sanitized = sanitizePageHtml(rawPage);
+    const sanitized = ensureMassicContentWrapper(sanitizePageHtml(rawPage));
     const serverCanonical = canonicalizeHtml(sanitized);
     const localCanonical = canonicalizeHtml(lastSavedHtmlRef.current);
     const hasPendingEdits = Object.keys(editsRef.current).length > 0;
@@ -361,24 +552,370 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     return () => window.clearTimeout(timer);
   }, [isEmbeddedPreviewLoading, isEmbeddedPreviewOpen]);
 
-  const handleCopyAll = async () => {
+  const runSlugCheck = React.useCallback(async ({ force = false }: { force?: boolean } = {}) => {
+    if (!isWpConnected || !wpConnection?.connectionId || !publishContentId) {
+      return null;
+    }
+
+    if (!normalizedEditableSlug) {
+      setSlugCheckResult(null);
+      setSlugCheckError("Slug is required.");
+      lastAutoSlugCheckKeyRef.current = "";
+      return null;
+    }
+
+    const checkKey = `${wpConnection.connectionId}:${String(publishContentId)}:page:${normalizedEditableSlug}`;
+    if (!force && lastAutoSlugCheckKeyRef.current === checkKey) {
+      return null;
+    }
+
+    if (!force) {
+      lastAutoSlugCheckKeyRef.current = checkKey;
+    }
+
+    setIsSlugChecking(true);
+    setSlugCheckError(null);
+
+    try {
+      const response = await slugCheckMutateAsync({
+        connectionId: String(wpConnection.connectionId),
+        contentId: String(publishContentId),
+        type: "page",
+        slug: normalizedEditableSlug,
+      });
+
+      const result = response?.data || null;
+      setSlugCheckResult(result);
+      return result;
+    } catch (error: any) {
+      const message = error?.message || "Failed to check slug in WordPress.";
+      setSlugCheckResult(null);
+      setSlugCheckError(message);
+      return null;
+    } finally {
+      setIsSlugChecking(false);
+    }
+  }, [
+    isWpConnected,
+    normalizedEditableSlug,
+    publishContentId,
+    slugCheckMutateAsync,
+    wpConnection?.connectionId,
+  ]);
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen || !isWpConnected || !wpConnection?.connectionId || !publishContentId) {
+      return;
+    }
+
+    if (!normalizedEditableSlug) {
+      setSlugCheckResult(null);
+      setSlugCheckError(isSlugEdited ? "Slug is required." : null);
+      lastAutoSlugCheckKeyRef.current = "";
+      return;
+    }
+
+    const delayMs = isSlugEdited ? 350 : 0;
+    const timer = window.setTimeout(() => {
+      void runSlugCheck();
+    }, delayMs);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    isPublishModalOpen,
+    isWpConnected,
+    isSlugEdited,
+    normalizedEditableSlug,
+    publishContentId,
+    runSlugCheck,
+    wpConnection?.connectionId,
+  ]);
+
+  const buildPublishPayload = React.useCallback(
+    (targetStatus: "draft" | "publish") => {
+      const safeHtml = composeCurrentHtml();
+      return {
+        connectionId: String(wpConnection?.connectionId || ""),
+        status: targetStatus,
+        workflowSource: "infer_ai" as const,
+        workflowPayload: data || {},
+        contentId: String(publishContentId),
+        type: "page" as const,
+        title: String(publishTitle),
+        slug: normalizedEditableSlug || null,
+        contentHtml: safeHtml,
+        excerpt: null,
+        head: {
+          title: String(publishTitle),
+        },
+      };
+    },
+    [composeCurrentHtml, data, normalizedEditableSlug, publishContentId, publishTitle, wpConnection?.connectionId]
+  );
+
+  const handleRedirectToChannels = React.useCallback(() => {
+    router.push(`/business/${businessId}/web?integrations=1`);
+    setIsPublishModalOpen(false);
+  }, [businessId, router]);
+
+  const handlePublishDraft = React.useCallback(async () => {
+    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!hasFinalContent) return;
+
+    let publishResult;
+    try {
+      publishResult = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
+    } catch (error) {
+      const publishError = error as WordpressPublishError;
+      if (publishError?.code === "slug_conflict") {
+        const details = publishError?.details || {};
+        const conflictReason =
+          typeof details?.reason === "string"
+            ? details.reason
+            : ((details?.conflict as WordpressSlugConflictInfo | null)?.reason || null);
+        const conflictMessage = conflictReason === "parent_type_conflict"
+          ? "This nested page path is blocked because a parent segment already belongs to non-page content."
+          : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
+        setSlugCheckResult({
+          slug: normalizedEditableSlug,
+          publishUrl: publishUrlPreview || null,
+          exists: true,
+          sameMappedContent: false,
+          conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
+          suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          mappedToDifferentContent: false,
+          mappedContentId: null,
+        });
+        setSlugCheckError(conflictMessage);
+        toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+      }
+      return;
+    }
+
+    const published = publishResult?.data;
+    if (!published) return;
+    setLastPublishedData({
+      contentId: published.contentId,
+      wpId: published.wpId,
+      permalink: published.permalink || null,
+      editUrl: published.editUrl || null,
+      status: published.status || "draft",
+      slug: published.slug || normalizedEditableSlug || null,
+    });
+    toast.success("Draft pushed to WordPress");
+
+    const previewResult = await wpPreviewMutation.mutateAsync({
+      connectionId: wpConnection.connectionId,
+      contentId: published.contentId,
+      wpId: published.wpId,
+    });
+
+    const previewUrl = previewResult?.data?.previewUrl;
+    if (previewUrl) {
+      setLastPublishedData((prev) =>
+        prev
+          ? {
+            ...prev,
+            previewUrl,
+          }
+          : prev
+      );
+      openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
+      toast.success("Preview ready");
+    }
+    void contentStatusQuery.refetch();
+  }, [
+    buildPublishPayload,
+    contentStatusQuery,
+    hasFinalContent,
+    isWpConnected,
+    openEmbeddedPreview,
+    wpConnection?.connectionId,
+    wpPreviewMutation,
+    wpPublishMutation,
+  ]);
+
+  const handlePublishLive = React.useCallback(async () => {
+    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!hasFinalContent) return;
+    if (!isPersistedDraftLike && !lastPublishedData?.wpId) {
+      toast.error("Publish draft first to generate a preview");
+      return;
+    }
+
+    let publishResult;
+    try {
+      publishResult = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
+    } catch (error) {
+      const publishError = error as WordpressPublishError;
+      if (publishError?.code === "slug_conflict") {
+        const details = publishError?.details || {};
+        const conflictReason =
+          typeof details?.reason === "string"
+            ? details.reason
+            : ((details?.conflict as WordpressSlugConflictInfo | null)?.reason || null);
+        const conflictMessage = conflictReason === "parent_type_conflict"
+          ? "This nested page path is blocked because a parent segment already belongs to non-page content."
+          : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
+        setSlugCheckResult({
+          slug: normalizedEditableSlug,
+          publishUrl: publishUrlPreview || null,
+          exists: true,
+          sameMappedContent: false,
+          conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
+          suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          mappedToDifferentContent: false,
+          mappedContentId: null,
+        });
+        setSlugCheckError(conflictMessage);
+        toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+      }
+      return;
+    }
+
+    const published = publishResult?.data;
+    if (!published) return;
+    setLastPublishedData((prev) => ({
+      contentId: published.contentId,
+      wpId: published.wpId,
+      permalink: published.permalink || null,
+      editUrl: published.editUrl || null,
+      status: published.status || "publish",
+      slug: published.slug || normalizedEditableSlug || null,
+      previewUrl: prev?.previewUrl,
+    }));
+
+    toast.success("Published live to WordPress");
+    void contentStatusQuery.refetch();
+    setIsPublishModalOpen(false);
+  }, [
+    buildPublishPayload,
+    contentStatusQuery,
+    hasFinalContent,
+    isPersistedDraftLike,
+    isWpConnected,
+    lastPublishedData?.wpId,
+    wpConnection?.connectionId,
+    wpPublishMutation,
+  ]);
+
+  const handleOpenPreview = React.useCallback(async () => {
+    const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
+    if (!wpConnection?.connectionId || !wpIdToUse) {
+      toast.error("Draft not found for preview");
+      return;
+    }
+
+    const previewResult = await wpPreviewMutation.mutateAsync({
+      connectionId: wpConnection.connectionId,
+      contentId: String(publishContentId),
+      wpId: Number(wpIdToUse),
+    });
+
+    const previewUrl = previewResult?.data?.previewUrl;
+    if (!previewUrl) return;
+
+    setLastPublishedData((prev) =>
+      prev
+        ? {
+          ...prev,
+          previewUrl,
+        }
+        : {
+          contentId: String(publishContentId),
+          wpId: Number(wpIdToUse),
+          permalink: persistedContent?.permalink || null,
+          editUrl: null,
+          status: persistedStatus || "draft",
+          slug: persistedContent?.slug || normalizedEditableSlug || null,
+          previewUrl,
+        }
+    );
+    openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
+  }, [
+    lastPublishedData?.wpId,
+    openEmbeddedPreview,
+    persistedContent?.permalink,
+    persistedContent?.wpId,
+    persistedStatus,
+    publishContentId,
+    wpConnection?.connectionId,
+    wpPreviewMutation,
+  ]);
+
+  const handleChangeWordpressStatus = React.useCallback(async (targetStatus: "draft" | "trash") => {
+    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!publishContentId) return;
+
+    const response = await wpUnpublishMutation.mutateAsync({
+      connectionId: String(wpConnection.connectionId),
+      contentId: String(publishContentId),
+      targetStatus,
+    });
+    const unpublishData = response?.data;
+
+    if (unpublishData) {
+      setLastPublishedData((prev) =>
+        prev
+          ? {
+            ...prev,
+            status: unpublishData.status || targetStatus,
+            permalink: null,
+            previewUrl: undefined,
+          }
+          : prev
+      );
+    }
+
+    setIsEmbeddedPreviewOpen(false);
+    toast.success(targetStatus === "trash" ? "Deleted in WordPress (moved to trash)" : "Moved to draft in WordPress");
+    await contentStatusQuery.refetch();
+    if (targetStatus === "trash") {
+      setIsPublishModalOpen(false);
+    }
+  }, [
+    contentStatusQuery,
+    isWpConnected,
+    publishContentId,
+    wpConnection?.connectionId,
+    wpUnpublishMutation,
+  ]);
+
+  const handleCopyText = async () => {
     const safeHtml = composeCurrentHtml();
     const plainText = extractPlainTextFromHtml(safeHtml);
+    const ok = await copyToClipboard(plainText);
+    if (ok) toast.success("Text copied");
+    else toast.error("Copy failed");
+  };
+
+  const handleCopyHtml = async () => {
+    const safeHtml = composeCurrentHtml();
+    const baseCss = await getMassicCssText();
+    const styledHtml = buildStyledMassicHtml(safeHtml, {
+      baseCss,
+      cssVarOverrides,
+    });
+
+    if (!styledHtml) {
+      toast.error("Nothing to copy");
+      return;
+    }
 
     try {
       if (typeof ClipboardItem !== "undefined") {
         const clipboardItem = new ClipboardItem({
-          "text/html": new Blob([safeHtml], { type: "text/html" }),
-          "text/plain": new Blob([plainText], { type: "text/plain" }),
+          "text/html": new Blob([styledHtml], { type: "text/html" }),
+          "text/plain": new Blob([styledHtml], { type: "text/plain" }),
         });
         await navigator.clipboard.write([clipboardItem]);
       } else {
-        await copyToClipboard(plainText);
+        await copyToClipboard(styledHtml);
       }
-      toast.success("Copied");
+      toast.success("HTML copied with styles");
     } catch {
-      const ok = await copyToClipboard(plainText);
-      if (ok) toast.success("Copied");
+      const ok = await copyToClipboard(styledHtml);
+      if (ok) toast.success("HTML copied with styles");
       else toast.error("Copy failed");
     }
   };
@@ -446,6 +983,57 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     }
   };
 
+  const confirmAndRunPublishAction = React.useCallback(async () => {
+    const action = confirmPublishAction;
+    setConfirmPublishAction(null);
+    if (!action) return;
+
+    if (!normalizedEditableSlug) {
+      setSlugCheckError("Slug is required.");
+      toast.error("Slug is required before publishing");
+      return;
+    }
+
+    const check = await runSlugCheck({ force: true });
+    if (!check) {
+      return;
+    }
+
+    const hasBlockingConflict = Boolean(check.exists && !check.sameMappedContent && check.conflict);
+    if (hasBlockingConflict) {
+      const conflictReason = check?.conflict?.reason || null;
+      const conflictMessage = conflictReason === "parent_type_conflict"
+        ? "This nested page path is blocked because a parent segment already belongs to non-page content."
+        : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
+      setSlugCheckError(conflictMessage);
+      toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+      return;
+    }
+
+    if (action === "draft") {
+      await handlePublishDraft();
+      return;
+    }
+
+    await handlePublishLive();
+  }, [confirmPublishAction, handlePublishDraft, handlePublishLive, normalizedEditableSlug, runSlugCheck]);
+
+  const autoResolveSlug = React.useCallback(async () => {
+    const suggestedSlug = slugCheckResult?.suggestedSlug || null;
+    if (!suggestedSlug) {
+      toast.error("No suggested slug available");
+      return;
+    }
+
+    setIsAutoResolvingSlug(true);
+    const normalizedSuggestion = normalizeWordpressSlugPath(suggestedSlug);
+    setEditableSlug(normalizedSuggestion);
+    setIsSlugEdited(true);
+    setSlugCheckError(null);
+    toast.success(`Slug updated to ${wordpressSlugToDisplay(normalizedSuggestion, "/untitled-page")}`);
+    setIsAutoResolvingSlug(false);
+  }, [slugCheckResult?.suggestedSlug]);
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="shrink-0 space-y-4">
@@ -471,9 +1059,22 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleCopyAll} disabled={isProcessing}>
+            <Button variant="outline" className="gap-2" onClick={handleCopyHtml} disabled={isProcessing}>
               <Copy className="h-4 w-4" />
-              Copy
+              Copy HTML
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={handleCopyText} disabled={isProcessing}>
+              <Copy className="h-4 w-4" />
+              Copy Text
+            </Button>
+            <Button
+              className="gap-2"
+              type="button"
+              onClick={() => setIsPublishModalOpen(true)}
+              disabled={isProcessing || !hasFinalContent}
+            >
+              <Globe className="h-4 w-4" />
+              Actions
             </Button>
           </div>
         </div>
@@ -534,6 +1135,202 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
           </Card>
         ) : null}
       </div>
+
+      <Dialog open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Publish to WordPress</DialogTitle>
+            <DialogDescription>
+              Choose what to do with this page.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!isWpConnected ? (
+            <div className="rounded-md border bg-background p-4 space-y-3">
+              <Typography className="text-sm">No WordPress channel connected.</Typography>
+              <Button onClick={handleRedirectToChannels}>Connect WordPress</Button>
+            </div>
+          ) : (
+            <div className="rounded-md border bg-muted/20 p-4 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Typography className="text-sm font-medium truncate">{wpConnection?.siteUrl}</Typography>
+                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  {publishStateLabel}
+                </Typography>
+              </div>
+              <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
+              <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
+              <div className="space-y-1 pt-2">
+                <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
+                <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-page")}</Typography>
+              </div>
+              <div className="space-y-1 pt-2">
+                <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
+                <Input
+                  value={editableSlug}
+                  onChange={(event) => {
+                    setEditableSlug(normalizeWordpressSlugPath(event.target.value));
+                    setIsSlugEdited(true);
+                  }}
+                  placeholder="enter-page-slug"
+                  disabled={isSlugInputBusy}
+                />
+              </div>
+              <div className="space-y-1">
+                <Typography className="text-xs text-muted-foreground">Publish route</Typography>
+                <Typography className="text-sm font-mono break-all">{publishUrlPreview || "Unavailable"}</Typography>
+              </div>
+              {isSlugChecking ? (
+                <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography>
+              ) : null}
+              {slugCheckError ? (
+                <Typography className="text-xs text-destructive">{slugCheckError}</Typography>
+              ) : null}
+              {hasSlugConflict ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 space-y-2">
+                  <div>
+                    {slugConflictReason === "parent_type_conflict"
+                      ? "This nested page path is blocked because a parent segment already belongs to non-page content. Change the parent path."
+                      : "This slug already exists in WordPress. Publishing is blocked until you use a unique slug."}
+                  </div>
+                  {slugCheckResult?.suggestedSlug ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={autoResolveSlug}
+                      disabled={isSlugActionBusy}
+                    >
+                      {isAutoResolvingSlug ? "Resolving..." : `Auto-resolve to ${wordpressSlugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsPublishModalOpen(false)}
+              disabled={isPublishBusy}
+            >
+              Cancel
+            </Button>
+            {isWpConnected ? (
+              <>
+                {isPersistedLive ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleChangeWordpressStatus("draft")}
+                      disabled={wpUnpublishMutation.isPending}
+                    >
+                      {wpUnpublishMutation.isPending ? "Updating..." : "Move to Draft"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (liveUrl) {
+                          openEmbeddedPreview(liveUrl, "Published WordPress Page");
+                        }
+                      }}
+                      disabled={!liveUrl}
+                    >
+                      View Live
+                    </Button>
+                  </>
+                ) : isPersistedDraftLike ? (
+                  <>
+                    <Button
+                      variant="destructive"
+                      onClick={() => setIsDeleteConfirmOpen(true)}
+                      disabled={wpUnpublishMutation.isPending}
+                    >
+                      {wpUnpublishMutation.isPending ? "Deleting..." : "Delete"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleOpenPreview}
+                      disabled={!persistedContent?.wpId || wpPreviewMutation.isPending}
+                    >
+                      {wpPreviewMutation.isPending ? "Loading..." : "Preview Draft"}
+                    </Button>
+                    <Button
+                      onClick={() => setConfirmPublishAction("live")}
+                      disabled={!hasFinalContent || !normalizedEditableSlug || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                    >
+                      {wpPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={() => setConfirmPublishAction("draft")}
+                    disabled={
+                      !hasFinalContent ||
+                      !normalizedEditableSlug ||
+                      hasSlugConflict ||
+                      isSlugChecking ||
+                      contentStatusQuery.isLoading ||
+                      wpPublishMutation.isPending ||
+                      wpPreviewMutation.isPending
+                    }
+                  >
+                    {wpPublishMutation.isPending || wpPreviewMutation.isPending ? "Publishing..." : "Publish Draft"}
+                  </Button>
+                )}
+              </>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmPublishAction !== null} onOpenChange={(open) => !open && setConfirmPublishAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmPublishAction === "live" ? "Publish Live to WordPress?" : "Publish Draft to WordPress?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmPublishAction === "live"
+                ? `This will update the live WordPress page at ${publishUrlPreview || "the selected route"}.`
+                : `This will create or update the WordPress draft at ${publishUrlPreview || "the selected route"}.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button onClick={confirmAndRunPublishAction} disabled={isPublishBusy}>
+                {confirmPublishAction === "live" ? "Confirm Publish Live" : "Confirm Publish Draft"}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete WordPress Draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move the WordPress page to trash. You can restore it later from WordPress admin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  setIsDeleteConfirmOpen(false);
+                  await handleChangeWordpressStatus("trash");
+                }}
+                disabled={isPublishBusy}
+              >
+                Confirm Delete
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={isEmbeddedPreviewOpen} onOpenChange={setIsEmbeddedPreviewOpen}>
         <DialogContent

@@ -20,21 +20,34 @@ import { isValidWebsiteUrl } from "@/utils/utils";
 export interface ColumnValidation {
   required?: boolean;
   url?: boolean;
-  customValidator?: (value: any) => string | undefined;
+  customValidator?: (value: any, row?: any) => string | undefined;
 }
 
 export interface Column<T = any> {
   key: string;
   label: string;
-  render?: (value: any, row: T, index: number) => React.ReactNode;
+  render?: (
+    value: any,
+    row: T,
+    index: number,
+    helpers: {
+      disabled: boolean;
+      error?: string;
+      touched?: boolean;
+      setValue: (value: any) => void;
+      setRowValue: (field: string, value: any, rowData?: T) => void;
+      onBlur: (value: any, rowData?: T) => void;
+    }
+  ) => React.ReactNode;
   validation?: ColumnValidation;
+  width?: string;
 }
 
 export interface CustomAddRowTableProps<T = Record<string, any>> {
   columns: Column<T>[];
   data: T[];
   onAddRow: () => void;
-  onRowChange?: (rowIndex: number, field: string, value: any) => void;
+  onRowChange?: (rowIndex: number, field: string, value: any, currentRowData?: T) => void;
   onDeleteRow?: (rowIndex: number) => void;
   addButtonText?: string;
   className?: string;
@@ -48,7 +61,8 @@ export interface CustomAddRowTableProps<T = Record<string, any>> {
 // Validation helper
 const validateField = (
   value: any,
-  validation?: ColumnValidation
+  validation?: ColumnValidation,
+  row?: any
 ): string | undefined => {
   if (!validation) return undefined;
 
@@ -71,7 +85,7 @@ const validateField = (
 
   // Custom validator
   if (validation.customValidator) {
-    return validation.customValidator(value);
+    return validation.customValidator(value, row);
   }
 
   return undefined;
@@ -150,7 +164,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
 
       const rowErrors: Record<string, string> = {};
       columns.forEach((column) => {
-        const error = validateField(row[column.key], column.validation);
+        const error = validateField(row[column.key], column.validation, row);
         if (error) {
           rowErrors[column.key] = error;
         }
@@ -184,7 +198,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   const validateRow = (rowIndex: number, row: T) => {
     const rowErrors: Record<string, string> = {};
     columns.forEach((column) => {
-      const error = validateField(row[column.key], column.validation);
+      const error = validateField(row[column.key], column.validation, row);
       if (error) {
         rowErrors[column.key] = error;
       }
@@ -206,52 +220,38 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   const handleRowChange = (
     rowIndex: number,
     field: string,
-    value: any
+    value: any,
+    currentRowData?: T
   ) => {
     if (disabled) return;
+    const baseRow = (currentRowData ?? data[rowIndex] ?? ({} as T)) as T;
+    const nextRow = {
+      ...baseRow,
+      [field]: value,
+    } as T;
+
     // Update the value
     if (onRowChange) {
-      onRowChange(rowIndex, field, value);
+      onRowChange(rowIndex, field, value, nextRow);
     }
 
     // Mark field as touched when user starts typing and validate
     setTouched((prev) => {
       const newTouched = { ...prev };
-      if (!newTouched[rowIndex]) {
-        newTouched[rowIndex] = {};
-      }
+      if (!newTouched[rowIndex]) newTouched[rowIndex] = {};
       newTouched[rowIndex][field] = true;
-      
-      const nextRow = {
-        ...(data[rowIndex] || ({} as T)),
-        [field]: value,
-      } as T;
-
-      // Validate immediately after marking as touched
-      const column = columns.find((col) => col.key === field);
-      const error = validateField(value, column?.validation);
-
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        if (!newErrors[rowIndex]) {
-          newErrors[rowIndex] = {};
-        }
-        if (error) {
-          newErrors[rowIndex][field] = error;
-        } else {
-          delete newErrors[rowIndex][field];
-          if (Object.keys(newErrors[rowIndex]).length === 0) {
-            delete newErrors[rowIndex];
-          }
-        }
-        return newErrors;
-      });
-      
       return newTouched;
     });
+
+    validateRow(rowIndex, nextRow);
   };
 
-  const handleBlur = (rowIndex: number, field: string, value: any) => {
+  const handleBlur = (
+    rowIndex: number,
+    field: string,
+    value: any,
+    currentRowData?: T
+  ) => {
     if (disabled) return;
     // Mark field as touched when user leaves the field
     setTouched((prev) => {
@@ -263,29 +263,13 @@ export function CustomAddRowTable<T extends Record<string, any>>({
       return newTouched;
     });
 
-    // Validate on blur
-    const column = columns.find((col) => col.key === field);
+    const baseRow = (currentRowData ?? data[rowIndex] ?? ({} as T)) as T;
     const nextRow = {
-      ...(data[rowIndex] || ({} as T)),
+      ...baseRow,
       [field]: value,
     } as T;
-    const error = validateField(value, column?.validation);
 
-    setErrors((prev) => {
-      const newErrors = { ...prev };
-      if (!newErrors[rowIndex]) {
-        newErrors[rowIndex] = {};
-      }
-      if (error) {
-        newErrors[rowIndex][field] = error;
-      } else {
-        delete newErrors[rowIndex][field];
-        if (Object.keys(newErrors[rowIndex]).length === 0) {
-          delete newErrors[rowIndex];
-        }
-      }
-      return newErrors;
-    });
+    validateRow(rowIndex, nextRow);
   };
 
   const handleDeleteRow = (rowIndex: number) => {
@@ -334,10 +318,22 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                 className="group flex gap-2 items-start rounded-lg bg-[#f5f5f5] p-1 transition-colors"
               >
                 {columns.map((column) => {
+                  const fieldError = (errors[rowIndex] || {})[column.key];
+                  const isTouched = touched[rowIndex]?.[column.key] || false;
                   return (
                   <div key={column.key} className="flex flex-1 min-w-0">
                     {column.render ? (
-                      column.render(row[column.key], row, rowIndex)
+                      column.render(row[column.key], row, rowIndex, {
+                        disabled,
+                        error: fieldError,
+                        touched: isTouched,
+                        setValue: (value) =>
+                          handleRowChange(rowIndex, column.key, value),
+                        setRowValue: (field, value, rowData) =>
+                          handleRowChange(rowIndex, field, value, rowData),
+                        onBlur: (value, rowData) =>
+                          handleBlur(rowIndex, column.key, value, rowData),
+                      })
                     ) : onRowChange ? (
                       <div className="flex flex-1 min-w-0 flex-col gap-1">
                         <Input
@@ -435,6 +431,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                 <TableHead
                   key={column.key}
                   className="text-general-muted-foreground font-medium text-sm h-12 px-2 bg-general-primary-foreground"
+                  style={column.width ? { width: column.width } : undefined}
                 >
                   {column.label}
                   {column.validation?.required && (
@@ -467,7 +464,17 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                           <TableCell key={column.key} className="p-2 align-top">
                             <div className="flex flex-col">
                               {column.render ? (
-                                column.render(row[column.key], row, rowIndex)
+                                column.render(row[column.key], row, rowIndex, {
+                                  disabled,
+                                  error: fieldError,
+                                  touched: isTouched,
+                                  setValue: (value) =>
+                                    handleRowChange(rowIndex, column.key, value),
+                                  setRowValue: (field, value, rowData) =>
+                                    handleRowChange(rowIndex, field, value, rowData),
+                                  onBlur: (value, rowData) =>
+                                    handleBlur(rowIndex, column.key, value, rowData),
+                                })
                               ) : onRowChange ? (
                                     <Input
                                       id={`table-input-${tableId}-${rowIndex}-${column.key}`}

@@ -55,6 +55,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   });
 
   const data = contentQuery.data;
+  const isLoading = (contentQuery.isLoading || contentQuery.isFetching) && !data;
 
   React.useEffect(() => {
     if (!data) return;
@@ -250,6 +251,20 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+        {isLoading ? (
+          <Card className="p-4">
+            <Typography>
+              Loading generation status
+              <span className="dot-animate"> ...</span>
+            </Typography>
+            <style>{`
+              .dot-animate { display: inline-block; width: 1.5em; text-align: left; }
+              .dot-animate::after { content: ''; animation: dots 1.2s steps(3, end) infinite; }
+              @keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+            `}</style>
+          </Card>
+        ) : null}
+
         {isProcessing ? (
           <Card className="p-4">
             <Typography>

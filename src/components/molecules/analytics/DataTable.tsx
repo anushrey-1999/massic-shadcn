@@ -65,6 +65,7 @@ interface DataTableProps {
   titleTooltip?: string
   inlineHeader?: boolean
   fillHeight?: boolean
+  dynamicFirstColumn?: boolean
 }
 
 export function DataTable({
@@ -92,6 +93,7 @@ export function DataTable({
   titleTooltip,
   inlineHeader = false,
   fillHeight = false,
+  dynamicFirstColumn = false,
 }: DataTableProps) {
   const activeTab = controlledActiveTab || tabs?.find((t) => t.active)?.value || tabs?.[0]?.value || "tab-0"
   const displayData = maxRows ? data.slice(0, maxRows) : data
@@ -158,6 +160,22 @@ export function DataTable({
   const otherColumnWidth = cellSize === "sm" ? "w-24" : "w-32"
   const defaultFirstColumnTruncate = cellSize === "sm" ? "max-w-[15rem]" : "max-w-[28rem]"
   const resolvedFirstColumnTruncate = firstColumnTruncate ?? defaultFirstColumnTruncate
+  const dynamicFirstColumnWidth =
+    columns.length >= 5
+      ? "w-[38%]"
+      : columns.length === 4
+        ? "w-[46%]"
+        : columns.length === 3
+          ? "w-[55%]"
+          : "w-[60%]"
+  const dynamicMetricColumnWidth =
+    columns.length >= 5
+      ? "w-[15.5%]"
+      : columns.length === 4
+        ? "w-[18%]"
+        : columns.length === 3
+          ? "w-[22.5%]"
+          : "w-auto"
 
   const tableContent = (
     <>
@@ -177,8 +195,8 @@ export function DataTable({
           )}
           style={stickyHeader && maxHeight ? { maxHeight } : undefined}
         >
-          <Table className={stickyHeader ? "overflow-visible" : undefined}>
-            <TableElement>
+          <Table className={cn(stickyHeader ? "overflow-visible" : undefined)}>
+            <TableElement className={cn(dynamicFirstColumn && "table-fixed")}>
               <TableHeader className="bg-white">
                 <TableRow className="bg-white hover:bg-transparent border-b border-[#A3A3A3]">
                   {columns.map((col, index) => (
@@ -190,8 +208,12 @@ export function DataTable({
                         inlineHeader && index === 0 && "hover:bg-white",
                         stickyHeader && "sticky top-0 z-10",
                         styles.header,
+                        dynamicFirstColumn &&
+                          (index === 0
+                            ? dynamicFirstColumnWidth
+                            : dynamicMetricColumnWidth),
                         isThreeColumnLayout && !col.width && (index === 0 ? firstColumnWidth : otherColumnWidth),
-                        col.width
+                        !dynamicFirstColumn && col.width
                       )}
                     >
                       {inlineHeader && index === 0 ? (
@@ -241,7 +263,8 @@ export function DataTable({
                           <span className="inline-flex min-w-0 items-center justify-start gap-1.5">
                             <span
                               className={cn(
-                                "min-w-0 truncate font-medium leading-none tracking-wide",
+                                "font-medium leading-none tracking-wide",
+                                index === 0 ? "min-w-0 truncate" : "whitespace-nowrap",
                                 cellSize === "md" ? "text-xs font-semibold" : "text-xs",
                                 sortConfig?.column === col.key ? "text-general-muted-foreground" : "text-foreground"
                               )}
@@ -291,24 +314,30 @@ export function DataTable({
                         : String(cellValue)
 
                       const truncateClass =
-                        isThreeColumnLayout && colIndex === 0
+                        dynamicFirstColumn && colIndex === 0
+                          ? "max-w-full"
+                          : isThreeColumnLayout && colIndex === 0
                           ? resolvedFirstColumnTruncate
-                          : styles.truncate
+                          : ""
 
                       return (
                         <TableCell
                           key={col.key}
                           className={cn(
                             styles.cell,
+                            dynamicFirstColumn &&
+                              (colIndex === 0
+                                ? dynamicFirstColumnWidth
+                                : dynamicMetricColumnWidth),
                             isThreeColumnLayout && !col.width && (colIndex === 0 ? firstColumnWidth : otherColumnWidth),
-                            col.width
+                            !dynamicFirstColumn && col.width
                           )}
                         >
                           {isObject ? (
-                            <div className="flex items-baseline gap-2">
+                            <div className="flex items-baseline gap-2 min-w-0">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className={cn(styles.text, "text-foreground truncate inline-block align-baseline leading-none cursor-default", truncateClass)}>
+                                  <span className={cn(styles.text, "text-foreground inline-block align-baseline leading-none cursor-default", colIndex === 0 ? ["truncate", truncateClass] : "whitespace-nowrap")}>
                                     {(cellValue as { value: string | number }).value}
                                   </span>
                                 </TooltipTrigger>
@@ -323,7 +352,7 @@ export function DataTable({
                           ) : (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span className={cn(styles.text, "text-foreground truncate inline-block align-baseline leading-none cursor-default", truncateClass)}>
+                                <span className={cn(styles.text, "text-foreground inline-block align-baseline leading-none cursor-default", colIndex === 0 ? ["truncate", truncateClass] : "whitespace-nowrap")}>
                                   {cellValue}
                                 </span>
                               </TooltipTrigger>

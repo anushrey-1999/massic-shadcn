@@ -32,6 +32,7 @@ export function useWebActionContentQuery(params: {
   pollingIntervalMs?: number;
 }) {
   const api = useApi({ platform: "python" });
+  const queryClient = useQueryClient();
 
   const { type, businessId, pageId, enabled = true, pollingDisabled = false, pollingIntervalMs = 6000 } = params;
 
@@ -44,12 +45,33 @@ export function useWebActionContentQuery(params: {
           ? `/client/create-ai-blog-writer?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`
           : `/client/create-page-builder?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
 
-      return api.execute(endpoint, { method: "GET" }) as Promise<WebActionResponse>;
+      try {
+        return (await api.execute(endpoint, { method: "GET" })) as WebActionResponse;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          // If generation has just been started, we may have optimistic cached state.
+          // In that case, keep polling using the cached "pending/processing" status.
+          const cached = queryClient.getQueryData<WebActionResponse>([
+            WEB_ACTION_CONTENT_QUERY_KEY,
+            type,
+            businessId,
+            pageId,
+          ]);
+          const cachedStatus = getStatusLowercase(cached);
+          if (cachedStatus === "pending" || cachedStatus === "processing") {
+            return cached as WebActionResponse;
+          }
+          // Otherwise, 404 means nothing exists yet — do not poll.
+          return null as any;
+        }
+        throw err;
+      }
     },
     retry: false,
-    refetchOnMount: false,
+    refetchOnMount: true,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) => {
       if (pollingDisabled) return false;
       const status = getStatusLowercase(query.state.data as WebActionResponse | undefined);

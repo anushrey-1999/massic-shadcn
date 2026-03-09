@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Bold,
+  ChevronDown,
   Copy,
   ExternalLink,
   Italic,
@@ -27,6 +28,7 @@ import type { Editor } from "@tiptap/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Typography } from "@/components/ui/typography";
 import {
@@ -57,8 +59,19 @@ import { ContentConverter } from "@/utils/content-converter";
 import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { detectPageContentFormat } from "@/utils/page-content-format";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
+import {
+  applyMassicStyleColorOverrides,
+  buildMassicCssVariableOverrides,
+  MASSIC_STYLE_COLOR_KEYS,
+  normalizeMassicStyleColorOverrides,
+  type MassicStyleColorKey,
+} from "@/utils/massic-style-overrides";
 import { cn } from "@/lib/utils";
-import { useWordpressConnection } from "@/hooks/use-wordpress-connector";
+import {
+  useUpdateWordpressStyleOverrides,
+  useWordpressConnection,
+  useWordpressStyleProfile,
+} from "@/hooks/use-wordpress-connector";
 import {
   type WordpressSlugConflictInfo,
   WordpressPublishError,
@@ -75,6 +88,33 @@ function getTypeFromPageType(pageType: string | null, intent?: string | null): W
   if (pt) return "page";
   return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
 }
+
+const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
+  primary: "Primary",
+  secondary: "Secondary",
+  accent: "Accent",
+  link: "Link",
+  text: "Text",
+  mutedText: "Muted Text",
+  background: "Background",
+  surface: "Surface",
+  buttonBg: "Button Background",
+  buttonText: "Button Text",
+};
+const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "primary",
+  "secondary",
+  "accent",
+  "link",
+  "buttonBg",
+  "buttonText",
+];
+const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "text",
+  "mutedText",
+  "background",
+  "surface",
+];
 
 export function WebBlogView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
@@ -148,13 +188,40 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const data = contentQuery.data;
   const wpConnectionQuery = useWordpressConnection(businessId || null);
+  const wpConnection = wpConnectionQuery.data?.connection || null;
+  const wpStyleProfileQuery = useWordpressStyleProfile(wpConnection?.connectionId || null);
+  const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const wpPublishMutation = useWordpressPublish();
   const { mutateAsync: slugCheckMutateAsync } = useWordpressSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
-  const wpConnection = wpConnectionQuery.data?.connection || null;
   const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
+  const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
+    Partial<Record<MassicStyleColorKey, string>>
+  >({});
+  const [showAllStyleColorOptions, setShowAllStyleColorOptions] = React.useState(false);
+  const [openStylePaletteKey, setOpenStylePaletteKey] = React.useState<MassicStyleColorKey | null>(null);
   const lastAutoSlugCheckKeyRef = React.useRef("");
+
+  const normalizedStoredStyleOverrides = React.useMemo(
+    () => normalizeMassicStyleColorOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).colors || {},
+    [wpStyleProfileQuery.data?.styleOverrides]
+  );
+  const serializedStoredOverrides = React.useMemo(
+    () => JSON.stringify(normalizedStoredStyleOverrides),
+    [normalizedStoredStyleOverrides]
+  );
+  React.useEffect(() => {
+    setStyleColorOverridesDraft((prev) => {
+      const prevSerialized = JSON.stringify(
+        normalizeMassicStyleColorOverrides({ colors: prev }).colors || {}
+      );
+      if (prevSerialized === serializedStoredOverrides) {
+        return prev;
+      }
+      return normalizedStoredStyleOverrides;
+    });
+  }, [normalizedStoredStyleOverrides, serializedStoredOverrides]);
 
   React.useEffect(() => {
     if (!data) return;
@@ -330,6 +397,111 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
     return `${siteUrl}/${slugForPreview}`;
   }, [normalizedSlugForPublish, slugCheckResult?.slug, wpConnection?.siteUrl]);
+  const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
+  const shouldApplyWpStyle = isWpConnected && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
+  const styleProfileForCopy = React.useMemo(
+    () =>
+      shouldApplyWpStyle
+        ? applyMassicStyleColorOverrides(
+            wpStyleProfileQuery.data?.profile,
+            { colors: styleColorOverridesDraft }
+          )
+        : null,
+    [shouldApplyWpStyle, styleColorOverridesDraft, wpStyleProfileQuery.data?.profile]
+  );
+  const cssVarOverrides = React.useMemo(
+    () =>
+      styleProfileForCopy
+        ? buildMassicCssVariableOverrides({ normalizedProfile: styleProfileForCopy })
+        : {},
+    [styleProfileForCopy]
+  );
+  const extractedStyleColors = React.useMemo(() => {
+    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as
+      | { colors?: Record<string, unknown> }
+      | undefined;
+    return (extractedProfile?.colors || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.extractedProfile]);
+  const effectiveProfileColors = React.useMemo(() => {
+    const profile = wpStyleProfileQuery.data?.profile as
+      | { colors?: Record<string, unknown> }
+      | undefined;
+    return (profile?.colors || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.profile]);
+  const normalizeAnyColor = React.useCallback((value: unknown) => {
+    if (typeof value !== "string") return null;
+    return (
+      normalizeMassicStyleColorOverrides({ colors: { primary: value } }).colors
+        ?.primary || null
+    );
+  }, []);
+  const extractedColorByKey = React.useMemo(() => {
+    const next: Partial<Record<MassicStyleColorKey, string>> = {};
+    for (const key of MASSIC_STYLE_COLOR_KEYS) {
+      const extracted = normalizeAnyColor(extractedStyleColors[key]);
+      const profileFallback = normalizeAnyColor(effectiveProfileColors[key]);
+      if (extracted) {
+        next[key] = extracted;
+      } else if (profileFallback) {
+        next[key] = profileFallback;
+      }
+    }
+    return next;
+  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
+  const extractedPaletteColors = React.useMemo(() => {
+    const candidates: string[] = [];
+    for (const value of Object.values(extractedStyleColors || {})) {
+      const normalized = normalizeAnyColor(value);
+      if (normalized) candidates.push(normalized);
+    }
+    for (const value of Object.values(effectiveProfileColors || {})) {
+      const normalized = normalizeAnyColor(value);
+      if (normalized) candidates.push(normalized);
+    }
+    return Array.from(new Set(candidates));
+  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
+  const visibleStyleColorKeys = showAllStyleColorOptions
+    ? [...CORE_STYLE_COLOR_KEYS, ...ADVANCED_STYLE_COLOR_KEYS]
+    : CORE_STYLE_COLOR_KEYS;
+  const normalizedDraftStyleOverrides = React.useMemo(
+    () => normalizeMassicStyleColorOverrides({ colors: styleColorOverridesDraft }).colors || {},
+    [styleColorOverridesDraft]
+  );
+  const serializedDraftOverrides = React.useMemo(
+    () => JSON.stringify(normalizedDraftStyleOverrides),
+    [normalizedDraftStyleOverrides]
+  );
+  const hasUnsavedStyleOverrides = serializedDraftOverrides !== serializedStoredOverrides;
+  const isStyleOverrideSaving = wpStyleOverridesMutation.isPending;
+
+  const handleStyleOverrideColorChange = React.useCallback((key: MassicStyleColorKey, value: string) => {
+    const normalized = normalizeMassicStyleColorOverrides({ colors: { [key]: value } }).colors?.[key];
+    if (!normalized) return;
+    setStyleColorOverridesDraft(prev => ({
+      ...prev,
+      [key]: normalized,
+    }));
+  }, []);
+
+  const resetStyleOverrideKey = React.useCallback((key: MassicStyleColorKey) => {
+    setStyleColorOverridesDraft(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const handleSaveStyleOverrides = React.useCallback(async () => {
+    if (!wpConnection?.connectionId) return;
+    const response = await wpStyleOverridesMutation.mutateAsync({
+      connectionId: wpConnection.connectionId,
+      overrides: {
+        colors: normalizedDraftStyleOverrides,
+      },
+    });
+    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
+    setStyleColorOverridesDraft(savedColors);
+  }, [normalizedDraftStyleOverrides, wpConnection?.connectionId, wpStyleOverridesMutation]);
 
   React.useEffect(() => {
     if (!isPublishModalOpen) return;
@@ -769,7 +941,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
 
     const baseCss = await getMassicCssText();
-    const styledHtml = buildStyledMassicHtml(htmlContent, { baseCss });
+    const styledHtml = buildStyledMassicHtml(htmlContent, {
+      baseCss,
+      cssVarOverrides,
+    });
 
     try {
       if (typeof ClipboardItem !== "undefined") {
@@ -1075,7 +1250,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       </div>
 
       <Dialog open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen}>
-        <DialogContent className="sm:max-w-[560px]">
+        <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Publish to WordPress</DialogTitle>
             <DialogDescription>
@@ -1089,10 +1264,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
               <Button onClick={handleRedirectToChannels}>Connect WordPress</Button>
             </div>
           ) : (
-            <div className="rounded-md border bg-muted/20 p-4 space-y-2">
+            <div className="rounded-md border bg-muted/20 p-4 space-y-2 min-w-0 overflow-hidden">
               <div className="flex items-center justify-between gap-3">
-                <Typography className="text-sm font-medium truncate">{wpConnection?.siteUrl}</Typography>
-                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                <Typography className="text-sm font-medium truncate min-w-0 flex-1">{wpConnection?.siteUrl}</Typography>
+                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap shrink-0">
                   {publishStateLabel}
                 </Typography>
               </div>
@@ -1125,8 +1300,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                 <Typography className="text-xs text-destructive">{slugCheckError}</Typography>
               ) : null}
               {hasSlugConflict ? (
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 space-y-2">
-                  <div>
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 space-y-2 min-w-0">
+                  <div className="break-words">
                     {slugConflictReason === "parent_type_conflict"
                       ? "This nested page path is blocked because a parent segment already belongs to non-page content. Change the parent path."
                       : "This slug already exists in WordPress. Publishing is blocked until you use a unique slug."}
@@ -1135,6 +1310,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     <Button
                       size="sm"
                       variant="outline"
+                      className="h-auto w-full justify-start whitespace-normal break-all text-left"
                       onClick={autoResolveSlug}
                       disabled={isSlugActionBusy}
                     >
@@ -1143,6 +1319,161 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                   ) : null}
                 </div>
               ) : null}
+
+              <div className="space-y-2 pt-2 border-t border-border/60">
+                <div className="flex items-center justify-between gap-2">
+                  <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Style Colors
+                  </Typography>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStyleColorOverridesDraft({})}
+                      disabled={isStyleOverrideSaving || !Object.keys(styleColorOverridesDraft).length}
+                    >
+                      Reset All
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveStyleOverrides}
+                      disabled={isStyleOverrideSaving || !hasUnsavedStyleOverrides}
+                    >
+                      {isStyleOverrideSaving ? "Saving..." : "Save Colors"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Typography className="text-xs text-muted-foreground">
+                    Overrides are saved separately. Use extracted colors or custom picks.
+                  </Typography>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setShowAllStyleColorOptions((prev) => !prev)}
+                  >
+                    {showAllStyleColorOptions
+                      ? "Show Core"
+                      : `Show All (${MASSIC_STYLE_COLOR_KEYS.length})`}
+                  </Button>
+                </div>
+                {extractedPaletteColors.length ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Typography className="text-[11px] text-muted-foreground">
+                      Extracted palette:
+                    </Typography>
+                    {extractedPaletteColors.slice(0, 10).map((color) => (
+                      <span
+                        key={color}
+                        className="inline-flex h-5 w-5 rounded-full border border-border"
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {visibleStyleColorKeys.map((key) => {
+                    const label = STYLE_COLOR_OPTION_LABELS[key] || key;
+                    const extractedColor = extractedColorByKey[key] || null;
+                    const overrideColor = normalizedDraftStyleOverrides[key] || null;
+                    const pickerValue =
+                      overrideColor ||
+                      extractedColor ||
+                      extractedPaletteColors[0] ||
+                      "#000000";
+                    return (
+                      <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <Typography className="text-xs font-medium">{label}</Typography>
+                          <Typography className="text-[11px] text-muted-foreground font-mono">
+                            {overrideColor || extractedColor || "n/a"}
+                          </Typography>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="color"
+                            value={pickerValue}
+                            onChange={(event) => handleStyleOverrideColorChange(key, event.target.value)}
+                            disabled={isStyleOverrideSaving}
+                            className="h-8 w-11 p-1 shrink-0"
+                          />
+                          <Popover
+                            open={openStylePaletteKey === key}
+                            onOpenChange={(open) => setOpenStylePaletteKey(open ? key : null)}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
+                                disabled={isStyleOverrideSaving || !extractedPaletteColors.length}
+                              >
+                                <span className="flex min-w-0 items-center gap-2">
+                                  <span
+                                    className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
+                                    style={{
+                                      backgroundColor:
+                                        overrideColor ||
+                                        extractedColor ||
+                                        extractedPaletteColors[0] ||
+                                        "#000000",
+                                    }}
+                                  />
+                                  <span className="truncate">
+                                    {overrideColor || extractedColor || "Use extracted"}
+                                  </span>
+                                </span>
+                                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-56 p-1">
+                              <div className="max-h-56 space-y-1 overflow-y-auto">
+                                {extractedPaletteColors.map((color) => (
+                                  <button
+                                    key={`${key}-${color}`}
+                                    type="button"
+                                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
+                                    onClick={() => {
+                                      handleStyleOverrideColorChange(key, color);
+                                      setOpenStylePaletteKey(null);
+                                    }}
+                                  >
+                                    <span
+                                      className="h-4 w-4 shrink-0 rounded-full border border-border"
+                                      style={{ backgroundColor: color }}
+                                    />
+                                    <span className="font-mono">{color}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-xs"
+                            onClick={() => resetStyleOverrideKey(key)}
+                            disabled={isStyleOverrideSaving || !overrideColor}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!showAllStyleColorOptions ? (
+                  <Typography className="text-[11px] text-muted-foreground">
+                    Showing core colors. Enable "Show All" for text/surface options.
+                  </Typography>
+                ) : null}
+              </div>
             </div>
           )}
 

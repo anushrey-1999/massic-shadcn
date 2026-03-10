@@ -1,0 +1,186 @@
+"use client";
+
+import * as React from "react";
+import { CircleAlert, Eye, RotateCw } from "lucide-react";
+
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
+import { Typography } from "@/components/ui/typography";
+import { cn } from "@/lib/utils";
+import type { TechAuditDomainHealthItem } from "@/hooks/use-tech-audit";
+
+function getTone(item: TechAuditDomainHealthItem) {
+  const sev = String(item.severity || "").toLowerCase();
+  if (sev === "warning") {
+    return {
+      iconBg: "bg-amber-100",
+      iconFg: "text-amber-600",
+      valueFg: "text-amber-600",
+    };
+  }
+  if (sev === "notice") {
+    return {
+      iconBg: "bg-[#F5F5F5]",
+      iconFg: "text-general-muted-foreground",
+      valueFg: "text-general-muted-foreground",
+    };
+  }
+  return {
+    iconBg: "bg-red-100",
+    iconFg: "text-red-600",
+    valueFg: "text-red-600",
+  };
+}
+
+function getValueLabel(item: TechAuditDomainHealthItem) {
+  const sev = String(item.severity || "").toLowerCase();
+  if (sev === "warning") return "Warning";
+  if (sev === "notice") return "Notice";
+  return "Critical";
+}
+
+function getSeverityIcon(item: TechAuditDomainHealthItem) {
+  const sev = String(item.severity || "").toLowerCase();
+  if (sev === "notice") return Eye;
+  return CircleAlert;
+}
+
+export function DomainHealthCard({
+  domain,
+  items,
+  lastUpdatedLabel,
+  onRegenerate,
+}: {
+  domain: string;
+  items: TechAuditDomainHealthItem[];
+  lastUpdatedLabel: string;
+  onRegenerate?: () => void;
+}) {
+  const [regenerateOpen, setRegenerateOpen] = React.useState(false);
+
+  return (
+    <Card className="rounded-xl border border-border bg-general-primary-foreground shadow-none py-0 flex flex-col gap-0">
+      <div className="flex items-center justify-between border-b border-border px-3 py-4">
+        <Typography
+          variant="p"
+          className="text-base font-mono text-general-foreground"
+        >
+          {domain || "—"}
+        </Typography>
+
+        <div className="flex items-center gap-3">
+          <Typography
+            variant="p"
+            className="text-base font-mono text-general-muted-foreground"
+          >
+            {lastUpdatedLabel}
+          </Typography>
+          <Button
+            type="button"
+            className="gap-2"
+            onClick={() => setRegenerateOpen(true)}
+            variant="default"
+            size="sm"
+          >
+            <RotateCw className="h-4 w-4" />
+            Regenerate
+          </Button>
+        </div>
+      </div>
+
+      <div className="w-full">
+        <div className="flex w-full">
+          {items.map((item, idx) => {
+            const tone = getTone(item);
+            const value = getValueLabel(item);
+            const SeverityIcon = getSeverityIcon(item);
+
+            return (
+              <div
+                key={item.key}
+                className={cn(
+                  "flex flex-col gap-0.5 p-3",
+                  "min-w-0 flex-1",
+                  idx !== items.length - 1 && "border-r border-border"
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <div
+                    className={cn(
+                      "flex h-6 w-6 items-center justify-center rounded-full",
+                      tone.iconBg,
+                      tone.iconFg
+                    )}
+                  >
+                    <SeverityIcon className="h-4 w-4" />
+                  </div>
+                  <Typography variant="p" className="text-base font-medium text-general-foreground">
+                    {item.label}
+                  </Typography>
+                </div>
+
+                <div className="pl-[33px]">
+                  <Typography
+                    variant="p"
+                    className={cn("text-base font-mono", tone.valueFg)}
+                  >
+                    {value}
+                  </Typography>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <Dialog open={regenerateOpen} onOpenChange={setRegenerateOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="gap-4 rounded-xl border border-border bg-white p-6 sm:max-w-[640px]"
+        >
+          <DialogHeader className="gap-0">
+            <DialogTitle className="font-sans text-2xl font-semibold tracking-[-0.48px] text-general-foreground">
+              Regenerate Technical Audit?
+            </DialogTitle>
+          </DialogHeader>
+
+          <Separator />
+
+          <div className="space-y-8">
+            <div className="space-y-2 font-sans">
+              <p className="text-sm leading-normal tracking-[0.07px] text-[rgba(0,0,0,0.87)]">
+                Your plan includes 1 technical audit per month, which you’ve already used.
+                <br />
+                Regenerating now will refresh the audit using credits. Your current results
+                won’t change until you confirm.
+              </p>
+              <p className="text-xs leading-normal tracking-[0.18px] text-general-muted-foreground">
+                Note: Results update only if new or changed issues are found. If nothing has
+                changed, you’ll see the same audit.
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              className="h-10 w-full rounded-lg font-sans text-sm font-medium"
+              onClick={() => {
+                onRegenerate?.();
+                setRegenerateOpen(false);
+              }}
+            >
+              Apply 10 Credits &amp; Regenerate
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+

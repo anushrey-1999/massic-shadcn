@@ -31,6 +31,25 @@ export function getWebUnifiedPagesTableColumns({
 }: GetColumnsProps): ColumnDef<UnifiedPageRow>[] {
   return [
     {
+      id: "id",
+      accessorKey: "id",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="ID" />
+      ),
+      cell: ({ row }) => (
+        <Typography variant="p" className="truncate font-mono text-muted-foreground text-xs" title={row.getValue<string>("id")}>
+          {row.getValue<string>("id") || "—"}
+        </Typography>
+      ),
+      meta: { label: "ID" },
+      enableColumnFilter: true,
+      enableSorting: true,
+      enableHiding: true,
+      size: 140,
+      minSize: 100,
+      maxSize: 200,
+    },
+    {
       id: "page",
       accessorKey: "page",
       header: ({ column }) => (
@@ -77,6 +96,29 @@ export function getWebUnifiedPagesTableColumns({
       maxSize: 400,
     },
     {
+      id: "tier",
+      accessorKey: "tier",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Tier" />
+      ),
+      cell: ({ row }) => (
+        <Badge variant="outline" className="font-mono text-xs">
+          {row.getValue<string>("tier") || "—"}
+        </Badge>
+      ),
+      meta: {
+        label: "Tier",
+        placeholder: "Select tier...",
+        variant: "text" as const,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      enableHiding: true,
+      size: 80,
+      minSize: 70,
+      maxSize: 100,
+    },
+    {
       id: "page_type",
       accessorKey: "page_type",
       header: ({ column }) => (
@@ -99,7 +141,86 @@ export function getWebUnifiedPagesTableColumns({
       maxSize: 220,
     },
     {
-      id: "label",
+      id: "url",
+      accessorKey: "url",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="URL" />
+      ),
+      cell: ({ row }) => {
+        const url = row.getValue<string>("url") || "";
+        if (!url) return <Typography variant="p" className="text-muted-foreground">—</Typography>;
+        return (
+          <a
+            href={url.startsWith("http") ? url : `https://${url}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block truncate text-xs text-primary hover:underline font-mono max-w-[280px]"
+            title={url}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {url}
+          </a>
+        );
+      },
+      meta: {
+        label: "URL",
+        placeholder: "Search URL...",
+        variant: "text" as const,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      enableHiding: true,
+      size: 280,
+      minSize: 180,
+      maxSize: 400,
+    },
+    {
+      id: "action",
+      accessorKey: "action",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Action type" />
+      ),
+      cell: ({ row }) => (
+        <Typography variant="p" className="truncate capitalize text-sm">
+          {row.getValue<string>("action") || "—"}
+        </Typography>
+      ),
+      meta: {
+        label: "Action type",
+        variant: "multiSelect" as const,
+        options: [
+          { label: "Optimize", value: "optimize" },
+          { label: "New", value: "new" },
+        ],
+        operators: [{ label: "Has any of", value: "inArray" as const }],
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      enableHiding: true,
+      size: 100,
+      minSize: 80,
+      maxSize: 120,
+    },
+    {
+      id: "page_id",
+      accessorKey: "page_id",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Page ID" />
+      ),
+      cell: ({ row }) => (
+        <Typography variant="p" className="truncate font-mono text-muted-foreground text-xs" title={row.original.page_id ?? ""}>
+          {row.original.page_id ?? "—"}
+        </Typography>
+      ),
+      meta: { label: "Page ID" },
+      enableColumnFilter: true,
+      enableSorting: true,
+      enableHiding: true,
+      size: 180,
+      minSize: 120,
+      maxSize: 280,
+    },
+    {
       accessorKey: "label",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Label" />
@@ -153,6 +274,63 @@ export function getWebUnifiedPagesTableColumns({
       maxSize: 140,
     },
     {
+      id: "final_ops",
+      accessorFn: (row) => row.final_ops ?? row.raw?.final_ops ?? null,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Final OPS" />
+      ),
+      cell: ({ row }) => {
+        const v = row.original.final_ops ?? row.original.raw?.final_ops;
+        const n = typeof v === "number" ? v : parseFloat(String(v));
+        return <Typography variant="p" className="font-mono text-sm">{Number.isFinite(n) ? n.toFixed(4) : "—"}</Typography>;
+      },
+      meta: { label: "Final OPS" },
+      enableColumnFilter: true,
+      enableSorting: true,
+      enableHiding: true,
+      size: 100,
+      minSize: 90,
+      maxSize: 120,
+    },
+    {
+      id: "type_weight",
+      accessorFn: (row) => row.type_weight ?? row.raw?.type_weight ?? null,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Type weight" />
+      ),
+      cell: ({ row }) => {
+        const v = row.original.type_weight ?? row.original.raw?.type_weight;
+        const n = typeof v === "number" ? v : parseFloat(String(v));
+        return <Typography variant="p" className="font-mono text-sm">{Number.isFinite(n) ? n.toFixed(4) : "—"}</Typography>;
+      },
+      meta: { label: "Type weight" },
+      enableColumnFilter: true,
+      enableSorting: true,
+      enableHiding: true,
+      size: 110,
+      minSize: 90,
+      maxSize: 130,
+    },
+    {
+      id: "score_final",
+      accessorFn: (row) => row.score_final ?? row.raw?.score_final ?? null,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Score (final)" />
+      ),
+      cell: ({ row }) => {
+        const v = row.original.score_final ?? row.original.raw?.score_final;
+        const n = typeof v === "number" ? v : parseFloat(String(v));
+        return <Typography variant="p" className="font-mono text-sm">{Number.isFinite(n) ? n.toFixed(4) : "—"}</Typography>;
+      },
+      meta: { label: "Score (final)" },
+      enableColumnFilter: true,
+      enableSorting: true,
+      enableHiding: true,
+      size: 110,
+      minSize: 90,
+      maxSize: 130,
+    },
+    {
       id: "actions",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Action" />
@@ -183,6 +361,7 @@ export function getWebUnifiedPagesTableColumns({
       },
       enableColumnFilter: false,
       enableSorting: false,
+      enableHiding: false,
       size: 90,
       minSize: 90,
       maxSize: 120,

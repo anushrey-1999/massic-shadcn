@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { RefreshCw } from "lucide-react";
 import { DataTable } from "../../filter-table/index";
 import { DataTableSearch } from "../../filter-table/data-table-search";
 import { DataTableFilterList } from "../../filter-table/data-table-filter-list";
 import { DataTableViewOptions } from "../../filter-table/data-table-view-options";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import type { UnifiedPageRow } from "@/hooks/use-unified-web-optimization";
 import { getWebUnifiedPagesTableColumns } from "./web-unified-pages-table-columns";
@@ -16,6 +19,8 @@ interface WebUnifiedPagesTableProps {
   isFetching?: boolean;
   search?: string;
   onSearchChange?: (value: string) => void;
+  onGenerate?: () => void;
+  isGenerating?: boolean;
 }
 
 export function WebUnifiedPagesTable({
@@ -25,6 +30,8 @@ export function WebUnifiedPagesTable({
   isFetching = false,
   search = "",
   onSearchChange,
+  onGenerate,
+  isGenerating = false,
 }: WebUnifiedPagesTableProps) {
   const columns = React.useMemo(
     () => getWebUnifiedPagesTableColumns({ businessId }),
@@ -37,6 +44,16 @@ export function WebUnifiedPagesTable({
     initialState: {
       sorting: [{ id: "ups", desc: true }],
       pagination: { pageIndex: 0, pageSize: 100 },
+      columnVisibility: {
+        id: false,
+        tier: false,
+        url: false,
+        action: false,
+        page_id: false,
+        final_ops: false,
+        type_weight: false,
+        score_final: false,
+      },
     },
     getRowId: (row: UnifiedPageRow) => row.id,
   });
@@ -60,6 +77,18 @@ export function WebUnifiedPagesTable({
             <DataTableFilterList table={table} shallow={true} align="start" />
           </div>
           <div className="flex items-center gap-2">
+            {onGenerate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onGenerate}
+                disabled={isGenerating}
+                className="shrink-0"
+              >
+                <RefreshCw className={cn("size-4 mr-1.5", isGenerating && "animate-spin")} />
+                {isGenerating ? "Generating…" : "Refresh list"}
+              </Button>
+            )}
             <DataTableViewOptions table={table} align="end" />
           </div>
         </div>

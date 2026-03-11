@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
-import { useUnifiedWebOptimization, type UnifiedPageRow } from "@/hooks/use-unified-web-optimization";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import { useUnifiedWebOptimization, type UnifiedPageRow, NO_SNAPSHOT_CODE } from "@/hooks/use-unified-web-optimization";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { WebUnifiedPagesTable } from "./web-unified-pages-table";
@@ -31,6 +32,11 @@ function isGoogleNotConnected(error: unknown): boolean {
   return getErrorMessage(error).toLowerCase().includes("failed to fetch access token");
 }
 
+function isNoSnapshot(error: unknown): boolean {
+  const anyError = error as any;
+  return anyError?.code === NO_SNAPSHOT_CODE;
+}
+
 function applyLocalSearch(rows: UnifiedPageRow[], search: string): UnifiedPageRow[] {
   const term = (search || "").trim().toLowerCase();
   if (!term) return rows;
@@ -45,18 +51,19 @@ function applyLocalSearch(rows: UnifiedPageRow[], search: string): UnifiedPageRo
 
 export function WebUnifiedPagesTableClient({ businessId }: Props) {
   const [search, setSearch] = React.useState("");
+  const [isGenerating, setIsGenerating] = React.useState(false);
   const { connectGoogleAccount } = useGoogleAccounts();
-  const { fetchUnifiedPages } = useUnifiedWebOptimization();
+  const { fetchUnifiedPages, triggerGenerate } = useUnifiedWebOptimization();
 
   const queryClient = useQueryClient();
   const queryKey = React.useMemo(() => ["unified-web-optimization", businessId], [businessId]);
 
   const queryState = queryClient.getQueryState(queryKey);
-  const has400Or404Error = React.useMemo(() => {
+  const has400Error = React.useMemo(() => {
     if (!queryState?.error) return false;
     const error = queryState.error as any;
     const status = error?.response?.status || error?.status;
-    return status === 400 || status === 404;
+    return status === 400;
   }, [queryState?.error]);
 
   const {
@@ -75,15 +82,30 @@ export function WebUnifiedPagesTableClient({ businessId }: Props) {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    enabled: !!businessId && !has400Or404Error,
+    enabled: !!businessId && !has400Error,
   });
+
+  const handleGenerate = React.useCallback(async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    try {
+      await triggerGenerate(businessId);
+      await queryClient.invalidateQueries({ queryKey });
+      toast.success("Unified list generated successfully.");
+    } catch (err: any) {
+      const msg = getErrorMessage(err) || "Failed to generate unified list";
+      toast.error(msg);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [businessId, triggerGenerate, queryClient, queryKey, isGenerating]);
 
   const filteredRows = React.useMemo(
     () => applyLocalSearch(allRows || [], search),
     [allRows, search]
   );
 
-  if (isError) {
+  if (isError && !isNoSnapshot(error)) {
     if (isGoogleNotConnected(error)) {
       return (
         <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -113,6 +135,24 @@ export function WebUnifiedPagesTableClient({ businessId }: Props) {
     );
   }
 
+  if (isError && isNoSnapshot(error)) {
+    return (
+      <EmptyState
+        title="No unified list for this month yet"
+        description="Generate a unified web optimization list to see all pages in one view. This runs the same analysis as the monthly job and stores the result here."
+        className="h-[calc(100vh-16rem)]"
+        buttons={[
+          {
+            label: isGenerating ? "Generating…" : "Generate unified list",
+            onClick: handleGenerate,
+            variant: "default",
+            size: "lg",
+          },
+        ]}
+      />
+    );
+  }
+
   if (!isLoading && !isError && (!allRows || allRows.length === 0)) {
     return (
       <EmptyState
@@ -132,6 +172,8 @@ export function WebUnifiedPagesTableClient({ businessId }: Props) {
         isFetching={isFetching}
         search={search}
         onSearchChange={setSearch}
+        onGenerate={handleGenerate}
+        isGenerating={isGenerating}
       />
     </div>
   );

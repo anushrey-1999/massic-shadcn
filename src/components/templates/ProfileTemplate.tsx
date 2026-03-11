@@ -1222,7 +1222,10 @@ const ProfileTemplate = ({
   return (
     <div
       className={cn(
-        "flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden"
+        // NOTE: This page is rendered inside `SidebarInset` which already controls
+        // viewport height + scrolling. Using `dvh` here can cause layout jumps on
+        // first interaction when browsers recalc dynamic viewport units.
+        "flex flex-col h-full min-h-0 relative overflow-hidden"
       )}
     >
       <PlanModal

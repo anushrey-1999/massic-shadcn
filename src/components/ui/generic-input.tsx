@@ -585,7 +585,10 @@ function GenericInput<
               const icon = radioCardIcons?.[optionKey];
               const isOptionDisabled = groupDisabled || Boolean(option.disabled);
               return (
-                <label key={option.value} className="cursor-pointer">
+                <label
+                  key={option.value}
+                  className="cursor-pointer relative"
+                >
                   <input
                     type="radio"
                     name={props.name}

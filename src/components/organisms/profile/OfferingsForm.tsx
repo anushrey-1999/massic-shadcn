@@ -376,12 +376,12 @@ export const OfferingsForm = ({
   );
 
   if (embedded) {
-    return <div id="offerings">{innerContent}</div>;
+    return <div id="offerings-section">{innerContent}</div>;
   }
 
   return (
     <Card
-      id="offerings"
+      id="offerings-section"
       variant="profileCard"
       className="p-4 bg-transparent border-none shadow-none mt-6"
     >

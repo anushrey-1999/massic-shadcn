@@ -2,13 +2,15 @@
 
 import * as React from "react";
 
+import { Loader2 } from "lucide-react";
+
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { HealthScoreRing } from "@/components/organisms/TechinicalAudit/HealthScoreRing";
 import { CategoriesCard } from "@/components/organisms/TechinicalAudit/CategoriesCard";
 import { DomainHealthCard } from "@/components/organisms/TechinicalAudit/DomainHealthCard";
 import { IssuesAccordion } from "@/components/organisms/TechinicalAudit/IssuesAccordion";
 import { Card } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Loader, LoaderOverlay } from "@/components/ui/loader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   type AuditIssue,
@@ -54,6 +56,7 @@ export default function BusinessTechnicalAuditPage({
   params: Promise<{ id: string }>;
 }) {
   const [businessId, setBusinessId] = React.useState<string>("");
+  const [regenOverlayOpen, setRegenOverlayOpen] = React.useState(false);
   const [selectedCategory, setSelectedCategory] =
     React.useState<CategoryKey | null>(null);
   const [openIssueId, setOpenIssueId] = React.useState<string | null>(null);
@@ -184,75 +187,116 @@ export default function BusinessTechnicalAuditPage({
     Boolean(techAudit.domain) &&
     techAudit.hasFetched &&
     !showInitialLoader &&
-    techAudit.data.status === "in_progress";
+    (techAudit.isCreating || techAudit.data.status === "in_progress");
+
+  const fetchingBannerTitle = techAudit.isCreating ? "Regenerating your audit" : "We’re fetching your data";
+
+  const handleRegenerate = React.useCallback(() => {
+    setRegenOverlayOpen(true);
+    techAudit.createAudit();
+  }, [techAudit]);
+
+  React.useEffect(() => {
+    if (!regenOverlayOpen) return;
+
+    if (techAudit.createError) {
+      setRegenOverlayOpen(false);
+      return;
+    }
+
+    // Close overlay once GET has clearly entered polling state.
+    if (techAudit.data.status === "in_progress") {
+      setRegenOverlayOpen(false);
+      return;
+    }
+
+    // Fallback: if POST is done and GET isn't fetching anymore, unblock UI.
+    if (!techAudit.isCreating && techAudit.hasFetched && !techAudit.isFetching) {
+      setRegenOverlayOpen(false);
+    }
+  }, [
+    regenOverlayOpen,
+    techAudit.createError,
+    techAudit.data.status,
+    techAudit.hasFetched,
+    techAudit.isCreating,
+    techAudit.isFetching,
+  ]);
 
   return (
     <div className="flex min-h-screen flex-col">
       <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="w-full max-w-[1224px] p-5">
-        <Card className="bg-white border-none shadow-none rounded-xl p-4 flex flex-col gap-4">
-          {showInitialLoader ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-16 h-[calc(100vh-8rem)]">
-              <Loader size="lg" />
-              <p className="text-base" style={{ color: "#737373" }}>
-                Loading Tech audit
-              </p>
-            </div>
-          ) : (
-            <>
-              {showFetchingBanner ? (
-                <Alert variant="info">
-                  <AlertTitle>We’re fetching your data</AlertTitle>
-                  <AlertDescription>
-                    Once your audit results are ready, this banner will disappear automatically.
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-
-              {techAudit.domain ? (
-                <DomainHealthCard
-                  domain={domainLabel}
-                  items={domainHealth}
-                  lastUpdatedLabel={lastUpdatedLabel}
-                  onRegenerate={() => techAudit.createAudit()}
-                  regenerateDisabled={regenerateDisabled}
-                />
-              ) : null}
-
-              <div className="flex flex-col gap-4 lg:flex-row">
-                <HealthScoreRing
-                  score={Math.round(healthScore)}
-                  pagesCrawled={pagesCrawled}
-                  deltaLabel={techAudit.data.scoreDeltaLabel ?? undefined}
-                />
-                <CategoriesCard
-                  selectedCategory={selectedCategory}
-                  categoryCounts={categoryCounts}
-                  categories={categories.length > 0 ? categories : undefined}
-                  onCategoryToggle={handleCategoryToggle}
-                />
+        <LoaderOverlay isLoading={regenOverlayOpen} message="Regenerating technical audit…">
+          <Card className="bg-white border-none shadow-none rounded-xl p-4 flex flex-col gap-4">
+            {showInitialLoader ? (
+              <div className="flex flex-col items-center justify-center gap-4 py-16 h-[calc(100vh-8rem)]">
+                <Loader size="lg" />
+                <p className="text-base" style={{ color: "#737373" }}>
+                  Loading Tech audit
+                </p>
               </div>
+            ) : (
+              <>
+                {showFetchingBanner ? (
+                  <Alert variant="info">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <AlertTitle>{fetchingBannerTitle}</AlertTitle>
+                        <AlertDescription>
+                          Once your audit results are ready, this banner will disappear automatically.
+                        </AlertDescription>
+                      </div>
+                      <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-blue-700" />
+                    </div>
+                  </Alert>
+                ) : null}
 
-              <IssuesAccordion
-                issues={visibleIssues}
-                openIssueId={openIssueId}
-                onOpenIssueIdChange={setOpenIssueId}
-                emptyStateText={
-                  !techAudit.domain
-                    ? "Add a valid website to generate a technical audit."
-                    : techAudit.createError
-                      ? techAudit.createError.message || "Failed to generate technical audit."
-                      : techAudit.isCreating ||
-                          techAudit.notFound ||
-                          techAudit.data.status === "in_progress"
-                          ? "Generating audit…"
-                          : "No issues found for this filter."
-                }
-              />
-            </>
-          )}
-        </Card>
+                {techAudit.domain ? (
+                  <DomainHealthCard
+                    domain={domainLabel}
+                    items={domainHealth}
+                    lastUpdatedLabel={lastUpdatedLabel}
+                    onRegenerate={handleRegenerate}
+                    regenerateDisabled={regenerateDisabled}
+                  />
+                ) : null}
+
+                <div className="flex flex-col gap-4 lg:flex-row">
+                  <HealthScoreRing
+                    score={Math.round(healthScore)}
+                    pagesCrawled={pagesCrawled}
+                    deltaLabel={techAudit.data.scoreDeltaLabel ?? undefined}
+                  />
+                  <CategoriesCard
+                    selectedCategory={selectedCategory}
+                    categoryCounts={categoryCounts}
+                    categories={categories.length > 0 ? categories : undefined}
+                    onCategoryToggle={handleCategoryToggle}
+                  />
+                </div>
+
+                <IssuesAccordion
+                  issues={visibleIssues}
+                  openIssueId={openIssueId}
+                  onOpenIssueIdChange={setOpenIssueId}
+                  emptyStateText={
+                    !techAudit.domain
+                      ? "Add a valid website to generate a technical audit."
+                      : techAudit.createError
+                        ? techAudit.createError.message || "Failed to generate technical audit."
+                        : techAudit.isCreating ||
+                            techAudit.notFound ||
+                            techAudit.data.status === "in_progress"
+                            ? "Generating audit…"
+                            : "No issues found for this filter."
+                  }
+                />
+              </>
+            )}
+          </Card>
+        </LoaderOverlay>
       </div>
     </div>
   );

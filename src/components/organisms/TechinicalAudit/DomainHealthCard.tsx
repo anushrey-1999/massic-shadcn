@@ -173,6 +173,7 @@ export function DomainHealthCard({
             <Button
               type="button"
               className="h-10 w-full rounded-lg font-sans text-sm font-medium"
+              disabled={regenerateDisabled}
               onClick={() => {
                 onRegenerate?.();
                 setRegenerateOpen(false);

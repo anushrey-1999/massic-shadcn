@@ -522,10 +522,14 @@ export function useTechAudit(params: { businessId: string | null; website: strin
 
   const [notFound, setNotFound] = useState(false);
   const autoCreateAttemptedDomainRef = useRef<string | null>(null);
+  const forcePollingRef = useRef(false);
+  const seenInProgressRef = useRef(false);
 
   useEffect(() => {
     setNotFound(false);
     autoCreateAttemptedDomainRef.current = null;
+    forcePollingRef.current = false;
+    seenInProgressRef.current = false;
   }, [businessId, domain]);
 
   const createMutation = useMutation<TechAuditPostResponse, Error, { domain: string }>({
@@ -572,6 +576,7 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     refetchOnMount: true,
     refetchOnWindowFocus: false,
     refetchInterval: (query) => {
+      if (forcePollingRef.current) return 10000;
       const data = query.state.data;
       const status = (data?.status ?? data?.data?.status ?? null) as TechAuditStatus | null;
       if (status === "finished") return false;
@@ -579,6 +584,17 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     },
     retry: 2,
   });
+
+  useEffect(() => {
+    const data = getQuery.data ?? null;
+    const status = (data?.status ?? data?.data?.status ?? null) as TechAuditStatus | null;
+    if (status === "in_progress") {
+      seenInProgressRef.current = true;
+    }
+    if (forcePollingRef.current && seenInProgressRef.current && status === "finished" && !isCreatePending) {
+      forcePollingRef.current = false;
+    }
+  }, [getQuery.data, isCreatePending]);
 
   useEffect(() => {
     if (!businessId || !domain) return;
@@ -597,6 +613,8 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     // If GET returns 404/null, auto-create once per domain.
     if (autoCreateAttemptedDomainRef.current === domain) return;
     autoCreateAttemptedDomainRef.current = domain;
+    forcePollingRef.current = true;
+    seenInProgressRef.current = false;
     resetCreateAudit();
     createAuditMutation({ domain });
   }, [
@@ -647,6 +665,8 @@ export function useTechAudit(params: { businessId: string | null; website: strin
       if (!businessId) return;
       if (!domain) return;
       autoCreateAttemptedDomainRef.current = domain;
+      forcePollingRef.current = true;
+      seenInProgressRef.current = false;
       resetCreateAudit();
       createAuditMutation({ domain });
     },

@@ -30,6 +30,11 @@ interface PageProps {
   }>
 }
 
+type BusinessSocialPageProps = PageProps & {
+  isReadOnly?: boolean
+  skipEntitlements?: boolean
+}
+
 function SocialEntitledContent({
   businessId,
   selectedChannel,
@@ -293,7 +298,11 @@ function SocialEntitledContent({
   )
 }
 
-export default function BusinessSocialPage({ params }: PageProps) {
+export default function BusinessSocialPage({
+  params,
+  isReadOnly,
+  skipEntitlements,
+}: BusinessSocialPageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [selectedChannel, setSelectedChannel] = useQueryState(
     "channel_name",
@@ -355,6 +364,7 @@ export default function BusinessSocialPage({ params }: PageProps) {
       businessId={businessId}
       selectedChannel={selectedChannel || null}
       onChannelSelect={(channel) => setSelectedChannel(channel)}
+      isReadOnly={isReadOnly}
     />
   ) : (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
@@ -371,13 +381,17 @@ export default function BusinessSocialPage({ params }: PageProps) {
       <PageHeader
         breadcrumbs={breadcrumbs}
       />
-      <EntitlementsGuard
-        entitlement="content"
-        businessId={businessId}
-        alertMessage="Upgrade your plan to unlock Social content generation."
-      >
-        {content}
-      </EntitlementsGuard>
+      {skipEntitlements ? (
+        content
+      ) : (
+        <EntitlementsGuard
+          entitlement="content"
+          businessId={businessId}
+          alertMessage="Upgrade your plan to unlock Social content generation."
+        >
+          {content}
+        </EntitlementsGuard>
+      )}
     </div>
   )
 }

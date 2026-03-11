@@ -57,11 +57,13 @@ export function DomainHealthCard({
   items,
   lastUpdatedLabel,
   onRegenerate,
+  regenerateDisabled,
 }: {
   domain: string;
   items: TechAuditDomainHealthItem[];
   lastUpdatedLabel: string;
   onRegenerate?: () => void;
+  regenerateDisabled?: boolean;
 }) {
   const [regenerateOpen, setRegenerateOpen] = React.useState(false);
 
@@ -86,6 +88,7 @@ export function DomainHealthCard({
             type="button"
             className="gap-2"
             onClick={() => setRegenerateOpen(true)}
+            disabled={regenerateDisabled}
             variant="default"
             size="sm"
           >

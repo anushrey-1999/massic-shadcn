@@ -115,7 +115,7 @@ export function CategoriesCard({
   }, [categories]);
 
   return (
-    <Card className="flex-1 gap-3 rounded-xl border-none  px-3 py-3 shadow-none">
+    <Card className="flex-1 gap-3 rounded-xl border-none  py-3 shadow-none">
       <div className="flex items-center justify-between">
         <Typography variant="p" className="text-base font-mono text-general-foreground">
           Categories

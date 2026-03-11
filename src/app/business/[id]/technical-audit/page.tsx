@@ -9,6 +9,7 @@ import { DomainHealthCard } from "@/components/organisms/TechinicalAudit/DomainH
 import { IssuesAccordion } from "@/components/organisms/TechinicalAudit/IssuesAccordion";
 import { Card } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   type AuditIssue,
   type CategoryKey,
@@ -59,7 +60,16 @@ export default function BusinessTechnicalAuditPage({
   const didAutoOpenIssueRef = React.useRef(false);
 
   React.useEffect(() => {
-    params.then(({ id }) => setBusinessId(id));
+    let active = true;
+    // Prevent showing stale previous-business UI during navigation.
+    setBusinessId("");
+    params.then(({ id }) => {
+      if (!active) return;
+      setBusinessId(id);
+    });
+    return () => {
+      active = false;
+    };
   }, [params]);
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null);
@@ -154,13 +164,27 @@ export default function BusinessTechnicalAuditPage({
     [techAudit.data.lastUpdatedAt, techAudit.data.status]
   );
 
-  const showGenerateCta = Boolean(techAudit.domain) && !techAudit.taskId && !techAudit.isCreating;
+  const isGeneratingInitialAudit =
+    Boolean(techAudit.domain) &&
+    !techAudit.data.raw &&
+    (techAudit.notFound || techAudit.isCreating || techAudit.data.status === "in_progress");
+
+  const regenerateDisabled =
+    techAudit.isCreating ||
+    techAudit.notFound ||
+    !techAudit.data.raw ||
+    techAudit.data.status === "in_progress";
 
   const showInitialLoader =
     !businessId ||
     profileDataLoading ||
-    (Boolean(techAudit.domain) && !techAudit.storageChecked) ||
-    (Boolean(techAudit.taskId) && techAudit.isLoading && !techAudit.data.raw);
+    (Boolean(techAudit.domain) && (!techAudit.hasFetched || isGeneratingInitialAudit));
+
+  const showFetchingBanner =
+    Boolean(techAudit.domain) &&
+    techAudit.hasFetched &&
+    !showInitialLoader &&
+    techAudit.data.status === "in_progress";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -177,12 +201,22 @@ export default function BusinessTechnicalAuditPage({
             </div>
           ) : (
             <>
+              {showFetchingBanner ? (
+                <Alert variant="info">
+                  <AlertTitle>We’re fetching your data</AlertTitle>
+                  <AlertDescription>
+                    Once your audit results are ready, this banner will disappear automatically.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               {techAudit.domain ? (
                 <DomainHealthCard
                   domain={domainLabel}
                   items={domainHealth}
                   lastUpdatedLabel={lastUpdatedLabel}
                   onRegenerate={() => techAudit.createAudit()}
+                  regenerateDisabled={regenerateDisabled}
                 />
               ) : null}
 
@@ -209,9 +243,9 @@ export default function BusinessTechnicalAuditPage({
                     ? "Add a valid website to generate a technical audit."
                     : techAudit.createError
                       ? techAudit.createError.message || "Failed to generate technical audit."
-                      : showGenerateCta
-                        ? "Generate audit to see issues."
-                        : techAudit.isCreating || techAudit.data.status === "in_progress"
+                      : techAudit.isCreating ||
+                          techAudit.notFound ||
+                          techAudit.data.status === "in_progress"
                           ? "Generating audit…"
                           : "No issues found for this filter."
                 }

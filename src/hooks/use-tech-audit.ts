@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/hooks/use-api";
-import { useAuthStore } from "@/store/auth-store";
 import type {
   AuditIssue,
   CategoryKey,
@@ -77,7 +76,6 @@ export type TechAuditDomainHealthItem = {
 };
 
 export type TechAuditViewModel = {
-  taskId: string | null;
   status: TechAuditStatus | null;
   raw: TechAuditGetResponse | null;
   healthScore: number | null;
@@ -94,58 +92,6 @@ export type TechAuditViewModel = {
 };
 
 const TECH_AUDIT_KEY = "techAudit";
-
-function storageKeyForBusiness(params: { businessId: string; userKey: string | null }) {
-  const scope = params.userKey ? `user:${params.userKey}` : "user:anon";
-  return `${TECH_AUDIT_KEY}:taskId:${scope}:${params.businessId}`;
-}
-
-function legacyStorageKeyForBusiness(businessId: string) {
-  return `${TECH_AUDIT_KEY}:taskId:${businessId}`;
-}
-
-function safeGetStoredTaskId(params: { businessId: string; userKey: string | null }): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const nextKey = storageKeyForBusiness(params);
-    const existing = window.localStorage.getItem(nextKey);
-    if (existing) return existing;
-
-    // Backward compat: migrate old key (no user scope) to the new scoped key.
-    const legacy = window.localStorage.getItem(legacyStorageKeyForBusiness(params.businessId));
-    if (legacy) {
-      window.localStorage.setItem(nextKey, legacy);
-      return legacy;
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function safeSetStoredTaskId(params: { businessId: string; userKey: string | null; taskId: string }) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      storageKeyForBusiness({ businessId: params.businessId, userKey: params.userKey }),
-      params.taskId
-    );
-  } catch {
-    // ignore
-  }
-}
-
-function pickTaskId(response: TechAuditPostResponse | null | undefined): string | null {
-  if (!response) return null;
-  return (
-    (typeof response.task_id === "string" && response.task_id) ||
-    (typeof response.taskId === "string" && response.taskId) ||
-    (typeof response.data?.task_id === "string" && response.data.task_id) ||
-    (typeof response.data?.taskId === "string" && response.data.taskId) ||
-    null
-  );
-}
 
 function normalizeDomain(input: string): string | null {
   const raw = String(input || "").trim();
@@ -568,27 +514,19 @@ function mapDomainHealthFromResponse(res: TechAuditGetResponse | null): TechAudi
 
 export function useTechAudit(params: { businessId: string | null; website: string | null }) {
   const businessId = params.businessId;
+  const queryClient = useQueryClient();
   const domain = useMemo(
     () => (params.website ? normalizeDomain(params.website) : null),
     [params.website]
   );
 
-  const userKey = useAuthStore((s) => s.user?.uniqueId || s.user?.UniqueId || s.user?.id || null);
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [storageChecked, setStorageChecked] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const autoCreateAttemptedDomainRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!businessId) {
-      setTaskId(null);
-      setStorageChecked(false);
-      return;
-    }
-
-    setStorageChecked(false);
-    const stored = safeGetStoredTaskId({ businessId, userKey });
-    setTaskId(stored);
-    setStorageChecked(true);
-  }, [businessId, userKey]);
+    setNotFound(false);
+    autoCreateAttemptedDomainRef.current = null;
+  }, [businessId, domain]);
 
   const createMutation = useMutation<TechAuditPostResponse, Error, { domain: string }>({
     mutationFn: async ({ domain }) => {
@@ -597,27 +535,38 @@ export function useTechAudit(params: { businessId: string | null; website: strin
       });
       return response;
     },
-    onSuccess: (data) => {
+    onSuccess: (_data, variables) => {
+      // POST creates/refreshes the audit; GET is always keyed by domain now.
       if (!businessId) return;
-      const nextTaskId = pickTaskId(data);
-      if (nextTaskId) {
-        safeSetStoredTaskId({ businessId, userKey, taskId: nextTaskId });
-        setTaskId(nextTaskId);
-      }
+      const createdDomain = variables.domain;
+      autoCreateAttemptedDomainRef.current = createdDomain;
+      void queryClient.invalidateQueries({
+        queryKey: [TECH_AUDIT_KEY, "detail", businessId, createdDomain],
+      });
     },
   });
 
+  const createAuditMutation = createMutation.mutate;
+  const resetCreateAudit = createMutation.reset;
+  const isCreatePending = createMutation.isPending;
+
   const getQuery = useQuery<TechAuditGetResponse | null>({
-    queryKey: [TECH_AUDIT_KEY, "detail", businessId, taskId],
+    queryKey: [TECH_AUDIT_KEY, "detail", businessId, domain],
     queryFn: async () => {
-      if (!taskId) return null;
-      const response = await api.get<TechAuditGetResponse>(
-        `/tech-audit?task_id=${encodeURIComponent(taskId)}`,
-        "python"
-      );
-      return response ?? null;
+      if (!domain) return null;
+      try {
+        const response = await api.get<TechAuditGetResponse>(
+          `/tech-audit?domain=${encodeURIComponent(domain)}`,
+          "python"
+        );
+        return response ?? null;
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (status === 404) return null;
+        throw err;
+      }
     },
-    enabled: !!taskId,
+    enabled: Boolean(domain) && Boolean(businessId),
     staleTime: 0,
     gcTime: 30 * 60 * 1000,
     refetchOnMount: true,
@@ -631,6 +580,36 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     retry: 2,
   });
 
+  useEffect(() => {
+    if (!businessId || !domain) return;
+    if (!getQuery.isFetched) return;
+    if (getQuery.isError) {
+      setNotFound(false);
+      return;
+    }
+
+    const isMissing = getQuery.data == null;
+    setNotFound(isMissing);
+
+    if (!isMissing) return;
+    if (isCreatePending) return;
+
+    // If GET returns 404/null, auto-create once per domain.
+    if (autoCreateAttemptedDomainRef.current === domain) return;
+    autoCreateAttemptedDomainRef.current = domain;
+    resetCreateAudit();
+    createAuditMutation({ domain });
+  }, [
+    businessId,
+    domain,
+    getQuery.data,
+    getQuery.isError,
+    getQuery.isFetched,
+    isCreatePending,
+    resetCreateAudit,
+    createAuditMutation,
+  ]);
+
   const viewModel: TechAuditViewModel = useMemo(() => {
     const raw = getQuery.data ?? null;
     const meta = mapMetaFromResponse(raw);
@@ -640,7 +619,6 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     const categoryCounts = mapCategoryCountsFromResponse(raw);
 
     return {
-      taskId,
       status: meta.status,
       raw,
       healthScore: meta.healthScore,
@@ -652,12 +630,12 @@ export function useTechAudit(params: { businessId: string | null; website: strin
       categoryCounts,
       issues,
     };
-  }, [getQuery.data, taskId]);
+  }, [getQuery.data]);
 
   return {
     domain,
-    taskId,
-    storageChecked,
+    notFound,
+    hasFetched: getQuery.isFetched,
     isCreating: createMutation.isPending,
     createError: createMutation.error ?? null,
     isLoading: getQuery.isLoading,
@@ -668,8 +646,9 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     createAudit: () => {
       if (!businessId) return;
       if (!domain) return;
-      createMutation.reset();
-      createMutation.mutate({ domain });
+      autoCreateAttemptedDomainRef.current = domain;
+      resetCreateAudit();
+      createAuditMutation({ domain });
     },
   };
 }

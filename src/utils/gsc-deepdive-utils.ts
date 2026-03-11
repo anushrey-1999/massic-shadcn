@@ -1,4 +1,4 @@
-export function sumMetrics(data: any[], metric: 'impressions' | 'clicks'): number {
+export function sumMetrics(data: any[], metric: string): number {
   if (!Array.isArray(data) || data.length === 0) return 0;
 
   return data.reduce((sum, item) => {

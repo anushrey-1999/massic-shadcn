@@ -1,0 +1,599 @@
+.massic-content {
+  /*
+   * Neutral defaults only: common on US local-business WordPress themes.
+   * Not brand/AI colors — grays/slate so any business can override with their own.
+   */
+  --massic-primary: #374151;
+  --massic-primary-contrast: #ffffff;
+  --massic-accent: #374151;
+
+  /* Text colors */
+  --massic-text: #1f2937;
+  --massic-muted: #6b7280;
+  --massic-border: #e5e7eb;
+
+  /* Backgrounds */
+  --massic-bg: #ffffff;
+  --massic-surface: #ffffff;
+  --massic-surface-2: #f9fafb;
+
+  /* Typography (WP-like system defaults) */
+  --massic-font-sans: system-ui, -apple-system, BlinkMacSystemFont,
+                      "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --massic-font-heading: var(--massic-font-sans);
+
+  --massic-text-base: 16px;
+  --massic-line: 1.6;
+
+  /* Heading sizes (very conservative) */
+  --massic-h1: clamp(28px, 3vw, 36px);
+  --massic-h2: clamp(22px, 2.4vw, 28px);
+  --massic-h3: clamp(18px, 2vw, 22px);
+  --massic-lead: 1rem;
+
+  /* Layout */
+  --massic-max: 1100px;
+  --massic-gutter: 20px;
+
+  /* Spacing scale */
+  --massic-s1: 4px;
+  --massic-s2: 8px;
+  --massic-s3: 12px;
+  --massic-s4: 16px;
+  --massic-s5: 24px;
+  --massic-s6: 32px;
+  --massic-s7: 48px;
+  --massic-s8: 64px;
+
+  /* Shape / elevation (subtle) */
+  --massic-radius: 8px;
+  --massic-radius-sm: 6px;
+  --massic-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --massic-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.06);
+
+  /* Components */
+  --massic-btn-h: 44px;
+  --massic-media-radius: 8px;
+  --massic-section-y: clamp(32px, 6vw, 64px);
+}
+
+/* -------------------------
+   Base Reset
+   ------------------------- */
+.massic-content,
+.massic-content * { box-sizing: border-box; }
+
+.massic-content {
+  font-family:  var(--massic-font-sans);
+  font-size:    var(--massic-text-base);
+  line-height:  var(--massic-line);
+  color:        var(--massic-text);
+  background:   var(--massic-bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+.massic-content h1 { font-size: var(--massic-h1); }
+.massic-content h2 { font-size: var(--massic-h2); }
+.massic-content h3 { font-size: var(--massic-h3); }
+
+.massic-content h1,
+.massic-content h2,
+.massic-content h3 {
+  font-family: var(--massic-font-heading);
+  margin: 0 0 var(--massic-s4);
+  line-height: 1.15;
+}
+
+.massic-content p { margin: 0 0 var(--massic-s4); }
+.massic-content p,
+.massic-content li,
+.massic-content blockquote {
+  overflow-wrap: anywhere;
+}
+.massic-content ul,
+.massic-content ol {
+  margin: 0 0 var(--massic-s4) var(--massic-s5);
+  padding: 0;
+}
+.massic-content li { margin-bottom: var(--massic-s2); }
+.massic-content li:last-child { margin-bottom: 0; }
+
+.massic-content .massic-lead {
+  font-size: var(--massic-lead);
+  color: var(--massic-muted);
+}
+
+.massic-content img {
+  max-width: 100%;
+  display: block;
+  height: auto;
+}
+
+/* -------------------------
+   Layout
+   ------------------------- */
+.massic-container {
+  width: min(100% - (var(--massic-gutter) * 2), var(--massic-max));
+  margin-inline: auto;
+}
+
+.massic-section    { padding-block: var(--massic-section-y); }
+.massic-surface    { background: var(--massic-surface); }
+.massic-surface-2  { background: var(--massic-surface-2); }
+
+.massic-stack > * + * { margin-top: var(--massic-s4); }
+
+.massic-center { text-align: center; }
+
+.massic-grid {
+  display: grid;
+  gap: var(--massic-s5);
+}
+.massic-grid > * { min-width: 0; }
+.massic-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.massic-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.massic-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 900px) {
+  .massic-grid.cols-3,
+  .massic-grid.cols-4 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .massic-grid.cols-2 { grid-template-columns: 1fr; }
+}
+
+.massic-split {
+  display: grid;
+  gap: var(--massic-s6);
+  align-items: center;
+  grid-template-columns: 1.1fr 0.9fr;
+}
+.massic-split > * { min-width: 0; }
+@media (max-width: 900px) {
+  .massic-split { grid-template-columns: 1fr; }
+}
+
+/* -------------------------
+   Cards & UI
+   ------------------------- */
+.massic-card {
+  background:    var(--massic-surface);
+  border:        1px solid var(--massic-border);
+  border-radius: var(--massic-radius);
+  padding:       var(--massic-s5);
+  box-shadow:    var(--massic-shadow-sm);
+}
+
+.massic-actions {
+  display: flex;
+  gap: var(--massic-s3);
+  flex-wrap: wrap;
+}
+
+/* Center massic-actions when inside massic-center */
+.massic-center .massic-actions { justify-content: center; }
+
+.massic-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--massic-btn-h);
+  height: auto;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: opacity 0.15s;
+  white-space: normal;
+}
+.massic-btn:hover { opacity: 0.88; }
+
+.massic-btn.primary {
+  background: var(--massic-primary);
+  color: var(--massic-primary-contrast);
+}
+.massic-btn.outline {
+  border-color: var(--massic-border);
+  background: transparent;
+  color: var(--massic-text);
+}
+.massic-btn.link {
+  background: transparent;
+  border-color: transparent;
+  color: var(--massic-primary);
+  padding: 0;
+  height: auto;
+  font-weight: 600;
+}
+
+.massic-pill {
+  display: inline-block;
+  padding: var(--massic-s1) var(--massic-s3);
+  background: var(--massic-surface-2);
+  border: 1px solid var(--massic-border);
+  border-radius: 100px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--massic-muted);
+}
+
+.massic-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--massic-s2);
+  padding: var(--massic-s2) var(--massic-s4);
+  background: var(--massic-surface-2);
+  border: 1px solid var(--massic-border);
+  border-radius: var(--massic-radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--massic-text);
+}
+
+.massic-muted { color: var(--massic-muted); }
+
+.massic-alert {
+  border-left: 4px solid var(--massic-primary);
+  background: var(--massic-surface);
+  background: color-mix(in srgb, var(--massic-primary) 8%, var(--massic-surface));
+  border-radius: 0 var(--massic-radius-sm) var(--massic-radius-sm) 0;
+  padding: var(--massic-s4) var(--massic-s5);
+}
+.massic-alert p:last-child { margin-bottom: 0; }
+
+.massic-divider {
+  border: none;
+  border-top: 1px solid var(--massic-border);
+  margin: var(--massic-s6) 0;
+}
+
+/* -------------------------
+   Hero
+   ------------------------- */
+.massic-hero {
+  background: linear-gradient(180deg, var(--massic-surface-2), transparent);
+}
+.massic-hero-media {
+  border-radius: var(--massic-media-radius);
+  overflow: hidden;
+  border: 1px solid var(--massic-border);
+  box-shadow: var(--massic-shadow);
+}
+
+/* -------------------------
+   Features
+   ------------------------- */
+.massic-feature .massic-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--massic-primary) 12%, var(--massic-surface));
+  margin-bottom: var(--massic-s3);
+  flex-shrink: 0;
+}
+
+/* -------------------------
+   Process Steps
+   ------------------------- */
+.massic-step {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: var(--massic-s4);
+  align-items: start;
+}
+.massic-step > .massic-num {
+  grid-column: 1;
+  grid-row: 1;
+}
+.massic-step > :not(.massic-num) {
+  grid-column: 2;
+  min-width: 0;
+}
+.massic-num {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--massic-primary);
+  color: var(--massic-primary-contrast);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+/* -------------------------
+   Testimonials
+   ------------------------- */
+.massic-stars { color: #f59e0b; letter-spacing: 2px; margin-bottom: var(--massic-s3); }
+
+.massic-testimonial blockquote {
+  margin: 0 0 var(--massic-s4);
+  padding-left: var(--massic-s4);
+  border-left: 3px solid var(--massic-primary);
+  font-style: italic;
+  color: var(--massic-text);
+}
+.massic-testimonial blockquote p:last-child { margin-bottom: 0; }
+
+.massic-author-line {
+  display: flex;
+  align-items: center;
+  gap: var(--massic-s3);
+  font-size: 0.875rem;
+  flex-wrap: wrap;
+}
+
+/* -------------------------
+   Stats
+   ------------------------- */
+.massic-stats {
+  display: flex;
+  gap: var(--massic-s6);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--massic-border);
+  border-radius: var(--massic-radius);
+  padding: var(--massic-s5) var(--massic-s6);
+}
+.massic-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+  min-width: 100px;
+}
+.massic-stat-num {
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 800;
+  color: var(--massic-primary);
+  line-height: 1;
+  font-family: var(--massic-font-heading);
+}
+.massic-stat-label {
+  font-size: 0.8rem;
+  color: var(--massic-muted);
+  margin-top: var(--massic-s1);
+}
+
+/* -------------------------
+   FAQ
+   ------------------------- */
+.massic-faq details {
+  border: 1px solid var(--massic-border);
+  border-radius: var(--massic-radius-sm);
+  padding: 14px 16px;
+}
+.massic-faq details[open] { padding-bottom: var(--massic-s4); }
+.massic-faq details[open] summary { margin-bottom: var(--massic-s3); }
+
+.massic-faq summary {
+  cursor: pointer;
+  font-weight: 700;
+  line-height: 1.4;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--massic-s3);
+}
+.massic-faq summary::-webkit-details-marker { display: none; }
+.massic-faq summary::after {
+  content: '+';
+  display: inline-grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--massic-muted);
+}
+.massic-faq details[open] summary::after { content: '−'; }
+
+.massic-faq details p:last-child { margin-bottom: 0; }
+.massic-faq summary > * {
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+/* -------------------------
+   Comparison Table
+   ------------------------- */
+.massic-comparison-table {
+  border: 1px solid var(--massic-border);
+  border-radius: var(--massic-radius);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.massic-comparison-table table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+}
+.massic-comparison-table th,
+.massic-comparison-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--massic-border);
+  text-align: left;
+}
+.massic-comparison-table thead th {
+  background: var(--massic-surface-2);
+  font-weight: 700;
+  font-size: 0.875rem;
+}
+.massic-comparison-table tr:last-child td { border-bottom: none; }
+
+/* -------------------------
+   CTA Band & CTA Box
+   ------------------------- */
+.massic-cta-band {
+  background: var(--massic-surface);
+  background: color-mix(in srgb, var(--massic-primary) 10%, var(--massic-surface));
+}
+.massic-cta {
+  border: 1px solid var(--massic-border);
+  border-radius: var(--massic-radius);
+  padding: var(--massic-s6);
+  box-shadow: var(--massic-shadow);
+  background: var(--massic-surface);
+}
+
+/* -------------------------
+   Logo Bar
+   ------------------------- */
+.massic-logo-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--massic-s6);
+  align-items: center;
+  justify-content: center;
+}
+.massic-logo-bar img {
+  height: 32px;
+  max-width: 100%;
+  width: auto;
+  opacity: 0.5;
+  filter: grayscale(1);
+  transition: opacity 0.2s;
+}
+.massic-logo-bar img:hover { opacity: 0.75; }
+
+/* -------------------------
+   Breadcrumb
+   (page-only — not for blogs)
+   ------------------------- */
+.massic-breadcrumb {
+  display: flex;
+  gap: var(--massic-s2);
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--massic-muted);
+  flex-wrap: wrap;
+  margin-bottom: var(--massic-s5);
+}
+.massic-breadcrumb a {
+  color: var(--massic-muted);
+  text-decoration: none;
+}
+.massic-breadcrumb a:hover { color: var(--massic-primary); }
+.massic-breadcrumb-sep { opacity: 0.4; }
+
+/* -------------------------
+   Prose (blog-only)
+   ------------------------- */
+.massic-prose ul,
+.massic-prose ol {
+  margin: 0 0 var(--massic-s4) var(--massic-s5);
+  padding: 0;
+}
+.massic-prose li { margin-bottom: var(--massic-s2); }
+.massic-prose li:last-child { margin-bottom: 0; }
+
+.massic-prose blockquote {
+  border-left: 4px solid var(--massic-border);
+  margin: var(--massic-s5) 0;
+  padding: var(--massic-s3) var(--massic-s5);
+  color: var(--massic-muted);
+  font-style: italic;
+}
+.massic-prose blockquote p:last-child { margin-bottom: 0; }
+
+.massic-prose hr {
+  border: none;
+  border-top: 1px solid var(--massic-border);
+  margin: var(--massic-s7) 0;
+}
+
+.massic-prose a {
+  color: var(--massic-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.massic-prose strong { font-weight: 700; }
+.massic-prose em { font-style: italic; }
+
+.massic-prose code {
+  font-family: monospace;
+  font-size: 0.875em;
+  background: var(--massic-surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--massic-border);
+  overflow-wrap: anywhere;
+}
+
+/* -------------------------
+   Author Bio (blog-only)
+   ------------------------- */
+.massic-author {
+  display: flex;
+  gap: var(--massic-s4);
+  align-items: flex-start;
+  padding: var(--massic-s5);
+  border: 1px solid var(--massic-border);
+  border-radius: var(--massic-radius);
+  background: var(--massic-surface-2);
+}
+.massic-author img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.massic-author-name {
+  font-weight: 700;
+  margin: 0 0 var(--massic-s1);
+}
+.massic-author-role {
+  font-size: 0.8rem;
+  color: var(--massic-muted);
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .massic-content {
+    --massic-gutter: 16px;
+  }
+
+  .massic-stats {
+    gap: var(--massic-s4);
+    padding: var(--massic-s4);
+  }
+
+  .massic-stat {
+    min-width: 120px;
+  }
+
+  .massic-step {
+    grid-template-columns: 36px 1fr;
+    gap: var(--massic-s3);
+  }
+
+  .massic-step > .massic-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    font-size: 1rem;
+  }
+
+  .massic-faq details {
+    padding: 12px 14px;
+  }
+
+  .massic-author {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

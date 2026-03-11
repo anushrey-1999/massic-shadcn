@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, startTransition } from "react";
 import { usePathname } from "next/navigation";
-import { Eye, MousePointerClick, Target } from "lucide-react";
+import { Eye, MousePointerClick, Target, BarChart3 } from "lucide-react";
 import {
   OrganicPerformanceSection,
-  type OrganicPerformanceSectionProps,
 } from "@/components/organisms/analytics/OrganicPerformanceSection";
 import { AnalyticsPageTabs, PeriodSelector } from "../molecules/analytics";
 import { PageHeader } from "@/components/molecules/PageHeader";
@@ -21,16 +20,30 @@ import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 import { usePrefetchAnalyticsPages } from "@/hooks/use-prefetch-analytics-pages";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  useOrganicDeepdiveFilters,
+  type DeepdiveFilter,
+} from "@/hooks/use-organic-deepdive-filters";
+import { OrganicDeepdiveHeader } from "@/components/organisms/organic-deepdive/OrganicDeepdiveHeader";
 
-const CHART_LINE_KEYS = ["impressions", "clicks", "goals"] as const;
+const CHART_LINE_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
+const METRIC_TOOLTIPS: Record<(typeof CHART_LINE_KEYS)[number], string> = {
+  impressions: "Impressions",
+  clicks: "Clicks",
+  sessions: "Sessions",
+  goals: "Goals",
+};
 
 export function AnalyticsTemplate() {
   const [selectedPeriod, setSelectedPeriod] =
     useState<TimePeriodValue>("3 months");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [showDeferredSections, setShowDeferredSections] = useState(false);
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     impressions: true,
     clicks: true,
+    sessions: true,
     goals: true,
   });
 
@@ -117,6 +130,49 @@ export function AnalyticsTemplate() {
       label: loc.DisplayName || loc.Name || "",
     }));
   }, [profileData, businessProfile]);
+  const { filters, filtersForApi, addFilter, removeFilter } = useOrganicDeepdiveFilters();
+
+  const handleOverviewFilterSelect = useCallback((filter: DeepdiveFilter) => {
+    addFilter(filter);
+  }, [addFilter]);
+
+  useEffect(() => {
+    setShowDeferredSections(false);
+
+    let completed = false;
+    let timeoutId: number | undefined;
+    let idleId: number | undefined;
+
+    const revealDeferredSections = () => {
+      if (completed) return;
+      completed = true;
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+      if (idleId !== undefined && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      startTransition(() => {
+        setShowDeferredSections(true);
+      });
+    };
+
+    timeoutId = window.setTimeout(revealDeferredSections, 250);
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(revealDeferredSections);
+    }
+
+    return () => {
+      completed = true;
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+      if (idleId !== undefined && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+    };
+  }, [businessId]);
 
   return (
     <div className="flex flex-col min-h-screen scroll-smooth ">
@@ -152,34 +208,36 @@ export function AnalyticsTemplate() {
           <AnalyticsPageTabs businessId={businessId} />
           <div className="flex items-center gap-2">
             {CHART_LINE_KEYS.map((key) => (
-              <Button
-                key={key}
-                variant="outline"
-                size="icon"
-                className={cn(
-                  "h-8 w-8 shrink-0",
-                  visibleLines[key] ? "bg-white" : "bg-transparent"
-                )}
-                onClick={() =>
-                  handleChartLineToggle(key, !visibleLines[key])
-                }
-                title={
-                  key === "impressions"
-                    ? "Impressions"
-                    : key === "clicks"
-                      ? "Clicks"
-                      : "Goals"
-                }
-                aria-pressed={visibleLines[key]}
-              >
-                {key === "impressions" ? (
-                  <Eye className="h-4 w-4 text-gray-500" />
-                ) : key === "clicks" ? (
-                  <MousePointerClick className="h-4 w-4 text-blue-600 rotate-90" />
-                ) : (
-                  <Target className="h-4 w-4 text-emerald-600" />
-                )}
-              </Button>
+              <Tooltip key={key}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className={cn(
+                      "h-8 w-8 shrink-0",
+                      visibleLines[key] ? "bg-white" : "bg-transparent"
+                    )}
+                    onClick={() =>
+                      handleChartLineToggle(key, !visibleLines[key])
+                    }
+                    aria-label={METRIC_TOOLTIPS[key]}
+                    aria-pressed={visibleLines[key]}
+                  >
+                    {key === "impressions" ? (
+                      <Eye className="h-4 w-4 text-gray-500" />
+                    ) : key === "clicks" ? (
+                      <MousePointerClick className="h-4 w-4 text-blue-600 rotate-90" />
+                    ) : key === "sessions" ? (
+                      <BarChart3 className="h-4 w-4 text-rose-500" />
+                    ) : (
+                      <Target className="h-4 w-4 text-emerald-600" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={8}>
+                  {METRIC_TOOLTIPS[key]}
+                </TooltipContent>
+              </Tooltip>
             ))}
             <PeriodSelector
               value={selectedPeriod}
@@ -187,6 +245,14 @@ export function AnalyticsTemplate() {
             />
           </div>
         </div>
+        {filters.length > 0 ? (
+          <div className="w-full max-w-[1224px] px-7">
+            <OrganicDeepdiveHeader
+              filters={filters}
+              onRemoveFilter={removeFilter}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* Tab Content */}
@@ -196,12 +262,22 @@ export function AnalyticsTemplate() {
             period={selectedPeriod}
             visibleLines={visibleLines}
             onLegendToggle={handleChartLineToggle}
+            filters={filtersForApi}
           />
         </div>
-        <DiscoveryPerformanceSection period={selectedPeriod} />
-        <SourcesSection period={selectedPeriod} />
-        <ConversionSection period={selectedPeriod} />
-        <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
+        <DiscoveryPerformanceSection
+          period={selectedPeriod}
+          visibleMetrics={visibleLines}
+          filters={filtersForApi}
+          onSelectFilter={handleOverviewFilterSelect}
+        />
+        {showDeferredSections ? (
+          <>
+            <SourcesSection period={selectedPeriod} />
+            <ConversionSection period={selectedPeriod} />
+            <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
+          </>
+        ) : null}
       </div>
     </div>
   );

@@ -124,6 +124,23 @@ export function LocationSelect({
   const triggerRef = React.useRef<HTMLDivElement>(null)
   const [popoverWidth, setPopoverWidth] = React.useState<number | undefined>(undefined)
 
+  const findScrollableAncestor = React.useCallback((el: HTMLElement | null) => {
+    if (!el) return null
+    const isScrollable = (node: HTMLElement) => {
+      const style = window.getComputedStyle(node)
+      const overflowY = style.overflowY
+      if (overflowY !== 'auto' && overflowY !== 'scroll') return false
+      return node.scrollHeight > node.clientHeight
+    }
+
+    let current: HTMLElement | null = el
+    while (current) {
+      if (isScrollable(current)) return current
+      current = current.parentElement
+    }
+    return null
+  }, [])
+
   // Debounce the search value for filtering (not the input value)
   const debouncedSetSearch = useDebouncedCallback((val: string) => {
     setDebouncedSearchValue(val)
@@ -167,6 +184,25 @@ export function LocationSelect({
       setPopoverWidth(width)
     }
   }, [open])
+
+  // When this select is inside a custom scroll container (like ProfileStepCard),
+  // Radix Popover is portalled to the body. If the container scrolls, the popover
+  // can appear "stuck" over the page. Close on scroll to avoid broken UI.
+  React.useEffect(() => {
+    if (!open) return
+    if (typeof window === 'undefined') return
+
+    const triggerEl = triggerRef.current
+    const scrollParent = findScrollableAncestor(triggerEl)
+    const onScroll = () => setOpen(false)
+
+    scrollParent?.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      scrollParent?.removeEventListener('scroll', onScroll)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [open, findScrollableAncestor])
 
   return (
     <div ref={triggerRef} className={cn("w-full", className)}>

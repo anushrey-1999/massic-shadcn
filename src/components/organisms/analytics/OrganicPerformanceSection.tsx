@@ -4,6 +4,7 @@ import {
   Eye,
   MousePointerClick,
   Target,
+  BarChart3,
   Star,
   TrendingUp,
   TrendingDown,
@@ -36,7 +37,6 @@ import {
 import {
   useGSCAnalytics,
   type TimePeriodValue,
-  type TableFilterType,
 } from "@/hooks/use-gsc-analytics";
 import { useGapAnalysis } from "@/hooks/use-gap-analysis";
 import { useBrandedNonBranded } from "@/hooks/use-branded-nonbranded";
@@ -45,6 +45,7 @@ import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
 import { useMemo, useState, useCallback } from "react";
+import type { DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
 
 const METRIC_ICONS: Record<string, React.ReactNode> = {
   "topic-coverage": <Target className="h-5 w-5" />,
@@ -53,17 +54,20 @@ const METRIC_ICONS: Record<string, React.ReactNode> = {
   branded: <Star className="h-5 w-5" />,
   "non-branded": <TrendingUp className="h-5 w-5" />,
 };
+const CHART_METRIC_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
 
 export interface OrganicPerformanceSectionProps {
   period?: TimePeriodValue;
   visibleLines?: Record<string, boolean>;
   onLegendToggle?: (key: string, checked: boolean) => void;
+  filters?: DeepdiveFilter[];
 }
 
 export function OrganicPerformanceSection({
   period = "3 months",
   visibleLines: visibleLinesProp,
   onLegendToggle: onLegendToggleProp,
+  filters = [],
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -88,10 +92,10 @@ export function OrganicPerformanceSection({
     chartConfig,
     chartLegendItems,
     funnelChartItems,
-    isLoading,
-    hasData,
     hasFunnelData,
-  } = useGSCAnalytics(businessUniqueId, website, period);
+    loadingState,
+    hasData,
+  } = useGSCAnalytics(businessUniqueId, website, period, filters);
 
   const {
     metricCards,
@@ -132,26 +136,29 @@ export function OrganicPerformanceSection({
   >({
     impressions: true,
     clicks: true,
+    sessions: true,
     goals: true,
   });
 
   const visibleLines =
     visibleLinesProp !== undefined ? visibleLinesProp : visibleLinesLocal;
 
-  const visibleCount = [visibleLines.impressions, visibleLines.clicks, visibleLines.goals].filter(Boolean).length;
+  const visibleCount = CHART_METRIC_KEYS
+    .map((key) => visibleLines[key])
+    .filter(Boolean).length;
   const singleMetricMode = visibleCount === 1;
   const useNormalizedKeys = normalizedChartData.length > 0 && !singleMetricMode;
   const chartDataToRender = useNormalizedKeys ? normalizedChartData : chartData;
 
   const singleMetricYDomain = useMemo(() => {
     if (!singleMetricMode || chartData.length === 0) return undefined;
-    const key = visibleLines.impressions ? "impressions" : visibleLines.clicks ? "clicks" : "goals";
+    const key = CHART_METRIC_KEYS.find((metricKey) => visibleLines[metricKey]) ?? "impressions";
     const values = chartData.map((d) => Number(d[key as keyof typeof d]) || 0);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const pad = (max - min) * 0.05 || 1;
     return [Math.max(0, min - pad), max + pad] as [number, number];
-  }, [singleMetricMode, chartData, visibleLines.impressions, visibleLines.clicks, visibleLines.goals]);
+  }, [singleMetricMode, chartData, visibleLines]);
 
   const handleLegendToggle = useCallback(
     (key: string, checked: boolean) => {
@@ -198,6 +205,7 @@ export function OrganicPerformanceSection({
         icon: <MousePointerClick className="h-6 w-6 rotate-90" />,
         color: "#2563eb",
       },
+      sessions: { icon: <BarChart3 className="h-6 w-6" />, color: "#e11d48" },
       goals: { icon: <Target className="h-6 w-6" />, color: "#059669" },
     };
     return chartLegendItems.map((item) => {
@@ -227,6 +235,8 @@ export function OrganicPerformanceSection({
   const totalAnomaliesCount = totalCriticalCount + totalPositiveCount;
   
   const hasAnomalies = totalAnomaliesCount > 0;
+  const showChartLoader = loadingState.chart && !hasData;
+  const showFunnelLoader = loadingState.funnel && !hasFunnelData;
 
   return (
     <div className="flex flex-col gap-3">
@@ -416,7 +426,7 @@ export function OrganicPerformanceSection({
                   : "p-3 pr-8 border-r border-general-border flex flex-col min-h-full"
               }
             >
-            {isLoading ? (
+            {showChartLoader ? (
               <div className="flex flex-1 items-center justify-center min-h-[240px]">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
@@ -500,6 +510,24 @@ export function OrganicPerformanceSection({
                               stopOpacity={0.02}
                             />
                           </linearGradient>
+                          <linearGradient
+                            id="fillSessions"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="#e11d48"
+                              stopOpacity={0.2}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="#e11d48"
+                              stopOpacity={0.02}
+                            />
+                          </linearGradient>
                         </defs>
                         <CartesianGrid
                           strokeDasharray="3 3"
@@ -575,6 +603,12 @@ export function OrganicPerformanceSection({
                                       Clicks: {data?.clicks?.toLocaleString()}
                                     </p>
                                   )}
+                                  {visibleLines.sessions &&
+                                    data?.sessions !== undefined && (
+                                      <p className="text-rose-500">
+                                        Sessions: {data?.sessions?.toLocaleString()}
+                                      </p>
+                                    )}
                                   {visibleLines.goals &&
                                     data?.goals !== undefined && (
                                       <p className="text-emerald-600">
@@ -619,6 +653,17 @@ export function OrganicPerformanceSection({
                             name="Goals"
                           />
                         )}
+                        {visibleLines.sessions && (
+                          <Area
+                            type="linear"
+                            dataKey={useNormalizedKeys ? "sessionsNorm" : "sessions"}
+                            yAxisId="left"
+                            stroke="#e11d48"
+                            fill="url(#fillSessions)"
+                            strokeWidth={1}
+                            name="Sessions"
+                          />
+                        )}
                       </AreaChart>
                     </ResponsiveContainer>
                   </ChartContainer>
@@ -633,7 +678,7 @@ export function OrganicPerformanceSection({
 
             {!graphFullScreen && (
               <div className="h-full px-7 py-3 flex items-center justify-center min-h-0">
-                {isLoading ? (
+                {showFunnelLoader ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>

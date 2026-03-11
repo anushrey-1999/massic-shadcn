@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { api } from "@/hooks/use-api";
@@ -17,26 +17,18 @@ import { useCreateJob, useJobByBusinessId, useUpdateJob, type Offering, type Bus
 
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/molecules/PageHeader";
-import ProfileSidebar from "@/components/organisms/ProfileSidebar";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
 import { LoaderOverlay } from "@/components/ui/loader";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Typography } from "@/components/ui/typography";
+import { GenericInput } from "@/components/ui/generic-input";
+import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { Loader2 } from "lucide-react";
 import { cleanWebsiteUrl } from "@/utils/utils";
-
-const sections = [
-  { id: "business-info", label: "Business Info" },
-  { id: "offerings", label: "Offerings" },
-];
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 function toPrimaryLocationString(input: any): string {
   const location = String(input?.Location || "").trim();
@@ -74,14 +66,11 @@ interface ProfileAutofillResponse {
 }
 
 export function PitchProfileTemplate() {
-  const router = useRouter();
   const params = useParams();
   const businessId = (params as any)?.id as string | undefined;
 
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
 
-  const activeSection = useBusinessStore((state) => state.profileForm.activeSection);
-  const setActiveSection = useBusinessStore((state) => state.setActiveSection);
   const setLocationOptions = useBusinessStore((state) => state.setLocationOptions);
   const setLocationsLoading = useBusinessStore((state) => state.setLocationsLoading);
   const resetProfileForm = useBusinessStore((state) => state.resetProfileForm);
@@ -382,12 +371,6 @@ export function PitchProfileTemplate() {
     [businessId, businessNameForBreadcrumb]
   );
 
-  const handleSectionClick = (sectionId: string) => {
-    setActiveSection(sectionId);
-    const el = document.getElementById(sectionId);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
   const hasOfferingsValidationErrors = useStore(form.store, (state: any) => {
     const offeringsMeta = state.fieldMeta?.offeringsList;
     return offeringsMeta?.hasValidationErrors === true;
@@ -424,100 +407,102 @@ export function PitchProfileTemplate() {
   }, [form]);
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden">
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
-        <div className="sticky top-0 z-10">
-          <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
-        </div>
+        <div className="flex flex-col flex-1 min-h-0 min-w-0">
+          <div className="sticky top-0 z-10 shrink-0 bg-background">
+            <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+          </div>
 
-        <div className="w-full max-w-[1224px] flex gap-6 p-5 items-start">
-          <ProfileSidebar
-            sections={sections}
-            activeSection={activeSection}
-            onSectionClick={handleSectionClick}
-            buttonText="Save"
-            onButtonClick={handleConfirmAndProceed}
-            buttonDisabled={!canConfirmAndProceed || isSubmitting || isLoading}
-            buttonHelperText={
-              !canConfirmAndProceed
-                ? "Fill all required fields to enable confirmation."
-                : undefined
-            }
-          />
-
-          <div className="flex-1">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                form.handleSubmit();
-              }}
-            >
-              <BusinessInfoForm
-                form={form}
-                disableWebsiteLock
-                headerAction={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAutofillProfile}
-                    disabled={
-                      isAutofillLoading ||
-                      !(formValues?.website ?? "").toString().trim()
-                    }
-                    className="gap-2"
-                  >
-                    {isAutofillLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Autofilling...
-                      </>
-                    ) : (
-                      "Autofill profile"
-                    )}
-                  </Button>
-                }
-              />
-              <OfferingsForm
-                form={form}
-                businessId={businessId ?? null}
-              />
-              <Card
-                variant="profileCard"
-                className="py-6 px-4 bg-white border-none mt-6"
+          <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
+            <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  form.handleSubmit();
+                }}
+                className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
-                <CardHeader className="pb-4">
-                  <CardTitle>
-                    <Typography variant="h4">Brand Terms</Typography>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Card variant="profileCard">
-                    <CardHeader>
-                      <CardTitle>
-                        <FieldLabel className="gap-0">
-                          Brand terms that best describe your business
-                        </FieldLabel>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <form.Field
-                        name="brandTerms"
-                        children={(field: any) => (
-                          <Input
-                            variant="noBorder"
-                            value={field.state.value || ""}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            placeholder="List the words, separating each one with a comma"
-                            className="w-full"
-                          />
-                        )}
-                      />
-                    </CardContent>
-                  </Card>
-                </CardContent>
-              </Card>
-            </form>
+                <ProfileStepCard
+                  title="Basic Details"
+                  description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
+                  className="flex-1"
+                  scrollableContent
+                  contentClassName="pb-6"
+                  rightAction={
+                    <Button
+                      type="button"
+                      className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                      onClick={handleConfirmAndProceed}
+                      disabled={!canConfirmAndProceed || isSubmitting || isLoading}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save"
+                      )}
+                    </Button>
+                  }
+                >
+                  <BusinessInfoForm
+                    form={form}
+                    embedded
+                    embeddedVariant="full"
+                    disableWebsiteLock
+                    primaryLocationAction={
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-block">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="default"
+                              onClick={handleAutofillProfile}
+                              disabled={
+                                isAutofillLoading ||
+                                !(formValues?.website ?? "").toString().trim()
+                              }
+                              className="gap-2 border-general-border-three text-general-foreground"
+                            >
+                              {isAutofillLoading ? (
+                                <>
+                                  <Loader2 className="size-4 animate-spin" />
+                                  Autofilling...
+                                </>
+                              ) : (
+                                "Autofill Profile"
+                              )}
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        {!(formValues?.website ?? "").toString().trim() ? (
+                          <TooltipContent>Enter Website URL to proceed</TooltipContent>
+                        ) : null}
+                      </Tooltip>
+                    }
+                  />
+                  <OfferingsForm
+                    form={form}
+                    businessId={businessId ?? null}
+                    embedded
+                  />
+                  <div className="w-1/2">
+                    <GenericInput<BusinessInfoFormData>
+                      form={form as any}
+                      fieldName="brandTerms"
+                      type="input"
+                      label="Brand terms that best describe your business"
+                      required={false}
+                      placeholder="List the words, separating each one with a comma"
+                      className="w-full"
+                    />
+                  </div>
+                </ProfileStepCard>
+              </form>
+            </div>
           </div>
         </div>
       </LoaderOverlay>

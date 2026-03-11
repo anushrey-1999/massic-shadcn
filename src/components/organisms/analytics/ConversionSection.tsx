@@ -61,7 +61,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
     handleGoalsSort,
     handleContentGroupsSort,
     handleTopPagesSort,
-    isLoading,
+    loadingState,
     hasChartData,
     hasGoalsData,
     hasContentGroupsData,
@@ -86,6 +86,10 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
   const [goalsModalOpen, setGoalsModalOpen] = useState(false);
   const [contentGroupsModalOpen, setContentGroupsModalOpen] = useState(false);
   const [topPagesModalOpen, setTopPagesModalOpen] = useState(false);
+  const showGoalsLoader = loadingState.goals && !hasGoalsData;
+  const showChartLoader = loadingState.chart && !hasChartData;
+  const showContentGroupsLoader = loadingState.contentGroups && !hasContentGroupsData;
+  const showTopPagesLoader = loadingState.topPages && !hasTopPagesData;
 
   return (
     <div className="px-7 pb-10">
@@ -124,7 +128,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
               goal: item.goal,
               goals: item.goals,
             }))}
-            isLoading={isLoading}
+            isLoading={showGoalsLoader}
             hasData={hasGoalsData}
             sortConfig={{
               column: goalsSort.column,
@@ -147,7 +151,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
               icon: "goals",
             }}
             data={normalizedChartData}
-            isLoading={isLoading}
+            isLoading={showChartLoader}
             hasData={hasChartData}
             visibleLines={visibleLines}
             onLegendToggle={handleLegendToggle}
@@ -180,7 +184,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
               sessions: item.sessions,
               goals: item.goals,
             }))}
-            isLoading={isLoading}
+            isLoading={showContentGroupsLoader}
             hasData={hasContentGroupsData}
             sortConfig={{
               column: contentGroupsSort.column,
@@ -219,7 +223,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
               sessions: item.sessions,
               goals: item.goals,
             }))}
-            isLoading={isLoading}
+            isLoading={showTopPagesLoader}
             hasData={hasTopPagesData}
             sortConfig={{
               column: topPagesSort.column,
@@ -272,7 +276,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
           direction: goalsSort.direction,
         }}
         onSort={(column) => handleGoalsSort(column as GA4SortColumn)}
-        isLoading={isLoading}
+        isLoading={showGoalsLoader}
       />
 
       <DataTableModal
@@ -316,7 +320,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
           direction: contentGroupsSort.direction,
         }}
         onSort={(column) => handleContentGroupsSort(column as GA4SortColumn)}
-        isLoading={isLoading}
+        isLoading={showContentGroupsLoader}
       />
 
       <DataTableModal
@@ -360,7 +364,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
           direction: topPagesSort.direction,
         }}
         onSort={(column) => handleTopPagesSort(column as GA4SortColumn)}
-        isLoading={isLoading}
+        isLoading={showTopPagesLoader}
       />
     </div>
   );

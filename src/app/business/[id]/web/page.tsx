@@ -4,11 +4,14 @@ import React from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { WebPageTableClient } from '@/components/organisms/WebPageTable/web-page-table-client'
 import { WebOptimizationAnalysisTableClient } from '@/components/organisms/WebOptimizationAnalysisTable'
+import { WebUnifiedPagesTableClient } from '@/components/organisms/WebUnifiedPagesTable'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
+import { useQueryClient } from '@tanstack/react-query'
+import { useUnifiedWebOptimization } from '@/hooks/use-unified-web-optimization'
 import { cn } from '@/lib/utils'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Typography } from '@/components/ui/typography'
@@ -38,7 +41,7 @@ function WebNewPagesTab({
 export default function BusinessWebPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [isOptimizeSplitView, setIsOptimizeSplitView] = React.useState(false)
-  const [activeTab, setActiveTab] = React.useState<"new-pages" | "optimize" | "settings">("new-pages")
+  const [activeTab, setActiveTab] = React.useState<"new-pages" | "optimize" | "all-pages" | "settings">("new-pages")
   const [newPagesMetrics, setNewPagesMetrics] = React.useState<WebPageMetrics | null>(null)
 
   const router = useRouter()
@@ -69,7 +72,7 @@ export default function BusinessWebPage({ params }: PageProps) {
 
   const handleTabChange = React.useCallback(
     (value: string) => {
-      const nextTab = value as "new-pages" | "optimize" | "settings"
+      const nextTab = value as "new-pages" | "optimize" | "all-pages" | "settings"
       setActiveTab(nextTab)
       if (nextTab !== "optimize") {
         setIsOptimizeSplitView(false)
@@ -90,6 +93,18 @@ export default function BusinessWebPage({ params }: PageProps) {
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id))
   }, [params])
+
+  // Prefetch unified pages in background so data is ready when the user switches to All Pages
+  const queryClient = useQueryClient()
+  const { fetchUnifiedPages } = useUnifiedWebOptimization()
+  React.useEffect(() => {
+    if (!businessId) return
+    queryClient.prefetchQuery({
+      queryKey: ['unified-web-optimization', businessId],
+      queryFn: () => fetchUnifiedPages(businessId),
+      staleTime: 1000 * 60,
+    })
+  }, [businessId, queryClient, fetchUnifiedPages])
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)
@@ -149,6 +164,7 @@ export default function BusinessWebPage({ params }: PageProps) {
                 <TabsList>
                   <TabsTrigger value="new-pages">New Pages</TabsTrigger>
                   <TabsTrigger value="optimize">Optimize</TabsTrigger>
+                  <TabsTrigger value="all-pages">All Pages</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-3">
                   {activeTab === "new-pages" && showNewPagesContent && newPagesMetricsText && (
@@ -206,9 +222,14 @@ export default function BusinessWebPage({ params }: PageProps) {
                 />
               </div>
             </TabsContent>
+            <TabsContent value="all-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
+              <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
+                <WebUnifiedPagesTableClient businessId={businessId} />
+              </EntitlementsGuard>
+            </TabsContent>
           </Tabs>
-        </div>
-      </EntitlementsGuard>
-    </div>
+        </div >
+      </EntitlementsGuard >
+    </div >
   )
 }

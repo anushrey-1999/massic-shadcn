@@ -44,6 +44,7 @@ import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useAuthStore } from "@/store/auth-store";
 import { formatDate, formatVolume } from "@/lib/format";
 import { useQuickEvaluation } from "@/hooks/use-quick-evaluation";
+import { useAgencyInfo } from "@/hooks/use-agency-settings";
 
 export default function PitchReportsPage() {
   const params = useParams();
@@ -52,6 +53,7 @@ export default function PitchReportsPage() {
   const queryClient = useQueryClient();
   const businessId = (params as any)?.id as string | undefined;
   const { user } = useAuthStore();
+  const { agencyInfo } = useAgencyInfo();
 
   const startQuickyMutation = useStartQuickyReport();
   const fetchReportMutation = useFetchReportFromDownloadUrl();
@@ -978,6 +980,7 @@ export default function PitchReportsPage() {
                   profileTags={snapshotProfileTags}
                   competitors={snapshotCompetitors}
                   footerSummary={snapshotFooterSummary}
+                  poweredByName={agencyInfo?.name}
                   quickEvaluation={quickEvaluationMutation.data}
                   quickEvaluationLoading={quickEvaluationMutation.isPending}
                   quickEvaluationErrorMessage={quickEvaluationMutation.error?.message}
@@ -1031,9 +1034,9 @@ export default function PitchReportsPage() {
               </Button>
             </div>
 
-            <div className="flex gap-4 items-stretch justify-center ">
-              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none">
-                <CardContent className="p-0 h-full flex flex-col gap-4">
+            <div className="flex gap-4 items-stretch justify-center shrink-0 min-h-0 max-h-[44vh] overflow-hidden">
+              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none h-full min-h-0 flex flex-col">
+                <CardContent className="p-0 h-full flex flex-col gap-4 min-h-0">
                   <div className="flex items-center gap-2">
                     <Zap className="h-7.5 w-7.5 text-general-primary" />
                     <Typography
@@ -1065,7 +1068,7 @@ export default function PitchReportsPage() {
                     </div>
                   )}
 
-                  <div className="flex-1">
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     <Typography variant="p" className="text-primary">
                       A super-fast, low-cost snapshot of your SEO opportunity. In
                       10-20 seconds, it gives you a personalized, high-impact teaser
@@ -1183,8 +1186,8 @@ export default function PitchReportsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none ">
-                <CardContent className="p-0 h-full flex flex-col gap-4">
+              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none h-full min-h-0 flex flex-col">
+                <CardContent className="p-0 h-full flex flex-col gap-4 min-h-0">
                   <div className="flex items-center gap-2">
                     <ListChecks className="h-7.5 w-7.5 text-general-primary" />
                     <Typography
@@ -1216,7 +1219,7 @@ export default function PitchReportsPage() {
                     </div>
                   )}
 
-                  <div className="flex-1">
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     <Typography
                       variant="p"
                       className="text-primary leading-relaxed"
@@ -1237,124 +1240,20 @@ export default function PitchReportsPage() {
               </div> */}
 
                   <div className="mt-4">
-                    {hasExistingDetailed ? (
-                      <div className="flex gap-2">
-                        <Button
-                          size="lg"
-                          className="flex-1"
-                          disabled={!businessId || isDetailedProcessing}
-                          onClick={() => {
-                            if (!businessId) return;
-                            if (!canExecuteDetailed) {
-                              setUpgradeModalMessage("Subscribe to Massic Opportunities to view detailed reports.");
-                              setShowUpgradeModal(true);
-                              return;
-                            }
-                            queryClient.removeQueries({
-                              queryKey: ["detailed-report", businessId],
-                            });
-                            setActiveReport("detailed");
-                            setReportContent("");
-                            setDetailedPolling(true);
-                            generateDetailedReportMutation.reset();
-                            fetchReportMutation.reset();
-                          }}
-                        >
-                          View
-                        </Button>
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          className="flex-1"
-                          disabled={
-                            !businessId ||
-                            generateDetailedReportMutation.isPending ||
-                            isDetailedProcessing
-                          }
-                          onClick={async () => {
-                            if (!businessId) return;
-
-                            const generateDetailed = async () => {
-                              queryClient.removeQueries({
-                                queryKey: ["detailed-report", businessId],
-                              });
-                              setActiveReport("detailed");
-                              setReportContent("");
-                              setDetailedPolling(false);
-                              generateDetailedReportMutation.reset();
-                              fetchReportMutation.reset();
-                              try {
-                                await generateDetailedReportMutation.mutateAsync({ businessId });
-                                queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                                queryClient.invalidateQueries({
-                                  queryKey: ["detailed", "status", "existing", businessId],
-                                });
-                                setDetailedPolling(true);
-                              } catch (error) {
-                                // Error is already handled by mutation's onError (toast)
-                                // Reset states to hide the processing UI
-                                setActiveReport(null);
-                                setDetailedPolling(false);
-                              }
-                            };
-
-                            await handleGenerateWithCreditsCheck("detailed", generateDetailed);
-                          }}
-                        >
-                          {generateDetailedReportMutation.isPending
-                            ? "Generating..."
-                            : "Regenerate"}
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        size="lg"
-                        className="w-full"
-                        disabled={
-                          !businessId ||
-                          generateDetailedReportMutation.isPending ||
-                          isDetailedProcessing
-                        }
-                        onClick={async () => {
-                          if (!businessId) return;
-
-                          const generateDetailed = async () => {
-                            queryClient.removeQueries({
-                              queryKey: ["detailed-report", businessId],
-                            });
-                            setActiveReport("detailed");
-                            setReportContent("");
-                            setDetailedPolling(false);
-                            generateDetailedReportMutation.reset();
-                            fetchReportMutation.reset();
-                            try {
-                              await generateDetailedReportMutation.mutateAsync({ businessId });
-                              queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                              queryClient.invalidateQueries({
-                                queryKey: ["detailed", "status", "existing", businessId],
-                              });
-                              setDetailedPolling(true);
-                            } catch (error) {
-                              // Error is already handled by mutation's onError (toast)
-                              // Reset states to hide the processing UI
-                              setActiveReport(null);
-                              setDetailedPolling(false);
-                            }
-                          };
-
-                          await handleGenerateWithCreditsCheck("detailed", generateDetailed);
-                        }}
-                      >
-                        {generateDetailedReportMutation.isPending ? "Generating..." : "Generate"}
-                      </Button>
-                    )}
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      disabled
+                    >
+                      Coming Soon
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            <div className="flex-1 min-h-0 rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between mb-3">
+            <div className="flex-1 min-h-[260px] min-w-0 rounded-lg overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between mb-3 shrink-0">
                 <Typography variant="h4">Pitch history</Typography>
               </div>
 

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+const UPSTREAM_TIMEOUT_MS = 300000;
+
 type UpstreamResponse = {
   conversation_id?: string;
   answer?: string;
@@ -40,6 +42,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing question" }, { status: 400 });
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
   const upstreamResponse = await fetch(
     `${promptUrl.replace(/\/$/, "")}/chatbot/planner?business_id=${encodeURIComponent(
       businessId
@@ -52,13 +57,15 @@ export async function POST(request: Request) {
         ...(body?.conversation_id ? { conversation_id: body.conversation_id } : {}),
         calendar_events: body?.calendar_events ?? [],
         plan_type: body?.plan_type ?? "weekly",
-        start_date: body?.start_date ?? null,
-        end_date: body?.end_date ?? null,
-        page_ideas_required: body?.page_ideas_required ?? 5,
+        ...(body?.start_date ? { start_date: body.start_date } : {}),
+        ...(body?.end_date ? { end_date: body.end_date } : {}),
+        page_ideas_required: body?.page_ideas_required ?? 30,
       }),
+      signal: controller.signal,
       cache: "no-store",
     }
   );
+  clearTimeout(timeoutId);
 
   const text = await upstreamResponse.text();
 

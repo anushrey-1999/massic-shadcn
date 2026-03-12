@@ -200,8 +200,8 @@ export function BusinessPreviewCard({
 					</svg>
 					<div className="relative h-full flex items-center justify-center gap-1.5 ">
 						<div className="flex items-center gap-0.5">
-							<Eye className="text-[#8662D0] w-3 h-3 " />
-							<span className="text-xs font-medium text-[#8662D0] leading-0 ">
+							<Eye className="text-gray-500 w-3 h-3 " />
+							<span className="text-xs font-medium text-gray-500 leading-0 ">
 								{formatTotal(impressions?.Total)}
 							</span>
 						</div>
@@ -260,8 +260,8 @@ export function BusinessPreviewCard({
 					</svg>
 					<div className="relative h-full flex items-center justify-center gap-1.5">
 						<div className="flex items-center gap-0.5 leading-[150%]">
-							<Target className="text-general-unofficial-foreground-alt w-3 h-3 " />
-							<span className="text-xs font-medium text-general-unofficial-foreground-alt">
+							<Target className="text-emerald-600 w-3 h-3 " />
+							<span className="text-xs font-medium text-emerald-600">
 								{formatTotal(goals?.Total)}
 							</span>
 						</div>

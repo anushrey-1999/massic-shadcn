@@ -588,7 +588,7 @@ export function OrganicPerformanceSection({
                         />
                         {visibleLines.impressions && (
                           <Area
-                            type="monotone"
+                            type="linear"
                             dataKey={useNormalizedKeys ? "impressionsNorm" : "impressions"}
                             yAxisId={useNormalizedKeys || singleMetricMode ? "left" : "right"}
                             stroke="#6b7280"
@@ -599,7 +599,7 @@ export function OrganicPerformanceSection({
                         )}
                         {visibleLines.clicks && (
                           <Area
-                            type="monotone"
+                            type="linear"
                             dataKey={useNormalizedKeys ? "clicksNorm" : "clicks"}
                             yAxisId="left"
                             stroke="#2563eb"
@@ -610,7 +610,7 @@ export function OrganicPerformanceSection({
                         )}
                         {visibleLines.goals && (
                           <Area
-                            type="monotone"
+                            type="linear"
                             dataKey={useNormalizedKeys ? "goalsNorm" : "goals"}
                             yAxisId="left"
                             stroke="#059669"

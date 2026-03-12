@@ -22,7 +22,6 @@ import { resolvePageContent } from "@/utils/page-content-resolver";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
-  "updated",
   "update_required",
   "outline_only",
   "final_only",
@@ -142,7 +141,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
     setWorkingAction("final");
     try {
       await startFinal(type, businessId, pageId);
+      queryClient.setQueryData(["web-action-content", type, businessId, pageId], { status: "pending" } as any);
       queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
+      queryClient.invalidateQueries({ queryKey: ["web-action-content", type, businessId, pageId] });
       toast.success(type === "blog" ? "Final blog generation started." : "Final page generation started.");
       navigateToView("final");
     } catch (error: any) {
@@ -167,7 +168,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
     setWorkingAction("outline");
     try {
       await startOutline(type, businessId, pageId);
+      queryClient.setQueryData(["web-action-content", type, businessId, pageId], { status: "pending" } as any);
       queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
+      queryClient.invalidateQueries({ queryKey: ["web-action-content", type, businessId, pageId] });
       toast.success(type === "blog" ? "Blog outline generation started." : "Page outline generation started.");
       navigateToView("outline");
     } catch (error: any) {

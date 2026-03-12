@@ -27,10 +27,11 @@ export async function generatePdfFromSnapshotTemplate(args: {
   profileTags?: unknown;
   competitors?: unknown;
   footerSummary?: string;
+  poweredByName?: string;
   filename: string;
   generatedAt?: string;
 }): Promise<void> {
-  const { expressPitch, quickEvaluation, profileTags, competitors, footerSummary, filename, generatedAt } = args;
+  const { expressPitch, quickEvaluation, profileTags, competitors, footerSummary, poweredByName, filename, generatedAt } = args;
   const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
   const response = await fetch("/api/generate-pdf", {
@@ -43,6 +44,7 @@ export async function generatePdfFromSnapshotTemplate(args: {
       profileTags,
       competitors,
       footerSummary,
+      poweredByName,
       generatedAt,
       title: filename.replace(".pdf", ""),
     }),

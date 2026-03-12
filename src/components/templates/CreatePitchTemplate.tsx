@@ -19,13 +19,13 @@ import PageHeader from "@/components/molecules/PageHeader";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
 import { LoaderOverlay } from "@/components/ui/loader";
-import { GenericInput } from "@/components/ui/generic-input";
 import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { useAuthStore } from "@/store/auth-store";
 import { api } from "@/hooks/use-api";
 import { Loader2 } from "lucide-react";
 import { cleanWebsiteUrl } from "@/utils/utils";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
+import { TagsInput } from "@/components/ui/tags-input";
 import {
   Tooltip,
   TooltipContent,
@@ -86,7 +86,7 @@ export function CreatePitchTemplate() {
     lifetimeValue: "",
     offerings: "",
     offeringsList: [],
-    brandTerms: "",
+    brandTerms: [],
   } as unknown as BusinessInfoFormData;
 
   const form = useForm({
@@ -158,10 +158,9 @@ export function CreatePitchTemplate() {
             }))
         : [];
 
-      const brandTermsArray = String(value.brandTerms || "")
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
+      const brandTermsArray = Array.isArray(value.brandTerms)
+        ? value.brandTerms.map((t) => String(t).trim()).filter(Boolean)
+        : [];
 
       const businessProfilePayload: BusinessProfilePayload = {
         Website: value.website,
@@ -303,7 +302,7 @@ export function CreatePitchTemplate() {
       const brandTermsFromApi = Array.isArray(pa.brand_terms)
         ? pa.brand_terms.map((t) => String(t).trim()).filter(Boolean)
         : [];
-      form.setFieldValue("brandTerms" as any, brandTermsFromApi.join(", ") as any);
+      form.setFieldValue("brandTerms" as any, brandTermsFromApi as any);
 
       const allowedToneOptions = new Set([
         "professional",
@@ -477,17 +476,28 @@ export function CreatePitchTemplate() {
                     disabled={!hasAutofilledProfile}
                   />
 
-                  <div className="w-1/2">
-                    <GenericInput<BusinessInfoFormData>
-                      form={form as any}
-                      fieldName="brandTerms"
-                      type="input"
-                      label="Brand terms that best describe your business"
-                      required={false}
-                      placeholder="List the words, separating each one with a comma"
-                      className="w-full"
-                      disabled={!hasAutofilledProfile}
-                    />
+                  <div className="w-full md:w-3/4">
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium text-foreground">
+                        Brand terms that best describe your business
+                      </div>
+                      <form.Field
+                        name="brandTerms"
+                        children={(field: any) => {
+                          const currentValue = Array.isArray(field.state.value)
+                            ? field.state.value
+                            : [];
+                          return (
+                            <TagsInput
+                              value={currentValue}
+                              onChange={(next) => field.handleChange(next)}
+                              placeholder="Type a term and press Enter"
+                              disabled={!hasAutofilledProfile}
+                            />
+                          );
+                        }}
+                      />
+                    </div>
                   </div>
                 </ProfileStepCard>
               </form>

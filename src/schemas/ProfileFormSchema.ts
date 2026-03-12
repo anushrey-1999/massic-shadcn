@@ -63,7 +63,7 @@ export const businessInfoSchema = z.object({
       })
     )
     .optional(),
-  brandTerms: z.string().optional(),
+  brandTerms: z.array(z.string().trim().min(1)).optional(),
   stakeholders: z
     .array(
       z.object({

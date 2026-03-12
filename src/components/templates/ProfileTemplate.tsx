@@ -170,7 +170,7 @@ const ProfileTemplate = ({
         offeringsList: [],
         usps: "",
         ctas: [],
-        brandTerms: "",
+        brandTerms: [],
         stakeholders: [],
         locations: [],
         competitors: [],
@@ -345,23 +345,31 @@ const ProfileTemplate = ({
         const brandTermsFromJob = (jobDetails as any)?.brand_terms;
         const brandTerms = brandTermsFromBusiness ?? brandTermsFromJob;
 
-        if (Array.isArray(brandTerms)) {
-          return brandTerms.map((t) => String(t).trim()).filter(Boolean).join(", ");
-        }
-        if (typeof brandTerms === "string") {
-          // Job API may send JSON string
-          try {
-            const parsed = JSON.parse(brandTerms);
-            if (Array.isArray(parsed)) {
-              return parsed.map((t) => String(t).trim()).filter(Boolean).join(", ");
-            }
-          } catch {
-            // ignore
+        const normalize = (raw: unknown): string[] => {
+          if (!raw) return [];
+          if (Array.isArray(raw)) {
+            return raw.map((t) => String(t).trim()).filter(Boolean);
           }
-          return brandTerms;
-        }
+          if (typeof raw === "string") {
+            const s = raw.trim();
+            if (!s) return [];
+            try {
+              const parsed = JSON.parse(s);
+              if (Array.isArray(parsed)) {
+                return parsed.map((t) => String(t).trim()).filter(Boolean);
+              }
+            } catch {
+              // ignore
+            }
+            return s
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean);
+          }
+          return [];
+        };
 
-        return "";
+        return normalize(brandTerms);
       })(),
       stakeholders: stakeholdersList,
       locations: locationsList,
@@ -462,11 +470,10 @@ const ProfileTemplate = ({
           USPs: uspsPayload.length > 0 ? uspsPayload : null,
           SellingPoints: uspsPayload.length > 0 ? uspsPayload : null, // Keep for backward compatibility
           BrandTerms:
-            value.brandTerms && value.brandTerms.trim()
+            Array.isArray(value.brandTerms) && value.brandTerms.length > 0
               ? value.brandTerms
-                .split(",")
-                ?.map((item: string) => item.trim())
-                ?.filter((item: string) => item.length > 0)
+                .map((t: any) => String(t).trim())
+                .filter((t: string) => t.length > 0)
               : null,
           LTV:
             value.lifetimeValue === "high" || value.lifetimeValue === "low"
@@ -672,7 +679,7 @@ const ProfileTemplate = ({
       const brandTermsFromApi = Array.isArray(pa.brand_terms)
         ? pa.brand_terms.map((t) => String(t).trim()).filter(Boolean)
         : [];
-      form.setFieldValue("brandTerms" as any, brandTermsFromApi.join(", ") as any);
+      form.setFieldValue("brandTerms" as any, brandTermsFromApi as any);
 
       // Tone fields (overwrite, max 3, allowed options only)
       const allowedToneOptions = new Set([
@@ -1093,6 +1100,9 @@ const ProfileTemplate = ({
     !isAutofillGateActive &&
     !hasBasicDetailsValidationErrors;
 
+  const isAutofillWorkflowInProgress =
+    isAutofillLoading || offeringsExtractor.isExtracting;
+
   const hasSchemaValidationErrors = useMemo(() => {
     return !businessInfoSchema.safeParse(formValues).success;
   }, [formValues]);
@@ -1107,9 +1117,13 @@ const ProfileTemplate = ({
   // - For "Save Changes": disable if loading, saving, or has any validation errors
   // - For "Confirm & Proceed": disable if loading, saving, triggering, workflow processing, or no job exists
   const isButtonDisabled = hasChanges
-    ? externalLoading || isSaving || hasAnyValidationErrors // Save Changes: disable during loading, saving, or validation errors
+    ? externalLoading ||
+      isSaving ||
+      isAutofillWorkflowInProgress ||
+      hasAnyValidationErrors // Save Changes: disable during loading, saving, autofill/extraction, or validation errors
     : externalLoading ||
     isSaving ||
+      isAutofillWorkflowInProgress ||
     isCheckingPlan ||
     isTriggeringWorkflow ||
     isWorkflowProcessing || // Disable if workflow is already processing
@@ -1121,12 +1135,14 @@ const ProfileTemplate = ({
     if (hasChanges) {
       if (externalLoading) return "Please wait for the profile to finish loading.";
       if (isSaving) return "Saving in progress.";
+      if (isAutofillWorkflowInProgress) return "Autofill is in progress. Please wait.";
       if (hasAnyValidationErrors) return "Fix the highlighted fields to enable saving.";
       return "Unable to save right now.";
     }
 
     if (!externalJobDetails?.job_id) return "Add offerings first to proceed to Strategy.";
     if (isWorkflowProcessing) return "Workflows are under process. Please wait till they are done.";
+    if (isAutofillWorkflowInProgress) return "Autofill is in progress. Please wait.";
     if (isCheckingPlan) return "Checking your plan...";
     if (isTriggeringWorkflow) return "Triggering workflow...";
     if (externalLoading) return "Please wait for the profile to finish loading.";
@@ -1137,6 +1153,7 @@ const ProfileTemplate = ({
     hasChanges,
     externalLoading,
     isSaving,
+    isAutofillWorkflowInProgress,
     hasAnyValidationErrors,
     externalJobDetails?.job_id,
     isWorkflowProcessing,
@@ -1638,7 +1655,13 @@ const ProfileTemplate = ({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isTriggeringWorkflow || isCheckingPlan}>
+              <AlertDialogCancel
+                disabled={
+                  isTriggeringWorkflow ||
+                  isCheckingPlan ||
+                  isAutofillWorkflowInProgress
+                }
+              >
                 Do Later
               </AlertDialogCancel>
               <AlertDialogAction asChild>
@@ -1651,7 +1674,11 @@ const ProfileTemplate = ({
                       toast.error("Something went wrong. Please try again.");
                     }
                   }}
-                  disabled={isTriggeringWorkflow || isCheckingPlan}
+                  disabled={
+                    isTriggeringWorkflow ||
+                    isCheckingPlan ||
+                    isAutofillWorkflowInProgress
+                  }
                 >
                   Confirm
                 </Button>

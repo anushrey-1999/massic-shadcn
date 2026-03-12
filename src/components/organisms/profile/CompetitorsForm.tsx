@@ -69,7 +69,7 @@ export const CompetitorsForm = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="w-1/2">
+        <div className="w-full md:w-3/4">
 <CustomAddRowTable
               columns={competitorsColumns}
               data={competitorsData}

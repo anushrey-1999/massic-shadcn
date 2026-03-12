@@ -173,9 +173,16 @@ export function LocationSelect({
     return filtered.slice(0, 500)
   }, [validOptions, debouncedSearchValue])
 
-  // Find selected option label
-  const selectedOption = options.find((opt) => opt.value === value)
-  const displayValue = selectedOption?.label || placeholder
+  // Find selected option label.
+  // Some callsites include a disabled placeholder option with empty value.
+  // Treat that as "no selection" so the closed trigger shows the placeholder styling.
+  const selectedOption = options.find(
+    (opt) => opt.value === value && !opt.disabled && opt.value !== ''
+  )
+  const hasRealSelection =
+    value != null && String(value).trim() !== '' && Boolean(selectedOption)
+  const displayValue = hasRealSelection ? selectedOption!.label : placeholder
+  const isPlaceholder = loading || !hasRealSelection
 
   // Measure trigger width when it opens
   React.useEffect(() => {
@@ -213,7 +220,8 @@ export function LocationSelect({
             role="combobox"
             aria-expanded={open}
             className={cn(
-              "w-full justify-between",
+              // Match input-like typography/colors (not CTA button styling)
+              "w-full justify-between text-foreground font-normal",
               // Only apply default classes if triggerClassName doesn't override them
               !triggerClassName && "h-10 rounded-lg",
               triggerClassName
@@ -222,7 +230,7 @@ export function LocationSelect({
           >
             <span className={cn(
               "truncate",
-              selectedOption ? "text-sm" : "text-general-muted-foreground text-xs"
+              isPlaceholder ? "text-general-muted-foreground text-xs" : "text-sm text-foreground"
             )}>
               {loading ? 'Loading locations...' : displayValue}
             </span>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/hooks/use-api";
@@ -512,8 +512,13 @@ function mapDomainHealthFromResponse(res: TechAuditGetResponse | null): TechAudi
     .filter((x: TechAuditDomainHealthItem | null): x is TechAuditDomainHealthItem => Boolean(x));
 }
 
-export function useTechAudit(params: { businessId: string | null; website: string | null }) {
+export function useTechAudit(params: {
+  businessId: string | null;
+  website: string | null;
+  autoCreateOnMissing?: boolean;
+}) {
   const businessId = params.businessId;
+  const autoCreateOnMissing = params.autoCreateOnMissing ?? true;
   const queryClient = useQueryClient();
   const domain = useMemo(
     () => (params.website ? normalizeDomain(params.website) : null),
@@ -551,6 +556,7 @@ export function useTechAudit(params: { businessId: string | null; website: strin
   });
 
   const createAuditMutation = createMutation.mutate;
+  const createAuditMutationAsync = createMutation.mutateAsync;
   const resetCreateAudit = createMutation.reset;
   const isCreatePending = createMutation.isPending;
 
@@ -607,6 +613,7 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     const isMissing = getQuery.data == null;
     setNotFound(isMissing);
 
+    if (!autoCreateOnMissing) return;
     if (!isMissing) return;
     if (isCreatePending) return;
 
@@ -620,6 +627,7 @@ export function useTechAudit(params: { businessId: string | null; website: strin
   }, [
     businessId,
     domain,
+    autoCreateOnMissing,
     getQuery.data,
     getQuery.isError,
     getQuery.isFetched,
@@ -650,6 +658,17 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     };
   }, [getQuery.data]);
 
+  const createAudit = useCallback(async () => {
+    if (!businessId || !domain) return null;
+
+    autoCreateAttemptedDomainRef.current = domain;
+    forcePollingRef.current = true;
+    seenInProgressRef.current = false;
+    resetCreateAudit();
+
+    return createAuditMutationAsync({ domain });
+  }, [businessId, domain, resetCreateAudit, createAuditMutationAsync]);
+
   return {
     domain,
     notFound,
@@ -661,15 +680,7 @@ export function useTechAudit(params: { businessId: string | null; website: strin
     fetchError: (getQuery.error as Error | null) ?? null,
     data: viewModel,
     refetch: getQuery.refetch,
-    createAudit: () => {
-      if (!businessId) return;
-      if (!domain) return;
-      autoCreateAttemptedDomainRef.current = domain;
-      forcePollingRef.current = true;
-      seenInProgressRef.current = false;
-      resetCreateAudit();
-      createAuditMutation({ domain });
-    },
+    createAudit,
   };
 }
 

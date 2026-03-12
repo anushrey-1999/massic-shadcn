@@ -142,14 +142,12 @@ export function DomainHealthCard({
           <div className="space-y-8">
             <div className="space-y-2 font-sans">
               <p className="text-sm leading-normal tracking-[0.07px] text-[rgba(0,0,0,0.87)]">
-                Your plan includes 1 technical audit per month, which you’ve already used.
-                <br />
-                Regenerating now will refresh the audit using credits. Your current results
-                won’t change until you confirm.
+                Regenerating will request a fresh technical audit for this business.
+                Your current results will stay visible until the new audit starts.
               </p>
               <p className="text-xs leading-normal tracking-[0.18px] text-general-muted-foreground">
-                Note: Results update only if new or changed issues are found. If nothing has
-                changed, you’ll see the same audit.
+                If your included technical-audit usage is exhausted, we’ll ask you to apply
+                execution credits before the audit runs.
               </p>
             </div>
 
@@ -162,7 +160,7 @@ export function DomainHealthCard({
                 setRegenerateOpen(false);
               }}
             >
-              Apply 10 Credits &amp; Regenerate
+              Continue
             </Button>
           </div>
         </DialogContent>

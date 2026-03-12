@@ -17,7 +17,7 @@ interface ApplyCreditsModalProps {
   onApplyCredits: () => void;
   creditsBalance: number;
   creditsToApply: number;
-  reportType: "snapshot" | "detailed";
+  reportType: "snapshot" | "detailed" | "technical-audit";
   isApplying?: boolean;
 }
 
@@ -30,6 +30,11 @@ export function ApplyCreditsModal({
   reportType,
   isApplying = false,
 }: ApplyCreditsModalProps) {
+  const helperText =
+    reportType === "technical-audit"
+      ? "Need another technical audit this billing period? Execution Credits let you run one more audit without waiting for the next cycle."
+      : "More prospects in the pipeline? Execution Credits help surface clear opportunity and upside.";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -89,9 +94,7 @@ export function ApplyCreditsModal({
               </Badge>
             </div>
 
-            <p className="text-sm text-primary">
-              More prospects in the pipeline? Execution Credits help surface clear opportunity and upside.
-            </p>
+            <p className="text-sm text-primary">{helperText}</p>
 
             <div className="flex flex-col gap-2">
               {[
@@ -99,6 +102,11 @@ export function ApplyCreditsModal({
                 { label: "1 blog post", credits: "5 credits", type: null },
                 { label: "1 snapshot pitch", credits: "10 credits", type: "snapshot" as const },
                 { label: "1 detailed pitch", credits: "100 credits", type: "detailed" as const },
+                {
+                  label: "1 technical audit",
+                  credits: "10 credits",
+                  type: "technical-audit" as const,
+                },
               ].map((item) => (
                 <div
                   key={item.label}

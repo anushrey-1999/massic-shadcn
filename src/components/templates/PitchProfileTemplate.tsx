@@ -20,7 +20,6 @@ import PageHeader from "@/components/molecules/PageHeader";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
 import { LoaderOverlay } from "@/components/ui/loader";
-import { GenericInput } from "@/components/ui/generic-input";
 import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { Loader2 } from "lucide-react";
 import { cleanWebsiteUrl } from "@/utils/utils";
@@ -29,6 +28,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { TagsInput } from "@/components/ui/tags-input";
 
 function toPrimaryLocationString(input: any): string {
   const location = String(input?.Location || "").trim();
@@ -104,7 +104,7 @@ export function PitchProfileTemplate() {
       serviceType: "" as any,
       offerings: "" as any,
       offeringsList: [],
-      brandTerms: "",
+      brandTerms: [],
     } as unknown as BusinessInfoFormData;
   }, []);
 
@@ -147,10 +147,9 @@ export function PitchProfileTemplate() {
             }))
         : [];
 
-      const brandTermsArray = String(value.brandTerms || "")
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
+      const brandTermsArray = Array.isArray(value.brandTerms)
+        ? value.brandTerms.map((t) => String(t).trim()).filter(Boolean)
+        : [];
 
       const businessProfilePayload: BusinessProfilePayload = {
         Website: value.website,
@@ -316,20 +315,23 @@ export function PitchProfileTemplate() {
       const raw = fromBusiness ?? fromJob;
 
       if (Array.isArray(raw)) {
-        return raw.map((t) => String(t).trim()).filter(Boolean).join(", ");
+        return raw.map((t) => String(t).trim()).filter(Boolean);
       }
       if (typeof raw === "string") {
         try {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            return parsed.map((t) => String(t).trim()).filter(Boolean).join(", ");
+            return parsed.map((t) => String(t).trim()).filter(Boolean);
           }
         } catch {
           // ignore
         }
-        return raw;
+        return raw
+          .split(",")
+          .map((t) => String(t).trim())
+          .filter(Boolean);
       }
-      return "";
+      return [];
     })();
 
     if (!String(formValues.website || "").trim() && website) form.setFieldValue("website", website);
@@ -353,8 +355,11 @@ export function PitchProfileTemplate() {
 
     if (!String(formValues.offerings || "").trim()) form.setFieldValue("offerings", offerings as any);
     if (!hasAnyOfferingRow && offeringsList.length > 0) form.setFieldValue("offeringsList", offeringsList as any);
-    if (!String(formValues.brandTerms || "").trim() && String(brandTerms || "").trim()) {
-      form.setFieldValue("brandTerms", String(brandTerms).trim() as any);
+    const currentBrandTerms = Array.isArray(formValues.brandTerms)
+      ? formValues.brandTerms
+      : [];
+    if (currentBrandTerms.length === 0 && Array.isArray(brandTerms) && brandTerms.length > 0) {
+      form.setFieldValue("brandTerms", brandTerms as any);
     }
   }, [businessId, form, formValues, jobQuery.data, jobQuery.isFetched, profileData, profileDataLoading]);
 
@@ -489,16 +494,27 @@ export function PitchProfileTemplate() {
                     businessId={businessId ?? null}
                     embedded
                   />
-                  <div className="w-1/2">
-                    <GenericInput<BusinessInfoFormData>
-                      form={form as any}
-                      fieldName="brandTerms"
-                      type="input"
-                      label="Brand terms that best describe your business"
-                      required={false}
-                      placeholder="List the words, separating each one with a comma"
-                      className="w-full"
-                    />
+                  <div className="w-full md:w-3/4">
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium text-foreground">
+                        Brand terms that best describe your business
+                      </div>
+                      <form.Field
+                        name="brandTerms"
+                        children={(field: any) => {
+                          const currentValue = Array.isArray(field.state.value)
+                            ? field.state.value
+                            : [];
+                          return (
+                            <TagsInput
+                              value={currentValue}
+                              onChange={(next) => field.handleChange(next)}
+                              placeholder="Type a term and press Enter"
+                            />
+                          );
+                        }}
+                      />
+                    </div>
                   </div>
                 </ProfileStepCard>
               </form>

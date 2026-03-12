@@ -62,7 +62,8 @@ type Props = {
   onOpenChange?: (open: boolean) => void
   mode?: "section" | "table"
   planItemsOverride?: PagePlannerPlanItem[] | null
-  highlightKeywords?: string[] | null
+  addedKeywords?: string[] | null
+  changedKeywords?: string[] | null
   externalBusy?: boolean
   externalBusyLabel?: string | null
   onTableContextChange?: (ctx: {
@@ -381,7 +382,8 @@ export function PagesActionsDropdown({
   onOpenChange,
   mode = "section",
   planItemsOverride = null,
-  highlightKeywords = null,
+  addedKeywords = null,
+  changedKeywords = null,
   externalBusy = false,
   externalBusyLabel = null,
   onTableContextChange,
@@ -412,14 +414,23 @@ export function PagesActionsDropdown({
   const [sourceMode, setSourceMode] = React.useState<"active" | "generated" | "placeholder">("placeholder")
   const [planItems, setPlanItems] = React.useState<PagePlannerPlanItem[]>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
-  const highlightKeywordsSet = React.useMemo(() => {
-    const arr = Array.isArray(highlightKeywords) ? highlightKeywords : []
+  const addedKeywordsSet = React.useMemo(() => {
+    const arr = Array.isArray(addedKeywords) ? addedKeywords : []
     const out = new Set<string>()
     for (const kw of arr) {
       if (typeof kw === "string" && kw.length > 0) out.add(kw)
     }
     return out
-  }, [highlightKeywords])
+  }, [addedKeywords])
+
+  const changedKeywordsSet = React.useMemo(() => {
+    const arr = Array.isArray(changedKeywords) ? changedKeywords : []
+    const out = new Set<string>()
+    for (const kw of arr) {
+      if (typeof kw === "string" && kw.length > 0) out.add(kw)
+    }
+    return out
+  }, [changedKeywords])
 
   const buildRowsFromPlanItems = React.useCallback(
     (items: PagePlannerPlanItem[]): PagesActionsItem[] => {
@@ -476,6 +487,7 @@ export function PagesActionsDropdown({
   const pagesOverridePlanItems = refinePlan?.pagesOverridePlanItems ?? null
   const pagesRegenerateError = refinePlan?.pagesRegenerateError ?? null
   const isSelectable = mode === "table"
+  const showGenerateViewButton = mode === "section"
 
   const isPanelOpen = mode === "table" ? true : open ?? uncontrolledOpen
   const setPanelOpen = React.useCallback(
@@ -946,11 +958,15 @@ export function PagesActionsDropdown({
               const showContentBorder = showBottomBorder && hasMetrics
               const isDone = doneIds.has(item.id)
               const isChecked = Boolean((rowSelection as any)?.[item.id])
-              const showHighlight =
-                isSelectable &&
+              const showAdded =
                 typeof item.keyword === "string" &&
                 item.keyword.length > 0 &&
-                highlightKeywordsSet.has(item.keyword)
+                addedKeywordsSet.has(item.keyword)
+              const showChanged =
+                typeof item.keyword === "string" &&
+                item.keyword.length > 0 &&
+                changedKeywordsSet.has(item.keyword)
+              const showMarked = showAdded || showChanged
               const statusForCell = String(item.planItemStatus || "").trim().toLowerCase()
               const webRow = {
                 id: item.id,
@@ -972,6 +988,7 @@ export function PagesActionsDropdown({
                   key={item.id}
                   open={open}
                   onOpenChange={(next) => setOpenItemId(next ? item.id : null)}
+                  className={cn(showMarked ? "border-l-2 border-emerald-500" : null)}
                 >
                   <CollapsibleTrigger asChild>
                     <div
@@ -988,7 +1005,7 @@ export function PagesActionsDropdown({
                         "group flex min-h-11 items-center gap-2 px-2 py-1.5 select-none cursor-pointer",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                         open && "bg-[#FAFAFA]",
-                        showHighlight && "bg-amber-50/40 border-l-2 border-amber-400",
+                        showMarked ? "bg-emerald-50/50" : null,
                         showTriggerBorder && "border-b border-general-border"
                       )}
                     >
@@ -1092,14 +1109,18 @@ export function PagesActionsDropdown({
                             )
                           })}
                         </div>
-                      <div
-                        className={cn(
-                          "flex w-[52px] justify-end px-2 py-1.5",
-                          isSelectable ? "items-start" : "items-center"
+                        {showGenerateViewButton ? (
+                          <div
+                            className={cn(
+                              "flex w-[52px] justify-end px-2 py-1.5",
+                              isSelectable ? "items-start" : "items-center"
+                            )}
+                          >
+                            <WebPageActionCell businessId={businessId} row={webRow} />
+                          </div>
+                        ) : (
+                          <div className="w-[52px]" />
                         )}
-                      >
-                        <WebPageActionCell businessId={businessId} row={webRow} />
-                      </div>
                       </div>
                     </CollapsibleContent>
                   ) : null}

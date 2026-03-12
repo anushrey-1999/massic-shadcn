@@ -487,6 +487,7 @@ export function PagesActionsDropdown({
   const pagesOverridePlanItems = refinePlan?.pagesOverridePlanItems ?? null
   const pagesRegenerateError = refinePlan?.pagesRegenerateError ?? null
   const isSelectable = mode === "table"
+  const showGenerateViewButton = mode === "section"
 
   const isPanelOpen = mode === "table" ? true : open ?? uncontrolledOpen
   const setPanelOpen = React.useCallback(
@@ -1108,14 +1109,18 @@ export function PagesActionsDropdown({
                             )
                           })}
                         </div>
-                      <div
-                        className={cn(
-                          "flex w-[52px] justify-end px-2 py-1.5",
-                          isSelectable ? "items-start" : "items-center"
+                        {showGenerateViewButton ? (
+                          <div
+                            className={cn(
+                              "flex w-[52px] justify-end px-2 py-1.5",
+                              isSelectable ? "items-start" : "items-center"
+                            )}
+                          >
+                            <WebPageActionCell businessId={businessId} row={webRow} />
+                          </div>
+                        ) : (
+                          <div className="w-[52px]" />
                         )}
-                      >
-                        <WebPageActionCell businessId={businessId} row={webRow} />
-                      </div>
                       </div>
                     </CollapsibleContent>
                   ) : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CircleAlert, Eye, RotateCw } from "lucide-react";
+import { Check, CircleAlert, RotateCw } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,39 +17,22 @@ import { cn } from "@/lib/utils";
 import type { TechAuditDomainHealthItem } from "@/hooks/use-tech-audit";
 
 function getTone(item: TechAuditDomainHealthItem) {
-  const sev = String(item.severity || "").toLowerCase();
-  if (sev === "warning") {
+  if (item.passing) {
     return {
-      iconBg: "bg-amber-100",
-      iconFg: "text-amber-600",
-      valueFg: "text-amber-600",
+      iconBg: "bg-emerald-100",
+      iconFg: "text-emerald-600",
+      valueFg: "text-emerald-600",
     };
   }
-  if (sev === "notice") {
-    return {
-      iconBg: "bg-[#F5F5F5]",
-      iconFg: "text-general-muted-foreground",
-      valueFg: "text-general-muted-foreground",
-    };
-  }
-  return {
-    iconBg: "bg-red-100",
-    iconFg: "text-red-600",
-    valueFg: "text-red-600",
-  };
+  return { iconBg: "bg-red-100", iconFg: "text-red-600", valueFg: "text-red-600" };
 }
 
 function getValueLabel(item: TechAuditDomainHealthItem) {
-  const sev = String(item.severity || "").toLowerCase();
-  if (sev === "warning") return "Warning";
-  if (sev === "notice") return "Notice";
-  return "Critical";
+  return item.passing ? "Yes" : "No";
 }
 
-function getSeverityIcon(item: TechAuditDomainHealthItem) {
-  const sev = String(item.severity || "").toLowerCase();
-  if (sev === "notice") return Eye;
-  return CircleAlert;
+function getStatusIcon(item: TechAuditDomainHealthItem) {
+  return item.passing ? Check : CircleAlert;
 }
 
 export function DomainHealthCard({
@@ -103,7 +86,7 @@ export function DomainHealthCard({
           {items.map((item, idx) => {
             const tone = getTone(item);
             const value = getValueLabel(item);
-            const SeverityIcon = getSeverityIcon(item);
+            const StatusIcon = getStatusIcon(item);
 
             return (
               <div
@@ -122,7 +105,7 @@ export function DomainHealthCard({
                       tone.iconFg
                     )}
                   >
-                    <SeverityIcon className="h-4 w-4" />
+                    <StatusIcon className="h-4 w-4" />
                   </div>
                   <Typography variant="p" className="text-base font-medium text-general-foreground">
                     {item.label}
@@ -132,7 +115,7 @@ export function DomainHealthCard({
                 <div className="pl-[33px]">
                   <Typography
                     variant="p"
-                    className={cn("text-base font-mono", tone.valueFg)}
+                    className={cn("flex items-center gap-2 text-base font-mono", tone.valueFg)}
                   >
                     {value}
                   </Typography>

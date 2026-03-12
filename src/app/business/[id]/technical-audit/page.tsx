@@ -94,18 +94,16 @@ export default function BusinessTechnicalAuditPage({
       return labelOverride ? { ...it, label: labelOverride } : it;
     };
 
-    const wwwRedirect =
-      pick("www_redirect", "www redirect") ??
-      pick("test_www_redirect", "www redirect") ??
-      // API currently exposes canonicalization in sample responses; design wants “www redirect”.
-      pick("test_canonicalization", "www redirect");
+    const canonicalization =
+      pick("canonicalization", "Canonicalization") ??
+      pick("test_canonicalization", "Canonicalization");
 
     return [
       pick("ssl", "SSL/TLS"),
       pick("test_https_redirect", "HTTPS Redirect"),
       pick("sitemap", "Sitemap"),
       pick("robots_txt", "Robots.txt"),
-      wwwRedirect,
+      canonicalization,
     ].filter((x): x is NonNullable<typeof x> => Boolean(x));
   }, [techAudit.data.domainHealth]);
   const domainLabel =

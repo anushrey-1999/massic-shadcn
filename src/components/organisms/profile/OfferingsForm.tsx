@@ -308,7 +308,7 @@ export const OfferingsForm = ({
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="w-1/2">
+            <div className="w-full md:w-3/4">
             {isExtracting ? (
               <div className="rounded-lg border border-general-border-three bg-white px-6 py-8">
                 <div className="flex flex-col items-center justify-center gap-3 text-center">

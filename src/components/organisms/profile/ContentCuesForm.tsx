@@ -10,12 +10,13 @@ import {
 } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel, FieldError } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
 import { CTARow, StakeholderRow } from "@/store/business-store";
 import { MicVocal } from "lucide-react";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
+// import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { TagsInput } from "@/components/ui/tags-input";
 
 type BusinessInfoFormData = {
   usps?: string;
@@ -25,7 +26,7 @@ type BusinessInfoFormData = {
   stakeholdersSavedIndices?: number[];
   brandToneSocial?: string[];
   brandToneWeb?: string[];
-  brandTerms?: string;
+  brandTerms?: string[];
 };
 
 interface ContentCuesFormProps {
@@ -160,7 +161,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-1/2">
+            <div className="w-full md:w-3/4">
             <CustomAddRowTable
               columns={ctaColumns}
               data={ctasData}
@@ -185,20 +186,22 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-1/2">
-            <form.Field
-              name="brandTerms"
-              children={(field: any) => {
-                return (
-                  <Input
-                    value={field.state.value || ""}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="List the words, separating each one with a comma"
-                    className="w-full"
-                  />
-                );
-              }}
-            />
+            <div className="w-full md:w-3/4">
+              <form.Field
+                name="brandTerms"
+                children={(field: any) => {
+                  const currentValue = Array.isArray(field.state.value)
+                    ? field.state.value
+                    : [];
+                  return (
+                    <TagsInput
+                      value={currentValue}
+                      onChange={(next) => field.handleChange(next)}
+                      placeholder="Type a term and press Enter"
+                    />
+                  );
+                }}
+              />
             </div>
           </CardContent>
         </Card>
@@ -383,7 +386,7 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-1/2">
+            <div className="w-full md:w-3/4">
             <CustomAddRowTable
               columns={stakeholdersColumns}
               data={stakeholdersData}
@@ -396,6 +399,29 @@ export const ContentCuesForm = ({
             </div>
           </CardContent>
         </Card>
+
+      {/* <Card variant={cardVariant}>
+        <CardHeader className="">
+          <CardTitle>
+            <FieldLabel className="gap-0">
+              Calendar Events
+            </FieldLabel>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="w-full md:w-3/4">
+          <CustomAddRowTable
+            columns={calendarEventsColumnsWithHandlers}
+            data={calendarEventsData}
+            onAddRow={handleAddCalendarEventRow}
+            onRowChange={handleCalendarEventRowChange}
+            onDeleteRow={handleCalendarEventDeleteRow}
+            addButtonText="Add Custom Event"
+            variant="card"
+          />
+          </div>
+        </CardContent>
+      </Card> */}
     </div>
   );
 

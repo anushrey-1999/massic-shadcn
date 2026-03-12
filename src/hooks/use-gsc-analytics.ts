@@ -207,9 +207,58 @@ function normalizeContentGroupKey(value: string): string | null {
 }
 
 function normalizePageKey(value: string): string | null {
-  const raw = String(value || "").trim()
+  let raw = String(value || "").trim()
   if (!raw) return null
-  return raw
+
+  if (raw.startsWith("sc-domain:")) {
+    raw = raw.slice("sc-domain:".length)
+  }
+
+  const hashIndex = raw.indexOf("#")
+  if (hashIndex >= 0) {
+    raw = raw.slice(0, hashIndex)
+  }
+
+  if (!raw) return "/"
+
+  let withoutOrigin = raw
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(withoutOrigin)) {
+    withoutOrigin = withoutOrigin.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, "")
+  } else if (withoutOrigin.startsWith("//")) {
+    withoutOrigin = withoutOrigin.replace(/^\/\/[^/]*/, "")
+  } else if (!withoutOrigin.startsWith("/") && !withoutOrigin.startsWith("?")) {
+    const splitIndex = withoutOrigin.search(/[/?]/)
+    const hostCandidate = splitIndex >= 0 ? withoutOrigin.slice(0, splitIndex) : withoutOrigin
+    if (/^(localhost(:\d+)?|[^/?]+\.[^/?]+(:\d+)?)$/i.test(hostCandidate)) {
+      withoutOrigin = splitIndex >= 0 ? withoutOrigin.slice(splitIndex) : "/"
+    }
+  }
+
+  if (!withoutOrigin) return "/"
+  if (withoutOrigin.startsWith("?")) {
+    withoutOrigin = `/${withoutOrigin}`
+  } else if (!withoutOrigin.startsWith("/")) {
+    withoutOrigin = `/${withoutOrigin}`
+  }
+
+  const queryIndex = withoutOrigin.indexOf("?")
+  const pathPart = queryIndex >= 0 ? withoutOrigin.slice(0, queryIndex) : withoutOrigin
+  const queryPart = queryIndex >= 0 ? withoutOrigin.slice(queryIndex + 1) : null
+
+  let normalizedPath = pathPart.replace(/\/+/g, "/")
+  if (!normalizedPath.startsWith("/")) {
+    normalizedPath = `/${normalizedPath}`
+  }
+  if (normalizedPath.length > 1) {
+    normalizedPath = normalizedPath.replace(/\/+$/g, "")
+  }
+  if (!normalizedPath) normalizedPath = "/"
+
+  const normalized = queryPart === null
+    ? normalizedPath
+    : `${normalizedPath}?${queryPart}`
+
+  return normalized.toLowerCase()
 }
 
 function getSignedChange(current: number, previous: number): number {

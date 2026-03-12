@@ -192,11 +192,6 @@ export function OrganicPerformanceSection({
     return ticks.length > 0 ? ticks : undefined;
   }, [period, chartData]);
 
-  const funnelKeyToIndex: Record<string, number> = useMemo(
-    () => ({ impressions: 0, clicks: 1, goals: 2 }),
-    []
-  );
-
   const chartLegendWithIcons = useMemo(() => {
     const iconConfig: Record<string, { icon: React.ReactNode; color: string }> =
     {
@@ -209,22 +204,14 @@ export function OrganicPerformanceSection({
       goals: { icon: <Target className="h-6 w-6" />, color: "#059669" },
     };
     return chartLegendItems.map((item) => {
-      const stageIndex = funnelKeyToIndex[item.key];
-      const funnelPct =
-        graphFullScreen &&
-        hasFunnelData &&
-        funnelChartItems[stageIndex]?.percentage
-          ? funnelChartItems[stageIndex].percentage
-          : undefined;
       return {
         ...item,
         icon: iconConfig[item.key]?.icon || <Eye className="h-4 w-4" />,
         color: iconConfig[item.key]?.color,
         checked: visibleLines[item.key] ?? true,
-        ...(funnelPct !== undefined && funnelPct !== "" ? { funnelPercentage: funnelPct } : {}),
       };
     });
-  }, [chartLegendItems, visibleLines, graphFullScreen, hasFunnelData, funnelChartItems, funnelKeyToIndex]);
+  }, [chartLegendItems, visibleLines]);
 
   // Calculate total counts from both Goals and Traffic APIs
   const trafficCriticalCount = trafficData && trafficData.severity === "high" ? 1 : 0;

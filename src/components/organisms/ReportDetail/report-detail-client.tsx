@@ -21,6 +21,7 @@ import type { Editor } from "@tiptap/react";
 
 import { DownloadReportDialog } from "./download-report-dialog";
 import { ShareReportDialog } from "./share-report-dialog";
+import { PerformanceReportV2View } from "./performance-report-v2-view";
 
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useReportRunDetail, useUpdatePerformanceReport } from "@/hooks/use-report-runs";
@@ -35,6 +36,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  parsePerformanceReport,
+  performanceReportToPlainText,
+} from "@/utils/performance-report-v2";
+import {
+  generatePdfFromMarkdown,
+  generatePdfFromPerformanceReportV2,
+} from "@/utils/pdf-generator";
 
 interface ReportDetailClientProps {
   businessId: string;
@@ -73,7 +82,15 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const isSuccess = status === "success";
   const isError = status === "error";
 
-  const performanceReport = reportData?.narrative_text?.performance_report || "";
+  const parsedReport = React.useMemo(
+    () => parsePerformanceReport(reportData?.narrative_text?.performance_report),
+    [reportData?.narrative_text?.performance_report]
+  );
+  const isV2Report = parsedReport.kind === "v2";
+  const performanceReport = parsedReport.kind === "markdown" ? parsedReport.markdown : "";
+  const performanceReportV2 = parsedReport.kind === "v2" ? parsedReport.document : null;
+  const hasReportContent =
+    parsedReport.kind === "v2" || (parsedReport.kind === "markdown" && !!parsedReport.markdown.trim());
   const period = reportData?.period || "3-month";
   const periodStart = reportData?.period_start;
   const periodEnd = reportData?.period_end;
@@ -87,7 +104,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   // Sync content from server
   React.useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (pendingContentRef.current && !isSavingRef.current) {
+      if (!isV2Report && pendingContentRef.current && !isSavingRef.current) {
         handleSaveReport(pendingContentRef.current);
         e.preventDefault();
         e.returnValue = '';
@@ -106,7 +123,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
         clearInterval(periodicTimerRef.current);
       }
     };
-  }, []);
+  }, [isV2Report]);
 
   React.useEffect(() => {
     if (!reportData) return;
@@ -124,14 +141,22 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
 
     if (!shouldSyncFromServer) return;
 
-    const rawReport = reportData?.narrative_text?.performance_report || "";
+    if (isV2Report) {
+      if (isInitialLoadRef.current) {
+        isInitialLoadRef.current = false;
+      }
+      return;
+    }
+
+    const rawPerformanceReport = reportData?.narrative_text?.performance_report;
+    const rawReport = typeof rawPerformanceReport === "string" ? rawPerformanceReport : "";
     setLocalContent(rawReport);
     lastSavedRef.current = rawReport;
 
     if (isInitialLoadRef.current) {
       isInitialLoadRef.current = false;
     }
-  }, [reportData, status, reportEditor]);
+  }, [reportData, status, reportEditor, isV2Report]);
 
   const handleBack = () => {
     router.push(`/business/${businessId}/reports`);
@@ -206,6 +231,14 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   }, [handleSaveReport]);
 
   const handleCopyReport = async () => {
+    if (isV2Report && performanceReportV2) {
+      const plainText = performanceReportToPlainText(performanceReportV2);
+      const ok = await copyToClipboard(plainText);
+      if (ok) toast.success("Copied");
+      else toast.error("Copy failed");
+      return;
+    }
+
     if (reportEditor) {
       const htmlContent = reportEditor.getHTML();
       if (htmlContent && htmlContent.trim()) {
@@ -238,6 +271,18 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
     if (ok) toast.success("Copied");
     else toast.error("Copy failed");
   };
+
+  const handleDownloadPdf = React.useCallback(
+    async (filename: string) => {
+      if (parsedReport.kind === "v2") {
+        await generatePdfFromPerformanceReportV2(parsedReport.raw, filename);
+        return;
+      }
+
+      await generatePdfFromMarkdown(performanceReport, filename);
+    },
+    [parsedReport, performanceReport]
+  );
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-4 bg-white px-40 py-8">
@@ -287,7 +332,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
                 variant="outline"
                 size="icon"
                 onClick={handleCopyReport}
-                disabled={isProcessing || !performanceReport}
+                disabled={isProcessing || !hasReportContent}
                 title="Copy Report"
                 className="h-9 w-9"
               >
@@ -297,7 +342,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
                 variant="outline"
                 size="icon"
                 onClick={handleDownload}
-                disabled={isProcessing || !performanceReport}
+                disabled={isProcessing || !hasReportContent}
                 title="Download Report"
                 className="h-9 w-9"
               >
@@ -353,7 +398,13 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
               </div>
             )}
 
-            {isSuccess && performanceReport && (
+            {isSuccess && isV2Report && performanceReportV2 && (
+              <Card className="p-4 space-y-3 border-0">
+                <PerformanceReportV2View document={performanceReportV2} />
+              </Card>
+            )}
+
+            {isSuccess && !isV2Report && performanceReport && (
               <Card className="p-4 space-y-3 border-0">
                 {isEditorFocused && (
                   <div className="sticky top-0 z-10 bg-white flex items-center gap-2 border rounded-md px-2 py-1 mb-3">
@@ -420,7 +471,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
               </Card>
             )}
 
-            {isSuccess && !performanceReport && (
+            {isSuccess && !hasReportContent && (
               <div className="flex items-center justify-center h-64">
                 <p className="text-muted-foreground">No report content available</p>
               </div>
@@ -433,6 +484,8 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
         onClose={() => setIsDownloadDialogOpen(false)}
         markdownContent={performanceReport}
         defaultFilename={reportTitle}
+        onDownloadPdf={handleDownloadPdf}
+        allowMarkdownDownload={!isV2Report}
       />
       <ShareReportDialog
         isOpen={isShareDialogOpen}

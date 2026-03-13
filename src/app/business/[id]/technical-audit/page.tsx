@@ -16,6 +16,7 @@ import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Loader, LoaderOverlay } from "@/components/ui/loader";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   type AuditIssue,
@@ -39,6 +40,13 @@ const FALLBACK_COUNTS: Record<
   security: { total: 0, critical: 0, warning: 0, notice: 0 },
   accessibility: { total: 0, critical: 0, warning: 0, notice: 0 },
 };
+
+const FIXED_CATEGORY_KEYS: CategoryKey[] = [
+  "technical",
+  "links",
+  "content",
+  "performance",
+];
 
 function formatLastUpdatedLabel(params: {
   status: string | null;
@@ -65,11 +73,11 @@ export default function BusinessTechnicalAuditPage({
 }) {
   const [businessId, setBusinessId] = React.useState<string>("");
   const [regenOverlayOpen, setRegenOverlayOpen] = React.useState(false);
+  const [hasStartedAudit, setHasStartedAudit] = React.useState(false);
   const [selectedCategory, setSelectedCategory] =
     React.useState<CategoryKey | null>(null);
   const [openIssueId, setOpenIssueId] = React.useState<string | null>(null);
   const didAutoOpenIssueRef = React.useRef(false);
-  const autoCreateAttemptedRef = React.useRef<string | null>(null);
 
   // Execution-blocked: set when can-execute denies the request
   const [executionBlocked, setExecutionBlocked] = React.useState(false);
@@ -132,7 +140,7 @@ export default function BusinessTechnicalAuditPage({
   // Reset blocked state when switching businesses
   React.useEffect(() => {
     setExecutionBlocked(false);
-    autoCreateAttemptedRef.current = null;
+    setHasStartedAudit(false);
   }, [businessId]);
 
   // ── Derived data ──
@@ -140,7 +148,7 @@ export default function BusinessTechnicalAuditPage({
   const healthScore = techAudit.data.healthScore ?? 0;
   const pagesCrawled = techAudit.data.pagesCrawled ?? 0;
   const categoryCounts = techAudit.data.categoryCounts ?? FALLBACK_COUNTS;
-  const categories = techAudit.data.categoryKeys;
+  const categories = FIXED_CATEGORY_KEYS;
   const domainLabel =
     techAudit.data.raw?.result?.site?.domain ||
     techAudit.data.raw?.site?.domain ||
@@ -208,11 +216,13 @@ export default function BusinessTechnicalAuditPage({
     async (mode: "generate" | "regenerate") => {
       if (!businessId) return;
       if (mode === "regenerate") setRegenOverlayOpen(true);
+      if (mode === "generate") setHasStartedAudit(true);
 
       try {
         await techAudit.createAudit();
       } catch {
         if (mode === "regenerate") setRegenOverlayOpen(false);
+        if (mode === "generate") setHasStartedAudit(false);
         return;
       }
 
@@ -280,18 +290,6 @@ export default function BusinessTechnicalAuditPage({
     [businessId, techAudit.domain, checkCanExecute, creditsBalance?.current_balance, computedAlertMessage, executeTechnicalAudit]
   );
 
-  // Auto-generate on landing when audit is missing and user has access
-  React.useEffect(() => {
-    if (!hasAccess || executionBlocked) return;
-    if (!businessId || !techAudit.domain) return;
-    if (!techAudit.hasFetched || techAudit.isLoading || techAudit.isFetching) return;
-    if (techAudit.data.raw || !techAudit.notFound) return;
-    if (autoCreateAttemptedRef.current === techAudit.domain) return;
-
-    autoCreateAttemptedRef.current = techAudit.domain;
-    void requestTechnicalAudit("generate");
-  }, [hasAccess, executionBlocked, businessId, techAudit.domain, techAudit.hasFetched, techAudit.isLoading, techAudit.isFetching, techAudit.data.raw, techAudit.notFound, requestTechnicalAudit]);
-
   // Close regen overlay when audit enters polling or finishes
   React.useEffect(() => {
     if (!regenOverlayOpen) return;
@@ -332,8 +330,21 @@ export default function BusinessTechnicalAuditPage({
 
   const isPolling = auditReady && (techAudit.isCreating || techAudit.data.status === "in_progress");
   const hasAuditData = auditReady && Boolean(techAudit.data.raw);
-  const auditLoading = auditReady && !hasAuditData && !isPolling &&
-    Boolean(techAudit.domain) && (!techAudit.hasFetched || isCheckingCanExecute || isUpdatingUsage || techAudit.isCreating);
+
+  const showEmptyState =
+    auditReady &&
+    techAudit.notFound &&
+    !isPolling &&
+    !hasStartedAudit &&
+    !techAudit.isFetching &&
+    !techAudit.fetchError;
+
+  const auditLoading =
+    auditReady &&
+    !hasAuditData &&
+    !isPolling &&
+    Boolean(techAudit.domain) &&
+    (!techAudit.hasFetched || techAudit.isLoading);
 
   const regenerateDisabled =
     isCheckingCanExecute || isUpdatingUsage || techAudit.isCreating ||
@@ -379,12 +390,12 @@ export default function BusinessTechnicalAuditPage({
                 </div>
               ) : (
                 <>
-                  {isPolling && (
+                  {(isPolling || (hasStartedAudit && (techAudit.notFound || techAudit.isFetching))) && (
                     <Alert variant="info">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <AlertTitle>
-                            {techAudit.isCreating ? "Regenerating your audit" : "We're fetching your data"}
+                            {techAudit.isCreating ? "Regenerating your audit" : "We’re generating your audit"}
                           </AlertTitle>
                           <AlertDescription>
                             Once your audit results are ready, this banner will disappear automatically.
@@ -395,7 +406,7 @@ export default function BusinessTechnicalAuditPage({
                     </Alert>
                   )}
 
-                  {hasAuditData && (
+                  {hasAuditData ? (
                     <>
                       {techAudit.domain && (
                         <DomainHealthCard
@@ -411,12 +422,12 @@ export default function BusinessTechnicalAuditPage({
                         <HealthScoreRing
                           score={Math.round(healthScore)}
                           pagesCrawled={pagesCrawled}
-                          deltaLabel={techAudit.data.scoreDeltaLabel ?? undefined}
+                          deltaLabel={techAudit.data.scoreDeltaLabel ?? "—"}
                         />
                         <CategoriesCard
                           selectedCategory={selectedCategory}
                           categoryCounts={categoryCounts}
-                          categories={categories.length > 0 ? categories : undefined}
+                          categories={categories}
                           onCategoryToggle={handleCategoryToggle}
                         />
                       </div>
@@ -436,6 +447,97 @@ export default function BusinessTechnicalAuditPage({
                         }
                       />
                     </>
+                  ) : hasStartedAudit ? (
+                    <div className="space-y-4">
+                      <Card className="rounded-xl border border-border bg-general-primary-foreground shadow-none py-0">
+                        <div className="flex items-center justify-between border-b border-border px-3 py-4">
+                          <Skeleton className="h-5 w-40" />
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="h-5 w-32" />
+                            <Skeleton className="h-8 w-28" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 p-3 md:grid-cols-5">
+                          {Array.from({ length: 5 }).map((_, idx) => (
+                            <Skeleton key={idx} className="h-16 w-full" />
+                          ))}
+                        </div>
+                      </Card>
+
+                      <div className="flex flex-col gap-4 lg:flex-row">
+                        <Card className="w-full lg:w-[201px] gap-2 rounded-xl border-none px-3 py-3 shadow-none">
+                          <Skeleton className="h-5 w-28 mx-auto" />
+                          <div className="flex justify-center py-3">
+                            <Skeleton className="h-[177px] w-[177px] rounded-full" />
+                          </div>
+                          <Skeleton className="h-5 w-full" />
+                        </Card>
+
+                        <Card className="flex-1 gap-3 rounded-xl border-none py-3 shadow-none">
+                          <div className="flex items-center justify-between px-3">
+                            <Skeleton className="h-5 w-28" />
+                          </div>
+                          <div className="grid grid-cols-1 gap-3 px-3 md:grid-cols-2">
+                            {Array.from({ length: 4 }).map((_, idx) => (
+                              <Skeleton key={idx} className="h-[92px] w-full rounded-lg" />
+                            ))}
+                          </div>
+                        </Card>
+                      </div>
+
+                      <Card className="flex flex-col gap-0 rounded-xl border border-border py-0 shadow-none">
+                        <div className="grid grid-cols-[1fr_110px] items-center border-b border-border px-3 py-3">
+                          <Skeleton className="h-5 w-40" />
+                          <div className="flex justify-end">
+                            <Skeleton className="h-5 w-24" />
+                          </div>
+                        </div>
+                        <div className="space-y-2 p-3">
+                          {Array.from({ length: 6 }).map((_, idx) => (
+                            <Skeleton key={idx} className="h-10 w-full rounded-lg" />
+                          ))}
+                        </div>
+                      </Card>
+                    </div>
+                  ) : null}
+
+                  {!hasAuditData && !isPolling && techAudit.fetchError && (
+                    <div className="py-8">
+                      <Alert variant="destructive">
+                        <AlertTitle>Couldn&apos;t load technical audit</AlertTitle>
+                        <AlertDescription>
+                          Please try again.
+                          <div className="mt-3">
+                            <Button
+                              type="button"
+                              variant="default"
+                              size="sm"
+                              onClick={() => void techAudit.refetch()}
+                            >
+                              Retry
+                            </Button>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
+
+                  {showEmptyState && (
+                    <div className="flex flex-col items-center justify-center gap-4 py-16 h-[calc(100vh-8rem)] text-center">
+                      <p className="text-lg font-medium text-general-foreground">
+                        No technical audit yet
+                      </p>
+                      <p className="text-sm text-muted-foreground max-w-md">
+                        Generate your first technical audit{domainLabel ? ` for ${domainLabel}` : ""}.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={() => void requestTechnicalAudit("generate")}
+                        disabled={!techAudit.domain || isCheckingCanExecute || techAudit.isCreating || isUpdatingUsage}
+                      >
+                        Generate
+                      </Button>
+                    </div>
                   )}
                 </>
               )}

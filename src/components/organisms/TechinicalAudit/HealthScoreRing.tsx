@@ -79,7 +79,7 @@ function HealthDonut({
 export function HealthScoreRing({
   score,
   pagesCrawled,
-  deltaLabel = "+42%",
+  deltaLabel = "—",
 }: {
   score: number;
   pagesCrawled: number;

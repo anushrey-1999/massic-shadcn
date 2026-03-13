@@ -364,12 +364,16 @@ function mapMetaFromResponse(res: TechAuditGetResponse | null): Pick<
   const delta = typeof scoreDelta?.delta === "number" ? scoreDelta.delta : null;
   const direction =
     typeof scoreDelta?.direction === "string" ? scoreDelta.direction.toLowerCase() : null;
-  const scoreDeltaLabel =
-    delta == null
-      ? null
-      : direction === "down"
-        ? `-${delta}`
-        : `+${delta}`;
+  const scoreDeltaLabel = (() => {
+    if (delta == null) return null;
+    const abs = Math.abs(delta);
+    if (direction === "down") return `-${abs}%`;
+    if (direction === "up") return `+${abs}%`;
+    if (direction === "flat") return `${abs}%`;
+    // Fallback: if API sends unexpected direction, still show a sane label.
+    if (delta === 0) return "0%";
+    return delta > 0 ? `+${abs}%` : `-${abs}%`;
+  })();
 
   return {
     status,
@@ -584,6 +588,7 @@ export function useTechAudit(params: {
     refetchInterval: (query) => {
       if (forcePollingRef.current) return 10000;
       const data = query.state.data;
+      if (!data) return false;
       const status = (data?.status ?? data?.data?.status ?? null) as TechAuditStatus | null;
       if (status === "finished") return false;
       return 10000;

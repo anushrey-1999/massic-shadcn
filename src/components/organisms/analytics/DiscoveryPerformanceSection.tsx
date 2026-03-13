@@ -36,6 +36,8 @@ interface DiscoveryPerformanceSectionProps {
   visibleMetrics?: Record<string, boolean>;
   filters?: DeepdiveFilter[];
   onSelectFilter?: (filter: DeepdiveFilter) => void;
+  hideTopQueries?: boolean;
+  hideHowYouRank?: boolean;
 }
 
 function normalizePageForDisplay(value: string): string {
@@ -82,6 +84,8 @@ const DiscoveryPerformanceSection = ({
   visibleMetrics,
   filters = [],
   onSelectFilter,
+  hideTopQueries = false,
+  hideHowYouRank = false,
 }: DiscoveryPerformanceSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -565,56 +569,70 @@ const DiscoveryPerformanceSection = ({
         </div>
 
         {/* Second Row */}
-        <div className="">
-          <div className="grid grid-cols-2 gap-3">
-            {hasGscMetricSelected ? (
-              <DataTable
-                icon={<Eye className="h-4 w-4" />}
-                title="Top Queries"
-                titleTooltip="Searches to discover you"
-                inlineHeader
-                showTabs
-                tabs={[
-                  { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
-                  { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
-                  {
-                    icon: <TrendingDown className="h-4 w-4" />,
-                    value: "decaying",
-                  },
-                ]}
-                activeTab={topQueriesFilter}
-                onTabChange={(value) =>
-                  handleTopQueriesFilterChange(value as TableFilterType)
-                }
-                columns={topQueriesColumns}
-                data={topQueriesTableData}
-                isLoading={showTopQueriesLoader}
-                hasData={hasTopQueriesData}
-                sortConfig={topQueriesSort}
-                onSort={(column) =>
-                  handleTopQueriesSort(column as "impressions" | "clicks")
-                }
-                onArrowClick={() => setTopQueriesModalOpen(true)}
-                onRowClick={handleTopQueryRowClick}
-                maxRows={10}
-                dynamicFirstColumn
-              />
-            ) : (
-              <NoGSCMetricsSelected
-                title="Queries"
-                description="Select at least one GSC metric to activate Queries report."
-              />
-            )}
-            <PositionDistributionCard
-              positions={positionLegendItems}
-              chartData={positionChartData}
-              visibleLines={positionVisibleLines}
-              onToggle={handlePositionLegendToggle}
-              isLoading={isLoadingPositions}
-              hasData={hasPositionData}
-            />
+        {!hideTopQueries || !hideHowYouRank ? (
+          <div className="">
+            <div
+              className={`grid gap-3 ${
+                !hideTopQueries && !hideHowYouRank ? "grid-cols-2" : "grid-cols-1"
+              }`}
+            >
+              {!hideTopQueries ? (
+                hasGscMetricSelected ? (
+                  <DataTable
+                    icon={<Eye className="h-4 w-4" />}
+                    title="Top Queries"
+                    titleTooltip="Searches to discover you"
+                    inlineHeader
+                    showTabs
+                    tabs={[
+                      {
+                        icon: <ListOrdered className="h-4 w-4" />,
+                        value: "popular",
+                      },
+                      { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
+                      {
+                        icon: <TrendingDown className="h-4 w-4" />,
+                        value: "decaying",
+                      },
+                    ]}
+                    activeTab={topQueriesFilter}
+                    onTabChange={(value) =>
+                      handleTopQueriesFilterChange(value as TableFilterType)
+                    }
+                    columns={topQueriesColumns}
+                    data={topQueriesTableData}
+                    isLoading={showTopQueriesLoader}
+                    hasData={hasTopQueriesData}
+                    sortConfig={topQueriesSort}
+                    onSort={(column) =>
+                      handleTopQueriesSort(column as "impressions" | "clicks")
+                    }
+                    onArrowClick={() => setTopQueriesModalOpen(true)}
+                    onRowClick={handleTopQueryRowClick}
+                    maxRows={10}
+                    dynamicFirstColumn
+                  />
+                ) : (
+                  <NoGSCMetricsSelected
+                    title="Queries"
+                    description="Select at least one GSC metric to activate Queries report."
+                  />
+                )
+              ) : null}
+
+              {!hideHowYouRank ? (
+                <PositionDistributionCard
+                  positions={positionLegendItems}
+                  chartData={positionChartData}
+                  visibleLines={positionVisibleLines}
+                  onToggle={handlePositionLegendToggle}
+                  isLoading={isLoadingPositions}
+                  hasData={hasPositionData}
+                />
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {/* AI Search Section */}
         <div className="border border-general-border rounded-lg flex flex-col bg-white">
@@ -726,7 +744,7 @@ const DiscoveryPerformanceSection = ({
         dynamicFirstColumn
       />
 
-      {hasGscMetricSelected && (
+      {!hideTopQueries && hasGscMetricSelected && (
         <DataTableModal
           open={topQueriesModalOpen}
           onOpenChange={setTopQueriesModalOpen}

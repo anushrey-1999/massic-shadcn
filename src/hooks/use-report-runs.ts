@@ -115,6 +115,7 @@ export function useReportRunDetail(params: {
 export interface GenerateReportParams {
   businessId: string;
   period: string;
+  custom_instructions?: string;
 }
 
 export interface GenerateReportResponse {
@@ -126,7 +127,7 @@ export function useGenerateReport() {
   const queryClient = useQueryClient();
 
   return useMutation<GenerateReportResponse, Error, GenerateReportParams>({
-    mutationFn: async ({ businessId, period }) => {
+    mutationFn: async ({ businessId, period, custom_instructions }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
@@ -134,7 +135,7 @@ export function useGenerateReport() {
       const response = await api.post<GenerateReportResponse>(
         `/analytics/generate-performance-report`,
         "node",
-        { businessId, period }
+        { businessId, period, custom_instructions }
       );
 
       return response;

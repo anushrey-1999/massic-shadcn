@@ -230,10 +230,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
       [field]: value,
     } as T;
 
-    // Update the value
-    if (onRowChange) {
-      onRowChange(rowIndex, field, value, nextRow);
-    }
+    onRowChange?.(rowIndex, field, value, nextRow);
 
     // Mark field as touched when user starts typing and validate
     setTouched((prev) => {
@@ -301,17 +298,15 @@ export function CustomAddRowTable<T extends Record<string, any>>({
     return (
       <div className={cn("flex flex-col gap-1.5", className)}>
         <div className="flex flex-col gap-2">
-          {data.length > 0 ? (
-            data.map((row, rowIndex) => (
-              (() => {
-                const rowHasAnyValue = columns.some((c) =>
-                  Boolean(String(row[c.key] ?? "").trim())
-                );
-                const isFocusedRow = focusedRowIndex === rowIndex;
-                const blendRow = !isFocusedRow && rowHasAnyValue;
-                const rowId = `table-row-${tableId}-${rowIndex}`;
+          {data.map((row, rowIndex) => {
+            const rowHasAnyValue = columns.some((c) =>
+              Boolean(String(row[c.key] ?? "").trim())
+            );
+            const isFocusedRow = focusedRowIndex === rowIndex;
+            const blendRow = !isFocusedRow && rowHasAnyValue;
+            const rowId = `table-row-${tableId}-${rowIndex}`;
 
-                return (
+            return (
               <div
                 key={rowIndex}
                 id={rowId}
@@ -320,73 +315,76 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                 {columns.map((column) => {
                   const fieldError = (errors[rowIndex] || {})[column.key];
                   const isTouched = touched[rowIndex]?.[column.key] || false;
+
                   return (
-                  <div key={column.key} className="flex flex-1 min-w-0">
-                    {column.render ? (
-                      column.render(row[column.key], row, rowIndex, {
-                        disabled,
-                        error: fieldError,
-                        touched: isTouched,
-                        setValue: (value) =>
-                          handleRowChange(rowIndex, column.key, value),
-                        setRowValue: (field, value, rowData) =>
-                          handleRowChange(rowIndex, field, value, rowData),
-                        onBlur: (value, rowData) =>
-                          handleBlur(rowIndex, column.key, value, rowData),
-                      })
-                    ) : onRowChange ? (
-                      <div className="flex flex-1 min-w-0 flex-col gap-1">
-                        <Input
-                          id={`table-input-${tableId}-${rowIndex}-${column.key}`}
-                          type={column.validation?.url ? "url" : "text"}
-                          variant="default"
-                          value={row[column.key] || ""}
-                          disabled={disabled}
-                          onChange={(e) =>
-                            handleRowChange(rowIndex, column.key, e.target.value)
-                          }
-                          onFocus={() => setFocusedRowIndex(rowIndex)}
-                          onBlur={(e) => {
-                            handleBlur(rowIndex, column.key, e.target.value);
-                            setTimeout(() => {
-                              const container = document.getElementById(rowId);
-                              const active = document.activeElement;
-                              if (!container || !active || !container.contains(active)) {
-                                setFocusedRowIndex((prev) =>
-                                  prev === rowIndex ? null : prev
-                                );
-                              }
-                            }, 0);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              if (!disabled) onAddRow();
+                    <div key={column.key} className="flex flex-1 min-w-0">
+                      {column.render ? (
+                        column.render(row[column.key], row, rowIndex, {
+                          disabled,
+                          error: fieldError,
+                          touched: isTouched,
+                          setValue: (value) =>
+                            handleRowChange(rowIndex, column.key, value),
+                          setRowValue: (field, value, rowData) =>
+                            handleRowChange(rowIndex, field, value, rowData),
+                          onBlur: (value, rowData) =>
+                            handleBlur(rowIndex, column.key, value, rowData),
+                        })
+                      ) : onRowChange ? (
+                        <div className="flex flex-1 min-w-0 flex-col gap-1">
+                          <Input
+                            id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                            type={column.validation?.url ? "url" : "text"}
+                            variant="default"
+                            value={row[column.key] || ""}
+                            disabled={disabled}
+                            onChange={(e) =>
+                              handleRowChange(rowIndex, column.key, e.target.value)
                             }
-                          }}
-                          placeholder={column.label || "Enter value"}
-                          className={cn(
-                            "h-10 min-h-[36px] flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
-                            blendRow
-                              ? "bg-transparent placeholder:text-general-border-four"
-                              : "bg-white placeholder:text-general-border-four",
-                            (errors[rowIndex] || {})[column.key] && touched[rowIndex]?.[column.key] && "aria-invalid border border-destructive"
-                          )}
-                          aria-invalid={touched[rowIndex]?.[column.key] && !!(errors[rowIndex] || {})[column.key]}
-                        />
-                        {touched[rowIndex]?.[column.key] && (errors[rowIndex] || {})[column.key] ? (
-                          <FieldError className="text-xs mt-0.5">
-                            {(errors[rowIndex] || {})[column.key]}
-                          </FieldError>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-general-foreground">{String(row[column.key] ?? "")}</span>
-                    )}
-                  </div>
+                            onFocus={() => setFocusedRowIndex(rowIndex)}
+                            onBlur={(e) => {
+                              handleBlur(rowIndex, column.key, e.target.value);
+                              setTimeout(() => {
+                                const container = document.getElementById(rowId);
+                                const active = document.activeElement;
+                                if (!container || !active || !container.contains(active)) {
+                                  setFocusedRowIndex((prev) =>
+                                    prev === rowIndex ? null : prev
+                                  );
+                                }
+                              }, 0);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (!disabled) onAddRow();
+                              }
+                            }}
+                            placeholder={column.label || "Enter value"}
+                            className={cn(
+                              "h-10 min-h-[36px] flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
+                              blendRow
+                                ? "bg-transparent placeholder:text-general-border-four"
+                                : "bg-white placeholder:text-general-border-four",
+                              isTouched && fieldError && "border border-destructive"
+                            )}
+                            aria-invalid={isTouched && !!fieldError}
+                          />
+                          {isTouched && fieldError ? (
+                            <FieldError className="text-xs mt-0.5">
+                              {fieldError}
+                            </FieldError>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-general-foreground">
+                          {String(row[column.key] ?? "")}
+                        </span>
+                      )}
+                    </div>
                   );
                 })}
-                {onDeleteRow && (
+                {onDeleteRow ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -398,12 +396,10 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                )}
+                ) : null}
               </div>
-                );
-              })()
-            ))
-          ) : null}
+            );
+          })}
         </div>
         <Button
           type="button"

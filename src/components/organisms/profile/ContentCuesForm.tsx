@@ -417,6 +417,7 @@ export const ContentCuesForm = ({
           </CardContent>
         </Card>
 
+      
       <Card variant={cardVariant}>
         <CardHeader className="">
           <CardTitle>
@@ -439,6 +440,7 @@ export const ContentCuesForm = ({
           </div>
         </CardContent>
       </Card>
+     
     </>
   );
 
@@ -475,4 +477,5 @@ export const ContentCuesForm = ({
     </Card>
   );
 };
+    
 

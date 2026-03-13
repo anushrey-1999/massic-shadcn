@@ -897,7 +897,7 @@ export function useGSCAnalytics(
     () => ({
       impressions: { label: "Impressions", color: "#6b7280" },
       clicks: { label: "Clicks", color: "#2563eb" },
-      sessions: { label: "Sessions", color: "#e11d48" },
+      sessions: { label: "Sessions", color: "#ea580c" },
       goals: { label: "Goals", color: "#059669" },
     }),
     []

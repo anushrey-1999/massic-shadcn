@@ -250,7 +250,7 @@ export function AnalyticsTemplate() {
                     ) : key === "clicks" ? (
                       <MousePointerClick className="h-4 w-4 text-blue-600 rotate-90" />
                     ) : key === "sessions" ? (
-                      <BarChart3 className="h-4 w-4 text-rose-500" />
+                      <BarChart3 className="h-4 w-4 text-orange-600" />
                     ) : (
                       <Target className="h-4 w-4 text-emerald-600" />
                     )}
@@ -324,7 +324,6 @@ export function AnalyticsTemplate() {
             />
             <ConversionSection
               period={selectedPeriod}
-              hideChart={selectedTab === "organic"}
             />
             <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
           </>

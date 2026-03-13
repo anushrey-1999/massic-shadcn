@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
-import { ClicksGoalsChartCard } from "@/components/molecules/analytics/ClicksGoalsChartCard";
+// import { ClicksGoalsChartCard } from "@/components/molecules/analytics/ClicksGoalsChartCard";
 import {
   useGA4Analytics,
   type TimePeriodValue,
@@ -23,13 +23,9 @@ import { useMemo, useState, useCallback } from "react";
 
 interface ConversionSectionProps {
   period?: TimePeriodValue;
-  hideChart?: boolean;
 }
 
-const ConversionSection = ({
-  period = "3 months",
-  hideChart = false,
-}: ConversionSectionProps) => {
+const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
 
@@ -46,37 +42,17 @@ const ConversionSection = ({
   }, [pathname, profiles]);
 
   const {
-    normalizedChartData,
-    sessionsMetric,
-    goalsMetric,
     goalsData,
     goalsFilter,
     goalsSort,
     handleGoalsFilterChange,
     handleGoalsSort,
     loadingState,
-    hasChartData,
     hasGoalsData,
   } = useGA4Analytics(businessUniqueId, website, period);
 
-  const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
-    sessions: true,
-    goals: true,
-  });
-
-  const handleLegendToggle = useCallback((key: string, checked: boolean) => {
-    setVisibleLines((prev) => {
-      const checkedCount = Object.values(prev).filter(Boolean).length;
-      if (!checked && checkedCount <= 1) {
-        return prev;
-      }
-      return { ...prev, [key]: checked };
-    });
-  }, []);
-
   const [goalsModalOpen, setGoalsModalOpen] = useState(false);
   const showGoalsLoader = loadingState.goals && !hasGoalsData;
-  const showChartLoader = loadingState.chart && !hasChartData;
 
   return (
     <div className="px-7 pb-10">
@@ -86,7 +62,7 @@ const ConversionSection = ({
       </div>
 
       <div className="flex flex-col gap-3">
-        <div className={`grid gap-3 ${hideChart ? "grid-cols-1" : "grid-cols-2"}`}>
+        <div className="grid gap-3 grid-cols-1">
           <DataTable
             icon={<Eye className="h-6 w-6" />}
             title="Tracked CTAs"
@@ -126,7 +102,7 @@ const ConversionSection = ({
             maxRows={10}
           />
 
-          {!hideChart ? (
+          {/*
             <ClicksGoalsChartCard
               clicksMetric={{
                 value: sessionsMetric.value,
@@ -144,7 +120,7 @@ const ConversionSection = ({
               visibleLines={visibleLines}
               onLegendToggle={handleLegendToggle}
             />
-          ) : null}
+          */}
         </div>
       </div>
 

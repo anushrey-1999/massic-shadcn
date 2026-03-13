@@ -37,6 +37,17 @@ const SECTION_STYLES_THREE = [
   },
 ] as const
 
+const SECTION_STYLES_TWO = [
+  {
+    label: "text-xs font-medium text-general-muted-foreground",
+    value: "text-2xl font-semibold leading-8 text-orange-600",
+  },
+  {
+    label: "text-xs font-medium text-general-muted-foreground",
+    value: "text-2xl font-semibold leading-8 text-emerald-600",
+  },
+] as const
+
 const outlinePath = [
   `M ${TOP_INSET + CORNER_RADIUS} ${TOP_Y}`,
   `H ${VIEWBOX_WIDTH - TOP_INSET - CORNER_RADIUS}`,
@@ -64,7 +75,7 @@ function buildLines(stageCount: number) {
       y,
       left,
       right,
-      color: index === 0 ? "#3b82f6" : "#10b981",
+      color: stageCount === 2 ? "#ea580c" : index === 0 ? "#3b82f6" : "#10b981",
       percentY: (y / VIEWBOX_HEIGHT) * 100,
       percentX: (right / VIEWBOX_WIDTH) * 100,
     }
@@ -80,8 +91,10 @@ const formatValue = (value?: number) => {
 
 export function FunnelChart({ data, className }: FunnelChartProps) {
   const stageCount = data.length === 2 ? 2 : 3
-  const styles = stageCount === 2 ? SECTION_STYLES_THREE.slice(1) : SECTION_STYLES_THREE
+  const styles = stageCount === 2 ? SECTION_STYLES_TWO : SECTION_STYLES_THREE
   const lines = buildLines(stageCount)
+  const outlineStartColor = stageCount === 2 ? "#ea580c" : "#3b82f6"
+  const outlineEndColor = "#10b981"
 
   return (
     <div className={cn("relative w-full h-full", className)} style={{ aspectRatio: "327 / 274" }}>
@@ -92,8 +105,8 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
       >
         <defs>
           <linearGradient id="funnel-stroke" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#10b981" />
+            <stop offset="0%" stopColor={outlineStartColor} />
+            <stop offset="100%" stopColor={outlineEndColor} />
           </linearGradient>
         </defs>
         <path d={outlinePath} fill="#ffffff" stroke="url(#funnel-stroke)" strokeWidth={1.5} />
@@ -124,7 +137,12 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
         if (!percentage) {
           return null
         }
-        const pillColor = index === 0 ? "border-slate-200 text-general-foreground" : "border-emerald-200 text-general-foreground"
+        const pillColor =
+          stageCount === 2
+            ? "border-orange-200 text-general-foreground"
+            : index === 0
+              ? "border-slate-200 text-general-foreground"
+              : "border-emerald-200 text-general-foreground"
         return (
           <span
             key={`pill-${line.y}`}

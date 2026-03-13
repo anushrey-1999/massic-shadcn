@@ -61,6 +61,7 @@ export interface OrganicPerformanceSectionProps {
   visibleLines?: Record<string, boolean>;
   onLegendToggle?: (key: string, checked: boolean) => void;
   filters?: DeepdiveFilter[];
+  funnelVariant?: "default" | "sessions-goals";
 }
 
 export function OrganicPerformanceSection({
@@ -68,6 +69,7 @@ export function OrganicPerformanceSection({
   visibleLines: visibleLinesProp,
   onLegendToggle: onLegendToggleProp,
   filters = [],
+  funnelVariant = "default",
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -213,6 +215,10 @@ export function OrganicPerformanceSection({
     });
   }, [chartLegendItems, visibleLines]);
 
+  const chartLegendItemsToRender = useMemo(() => {
+    return chartLegendWithIcons.filter((item) => item.checked);
+  }, [chartLegendWithIcons]);
+
   // Calculate total counts from both Goals and Traffic APIs
   const trafficCriticalCount = trafficData && trafficData.severity === "high" ? 1 : 0;
   const trafficPositiveCount = trafficData && trafficData.direction === "up" ? 1 : 0;
@@ -223,7 +229,29 @@ export function OrganicPerformanceSection({
   
   const hasAnomalies = totalAnomaliesCount > 0;
   const showChartLoader = loadingState.chart && !hasData;
-  const showFunnelLoader = loadingState.funnel && !hasFunnelData;
+
+  const funnelChartData = useMemo(() => {
+    if (funnelVariant !== "sessions-goals") return funnelChartItems;
+
+    const sessionsTotal = chartData.reduce(
+      (sum, point) => sum + (Number(point.sessions) || 0),
+      0
+    );
+    const goalsTotal = chartData.reduce(
+      (sum, point) => sum + (Number(point.goals) || 0),
+      0
+    );
+    const percentage =
+      sessionsTotal > 0 ? `${Math.round((goalsTotal / sessionsTotal) * 100)}%` : undefined;
+
+    return [
+      { label: "Sessions", value: sessionsTotal, percentage },
+      { label: "Goals", value: goalsTotal },
+    ];
+  }, [chartData, funnelChartItems, funnelVariant]);
+
+  const hasFunnelDataToRender = funnelChartData.some((item) => item.value > 0);
+  const showFunnelLoader = loadingState.funnel && !hasFunnelDataToRender;
 
   return (
     <div className="flex flex-col gap-3">
@@ -422,7 +450,7 @@ export function OrganicPerformanceSection({
                 <ChartLegend
                   variant="box"
                   className="mb-3 shrink-0"
-                  items={chartLegendWithIcons}
+                  items={chartLegendItemsToRender}
                   onToggle={handleLegendToggle}
                   showToggle={false}
                 />
@@ -669,8 +697,8 @@ export function OrganicPerformanceSection({
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : hasFunnelData ? (
-                  <FunnelChart data={funnelChartItems} />
+                ) : hasFunnelDataToRender ? (
+                  <FunnelChart data={funnelChartData} />
                 ) : (
                   <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
                     No funnel data available

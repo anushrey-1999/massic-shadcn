@@ -1,7 +1,7 @@
 "use client";
 
 import { Typography } from "@/components/ui/typography";
-import { ListChecks, Eye, Star, TrendingUp, TrendingDown, ListOrdered } from "lucide-react";
+import { ListChecks, Eye, TrendingUp, TrendingDown, ListOrdered } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
@@ -17,9 +17,13 @@ import { usePathname } from "next/navigation";
 
 interface SourcesSectionProps {
   period?: TimePeriodValue;
+  hideChannelsChart?: boolean;
 }
 
-const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
+const SourcesSection = ({
+  period = "3 months",
+  hideChannelsChart = false,
+}: SourcesSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
 
@@ -58,7 +62,9 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         <Typography variant="h2">Sources</Typography>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 items-stretch">
+      <div
+        className={`grid gap-3 items-stretch ${hideChannelsChart ? "grid-cols-1" : "grid-cols-2"}`}
+      >
         <DataTable
           className="w-full h-full"
           fillHeight
@@ -92,12 +98,14 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
           maxRows={10}
         />
 
-        <SourcesChannelsChart
-          fillHeight
-          data={normalizedChannelsData}
-          isLoading={showChannelsLoader}
-          hasData={hasChannelsData}
-        />
+        {!hideChannelsChart ? (
+          <SourcesChannelsChart
+            fillHeight
+            data={normalizedChannelsData}
+            isLoading={showChannelsLoader}
+            hasData={hasChannelsData}
+          />
+        ) : null}
       </div>
 
       {/* Modal */}

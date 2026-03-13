@@ -4,7 +4,6 @@ import { Typography } from "@/components/ui/typography";
 import {
   ChartNoAxesCombined,
   Eye,
-  Star,
   TrendingUp,
   TrendingDown,
   ListOrdered,
@@ -24,9 +23,13 @@ import { useMemo, useState, useCallback } from "react";
 
 interface ConversionSectionProps {
   period?: TimePeriodValue;
+  hideChart?: boolean;
 }
 
-const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
+const ConversionSection = ({
+  period = "3 months",
+  hideChart = false,
+}: ConversionSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
 
@@ -47,25 +50,13 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
     sessionsMetric,
     goalsMetric,
     goalsData,
-    contentGroupsData,
-    topPagesData,
     goalsFilter,
-    contentGroupsFilter,
-    topPagesFilter,
     goalsSort,
-    contentGroupsSort,
-    topPagesSort,
     handleGoalsFilterChange,
-    handleContentGroupsFilterChange,
-    handleTopPagesFilterChange,
     handleGoalsSort,
-    handleContentGroupsSort,
-    handleTopPagesSort,
     loadingState,
     hasChartData,
     hasGoalsData,
-    hasContentGroupsData,
-    hasTopPagesData,
   } = useGA4Analytics(businessUniqueId, website, period);
 
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
@@ -84,12 +75,8 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
   }, []);
 
   const [goalsModalOpen, setGoalsModalOpen] = useState(false);
-  const [contentGroupsModalOpen, setContentGroupsModalOpen] = useState(false);
-  const [topPagesModalOpen, setTopPagesModalOpen] = useState(false);
   const showGoalsLoader = loadingState.goals && !hasGoalsData;
   const showChartLoader = loadingState.chart && !hasChartData;
-  const showContentGroupsLoader = loadingState.contentGroups && !hasContentGroupsData;
-  const showTopPagesLoader = loadingState.topPages && !hasTopPagesData;
 
   return (
     <div className="px-7 pb-10">
@@ -99,7 +86,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
       </div>
 
       <div className="flex flex-col gap-3">
-        <div className="grid grid-cols-2 gap-3 ">
+        <div className={`grid gap-3 ${hideChart ? "grid-cols-1" : "grid-cols-2"}`}>
           <DataTable
             icon={<Eye className="h-6 w-6" />}
             title="Tracked CTAs"
@@ -139,100 +126,25 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
             maxRows={10}
           />
 
-          <ClicksGoalsChartCard
-            clicksMetric={{
-              value: sessionsMetric.value,
-              change: sessionsMetric.change,
-              icon: "clicks",
-            }}
-            goalsMetric={{
-              value: goalsMetric.value,
-              change: goalsMetric.change,
-              icon: "goals",
-            }}
-            data={normalizedChartData}
-            isLoading={showChartLoader}
-            hasData={hasChartData}
-            visibleLines={visibleLines}
-            onLegendToggle={handleLegendToggle}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3  ">
-          <DataTable
-            icon={<Eye className="h-6 w-6" />}
-            title="Page Groups"
-            titleTooltip="Where conversions happen"
-            inlineHeader
-            showTabs
-            tabs={[
-              { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
-              { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
-              { icon: <TrendingDown className="h-4 w-4" />, value: "decaying" },
-            ]}
-            activeTab={contentGroupsFilter}
-            onTabChange={(value) =>
-              handleContentGroupsFilterChange(value as TableFilterType)
-            }
-            columns={[
-              { key: "key", label: "Page Groups", width: "w-[240px]" },
-              { key: "sessions", label: "Sessions", sortable: true },
-              { key: "goals", label: "Goals", sortable: true },
-            ]}
-            data={contentGroupsData.map((item) => ({
-              key: item.key,
-              sessions: item.sessions,
-              goals: item.goals,
-            }))}
-            isLoading={showContentGroupsLoader}
-            hasData={hasContentGroupsData}
-            sortConfig={{
-              column: contentGroupsSort.column,
-              direction: contentGroupsSort.direction,
-            }}
-            onSort={(column) =>
-              handleContentGroupsSort(column as GA4SortColumn)
-            }
-            onArrowClick={() => setContentGroupsModalOpen(true)}
-            maxRows={10}
-          />
-
-          <DataTable
-            icon={<Eye className="h-6 w-6" />}
-            title="Top Pages"
-            titleTooltip="Where conversions happen"
-            inlineHeader
-            showTabs
-            tabs={[
-              { icon: <ListOrdered className="h-4 w-4" />, value: "popular" },
-              { icon: <TrendingUp className="h-4 w-4" />, value: "growing" },
-              { icon: <TrendingDown className="h-4 w-4" />, value: "decaying" },
-            ]}
-            activeTab={topPagesFilter}
-            onTabChange={(value) =>
-              handleTopPagesFilterChange(value as TableFilterType)
-            }
-            firstColumnTruncate="max-w-[300px]"
-            columns={[
-              { key: "key", label: "Top Pages", width: "w-[240px]" },
-              { key: "sessions", label: "Sessions", sortable: true },
-              { key: "goals", label: "Goals", sortable: true },
-            ]}
-            data={topPagesData.map((item) => ({
-              key: item.key,
-              sessions: item.sessions,
-              goals: item.goals,
-            }))}
-            isLoading={showTopPagesLoader}
-            hasData={hasTopPagesData}
-            sortConfig={{
-              column: topPagesSort.column,
-              direction: topPagesSort.direction,
-            }}
-            onSort={(column) => handleTopPagesSort(column as GA4SortColumn)}
-            onArrowClick={() => setTopPagesModalOpen(true)}
-            maxRows={10}
-          />
+          {!hideChart ? (
+            <ClicksGoalsChartCard
+              clicksMetric={{
+                value: sessionsMetric.value,
+                change: sessionsMetric.change,
+                icon: "clicks",
+              }}
+              goalsMetric={{
+                value: goalsMetric.value,
+                change: goalsMetric.change,
+                icon: "goals",
+              }}
+              data={normalizedChartData}
+              isLoading={showChartLoader}
+              hasData={hasChartData}
+              visibleLines={visibleLines}
+              onLegendToggle={handleLegendToggle}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -277,94 +189,6 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
         }}
         onSort={(column) => handleGoalsSort(column as GA4SortColumn)}
         isLoading={showGoalsLoader}
-      />
-
-      <DataTableModal
-        open={contentGroupsModalOpen}
-        onOpenChange={setContentGroupsModalOpen}
-        title="Where conversions happen"
-        icon={<Eye className="h-4 w-4" />}
-        tabs={[
-          {
-            icon: <ListOrdered className="h-4 w-4" />,
-            value: "popular",
-            label: "Popular",
-          },
-          {
-            icon: <TrendingUp className="h-4 w-4" />,
-            value: "growing",
-            label: "Growing",
-          },
-          {
-            icon: <TrendingDown className="h-4 w-4" />,
-            value: "decaying",
-            label: "Decaying",
-          },
-        ]}
-        activeTab={contentGroupsFilter}
-        onTabChange={(value) =>
-          handleContentGroupsFilterChange(value as TableFilterType)
-        }
-        columns={[
-          { key: "key", label: "Page Groups" },
-          { key: "sessions", label: "Sessions", sortable: true },
-          { key: "goals", label: "Goals", sortable: true },
-        ]}
-        data={contentGroupsData.map((item) => ({
-          key: item.key,
-          sessions: item.sessions,
-          goals: item.goals,
-        }))}
-        sortConfig={{
-          column: contentGroupsSort.column,
-          direction: contentGroupsSort.direction,
-        }}
-        onSort={(column) => handleContentGroupsSort(column as GA4SortColumn)}
-        isLoading={showContentGroupsLoader}
-      />
-
-      <DataTableModal
-        open={topPagesModalOpen}
-        onOpenChange={setTopPagesModalOpen}
-        title="Top converting pages"
-        icon={<Eye className="h-4 w-4" />}
-        tabs={[
-          {
-            icon: <ListOrdered className="h-4 w-4" />,
-            value: "popular",
-            label: "Popular",
-          },
-          {
-            icon: <TrendingUp className="h-4 w-4" />,
-            value: "growing",
-            label: "Growing",
-          },
-          {
-            icon: <TrendingDown className="h-4 w-4" />,
-            value: "decaying",
-            label: "Decaying",
-          },
-        ]}
-        activeTab={topPagesFilter}
-        onTabChange={(value) =>
-          handleTopPagesFilterChange(value as TableFilterType)
-        }
-        columns={[
-          { key: "key", label: "Top Pages" },
-          { key: "sessions", label: "Sessions", sortable: true },
-          { key: "goals", label: "Goals", sortable: true },
-        ]}
-        data={topPagesData.map((item) => ({
-          key: item.key,
-          sessions: item.sessions,
-          goals: item.goals,
-        }))}
-        sortConfig={{
-          column: topPagesSort.column,
-          direction: topPagesSort.direction,
-        }}
-        onSort={(column) => handleTopPagesSort(column as GA4SortColumn)}
-        isLoading={showTopPagesLoader}
       />
     </div>
   );

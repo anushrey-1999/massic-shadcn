@@ -22,8 +22,7 @@ const BOTTOM_INSET = 100
 const CORNER_RADIUS = 10
 const BOTTOM_CORNER_RADIUS = 5
 const LINE_OFFSET = 0
-const LINE_RATIOS = [0.34, 0.68] as const
-const SECTION_STYLES = [
+const SECTION_STYLES_THREE = [
   {
     label: "text-xs font-medium text-general-muted-foreground",
     value: "text-2xl font-semibold leading-8 ",
@@ -53,19 +52,24 @@ const outlinePath = [
 
 const slope = (BOTTOM_INSET - TOP_INSET) / (BOTTOM_Y - TOP_Y)
 
-const lines = LINE_RATIOS.map((ratio, index) => {
-  const y = TOP_Y + (BOTTOM_Y - TOP_Y) * ratio
-  const left = TOP_INSET + slope * (y - TOP_Y) + LINE_OFFSET
-  const right = VIEWBOX_WIDTH - left
-  return {
-    y,
-    left,
-    right,
-    color: index === 0 ? "#3b82f6" : "#10b981",
-    percentY: (y / VIEWBOX_HEIGHT) * 100,
-    percentX: (right / VIEWBOX_WIDTH) * 100,
-  }
-})
+function buildLines(stageCount: number) {
+  const ratios =
+    stageCount === 2 ? ([0.5] as const) : stageCount === 3 ? ([0.34, 0.68] as const) : ([] as const)
+
+  return ratios.map((ratio, index) => {
+    const y = TOP_Y + (BOTTOM_Y - TOP_Y) * ratio
+    const left = TOP_INSET + slope * (y - TOP_Y) + LINE_OFFSET
+    const right = VIEWBOX_WIDTH - left
+    return {
+      y,
+      left,
+      right,
+      color: index === 0 ? "#3b82f6" : "#10b981",
+      percentY: (y / VIEWBOX_HEIGHT) * 100,
+      percentX: (right / VIEWBOX_WIDTH) * 100,
+    }
+  })
+}
 
 const formatValue = (value?: number) => {
   if (typeof value !== "number") {
@@ -75,6 +79,10 @@ const formatValue = (value?: number) => {
 }
 
 export function FunnelChart({ data, className }: FunnelChartProps) {
+  const stageCount = data.length === 2 ? 2 : 3
+  const styles = stageCount === 2 ? SECTION_STYLES_THREE.slice(1) : SECTION_STYLES_THREE
+  const lines = buildLines(stageCount)
+
   return (
     <div className={cn("relative w-full h-full", className)} style={{ aspectRatio: "327 / 274" }}>
       <svg
@@ -104,7 +112,7 @@ export function FunnelChart({ data, className }: FunnelChartProps) {
         ))}
       </svg>
       <div className="relative z-10 flex h-full flex-col items-center justify-between py-8 text-center">
-        {SECTION_STYLES.map((style, index) => (
+        {styles.map((style, index) => (
           <div key={`${style.value}-${index}`} className="">
             <p className={style.label}>{data[index]?.label ?? ""}</p>
             <p className={style.value}>{formatValue(data[index]?.value)}</p>

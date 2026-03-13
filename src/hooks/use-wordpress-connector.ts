@@ -99,6 +99,19 @@ export interface WordpressStyleProfileData {
     updatedAt: string;
   } | null;
   profile: Record<string, unknown> | null;
+  extractedProfile?: Record<string, unknown> | null;
+  styleOverrides?: {
+    colors?: Record<string, string>;
+    typography?: {
+      bodyFontFamily?: string;
+      headingFontFamily?: string;
+      baseFontSize?: string;
+      baseLineHeight?: string;
+      h1Size?: string;
+      h2Size?: string;
+      h3Size?: string;
+    };
+  } | null;
   provenance: Record<string, unknown> | null;
 }
 
@@ -107,6 +120,45 @@ interface WordpressStyleProfileResponse {
   err: boolean;
   message?: string;
   data?: WordpressStyleProfileData;
+}
+
+interface WordpressStyleOverridePayload {
+  connectionId: string;
+  overrides: {
+    colors?: Record<string, string>;
+    typography?: {
+      bodyFontFamily?: string;
+      headingFontFamily?: string;
+      baseFontSize?: string;
+      baseLineHeight?: string;
+      h1Size?: string;
+      h2Size?: string;
+      h3Size?: string;
+    };
+  };
+}
+
+interface WordpressStyleOverrideResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    connectionId: string;
+    styleOverrides: {
+      colors?: Record<string, string>;
+      typography?: {
+        bodyFontFamily?: string;
+        headingFontFamily?: string;
+        baseFontSize?: string;
+        baseLineHeight?: string;
+        h1Size?: string;
+        h2Size?: string;
+        h3Size?: string;
+      };
+    };
+    extractedProfile: Record<string, unknown> | null;
+    profile: Record<string, unknown> | null;
+  };
 }
 
 const getErrorMessage = (error: any, fallback: string) => {
@@ -282,5 +334,36 @@ export function useWordpressStyleProfile(connectionId: string | null) {
       return res.data || null;
     },
     staleTime: 30 * 1000,
+  });
+}
+
+export function useUpdateWordpressStyleOverrides() {
+  const queryClient = useQueryClient();
+
+  return useMutation<WordpressStyleOverrideResponse, Error, WordpressStyleOverridePayload>({
+    mutationFn: async (payload) => {
+      const res = await api.post<WordpressStyleOverrideResponse>(
+        "/cms/wordpress/style-overrides",
+        "node",
+        payload
+      );
+
+      if (!res?.success) {
+        throw new Error(res?.message || "Failed to save WordPress style overrides");
+      }
+
+      return res;
+    },
+    onSuccess: (_data, variables) => {
+      toast.success("WordPress style overrides saved");
+      void queryClient.invalidateQueries({
+        queryKey: ["wordpress-style-profile", variables.connectionId],
+      });
+    },
+    onError: (error) => {
+      toast.error("Failed to save style overrides", {
+        description: getErrorMessage(error, "Please verify your colors and try again."),
+      });
+    },
   });
 }

@@ -206,11 +206,6 @@ export default function BusinessWebPage({ params }: PageProps) {
                 <WebOptimizationAnalysisTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
               </EntitlementsGuard>
             </TabsContent>
-            <TabsContent value="all-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
-              <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
-                <WebUnifiedPagesTableClient businessId={businessId} />
-              </EntitlementsGuard>
-            </TabsContent>
             <TabsContent value="settings" className={cn("flex-1 min-h-0 overflow-hidden", !hideTabs && "mt-4")}>
               <div className="flex h-full flex-col gap-6 overflow-auto px-1">
                 <header className="space-y-1">
@@ -227,9 +222,14 @@ export default function BusinessWebPage({ params }: PageProps) {
                 />
               </div>
             </TabsContent>
+            <TabsContent value="all-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
+              <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
+                <WebUnifiedPagesTableClient businessId={businessId} />
+              </EntitlementsGuard>
+            </TabsContent>
           </Tabs>
-        </div>
-      </EntitlementsGuard>
-    </div>
+        </div >
+      </EntitlementsGuard >
+    </div >
   )
 }

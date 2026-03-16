@@ -1,7 +1,7 @@
 "use client";
 
 import { Typography } from "@/components/ui/typography";
-import { ListChecks, Eye, Star, TrendingUp, TrendingDown, ListOrdered } from "lucide-react";
+import { ListChecks, Eye, TrendingUp, TrendingDown, ListOrdered } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
@@ -17,9 +17,13 @@ import { usePathname } from "next/navigation";
 
 interface SourcesSectionProps {
   period?: TimePeriodValue;
+  hideChannelsChart?: boolean;
 }
 
-const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
+const SourcesSection = ({
+  period = "3 months",
+  hideChannelsChart = false,
+}: SourcesSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
 
@@ -42,12 +46,14 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
     topSourcesSort,
     handleTopSourcesFilterChange,
     handleTopSourcesSort,
-    isLoading,
+    loadingState,
     hasTopSourcesData,
     hasChannelsData,
   } = useGA4Analytics(businessUniqueId, website, period);
 
   const [topSourcesModalOpen, setTopSourcesModalOpen] = useState(false);
+  const showTopSourcesLoader = loadingState.topSources && !hasTopSourcesData;
+  const showChannelsLoader = loadingState.channels && !hasChannelsData;
 
   return (
     <div className="flex flex-col px-7 pb-10">
@@ -56,7 +62,9 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         <Typography variant="h2">Sources</Typography>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 items-stretch">
+      <div
+        className={`grid gap-3 items-stretch ${hideChannelsChart ? "grid-cols-1" : "grid-cols-2"}`}
+      >
         <DataTable
           className="w-full h-full"
           fillHeight
@@ -82,7 +90,7 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
             sessions: item.sessions,
             goals: item.goals,
           }))}
-          isLoading={isLoading}
+          isLoading={showTopSourcesLoader}
           hasData={hasTopSourcesData}
           sortConfig={{ column: topSourcesSort.column, direction: topSourcesSort.direction }}
           onSort={(column) => handleTopSourcesSort(column as GA4SortColumn)}
@@ -90,12 +98,14 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
           maxRows={10}
         />
 
-        <SourcesChannelsChart
-          fillHeight
-          data={normalizedChannelsData}
-          isLoading={isLoading}
-          hasData={hasChannelsData}
-        />
+        {!hideChannelsChart ? (
+          <SourcesChannelsChart
+            fillHeight
+            data={normalizedChannelsData}
+            isLoading={showChannelsLoader}
+            hasData={hasChannelsData}
+          />
+        ) : null}
       </div>
 
       {/* Modal */}
@@ -123,7 +133,7 @@ const SourcesSection = ({ period = "3 months" }: SourcesSectionProps) => {
         }))}
         sortConfig={{ column: topSourcesSort.column, direction: topSourcesSort.direction }}
         onSort={(column) => handleTopSourcesSort(column as GA4SortColumn)}
-        isLoading={isLoading}
+        isLoading={showTopSourcesLoader}
       />
     </div>
   );

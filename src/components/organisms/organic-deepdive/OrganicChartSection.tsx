@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { Eye, MousePointerClick } from "lucide-react";
+import { Eye, MousePointerClick, Target } from "lucide-react";
 import { useGscChartData, formatNumber, type TimePeriodValue } from "@/hooks/use-gsc-chart-data";
+import { useGa4ChartData } from "@/hooks/use-ga4-chart-data";
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
@@ -14,6 +15,8 @@ interface OrganicChartSectionProps {
   website: string | null;
   period: TimePeriodValue;
   filters?: DeepdiveFilter[];
+  visibleLines?: Record<string, boolean>;
+  onLegendToggle?: (key: string, checked: boolean) => void;
 }
 
 export function OrganicChartSection({
@@ -21,18 +24,87 @@ export function OrganicChartSection({
   website,
   period,
   filters = [],
+  visibleLines: visibleLinesProp,
+  onLegendToggle: onLegendToggleProp,
 }: OrganicChartSectionProps) {
   const {
-    normalizedChartData,
+    normalizedChartData: gscNormalizedChartData,
     impressionsMetric,
     clicksMetric,
     isLoading,
   } = useGscChartData(businessUniqueId, website, period, filters);
+  const {
+    chartData: ga4ChartData,
+    keyEventsMetric,
+    isLoading: isGa4Loading,
+  } = useGa4ChartData(businessUniqueId, website, period, filters);
 
-  const [visibleLines, setVisibleLines] = useState({
+  const normalizedChartData = useMemo(() => {
+    const mergedByDate = new Map<string, {
+      date: string;
+      impressions: number;
+      clicks: number;
+      impressionsNorm: number;
+      clicksNorm: number;
+      goals: number;
+    }>();
+
+    for (const point of gscNormalizedChartData) {
+      mergedByDate.set(point.date, {
+        ...point,
+        goals: 0,
+      });
+    }
+
+    for (const point of ga4ChartData) {
+      const existing = mergedByDate.get(point.date);
+      if (existing) {
+        existing.goals = point.keyEvents;
+      } else {
+        mergedByDate.set(point.date, {
+          date: point.date,
+          impressions: 0,
+          clicks: 0,
+          impressionsNorm: 0,
+          clicksNorm: 0,
+          goals: point.keyEvents,
+        });
+      }
+    }
+
+    const mergedData = Array.from(mergedByDate.values());
+    if (mergedData.length === 0) return [];
+
+    const goalsValues = mergedData.map((d) => d.goals || 0);
+    const minGoals = Math.min(...goalsValues);
+    const maxGoals = Math.max(...goalsValues);
+
+    const scaleValueToBand = (
+      value: number,
+      min: number,
+      max: number,
+      bandStart: number,
+      bandEnd: number
+    ): number => {
+      const numericValue = Number(value) || 0;
+      if (numericValue === 0) return 0;
+      if (max === min) return (bandStart + bandEnd) / 2;
+      const normalized = (numericValue - min) / (max - min);
+      return bandStart + normalized * (bandEnd - bandStart);
+    };
+
+    return mergedData.map((point) => ({
+      ...point,
+      goalsNorm: scaleValueToBand(point.goals, minGoals, maxGoals, 10, 50),
+    }));
+  }, [gscNormalizedChartData, ga4ChartData]);
+
+  const [visibleLinesLocal, setVisibleLinesLocal] = useState({
     impressions: true,
     clicks: true,
+    goals: true,
   });
+  const visibleLines = visibleLinesProp ?? visibleLinesLocal;
 
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomCenter, setZoomCenter] = useState<number | null>(null);
@@ -41,17 +113,23 @@ export function OrganicChartSection({
   const chartConfig = {
     impressions: { label: "Impressions", color: "#6b7280" },
     clicks: { label: "Clicks", color: "#2563eb" },
+    goals: { label: "Goals", color: "#059669" },
   };
 
   const handleLegendToggle = useCallback((key: string, checked: boolean) => {
-    setVisibleLines((prev) => {
+    if (onLegendToggleProp) {
+      onLegendToggleProp(key, checked);
+      return;
+    }
+
+    setVisibleLinesLocal((prev) => {
       const checkedCount = Object.values(prev).filter(Boolean).length;
       if (!checked && checkedCount <= 1) {
         return prev;
       }
       return { ...prev, [key]: checked };
     });
-  }, []);
+  }, [onLegendToggleProp]);
 
   const chartLegendItems = useMemo(() => {
     const iconConfig: Record<string, { icon: React.ReactNode; color: string }> = {
@@ -59,6 +137,10 @@ export function OrganicChartSection({
       clicks: {
         icon: <MousePointerClick className="h-6 w-6 rotate-90" />,
         color: "#2563eb",
+      },
+      goals: {
+        icon: <Target className="h-6 w-6" />,
+        color: "#059669",
       },
     };
 
@@ -87,8 +169,20 @@ export function OrganicChartSection({
         color: iconConfig.clicks.color,
         checked: visibleLines.clicks,
       },
+      {
+        key: "goals",
+        icon: iconConfig.goals.icon,
+        value: formatNumber(keyEventsMetric.total),
+        change: keyEventsMetric.trend.isInfinity
+          ? Infinity
+          : keyEventsMetric.trend.trend === "up"
+            ? keyEventsMetric.trend.value
+            : -keyEventsMetric.trend.value,
+        color: iconConfig.goals.color,
+        checked: visibleLines.goals,
+      },
     ];
-  }, [impressionsMetric, clicksMetric, visibleLines, formatNumber]);
+  }, [impressionsMetric, clicksMetric, keyEventsMetric, visibleLines, formatNumber]);
 
   const zoomedChartData = useMemo(() => {
     if (zoomLevel <= 1 || zoomCenter === null || normalizedChartData.length === 0) {
@@ -137,7 +231,7 @@ export function OrganicChartSection({
     setZoomCenter(null);
   }, []);
 
-  if (isLoading) {
+  if (isLoading || isGa4Loading) {
     return <ChartSectionSkeleton />;
   }
 
@@ -167,6 +261,10 @@ export function OrganicChartSection({
                   <linearGradient id="fillClicks" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#2563eb" stopOpacity={0.2} />
                     <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="fillGoals" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#059669" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#059669" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
@@ -206,6 +304,11 @@ export function OrganicChartSection({
                               Clicks: {data?.clicks?.toLocaleString()}
                             </p>
                           )}
+                          {visibleLines.goals && (
+                            <p className="text-emerald-600">
+                              Goals: {data?.goals?.toLocaleString()}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );
@@ -229,6 +332,16 @@ export function OrganicChartSection({
                     fill="url(#fillClicks)"
                     strokeWidth={1}
                     name="Clicks"
+                  />
+                )}
+                {visibleLines.goals && (
+                  <Area
+                    type="linear"
+                    dataKey="goalsNorm"
+                    stroke="#059669"
+                    fill="url(#fillGoals)"
+                    strokeWidth={1}
+                    name="Goals"
                   />
                 )}
               </AreaChart>

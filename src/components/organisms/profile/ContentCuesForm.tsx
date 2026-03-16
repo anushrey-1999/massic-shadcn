@@ -12,10 +12,10 @@ import { Typography } from "@/components/ui/typography";
 import { FieldLabel, FieldError } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
-import { CTARow, StakeholderRow } from "@/store/business-store";
 import { MicVocal } from "lucide-react";
+import { CTARow, StakeholderRow, CalendarEventRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
-// import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { TagsInput } from "@/components/ui/tags-input";
 
 type BusinessInfoFormData = {
@@ -24,6 +24,8 @@ type BusinessInfoFormData = {
   ctasSavedIndices?: number[];
   stakeholders?: Array<{ name: string; title: string }>;
   stakeholdersSavedIndices?: number[];
+  calendarEvents?: Array<{ eventName: string; startDate: string | null; endDate: string | null }>;
+  calendarEventsSavedIndices?: number[];
   brandToneSocial?: string[];
   brandToneWeb?: string[];
   brandTerms?: string[];
@@ -42,6 +44,7 @@ export const ContentCuesForm = ({
   // Component will only re-render when these fields change
   const ctasData = useStore(form.store, (state: any) => (state.values?.ctas || []) as CTARow[]);
   const stakeholdersData = useStore(form.store, (state: any) => (state.values?.stakeholders || []) as StakeholderRow[]);
+  const calendarEventsData = useStore(form.store, (state: any) => (state.values?.calendarEvents || []) as CalendarEventRow[]);
 
   // Track CTA validation errors
   const [hasCtaErrors, setHasCtaErrors] = React.useState(false);
@@ -88,69 +91,84 @@ export const ContentCuesForm = ({
     emptyRowFactory: () => ({ name: "", title: "" }),
   });
 
+  const {
+    handleAddRow: handleAddCalendarEventRow,
+    handleRowChange: handleCalendarEventRowChange,
+    handleDeleteRow: handleCalendarEventDeleteRow,
+  } = useAddRowTableState<CalendarEventRow>({
+    data: calendarEventsData,
+    formFieldName: "calendarEvents",
+    setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
+    getCurrentData: () => {
+      const currentState = form.state.values.calendarEvents || [];
+      return currentState as CalendarEventRow[];
+    },
+    emptyRowFactory: () => ({ eventName: "", startDate: null, endDate: null }),
+  });
+
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
 
-  // const calendarEventsColumnsWithHandlers: Column<CalendarEventRow>[] = useMemo(() => [
-  //   { key: "eventName", label: "Upcoming Events", validation: { required: true }, width: "50%" },
-  //   {
-  //     key: "startDate",
-  //     label: "Date",
-  //     validation: {
-  //       required: true,
-  //     },
-  //     width: "50%",
-  //     render: (_value: any, row: CalendarEventRow, _index: number, helpers) => {
-  //       return (
-  //         <div className="flex flex-col gap-1">
-  //           <DateRangePicker
-  //             startDate={row.startDate}
-  //             endDate={row.endDate}
-  //             onChange={(startDate, endDate) => {
-  //               helpers.setRowValue("startDate", startDate, {
-  //                 ...row,
-  //                 startDate,
-  //                 endDate,
-  //               });
-  //             }}
-  //             placeholder="Select date"
-  //             className="w-full"
-  //           />
-  //           {helpers.touched && helpers.error ? (
-  //             <FieldError className="text-xs mt-0.5">{helpers.error}</FieldError>
-  //           ) : null}
-  //         </div>
-  //       );
-  //     }
-  //   },
-  // ], []);
+  const calendarEventsColumnsWithHandlers: Column<CalendarEventRow>[] = useMemo(() => [
+    { key: "eventName", label: "Upcoming Events", validation: { required: true }, width: "50%" },
+    {
+      key: "startDate",
+      label: "Date",
+      validation: {
+        required: true,
+      },
+      width: "50%",
+      render: (_value: any, row: CalendarEventRow, _index: number, helpers) => {
+        return (
+          <div className="flex flex-col gap-1">
+            <DateRangePicker
+              startDate={row.startDate}
+              endDate={row.endDate}
+              onChange={(startDate, endDate) => {
+                helpers.setRowValue("startDate", startDate, {
+                  ...row,
+                  startDate,
+                  endDate,
+                });
+              }}
+              placeholder="Select date"
+              className="w-full"
+            />
+            {helpers.touched && helpers.error ? (
+              <FieldError className="text-xs mt-0.5">{helpers.error}</FieldError>
+            ) : null}
+          </div>
+        );
+      }
+    },
+  ], []);
 
   const innerContent = (
-    <div className="space-y-7">
-        <Card variant={cardVariant}>
-          <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">USPs</FieldLabel>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="w-1/2">
-            <form.Field
-              name="usps"
-              children={(field: any) => {
-                return (
-                  <Textarea
-                    value={field.state.value || ""}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="Add the top benefits or features you want customers to notice"
-                    className="w-full min-h-[100px] resize-none"
-                    disabled
-                  />
-                );
-              }}
-            />
-            </div>
-          </CardContent>
-        </Card>
+    <>
+      <Card variant={cardVariant}>
+        <CardHeader className="">
+          <CardTitle>
+            <FieldLabel className="gap-0">USPs</FieldLabel>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="w-1/2">
+          <form.Field
+            name="usps"
+            children={(field: any) => {
+              return (
+                <Textarea
+                  value={field.state.value || ""}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Add the top benefits or features you want customers to notice"
+                  className="w-full min-h-[100px] resize-none"
+                  disabled
+                />
+              );
+            }}
+          />
+          </div>
+        </CardContent>
+      </Card>
 
         <Card variant={cardVariant}>
           <CardHeader className="">
@@ -373,7 +391,6 @@ export const ContentCuesForm = ({
               )}
             />
             </div>
-         
           </CardContent>
         </Card>
 
@@ -400,7 +417,8 @@ export const ContentCuesForm = ({
           </CardContent>
         </Card>
 
-      {/* <Card variant={cardVariant}>
+      
+      <Card variant={cardVariant}>
         <CardHeader className="">
           <CardTitle>
             <FieldLabel className="gap-0">
@@ -421,12 +439,17 @@ export const ContentCuesForm = ({
           />
           </div>
         </CardContent>
-      </Card> */}
-    </div>
+      </Card>
+     
+    </>
   );
 
   if (embedded) {
-    return <div id="content-cues">{innerContent}</div>;
+    return (
+      <div id="content-cues" className="space-y-7">
+        {innerContent}
+      </div>
+    );
   }
 
   return (
@@ -454,4 +477,5 @@ export const ContentCuesForm = ({
     </Card>
   );
 };
+    
 

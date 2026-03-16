@@ -3,6 +3,11 @@
 import { useCallback } from "react";
 import { useApi, type ApiPlatform } from "./use-api";
 
+export interface UnifiedPageSuggestion {
+  category?: string;
+  action?: string;
+}
+
 export interface UnifiedPageRow {
   id: string;
   page: string;
@@ -14,6 +19,7 @@ export interface UnifiedPageRow {
   url: string;
   keyword_clusters: string[] | null;
   page_id: string | null;
+  suggested_changes?: UnifiedPageSuggestion[] | null;
   raw: Record<string, unknown>;
   /** BI / scoring fields (from API, may be in raw) */
   final_ops?: number;
@@ -31,6 +37,14 @@ function normalizeRow(item: Record<string, any>, index: number): UnifiedPageRow 
     ? (item.raw?.keyword || item.raw?.slug || url || "").toString()
     : url;
 
+  const suggestedChangesCandidate =
+    item.suggested_changes ??
+    item.suggestedChanges ??
+    item.raw?.suggested_changes ??
+    item.raw?.suggestedChanges ??
+    item.raw?.suggestions ??
+    item.suggestions;
+
   return {
     id: `unified-${index}`,
     page,
@@ -42,6 +56,7 @@ function normalizeRow(item: Record<string, any>, index: number): UnifiedPageRow 
     url,
     keyword_clusters: Array.isArray(item.keyword_clusters) ? item.keyword_clusters : null,
     page_id: item.raw?.page_id ?? null,
+    suggested_changes: Array.isArray(suggestedChangesCandidate) ? suggestedChangesCandidate : null,
     raw: item.raw ?? {},
     final_ops: typeof item.final_ops === "number" ? item.final_ops : typeof item.raw?.final_ops === "number" ? item.raw.final_ops : undefined,
     type_weight: typeof item.type_weight === "number" ? item.type_weight : typeof item.raw?.type_weight === "number" ? item.raw.type_weight : undefined,
@@ -91,6 +106,13 @@ export function useUnifiedWebOptimization() {
             (unifiedResponse as any)?.data?.message ||
             "Failed to load unified list";
           throw new Error(String(message));
+        }
+
+        if (process.env.NODE_ENV === "development") {
+          // eslint-disable-next-line no-console
+          console.log("[All Pages] unifiedResponse.data", (unifiedResponse as any)?.data);
+          // eslint-disable-next-line no-console
+          console.log("[All Pages] unified_pages", extractUnifiedPages(unifiedResponse));
         }
 
         const unifiedPages = extractUnifiedPages(unifiedResponse);

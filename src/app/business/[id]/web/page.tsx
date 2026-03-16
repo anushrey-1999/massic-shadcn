@@ -157,7 +157,7 @@ export default function BusinessWebPage({ params }: PageProps) {
             </TabsContent>
             <TabsContent value="all-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
               <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>
-                <WebUnifiedPagesTableClient businessId={businessId} />
+                <WebUnifiedPagesTableClient businessId={businessId} onSplitViewChange={setIsOptimizeSplitView} />
               </EntitlementsGuard>
             </TabsContent>
           </Tabs>

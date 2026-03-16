@@ -63,6 +63,7 @@ import {
   useCreateAgencyBusiness,
   useLinkPropertyId,
   useToggleBusinessStatus,
+  CreateBusinessConflictError,
   type LinkedBusiness,
   type GA4Property,
   type GBPLocation,
@@ -133,6 +134,15 @@ export default function LinkedBusinessTable() {
   const [confirmToggleOpen, setConfirmToggleOpen] = useState(false);
   const [confirmToggleRow, setConfirmToggleRow] =
     useState<LinkedBusiness | null>(null);
+  const [mergeConfirmOpen, setMergeConfirmOpen] = useState(false);
+  const [mergeConfirmRow, setMergeConfirmRow] = useState<LinkedBusiness | null>(null);
+  const [mergeTarget, setMergeTarget] = useState<{
+    UniqueId: string;
+    Name: string;
+    Website: string;
+    IsPitch: boolean;
+    LinkedAuthId: string | null;
+  } | null>(null);
   const [stickySummaryTopPx, setStickySummaryTopPx] = useState(0);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -313,7 +323,33 @@ export default function LinkedBusinessTable() {
   };
 
   const handleAccept = async (row: LinkedBusiness) => {
-    await createBusinessMutation.mutateAsync([row]);
+    try {
+      await createBusinessMutation.mutateAsync({
+        businesses: [row],
+        suppressDuplicateToast: true,
+      });
+    } catch (error) {
+      if (error instanceof CreateBusinessConflictError) {
+        setMergeConfirmRow(row);
+        setMergeTarget(error.conflict.existingBusiness);
+        setMergeConfirmOpen(true);
+        return;
+      }
+    }
+  };
+
+  const handleConfirmMerge = async () => {
+    if (!mergeConfirmRow || !mergeTarget?.UniqueId) return;
+
+    await createBusinessMutation.mutateAsync({
+      businesses: [mergeConfirmRow],
+      mergeExisting: true,
+      mergeTargetUniqueId: mergeTarget.UniqueId,
+    });
+
+    setMergeConfirmOpen(false);
+    setMergeConfirmRow(null);
+    setMergeTarget(null);
   };
 
   const handleSaveChanges = async (row: LinkedBusiness) => {
@@ -347,7 +383,9 @@ export default function LinkedBusinessTable() {
       (b) => !b.businessProfile?.Id && (b.siteUrl || b.displayName)
     );
     if (businessesToAccept.length > 0) {
-      await createBusinessMutation.mutateAsync(businessesToAccept);
+      await createBusinessMutation.mutateAsync({
+        businesses: businessesToAccept,
+      });
     }
   };
 
@@ -1178,6 +1216,41 @@ export default function LinkedBusinessTable() {
           </div>
         </div>
       </CardContent>
+
+      <AlertDialog
+        open={mergeConfirmOpen}
+        onOpenChange={(open) => {
+          setMergeConfirmOpen(open);
+          if (!open) {
+            setMergeConfirmRow(null);
+            setMergeTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Merge business?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {mergeTarget?.IsPitch
+                ? "Existing pitch found. Merge and link it?"
+                : "Existing business found. Merge and link it?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={createBusinessMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                onClick={handleConfirmMerge}
+                disabled={createBusinessMutation.isPending || !mergeTarget?.UniqueId}
+              >
+                {createBusinessMutation.isPending ? "Merging..." : "Merge"}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Confirm link/unlink (mirrors old UI warning) */}
       <AlertDialog

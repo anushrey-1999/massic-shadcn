@@ -886,25 +886,27 @@ export default function LinkedBusinessTable() {
         enableSorting: false,
         cell: ({ row }) => {
           if ((row.original as any).isSummary) {
-            return (
-              <Button
-                onClick={handleAcceptAll}
-                value={'default'}
-                disabled={
-                  filter === "unmatched" ||
-                  filteredData.length === 0 ||
-                  isMutating
-                }
-                className="w-full"
-              >
-                {createBusinessMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4 mr-2" />
-                )}
-                Accept all
-              </Button>
-            );
+            // temporarily hidden – accept all button
+            return null;
+            // return (
+            //   <Button
+            //     onClick={handleAcceptAll}
+            //     value={'default'}
+            //     disabled={
+            //       filter === "unmatched" ||
+            //       filteredData.length === 0 ||
+            //       isMutating
+            //     }
+            //     className="w-full"
+            //   >
+            //     {createBusinessMutation.isPending ? (
+            //       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            //     ) : (
+            //       <Check className="h-4 w-4 mr-2" />
+            //     )}
+            //     Accept all
+            //   </Button>
+            // );
           }
           const rowData = row.original;
           const hasBusinessProfile = !!rowData.businessProfile?.Id;

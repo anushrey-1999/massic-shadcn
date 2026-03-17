@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/auth-store";
 
 interface CancelSubscriptionParams {
   businessId: string;
@@ -12,6 +13,10 @@ interface UpdateBusinessStatusParams {
   businessDbId: string;
   isActive: boolean;
   softDelete?: boolean;
+}
+
+interface ConvertPitchToBusinessParams {
+  businessId: string;
 }
 
 /**
@@ -70,6 +75,71 @@ export function useUpdateBusinessStatus() {
     onError: (error, variables) => {
       const action = variables.softDelete ? "delete" : "unlink";
       toast.error(`Failed to ${action} business`, {
+        description: error.message || "Please try again later.",
+      });
+    },
+  });
+}
+
+/**
+ * Hook to convert a pitch business into a normal business.
+ */
+export function useConvertPitchToBusiness() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { err?: boolean; message?: string; data?: any },
+    Error,
+    ConvertPitchToBusinessParams
+  >({
+    mutationFn: async ({ businessId }) => {
+      if (!businessId) {
+        throw new Error("Business ID is required");
+      }
+
+      const response = await api.patch<{
+        err?: boolean;
+        message?: string;
+        data?: any;
+      }>(`/business/convert-to-business/${businessId}`, "node");
+
+      if (response.err === true) {
+        throw new Error(response.message || "Failed to convert business");
+      }
+
+      return response;
+    },
+    onSuccess: async (_, variables) => {
+      const { user } = useAuthStore.getState();
+      const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
+
+      toast.success("Converted to business successfully");
+
+      await queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey.some(
+            (part) =>
+              typeof part === "string" &&
+              part.toLowerCase().includes("pitch")
+          ),
+        refetchType: "all",
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: ["pitchBusinesses", userUniqueId],
+        refetchType: "all",
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["businessProfiles", userUniqueId],
+        refetchType: "all",
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["businessProfiles", "detail", variables.businessId],
+        refetchType: "all",
+      });
+    },
+    onError: (error) => {
+      toast.error("Failed to convert to business", {
         description: error.message || "Please try again later.",
       });
     },

@@ -20,6 +20,10 @@ function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
         return `Page: ${filter.expression}`;
       case "content_group":
         return `Group: ${filter.expression}`;
+      case "keyword_scope":
+        return filter.expression === "branded"
+          ? "Branded queries"
+          : "Non-branded queries";
       default:
         return filter.expression;
     }

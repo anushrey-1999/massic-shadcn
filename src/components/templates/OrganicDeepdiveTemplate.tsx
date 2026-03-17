@@ -58,8 +58,13 @@ export function OrganicDeepdiveTemplate() {
     addFilter({ dimension: "page", expression: page, operator: "equals" });
   };
 
-  const handleContentGroupClick = (group: string) => {
-    addFilter({ dimension: "content_group", expression: group, operator: "equals" });
+  const handleContentGroupClick = (group: string, source?: "custom" | "default") => {
+    addFilter({
+      dimension: "content_group",
+      expression: group,
+      operator: "equals",
+      source: source === "custom" ? "custom" : "default",
+    });
   };
 
   const { businessUniqueId, website, businessName } = useMemo(() => {

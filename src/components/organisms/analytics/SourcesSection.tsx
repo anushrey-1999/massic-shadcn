@@ -11,6 +11,7 @@ import {
   type TimePeriodValue,
   type TableFilterType,
   type GA4SortColumn,
+  type GA4TrafficScope,
 } from "@/hooks/use-ga4-analytics";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
@@ -18,11 +19,13 @@ import { usePathname } from "next/navigation";
 interface SourcesSectionProps {
   period?: TimePeriodValue;
   hideChannelsChart?: boolean;
+  ga4TrafficScope?: GA4TrafficScope;
 }
 
 const SourcesSection = ({
   period = "3 months",
   hideChannelsChart = false,
+  ga4TrafficScope = "all",
 }: SourcesSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -49,7 +52,7 @@ const SourcesSection = ({
     loadingState,
     hasTopSourcesData,
     hasChannelsData,
-  } = useGA4Analytics(businessUniqueId, website, period);
+  } = useGA4Analytics(businessUniqueId, website, period, ga4TrafficScope);
 
   const [topSourcesModalOpen, setTopSourcesModalOpen] = useState(false);
   const showTopSourcesLoader = loadingState.topSources && !hasTopSourcesData;

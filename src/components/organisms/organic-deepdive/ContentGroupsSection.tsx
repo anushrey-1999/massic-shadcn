@@ -9,15 +9,17 @@ import {
   type SortColumn,
 } from "@/hooks/use-gsc-content-groups";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
-import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
+import { Button } from "@/components/ui/button";
+import { ContentGroupsIcon } from "@/components/molecules/analytics/ContentGroupsIcon";
+import { CustomContentGroupsModal } from "@/components/molecules/analytics/CustomContentGroupsModal";
 
 interface ContentGroupsSectionProps {
   businessUniqueId: string | null;
   website: string | null;
   period: TimePeriodValue;
-  filters?: DeepdiveFilter[];
-  onRowClick?: (group: string) => void;
+  filters?: DeepdiveApiFilter[];
+  onRowClick?: (group: string, source?: "custom" | "default") => void;
 }
 
 export function ContentGroupsSection({
@@ -37,7 +39,33 @@ export function ContentGroupsSection({
     isLoading,
   } = useGscContentGroups(businessUniqueId, website, period, filters);
 
-  const [modalOpen, setModalOpen] = useState(false);
+  const [customModalOpen, setCustomModalOpen] = useState(false);
+
+  const tableData = contentGroupsData.map((item) => ({
+    key: item.displayName || item.group,
+    _rawGroup: item.group,
+    _source: item.source,
+    impressions: {
+      value: item.impressions,
+      rawValue: item.impressions,
+      previousValue: item.previousImpressions,
+      change: item.impressionsTrend?.isInfinity
+        ? Infinity
+        : item.impressionsTrend?.trend === "up"
+          ? Math.round((item.impressionsTrend?.value ?? 0) * 10) / 10
+          : -(Math.round((item.impressionsTrend?.value ?? 0) * 10) / 10),
+    },
+    clicks: {
+      value: item.clicks,
+      rawValue: item.clicks,
+      previousValue: item.previousClicks,
+      change: item.clicksTrend?.isInfinity
+        ? Infinity
+        : item.clicksTrend?.trend === "up"
+          ? Math.round((item.clicksTrend?.value ?? 0) * 10) / 10
+          : -(Math.round((item.clicksTrend?.value ?? 0) * 10) / 10),
+    },
+  }));
 
   return (
     <>
@@ -59,76 +87,59 @@ export function ContentGroupsSection({
           { key: "impressions", label: "Impr.", sortable: true },
           { key: "clicks", label: "Clicks", sortable: true },
         ]}
-        data={contentGroupsData.map((item) => ({
-          key: item.displayName || item.group,
-          _rawGroup: item.group,
-          impressions: {
-            value: item.impressions,
-            change: item.impressionsTrend?.isInfinity
-              ? Infinity
-              : item.impressionsTrend?.trend === "up"
-                ? Math.round((item.impressionsTrend?.value ?? 0) * 10) / 10
-                : -(Math.round((item.impressionsTrend?.value ?? 0) * 10) / 10),
-          },
-          clicks: {
-            value: item.clicks,
-            change: item.clicksTrend?.isInfinity
-              ? Infinity
-              : item.clicksTrend?.trend === "up"
-                ? Math.round((item.clicksTrend?.value ?? 0) * 10) / 10
-                : -(Math.round((item.clicksTrend?.value ?? 0) * 10) / 10),
-          },
-        }))}
+        data={tableData}
         isLoading={isLoading}
         hasData={hasContentGroupsData}
+        emptyState={
+          <div className="flex flex-col items-center gap-3 text-center">
+            <p className="max-w-[260px] text-sm text-[#737373]">
+              No content groups yet. Define custom content groups to start clustering related pages.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 rounded-[8px] border-[#D4D4D4] bg-white px-4 text-[14px] font-medium text-[#0A0A0A]"
+              onClick={(event) => {
+                event.stopPropagation();
+                setCustomModalOpen(true);
+              }}
+            >
+              Define Content Groups
+            </Button>
+          </div>
+        }
         sortConfig={contentGroupsSort}
         onSort={(column) => handleContentGroupsSort(column as SortColumn)}
-        onArrowClick={() => setModalOpen(true)}
-        onRowClick={onRowClick ? (row) => onRowClick(String(row._rawGroup || row.key)) : undefined}
+        onArrowClick={() => setCustomModalOpen(true)}
+        onRowClick={
+          onRowClick
+            ? (row) =>
+                onRowClick(
+                  String(row._rawGroup || row.key),
+                  row._source === "custom" ? "custom" : "default"
+                )
+            : undefined
+        }
         maxRows={5}
+        renderFirstColumn={(row, value) =>
+          row._source === "custom" ? (
+            <>
+              <span className="truncate">{value}</span>
+              <ContentGroupsIcon className="h-[13px] w-[13px] shrink-0 text-[#2E6A56]" />
+            </>
+          ) : (
+            <span className="truncate">{value}</span>
+          )
+        }
       />
 
-      <DataTableModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        title="Content Groups"
-        icon={<></>}
-        tabs={[
-          { icon: <ListOrdered className="h-4 w-4" />, value: "popular", label: "Popular" },
-          { icon: <TrendingUp className="h-4 w-4" />, value: "growing", label: "Growing" },
-          { icon: <TrendingDown className="h-4 w-4" />, value: "decaying", label: "Decaying" },
-        ]}
-        activeTab={contentGroupsFilter}
-        onTabChange={(value) =>
-          handleContentGroupsFilterChange(value as TableFilterType)
-        }
-        columns={[
-          { key: "key", label: "Content Group" },
-          { key: "impressions", label: "Impr.", sortable: true },
-          { key: "clicks", label: "Clicks", sortable: true },
-        ]}
-        data={contentGroupsData.map((item) => ({
-          key: item.displayName || item.group,
-          impressions: {
-            value: item.impressions,
-            change: item.impressionsTrend?.isInfinity
-              ? Infinity
-              : item.impressionsTrend?.trend === "up"
-                ? Math.round((item.impressionsTrend?.value ?? 0) * 10) / 10
-                : -(Math.round((item.impressionsTrend?.value ?? 0) * 10) / 10),
-          },
-          clicks: {
-            value: item.clicks,
-            change: item.clicksTrend?.isInfinity
-              ? Infinity
-              : item.clicksTrend?.trend === "up"
-                ? Math.round((item.clicksTrend?.value ?? 0) * 10) / 10
-                : -(Math.round((item.clicksTrend?.value ?? 0) * 10) / 10),
-          },
-        }))}
-        sortConfig={contentGroupsSort}
-        onSort={(column) => handleContentGroupsSort(column as SortColumn)}
-        isLoading={isLoading}
+      <CustomContentGroupsModal
+        open={customModalOpen}
+        onOpenChange={setCustomModalOpen}
+        businessUniqueId={businessUniqueId}
+        siteUrl={website}
+        period={period}
+        trafficScope="organic"
       />
     </>
   );

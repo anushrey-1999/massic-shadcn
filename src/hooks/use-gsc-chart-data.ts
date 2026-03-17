@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { useMemo } from "react";
 import { sumMetrics, calculateTrend, type TrendResult } from "@/utils/gsc-deepdive-utils";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
+import type { TimePeriodValue } from "@/utils/analytics-period";
 
-export type TimePeriodValue = "7 days" | "14 days" | "28 days" | "3 months" | "6 months" | "12 months";
+export type { TimePeriodValue };
 
 interface GscV2Response {
   success: boolean;
@@ -52,7 +53,7 @@ export function useGscChartData(
   businessId: string | null,
   siteUrl: string | null,
   period: TimePeriodValue = "3 months",
-  filters: DeepdiveFilter[] = []
+  filters: DeepdiveApiFilter[] = []
 ) {
   const { data: dateData, isLoading } = useQuery<GscV2Response>({
     queryKey: ["gsc-deepdive-date", businessId, siteUrl, period, filters],

@@ -109,10 +109,20 @@ export function useUnifiedWebOptimization() {
         }
 
         if (process.env.NODE_ENV === "development") {
+          const rawPages = extractUnifiedPages(unifiedResponse);
+          const sample = rawPages?.[0];
+          const sampleRaw = sample?.raw;
+
           // eslint-disable-next-line no-console
           console.log("[All Pages] unifiedResponse.data", (unifiedResponse as any)?.data);
           // eslint-disable-next-line no-console
-          console.log("[All Pages] unified_pages", extractUnifiedPages(unifiedResponse));
+          console.log("[All Pages] unified_pages (first 3)", Array.isArray(rawPages) ? rawPages.slice(0, 3) : rawPages);
+          // eslint-disable-next-line no-console
+          console.log("[All Pages] unified_pages[0] keys", sample ? Object.keys(sample) : []);
+          // eslint-disable-next-line no-console
+          console.log("[All Pages] unified_pages[0].raw keys", sampleRaw && typeof sampleRaw === "object" ? Object.keys(sampleRaw) : []);
+          // eslint-disable-next-line no-console
+          console.log("[All Pages] normalized sample row", sample ? normalizeRow(sample as any, 0) : null);
         }
 
         const unifiedPages = extractUnifiedPages(unifiedResponse);

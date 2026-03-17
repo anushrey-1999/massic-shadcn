@@ -16,6 +16,7 @@ import {
   type TimePeriodValue,
   type TableFilterType,
   type GA4SortColumn,
+  type GA4TrafficScope,
 } from "@/hooks/use-ga4-analytics";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
@@ -23,9 +24,10 @@ import { useMemo, useState, useCallback } from "react";
 
 interface ConversionSectionProps {
   period?: TimePeriodValue;
+  ga4TrafficScope?: GA4TrafficScope;
 }
 
-const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
+const ConversionSection = ({ period = "3 months", ga4TrafficScope = "all" }: ConversionSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
 
@@ -49,7 +51,7 @@ const ConversionSection = ({ period = "3 months" }: ConversionSectionProps) => {
     handleGoalsSort,
     loadingState,
     hasGoalsData,
-  } = useGA4Analytics(businessUniqueId, website, period);
+  } = useGA4Analytics(businessUniqueId, website, period, ga4TrafficScope);
 
   const [goalsModalOpen, setGoalsModalOpen] = useState(false);
   const showGoalsLoader = loadingState.goals && !hasGoalsData;

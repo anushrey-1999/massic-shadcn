@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
 import { useMemo, useState, useCallback } from "react"
+import type { TimePeriodValue } from "@/utils/analytics-period"
+import type { ContentGroupFilterSource } from "@/utils/custom-content-groups"
 
-export type TimePeriodValue = "7 days" | "14 days" | "28 days" | "3 months" | "6 months" | "12 months"
+export type { TimePeriodValue }
 export type TableFilterType = "popular" | "growing" | "decaying"
 export type GA4SortColumn = "sessions" | "goals"
 export type SortDirection = "asc" | "desc"
@@ -25,6 +27,7 @@ interface V2Response<T = any> {
 
 interface Ga4MetricRow {
   keys?: string[]
+  source?: ContentGroupFilterSource
   sessions?: number
   keyEvents?: number
 }
@@ -37,8 +40,10 @@ export interface GA4ChartDataFormatted {
 
 export interface GA4TableDataFormatted {
   key: string
-  sessions: { value: string | number; change: number }
-  goals: { value: string | number; change: number }
+  rawKey?: string
+  source?: ContentGroupFilterSource
+  sessions: { value: string | number; change: number; rawValue: number; previousValue: number }
+  goals: { value: string | number; change: number; rawValue: number; previousValue: number }
 }
 
 export interface GA4ChannelDataFormatted {
@@ -49,13 +54,17 @@ export interface GA4ChannelDataFormatted {
 
 export interface GA4GoalDataFormatted {
   goal: string
-  goals: { value: number; change: number }
+  goals: { value: number; change: number; rawValue: number; previousValue: number }
 }
 
 interface TimescaleTableInternal {
   key: string
+  rawKey: string
+  source?: ContentGroupFilterSource
   sessions: number
   goals: number
+  previousSessions: number
+  previousGoals: number
   sessionsChange: number
   goalsChange: number
 }
@@ -171,18 +180,24 @@ function buildEmptyV2Response(): V2Response<Ga4MetricRow> {
   }
 }
 
+function buildTimescaleRowIdentity(row?: Ga4MetricRow): string {
+  const rawKey = String(row?.keys?.[0] || "").trim()
+  const source = row?.source === "custom" ? "custom" : "default"
+  return `${source}:${rawKey.toLowerCase()}`
+}
+
 function buildTimescaleTableRows(current: Ga4MetricRow[], previous: Ga4MetricRow[]): TimescaleTableInternal[] {
   const previousMap = new Map<string, Ga4MetricRow>()
 
   for (const row of previous || []) {
-    const key = String(row?.keys?.[0] || "").trim().toLowerCase()
+    const key = buildTimescaleRowIdentity(row)
     if (!key) continue
     previousMap.set(key, row)
   }
 
   return (current || []).map((row) => {
     const keyRaw = String(row?.keys?.[0] || "").trim()
-    const keyNormalized = keyRaw.toLowerCase()
+    const keyNormalized = buildTimescaleRowIdentity(row)
     const previousRow = previousMap.get(keyNormalized)
 
     const sessionsCurrent = asNumber(row?.sessions)
@@ -192,8 +207,12 @@ function buildTimescaleTableRows(current: Ga4MetricRow[], previous: Ga4MetricRow
 
     return {
       key: keyRaw,
+      rawKey: keyRaw,
+      source: row?.source === "custom" ? "custom" : "default",
       sessions: sessionsCurrent,
       goals: goalsCurrent,
+      previousSessions: sessionsPrevious,
+      previousGoals: goalsPrevious,
       sessionsChange: signedChange(sessionsCurrent, sessionsPrevious),
       goalsChange: signedChange(goalsCurrent, goalsPrevious),
     }
@@ -221,18 +240,27 @@ function sortTimescaleRows(
   })
 }
 
-function buildBasePayload(period: TimePeriodValue, website: string) {
+export type GA4TrafficScope = "all" | "organic"
+
+function buildBasePayload(
+  businessUniqueId: string | null,
+  period: TimePeriodValue,
+  website: string,
+  trafficScope: GA4TrafficScope
+) {
   return {
+    businessUniqueId: businessUniqueId || undefined,
     site_url: website,
     period,
-    traffic_scope: "all",
+    traffic_scope: trafficScope,
   }
 }
 
 export function useGA4Analytics(
   businessUniqueId: string | null,
   website: string | null,
-  period: TimePeriodValue = "3 months"
+  period: TimePeriodValue = "3 months",
+  trafficScope: GA4TrafficScope = "all"
 ) {
   const [goalsFilter, setGoalsFilter] = useState<TableFilterType>("popular")
   const [topSourcesFilter, setTopSourcesFilter] = useState<TableFilterType>("popular")
@@ -246,12 +274,12 @@ export function useGA4Analytics(
 
   const enabled = Boolean(businessUniqueId && website)
   const basePayload = useMemo(
-    () => (website ? buildBasePayload(period, website) : null),
-    [period, website]
+    () => (website ? buildBasePayload(businessUniqueId, period, website, trafficScope) : null),
+    [businessUniqueId, period, website, trafficScope]
   )
 
   const dateQuery = useQuery<V2Response<Ga4MetricRow>>({
-    queryKey: ["ga4-date-all", businessUniqueId, website, period],
+    queryKey: ["ga4-date-all", trafficScope, businessUniqueId, website, period],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -272,7 +300,7 @@ export function useGA4Analytics(
   })
 
   const contentGroupQuery = useQuery<V2Response<Ga4MetricRow>>({
-    queryKey: ["ga4-content-group-all", businessUniqueId, website, period],
+    queryKey: ["ga4-content-group-all", trafficScope, businessUniqueId, website, period],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -294,7 +322,7 @@ export function useGA4Analytics(
   })
 
   const pageQuery = useQuery<V2Response<Ga4MetricRow>>({
-    queryKey: ["ga4-page-all", businessUniqueId, website, period],
+    queryKey: ["ga4-page-all", trafficScope, businessUniqueId, website, period],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -316,7 +344,7 @@ export function useGA4Analytics(
   })
 
   const eventNameQuery = useQuery<V2Response<Ga4MetricRow>>({
-    queryKey: ["ga4-event-name", businessUniqueId, website, period],
+    queryKey: ["ga4-event-name", trafficScope, businessUniqueId, website, period],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -338,7 +366,7 @@ export function useGA4Analytics(
   })
 
   const sourceMediumQuery = useQuery<V2Response<Ga4MetricRow>>({
-    queryKey: ["ga4-source-medium", businessUniqueId, website, period],
+    queryKey: ["ga4-source-medium", trafficScope, businessUniqueId, website, period],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -360,7 +388,7 @@ export function useGA4Analytics(
   })
 
   const channelGroupQuery = useQuery<V2Response<Ga4MetricRow>>({
-    queryKey: ["ga4-channel-group", businessUniqueId, website, period],
+    queryKey: ["ga4-channel-group", trafficScope, businessUniqueId, website, period],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -453,6 +481,8 @@ export function useGA4Analytics(
       goals: {
         value: row.goals,
         change: row.goalsChange,
+        rawValue: row.goals,
+        previousValue: row.previousGoals,
       },
     }))
   }, [goalsFilter, goalsRows, goalsSort])
@@ -463,13 +493,19 @@ export function useGA4Analytics(
       topSourcesSort
     ).map((row) => ({
       key: row.key,
+      rawKey: row.rawKey,
+      source: row.source,
       sessions: {
         value: formatNumber(row.sessions),
         change: row.sessionsChange,
+        rawValue: row.sessions,
+        previousValue: row.previousSessions,
       },
       goals: {
         value: formatNumber(row.goals),
         change: row.goalsChange,
+        rawValue: row.goals,
+        previousValue: row.previousGoals,
       },
     }))
   }, [sourceMediumRows, topSourcesFilter, topSourcesSort])
@@ -483,10 +519,14 @@ export function useGA4Analytics(
       sessions: {
         value: formatNumber(row.sessions),
         change: row.sessionsChange,
+        rawValue: row.sessions,
+        previousValue: row.previousSessions,
       },
       goals: {
         value: formatNumber(row.goals),
         change: row.goalsChange,
+        rawValue: row.goals,
+        previousValue: row.previousGoals,
       },
     }))
   }, [contentGroupRows, contentGroupsFilter, contentGroupsSort])
@@ -497,13 +537,19 @@ export function useGA4Analytics(
       topPagesSort
     ).map((row) => ({
       key: normalizePageForDisplay(row.key),
+      rawKey: row.rawKey,
+      source: row.source,
       sessions: {
         value: formatNumber(row.sessions),
         change: row.sessionsChange,
+        rawValue: row.sessions,
+        previousValue: row.previousSessions,
       },
       goals: {
         value: formatNumber(row.goals),
         change: row.goalsChange,
+        rawValue: row.goals,
+        previousValue: row.previousGoals,
       },
     }))
   }, [topPageRows, topPagesFilter, topPagesSort])

@@ -50,6 +50,7 @@ interface DataTableModalProps {
   onRowClick?: (row: DataTableRow) => void
   isLoading?: boolean
   dynamicFirstColumn?: boolean
+  renderFirstColumn?: (row: DataTableRow, value: string) => React.ReactNode
 }
 
 const ROW_LIMITS = [25, 50, 100] as const
@@ -69,6 +70,7 @@ export function DataTableModal({
   onRowClick,
   isLoading = false,
   dynamicFirstColumn = false,
+  renderFirstColumn,
 }: DataTableModalProps) {
   const [rowsPerPage, setRowsPerPage] = useState<number>(25)
   const [currentPage, setCurrentPage] = useState(1)
@@ -174,6 +176,7 @@ export function DataTableModal({
             maxHeight="calc(85vh - 180px)"
             cellSize="md"
             dynamicFirstColumn={dynamicFirstColumn}
+            renderFirstColumn={renderFirstColumn}
           />
         </div>
 

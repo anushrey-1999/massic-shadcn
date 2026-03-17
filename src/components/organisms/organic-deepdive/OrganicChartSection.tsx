@@ -8,13 +8,13 @@ import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
 import { ChartSectionSkeleton } from "./skeletons";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
 
 interface OrganicChartSectionProps {
   businessUniqueId: string | null;
   website: string | null;
   period: TimePeriodValue;
-  filters?: DeepdiveFilter[];
+  filters?: DeepdiveApiFilter[];
   visibleLines?: Record<string, boolean>;
   onLegendToggle?: (key: string, checked: boolean) => void;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { Typography } from "@/components/ui/typography";
+import { Button } from "@/components/ui/button";
 import { TimePeriodValue } from "@/hooks/use-gsc-analytics";
 import {
   Search,
@@ -21,23 +22,30 @@ import { NoGSCMetricsSelected } from "@/components/molecules/analytics/NoGSCMetr
 import { PositionDistributionCard } from "@/components/molecules/analytics/PositionDistributionCard";
 import { AITrafficChartCard } from "@/components/molecules/analytics/AITrafficChartCard";
 import { LLMComparisonChart } from "@/components/molecules/analytics/LLMComparisonChart";
+import { ContentGroupsIcon } from "@/components/molecules/analytics/ContentGroupsIcon";
 import {
   useGSCAnalytics,
   type TableFilterType,
+  type GA4TrafficScope,
 } from "@/hooks/use-gsc-analytics";
 import { useTotalQueries } from "@/hooks/use-total-queries";
 import { useAISearchAnalytics } from "@/hooks/use-ai-search-analytics";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
-import type { DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import type {
+  DeepdiveApiFilter,
+  DeepdiveFilter,
+} from "@/hooks/use-organic-deepdive-filters";
 
 interface DiscoveryPerformanceSectionProps {
   period?: TimePeriodValue;
   visibleMetrics?: Record<string, boolean>;
-  filters?: DeepdiveFilter[];
+  filters?: DeepdiveApiFilter[];
   onSelectFilter?: (filter: DeepdiveFilter) => void;
+  onOpenCustomContentGroups?: () => void;
   hideTopQueries?: boolean;
   hideHowYouRank?: boolean;
+  ga4TrafficScope?: GA4TrafficScope;
 }
 
 function normalizePageForDisplay(value: string): string {
@@ -84,8 +92,10 @@ const DiscoveryPerformanceSection = ({
   visibleMetrics,
   filters = [],
   onSelectFilter,
+  onOpenCustomContentGroups,
   hideTopQueries = false,
   hideHowYouRank = false,
+  ga4TrafficScope = "organic",
 }: DiscoveryPerformanceSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -122,7 +132,7 @@ const DiscoveryPerformanceSection = ({
     hasContentGroupsData,
     hasTopPagesData,
     hasTopQueriesData,
-  } = useGSCAnalytics(businessUniqueId, website, period, filters);
+  } = useGSCAnalytics(businessUniqueId, website, period, filters, ga4TrafficScope);
 
   const {
     positionLegendItems,
@@ -274,7 +284,7 @@ const DiscoveryPerformanceSection = ({
       .map((source) => {
         const icon = getIconForSource(source.name);
         const customColor = getColor(source.name, source.color);
-        const mapped = {
+        return {
           name: source.name,
           icon: icon,
           value: source.normalizedValue,
@@ -282,22 +292,10 @@ const DiscoveryPerformanceSection = ({
           change: source.change,
           color: customColor,
         };
-        console.log(
-          `📊 Mapping: "${source.name}" -> icon:`,
-          icon,
-          "color:",
-          customColor,
-          "data:",
-          mapped
-        );
-        return mapped;
       })
       .sort((a, b) => {
         const aOrder = getOrder(a.name);
         const bOrder = getOrder(b.name);
-        console.log(
-          `🔄 Sorting: "${a.name}" (order: ${aOrder}) vs "${b.name}" (order: ${bOrder})`
-        );
         return aOrder - bOrder;
       });
 
@@ -316,6 +314,7 @@ const DiscoveryPerformanceSection = ({
       dimension: "content_group",
       operator: "equals",
       expression,
+      source: row._source === "custom" ? "custom" : "default",
     });
   }, [onSelectFilter]);
 
@@ -351,6 +350,8 @@ const DiscoveryPerformanceSection = ({
     [visibleMetrics]
   );
   const hasGscMetricSelected = metricVisibility.impressions || metricVisibility.clicks;
+  const hasActiveQueryFilter = filters.some((filter) => filter.dimension === "query");
+  const shouldShowNoGscMetricsState = hasActiveQueryFilter && !hasGscMetricSelected;
   const showContentGroupsLoader = loadingState.contentGroups && !hasContentGroupsData;
   const showTopPagesLoader = loadingState.topPages && !hasTopPagesData;
   const showTopQueriesLoader = loadingState.topQueries && !hasTopQueriesData;
@@ -455,7 +456,8 @@ const DiscoveryPerformanceSection = ({
     () =>
       contentGroupsData.map((item) => ({
         key: item.key,
-        _rawKey: item.key,
+        _rawKey: item.rawKey || item.key,
+        _source: item.source || "default",
         impressions: withZeroFallback(item.impressions),
         clicks: withZeroFallback(item.clicks),
         sessions: withZeroFallback(item.sessions),
@@ -463,6 +465,44 @@ const DiscoveryPerformanceSection = ({
       })),
     [contentGroupsData]
   );
+
+  const renderContentGroupLabel = useCallback((row: DataTableRow, value: string) => {
+    if (row._source !== "custom") {
+      return <span className="truncate">{value}</span>;
+    }
+
+    return (
+      <>
+        <span className="truncate">{value}</span>
+        <ContentGroupsIcon className="h-[13px] w-[13px] shrink-0 text-[#2E6A56]" />
+      </>
+    );
+  }, []);
+
+  const contentGroupsEmptyState = useMemo(() => {
+    if (!onOpenCustomContentGroups) {
+      return "No data available";
+    }
+
+    return (
+      <div className="flex flex-col items-center gap-3 text-center">
+        <p className="max-w-[260px] text-sm text-[#737373]">
+          No content groups yet. Define custom content groups to start clustering related pages.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 rounded-[8px] border-[#D4D4D4] bg-white px-4 text-[14px] font-medium text-[#0A0A0A]"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenCustomContentGroups();
+          }}
+        >
+          Define Content Groups
+        </Button>
+      </div>
+    );
+  }, [onOpenCustomContentGroups]);
 
   const topPagesTableData = useMemo(
     () =>
@@ -498,6 +538,12 @@ const DiscoveryPerformanceSection = ({
       <div className="flex flex-col gap-3">
         <div className="">
           <div className="grid grid-cols-2 gap-3">
+            {shouldShowNoGscMetricsState ? (
+              <NoGSCMetricsSelected
+                title="Content Group"
+                description="Select at least one GSC metric to activate Content Group report."
+              />
+            ) : (
             <DataTable
               title="Content Group"
               titleTooltip="Content people are seeing"
@@ -519,6 +565,7 @@ const DiscoveryPerformanceSection = ({
               data={contentGroupsTableData}
               isLoading={showContentGroupsLoader}
               hasData={hasContentGroupsData}
+              emptyState={contentGroupsEmptyState}
               sortConfig={contentGroupsSort}
               onSort={(column) =>
                 handleContentGroupsSort(
@@ -529,8 +576,16 @@ const DiscoveryPerformanceSection = ({
               onRowClick={handleContentGroupRowClick}
               maxRows={10}
               dynamicFirstColumn
+              renderFirstColumn={renderContentGroupLabel}
             />
+            )}
 
+            {shouldShowNoGscMetricsState ? (
+              <NoGSCMetricsSelected
+                title="Top Pages"
+                description="Select at least one GSC metric to activate Top Pages report."
+              />
+            ) : (
             <DataTable
               icon={<></>}
               title="Top Pages"
@@ -565,6 +620,7 @@ const DiscoveryPerformanceSection = ({
               maxRows={10}
               dynamicFirstColumn
             />
+            )}
           </div>
         </div>
 
@@ -621,14 +677,21 @@ const DiscoveryPerformanceSection = ({
               ) : null}
 
               {!hideHowYouRank ? (
-                <PositionDistributionCard
-                  positions={positionLegendItems}
-                  chartData={positionChartData}
-                  visibleLines={positionVisibleLines}
-                  onToggle={handlePositionLegendToggle}
-                  isLoading={isLoadingPositions}
-                  hasData={hasPositionData}
-                />
+                shouldShowNoGscMetricsState ? (
+                  <NoGSCMetricsSelected
+                    title="How you rank"
+                    description="Select at least one GSC metric to activate ranking report."
+                  />
+                ) : (
+                  <PositionDistributionCard
+                    positions={positionLegendItems}
+                    chartData={positionChartData}
+                    visibleLines={positionVisibleLines}
+                    onToggle={handlePositionLegendToggle}
+                    isLoading={isLoadingPositions}
+                    hasData={hasPositionData}
+                  />
+                )
               ) : null}
             </div>
           </div>
@@ -703,6 +766,7 @@ const DiscoveryPerformanceSection = ({
         isLoading={showContentGroupsLoader}
         onRowClick={handleContentGroupRowClick}
         dynamicFirstColumn
+        renderFirstColumn={renderContentGroupLabel}
       />
 
       <DataTableModal

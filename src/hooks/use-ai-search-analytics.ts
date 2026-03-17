@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
 import { useMemo } from "react"
+import type { TimePeriodValue } from "@/utils/analytics-period"
 
-export type TimePeriodValue = "7 days" | "14 days" | "28 days" | "3 months" | "6 months" | "12 months"
+export type { TimePeriodValue }
 
 interface AITrendValue {
   Total: string

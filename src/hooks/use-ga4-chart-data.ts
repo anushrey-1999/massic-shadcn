@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { useMemo } from "react";
 import { sumMetrics, calculateTrend, type TrendResult } from "@/utils/gsc-deepdive-utils";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
 import { type TimePeriodValue } from "@/hooks/use-gsc-chart-data";
 
 interface Ga4V2Response {
@@ -43,7 +43,7 @@ export function useGa4ChartData(
   businessId: string | null,
   siteUrl: string | null,
   period: TimePeriodValue = "3 months",
-  filters: DeepdiveFilter[] = []
+  filters: DeepdiveApiFilter[] = []
 ) {
   const { data: dateData, isLoading } = useQuery<Ga4V2Response>({
     queryKey: ["ga4-deepdive-date", businessId, siteUrl, period, filters],

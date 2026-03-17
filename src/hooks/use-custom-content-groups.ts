@@ -13,7 +13,7 @@ import type { TimePeriodValue } from "@/utils/analytics-period";
 
 interface BusinessSettingsResponse {
   err: boolean;
-  data?: string;
+  data?: string | Record<string, unknown>;
   message?: string;
 }
 
@@ -40,8 +40,18 @@ export function useCustomContentGroups(businessUniqueId: string | null) {
         return [];
       }
 
-      const parsed = JSON.parse(response.data);
-      const rawGroups = parsed.ContentGroups ? JSON.parse(parsed.ContentGroups) : [];
+      const parsed =
+        typeof response.data === "string"
+          ? JSON.parse(response.data)
+          : response.data;
+
+      const rawGroups =
+        typeof parsed.ContentGroups === "string"
+          ? JSON.parse(parsed.ContentGroups)
+          : Array.isArray(parsed.ContentGroups)
+            ? parsed.ContentGroups
+            : [];
+
       return normalizeCustomContentGroupsFromApi(rawGroups);
     },
     enabled: !!businessUniqueId,

@@ -342,7 +342,7 @@ export const WebUnifiedPagesSplitView = React.memo(function WebUnifiedPagesSplit
                 ) : (
                   <div>
                     <Typography variant="p" className="text-sm text-muted-foreground">
-                      Keywords
+                      Sub Topics
                     </Typography>
                     <div className="mt-2 rounded-md border bg-muted/20 p-3">
                       {keywords.length > 0 ? (

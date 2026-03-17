@@ -11,6 +11,7 @@ import { getWebUnifiedPagesSplitViewColumns } from "./web-unified-pages-split-vi
 import { Typography } from "@/components/ui/typography";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatVolume } from "@/lib/format";
 import {
   getWebOptimizationSuggestionsColumns,
   type WebOptimizationSuggestionRow,
@@ -46,6 +47,53 @@ function getKeywords(row: UnifiedPageRow | null): string[] {
         .filter(Boolean)
     )
   );
+}
+
+function getLooseValue(obj: unknown, keys: string[]): unknown {
+  const anyObj = obj as Record<string, unknown> | null | undefined;
+  if (!anyObj) return undefined;
+  for (const key of keys) {
+    const v = anyObj[key];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return v;
+  }
+  return undefined;
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const n = Number(value.replace(/,/g, "").trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function formatCoverage(value: unknown): string {
+  const n = toNumber(value);
+  if (n === null) return value != null && String(value).trim() ? String(value) : "—";
+  if (n >= 0 && n <= 1) return `${Math.round(n * 100)}%`;
+  if (n > 1 && n <= 100) return `${Math.round(n)}%`;
+  return String(value);
+}
+
+function formatVolumeValue(value: unknown): string {
+  const n = toNumber(value);
+  if (n === null) return value != null && String(value).trim() ? String(value) : "—";
+  return formatVolume(n);
+}
+
+function formatNumber(value: unknown, decimals: number = 0): string {
+  const n = toNumber(value);
+  if (n === null) return value != null && String(value).trim() ? String(value) : "—";
+  if (decimals <= 0) return formatVolume(n);
+  return n.toFixed(decimals);
+}
+
+function formatCtr(value: unknown): string {
+  const n = toNumber(value);
+  if (n === null) return value != null && String(value).trim() ? String(value) : "—";
+  const pct = n <= 1 ? n * 100 : n;
+  return `${pct.toFixed(2)}%`;
 }
 
 function toExistingSuggestions(
@@ -105,6 +153,44 @@ export const WebUnifiedPagesSplitView = React.memo(function WebUnifiedPagesSplit
   }, [leftTableData, selectedRowId]);
 
   const keywords = React.useMemo(() => getKeywords(selectedRow), [selectedRow]);
+
+  const coverageValue = React.useMemo(() => {
+    if (!selectedRow || selectedRow.label !== "New") return "—";
+    return formatCoverage(selectedRow.final_ops);
+  }, [selectedRow]);
+
+  const volumeValue = React.useMemo(() => {
+    if (!selectedRow || selectedRow.label !== "New") return "—";
+    const raw = selectedRow.raw as Record<string, unknown>;
+    const v = getLooseValue(raw, [
+      "volume",
+      "Volume",
+      "search_volume",
+      "searchVolume",
+      "monthly_search_volume",
+      "monthlySearchVolume",
+      "avg_monthly_searches",
+      "avgMonthlySearches",
+      "sv",
+    ]);
+    return formatVolumeValue(v);
+  }, [selectedRow]);
+
+  const existingMetrics = React.useMemo(() => {
+    if (!selectedRow || selectedRow.label !== "Existing") return null;
+    const rawAny = selectedRow.raw as any;
+    const gsc = rawAny?.gsc || {};
+    const ga4 = rawAny?.ga4 || {};
+
+    return {
+      impressions: gsc?.impressions,
+      clicks: gsc?.clicks,
+      ctr: gsc?.ctr,
+      avgpos: gsc?.avgpos,
+      sessions: ga4?.sessions,
+      goals: ga4?.conversions,
+    };
+  }, [selectedRow]);
 
   const existingDetailsRows = React.useMemo<WebOptimizationSuggestionRow[]>(() => {
     return toExistingSuggestions(selectedRow);
@@ -189,16 +275,69 @@ export const WebUnifiedPagesSplitView = React.memo(function WebUnifiedPagesSplit
             <div className="h-full min-h-0 flex flex-col rounded-lg border p-4">
               <ScrollArea className="flex-1 min-h-0 pr-2">
                 {selectedRow.label === "Existing" ? (
-                  <div className="h-full min-h-0">
-                    <DataTable
-                      table={existingDetailsTable}
-                      isLoading={false}
-                      isFetching={false}
-                      emptyMessage="No details found."
-                      showPagination={false}
-                      disableHorizontalScroll={true}
-                      className="h-full"
-                    />
+                  <div className="flex flex-col gap-4">
+                    <div className="min-h-0">
+                      <DataTable
+                        table={existingDetailsTable}
+                        isLoading={false}
+                        isFetching={false}
+                        emptyMessage="No details found."
+                        showPagination={false}
+                        disableHorizontalScroll={true}
+                        className="h-full"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <Typography variant="p" className="text-xs font-mono text-muted-foreground">
+                          Impr.
+                        </Typography>
+                        <Typography variant="p" className="text-sm mt-1">
+                          {formatNumber(existingMetrics?.impressions)}
+                        </Typography>
+                      </div>
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <Typography variant="p" className="text-xs font-mono text-muted-foreground">
+                          Clicks
+                        </Typography>
+                        <Typography variant="p" className="text-sm mt-1">
+                          {formatNumber(existingMetrics?.clicks)}
+                        </Typography>
+                      </div>
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <Typography variant="p" className="text-xs font-mono text-muted-foreground">
+                          CTR
+                        </Typography>
+                        <Typography variant="p" className="text-sm mt-1">
+                          {formatCtr(existingMetrics?.ctr)}
+                        </Typography>
+                      </div>
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <Typography variant="p" className="text-xs font-mono text-muted-foreground">
+                          Sessions
+                        </Typography>
+                        <Typography variant="p" className="text-sm mt-1">
+                          {formatNumber(existingMetrics?.sessions)}
+                        </Typography>
+                      </div>
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <Typography variant="p" className="text-xs font-mono text-muted-foreground">
+                          Goals
+                        </Typography>
+                        <Typography variant="p" className="text-sm mt-1">
+                          {formatNumber(existingMetrics?.goals)}
+                        </Typography>
+                      </div>
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <Typography variant="p" className="text-xs font-mono text-muted-foreground">
+                          Avg Pos
+                        </Typography>
+                        <Typography variant="p" className="text-sm mt-1">
+                          {formatNumber(existingMetrics?.avgpos, 1)}
+                        </Typography>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div>
@@ -219,6 +358,25 @@ export const WebUnifiedPagesSplitView = React.memo(function WebUnifiedPagesSplit
                           No keywords found.
                         </Typography>
                       )}
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <Typography variant="p" className="text-xs font-mono text-muted-foreground">
+                          Coverage
+                        </Typography>
+                        <Typography variant="p" className="text-sm mt-1">
+                          {coverageValue}
+                        </Typography>
+                      </div>
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <Typography variant="p" className="text-xs font-mono text-muted-foreground">
+                          Volume
+                        </Typography>
+                        <Typography variant="p" className="text-sm mt-1">
+                          {volumeValue}
+                        </Typography>
+                      </div>
                     </div>
                   </div>
                 )}

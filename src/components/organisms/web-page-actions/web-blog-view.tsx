@@ -298,13 +298,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const status = (data?.status || "").toString().toLowerCase();
   const isProcessing = status === "pending" || status === "processing";
+  const contentFormat = React.useMemo(() => detectPageContentFormat(mainContent), [mainContent]);
+  const isHtmlContent = contentFormat === "html";
 
   const typeLabel = type === "blog" ? "blog" : "page";
   const outlineFromServer = cleanEscapedContent(data?.output_data?.page?.outline || "");
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
   const hasFinalContent = !!mainContent && mainContent.trim().length > 0;
-  const contentFormat = React.useMemo(() => detectPageContentFormat(mainContent), [mainContent]);
-  const isHtmlContent = contentFormat === "html";
 
   const inferPage = data?.output_data?.page || {};
   const inferBlog = inferPage?.blog || {};
@@ -1134,7 +1134,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         {isProcessing ? (
           <Card className="p-4">
             <Typography>
-              We’re generating your content. This may take 1-3 minutes. Please wait
+              We're generating your content. This may take 1-3 minutes. Please wait
               <span className="dot-animate"> ...</span>
             </Typography>
             <style>{`

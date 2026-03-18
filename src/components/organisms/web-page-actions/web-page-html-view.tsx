@@ -11,15 +11,19 @@ import {
   Globe,
   Loader2,
   Monitor,
+  Plus,
+  Redo2,
+  Save,
   Smartphone,
   Tablet,
+  Undo2,
   X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { Typography } from "@/components/ui/typography";
 import {
   Dialog,
@@ -40,49 +44,62 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/clipboard";
 import { resolvePageContent } from "@/utils/page-content-resolver";
+import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
+import { ContentConverter } from "@/utils/content-converter";
 import { api } from "@/hooks/use-api";
 import { ensureMassicContentWrapper } from "@/utils/page-content-format";
-import { normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import {
   applySpacingEditsToHtml,
   applyLinkEditsToHtml,
+  applyLinkLabelEditsToHtml,
   applyTextEditsToHtml,
   buildEditableHtmlModel,
+  buildSpacingStyleString,
   canonicalizeHtml,
-  EDITABLE_SPACING_PX_MAX,
-  EDITABLE_SPACING_PX_MIN,
-  mergeSpacingUtilityClasses,
-  parseEditableSpacingValueFromClassName,
+  parseEditableSpacingValue,
   extractPlainTextFromHtml,
   isSafeEditableLinkHref,
   normalizeEditableLinkHref,
   sanitizePageHtml,
+  moveSectionInHtml,
+  deleteSectionFromHtml,
+  duplicateSectionInHtml,
+  insertBlockInHtml,
+  deleteBlockAndNormalize,
+  deleteSlotById,
+  duplicateElementBySpacingId,
+  moveElementBySpacingId,
+  insertInsideElementBySpacingId,
+  insertAdjacentToElementBySpacingId,
+  insertBlockIntoSlot,
+  getElementSiblingInfo,
+  wrapBlockInTwoColumnLayout,
+  normalizeLayoutHtml,
+  upgradeLegacySplitLayouts,
+  validatePublishableLayoutHtml,
+  collapseLayoutBySpacingId,
+  getMediaInfoFromElement,
+  getTextBlockInfoFromElement,
+  updateMediaInElementBySpacingId,
+  updateTextBlockByTextId,
+  type EditableBlockNode,
+  type EditableLayoutNode,
   type EditableLinkRef,
+  type EditableSectionRef,
+  type EditableSlotNode,
   type EditableSpacingRef,
-  type EditableSpacingToken,
   type EditableSpacingValue,
+  type EditableTextStyleValue,
   type EditableTextNodeRef,
+  type LayoutValidationResult,
+  type MediaElementInfo,
 } from "@/utils/page-html-editor";
-import {
-  applyMassicStyleOverrides,
-  buildMassicCssVariableOverrides,
-  MASSIC_STYLE_COLOR_KEYS,
-  MASSIC_STYLE_TYPOGRAPHY_KEYS,
-  normalizeMassicStyleColorOverrides,
-  normalizeMassicStyleTypographyOverrides,
-  type MassicStyleTypographyKey,
-  type MassicStyleColorKey,
-} from "@/utils/massic-style-overrides";
 import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
-import {
-  useUpdateWordpressStyleOverrides,
-  useWordpressConnection,
-  useWordpressStyleProfile,
-} from "@/hooks/use-wordpress-connector";
 import {
   type WordpressSlugConflictInfo,
   WordpressPublishError,
@@ -92,6 +109,23 @@ import {
   useWordpressSlugCheck,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
+import {
+  useWordpressConnection,
+  useWordpressStyleProfile,
+  useUpdateWordpressStyleOverrides,
+} from "@/hooks/use-wordpress-connector";
+import {
+  applyMassicStyleOverrides,
+  buildMassicCssVariableOverrides,
+  MASSIC_STYLE_COLOR_KEYS,
+  MASSIC_STYLE_TYPOGRAPHY_KEYS,
+  normalizeMassicStyleColorOverrides,
+  normalizeMassicStyleTypographyOverrides,
+  type MassicStyleColorKey,
+  type MassicStyleTypographyKey,
+} from "@/utils/massic-style-overrides";
+import { LayoutPanel, MediaEditorPanel } from "@/components/ui/layout-panel";
+import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 
 type SaveReason = "debounce" | "blur" | "unmount";
 type ActiveLinkEditorState = {
@@ -99,19 +133,64 @@ type ActiveLinkEditorState = {
   top: number;
   left: number;
   label: string;
+  textIds: string[];
 };
-type PreviewEditMode = "text" | "spacing";
-type ActiveSpacingEditorState = {
+type ActiveMediaEditorState = {
+  spacingId: string;
+  top: number;
+  left: number;
+  label: string;
+  media: MediaElementInfo;
+};
+type ActiveTextEditorState = {
   id: string;
   top: number;
   left: number;
   label: string;
-  baseClassName: string;
+  text: string;
+  style: EditableTextStyleValue;
 };
-
-function isEditableSpan(target: EventTarget | null): target is HTMLElement {
-  return target instanceof HTMLElement && Boolean(target.dataset.massicTextId);
-}
+type PreviewEditMode = "text" | "layout";
+type ActiveLayoutEditorState = {
+  top: number;
+  left: number;
+  label: string;
+  targetKind: "section" | "block" | "layout" | "slot";
+  targetTagName: string | null;
+  layoutId: string | null;
+  slotId: string | null;
+  sectionId: string | null;
+  sectionCount: number;
+  sectionIndex: number;
+  spacingId: string | null;
+  baseClassName: string;
+  baseStyleStr: string;
+  baseSpacing: EditableSpacingValue;
+  isElement: boolean;
+  isLayout: boolean;
+  isSlot: boolean;
+  canInsertInside: boolean;
+  isFirstSibling: boolean;
+  isLastSibling: boolean;
+  isEmptyElement: boolean;
+  mediaTarget: MediaElementInfo | null;
+};
+type InsertAnchor = {
+  kind: "section";
+  sectionId: string;
+  position: "before" | "after";
+} | {
+  kind: "element";
+  spacingId: string;
+  position: "inside" | "before" | "after";
+} | {
+  kind: "slot";
+  slotId: string;
+} | {
+  kind: "wrap-grid";
+  spacingId: string;
+  side: "left" | "right";
+} | null;
 
 function getEditableLinkElement(target: EventTarget | null): HTMLAnchorElement | null {
   if (!(target instanceof HTMLElement)) return null;
@@ -128,39 +207,52 @@ function getEditableSpacingElement(target: EventTarget | null): HTMLElement | nu
   return target.closest("[data-massic-spacing-id]") as HTMLElement | null;
 }
 
-function updateEditFromElement(edits: Record<string, string>, element: HTMLElement) {
-  const id = element.dataset.massicTextId;
-  if (!id) return edits;
-  return {
-    ...edits,
-    [id]: element.textContent ?? "",
-  };
+function getEditableSectionElement(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  return target.closest("[data-massic-section-id]") as HTMLElement | null;
 }
 
-function insertPlainTextAtCursor(text: string) {
-  if (!text) return;
+function getEditableSlotElement(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  return target.closest("[data-massic-slot-id]") as HTMLElement | null;
+}
 
-  if (typeof document !== "undefined" && document.queryCommandSupported?.("insertText")) {
-    document.execCommand("insertText", false, text);
-    return;
+function resolveMediaSelection(target: HTMLElement): { spacingEl: HTMLElement; media: MediaElementInfo } | null {
+  const spacingAncestors: HTMLElement[] = [];
+  let current: HTMLElement | null = target;
+
+  while (current) {
+    if (current.hasAttribute("data-massic-spacing-id")) {
+      spacingAncestors.push(current);
+    }
+    current = current.parentElement;
   }
 
-  const selection = window.getSelection();
-  if (!selection || selection.rangeCount === 0) return;
-  const range = selection.getRangeAt(0);
-  range.deleteContents();
-  const textNode = document.createTextNode(text);
-  range.insertNode(textNode);
-  range.setStartAfter(textNode);
-  range.setEndAfter(textNode);
-  selection.removeAllRanges();
-  selection.addRange(range);
+  for (const spacingEl of spacingAncestors) {
+    const media = getMediaInfoFromElement(spacingEl, target);
+    if (media) {
+      return { spacingEl, media };
+    }
+  }
+
+  return null;
+}
+
+function isEditorPopoverTarget(target: HTMLElement): boolean {
+  return Boolean(
+    target.closest("[data-massic-text-editor='true']") ||
+    target.closest("[data-massic-link-editor='true']") ||
+    target.closest("[data-massic-media-editor='true']") ||
+    target.closest("[data-massic-section-editor='true']")
+  );
 }
 
 function createEmptySpacingValue(): EditableSpacingValue {
   return {
     outsideTop: null,
     outsideBottom: null,
+    outsideLeft: null,
+    outsideRight: null,
   };
 }
 
@@ -169,7 +261,9 @@ function areSpacingValuesEqual(left: Partial<EditableSpacingValue> | null | unde
   const rightValue = right || {};
   return (
     (leftValue.outsideTop || null) === (rightValue.outsideTop || null) &&
-    (leftValue.outsideBottom || null) === (rightValue.outsideBottom || null)
+    (leftValue.outsideBottom || null) === (rightValue.outsideBottom || null) &&
+    (leftValue.outsideLeft || null) === (rightValue.outsideLeft || null) &&
+    (leftValue.outsideRight || null) === (rightValue.outsideRight || null)
   );
 }
 
@@ -223,70 +317,6 @@ const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
   h2Size: ["22px", "24px", "28px", "32px", "36px"],
   h3Size: ["18px", "20px", "22px", "26px", "30px"],
 };
-const SPACING_SELECT_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "", label: "Default" },
-  { value: "0", label: "0" },
-  { value: "8", label: "8" },
-  { value: "12", label: "12" },
-  { value: "16", label: "16" },
-  { value: "24", label: "24" },
-  { value: "32", label: "32" },
-];
-const SPACING_CUSTOM_OPTION_VALUE = "__custom__";
-const SPACING_SCALE_PIXEL_BASE: Record<string, number> = {
-  none: 0,
-  xs: 8,
-  s: 12,
-  m: 16,
-  l: 24,
-  xl: 32,
-};
-
-function parseSpacingNumberToken(value: EditableSpacingToken | null | undefined): number | null {
-  if (!value || typeof value !== "string") return null;
-  if (value.startsWith("num:")) {
-    const parsed = Number(value.slice(4));
-    if (!Number.isFinite(parsed)) return null;
-    return Math.round(parsed);
-  }
-  const normalized = String(value).trim().toLowerCase();
-  if (Object.prototype.hasOwnProperty.call(SPACING_SCALE_PIXEL_BASE, normalized)) {
-    return SPACING_SCALE_PIXEL_BASE[normalized];
-  }
-  return null;
-}
-
-function clampSpacingPx(value: number): number {
-  const rounded = Math.round(value);
-  if (rounded < EDITABLE_SPACING_PX_MIN) return EDITABLE_SPACING_PX_MIN;
-  if (rounded > EDITABLE_SPACING_PX_MAX) return EDITABLE_SPACING_PX_MAX;
-  return rounded;
-}
-
-function toSpacingNumberToken(value: number): EditableSpacingToken {
-  return `num:${clampSpacingPx(value)}`;
-}
-
-function toSpacingPresetValue(value: EditableSpacingToken | null | undefined): string {
-  const numericValue = parseSpacingNumberToken(value);
-  if (numericValue == null) return "";
-  const numericKey = String(numericValue);
-  const isPreset = SPACING_SELECT_OPTIONS.some((option) => option.value === numericKey);
-  return isPreset ? numericKey : SPACING_CUSTOM_OPTION_VALUE;
-}
-
-function resolveSpacingInputValue(value: EditableSpacingToken | null | undefined): string {
-  const spacingNumber = parseSpacingNumberToken(value);
-  return spacingNumber == null ? "" : String(spacingNumber);
-}
-
-function parseSpacingNumberInput(value: string): number | null {
-  const normalized = String(value || "").trim();
-  if (!normalized) return null;
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed)) return null;
-  return clampSpacingPx(parsed);
-}
 
 export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
@@ -306,14 +336,6 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     slug?: string | null;
     previewUrl?: string;
   } | null>(null);
-  const [isEmbeddedPreviewOpen, setIsEmbeddedPreviewOpen] = React.useState(false);
-  const [embeddedPreviewUrl, setEmbeddedPreviewUrl] = React.useState("");
-  const [embeddedPreviewTitle, setEmbeddedPreviewTitle] = React.useState("Preview");
-  const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
-  const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
-  const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | null>(null);
-  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   const [editableSlug, setEditableSlug] = React.useState("");
   const [isSlugEdited, setIsSlugEdited] = React.useState(false);
   const [slugCheckResult, setSlugCheckResult] = React.useState<{
@@ -329,6 +351,16 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const [slugCheckError, setSlugCheckError] = React.useState<string | null>(null);
   const [isSlugChecking, setIsSlugChecking] = React.useState(false);
   const [isAutoResolvingSlug, setIsAutoResolvingSlug] = React.useState(false);
+  const [isEmbeddedPreviewOpen, setIsEmbeddedPreviewOpen] = React.useState(false);
+  const [embeddedPreviewUrl, setEmbeddedPreviewUrl] = React.useState("");
+  const [embeddedPreviewTitle, setEmbeddedPreviewTitle] = React.useState("Preview");
+  const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
+  const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
+  const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
+
+  const lastAutoSlugCheckKeyRef = React.useRef("");
 
   const contentQuery = useWebActionContentQuery({
     type: "page",
@@ -342,67 +374,101 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const data = contentQuery.data;
   const wpConnectionQuery = useWordpressConnection(businessId || null);
   const wpConnection = wpConnectionQuery.data?.connection || null;
-  const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
-  const wpStyleProfileQuery = useWordpressStyleProfile(wpConnection?.connectionId || null);
-  const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const wpPublishMutation = useWordpressPublish();
   const { mutateAsync: slugCheckMutateAsync } = useWordpressSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
+  const wpStyleProfileQuery = useWordpressStyleProfile(wpConnection?.connectionId || null);
+  const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
+  const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
   const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
     Partial<Record<MassicStyleColorKey, string>>
   >({});
+  const [showAllStyleColorOptions, setShowAllStyleColorOptions] = React.useState(false);
+  const [openStylePaletteKey, setOpenStylePaletteKey] = React.useState<MassicStyleColorKey | null>(null);
   const [styleTypographyOverridesDraft, setStyleTypographyOverridesDraft] = React.useState<
     Partial<Record<MassicStyleTypographyKey, string>>
   >({});
-  const [showAllStyleColorOptions, setShowAllStyleColorOptions] = React.useState(false);
-  const [openStylePaletteKey, setOpenStylePaletteKey] = React.useState<MassicStyleColorKey | null>(null);
-  const [previewEditMode, setPreviewEditMode] = React.useState<PreviewEditMode>("text");
-  const [activeLinkEditor, setActiveLinkEditor] = React.useState<ActiveLinkEditorState | null>(null);
-  const [linkHrefDraft, setLinkHrefDraft] = React.useState("");
-  const [linkHrefError, setLinkHrefError] = React.useState<string | null>(null);
-  const [activeSpacingEditor, setActiveSpacingEditor] = React.useState<ActiveSpacingEditorState | null>(null);
-  const [spacingDraft, setSpacingDraft] = React.useState<EditableSpacingValue>(createEmptySpacingValue);
-  const [hoveredSpacingId, setHoveredSpacingId] = React.useState<string | null>(null);
+  const inferPage = data?.output_data?.page || {};
+  const publishTitle = inferPage?.meta_title || inferPage?.title || keyword || "Untitled";
+  const publishContentId = inferPage?.page_id || pageId;
+  const publishType = "page" as const;
+  const contentStatusQuery = useWordpressContentStatus(
+    wpConnection?.connectionId || null,
+    publishContentId ? String(publishContentId) : null
+  );
+  const persistedContent = contentStatusQuery.data?.content || null;
+  const persistedStatus = (persistedContent?.status || "").toLowerCase();
+  const isPersistedTrashed = persistedStatus === "trash";
+  const persistedSlug = React.useMemo(
+    () => normalizeWordpressBlogEditableSlug(persistedContent?.slug || ""),
+    [persistedContent?.slug]
+  );
+  const generatedSlugFallback = React.useMemo(
+    () => normalizeWordpressSlugPath(publishTitle || keyword || ""),
+    [keyword, publishTitle]
+  );
+  const generatedSlug = React.useMemo(
+    () => normalizeWordpressBlogEditableSlug(generatedSlugFallback),
+    [generatedSlugFallback]
+  );
+  const effectiveModalSlug = React.useMemo(() => {
+    if (!isPersistedTrashed && persistedSlug) return persistedSlug;
+    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
+    if (generatedSlug) return generatedSlug;
+    return generatedSlugFallback;
+  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug]);
+  const normalizedEditableSlug = React.useMemo(() => normalizeWordpressBlogEditableSlug(editableSlug), [editableSlug]);
+  const hasInvalidBlogSlug = React.useMemo(
+    () => Boolean(normalizedEditableSlug && normalizedEditableSlug.includes("/")),
+    [normalizedEditableSlug]
+  );
+  const normalizedSlugForPublish = React.useMemo(() => {
+    if (!normalizedEditableSlug || hasInvalidBlogSlug) return "";
+    return normalizedEditableSlug;
+  }, [hasInvalidBlogSlug, normalizedEditableSlug]);
+  const isPersistedLive = persistedStatus === "publish";
+  const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
+  const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
+  const slugConflictReason = slugCheckResult?.conflict?.reason || null;
+  const isPublishBusy =
+    wpPublishMutation.isPending ||
+    wpPreviewMutation.isPending ||
+    wpUnpublishMutation.isPending;
+  const publishStateLabel = isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
+  const publishStateHint = isPersistedLive
+    ? "This content is live on WordPress."
+    : isPersistedDraftLike
+      ? "A draft exists in WordPress."
+      : isPersistedTrashed
+        ? "This content was moved to trash."
+        : "No WordPress page exists yet.";
+  const publishUrlPreview = React.useMemo(() => {
+    const siteUrl = String(wpConnection?.siteUrl || "").replace(/\/+$/, "");
+    const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
+    if (!siteUrl || !slugForPreview) return null;
+    return `${siteUrl}/${slugForPreview}`;
+  }, [normalizedSlugForPublish, slugCheckResult?.slug, wpConnection?.siteUrl]);
+  const liveUrl = React.useMemo(() => {
+    if (persistedContent?.permalink) return persistedContent.permalink;
+    if (lastPublishedData?.permalink) return lastPublishedData.permalink;
+    if (isPersistedLive && persistedContent?.wpId && wpConnection?.siteUrl) {
+      return `${String(wpConnection.siteUrl).replace(/\/+$/, "")}/?p=${persistedContent.wpId}`;
+    }
+    return null;
+  }, [isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId, wpConnection?.siteUrl]);
 
-  const sourceHtmlRef = React.useRef("");
-  const textNodeIndexRef = React.useRef<EditableTextNodeRef[]>([]);
-  const linkIndexRef = React.useRef<EditableLinkRef[]>([]);
-  const spacingIndexRef = React.useRef<EditableSpacingRef[]>([]);
-  const editsRef = React.useRef<Record<string, string>>({});
-  const linkEditsRef = React.useRef<Record<string, string>>({});
-  const spacingEditsRef = React.useRef<Record<string, EditableSpacingValue>>({});
-  const saveTimerRef = React.useRef<number | null>(null);
-  const isSavingRef = React.useRef(false);
-  const queuedSaveRef = React.useRef(false);
-  const previewContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const isEditorFocusedRef = React.useRef(false);
-  const isInitialLoadRef = React.useRef(true);
-  const lastSavedHtmlRef = React.useRef("");
-  const lastStatusRef = React.useRef<string>("");
-  const hasLocalEditsRef = React.useRef(false);
-  const isEditingSessionRef = React.useRef(false);
-  const lastCommittedHtmlRef = React.useRef("");
-  const pendingBackgroundRefetchRef = React.useRef(false);
-  const lastAutoSlugCheckKeyRef = React.useRef("");
-
-  const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
-  const shouldApplyWpStyle = isWpConnected && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
-  const isWaitingForStyleProfilePreview =
-    isWpConnected &&
-    !wpStyleProfileQuery.data &&
-    (wpStyleProfileQuery.isLoading || wpStyleProfileQuery.isFetching);
   const normalizedStoredStyleColorOverrides = React.useMemo(
     () => normalizeMassicStyleColorOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).colors || {},
-    [wpStyleProfileQuery.data?.styleOverrides]
-  );
-  const normalizedStoredStyleTypographyOverrides = React.useMemo(
-    () => normalizeMassicStyleTypographyOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).typography || {},
     [wpStyleProfileQuery.data?.styleOverrides]
   );
   const serializedStoredColorOverrides = React.useMemo(
     () => JSON.stringify(normalizedStoredStyleColorOverrides),
     [normalizedStoredStyleColorOverrides]
+  );
+  const normalizedStoredStyleTypographyOverrides = React.useMemo(
+    () => normalizeMassicStyleTypographyOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).typography || {},
+    [wpStyleProfileQuery.data?.styleOverrides]
   );
   const serializedStoredTypographyOverrides = React.useMemo(
     () => JSON.stringify(normalizedStoredStyleTypographyOverrides),
@@ -413,9 +479,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const prevSerialized = JSON.stringify(
         normalizeMassicStyleColorOverrides({ colors: prev }).colors || {}
       );
-      if (prevSerialized === serializedStoredColorOverrides) {
-        return prev;
-      }
+      if (prevSerialized === serializedStoredColorOverrides) return prev;
       return normalizedStoredStyleColorOverrides;
     });
   }, [normalizedStoredStyleColorOverrides, serializedStoredColorOverrides]);
@@ -424,23 +488,20 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const prevSerialized = JSON.stringify(
         normalizeMassicStyleTypographyOverrides({ typography: prev }).typography || {}
       );
-      if (prevSerialized === serializedStoredTypographyOverrides) {
-        return prev;
-      }
+      if (prevSerialized === serializedStoredTypographyOverrides) return prev;
       return normalizedStoredStyleTypographyOverrides;
     });
   }, [normalizedStoredStyleTypographyOverrides, serializedStoredTypographyOverrides]);
 
+  const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
+  const shouldApplyWpStyle = isWpConnected && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
   const styleProfileForPreview = React.useMemo(
     () =>
       shouldApplyWpStyle
-        ? applyMassicStyleOverrides(
-            wpStyleProfileQuery.data?.profile,
-            {
-              colors: styleColorOverridesDraft,
-              typography: styleTypographyOverridesDraft,
-            }
-          )
+        ? applyMassicStyleOverrides(wpStyleProfileQuery.data?.profile, {
+            colors: styleColorOverridesDraft,
+            typography: styleTypographyOverridesDraft,
+          })
         : null,
     [shouldApplyWpStyle, styleColorOverridesDraft, styleTypographyOverridesDraft, wpStyleProfileQuery.data?.profile]
   );
@@ -451,7 +512,6 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         : {},
     [styleProfileForPreview]
   );
-
   const previewStyleVars = React.useMemo(() => {
     const style: React.CSSProperties = {};
     for (const [key, value] of Object.entries(cssVarOverrides)) {
@@ -465,122 +525,25 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const declarations = entries.map(([key, value]) => `${key}: ${value};`).join(" ");
     return `.massic-html-preview .massic-content { ${declarations} }`;
   }, [cssVarOverrides]);
-
-  const status = (data?.status || "").toString().toLowerCase();
-  const isProcessing = status === "pending" || status === "processing";
-  const hasFinalContent = canonicalizeHtml(sourceHtmlRef.current).length > 0;
-
-  const inferPage = data?.output_data?.page || {};
-  const inferBlog = inferPage?.blog || {};
-  const publishTitle = inferPage?.meta_title || inferBlog?.meta_title || keyword || "Untitled";
-  const publishContentId = inferPage?.page_id || pageId;
-  const inferSlug = React.useMemo(
-    () => (typeof inferPage?.slug === "string" ? String(inferPage.slug).trim() : ""),
-    [inferPage?.slug]
-  );
-  const generatedSlugFallback = React.useMemo(
-    () => normalizeWordpressSlugPath(publishTitle || keyword || ""),
-    [keyword, publishTitle]
-  );
-  const generatedSlug = React.useMemo(() => {
-    if (inferSlug) return normalizeWordpressSlugPath(inferSlug);
-    return generatedSlugFallback;
-  }, [generatedSlugFallback, inferSlug]);
-  const normalizedEditableSlug = React.useMemo(() => normalizeWordpressSlugPath(editableSlug), [editableSlug]);
-  const contentStatusQuery = useWordpressContentStatus(
-    wpConnection?.connectionId || null,
-    publishContentId ? String(publishContentId) : null
-  );
-  const persistedContent = contentStatusQuery.data?.content || null;
-  const persistedStatus = (persistedContent?.status || "").toLowerCase();
-  const isPersistedTrashed = persistedStatus === "trash";
-  const persistedSlug = React.useMemo(
-    () => normalizeWordpressSlugPath(persistedContent?.slug || ""),
-    [persistedContent?.slug]
-  );
-  const effectiveModalSlug = React.useMemo(() => {
-    if (!isPersistedTrashed && persistedSlug) return persistedSlug;
-    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressSlugPath(lastPublishedData.slug);
-    if (generatedSlug) return generatedSlug;
-    return generatedSlugFallback;
-  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug]);
-  const isPersistedLive = persistedStatus === "publish";
-  const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
-  const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
-  const slugConflictReason = slugCheckResult?.conflict?.reason || null;
-  const isPublishBusy =
-    wpPublishMutation.isPending ||
-    wpPreviewMutation.isPending ||
-    wpUnpublishMutation.isPending;
-  const isSlugInputBusy = isPublishBusy || isAutoResolvingSlug;
-  const isSlugActionBusy = isPublishBusy || isSlugChecking || isAutoResolvingSlug;
-  const publishStateLabel = isPersistedLive
-    ? "Live"
-    : isPersistedDraftLike
-      ? "Draft"
-      : isPersistedTrashed
-        ? "In Trash"
-        : "Not Published";
-  const publishStateHint = isPersistedLive
-    ? "This content is live on WordPress."
-    : isPersistedDraftLike
-      ? "A draft exists in WordPress."
-      : isPersistedTrashed
-        ? "This content was moved to trash."
-        : "No WordPress page exists yet.";
-
-  const liveUrl = React.useMemo(() => {
-    if (persistedContent?.permalink) return persistedContent.permalink;
-    if (lastPublishedData?.permalink) return lastPublishedData.permalink;
-    if (isPersistedLive && persistedContent?.wpId && wpConnection?.siteUrl) {
-      return `${String(wpConnection.siteUrl).replace(/\/+$/, "")}/?page_id=${persistedContent.wpId}`;
-    }
-    return null;
-  }, [
-    isPersistedLive,
-    lastPublishedData?.permalink,
-    persistedContent?.permalink,
-    persistedContent?.wpId,
-    wpConnection?.siteUrl,
-  ]);
-  const publishUrlPreview = React.useMemo(() => {
-    const siteUrl = String(wpConnection?.siteUrl || "").replace(/\/+$/, "");
-    const slugForPreview = normalizedEditableSlug || normalizeWordpressSlugPath(slugCheckResult?.slug || "");
-    if (!siteUrl || !slugForPreview) {
-      return null;
-    }
-
-    return `${siteUrl}/${slugForPreview}`;
-  }, [normalizedEditableSlug, slugCheckResult?.slug, wpConnection?.siteUrl]);
   const extractedStyleColors = React.useMemo(() => {
-    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as
-      | { colors?: Record<string, unknown> }
-      | undefined;
+    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as { colors?: Record<string, unknown> } | undefined;
     return (extractedProfile?.colors || {}) as Record<string, unknown>;
   }, [wpStyleProfileQuery.data?.extractedProfile]);
   const effectiveProfileColors = React.useMemo(() => {
-    const profile = wpStyleProfileQuery.data?.profile as
-      | { colors?: Record<string, unknown> }
-      | undefined;
+    const profile = wpStyleProfileQuery.data?.profile as { colors?: Record<string, unknown> } | undefined;
     return (profile?.colors || {}) as Record<string, unknown>;
   }, [wpStyleProfileQuery.data?.profile]);
   const normalizeAnyColor = React.useCallback((value: unknown) => {
     if (typeof value !== "string") return null;
-    return (
-      normalizeMassicStyleColorOverrides({ colors: { primary: value } }).colors
-        ?.primary || null
-    );
+    return normalizeMassicStyleColorOverrides({ colors: { primary: value } }).colors?.primary || null;
   }, []);
   const extractedColorByKey = React.useMemo(() => {
     const next: Partial<Record<MassicStyleColorKey, string>> = {};
     for (const key of MASSIC_STYLE_COLOR_KEYS) {
       const extracted = normalizeAnyColor(extractedStyleColors[key]);
       const profileFallback = normalizeAnyColor(effectiveProfileColors[key]);
-      if (extracted) {
-        next[key] = extracted;
-      } else if (profileFallback) {
-        next[key] = profileFallback;
-      }
+      if (extracted) next[key] = extracted;
+      else if (profileFallback) next[key] = profileFallback;
     }
     return next;
   }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
@@ -674,7 +637,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleStyleOverrideColorChange = React.useCallback((key: MassicStyleColorKey, value: string) => {
     const normalized = normalizeMassicStyleColorOverrides({ colors: { [key]: value } }).colors?.[key];
     if (!normalized) return;
-    setStyleColorOverridesDraft(prev => ({
+    setStyleColorOverridesDraft((prev) => ({
       ...prev,
       [key]: normalized,
     }));
@@ -687,7 +650,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   }, []);
 
   const resetStyleOverrideKey = React.useCallback((key: MassicStyleColorKey) => {
-    setStyleColorOverridesDraft(prev => {
+    setStyleColorOverridesDraft((prev) => {
       const next = { ...prev };
       delete next[key];
       return next;
@@ -735,47 +698,77 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     wpStyleOverridesMutation,
   ]);
 
-  React.useEffect(() => {
-    if (!isPublishModalOpen) return;
-    if (isSlugEdited) return;
-    setEditableSlug(normalizeWordpressSlugPath(effectiveModalSlug));
-  }, [effectiveModalSlug, isPublishModalOpen, isSlugEdited]);
+  const [previewEditMode, setPreviewEditMode] = React.useState<PreviewEditMode>("text");
+  const [activeLinkEditor, setActiveLinkEditor] = React.useState<ActiveLinkEditorState | null>(null);
+  const [linkHrefDraft, setLinkHrefDraft] = React.useState("");
+  const [linkLabelDraft, setLinkLabelDraft] = React.useState("");
+  const [linkHrefError, setLinkHrefError] = React.useState<string | null>(null);
+  const [activeTextEditor, setActiveTextEditor] = React.useState<ActiveTextEditorState | null>(null);
+  const [activeMediaEditor, setActiveMediaEditor] = React.useState<ActiveMediaEditorState | null>(null);
+  const [activeLayoutEditor, setActiveLayoutEditor] = React.useState<ActiveLayoutEditorState | null>(null);
+  const [spacingDraft, setSpacingDraft] = React.useState<EditableSpacingValue>(createEmptySpacingValue);
+  const [hoveredLayoutId, setHoveredLayoutId] = React.useState<string | null>(null);
+  const [insertDialogOpen, setInsertDialogOpen] = React.useState(false);
+  const [insertAnchor, setInsertAnchor] = React.useState<InsertAnchor>(null);
+  const [isDirty, setIsDirty] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
 
-  React.useEffect(() => {
-    if (isPublishModalOpen) {
-      // Freeze background content polling while publish modal is active.
-      setPollingDisabled(true);
-      return;
-    }
+  const sourceHtmlRef = React.useRef("");
+  const textNodeIndexRef = React.useRef<EditableTextNodeRef[]>([]);
+  const linkIndexRef = React.useRef<EditableLinkRef[]>([]);
+  const spacingIndexRef = React.useRef<EditableSpacingRef[]>([]);
+  const layoutIndexRef = React.useRef<EditableLayoutNode[]>([]);
+  const slotIndexRef = React.useRef<EditableSlotNode[]>([]);
+  const blockIndexRef = React.useRef<EditableBlockNode[]>([]);
+  const sectionIndexRef = React.useRef<EditableSectionRef[]>([]);
+  const undoStackRef = React.useRef<string[]>([]);
+  const redoStackRef = React.useRef<string[]>([]);
+  const editsRef = React.useRef<Record<string, string>>({});
+  const linkEditsRef = React.useRef<Record<string, string>>({});
+  const linkLabelEditsRef = React.useRef<Record<string, string>>({});
+  const spacingEditsRef = React.useRef<Record<string, EditableSpacingValue>>({});
+  const saveTimerRef = React.useRef<number | null>(null);
+  const isSavingRef = React.useRef(false);
+  const queuedSaveRef = React.useRef(false);
+  const previewContainerRef = React.useRef<HTMLDivElement | null>(null);
+  const lastRenderedHtmlRef = React.useRef("");
+  const textEditorTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const isEditorFocusedRef = React.useRef(false);
+  const isInitialLoadRef = React.useRef(true);
+  const lastSavedHtmlRef = React.useRef("");
+  const lastStatusRef = React.useRef<string>("");
+  const hasLocalEditsRef = React.useRef(false);
+  const isEditingSessionRef = React.useRef(false);
+  const lastCommittedHtmlRef = React.useRef("");
+  const pendingBackgroundRefetchRef = React.useRef(false);
 
-    if (!isEditorFocusedRef.current && !isEditingSessionRef.current) {
-      setPollingDisabled(false);
-    }
-  }, [isPublishModalOpen]);
+  const status = (data?.status || "").toString().toLowerCase();
+  const isProcessing = status === "pending" || status === "processing";
+  const hasFinalContent = canonicalizeHtml(sourceHtmlRef.current).length > 0;
 
-  React.useEffect(() => {
-    if (!isPublishModalOpen || !isWpConnected || !wpConnection?.connectionId || !publishContentId) {
-      return;
-    }
+  const normalizeEditorHtml = React.useCallback((html: string) => {
+    const sanitized = ensureMassicContentWrapper(sanitizePageHtml(html));
+    const upgraded = upgradeLegacySplitLayouts(sanitized);
+    return ensureMassicContentWrapper(normalizeLayoutHtml(upgraded));
+  }, []);
 
-    void contentStatusQuery.refetch();
-  }, [isPublishModalOpen, isWpConnected, publishContentId, wpConnection?.connectionId]);
-
-  React.useEffect(() => {
-    if (isPublishModalOpen) return;
-    setIsSlugEdited(false);
-    setSlugCheckResult(null);
-    setSlugCheckError(null);
-    setIsAutoResolvingSlug(false);
-    lastAutoSlugCheckKeyRef.current = "";
-  }, [isPublishModalOpen]);
+  const validateEditorHtml = React.useCallback((html: string): LayoutValidationResult => {
+    return validatePublishableLayoutHtml(html);
+  }, []);
 
   const composeCurrentHtml = React.useCallback(() => {
     const mergedText = applyTextEditsToHtml(sourceHtmlRef.current, textNodeIndexRef.current, editsRef.current);
     const mergedLinks = applyLinkEditsToHtml(mergedText, linkIndexRef.current, linkEditsRef.current);
-    const mergedSpacing = applySpacingEditsToHtml(mergedLinks, spacingIndexRef.current, spacingEditsRef.current);
-    return ensureMassicContentWrapper(sanitizePageHtml(mergedSpacing));
-  }, []);
+    const mergedLinkLabels = applyLinkLabelEditsToHtml(mergedLinks, linkIndexRef.current, linkLabelEditsRef.current);
+    const mergedSpacing = applySpacingEditsToHtml(mergedLinkLabels, spacingIndexRef.current, spacingEditsRef.current);
+    const withPendingTextModal = activeTextEditor
+      ? updateTextBlockByTextId(mergedSpacing, textNodeIndexRef.current, activeTextEditor.id, {
+        text: activeTextEditor.text,
+        style: activeTextEditor.style,
+      })
+      : mergedSpacing;
+    return normalizeEditorHtml(withPendingTextModal);
+  }, [activeTextEditor, normalizeEditorHtml]);
 
   const updatePageContentRequest = React.useCallback(
     async (content: string) => {
@@ -801,9 +794,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const latestData = result.data;
       if (!latestData) return;
 
-      const serverCanonical = canonicalizeHtml(
-        ensureMassicContentWrapper(sanitizePageHtml(resolvePageContent(latestData)))
-      );
+      const serverCanonical = canonicalizeHtml(normalizeEditorHtml(resolvePageContent(latestData)));
       const committedCanonical = canonicalizeHtml(lastCommittedHtmlRef.current);
       if (!committedCanonical) return;
 
@@ -813,6 +804,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
           !isEditorFocusedRef.current &&
           Object.keys(editsRef.current).length === 0 &&
           Object.keys(linkEditsRef.current).length === 0 &&
+          Object.keys(linkLabelEditsRef.current).length === 0 &&
           Object.keys(spacingEditsRef.current).length === 0 &&
           !isSavingRef.current
         ) {
@@ -835,6 +827,11 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     async (reason: SaveReason) => {
       const nextHtml = composeCurrentHtml();
       if (!nextHtml) return;
+      const validation = validateEditorHtml(nextHtml);
+      if (!validation.isValid) {
+        toast.error(validation.errors[0] || "Layout is invalid and could not be saved.");
+        return;
+      }
       if (canonicalizeHtml(nextHtml) === canonicalizeHtml(lastSavedHtmlRef.current)) return;
       hasLocalEditsRef.current = true;
       isEditingSessionRef.current = true;
@@ -847,6 +844,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       isSavingRef.current = true;
       const submittedEdits = { ...editsRef.current };
       const submittedLinkEdits = { ...linkEditsRef.current };
+      const submittedLinkLabelEdits = { ...linkLabelEditsRef.current };
       const submittedSpacingEdits = { ...spacingEditsRef.current };
       try {
         await updatePageContentRequest(nextHtml);
@@ -870,6 +868,14 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         }
         linkEditsRef.current = remainingLinkEdits;
 
+        const remainingLinkLabelEdits = { ...linkLabelEditsRef.current };
+        for (const [id, value] of Object.entries(submittedLinkLabelEdits)) {
+          if (remainingLinkLabelEdits[id] === value) {
+            delete remainingLinkLabelEdits[id];
+          }
+        }
+        linkLabelEditsRef.current = remainingLinkLabelEdits;
+
         const remainingSpacingEdits = { ...spacingEditsRef.current };
         for (const [id, value] of Object.entries(submittedSpacingEdits)) {
           if (areSpacingValuesEqual(remainingSpacingEdits[id], value)) {
@@ -884,6 +890,10 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
           textNodeIndexRef.current = committedModel.textNodeIndex;
           linkIndexRef.current = committedModel.linkIndex;
           spacingIndexRef.current = committedModel.spacingIndex;
+          layoutIndexRef.current = committedModel.layoutIndex;
+          slotIndexRef.current = committedModel.slotIndex;
+          blockIndexRef.current = committedModel.blockIndex;
+          sectionIndexRef.current = committedModel.sectionIndex;
           setTextNodeIndex(committedModel.textNodeIndex);
           setPreviewHtml(committedModel.previewHtml);
         }
@@ -909,17 +919,8 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         }
       }
     },
-    [composeCurrentHtml, runBackgroundRefetch, updatePageContentRequest]
+    [composeCurrentHtml, runBackgroundRefetch, updatePageContentRequest, validateEditorHtml, normalizeEditorHtml]
   );
-
-  const scheduleDebouncedSave = React.useCallback(() => {
-    if (saveTimerRef.current) {
-      window.clearTimeout(saveTimerRef.current);
-    }
-    saveTimerRef.current = window.setTimeout(() => {
-      void flushSave("debounce");
-    }, 1200);
-  }, [flushSave]);
 
   React.useEffect(() => {
     if (!data) return;
@@ -930,12 +931,13 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const isPolling = nextStatus === "pending" || nextStatus === "processing";
     const transitionedFromPollingToTerminal = wasPolling && !isPolling;
     const rawPage = resolvePageContent(data);
-    const sanitized = ensureMassicContentWrapper(sanitizePageHtml(rawPage));
+    const sanitized = normalizeEditorHtml(rawPage);
     const serverCanonical = canonicalizeHtml(sanitized);
     const localCanonical = canonicalizeHtml(lastSavedHtmlRef.current);
     const hasPendingEdits =
       Object.keys(editsRef.current).length > 0 ||
       Object.keys(linkEditsRef.current).length > 0 ||
+      Object.keys(linkLabelEditsRef.current).length > 0 ||
       Object.keys(spacingEditsRef.current).length > 0;
     const localChangeInProgress = hasLocalEditsRef.current || hasPendingEdits || isSavingRef.current;
     const serverMatchesLocal = localCanonical.length > 0 && serverCanonical === localCanonical;
@@ -971,24 +973,41 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     textNodeIndexRef.current = model.textNodeIndex;
     linkIndexRef.current = model.linkIndex;
     spacingIndexRef.current = model.spacingIndex;
+    layoutIndexRef.current = model.layoutIndex;
+    slotIndexRef.current = model.slotIndex;
+    blockIndexRef.current = model.blockIndex;
+    sectionIndexRef.current = model.sectionIndex;
     editsRef.current = {};
     linkEditsRef.current = {};
+    linkLabelEditsRef.current = {};
     spacingEditsRef.current = {};
     lastSavedHtmlRef.current = canonicalizeHtml(sanitized);
     setTextNodeIndex(model.textNodeIndex);
     setPreviewHtml(model.previewHtml);
     setActiveLinkEditor(null);
+    setActiveMediaEditor(null);
+    setActiveTextEditor(null);
     setLinkHrefDraft("");
+    setLinkLabelDraft("");
     setLinkHrefError(null);
-    setActiveSpacingEditor(null);
+    setActiveLayoutEditor(null);
     setSpacingDraft(createEmptySpacingValue());
+    setHoveredLayoutId(null);
 
     if (isInitialLoadRef.current) {
       window.setTimeout(() => {
         isInitialLoadRef.current = false;
       }, 250);
     }
-  }, [data]);
+  }, [data, normalizeEditorHtml]);
+
+  React.useEffect(() => {
+    if (!activeTextEditor) return;
+    const frame = window.requestAnimationFrame(() => {
+      textEditorTextareaRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeTextEditor]);
 
   React.useEffect(() => {
     const nextStatus = (data?.status || "").toString().toLowerCase();
@@ -1029,114 +1048,127 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     setIsEmbeddedPreviewOpen(true);
   }, []);
 
+  const buildPublishPayload = React.useCallback(
+    (targetStatus: "draft" | "publish") => ({
+      connectionId: String(wpConnection?.connectionId || ""),
+      status: targetStatus,
+      workflowSource: "infer_ai" as const,
+      workflowPayload: data || {},
+      contentId: String(publishContentId),
+      type: publishType,
+      title: String(publishTitle),
+      slug: normalizedSlugForPublish || null,
+      contentMarkdown: extractPlainTextFromHtml(previewHtml),
+      contentHtml: previewHtml,
+      excerpt: null,
+      head: { title: String(publishTitle), meta: { description: undefined } },
+    }),
+    [data, previewHtml, publishContentId, publishTitle, publishType, normalizedSlugForPublish, wpConnection?.connectionId]
+  );
+
+  const runSlugCheck = React.useCallback(
+    async ({ force = false }: { force?: boolean } = {}) => {
+      if (!isWpConnected || !wpConnection?.connectionId || !publishContentId) return null;
+      if (!normalizedEditableSlug) {
+        setSlugCheckResult(null);
+        setSlugCheckError("Slug is required.");
+        lastAutoSlugCheckKeyRef.current = "";
+        return null;
+      }
+      if (hasInvalidBlogSlug) {
+        setSlugCheckResult(null);
+        setSlugCheckError("Page slug must be a single segment (no nested '/' paths).");
+        lastAutoSlugCheckKeyRef.current = "";
+        return null;
+      }
+      const checkKey = `${wpConnection.connectionId}:${String(publishContentId)}:${publishType}:${normalizedSlugForPublish}`;
+      if (!force && lastAutoSlugCheckKeyRef.current === checkKey) return null;
+      if (!force) lastAutoSlugCheckKeyRef.current = checkKey;
+      setIsSlugChecking(true);
+      setSlugCheckError(null);
+      try {
+        const response = await slugCheckMutateAsync({
+          connectionId: String(wpConnection.connectionId),
+          contentId: String(publishContentId),
+          type: publishType,
+          slug: normalizedSlugForPublish,
+        });
+        const result = response?.data || null;
+        setSlugCheckResult(result);
+        return result;
+      } catch (err: unknown) {
+        const message = (err as { message?: string })?.message || "Failed to check slug in WordPress.";
+        setSlugCheckResult(null);
+        setSlugCheckError(message);
+        return null;
+      } finally {
+        setIsSlugChecking(false);
+      }
+    },
+    [
+      hasInvalidBlogSlug,
+      isWpConnected,
+      normalizedEditableSlug,
+      normalizedSlugForPublish,
+      publishContentId,
+      publishType,
+      slugCheckMutateAsync,
+      wpConnection?.connectionId,
+    ]
+  );
+
   React.useEffect(() => {
-    if (!isEmbeddedPreviewOpen || !isEmbeddedPreviewLoading) return;
-    const timer = window.setTimeout(() => {
-      setShowEmbedFallbackHint(true);
-    }, 8000);
-    return () => window.clearTimeout(timer);
-  }, [isEmbeddedPreviewLoading, isEmbeddedPreviewOpen]);
-
-  const runSlugCheck = React.useCallback(async ({ force = false }: { force?: boolean } = {}) => {
-    if (!isWpConnected || !wpConnection?.connectionId || !publishContentId) {
-      return null;
-    }
-
-    if (!normalizedEditableSlug) {
-      setSlugCheckResult(null);
-      setSlugCheckError("Slug is required.");
-      lastAutoSlugCheckKeyRef.current = "";
-      return null;
-    }
-
-    const checkKey = `${wpConnection.connectionId}:${String(publishContentId)}:page:${normalizedEditableSlug}`;
-    if (!force && lastAutoSlugCheckKeyRef.current === checkKey) {
-      return null;
-    }
-
-    if (!force) {
-      lastAutoSlugCheckKeyRef.current = checkKey;
-    }
-
-    setIsSlugChecking(true);
-    setSlugCheckError(null);
-
-    try {
-      const response = await slugCheckMutateAsync({
-        connectionId: String(wpConnection.connectionId),
-        contentId: String(publishContentId),
-        type: "page",
-        slug: normalizedEditableSlug,
-      });
-
-      const result = response?.data || null;
-      setSlugCheckResult(result);
-      return result;
-    } catch (error: any) {
-      const message = error?.message || "Failed to check slug in WordPress.";
-      setSlugCheckResult(null);
-      setSlugCheckError(message);
-      return null;
-    } finally {
-      setIsSlugChecking(false);
-    }
-  }, [
-    isWpConnected,
-    normalizedEditableSlug,
-    publishContentId,
-    slugCheckMutateAsync,
-    wpConnection?.connectionId,
-  ]);
+    if (!isPublishModalOpen) return;
+    if (isSlugEdited) return;
+    setEditableSlug(normalizeWordpressBlogEditableSlug(effectiveModalSlug));
+  }, [effectiveModalSlug, isPublishModalOpen, isSlugEdited]);
 
   React.useEffect(() => {
-    if (!isPublishModalOpen || !isWpConnected || !wpConnection?.connectionId || !publishContentId) {
+    if (isPublishModalOpen) {
+      setPollingDisabled(true);
       return;
     }
+    setPollingDisabled(false);
+  }, [isPublishModalOpen]);
 
+  React.useEffect(() => {
+    if (!isPublishModalOpen || !isWpConnected || !wpConnection?.connectionId || !publishContentId) return;
+    void contentStatusQuery.refetch();
+  }, [isPublishModalOpen, isWpConnected, publishContentId, wpConnection?.connectionId]);
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen) return;
+    setIsSlugEdited(false);
+    setSlugCheckResult(null);
+    setSlugCheckError(null);
+    setIsAutoResolvingSlug(false);
+    lastAutoSlugCheckKeyRef.current = "";
+  }, [isPublishModalOpen]);
+
+  React.useEffect(() => {
+    if (!isEmbeddedPreviewOpen || !isEmbeddedPreviewLoading) return;
+    const t = window.setTimeout(() => setShowEmbedFallbackHint(true), 8000);
+    return () => window.clearTimeout(t);
+  }, [isEmbeddedPreviewLoading, isEmbeddedPreviewOpen]);
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen || !isWpConnected || !wpConnection?.connectionId || !publishContentId) return;
     if (!normalizedEditableSlug) {
       setSlugCheckResult(null);
       setSlugCheckError(isSlugEdited ? "Slug is required." : null);
       lastAutoSlugCheckKeyRef.current = "";
       return;
     }
-
+    if (hasInvalidBlogSlug) {
+      setSlugCheckResult(null);
+      setSlugCheckError("Page slug must be a single segment (no nested '/' paths).");
+      lastAutoSlugCheckKeyRef.current = "";
+      return;
+    }
     const delayMs = isSlugEdited ? 350 : 0;
-    const timer = window.setTimeout(() => {
-      void runSlugCheck();
-    }, delayMs);
-
+    const timer = window.setTimeout(() => void runSlugCheck(), delayMs);
     return () => window.clearTimeout(timer);
-  }, [
-    isPublishModalOpen,
-    isWpConnected,
-    isSlugEdited,
-    normalizedEditableSlug,
-    publishContentId,
-    runSlugCheck,
-    wpConnection?.connectionId,
-  ]);
-
-  const buildPublishPayload = React.useCallback(
-    (targetStatus: "draft" | "publish") => {
-      const safeHtml = composeCurrentHtml();
-      return {
-        connectionId: String(wpConnection?.connectionId || ""),
-        status: targetStatus,
-        workflowSource: "infer_ai" as const,
-        workflowPayload: data || {},
-        contentId: String(publishContentId),
-        type: "page" as const,
-        title: String(publishTitle),
-        slug: normalizedEditableSlug || null,
-        contentHtml: safeHtml,
-        excerpt: null,
-        head: {
-          title: String(publishTitle),
-        },
-      };
-    },
-    [composeCurrentHtml, data, normalizedEditableSlug, publishContentId, publishTitle, wpConnection?.connectionId]
-  );
+  }, [isPublishModalOpen, hasInvalidBlogSlug, isWpConnected, isSlugEdited, normalizedEditableSlug, publishContentId, runSlugCheck, wpConnection?.connectionId]);
 
   const handleRedirectToChannels = React.useCallback(() => {
     router.push(`/business/${businessId}/web?integrations=1`);
@@ -1144,25 +1176,17 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   }, [businessId, router]);
 
   const handlePublishDraft = React.useCallback(async () => {
-    if (!isWpConnected || !wpConnection?.connectionId) return;
-    if (!hasFinalContent) return;
-
-    let publishResult;
+    if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
+    let result;
     try {
-      publishResult = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
+      result = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
     } catch (error) {
-      const publishError = error as WordpressPublishError;
-      if (publishError?.code === "slug_conflict") {
-        const details = publishError?.details || {};
-        const conflictReason =
-          typeof details?.reason === "string"
-            ? details.reason
-            : ((details?.conflict as WordpressSlugConflictInfo | null)?.reason || null);
-        const conflictMessage = conflictReason === "parent_type_conflict"
-          ? "This nested page path is blocked because a parent segment already belongs to non-page content."
-          : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
+      const e = error as WordpressPublishError;
+      if (e?.code === "slug_conflict") {
+        const details = e?.details || {};
+        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
         setSlugCheckResult({
-          slug: normalizedEditableSlug,
+          slug: normalizedSlugForPublish,
           publishUrl: publishUrlPreview || null,
           exists: true,
           sameMappedContent: false,
@@ -1171,13 +1195,12 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
           mappedToDifferentContent: false,
           mappedContentId: null,
         });
-        setSlugCheckError(conflictMessage);
-        toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        toast.error("Slug conflict: choose a unique slug");
       }
       return;
     }
-
-    const published = publishResult?.data;
+    const published = result?.data;
     if (!published) return;
     setLastPublishedData({
       contentId: published.contentId,
@@ -1185,65 +1208,39 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       permalink: published.permalink || null,
       editUrl: published.editUrl || null,
       status: published.status || "draft",
-      slug: published.slug || normalizedEditableSlug || null,
+      slug: published.slug || normalizedSlugForPublish || null,
     });
     toast.success("Draft pushed to WordPress");
-
-    const previewResult = await wpPreviewMutation.mutateAsync({
+    const previewRes = await wpPreviewMutation.mutateAsync({
       connectionId: wpConnection.connectionId,
       contentId: published.contentId,
       wpId: published.wpId,
     });
-
-    const previewUrl = previewResult?.data?.previewUrl;
+    const previewUrl = previewRes?.data?.previewUrl;
     if (previewUrl) {
-      setLastPublishedData((prev) =>
-        prev
-          ? {
-            ...prev,
-            previewUrl,
-          }
-          : prev
-      );
+      setLastPublishedData((prev) => (prev ? { ...prev, previewUrl } : prev));
       openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [
-    buildPublishPayload,
-    contentStatusQuery,
-    hasFinalContent,
-    isWpConnected,
-    openEmbeddedPreview,
-    wpConnection?.connectionId,
-    wpPreviewMutation,
-    wpPublishMutation,
-  ]);
+  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, wpConnection?.connectionId, openEmbeddedPreview, wpPreviewMutation, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
 
   const handlePublishLive = React.useCallback(async () => {
-    if (!isWpConnected || !wpConnection?.connectionId) return;
-    if (!hasFinalContent) return;
+    if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
     if (!isPersistedDraftLike && !lastPublishedData?.wpId) {
       toast.error("Publish draft first to generate a preview");
       return;
     }
-
-    let publishResult;
+    let result;
     try {
-      publishResult = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
+      result = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
     } catch (error) {
-      const publishError = error as WordpressPublishError;
-      if (publishError?.code === "slug_conflict") {
-        const details = publishError?.details || {};
-        const conflictReason =
-          typeof details?.reason === "string"
-            ? details.reason
-            : ((details?.conflict as WordpressSlugConflictInfo | null)?.reason || null);
-        const conflictMessage = conflictReason === "parent_type_conflict"
-          ? "This nested page path is blocked because a parent segment already belongs to non-page content."
-          : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
+      const e = error as WordpressPublishError;
+      if (e?.code === "slug_conflict") {
+        const details = e?.details || {};
+        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
         setSlugCheckResult({
-          slug: normalizedEditableSlug,
+          slug: normalizedSlugForPublish,
           publishUrl: publishUrlPreview || null,
           exists: true,
           sameMappedContent: false,
@@ -1252,37 +1249,26 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
           mappedToDifferentContent: false,
           mappedContentId: null,
         });
-        setSlugCheckError(conflictMessage);
-        toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        toast.error("Slug conflict: choose a unique slug");
       }
       return;
     }
-
-    const published = publishResult?.data;
+    const published = result?.data;
     if (!published) return;
     setLastPublishedData((prev) => ({
+      ...prev,
       contentId: published.contentId,
       wpId: published.wpId,
       permalink: published.permalink || null,
       editUrl: published.editUrl || null,
       status: published.status || "publish",
-      slug: published.slug || normalizedEditableSlug || null,
-      previewUrl: prev?.previewUrl,
+      slug: published.slug || normalizedSlugForPublish || null,
     }));
-
     toast.success("Published live to WordPress");
     void contentStatusQuery.refetch();
     setIsPublishModalOpen(false);
-  }, [
-    buildPublishPayload,
-    contentStatusQuery,
-    hasFinalContent,
-    isPersistedDraftLike,
-    isWpConnected,
-    lastPublishedData?.wpId,
-    wpConnection?.connectionId,
-    wpPublishMutation,
-  ]);
+  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, isPersistedDraftLike, lastPublishedData?.wpId, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
 
   const handleOpenPreview = React.useCallback(async () => {
     const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
@@ -1290,81 +1276,66 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       toast.error("Draft not found for preview");
       return;
     }
-
-    const previewResult = await wpPreviewMutation.mutateAsync({
+    const res = await wpPreviewMutation.mutateAsync({
       connectionId: wpConnection.connectionId,
       contentId: String(publishContentId),
       wpId: Number(wpIdToUse),
     });
-
-    const previewUrl = previewResult?.data?.previewUrl;
-    if (!previewUrl) return;
-
+    const url = res?.data?.previewUrl;
+    if (!url) return;
     setLastPublishedData((prev) =>
-      prev
-        ? {
-          ...prev,
-          previewUrl,
-        }
-        : {
-          contentId: String(publishContentId),
-          wpId: Number(wpIdToUse),
-          permalink: persistedContent?.permalink || null,
-          editUrl: null,
-          status: persistedStatus || "draft",
-          slug: persistedContent?.slug || normalizedEditableSlug || null,
-          previewUrl,
-        }
+      prev ? { ...prev, previewUrl: url } : { contentId: String(publishContentId), wpId: Number(wpIdToUse), permalink: persistedContent?.permalink || null, editUrl: null, status: persistedStatus || "draft", slug: persistedContent?.slug || normalizedSlugForPublish || null, previewUrl: url }
     );
-    openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
-  }, [
-    lastPublishedData?.wpId,
-    openEmbeddedPreview,
-    persistedContent?.permalink,
-    persistedContent?.wpId,
-    persistedStatus,
-    publishContentId,
-    wpConnection?.connectionId,
-    wpPreviewMutation,
-  ]);
+    openEmbeddedPreview(url, "WordPress Draft Preview");
+  }, [lastPublishedData?.wpId, persistedContent?.permalink, persistedContent?.slug, persistedContent?.wpId, persistedStatus, publishContentId, wpConnection?.connectionId, openEmbeddedPreview, wpPreviewMutation, normalizedSlugForPublish]);
 
-  const handleChangeWordpressStatus = React.useCallback(async (targetStatus: "draft" | "trash") => {
-    if (!isWpConnected || !wpConnection?.connectionId) return;
-    if (!publishContentId) return;
+  const handleChangeWordpressStatus = React.useCallback(
+    async (targetStatus: "draft" | "trash") => {
+      if (!isWpConnected || !wpConnection?.connectionId || !publishContentId) return;
+      const res = await wpUnpublishMutation.mutateAsync({
+        connectionId: String(wpConnection.connectionId),
+        contentId: String(publishContentId),
+        targetStatus,
+      });
+      const d = res?.data;
+      if (d) {
+        setLastPublishedData((prev) => (prev ? { ...prev, status: d.status || targetStatus, permalink: null, previewUrl: undefined } : prev));
+      }
+      setIsEmbeddedPreviewOpen(false);
+      toast.success(targetStatus === "trash" ? "Deleted in WordPress (moved to trash)" : "Moved to draft in WordPress");
+      await contentStatusQuery.refetch();
+      if (targetStatus === "trash") setIsPublishModalOpen(false);
+    },
+    [contentStatusQuery, isWpConnected, publishContentId, wpConnection?.connectionId, wpUnpublishMutation]
+  );
 
-    const response = await wpUnpublishMutation.mutateAsync({
-      connectionId: String(wpConnection.connectionId),
-      contentId: String(publishContentId),
-      targetStatus,
-    });
-    const unpublishData = response?.data;
+  const isSlugActionBusy = isPublishBusy || isSlugChecking || isAutoResolvingSlug;
 
-    if (unpublishData) {
-      setLastPublishedData((prev) =>
-        prev
-          ? {
-            ...prev,
-            status: unpublishData.status || targetStatus,
-            permalink: null,
-            previewUrl: undefined,
-          }
-          : prev
-      );
-    }
+  const confirmAndRunPublishAction = React.useCallback(() => {
+    if (confirmPublishAction === "draft") handlePublishDraft();
+    else if (confirmPublishAction === "live") handlePublishLive();
+    setConfirmPublishAction(null);
+  }, [confirmPublishAction, handlePublishDraft, handlePublishLive]);
 
-    setIsEmbeddedPreviewOpen(false);
-    toast.success(targetStatus === "trash" ? "Deleted in WordPress (moved to trash)" : "Moved to draft in WordPress");
-    await contentStatusQuery.refetch();
-    if (targetStatus === "trash") {
-      setIsPublishModalOpen(false);
-    }
-  }, [
-    contentStatusQuery,
-    isWpConnected,
-    publishContentId,
-    wpConnection?.connectionId,
-    wpUnpublishMutation,
-  ]);
+  const autoResolveSlug = React.useCallback(async () => {
+    if (!slugCheckResult?.suggestedSlug || isSlugActionBusy) return;
+    setIsAutoResolvingSlug(true);
+    setEditableSlug(normalizeWordpressBlogEditableSlug(slugCheckResult.suggestedSlug));
+    setIsSlugEdited(false);
+    lastAutoSlugCheckKeyRef.current = "";
+    await runSlugCheck({ force: true });
+    setIsAutoResolvingSlug(false);
+  }, [isSlugActionBusy, runSlugCheck, slugCheckResult?.suggestedSlug]);
+
+  // Manage innerHTML via ref instead of dangerouslySetInnerHTML so that
+  // re-renders (from hover/selection state changes) never recreate iframes.
+  React.useLayoutEffect(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+    if (lastRenderedHtmlRef.current === previewHtml) return;
+    lastRenderedHtmlRef.current = previewHtml;
+    container.innerHTML = previewHtml;
+  }, [previewHtml]);
 
   const handleCopyText = async () => {
     const safeHtml = composeCurrentHtml();
@@ -1407,37 +1378,85 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
   const resolveSpacingLabel = React.useCallback((ref: EditableSpacingRef | undefined) => {
     if (!ref) return "Container";
+    if (ref.nodeKind === "layout") return "Layout Container";
     const rawClasses = String(ref.className || "")
       .split(/\s+/)
       .map((name) => name.trim())
       .filter(Boolean);
     const preferredClass = rawClasses.find((className) => className.startsWith("massic-")) || rawClasses[0];
     if (preferredClass) {
-      return `${ref.tagName}.${preferredClass}`;
+      const FRIENDLY: Record<string, string> = {
+        "massic-card": "Card",
+        "massic-container": "Container",
+        "massic-grid": "Grid",
+        "massic-split": "Split Layout",
+        "massic-feature": "Feature",
+        "massic-hero": "Hero",
+        "massic-cta": "CTA",
+        "massic-cta-band": "CTA Band",
+        "massic-section": "Section",
+        "massic-stats": "Stats",
+        "massic-stat": "Stat Item",
+        "massic-testimonial": "Testimonial",
+        "massic-faq": "FAQ",
+        "massic-alert": "Alert",
+        "massic-step": "Step",
+        "massic-stack": "Stack",
+        "massic-actions": "Actions",
+        "massic-video-wrap": "Video",
+        "massic-comparison-table": "Table",
+      };
+      return FRIENDLY[preferredClass] || preferredClass.replace("massic-", "").replace(/-/g, " ");
     }
-    return ref.tagName;
+    const TAG_LABELS: Record<string, string> = {
+      img: "Image",
+      iframe: "Video",
+      p: "Paragraph",
+      blockquote: "Quote",
+      h1: "Heading",
+      h2: "Heading",
+      h3: "Heading",
+      h4: "Heading",
+      h5: "Heading",
+      h6: "Heading",
+      ul: "List",
+      ol: "List",
+      li: "List Item",
+      details: "Details",
+      summary: "Summary",
+    };
+    if (TAG_LABELS[ref.tagName]) return TAG_LABELS[ref.tagName];
+    return ref.tagName === "div" ? "Container" : ref.tagName;
   }, []);
 
-  const setClassNameOnPreviewSpacingTarget = React.useCallback((spacingId: string, className: string) => {
+  const applySpacingPreviewToTarget = React.useCallback((spacingId: string, spacing: EditableSpacingValue | null) => {
     const target = previewContainerRef.current?.querySelector(
       `[data-massic-spacing-id="${spacingId}"]`
     ) as HTMLElement | null;
     if (!target) return;
-    if (className) {
-      target.setAttribute("class", className);
-    } else {
-      target.removeAttribute("class");
+    const marginProps = ["margin-top", "margin-bottom", "margin-left", "margin-right"] as const;
+    for (const prop of marginProps) {
+      target.style.removeProperty(prop);
+    }
+    if (!spacing) return;
+    const styleStr = buildSpacingStyleString(spacing);
+    if (!styleStr) return;
+    for (const part of styleStr.split(";")) {
+      const colonIdx = part.indexOf(":");
+      if (colonIdx < 1) continue;
+      const prop = part.slice(0, colonIdx).trim();
+      const val = part.slice(colonIdx + 1).trim();
+      target.style.setProperty(prop, val);
     }
   }, []);
 
-  const closeActiveSpacingEditor = React.useCallback(() => {
-    setActiveSpacingEditor(null);
-    setSpacingDraft(createEmptySpacingValue());
-    setHoveredSpacingId(null);
+  const closeActiveTextEditor = React.useCallback(() => {
+    setActiveTextEditor(null);
     isEditorFocusedRef.current = false;
     if (
       !Object.keys(editsRef.current).length &&
       !Object.keys(linkEditsRef.current).length &&
+      !Object.keys(linkLabelEditsRef.current).length &&
       !Object.keys(spacingEditsRef.current).length &&
       !isSavingRef.current
     ) {
@@ -1446,20 +1465,97 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     }
   }, []);
 
-  const cancelActiveSpacingEditor = React.useCallback(() => {
-    if (activeSpacingEditor?.id) {
-      setClassNameOnPreviewSpacingTarget(activeSpacingEditor.id, activeSpacingEditor.baseClassName);
+  const openTextEditorForElement = React.useCallback((target: HTMLElement) => {
+    if (!previewContainerRef.current) return;
+    const info = getTextBlockInfoFromElement(target);
+    const textTarget = target.closest("[data-massic-text-id]") as HTMLElement | null;
+    if (!info || !textTarget) return;
+
+    const container = previewContainerRef.current;
+    const targetRect = textTarget.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const nextLeft = Math.max(
+      8,
+      Math.min(targetRect.left - containerRect.left + container.scrollLeft, container.scrollWidth - 360)
+    );
+    const nextTop = Math.max(8, targetRect.bottom - containerRect.top + container.scrollTop + 8);
+
+    setActiveLinkEditor(null);
+    setActiveMediaEditor(null);
+    setLinkHrefError(null);
+    setActiveTextEditor({
+      id: info.id,
+      label: info.label,
+      text: info.text,
+      style: info.style,
+      left: Number.isFinite(nextLeft) ? nextLeft : 8,
+      top: Number.isFinite(nextTop) ? nextTop : 8,
+    });
+    isEditorFocusedRef.current = true;
+    isEditingSessionRef.current = true;
+    if (!pollingDisabled) {
+      setPollingDisabled(true);
     }
-    closeActiveSpacingEditor();
-  }, [activeSpacingEditor, closeActiveSpacingEditor, setClassNameOnPreviewSpacingTarget]);
+  }, [pollingDisabled]);
+
+  const updateActiveTextStyle = React.useCallback((patch: Partial<EditableTextStyleValue>) => {
+    setActiveTextEditor((current) => current ? {
+      ...current,
+      style: {
+        ...current.style,
+        ...patch,
+      },
+    } : current);
+  }, []);
+
+  const closeActiveLayoutEditor = React.useCallback(() => {
+    setActiveLayoutEditor(null);
+    setSpacingDraft(createEmptySpacingValue());
+    setHoveredLayoutId(null);
+    isEditorFocusedRef.current = false;
+    if (
+      !Object.keys(editsRef.current).length &&
+      !Object.keys(linkEditsRef.current).length &&
+      !Object.keys(linkLabelEditsRef.current).length &&
+      !Object.keys(spacingEditsRef.current).length &&
+      !isSavingRef.current
+    ) {
+      isEditingSessionRef.current = false;
+      setPollingDisabled(false);
+    }
+  }, []);
+
+  const cancelActiveLayoutEditor = React.useCallback(() => {
+    if (activeLayoutEditor?.spacingId) {
+      applySpacingPreviewToTarget(activeLayoutEditor.spacingId, activeLayoutEditor.baseSpacing);
+    }
+    closeActiveLayoutEditor();
+  }, [activeLayoutEditor, closeActiveLayoutEditor, applySpacingPreviewToTarget]);
 
   const closeActiveLinkEditor = React.useCallback(() => {
     setActiveLinkEditor(null);
+    setLinkLabelDraft("");
     setLinkHrefError(null);
     isEditorFocusedRef.current = false;
     if (
       !Object.keys(editsRef.current).length &&
       !Object.keys(linkEditsRef.current).length &&
+      !Object.keys(linkLabelEditsRef.current).length &&
+      !Object.keys(spacingEditsRef.current).length &&
+      !isSavingRef.current
+    ) {
+      isEditingSessionRef.current = false;
+      setPollingDisabled(false);
+    }
+  }, []);
+
+  const closeActiveMediaEditor = React.useCallback(() => {
+    setActiveMediaEditor(null);
+    isEditorFocusedRef.current = false;
+    if (
+      !Object.keys(editsRef.current).length &&
+      !Object.keys(linkEditsRef.current).length &&
+      !Object.keys(linkLabelEditsRef.current).length &&
       !Object.keys(spacingEditsRef.current).length &&
       !isSavingRef.current
     ) {
@@ -1469,68 +1565,89 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   }, []);
 
   React.useEffect(() => {
-    if (previewEditMode === "spacing") {
+    if (previewEditMode === "layout") {
       setActiveLinkEditor(null);
+      setActiveMediaEditor(null);
+      setActiveTextEditor(null);
       setLinkHrefError(null);
       return;
     }
-    cancelActiveSpacingEditor();
-  }, [cancelActiveSpacingEditor, previewEditMode]);
+    cancelActiveLayoutEditor();
+  }, [cancelActiveLayoutEditor, previewEditMode]);
 
   React.useEffect(() => {
     const container = previewContainerRef.current;
     if (!container) return;
 
-    const previousActive = container.querySelectorAll("[data-massic-spacing-selected='true']");
+    const previousActive = container.querySelectorAll("[data-massic-layout-selected='true']");
     previousActive.forEach((node) => {
-      (node as HTMLElement).removeAttribute("data-massic-spacing-selected");
+      (node as HTMLElement).removeAttribute("data-massic-layout-selected");
     });
 
-    if (!activeSpacingEditor?.id) return;
-    const nextActive = container.querySelector(`[data-massic-spacing-id="${activeSpacingEditor.id}"]`) as HTMLElement | null;
+    if (previewEditMode !== "layout") return;
+    const activeSpacingId = activeLayoutEditor?.spacingId;
+    const activeSlotId = activeLayoutEditor?.slotId;
+    const activeSectionId = activeLayoutEditor?.sectionId;
+    const targetId = activeSpacingId || activeSlotId || activeSectionId;
+    if (!targetId) return;
+
+    const attr = activeSpacingId
+      ? "data-massic-spacing-id"
+      : activeSlotId
+        ? "data-massic-slot-id"
+        : "data-massic-section-id";
+    const nextActive = container.querySelector(`[${attr}="${targetId}"]`) as HTMLElement | null;
     if (!nextActive) return;
-    nextActive.setAttribute("data-massic-spacing-selected", "true");
-  }, [activeSpacingEditor?.id, previewHtml]);
+    nextActive.setAttribute("data-massic-layout-selected", "true");
+  }, [activeLayoutEditor?.slotId, activeLayoutEditor?.spacingId, activeLayoutEditor?.sectionId, previewEditMode, previewHtml]);
 
   React.useEffect(() => {
     const container = previewContainerRef.current;
     if (!container) return;
 
-    const previousHovered = container.querySelectorAll("[data-massic-spacing-hovered='true']");
+    const previousHovered = container.querySelectorAll("[data-massic-layout-hovered='true']");
     previousHovered.forEach((node) => {
-      (node as HTMLElement).removeAttribute("data-massic-spacing-hovered");
+      (node as HTMLElement).removeAttribute("data-massic-layout-hovered");
     });
 
-    if (!hoveredSpacingId) return;
-    const nextHovered = container.querySelector(`[data-massic-spacing-id="${hoveredSpacingId}"]`) as HTMLElement | null;
+    if (previewEditMode !== "layout") return;
+    if (!hoveredLayoutId) return;
+    const spacingEl = container.querySelector(`[data-massic-spacing-id="${hoveredLayoutId}"]`) as HTMLElement | null;
+    const slotEl = container.querySelector(`[data-massic-slot-id="${hoveredLayoutId}"]`) as HTMLElement | null;
+    const sectionEl = container.querySelector(`[data-massic-section-id="${hoveredLayoutId}"]`) as HTMLElement | null;
+    const nextHovered = spacingEl || slotEl || sectionEl;
     if (!nextHovered) return;
-    nextHovered.setAttribute("data-massic-spacing-hovered", "true");
-  }, [hoveredSpacingId, previewHtml]);
+    nextHovered.setAttribute("data-massic-layout-hovered", "true");
+  }, [hoveredLayoutId, previewEditMode, previewHtml]);
 
   React.useEffect(() => {
-    if (previewEditMode !== "spacing") return;
-    if (!activeSpacingEditor?.id) return;
-
-    const nextClassName = mergeSpacingUtilityClasses(activeSpacingEditor.baseClassName, spacingDraft);
-    setClassNameOnPreviewSpacingTarget(activeSpacingEditor.id, nextClassName);
+    if (previewEditMode !== "layout") return;
+    if (!activeLayoutEditor?.spacingId) return;
+    applySpacingPreviewToTarget(activeLayoutEditor.spacingId, spacingDraft);
   }, [
-    activeSpacingEditor?.baseClassName,
-    activeSpacingEditor?.id,
-    hoveredSpacingId,
+    activeLayoutEditor?.spacingId,
     previewEditMode,
     previewHtml,
-    setClassNameOnPreviewSpacingTarget,
+    applySpacingPreviewToTarget,
     spacingDraft,
   ]);
+
+  const handlePreviewMouseDownCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (previewEditMode !== "text") return;
+    const target = event.target as HTMLElement | null;
+    if (!target || isEditorPopoverTarget(target)) return;
+
+    if (resolveMediaSelection(target) || getEditableLinkElement(target) || target.closest("[data-massic-text-id]")) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, [previewEditMode]);
 
   const handlePreviewClickCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
     if (!target) return;
 
-    if (target.closest("[data-massic-link-editor='true']")) {
-      return;
-    }
-    if (target.closest("[data-massic-spacing-editor='true']")) {
+    if (isEditorPopoverTarget(target)) {
       return;
     }
 
@@ -1540,46 +1657,131 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       event.stopPropagation();
     }
 
-    if (previewEditMode === "spacing") {
-      const spacingTarget = getEditableSpacingElement(target);
-      if (!spacingTarget) {
-        if (activeSpacingEditor) {
-          cancelActiveSpacingEditor();
-        }
-        return;
-      }
-
+    if (previewEditMode === "layout") {
       event.preventDefault();
       event.stopPropagation();
 
-      const spacingId = spacingTarget.dataset.massicSpacingId;
-      if (!spacingId || !previewContainerRef.current) return;
-      const baseClassName = String(spacingTarget.getAttribute("class") || "");
-      const baseSpacingValue = parseEditableSpacingValueFromClassName(baseClassName);
-
-      if (activeSpacingEditor?.id && activeSpacingEditor.id !== spacingId) {
-        setClassNameOnPreviewSpacingTarget(activeSpacingEditor.id, activeSpacingEditor.baseClassName);
+      const spacingTarget = getEditableSpacingElement(target);
+      const slotTarget = getEditableSlotElement(target);
+      const sectionTarget = getEditableSectionElement(target);
+      const primaryTarget = spacingTarget || slotTarget || sectionTarget;
+      if (!primaryTarget) {
+        if (activeLayoutEditor) cancelActiveLayoutEditor();
+        return;
       }
 
+      const spacingId = spacingTarget?.dataset.massicSpacingId || null;
+      const slotId = slotTarget?.dataset.massicSlotId || null;
+      const layoutId = spacingTarget?.dataset.massicLayoutId || slotTarget?.closest("[data-massic-layout-id]")?.getAttribute("data-massic-layout-id") || null;
+      const sectionId = sectionTarget?.dataset.massicSectionId || null;
+      const baseClassName = spacingId ? String(spacingTarget!.getAttribute("class") || "") : "";
+      const baseStyleStr = spacingId ? String(spacingTarget!.getAttribute("style") || "") : "";
+      const baseSpacingValue = spacingId ? parseEditableSpacingValue(baseClassName, baseStyleStr) : createEmptySpacingValue();
+
+      if (activeLayoutEditor?.spacingId && activeLayoutEditor.spacingId !== spacingId) {
+        applySpacingPreviewToTarget(activeLayoutEditor.spacingId, activeLayoutEditor.baseSpacing);
+      }
+
+      if (!previewContainerRef.current) return;
       const container = previewContainerRef.current;
-      const targetRect = spacingTarget.getBoundingClientRect();
+      const targetRect = primaryTarget.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
       const nextLeft = Math.max(
         8,
-        Math.min(targetRect.left - containerRect.left + container.scrollLeft, container.scrollWidth - 292)
+        Math.min(targetRect.left - containerRect.left + container.scrollLeft, container.scrollWidth - 300)
       );
-      const nextTop = Math.max(8, targetRect.bottom - containerRect.top + container.scrollTop + 8);
+      const nextTop = Math.max(8, targetRect.top - containerRect.top + container.scrollTop - 44);
 
-      const spacingRef = spacingIndexRef.current.find((item) => item.id === spacingId);
+      const spacingRef = spacingId ? spacingIndexRef.current.find((item) => item.id === spacingId) : undefined;
+      const slotRef = slotId ? slotIndexRef.current.find((item) => item.id === slotId) : undefined;
+      const sectionRef = sectionId ? sectionIndexRef.current.find((item) => item.id === sectionId) : undefined;
+      const idx = sectionId ? sectionIndexRef.current.findIndex((item) => item.id === sectionId) : -1;
+      const hasDirectSpacingTarget = !!spacingId && spacingTarget !== slotTarget;
+
+      const targetKind: ActiveLayoutEditorState["targetKind"] =
+        spacingRef?.nodeKind === "layout" ? "layout"
+          : hasDirectSpacingTarget ? "block"
+            : slotRef ? "slot"
+              : "section";
+      const isElement = targetKind === "block";
+      const isLayout = targetKind === "layout";
+      const isSlot = targetKind === "slot";
+
+      let label: string;
+      if (isSlot) {
+        label = slotRef?.isEmpty ? "Empty Layout Slot" : "Layout Slot";
+      } else if (isLayout) {
+        label = "Layout Container";
+      } else if (isElement) {
+        label = resolveSpacingLabel(spacingRef);
+      } else if (sectionRef) {
+        label = sectionRef.label;
+      } else {
+        label = resolveSpacingLabel(spacingRef);
+      }
+      const siblingInfo = isElement && spacingId
+        ? getElementSiblingInfo(sourceHtmlRef.current, spacingId)
+        : { isFirst: true, isLast: true, siblingCount: 1, isEmpty: false };
+      const targetTagName = spacingRef?.tagName || sectionRef?.tagName || slotRef?.tagName || null;
+      const canInsertInside = !!targetTagName && new Set(["div", "section", "article", "li", "blockquote", "details"]).has(targetTagName);
+
+      const mediaSelection = target ? resolveMediaSelection(target as HTMLElement) : null;
+      const mediaTarget = mediaSelection?.media || null;
+
       setSpacingDraft(baseSpacingValue);
-      setActiveSpacingEditor({
-        id: spacingId,
+      setActiveLayoutEditor({
         left: Number.isFinite(nextLeft) ? nextLeft : 8,
         top: Number.isFinite(nextTop) ? nextTop : 8,
-        label: resolveSpacingLabel(spacingRef),
+        label,
+        targetKind,
+        targetTagName,
+        layoutId,
+        slotId: targetKind === "slot" ? slotId : null,
+        sectionId,
+        sectionCount: sectionIndexRef.current.length,
+        sectionIndex: idx,
+        spacingId,
         baseClassName,
+        baseStyleStr,
+        baseSpacing: baseSpacingValue,
+        isElement,
+        isLayout,
+        isSlot,
+        canInsertInside,
+        isFirstSibling: siblingInfo.isFirst,
+        isLastSibling: siblingInfo.isLast,
+        isEmptyElement: isSlot ? !!slotRef?.isEmpty : siblingInfo.isEmpty,
+        mediaTarget: isElement ? mediaTarget : null,
       });
-      setHoveredSpacingId(spacingId);
+      setHoveredLayoutId(spacingId || slotId || sectionId);
+      isEditorFocusedRef.current = true;
+      isEditingSessionRef.current = true;
+      if (!pollingDisabled) setPollingDisabled(true);
+      return;
+    }
+
+    const mediaSelection = resolveMediaSelection(target);
+    if (mediaSelection?.spacingEl.dataset.massicSpacingId && previewContainerRef.current) {
+      const container = previewContainerRef.current;
+      const mediaRect = (target.closest("img,iframe,.massic-video-wrap,[data-massic-media-editable]") as HTMLElement | null
+        ?? mediaSelection.spacingEl).getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const nextLeft = Math.max(
+        8,
+        Math.min(mediaRect.left - containerRect.left + container.scrollLeft, container.scrollWidth - 308)
+      );
+      const nextTop = Math.max(8, mediaRect.bottom - containerRect.top + container.scrollTop + 8);
+
+      setActiveLinkEditor(null);
+      setActiveTextEditor(null);
+      setLinkHrefError(null);
+      setActiveMediaEditor({
+        spacingId: mediaSelection.spacingEl.dataset.massicSpacingId,
+        left: Number.isFinite(nextLeft) ? nextLeft : 8,
+        top: Number.isFinite(nextTop) ? nextTop : 8,
+        label: mediaSelection.media.type === "img" ? "Edit Image" : "Edit Video",
+        media: mediaSelection.media,
+      });
       isEditorFocusedRef.current = true;
       isEditingSessionRef.current = true;
       if (!pollingDisabled) {
@@ -1589,54 +1791,90 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     }
 
     const anchor = getEditableLinkElement(target);
-    if (!anchor) {
-      if (activeLinkEditor) {
-        closeActiveLinkEditor();
+    if (anchor) {
+      const linkId = anchor.dataset.massicLinkId;
+      if (!linkId || !previewContainerRef.current) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const container = previewContainerRef.current;
+      const anchorRect = anchor.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const anchorLeft = anchorRect.left - containerRect.left + container.scrollLeft;
+      const anchorTop = anchorRect.bottom - containerRect.top + container.scrollTop + 8;
+      const nextLeft = Math.max(8, Math.min(anchorLeft, container.scrollWidth - 308));
+      const nextTop = Math.max(8, anchorTop);
+
+      const linkRef = linkIndexRef.current.find((item) => item.id === linkId);
+      const currentHref = normalizeEditableLinkHref(
+        Object.prototype.hasOwnProperty.call(linkEditsRef.current, linkId)
+          ? linkEditsRef.current[linkId]
+          : (linkRef?.href || anchor.getAttribute("href") || "")
+      );
+      const textIds = Array.from(anchor.querySelectorAll("[data-massic-text-id]"))
+        .map((node) => (node as HTMLElement).dataset.massicTextId || "")
+        .filter(Boolean);
+
+      setActiveMediaEditor(null);
+      setActiveTextEditor(null);
+      setActiveLinkEditor({
+        id: linkId,
+        left: Number.isFinite(nextLeft) ? nextLeft : 8,
+        top: Number.isFinite(nextTop) ? nextTop : 8,
+        label: linkRef?.label || (anchor.textContent || "").trim() || "Link",
+        textIds,
+      });
+      setLinkHrefDraft(currentHref);
+      setLinkLabelDraft(
+        Object.prototype.hasOwnProperty.call(linkLabelEditsRef.current, linkId)
+          ? linkLabelEditsRef.current[linkId]
+          : (anchor.textContent || "").replace(/\u00A0/g, " ").trim()
+      );
+      setLinkHrefError(null);
+      isEditorFocusedRef.current = true;
+      isEditingSessionRef.current = true;
+      if (!pollingDisabled) {
+        setPollingDisabled(true);
       }
       return;
     }
 
-    const linkId = anchor.dataset.massicLinkId;
-    if (!linkId || !previewContainerRef.current) return;
-
-    const container = previewContainerRef.current;
-    const anchorRect = anchor.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-    const anchorLeft = anchorRect.left - containerRect.left + container.scrollLeft;
-    const anchorTop = anchorRect.bottom - containerRect.top + container.scrollTop + 8;
-    const nextLeft = Math.max(8, Math.min(anchorLeft, container.scrollWidth - 308));
-    const nextTop = Math.max(8, anchorTop);
-
-    const linkRef = linkIndexRef.current.find((item) => item.id === linkId);
-    const currentHref = normalizeEditableLinkHref(
-      Object.prototype.hasOwnProperty.call(linkEditsRef.current, linkId)
-        ? linkEditsRef.current[linkId]
-        : (linkRef?.href || anchor.getAttribute("href") || "")
-    );
-
-    setActiveLinkEditor({
-      id: linkId,
-      left: Number.isFinite(nextLeft) ? nextLeft : 8,
-      top: Number.isFinite(nextTop) ? nextTop : 8,
-      label: linkRef?.label || (anchor.textContent || "").trim() || "Link",
-    });
-    setLinkHrefDraft(currentHref);
-    setLinkHrefError(null);
-    isEditorFocusedRef.current = true;
-    isEditingSessionRef.current = true;
-    if (!pollingDisabled) {
-      setPollingDisabled(true);
+    const textTarget = target.closest("[data-massic-text-id]") as HTMLElement | null;
+    if (textTarget) {
+      event.preventDefault();
+      event.stopPropagation();
+      openTextEditorForElement(textTarget);
+      return;
     }
+
+    if (!anchor) {
+      if (activeLinkEditor) {
+        closeActiveLinkEditor();
+      }
+      if (activeMediaEditor) {
+        closeActiveMediaEditor();
+      }
+      if (activeTextEditor) {
+        closeActiveTextEditor();
+      }
+      return;
+    }
+
   }, [
+    activeTextEditor,
     activeLinkEditor,
-    activeSpacingEditor,
+    activeMediaEditor,
+    activeLayoutEditor,
+    closeActiveTextEditor,
     closeActiveLinkEditor,
-    closeActiveSpacingEditor,
+    closeActiveMediaEditor,
+    cancelActiveLayoutEditor,
+    openTextEditorForElement,
     pollingDisabled,
     previewEditMode,
-    setClassNameOnPreviewSpacingTarget,
+    applySpacingPreviewToTarget,
     resolveSpacingLabel,
-    cancelActiveSpacingEditor,
   ]);
 
   const handlePreviewAuxClickCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
@@ -1647,26 +1885,28 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   }, []);
 
   const handlePreviewMouseMoveCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (previewEditMode !== "spacing") return;
-    if (activeSpacingEditor?.id) {
-      // Keep hover/selection locked to the active edited target while previewing draft spacing values.
-      const lockedId = activeSpacingEditor.id;
-      setHoveredSpacingId((prev) => (prev === lockedId ? prev : lockedId));
+    if (previewEditMode !== "layout") return;
+    const lockedId = activeLayoutEditor?.spacingId || activeLayoutEditor?.slotId || activeLayoutEditor?.sectionId;
+    if (lockedId) {
+      setHoveredLayoutId((prev) => (prev === lockedId ? prev : lockedId));
       return;
     }
-    const target = getEditableSpacingElement(event.target);
-    const nextHoveredId = target?.dataset.massicSpacingId || null;
-    setHoveredSpacingId((prev) => (prev === nextHoveredId ? prev : nextHoveredId));
-  }, [activeSpacingEditor?.id, previewEditMode]);
+    const slotTarget = getEditableSlotElement(event.target);
+    const spacingTarget = getEditableSpacingElement(event.target);
+    const sectionTarget = getEditableSectionElement(event.target);
+    const nextId = spacingTarget?.dataset.massicSpacingId || slotTarget?.dataset.massicSlotId || sectionTarget?.dataset.massicSectionId || null;
+    setHoveredLayoutId((prev) => (prev === nextId ? prev : nextId));
+  }, [activeLayoutEditor?.slotId, activeLayoutEditor?.spacingId, activeLayoutEditor?.sectionId, previewEditMode]);
 
   const handlePreviewMouseLeaveCapture = React.useCallback(() => {
-    if (previewEditMode !== "spacing") return;
-    if (activeSpacingEditor?.id) {
-      setHoveredSpacingId((prev) => (prev === activeSpacingEditor.id ? prev : activeSpacingEditor.id));
+    if (previewEditMode !== "layout") return;
+    const lockedId = activeLayoutEditor?.spacingId || activeLayoutEditor?.slotId || activeLayoutEditor?.sectionId;
+    if (lockedId) {
+      setHoveredLayoutId((prev) => (prev === lockedId ? prev : lockedId));
       return;
     }
-    setHoveredSpacingId(null);
-  }, [activeSpacingEditor?.id, previewEditMode]);
+    setHoveredLayoutId(null);
+  }, [activeLayoutEditor?.slotId, activeLayoutEditor?.spacingId, activeLayoutEditor?.sectionId, previewEditMode]);
 
   const syncSpacingIndexEntry = React.useCallback((spacingId: string, spacingValue: EditableSpacingValue, className: string) => {
     spacingIndexRef.current = spacingIndexRef.current.map((entry) => {
@@ -1676,65 +1916,28 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         className,
         outsideTop: spacingValue.outsideTop,
         outsideBottom: spacingValue.outsideBottom,
+        outsideLeft: spacingValue.outsideLeft,
+        outsideRight: spacingValue.outsideRight,
       };
     });
   }, []);
 
-  const setSpacingPresetValue = React.useCallback((key: keyof EditableSpacingValue, nextValue: string) => {
-    if (nextValue === "") {
-      setSpacingDraft((prev) => ({
-        ...prev,
-        [key]: null,
-      }));
-      return;
-    }
-    if (nextValue === SPACING_CUSTOM_OPTION_VALUE) {
-      setSpacingDraft((prev) => {
-        const current = prev[key];
-        const customPx = parseSpacingNumberToken(current) ?? 0;
-        return {
-          ...prev,
-          [key]: toSpacingNumberToken(customPx),
-        };
-      });
-      return;
-    }
-    const parsedPreset = Number(nextValue);
-    if (!Number.isFinite(parsedPreset)) return;
-    setSpacingDraft((prev) => ({
-      ...prev,
-      [key]: toSpacingNumberToken(parsedPreset),
-    }));
-  }, []);
-
-  const setSpacingCustomPxValue = React.useCallback((key: keyof EditableSpacingValue, rawValue: string) => {
-    const pxValue = parseSpacingNumberInput(rawValue);
-    setSpacingDraft((prev) => ({
-      ...prev,
-      [key]: pxValue == null ? null : toSpacingNumberToken(pxValue),
-    }));
-  }, []);
-
   const saveActiveSpacingValue = React.useCallback(async (nextValue: EditableSpacingValue) => {
-    const active = activeSpacingEditor;
-    if (!active) return;
-    const nextClassName = mergeSpacingUtilityClasses(active.baseClassName, nextValue);
+    const active = activeLayoutEditor;
+    if (!active?.spacingId) return;
 
     spacingEditsRef.current = {
       ...spacingEditsRef.current,
-      [active.id]: nextValue,
+      [active.spacingId]: nextValue,
     };
 
-    setClassNameOnPreviewSpacingTarget(active.id, nextClassName);
-    syncSpacingIndexEntry(active.id, nextValue, nextClassName);
-    closeActiveSpacingEditor();
-
-    if (saveTimerRef.current) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    await flushSave("blur");
-  }, [activeSpacingEditor, closeActiveSpacingEditor, flushSave, setClassNameOnPreviewSpacingTarget, syncSpacingIndexEntry]);
+    applySpacingPreviewToTarget(active.spacingId, nextValue);
+    syncSpacingIndexEntry(active.spacingId, nextValue, active.baseClassName);
+    closeActiveLayoutEditor();
+    hasLocalEditsRef.current = true;
+    isEditingSessionRef.current = true;
+    setIsDirty(true);
+  }, [activeLayoutEditor, closeActiveLayoutEditor, applySpacingPreviewToTarget, syncSpacingIndexEntry]);
 
   const handleApplySpacingForActiveTarget = React.useCallback(async () => {
     await saveActiveSpacingValue(spacingDraft);
@@ -1744,7 +1947,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     await saveActiveSpacingValue(createEmptySpacingValue());
   }, [saveActiveSpacingValue]);
 
-  const saveActiveLinkHref = React.useCallback(async (nextHrefInput: string) => {
+  const saveActiveLinkHref = React.useCallback(async (nextHrefInput: string, nextLabelInput?: string) => {
     const active = activeLinkEditor;
     if (!active) return;
 
@@ -1759,6 +1962,14 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       [active.id]: normalizedHref,
     };
 
+    if (nextLabelInput !== undefined) {
+      const normalizedLabel = nextLabelInput.replace(/\u00A0/g, " ").trim();
+      linkLabelEditsRef.current = {
+        ...linkLabelEditsRef.current,
+        [active.id]: normalizedLabel,
+      };
+    }
+
     if (previewContainerRef.current) {
       const selector = `a[data-massic-link-id="${active.id}"]`;
       const linkEl = previewContainerRef.current.querySelector(selector) as HTMLAnchorElement | null;
@@ -1768,86 +1979,474 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         } else {
           linkEl.removeAttribute("href");
         }
+
+        if (nextLabelInput !== undefined) {
+          const normalizedLabel = nextLabelInput.replace(/\u00A0/g, " ").trim();
+          let appliedToTextNode = false;
+          for (const textId of active.textIds) {
+            const textEl = linkEl.querySelector(`[data-massic-text-id="${textId}"]`) as HTMLElement | null;
+            if (!textEl) continue;
+            textEl.textContent = normalizedLabel;
+            editsRef.current = {
+              ...editsRef.current,
+              [textId]: normalizedLabel,
+            };
+            appliedToTextNode = true;
+            break;
+          }
+
+          if (!appliedToTextNode) {
+            linkEl.textContent = normalizedLabel;
+          }
+        }
       }
     }
 
     setLinkHrefDraft(normalizedHref);
+    if (nextLabelInput !== undefined) {
+      setLinkLabelDraft(nextLabelInput);
+    }
     setLinkHrefError(null);
     closeActiveLinkEditor();
-
-    if (saveTimerRef.current) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    await flushSave("blur");
-  }, [activeLinkEditor, closeActiveLinkEditor, flushSave]);
-
-  const handleSaveActiveLinkHref = React.useCallback(async () => {
-    await saveActiveLinkHref(linkHrefDraft);
-  }, [linkHrefDraft, saveActiveLinkHref]);
-
-  const handleRemoveActiveLinkHref = React.useCallback(async () => {
-    await saveActiveLinkHref("");
-  }, [saveActiveLinkHref]);
-
-  const handleInputCapture = (event: React.FormEvent<HTMLDivElement>) => {
-    if (previewEditMode !== "text") return;
-    if (!isEditableSpan(event.target)) return;
     hasLocalEditsRef.current = true;
     isEditingSessionRef.current = true;
-    editsRef.current = updateEditFromElement(editsRef.current, event.target);
-    scheduleDebouncedSave();
+    setIsDirty(true);
+  }, [activeLinkEditor, closeActiveLinkEditor]);
+
+  const handleSaveActiveLinkHref = React.useCallback(async () => {
+    await saveActiveLinkHref(linkHrefDraft, linkLabelDraft);
+  }, [linkHrefDraft, linkLabelDraft, saveActiveLinkHref]);
+
+  const handleRemoveActiveLinkHref = React.useCallback(async () => {
+    await saveActiveLinkHref("", linkLabelDraft);
+  }, [linkLabelDraft, saveActiveLinkHref]);
+
+  const rebuildModelFromSource = React.useCallback((html: string) => {
+    const sanitized = normalizeEditorHtml(html);
+    sourceHtmlRef.current = sanitized;
+    const model = buildEditableHtmlModel(sanitized);
+    textNodeIndexRef.current = model.textNodeIndex;
+    linkIndexRef.current = model.linkIndex;
+    spacingIndexRef.current = model.spacingIndex;
+    layoutIndexRef.current = model.layoutIndex;
+    slotIndexRef.current = model.slotIndex;
+    blockIndexRef.current = model.blockIndex;
+    sectionIndexRef.current = model.sectionIndex;
+    editsRef.current = {};
+    linkEditsRef.current = {};
+    linkLabelEditsRef.current = {};
+    spacingEditsRef.current = {};
+    setTextNodeIndex(model.textNodeIndex);
+    setPreviewHtml(model.previewHtml);
+    setActiveLayoutEditor(null);
+    setActiveMediaEditor(null);
+    setHoveredLayoutId(null);
+    return sanitized;
+  }, [normalizeEditorHtml]);
+
+  const pushUndo = React.useCallback(() => {
+    const stack = undoStackRef.current;
+    stack.push(sourceHtmlRef.current);
+    if (stack.length > 30) stack.shift();
+    redoStackRef.current = [];
+  }, []);
+
+  const handleUndo = React.useCallback(() => {
+    const stack = undoStackRef.current;
+    if (!stack.length) return;
+    redoStackRef.current.push(sourceHtmlRef.current);
+    if (redoStackRef.current.length > 30) redoStackRef.current.shift();
+    const previous = stack.pop()!;
+    rebuildModelFromSource(previous);
+    hasLocalEditsRef.current = true;
+    isEditingSessionRef.current = true;
+    if (!pollingDisabled) setPollingDisabled(true);
+    setIsDirty(true);
+  }, [pollingDisabled, rebuildModelFromSource]);
+
+  const handleRedo = React.useCallback(() => {
+    const stack = redoStackRef.current;
+    if (!stack.length) return;
+    undoStackRef.current.push(sourceHtmlRef.current);
+    const next = stack.pop()!;
+    rebuildModelFromSource(next);
+    hasLocalEditsRef.current = true;
+    isEditingSessionRef.current = true;
+    if (!pollingDisabled) setPollingDisabled(true);
+    setIsDirty(true);
+  }, [pollingDisabled, rebuildModelFromSource]);
+
+  const handleManualSave = React.useCallback(async () => {
+    const nextHtml = composeCurrentHtml();
+    if (!nextHtml) return;
+    const validation = validateEditorHtml(nextHtml);
+    if (!validation.isValid) {
+      toast.error(validation.errors[0] || "Layout is invalid and could not be saved.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updatePageContentRequest(nextHtml);
+      sourceHtmlRef.current = nextHtml;
+      lastSavedHtmlRef.current = canonicalizeHtml(nextHtml);
+      lastCommittedHtmlRef.current = canonicalizeHtml(nextHtml);
+      editsRef.current = {};
+      linkEditsRef.current = {};
+      linkLabelEditsRef.current = {};
+      spacingEditsRef.current = {};
+      hasLocalEditsRef.current = false;
+      setIsDirty(false);
+
+      const committedModel = buildEditableHtmlModel(nextHtml);
+      textNodeIndexRef.current = committedModel.textNodeIndex;
+      linkIndexRef.current = committedModel.linkIndex;
+      spacingIndexRef.current = committedModel.spacingIndex;
+      layoutIndexRef.current = committedModel.layoutIndex;
+      slotIndexRef.current = committedModel.slotIndex;
+      blockIndexRef.current = committedModel.blockIndex;
+      sectionIndexRef.current = committedModel.sectionIndex;
+      setTextNodeIndex(committedModel.textNodeIndex);
+      setPreviewHtml(committedModel.previewHtml);
+      setActiveLinkEditor(null);
+      setActiveMediaEditor(null);
+      setActiveTextEditor(null);
+      setLinkHrefDraft("");
+      setLinkLabelDraft("");
+      setLinkHrefError(null);
+
+      toast.success("Changes saved");
+      window.setTimeout(() => { void runBackgroundRefetch(); }, 500);
+    } catch {
+      toast.error("Failed to save changes");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [composeCurrentHtml, runBackgroundRefetch, updatePageContentRequest, validateEditorHtml]);
+
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === "s") {
+        e.preventDefault();
+        void handleManualSave();
+      } else if (mod && !e.shiftKey && e.key === "z") {
+        e.preventDefault();
+        handleUndo();
+      } else if ((mod && e.shiftKey && e.key === "z") || (mod && e.key === "y")) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleManualSave, handleUndo, handleRedo]);
+
+  const previewOffsetTop = previewContainerRef.current?.offsetTop ?? 0;
+  const previewOffsetLeft = previewContainerRef.current?.offsetLeft ?? 0;
+  const previewContentWidth = previewContainerRef.current?.clientWidth ?? 560;
+  const textEditorPanelWidth = Math.min(560, Math.max(280, previewContentWidth - 24));
+  const textEditorTop = activeTextEditor
+    ? previewOffsetTop + activeTextEditor.top
+    : previewOffsetTop + 8;
+  const textEditorLeft = activeTextEditor
+    ? previewOffsetLeft + Math.max(
+      8,
+      Math.min(activeTextEditor.left, Math.max(8, previewContentWidth - textEditorPanelWidth - 8))
+    )
+    : previewOffsetLeft + 8;
+
+  const executeSectionMutation = React.useCallback(
+    (mutatedHtml: string) => {
+      const sanitized = normalizeEditorHtml(mutatedHtml);
+      sourceHtmlRef.current = sanitized;
+      const model = buildEditableHtmlModel(sanitized);
+      textNodeIndexRef.current = model.textNodeIndex;
+      linkIndexRef.current = model.linkIndex;
+      spacingIndexRef.current = model.spacingIndex;
+      layoutIndexRef.current = model.layoutIndex;
+      slotIndexRef.current = model.slotIndex;
+      blockIndexRef.current = model.blockIndex;
+      sectionIndexRef.current = model.sectionIndex;
+      editsRef.current = {};
+      linkEditsRef.current = {};
+      linkLabelEditsRef.current = {};
+      spacingEditsRef.current = {};
+      setTextNodeIndex(model.textNodeIndex);
+      setPreviewHtml(model.previewHtml);
+      setActiveLinkEditor(null);
+      setActiveMediaEditor(null);
+      setActiveTextEditor(null);
+      setLinkHrefDraft("");
+      setLinkLabelDraft("");
+      setLinkHrefError(null);
+      setActiveLayoutEditor(null);
+      setHoveredLayoutId(null);
+
+      hasLocalEditsRef.current = true;
+      isEditingSessionRef.current = true;
+      if (!pollingDisabled) setPollingDisabled(true);
+      setIsDirty(true);
+    },
+    [normalizeEditorHtml, pollingDisabled]
+  );
+
+  const handleUpdateActiveMedia = React.useCallback(
+    (updates: { src?: string; alt?: string; width?: string }) => {
+      const active = activeMediaEditor;
+      if (!active) return;
+      pushUndo();
+      const result = updateMediaInElementBySpacingId(
+        sourceHtmlRef.current,
+        active.spacingId,
+        active.media.mediaIndex,
+        active.media.type,
+        updates,
+      );
+      executeSectionMutation(result);
+      setActiveMediaEditor(null);
+    },
+    [activeMediaEditor, executeSectionMutation, pushUndo]
+  );
+
+  const handleMoveSection = React.useCallback(
+    (sectionId: string, direction: "up" | "down") => {
+      pushUndo();
+      const result = moveSectionInHtml(sourceHtmlRef.current, sectionId, direction);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleDeleteSection = React.useCallback(
+    (sectionId: string) => {
+      pushUndo();
+      const result = deleteSectionFromHtml(sourceHtmlRef.current, sectionId);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleDuplicateSection = React.useCallback(
+    (sectionId: string) => {
+      pushUndo();
+      const result = duplicateSectionInHtml(sourceHtmlRef.current, sectionId);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleOpenInsertDialog = React.useCallback(
+    (anchor: InsertAnchor) => {
+      setInsertAnchor(anchor);
+      setInsertDialogOpen(true);
+    },
+    []
+  );
+
+  const handleInsertBlock = React.useCallback(
+    (blockHtml: string) => {
+      pushUndo();
+      let result: string;
+      if (insertAnchor?.kind === "wrap-grid") {
+        const { spacingId, side } = insertAnchor;
+        result = wrapBlockInTwoColumnLayout(sourceHtmlRef.current, spacingId, side, blockHtml);
+      } else if (insertAnchor?.kind === "slot") {
+        result = insertBlockIntoSlot(sourceHtmlRef.current, insertAnchor.slotId, blockHtml, "end");
+      } else if (insertAnchor?.kind === "element") {
+        const { spacingId, position } = insertAnchor;
+        if (position === "inside") {
+          result = insertInsideElementBySpacingId(sourceHtmlRef.current, spacingId, "end", blockHtml);
+        } else {
+          result = insertAdjacentToElementBySpacingId(sourceHtmlRef.current, spacingId, position, blockHtml);
+        }
+      } else {
+        result = insertBlockInHtml(
+          sourceHtmlRef.current,
+          insertAnchor?.sectionId ?? null,
+          insertAnchor?.position ?? "after",
+          blockHtml
+        );
+      }
+      setInsertDialogOpen(false);
+      setInsertAnchor(null);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, insertAnchor, pushUndo]
+  );
+
+  // Element-level handlers (for inner elements like cards, containers, grid items)
+  const handleDeleteElement = React.useCallback(
+    (spacingId: string) => {
+      pushUndo();
+      const result = deleteBlockAndNormalize(sourceHtmlRef.current, spacingId);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleDuplicateElement = React.useCallback(
+    (spacingId: string) => {
+      pushUndo();
+      const result = duplicateElementBySpacingId(sourceHtmlRef.current, spacingId);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleMoveElement = React.useCallback(
+    (spacingId: string, direction: "up" | "down") => {
+      pushUndo();
+      const result = moveElementBySpacingId(sourceHtmlRef.current, spacingId, direction);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleUpdateMedia = React.useCallback(
+    (spacingId: string, media: MediaElementInfo, updates: { src?: string; alt?: string; width?: string }) => {
+      pushUndo();
+      const result = updateMediaInElementBySpacingId(
+        sourceHtmlRef.current,
+        spacingId,
+        media.mediaIndex,
+        media.type,
+        updates,
+      );
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleSaveActiveTextEditor = React.useCallback(() => {
+    const active = activeTextEditor;
+    if (!active) return;
+    pushUndo();
+    const result = updateTextBlockByTextId(sourceHtmlRef.current, textNodeIndexRef.current, active.id, {
+      text: active.text,
+      style: active.style,
+    });
+    executeSectionMutation(result);
+  }, [activeTextEditor, executeSectionMutation, pushUndo]);
+
+  const handleCollapseLayout = React.useCallback(
+    (spacingId: string) => {
+      pushUndo();
+      const result = collapseLayoutBySpacingId(sourceHtmlRef.current, spacingId);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleDeleteSlot = React.useCallback(
+    (slotId: string) => {
+      pushUndo();
+      const result = deleteSlotById(sourceHtmlRef.current, slotId);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
+  const handleSelectParentSection = React.useCallback(() => {
+    if (!activeLayoutEditor || !previewContainerRef.current) return;
+    const selectedEl = activeLayoutEditor.slotId
+      ? previewContainerRef.current.querySelector(`[data-massic-slot-id="${activeLayoutEditor.slotId}"]`) as HTMLElement | null
+      : activeLayoutEditor.spacingId
+        ? previewContainerRef.current.querySelector(`[data-massic-spacing-id="${activeLayoutEditor.spacingId}"]`) as HTMLElement | null
+        : null;
+    if (!selectedEl) return;
+    const parentSection = selectedEl.closest("[data-massic-section-id]") as HTMLElement | null;
+    if (!parentSection) return;
+    const sectionId = parentSection.dataset.massicSectionId;
+    if (!sectionId) return;
+
+    const container = previewContainerRef.current;
+    const targetRect = parentSection.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const nextLeft = Math.max(
+      8,
+      Math.min(targetRect.left - containerRect.left + container.scrollLeft, container.scrollWidth - 300)
+    );
+    const nextTop = Math.max(8, targetRect.top - containerRect.top + container.scrollTop - 44);
+    const sectionRef = sectionIndexRef.current.find((item) => item.id === sectionId);
+    const idx = sectionIndexRef.current.findIndex((item) => item.id === sectionId);
+    const parentSpacingId = parentSection.dataset.massicSpacingId || null;
+    const baseClassName = parentSpacingId ? String(parentSection.getAttribute("class") || "") : "";
+    const baseStyleStr = parentSpacingId ? String(parentSection.getAttribute("style") || "") : "";
+    const baseSpacingValue = parentSpacingId ? parseEditableSpacingValue(baseClassName, baseStyleStr) : createEmptySpacingValue();
+
+    if (activeLayoutEditor.spacingId) {
+      applySpacingPreviewToTarget(activeLayoutEditor.spacingId, activeLayoutEditor.baseSpacing);
+    }
+    setSpacingDraft(baseSpacingValue);
+    setActiveLayoutEditor({
+      left: Number.isFinite(nextLeft) ? nextLeft : 8,
+      top: Number.isFinite(nextTop) ? nextTop : 8,
+      label: sectionRef?.label || "Section",
+      targetKind: "section",
+      targetTagName: sectionRef?.tagName || null,
+      layoutId: null,
+      slotId: null,
+      sectionId,
+      sectionCount: sectionIndexRef.current.length,
+      sectionIndex: idx,
+      spacingId: parentSpacingId,
+      baseClassName,
+      baseStyleStr,
+      baseSpacing: baseSpacingValue,
+      isElement: false,
+      isLayout: false,
+      isSlot: false,
+      canInsertInside: false,
+      isFirstSibling: true,
+      isLastSibling: true,
+      isEmptyElement: false,
+      mediaTarget: null,
+    });
+    setHoveredLayoutId(parentSpacingId || sectionId);
+  }, [activeLayoutEditor, applySpacingPreviewToTarget]);
+
+  const handleInputCapture = () => {
+    return;
   };
 
   const handleBlurCapture = (event: React.FocusEvent<HTMLDivElement>) => {
     if (previewEditMode !== "text") return;
-    if (!isEditableSpan(event.target)) return;
-    editsRef.current = updateEditFromElement(editsRef.current, event.target);
-
     const nextTarget = event.relatedTarget as HTMLElement | null;
-    const movingWithinEditable = Boolean(nextTarget?.dataset?.massicTextId);
-    if (!movingWithinEditable) {
+    const movingToEditor = Boolean(nextTarget?.closest("[data-massic-text-editor='true']"));
+    if (!movingToEditor) {
       isEditorFocusedRef.current = false;
-      // Snapshot current edited DOM immediately to avoid any intermediate rerender rollback.
-      if (previewContainerRef.current) {
-        setPreviewHtml(previewContainerRef.current.innerHTML);
-      }
       if (saveTimerRef.current) {
         window.clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
-      void flushSave("blur").finally(() => {
-        if (pendingBackgroundRefetchRef.current && !isEditorFocusedRef.current) {
-          pendingBackgroundRefetchRef.current = false;
-          void runBackgroundRefetch();
-        }
-      });
     }
   };
 
-  const handleFocusCapture = (event: React.FocusEvent<HTMLDivElement>) => {
-    if (previewEditMode !== "text") return;
-    if (!isEditableSpan(event.target)) return;
-    isEditorFocusedRef.current = true;
-    isEditingSessionRef.current = true;
-    if (!pollingDisabled) {
-      setPollingDisabled(true);
-    }
+  const handleFocusCapture = () => {
+    return;
   };
 
-  const handlePasteCapture = (event: React.ClipboardEvent<HTMLDivElement>) => {
-    if (previewEditMode !== "text") return;
-    if (!isEditableSpan(event.target)) return;
-    event.preventDefault();
-    const text = event.clipboardData?.getData("text/plain") || "";
-    insertPlainTextAtCursor(text);
+  const handlePasteCapture = () => {
+    return;
   };
 
   const handleKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (previewEditMode === "spacing") {
-      if (activeSpacingEditor && event.key === "Escape") {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.shiftKey) {
+      if (undoStackRef.current.length > 0) {
         event.preventDefault();
-        cancelActiveSpacingEditor();
+        handleUndo();
+        return;
+      }
+    }
+
+    if (previewEditMode === "layout") {
+      if (activeLayoutEditor && event.key === "Escape") {
+        event.preventDefault();
+        cancelActiveLayoutEditor();
+      }
+      if (activeLayoutEditor?.sectionId && (event.key === "Delete" || event.key === "Backspace")) {
+        event.preventDefault();
+        handleDeleteSection(activeLayoutEditor.sectionId);
       }
       return;
     }
@@ -1857,77 +2456,16 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       closeActiveLinkEditor();
       return;
     }
-
-    const anchorTarget = getAnyAnchorElement(event.target);
-    if (anchorTarget && (event.key === "Enter" || event.key === " ")) {
+    if (activeMediaEditor && event.key === "Escape") {
       event.preventDefault();
-      event.stopPropagation();
+      closeActiveMediaEditor();
       return;
     }
-
-    if (!isEditableSpan(event.target)) return;
-    const key = event.key.toLowerCase();
-    if ((event.metaKey || event.ctrlKey) && ["b", "i", "u", "k"].includes(key)) {
+    if (activeTextEditor && event.key === "Escape") {
       event.preventDefault();
-      return;
-    }
-
-    if (event.key === "Enter") {
-      event.preventDefault();
-      insertPlainTextAtCursor("\n");
+      closeActiveTextEditor();
     }
   };
-
-  const confirmAndRunPublishAction = React.useCallback(async () => {
-    const action = confirmPublishAction;
-    setConfirmPublishAction(null);
-    if (!action) return;
-
-    if (!normalizedEditableSlug) {
-      setSlugCheckError("Slug is required.");
-      toast.error("Slug is required before publishing");
-      return;
-    }
-
-    const check = await runSlugCheck({ force: true });
-    if (!check) {
-      return;
-    }
-
-    const hasBlockingConflict = Boolean(check.exists && !check.sameMappedContent && check.conflict);
-    if (hasBlockingConflict) {
-      const conflictReason = check?.conflict?.reason || null;
-      const conflictMessage = conflictReason === "parent_type_conflict"
-        ? "This nested page path is blocked because a parent segment already belongs to non-page content."
-        : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
-      setSlugCheckError(conflictMessage);
-      toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
-      return;
-    }
-
-    if (action === "draft") {
-      await handlePublishDraft();
-      return;
-    }
-
-    await handlePublishLive();
-  }, [confirmPublishAction, handlePublishDraft, handlePublishLive, normalizedEditableSlug, runSlugCheck]);
-
-  const autoResolveSlug = React.useCallback(async () => {
-    const suggestedSlug = slugCheckResult?.suggestedSlug || null;
-    if (!suggestedSlug) {
-      toast.error("No suggested slug available");
-      return;
-    }
-
-    setIsAutoResolvingSlug(true);
-    const normalizedSuggestion = normalizeWordpressSlugPath(suggestedSlug);
-    setEditableSlug(normalizedSuggestion);
-    setIsSlugEdited(true);
-    setSlugCheckError(null);
-    toast.success(`Slug updated to ${wordpressSlugToDisplay(normalizedSuggestion, "/untitled-page")}`);
-    setIsAutoResolvingSlug(false);
-  }, [slugCheckResult?.suggestedSlug]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -1975,360 +2513,12 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
-        {isProcessing ? (
-          <Card className="p-4">
-            <Typography>
-              We’re generating your content. This may take 1-3 minutes. Please wait
-              <span className="dot-animate"> ...</span>
-            </Typography>
-            <style>{`
-              .dot-animate { display: inline-block; width: 1.5em; text-align: left; }
-              .dot-animate::after { content: ''; animation: dots 1.2s steps(3, end) infinite; }
-              @keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
-            `}</style>
-          </Card>
-        ) : null}
-
-        {status === "error" ? (
-          <Card className="p-4">
-            <Typography variant="h5" className="text-destructive">
-              Error Loading Content
-            </Typography>
-            <Typography className="mt-2">{data?.message || "There was a problem loading the content."}</Typography>
-          </Card>
-        ) : null}
-
-        {!isProcessing && status !== "error" && isWaitingForStyleProfilePreview ? (
-          <Card className="p-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading style profile for preview...</span>
-            </div>
-          </Card>
-        ) : null}
-
-        {!isProcessing && status !== "error" && !isWaitingForStyleProfilePreview ? (
-          <Card className="p-0">
-            <div className="sticky top-0 z-30 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Typography variant="muted" className="text-xs">
-                  {previewEditMode === "text"
-                    ? "Text + link editing is enabled. HTML structure and classes are preserved."
-                    : "Spacing mode is enabled. Hover a container and click to adjust top/bottom spacing with presets or custom px."}
-                </Typography>
-                <div className="inline-flex items-center rounded-md border border-border p-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={previewEditMode === "text" ? "default" : "ghost"}
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setPreviewEditMode("text")}
-                  >
-                    Text
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={previewEditMode === "spacing" ? "default" : "ghost"}
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setPreviewEditMode("spacing")}
-                  >
-                    Spacing
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="relative p-4 pt-3">
-              <div
-                ref={previewContainerRef}
-                className={cn(
-                  "massic-html-preview min-h-[420px] overflow-auto rounded-md border bg-background p-4",
-                  previewEditMode === "spacing" ? "massic-mode-spacing" : "massic-mode-text"
-                )}
-                style={previewStyleVars}
-                onClickCapture={handlePreviewClickCapture}
-                onAuxClickCapture={handlePreviewAuxClickCapture}
-                onMouseMoveCapture={handlePreviewMouseMoveCapture}
-                onMouseLeave={handlePreviewMouseLeaveCapture}
-                onInputCapture={handleInputCapture}
-                onBlurCapture={handleBlurCapture}
-                onFocusCapture={handleFocusCapture}
-                onPasteCapture={handlePasteCapture}
-                onKeyDownCapture={handleKeyDownCapture}
-                dangerouslySetInnerHTML={{ __html: previewHtml }}
-              />
-              {previewEditMode === "text" && activeLinkEditor ? (
-                <div
-                  data-massic-link-editor="true"
-                  className="absolute z-20 w-[300px] rounded-md border bg-background p-3 shadow-lg"
-                  style={{
-                    top: activeLinkEditor.top,
-                    left: activeLinkEditor.left,
-                  }}
-                >
-                  <div className="space-y-2">
-                    <Typography className="text-xs font-medium">Edit Link</Typography>
-                    <Typography className="text-[11px] text-muted-foreground break-words">
-                      {activeLinkEditor.label}
-                    </Typography>
-                    <Input
-                      value={linkHrefDraft}
-                      onChange={(event) => {
-                        setLinkHrefDraft(event.target.value);
-                        if (linkHrefError) {
-                          setLinkHrefError(null);
-                        }
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void handleSaveActiveLinkHref();
-                        }
-                      }}
-                      placeholder="https://example.com"
-                      className="h-8"
-                      autoFocus
-                    />
-                    {linkHrefError ? (
-                      <Typography className="text-[11px] text-destructive">{linkHrefError}</Typography>
-                    ) : null}
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 px-2 text-xs"
-                        onClick={() => void handleRemoveActiveLinkHref()}
-                      >
-                        Remove URL
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 px-2 text-xs"
-                        onClick={closeActiveLinkEditor}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-8 px-2 text-xs"
-                        onClick={() => void handleSaveActiveLinkHref()}
-                      >
-                        Save
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              {previewEditMode === "spacing" && activeSpacingEditor ? (
-                <div
-                  data-massic-spacing-editor="true"
-                  className="absolute z-20 w-[264px] max-w-[calc(100vw-24px)] rounded-md border bg-background p-3 shadow-lg"
-                  style={{
-                    top: activeSpacingEditor.top,
-                    left: activeSpacingEditor.left,
-                  }}
-                >
-                  <div className="space-y-3">
-                    <Typography className="text-xs font-semibold">Adjust Spacing</Typography>
-                    <Typography className="text-[11px] text-muted-foreground break-words">
-                      {activeSpacingEditor.label}
-                    </Typography>
-                    <div className="rounded-md border bg-muted/30 p-2.5 space-y-2.5">
-                      <div className="grid grid-cols-[56px_minmax(0,1fr)_74px] items-center gap-2">
-                        <Typography className="text-xs text-muted-foreground">Top</Typography>
-                        <div className="min-w-0">
-                          <select
-                            className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs leading-none"
-                            value={toSpacingPresetValue(spacingDraft.outsideTop)}
-                            onChange={(event) => setSpacingPresetValue("outsideTop", event.target.value)}
-                          >
-                            {SPACING_SELECT_OPTIONS.map((option) => (
-                              <option key={`outsideTop-${option.value || "default"}`} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                            <option value={SPACING_CUSTOM_OPTION_VALUE}>Custom</option>
-                          </select>
-                        </div>
-                        <div className="relative min-w-0">
-                          <Input
-                            type="number"
-                            min={EDITABLE_SPACING_PX_MIN}
-                            max={EDITABLE_SPACING_PX_MAX}
-                            step={1}
-                            className="h-9 w-full min-w-0 pr-7 text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            value={resolveSpacingInputValue(spacingDraft.outsideTop)}
-                            onChange={(event) => setSpacingCustomPxValue("outsideTop", event.target.value)}
-                            placeholder="0"
-                          />
-                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-                            px
-                          </span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-[56px_minmax(0,1fr)_74px] items-center gap-2">
-                        <Typography className="text-xs text-muted-foreground">Bottom</Typography>
-                        <div className="min-w-0">
-                          <select
-                            className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs leading-none"
-                            value={toSpacingPresetValue(spacingDraft.outsideBottom)}
-                            onChange={(event) => setSpacingPresetValue("outsideBottom", event.target.value)}
-                          >
-                            {SPACING_SELECT_OPTIONS.map((option) => (
-                              <option key={`outsideBottom-${option.value || "default"}`} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                            <option value={SPACING_CUSTOM_OPTION_VALUE}>Custom</option>
-                          </select>
-                        </div>
-                        <div className="relative min-w-0">
-                          <Input
-                            type="number"
-                            min={EDITABLE_SPACING_PX_MIN}
-                            max={EDITABLE_SPACING_PX_MAX}
-                            step={1}
-                            className="h-9 w-full min-w-0 pr-7 text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            value={resolveSpacingInputValue(spacingDraft.outsideBottom)}
-                            onChange={(event) => setSpacingCustomPxValue("outsideBottom", event.target.value)}
-                            placeholder="0"
-                          />
-                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
-                            px
-                          </span>
-                        </div>
-                      </div>
-                      <Typography className="text-[10px] text-muted-foreground">
-                        Range: {EDITABLE_SPACING_PX_MIN} to {EDITABLE_SPACING_PX_MAX}
-                      </Typography>
-                    </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 px-2 text-xs"
-                        onClick={() => void handleResetSpacingForActiveTarget()}
-                      >
-                        Reset Element
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 px-2 text-xs"
-                        onClick={cancelActiveSpacingEditor}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-8 px-2 text-xs"
-                        onClick={() => void handleApplySpacingForActiveTarget()}
-                      >
-                        Apply
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <style>{`
-              ${previewMassicVarCss}
-              .massic-html-preview .massic-text-editable {
-                border-radius: 4px;
-                outline: none;
-                transition: background-color 120ms ease, box-shadow 120ms ease;
-              }
-              .massic-html-preview.massic-mode-spacing .massic-text-editable {
-                pointer-events: none;
-              }
-              .massic-html-preview a[data-massic-link-id] {
-                cursor: pointer;
-                position: relative;
-                transition: box-shadow 120ms ease, background-color 120ms ease, color 120ms ease;
-              }
-              .massic-html-preview a[data-massic-link-id]:hover,
-              .massic-html-preview a[data-massic-link-id]:focus-visible {
-                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 12%, transparent);
-                box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 35%, transparent);
-                border-radius: 4px;
-                outline: none;
-              }
-              .massic-html-preview a[data-massic-link-id]:hover::after,
-              .massic-html-preview a[data-massic-link-id]:focus-visible::after {
-                content: "Click to edit link";
-                position: absolute;
-                left: 0;
-                bottom: calc(100% + 4px);
-                z-index: 5;
-                padding: 2px 6px;
-                border-radius: 999px;
-                background: #111827;
-                color: #ffffff;
-                font-size: 10px;
-                line-height: 1.2;
-                white-space: nowrap;
-                pointer-events: none;
-              }
-              .massic-html-preview.massic-mode-spacing a[data-massic-link-id]:hover::after,
-              .massic-html-preview.massic-mode-spacing a[data-massic-link-id]:focus-visible::after {
-                content: none;
-              }
-              .massic-html-preview.massic-mode-spacing [data-massic-spacing-id] {
-                position: relative;
-                cursor: pointer;
-                outline: 1px dashed transparent;
-                outline-offset: 2px;
-                transition: outline-color 120ms ease, background-color 120ms ease;
-              }
-              .massic-html-preview.massic-mode-spacing [data-massic-spacing-hovered='true'] {
-                outline-color: color-mix(in srgb, var(--massic-primary, #2E6A56) 45%, transparent);
-                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 8%, transparent);
-              }
-              .massic-html-preview.massic-mode-spacing [data-massic-spacing-hovered='true']::after {
-                content: "Click to adjust spacing";
-                position: absolute;
-                left: 6px;
-                top: 6px;
-                z-index: 5;
-                padding: 2px 6px;
-                border-radius: 999px;
-                background: #111827;
-                color: #ffffff;
-                font-size: 10px;
-                line-height: 1.2;
-                white-space: nowrap;
-                pointer-events: none;
-              }
-              .massic-html-preview.massic-mode-spacing [data-massic-spacing-selected='true'] {
-                outline-color: color-mix(in srgb, var(--massic-primary, #2E6A56) 70%, transparent);
-                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 10%, transparent);
-              }
-              .massic-html-preview .massic-text-editable:focus {
-                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 8%, transparent);
-                box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 35%, transparent);
-              }
-            `}</style>
-          </Card>
-        ) : null}
-      </div>
-
       <Dialog open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen}>
         <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Publish to WordPress</DialogTitle>
-            <DialogDescription>
-              Choose what to do with this page.
-            </DialogDescription>
+            <DialogDescription>Choose what to do with this page.</DialogDescription>
           </DialogHeader>
-
           {!isWpConnected ? (
             <div className="rounded-md border bg-background p-4 space-y-3">
               <Typography className="text-sm">No WordPress channel connected.</Typography>
@@ -2346,46 +2536,36 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
               <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
-                <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-page")}</Typography>
+                <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>
               </div>
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
                 <Input
                   value={editableSlug}
-                  onChange={(event) => {
-                    setEditableSlug(normalizeWordpressSlugPath(event.target.value));
+                  onChange={(e) => {
+                    setEditableSlug(normalizeWordpressBlogEditableSlug(e.target.value));
                     setIsSlugEdited(true);
                   }}
                   placeholder="enter-page-slug"
-                  disabled={isSlugInputBusy}
+                  disabled={isPublishBusy || isSlugChecking}
                 />
               </div>
               <div className="space-y-1">
                 <Typography className="text-xs text-muted-foreground">Publish route</Typography>
                 <Typography className="text-sm font-mono break-all">{publishUrlPreview || "Unavailable"}</Typography>
               </div>
-              {isSlugChecking ? (
-                <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography>
-              ) : null}
-              {slugCheckError ? (
-                <Typography className="text-xs text-destructive">{slugCheckError}</Typography>
-              ) : null}
+              {isSlugChecking ? <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography> : null}
+              {slugCheckError ? <Typography className="text-xs text-destructive">{slugCheckError}</Typography> : null}
               {hasSlugConflict ? (
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 space-y-2 min-w-0">
                   <div className="break-words">
                     {slugConflictReason === "parent_type_conflict"
-                      ? "This nested page path is blocked because a parent segment already belongs to non-page content. Change the parent path."
-                      : "This slug already exists in WordPress. Publishing is blocked until you use a unique slug."}
+                      ? "This nested page path is blocked. Change the parent path."
+                      : "This slug already exists in WordPress. Use a unique slug."}
                   </div>
                   {slugCheckResult?.suggestedSlug ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-auto w-full justify-start whitespace-normal break-all text-left"
-                      onClick={autoResolveSlug}
-                      disabled={isSlugActionBusy}
-                    >
-                      {isAutoResolvingSlug ? "Resolving..." : `Auto-resolve to ${wordpressSlugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
+                    <Button size="sm" variant="outline" className="h-auto w-full justify-start whitespace-normal break-all text-left" onClick={autoResolveSlug} disabled={isSlugActionBusy}>
+                      {isAutoResolvingSlug ? "Resolving..." : `Use ${wordpressSlugToDisplay(slugCheckResult.suggestedSlug, "/next-available")}`}
                     </Button>
                   ) : null}
                 </div>
@@ -2469,7 +2649,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                           <Input
                             type="color"
                             value={pickerValue}
-                            onChange={(event) => handleStyleOverrideColorChange(key, event.target.value)}
+                            onChange={(e) => handleStyleOverrideColorChange(key, e.target.value)}
                             disabled={isStyleOverrideSaving}
                             className="h-8 w-11 p-1 shrink-0"
                           />
@@ -2541,7 +2721,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 </div>
                 {!showAllStyleColorOptions ? (
                   <Typography className="text-[11px] text-muted-foreground">
-                    Showing core colors. Enable "Show All" for text/surface options.
+                    Showing core colors. Enable &quot;Show All&quot; for text/surface options.
                   </Typography>
                 ) : null}
               </div>
@@ -2663,56 +2843,32 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
               </div>
             </div>
           )}
-
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsPublishModalOpen(false)}
-              disabled={isPublishBusy}
-            >
+            <Button variant="outline" onClick={() => setIsPublishModalOpen(false)} disabled={isPublishBusy}>
               Cancel
             </Button>
             {isWpConnected ? (
               <>
                 {isPersistedLive ? (
                   <>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleChangeWordpressStatus("draft")}
-                      disabled={wpUnpublishMutation.isPending}
-                    >
+                    <Button variant="outline" onClick={() => handleChangeWordpressStatus("draft")} disabled={wpUnpublishMutation.isPending}>
                       {wpUnpublishMutation.isPending ? "Updating..." : "Move to Draft"}
                     </Button>
-                    <Button
-                      onClick={() => {
-                        if (liveUrl) {
-                          openEmbeddedPreview(liveUrl, "Published WordPress Page");
-                        }
-                      }}
-                      disabled={!liveUrl}
-                    >
+                    <Button onClick={() => liveUrl && openEmbeddedPreview(liveUrl, "Published WordPress Page")} disabled={!liveUrl}>
                       View Live
                     </Button>
                   </>
                 ) : isPersistedDraftLike ? (
                   <>
-                    <Button
-                      variant="destructive"
-                      onClick={() => setIsDeleteConfirmOpen(true)}
-                      disabled={wpUnpublishMutation.isPending}
-                    >
+                    <Button variant="destructive" onClick={() => setIsDeleteConfirmOpen(true)} disabled={wpUnpublishMutation.isPending}>
                       {wpUnpublishMutation.isPending ? "Deleting..." : "Delete"}
                     </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleOpenPreview}
-                      disabled={!persistedContent?.wpId || wpPreviewMutation.isPending}
-                    >
+                    <Button variant="outline" onClick={handleOpenPreview} disabled={!persistedContent?.wpId || wpPreviewMutation.isPending}>
                       {wpPreviewMutation.isPending ? "Loading..." : "Preview Draft"}
                     </Button>
                     <Button
                       onClick={() => setConfirmPublishAction("live")}
-                      disabled={!hasFinalContent || !normalizedEditableSlug || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
                     >
                       {wpPublishMutation.isPending ? "Publishing..." : "Publish Live"}
                     </Button>
@@ -2722,7 +2878,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                     onClick={() => setConfirmPublishAction("draft")}
                     disabled={
                       !hasFinalContent ||
-                      !normalizedEditableSlug ||
+                      !normalizedSlugForPublish ||
                       hasSlugConflict ||
                       isSlugChecking ||
                       contentStatusQuery.isLoading ||
@@ -2742,12 +2898,10 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       <AlertDialog open={confirmPublishAction !== null} onOpenChange={(open) => !open && setConfirmPublishAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmPublishAction === "live" ? "Publish Live to WordPress?" : "Publish Draft to WordPress?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{confirmPublishAction === "live" ? "Publish Live to WordPress?" : "Publish Draft to WordPress?"}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirmPublishAction === "live"
-                ? `This will update the live WordPress page at ${publishUrlPreview || "the selected route"}.`
+                ? `This will update the live WordPress content at ${publishUrlPreview || "the selected route"}.`
                 : `This will create or update the WordPress draft at ${publishUrlPreview || "the selected route"}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -2766,9 +2920,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete WordPress Draft?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will move the WordPress page to trash. You can restore it later from WordPress admin.
-            </AlertDialogDescription>
+            <AlertDialogDescription>This will move the WordPress content to trash. You can restore it later from WordPress admin.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
@@ -2789,10 +2941,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       </AlertDialog>
 
       <Dialog open={isEmbeddedPreviewOpen} onOpenChange={setIsEmbeddedPreviewOpen}>
-        <DialogContent
-          className="w-[96vw] h-[90vh] max-w-[1400px] sm:max-w-[1400px] p-0 overflow-hidden"
-          showCloseButton={false}
-        >
+        <DialogContent className="w-[96vw] h-[90vh] max-w-[1400px] sm:max-w-[1400px] p-0 overflow-hidden" showCloseButton={false}>
           <DialogTitle className="sr-only">Preview {embeddedPreviewTitle}</DialogTitle>
           <div className="h-full flex flex-col bg-background">
             <div className="shrink-0 border-b px-5 py-3 flex items-center justify-between gap-3">
@@ -2802,44 +2951,20 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
               </div>
               <div className="flex items-center gap-2">
                 <div className="hidden md:flex items-center gap-1 rounded-md border p-1 bg-muted/40">
-                  <Button
-                    size="sm"
-                    variant={previewViewport === "desktop" ? "default" : "ghost"}
-                    className="gap-1.5"
-                    onClick={() => setPreviewViewport("desktop")}
-                  >
+                  <Button size="sm" variant={previewViewport === "desktop" ? "default" : "ghost"} className="gap-1.5" onClick={() => setPreviewViewport("desktop")}>
                     <Monitor className="h-4 w-4" />
                     Desktop
                   </Button>
-                  <Button
-                    size="sm"
-                    variant={previewViewport === "tablet" ? "default" : "ghost"}
-                    className="gap-1.5"
-                    onClick={() => setPreviewViewport("tablet")}
-                  >
+                  <Button size="sm" variant={previewViewport === "tablet" ? "default" : "ghost"} className="gap-1.5" onClick={() => setPreviewViewport("tablet")}>
                     <Tablet className="h-4 w-4" />
                     Tablet
                   </Button>
-                  <Button
-                    size="sm"
-                    variant={previewViewport === "mobile" ? "default" : "ghost"}
-                    className="gap-1.5"
-                    onClick={() => setPreviewViewport("mobile")}
-                  >
+                  <Button size="sm" variant={previewViewport === "mobile" ? "default" : "ghost"} className="gap-1.5" onClick={() => setPreviewViewport("mobile")}>
                     <Smartphone className="h-4 w-4" />
                     Mobile
                   </Button>
                 </div>
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    if (embeddedPreviewUrl) {
-                      window.open(embeddedPreviewUrl, "_blank", "noopener,noreferrer");
-                    }
-                  }}
-                  disabled={!embeddedPreviewUrl}
-                >
+                <Button variant="outline" className="gap-2" onClick={() => embeddedPreviewUrl && window.open(embeddedPreviewUrl, "_blank", "noopener,noreferrer")} disabled={!embeddedPreviewUrl}>
                   <ExternalLink className="h-4 w-4" />
                   Open in New Tab
                 </Button>
@@ -2850,7 +2975,6 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 </DialogClose>
               </div>
             </div>
-
             <div className="relative flex-1 bg-muted/20">
               {isEmbeddedPreviewLoading ? (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/75 backdrop-blur-[1px]">
@@ -2860,38 +2984,662 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                   </div>
                 </div>
               ) : null}
-
               <div className="h-full w-full overflow-auto p-4 md:p-5">
-                <div
-                  className={cn(
-                    "mx-auto h-full transition-all duration-300",
-                    previewViewport === "desktop" && "w-full",
-                    previewViewport === "tablet" && "w-full max-w-[900px]",
-                    previewViewport === "mobile" && "w-full max-w-[430px]"
-                  )}
-                >
+                <div className={cn("mx-auto h-full transition-all duration-300", previewViewport === "desktop" && "w-full", previewViewport === "tablet" && "w-full max-w-[900px]", previewViewport === "mobile" && "w-full max-w-[430px]")}>
                   <iframe
                     title={embeddedPreviewTitle}
                     src={embeddedPreviewUrl}
-                    className={cn(
-                      "h-full w-full border-0 bg-white",
-                      previewViewport !== "desktop" && "rounded-xl border shadow-sm"
-                    )}
+                    className={cn("h-full w-full border-0 bg-white", previewViewport !== "desktop" && "rounded-xl border shadow-sm")}
                     onLoad={() => setIsEmbeddedPreviewLoading(false)}
                     referrerPolicy="no-referrer-when-downgrade"
                   />
                 </div>
               </div>
-
               {showEmbedFallbackHint ? (
                 <div className="absolute bottom-3 right-3 rounded-md border bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm">
-                  If preview is blocked, use "Open in New Tab".
+                  If preview is blocked, use &quot;Open in New Tab&quot;.
                 </div>
               ) : null}
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
+        {isProcessing ? (
+          <Card className="p-4">
+            <Typography>
+              We’re generating your content. This may take 1-3 minutes. Please wait
+              <span className="dot-animate"> ...</span>
+            </Typography>
+            <style>{`
+              .dot-animate { display: inline-block; width: 1.5em; text-align: left; }
+              .dot-animate::after { content: ''; animation: dots 1.2s steps(3, end) infinite; }
+              @keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+            `}</style>
+          </Card>
+        ) : null}
+
+        {status === "error" ? (
+          <Card className="p-4">
+            <Typography variant="h5" className="text-destructive">
+              Error Loading Content
+            </Typography>
+            <Typography className="mt-2">{data?.message || "There was a problem loading the content."}</Typography>
+          </Card>
+        ) : null}
+
+        {!isProcessing && status !== "error" ? (
+          <Card className="p-0">
+            <div className="sticky top-0 z-30 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Typography variant="muted" className="text-xs max-w-[50%]">
+                  {previewEditMode === "text"
+                    ? "Text + link editing. Click text to edit, click links to change URLs."
+                    : "Layout mode. Click any section or container to adjust spacing, move, or insert blocks."}
+                </Typography>
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex items-center rounded-md border border-border p-0.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={previewEditMode === "text" ? "default" : "ghost"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setPreviewEditMode("text")}
+                    >
+                      Text
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={previewEditMode === "layout" ? "default" : "ghost"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setPreviewEditMode("layout")}
+                    >
+                      Layout
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 px-2 text-xs"
+                    onClick={() => handleOpenInsertDialog(null)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Insert
+                  </Button>
+                  <div className="h-4 w-px bg-border" />
+                  <div className="inline-flex items-center gap-0.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={handleUndo}
+                      disabled={!undoStackRef.current.length}
+                      title="Undo (Ctrl+Z)"
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={handleRedo}
+                      disabled={!redoStackRef.current.length}
+                      title="Redo (Ctrl+Y)"
+                    >
+                      <Redo2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className={cn(
+                      "h-7 gap-1 px-2.5 text-xs",
+                      isDirty && "animate-pulse"
+                    )}
+                    onClick={() => void handleManualSave()}
+                    disabled={!isDirty || isSaving}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {isSaving ? "Saving..." : isDirty ? "Save" : "Saved"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="relative p-4 pt-3">
+              <div
+                ref={previewContainerRef}
+                className={cn(
+                  "massic-html-preview min-h-[420px] overflow-auto rounded-md border bg-background p-4",
+                  previewEditMode === "text" && "massic-mode-text",
+                  previewEditMode === "layout" && "massic-mode-layout"
+                )}
+                style={previewStyleVars}
+                onMouseDownCapture={handlePreviewMouseDownCapture}
+                onClickCapture={handlePreviewClickCapture}
+                onAuxClickCapture={handlePreviewAuxClickCapture}
+                onMouseMoveCapture={handlePreviewMouseMoveCapture}
+                onMouseLeave={handlePreviewMouseLeaveCapture}
+                onInputCapture={handleInputCapture}
+                onBlurCapture={handleBlurCapture}
+                onFocusCapture={handleFocusCapture}
+                onPasteCapture={handlePasteCapture}
+                onKeyDownCapture={handleKeyDownCapture}
+              />
+              {previewEditMode === "text" && activeTextEditor && !activeLinkEditor && !activeMediaEditor ? (
+                <div
+                  data-massic-text-editor="true"
+                  className="absolute z-20 rounded-lg border bg-background p-4 shadow-2xl"
+                  style={{
+                    top: textEditorTop,
+                    left: textEditorLeft,
+                    width: textEditorPanelWidth,
+                    maxWidth: "calc(100% - 16px)",
+                  }}
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <Typography className="text-sm font-semibold">Edit {activeTextEditor.label}</Typography>
+                        <Typography className="text-[11px] text-muted-foreground">
+                          Update the text and apply block-level styling.
+                        </Typography>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        onClick={closeActiveTextEditor}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Typography className="text-[11px] font-medium text-muted-foreground">Text</Typography>
+                      <Textarea
+                        ref={textEditorTextareaRef}
+                        value={activeTextEditor.text}
+                        onChange={(event) => setActiveTextEditor((current) => current ? { ...current, text: event.target.value } : current)}
+                        className="min-h-[140px] text-sm"
+                        placeholder={`Edit ${activeTextEditor.label.toLowerCase()} text`}
+                      />
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Typography className="text-[11px] font-medium text-muted-foreground">Formatting</Typography>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={activeTextEditor.style.bold ? "default" : "outline"}
+                            className="h-8 px-3 text-xs font-bold"
+                            onClick={() => updateActiveTextStyle({ bold: !activeTextEditor.style.bold })}
+                          >
+                            Bold
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={activeTextEditor.style.italic ? "default" : "outline"}
+                            className="h-8 px-3 text-xs italic"
+                            onClick={() => updateActiveTextStyle({ italic: !activeTextEditor.style.italic })}
+                          >
+                            Italic
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={activeTextEditor.style.underline ? "default" : "outline"}
+                            className="h-8 px-3 text-xs underline"
+                            onClick={() => updateActiveTextStyle({ underline: !activeTextEditor.style.underline })}
+                          >
+                            Underline
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={activeTextEditor.style.strike ? "default" : "outline"}
+                            className="h-8 px-3 text-xs line-through"
+                            onClick={() => updateActiveTextStyle({ strike: !activeTextEditor.style.strike })}
+                          >
+                            Strike
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Typography className="text-[11px] font-medium text-muted-foreground">Alignment</Typography>
+                        <div className="flex flex-wrap gap-2">
+                          {(["left", "center", "right"] as const).map((align) => (
+                            <Button
+                              key={align}
+                              type="button"
+                              size="sm"
+                              variant={activeTextEditor.style.align === align ? "default" : "outline"}
+                              className="h-8 px-3 text-xs capitalize"
+                              onClick={() => updateActiveTextStyle({ align })}
+                            >
+                              {align}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <Typography className="text-[11px] font-medium text-muted-foreground">Line Height</Typography>
+                        <Input
+                          value={activeTextEditor.style.lineHeight}
+                          onChange={(event) => updateActiveTextStyle({ lineHeight: event.target.value })}
+                          placeholder="1.6"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Typography className="text-[11px] font-medium text-muted-foreground">Letter Spacing</Typography>
+                        <Input
+                          value={activeTextEditor.style.letterSpacing}
+                          onChange={(event) => updateActiveTextStyle({ letterSpacing: event.target.value })}
+                          placeholder="0.02em"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        onClick={closeActiveTextEditor}
+                      >
+                        Close
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 px-3 text-xs"
+                        onClick={handleSaveActiveTextEditor}
+                      >
+                        Save Text
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {previewEditMode === "text" && activeLinkEditor ? (
+                <div
+                  data-massic-link-editor="true"
+                  className="absolute z-20 w-[300px] rounded-md border bg-background p-3 shadow-lg"
+                  style={{
+                    top: activeLinkEditor.top,
+                    left: activeLinkEditor.left,
+                  }}
+                >
+                  <div className="space-y-2">
+                    <Typography className="text-xs font-medium">Edit Link</Typography>
+                    <Typography className="text-[11px] text-muted-foreground break-words">
+                      {activeLinkEditor.label}
+                    </Typography>
+                    <Input
+                      value={linkLabelDraft}
+                      onChange={(event) => setLinkLabelDraft(event.target.value)}
+                      placeholder="Button or link text"
+                      className="h-8"
+                    />
+                    <Input
+                      value={linkHrefDraft}
+                      onChange={(event) => {
+                        setLinkHrefDraft(event.target.value);
+                        if (linkHrefError) {
+                          setLinkHrefError(null);
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleSaveActiveLinkHref();
+                        }
+                      }}
+                      placeholder="https://example.com"
+                      className="h-8"
+                      autoFocus
+                    />
+                    {linkHrefError ? (
+                      <Typography className="text-[11px] text-destructive">{linkHrefError}</Typography>
+                    ) : null}
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => void handleRemoveActiveLinkHref()}
+                      >
+                        Remove URL
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        onClick={closeActiveLinkEditor}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => void handleSaveActiveLinkHref()}
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {previewEditMode === "text" && activeMediaEditor ? (
+                <div
+                  data-massic-media-editor="true"
+                  className="absolute z-20 w-[300px] rounded-md border bg-background p-3 shadow-lg"
+                  style={{
+                    top: activeMediaEditor.top,
+                    left: activeMediaEditor.left,
+                  }}
+                >
+                  <div className="space-y-2">
+                    <Typography className="text-xs font-medium">{activeMediaEditor.label}</Typography>
+                    <MediaEditorPanel
+                      media={activeMediaEditor.media}
+                      onUpdate={handleUpdateActiveMedia}
+                      onCancel={closeActiveMediaEditor}
+                    />
+                  </div>
+                </div>
+              ) : null}
+              {previewEditMode === "layout" && activeLayoutEditor ? (
+                <LayoutPanel
+                  label={activeLayoutEditor.label}
+                  top={activeLayoutEditor.top}
+                  left={activeLayoutEditor.left}
+                  targetKind={activeLayoutEditor.targetKind}
+                  isSection={activeLayoutEditor.targetKind === "section" && !!activeLayoutEditor.sectionId}
+                  isFirst={activeLayoutEditor.sectionIndex === 0}
+                  isLast={activeLayoutEditor.sectionIndex === activeLayoutEditor.sectionCount - 1}
+                  onMoveUp={() => activeLayoutEditor.sectionId && handleMoveSection(activeLayoutEditor.sectionId, "up")}
+                  onMoveDown={() => activeLayoutEditor.sectionId && handleMoveSection(activeLayoutEditor.sectionId, "down")}
+                  onDuplicate={() => activeLayoutEditor.sectionId && handleDuplicateSection(activeLayoutEditor.sectionId)}
+                  onDelete={() => activeLayoutEditor.sectionId && handleDeleteSection(activeLayoutEditor.sectionId)}
+                  onInsertAbove={() => activeLayoutEditor.sectionId && handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "before" })}
+                  onInsertBelow={() => activeLayoutEditor.sectionId && handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "after" })}
+                  hasParentSection={(activeLayoutEditor.isElement || activeLayoutEditor.isLayout || activeLayoutEditor.isSlot) && !!activeLayoutEditor.sectionId}
+                  onSelectParentSection={handleSelectParentSection}
+                  isElement={activeLayoutEditor.isElement}
+                  isLayout={activeLayoutEditor.isLayout}
+                  isSlot={activeLayoutEditor.isSlot}
+                  canInsertInside={activeLayoutEditor.canInsertInside}
+                  isFirstSibling={activeLayoutEditor.isFirstSibling}
+                  isLastSibling={activeLayoutEditor.isLastSibling}
+                  isEmptyElement={activeLayoutEditor.isEmptyElement}
+                  onMoveElementUp={() => activeLayoutEditor.spacingId && handleMoveElement(activeLayoutEditor.spacingId, "up")}
+                  onMoveElementDown={() => activeLayoutEditor.spacingId && handleMoveElement(activeLayoutEditor.spacingId, "down")}
+                  onDuplicateElement={() => activeLayoutEditor.spacingId && handleDuplicateElement(activeLayoutEditor.spacingId)}
+                  onDeleteElement={() => activeLayoutEditor.spacingId && handleDeleteElement(activeLayoutEditor.spacingId)}
+                  onInsertInside={() => activeLayoutEditor.spacingId && handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "inside" })}
+                  onInsertBeforeSibling={() => activeLayoutEditor.spacingId && handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "before" })}
+                  onInsertAfterSibling={() => activeLayoutEditor.spacingId && handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "after" })}
+                  onInsertLeft={() => activeLayoutEditor.spacingId && handleOpenInsertDialog({ kind: "wrap-grid", spacingId: activeLayoutEditor.spacingId, side: "left" })}
+                  onInsertRight={() => activeLayoutEditor.spacingId && handleOpenInsertDialog({ kind: "wrap-grid", spacingId: activeLayoutEditor.spacingId, side: "right" })}
+                  onInsertIntoSlot={() => activeLayoutEditor.slotId && handleOpenInsertDialog({ kind: "slot", slotId: activeLayoutEditor.slotId })}
+                  onDeleteSlot={() => activeLayoutEditor.slotId && handleDeleteSlot(activeLayoutEditor.slotId)}
+                  onCollapseLayout={() => activeLayoutEditor.spacingId && handleCollapseLayout(activeLayoutEditor.spacingId)}
+                  mediaTarget={activeLayoutEditor.mediaTarget}
+                  onMediaUpdate={(updates) => {
+                    if (activeLayoutEditor.spacingId && activeLayoutEditor.mediaTarget) {
+                      handleUpdateMedia(activeLayoutEditor.spacingId, activeLayoutEditor.mediaTarget, updates);
+                    }
+                  }}
+                  spacingDraft={spacingDraft}
+                  onSpacingDraftChange={setSpacingDraft}
+                  onApplySpacing={() => void handleApplySpacingForActiveTarget()}
+                  onResetSpacing={() => void handleResetSpacingForActiveTarget()}
+                  onCancelSpacing={cancelActiveLayoutEditor}
+                />
+              ) : null}
+            </div>
+            <InsertBlockDialog
+              open={insertDialogOpen}
+              onOpenChange={setInsertDialogOpen}
+              onInsert={handleInsertBlock}
+              mode={
+                (insertAnchor?.kind === "element" && insertAnchor.position === "inside") || insertAnchor?.kind === "wrap-grid" || insertAnchor?.kind === "slot"
+                  ? "inner"
+                  : "section"
+              }
+            />
+            <style>{`
+              ${previewMassicVarCss}
+              .massic-html-preview .massic-text-editable {
+                border-radius: 4px;
+                outline: none;
+                transition: background-color 120ms ease, box-shadow 120ms ease;
+              }
+              .massic-html-preview a[data-massic-link-id] {
+                cursor: pointer;
+                position: relative;
+                transition: box-shadow 120ms ease, background-color 120ms ease, color 120ms ease;
+              }
+              .massic-html-preview.massic-mode-text .massic-text-editable {
+                cursor: pointer;
+                position: relative;
+                border-radius: 4px;
+                transition: box-shadow 120ms ease, background-color 120ms ease;
+              }
+              .massic-html-preview.massic-mode-text [data-massic-media-editable] {
+                cursor: pointer;
+                position: relative;
+                transition: box-shadow 120ms ease, background-color 120ms ease, transform 120ms ease;
+              }
+              .massic-html-preview a[data-massic-link-id]:hover,
+              .massic-html-preview a[data-massic-link-id]:focus-visible {
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 12%, transparent);
+                box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 35%, transparent);
+                border-radius: 4px;
+                outline: none;
+              }
+              .massic-html-preview.massic-mode-text [data-massic-media-editable]:hover,
+              .massic-html-preview.massic-mode-text [data-massic-media-editable]:focus-visible {
+                box-shadow: 0 0 0 2px color-mix(in srgb, var(--massic-primary, #2E6A56) 40%, transparent);
+              }
+              .massic-html-preview.massic-mode-text .massic-text-editable:hover {
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 8%, transparent);
+                box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 32%, transparent);
+              }
+              .massic-html-preview.massic-mode-text a[data-massic-link-id] .massic-text-editable:hover {
+                background: transparent;
+                box-shadow: none;
+              }
+              .massic-html-preview a[data-massic-link-id]:hover::after,
+              .massic-html-preview a[data-massic-link-id]:focus-visible::after {
+                content: "Click to edit link";
+                position: absolute;
+                left: 0;
+                bottom: calc(100% + 4px);
+                z-index: 5;
+                padding: 2px 6px;
+                border-radius: 999px;
+                background: #111827;
+                color: #ffffff;
+                font-size: 10px;
+                line-height: 1.2;
+                white-space: nowrap;
+                pointer-events: none;
+              }
+              .massic-html-preview.massic-mode-text [data-massic-media-editable]:hover::after,
+              .massic-html-preview.massic-mode-text [data-massic-media-editable]:focus-visible::after {
+                content: attr(data-massic-edit-hint);
+                position: absolute;
+                left: 0;
+                bottom: calc(100% + 4px);
+                z-index: 5;
+                padding: 2px 6px;
+                border-radius: 999px;
+                background: #111827;
+                color: #ffffff;
+                font-size: 10px;
+                line-height: 1.2;
+                white-space: nowrap;
+                pointer-events: none;
+              }
+              .massic-html-preview.massic-mode-text .massic-text-editable:hover::after {
+                content: "Edit text";
+                position: absolute;
+                left: 0;
+                bottom: calc(100% + 4px);
+                z-index: 5;
+                padding: 2px 6px;
+                border-radius: 999px;
+                background: #111827;
+                color: #ffffff;
+                font-size: 10px;
+                line-height: 1.2;
+                white-space: nowrap;
+                pointer-events: none;
+              }
+              .massic-html-preview.massic-mode-text a[data-massic-link-id] .massic-text-editable:hover::after {
+                content: none;
+              }
+              .massic-html-preview.massic-mode-layout .massic-text-editable {
+                pointer-events: none;
+              }
+              .massic-html-preview.massic-mode-layout a[data-massic-link-id]:hover::after,
+              .massic-html-preview.massic-mode-layout a[data-massic-link-id]:focus-visible::after {
+                content: none;
+              }
+              .massic-html-preview .massic-layout.massic-grid,
+              .massic-html-preview .massic-grid {
+                display: grid !important;
+                gap: var(--massic-s5) !important;
+              }
+              .massic-html-preview .massic-layout.massic-grid.cols-2,
+              .massic-html-preview .massic-grid.cols-2 {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+              }
+              .massic-html-preview .massic-layout.massic-grid.cols-3,
+              .massic-html-preview .massic-grid.cols-3 {
+                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+              }
+              .massic-html-preview .massic-layout.massic-grid.cols-4,
+              .massic-html-preview .massic-grid.cols-4 {
+                grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+              }
+              .massic-html-preview .massic-layout > .massic-slot,
+              .massic-html-preview .massic-grid > .massic-slot,
+              .massic-html-preview .massic-grid > *,
+              .massic-html-preview .massic-split > * {
+                min-width: 0;
+              }
+              .massic-html-preview .massic-split {
+                display: grid !important;
+                gap: var(--massic-s6) !important;
+                align-items: center;
+                grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) !important;
+              }
+              /* Responsive collapse removed from preview – inline styles on elements
+                 guarantee the correct grid-template-columns regardless of viewport size. */
+              .massic-html-preview.massic-mode-layout [data-massic-spacing-id],
+              .massic-html-preview.massic-mode-layout [data-massic-section-id],
+              .massic-html-preview.massic-mode-layout [data-massic-slot-id] {
+                position: relative;
+                cursor: pointer;
+                outline: 1px dashed transparent;
+                outline-offset: 2px;
+                transition: outline-color 120ms ease, background-color 120ms ease;
+              }
+              .massic-html-preview.massic-mode-layout [data-massic-slot-id] {
+                min-height: 72px;
+              }
+              .massic-html-preview.massic-mode-layout [data-massic-slot-empty='true'] {
+                background:
+                  repeating-linear-gradient(
+                    135deg,
+                    color-mix(in srgb, var(--massic-primary, #2E6A56) 4%, transparent),
+                    color-mix(in srgb, var(--massic-primary, #2E6A56) 4%, transparent) 10px,
+                    transparent 10px,
+                    transparent 20px
+                  );
+              }
+              .massic-html-preview.massic-mode-layout [data-massic-section-id] {
+                outline-width: 2px;
+                outline-offset: 4px;
+              }
+              .massic-html-preview.massic-mode-layout [data-massic-layout-hovered='true'] {
+                outline-color: color-mix(in srgb, var(--massic-primary, #2E6A56) 40%, transparent);
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 5%, transparent);
+              }
+              .massic-html-preview.massic-mode-layout [data-massic-layout-id]::before,
+              .massic-html-preview.massic-mode-layout [data-massic-layout-id]::after,
+              .massic-html-preview.massic-mode-layout .massic-grid::before,
+              .massic-html-preview.massic-mode-layout .massic-grid::after,
+              .massic-html-preview.massic-mode-layout .massic-split::before,
+              .massic-html-preview.massic-mode-layout .massic-split::after {
+                display: none !important;
+              }
+              .massic-html-preview.massic-mode-layout [data-massic-layout-selected='true'] {
+                outline-color: color-mix(in srgb, var(--massic-primary, #2E6A56) 70%, transparent);
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 8%, transparent);
+              }
+              .massic-html-preview.massic-mode-layout [data-massic-section-id] + [data-massic-section-id] {
+                margin-top: 4px;
+              }
+              .massic-html-preview.massic-mode-layout [data-massic-section-id] + [data-massic-section-id]::before {
+                content: "";
+                display: block;
+                height: 2px;
+                margin: -3px 24px 4px;
+                border-radius: 1px;
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 15%, transparent);
+                transition: background-color 150ms ease;
+              }
+              .massic-html-preview .massic-video-wrap {
+                position: relative;
+                width: 100%;
+                aspect-ratio: 16 / 9;
+                overflow: hidden;
+                border-radius: 8px;
+              }
+              .massic-html-preview .massic-video-wrap iframe {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                border: 0;
+              }
+              .massic-html-preview .massic-video-wrap iframe,
+              .massic-html-preview iframe {
+                pointer-events: none;
+                will-change: transform;
+              }
+              .massic-html-preview .massic-video-wrap,
+              .massic-html-preview [data-massic-media-hint-wrap] {
+                isolation: isolate;
+              }
+            `}</style>
+          </Card>
+        ) : null}
+      </div>
     </div>
   );
 }

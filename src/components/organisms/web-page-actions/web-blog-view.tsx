@@ -14,7 +14,6 @@ import {
   Quote,
   Strikethrough,
   Underline,
-  Globe,
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 
@@ -27,6 +26,9 @@ import { copyToClipboard } from "@/utils/clipboard";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
+import { ContentConverter } from "@/utils/content-converter";
+import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
+import { detectPageContentFormat } from "@/utils/page-content-format";
 
 function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
   const pt = (pageType || "").toLowerCase();
@@ -149,43 +151,53 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const status = (data?.status || "").toString().toLowerCase();
   const isProcessing = status === "pending" || status === "processing";
+  const contentFormat = React.useMemo(() => detectPageContentFormat(mainContent), [mainContent]);
+  const isHtmlContent = contentFormat === "html";
 
-  const typeLabel = type === "blog" ? "blog" : "page";
-  const outlineFromServer = cleanEscapedContent(data?.output_data?.page?.outline || "");
-  const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
+  const cssVarOverrides: Record<string, string> = {};
 
-  const handleCopyAll = async () => {
-    if (mainEditor) {
-      const htmlContent = mainEditor.getHTML();
-      if (htmlContent && htmlContent.trim()) {
-        try {
-          if (typeof ClipboardItem !== "undefined") {
-            const clipboardItem = new ClipboardItem({
-              "text/html": new Blob([htmlContent], { type: "text/html" }),
-              "text/plain": new Blob([mainEditor.getText()], { type: "text/plain" }),
-            });
-            await navigator.clipboard.write([clipboardItem]);
-          } else {
-            await navigator.clipboard.writeText(mainEditor.getText());
-          }
-          toast.success("Copied");
-          return;
-        } catch {
-          try {
-            await navigator.clipboard.writeText(mainEditor.getText());
-            toast.success("Copied");
-            return;
-          } catch {
-            toast.error("Copy failed");
-            return;
-          }
-        }
-      }
-    }
+  const handleCopyText = async () => {
+    const textContent = mainEditor?.getText() || mainContent || "";
+    const ok = await copyToClipboard(textContent);
+    if (ok) toast.success("Text copied");
+    else toast.error("Copy failed");
+  };
 
+  const handleCopyMarkdown = async () => {
     const ok = await copyToClipboard(mainContent || "");
     if (ok) toast.success("Copied");
     else toast.error("Copy failed");
+  };
+
+  const handleCopyHtml = async () => {
+    const htmlContent = (mainEditor?.getHTML() || ContentConverter.markdownToHtml(mainContent || "") || "").trim();
+    if (!htmlContent) {
+      toast.error("Nothing to copy");
+      return;
+    }
+
+    const baseCss = await getMassicCssText();
+    const styledHtml = buildStyledMassicHtml(htmlContent, {
+      baseCss,
+      cssVarOverrides,
+    });
+
+    try {
+      if (typeof ClipboardItem !== "undefined") {
+        const clipboardItem = new ClipboardItem({
+          "text/html": new Blob([styledHtml], { type: "text/html" }),
+          "text/plain": new Blob([styledHtml], { type: "text/plain" }),
+        });
+        await navigator.clipboard.write([clipboardItem]);
+      } else {
+        await copyToClipboard(styledHtml);
+      }
+      toast.success("HTML copied with styles");
+    } catch {
+      const ok = await copyToClipboard(styledHtml);
+      if (ok) toast.success("HTML copied with styles");
+      else toast.error("Copy failed");
+    }
   };
 
   const handleCopyMeta = async () => {
@@ -267,15 +279,23 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleCopyAll} disabled={isProcessing}>
-              <Copy className="h-4 w-4" />
-              Copy
-            </Button>
-            {/* <Button className="gap-2" type="button" disabled title="Coming soon" aria-disabled="true">
-              <Globe className="h-4 w-4" />
-              <span>Publish</span>
-              <span className="ml-1 text-xs font-normal text-muted-foreground">Coming soon</span>
-            </Button> */}
+            {isHtmlContent ? (
+              <>
+                <Button variant="outline" className="gap-2" onClick={handleCopyHtml} disabled={isProcessing}>
+                  <Copy className="h-4 w-4" />
+                  Copy HTML
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={handleCopyText} disabled={isProcessing}>
+                  <Copy className="h-4 w-4" />
+                  Copy Text
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" className="gap-2" onClick={handleCopyMarkdown} disabled={isProcessing}>
+                <Copy className="h-4 w-4" />
+                Copy
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -284,7 +304,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         {isProcessing ? (
           <Card className="p-4">
             <Typography>
-              We’re generating your content. This may take 1-3 minutes. Please wait
+              We're generating your content. This may take 1-3 minutes. Please wait
               <span className="dot-animate"> ...</span>
             </Typography>
             <style>{`

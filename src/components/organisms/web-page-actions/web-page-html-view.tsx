@@ -6,44 +6,73 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Copy,
-  ExternalLink,
-  Loader2,
-  Monitor,
-  Smartphone,
-  Tablet,
-  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Typography } from "@/components/ui/typography";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/clipboard";
 import { resolvePageContent } from "@/utils/page-content-resolver";
 import { api } from "@/hooks/use-api";
+import { ensureMassicContentWrapper } from "@/utils/page-content-format";
 import {
+  applySpacingEditsToHtml,
+  applyLinkEditsToHtml,
   applyTextEditsToHtml,
   buildEditableHtmlModel,
   canonicalizeHtml,
+  EDITABLE_SPACING_PX_MAX,
+  EDITABLE_SPACING_PX_MIN,
+  mergeSpacingUtilityClasses,
+  parseEditableSpacingValueFromClassName,
   extractPlainTextFromHtml,
+  isSafeEditableLinkHref,
+  normalizeEditableLinkHref,
   sanitizePageHtml,
+  type EditableLinkRef,
+  type EditableSpacingRef,
+  type EditableSpacingToken,
+  type EditableSpacingValue,
   type EditableTextNodeRef,
 } from "@/utils/page-html-editor";
+import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 
 type SaveReason = "debounce" | "blur" | "unmount";
+type ActiveLinkEditorState = {
+  id: string;
+  top: number;
+  left: number;
+  label: string;
+};
+type PreviewEditMode = "text" | "spacing";
+type ActiveSpacingEditorState = {
+  id: string;
+  top: number;
+  left: number;
+  label: string;
+  baseClassName: string;
+};
 
 function isEditableSpan(target: EventTarget | null): target is HTMLElement {
   return target instanceof HTMLElement && Boolean(target.dataset.massicTextId);
+}
+
+function getEditableLinkElement(target: EventTarget | null): HTMLAnchorElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  return target.closest("a[data-massic-link-id]") as HTMLAnchorElement | null;
+}
+
+function getAnyAnchorElement(target: EventTarget | null): HTMLAnchorElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  return target.closest("a") as HTMLAnchorElement | null;
+}
+
+function getEditableSpacingElement(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof HTMLElement)) return null;
+  return target.closest("[data-massic-spacing-id]") as HTMLElement | null;
 }
 
 function updateEditFromElement(edits: Record<string, string>, element: HTMLElement) {
@@ -75,6 +104,87 @@ function insertPlainTextAtCursor(text: string) {
   selection.addRange(range);
 }
 
+function createEmptySpacingValue(): EditableSpacingValue {
+  return {
+    outsideTop: null,
+    outsideBottom: null,
+  };
+}
+
+function areSpacingValuesEqual(left: Partial<EditableSpacingValue> | null | undefined, right: Partial<EditableSpacingValue> | null | undefined): boolean {
+  const leftValue = left || {};
+  const rightValue = right || {};
+  return (
+    (leftValue.outsideTop || null) === (rightValue.outsideTop || null) &&
+    (leftValue.outsideBottom || null) === (rightValue.outsideBottom || null)
+  );
+}
+
+const SPACING_SELECT_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "", label: "Default" },
+  { value: "0", label: "0" },
+  { value: "8", label: "8" },
+  { value: "12", label: "12" },
+  { value: "16", label: "16" },
+  { value: "24", label: "24" },
+  { value: "32", label: "32" },
+];
+const SPACING_CUSTOM_OPTION_VALUE = "__custom__";
+const SPACING_SCALE_PIXEL_BASE: Record<string, number> = {
+  none: 0,
+  xs: 8,
+  s: 12,
+  m: 16,
+  l: 24,
+  xl: 32,
+};
+
+function parseSpacingNumberToken(value: EditableSpacingToken | null | undefined): number | null {
+  if (!value || typeof value !== "string") return null;
+  if (value.startsWith("num:")) {
+    const parsed = Number(value.slice(4));
+    if (!Number.isFinite(parsed)) return null;
+    return Math.round(parsed);
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(SPACING_SCALE_PIXEL_BASE, normalized)) {
+    return SPACING_SCALE_PIXEL_BASE[normalized];
+  }
+  return null;
+}
+
+function clampSpacingPx(value: number): number {
+  const rounded = Math.round(value);
+  if (rounded < EDITABLE_SPACING_PX_MIN) return EDITABLE_SPACING_PX_MIN;
+  if (rounded > EDITABLE_SPACING_PX_MAX) return EDITABLE_SPACING_PX_MAX;
+  return rounded;
+}
+
+function toSpacingNumberToken(value: number): EditableSpacingToken {
+  return `num:${clampSpacingPx(value)}`;
+}
+
+function toSpacingPresetValue(value: EditableSpacingToken | null | undefined): string {
+  const numericValue = parseSpacingNumberToken(value);
+  if (numericValue == null) return "";
+  const numericKey = String(numericValue);
+  const isPreset = SPACING_SELECT_OPTIONS.some((option) => option.value === numericKey);
+  return isPreset ? numericKey : SPACING_CUSTOM_OPTION_VALUE;
+}
+
+function resolveSpacingInputValue(value: EditableSpacingToken | null | undefined): string {
+  const spacingNumber = parseSpacingNumberToken(value);
+  return spacingNumber == null ? "" : String(spacingNumber);
+}
+
+function parseSpacingNumberInput(value: string): number | null {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return null;
+  return clampSpacingPx(parsed);
+}
+
 export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -83,12 +193,6 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
   const [previewHtml, setPreviewHtml] = React.useState("");
   const [textNodeIndex, setTextNodeIndex] = React.useState<EditableTextNodeRef[]>([]);
-  const [isEmbeddedPreviewOpen, setIsEmbeddedPreviewOpen] = React.useState(false);
-  const [embeddedPreviewUrl, setEmbeddedPreviewUrl] = React.useState("");
-  const [embeddedPreviewTitle, setEmbeddedPreviewTitle] = React.useState("Preview");
-  const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
-  const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
-  const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
 
   const contentQuery = useWebActionContentQuery({
     type: "page",
@@ -100,10 +204,21 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   });
 
   const data = contentQuery.data;
+  const [previewEditMode, setPreviewEditMode] = React.useState<PreviewEditMode>("text");
+  const [activeLinkEditor, setActiveLinkEditor] = React.useState<ActiveLinkEditorState | null>(null);
+  const [linkHrefDraft, setLinkHrefDraft] = React.useState("");
+  const [linkHrefError, setLinkHrefError] = React.useState<string | null>(null);
+  const [activeSpacingEditor, setActiveSpacingEditor] = React.useState<ActiveSpacingEditorState | null>(null);
+  const [spacingDraft, setSpacingDraft] = React.useState<EditableSpacingValue>(createEmptySpacingValue);
+  const [hoveredSpacingId, setHoveredSpacingId] = React.useState<string | null>(null);
 
   const sourceHtmlRef = React.useRef("");
   const textNodeIndexRef = React.useRef<EditableTextNodeRef[]>([]);
+  const linkIndexRef = React.useRef<EditableLinkRef[]>([]);
+  const spacingIndexRef = React.useRef<EditableSpacingRef[]>([]);
   const editsRef = React.useRef<Record<string, string>>({});
+  const linkEditsRef = React.useRef<Record<string, string>>({});
+  const spacingEditsRef = React.useRef<Record<string, EditableSpacingValue>>({});
   const saveTimerRef = React.useRef<number | null>(null);
   const isSavingRef = React.useRef(false);
   const queuedSaveRef = React.useRef(false);
@@ -117,28 +232,20 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const lastCommittedHtmlRef = React.useRef("");
   const pendingBackgroundRefetchRef = React.useRef(false);
 
-  const cssVarOverrides = React.useMemo(() => ({}), []);
-
-  const previewStyleVars = React.useMemo(() => {
-    const style: React.CSSProperties = {};
-    for (const [key, value] of Object.entries(cssVarOverrides)) {
-      (style as Record<string, string>)[key] = value as string;
-    }
-    return style;
-  }, [cssVarOverrides]);
-  const previewMassicVarCss = React.useMemo(() => {
-    const entries = Object.entries(cssVarOverrides);
-    if (!entries.length) return "";
-    const declarations = entries.map(([key, value]) => `${key}: ${value};`).join(" ");
-    return `.massic-html-preview .massic-content { ${declarations} }`;
-  }, [cssVarOverrides]);
+  const cssVarOverrides: Record<string, string> = {};
+  const previewStyleVars: React.CSSProperties = {};
+  const previewMassicVarCss = "";
 
   const status = (data?.status || "").toString().toLowerCase();
   const isProcessing = status === "pending" || status === "processing";
+  const hasFinalContent = canonicalizeHtml(sourceHtmlRef.current).length > 0;
+
 
   const composeCurrentHtml = React.useCallback(() => {
-    const merged = applyTextEditsToHtml(sourceHtmlRef.current, textNodeIndexRef.current, editsRef.current);
-    return sanitizePageHtml(merged);
+    const mergedText = applyTextEditsToHtml(sourceHtmlRef.current, textNodeIndexRef.current, editsRef.current);
+    const mergedLinks = applyLinkEditsToHtml(mergedText, linkIndexRef.current, linkEditsRef.current);
+    const mergedSpacing = applySpacingEditsToHtml(mergedLinks, spacingIndexRef.current, spacingEditsRef.current);
+    return ensureMassicContentWrapper(sanitizePageHtml(mergedSpacing));
   }, []);
 
   const updatePageContentRequest = React.useCallback(
@@ -165,13 +272,21 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const latestData = result.data;
       if (!latestData) return;
 
-      const serverCanonical = canonicalizeHtml(sanitizePageHtml(resolvePageContent(latestData)));
+      const serverCanonical = canonicalizeHtml(
+        ensureMassicContentWrapper(sanitizePageHtml(resolvePageContent(latestData)))
+      );
       const committedCanonical = canonicalizeHtml(lastCommittedHtmlRef.current);
       if (!committedCanonical) return;
 
       if (serverCanonical === committedCanonical) {
         hasLocalEditsRef.current = false;
-        if (!isEditorFocusedRef.current && Object.keys(editsRef.current).length === 0 && !isSavingRef.current) {
+        if (
+          !isEditorFocusedRef.current &&
+          Object.keys(editsRef.current).length === 0 &&
+          Object.keys(linkEditsRef.current).length === 0 &&
+          Object.keys(spacingEditsRef.current).length === 0 &&
+          !isSavingRef.current
+        ) {
           isEditingSessionRef.current = false;
           setPollingDisabled(false);
         }
@@ -202,6 +317,8 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
       isSavingRef.current = true;
       const submittedEdits = { ...editsRef.current };
+      const submittedLinkEdits = { ...linkEditsRef.current };
+      const submittedSpacingEdits = { ...spacingEditsRef.current };
       try {
         await updatePageContentRequest(nextHtml);
         sourceHtmlRef.current = nextHtml;
@@ -216,10 +333,28 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         }
         editsRef.current = remainingEdits;
 
+        const remainingLinkEdits = { ...linkEditsRef.current };
+        for (const [id, value] of Object.entries(submittedLinkEdits)) {
+          if (remainingLinkEdits[id] === value) {
+            delete remainingLinkEdits[id];
+          }
+        }
+        linkEditsRef.current = remainingLinkEdits;
+
+        const remainingSpacingEdits = { ...spacingEditsRef.current };
+        for (const [id, value] of Object.entries(submittedSpacingEdits)) {
+          if (areSpacingValuesEqual(remainingSpacingEdits[id], value)) {
+            delete remainingSpacingEdits[id];
+          }
+        }
+        spacingEditsRef.current = remainingSpacingEdits;
+
         // Commit local HTML into rendered preview so rerenders cannot snap back.
         if (!isEditorFocusedRef.current) {
           const committedModel = buildEditableHtmlModel(nextHtml);
           textNodeIndexRef.current = committedModel.textNodeIndex;
+          linkIndexRef.current = committedModel.linkIndex;
+          spacingIndexRef.current = committedModel.spacingIndex;
           setTextNodeIndex(committedModel.textNodeIndex);
           setPreviewHtml(committedModel.previewHtml);
         }
@@ -266,10 +401,13 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const isPolling = nextStatus === "pending" || nextStatus === "processing";
     const transitionedFromPollingToTerminal = wasPolling && !isPolling;
     const rawPage = resolvePageContent(data);
-    const sanitized = sanitizePageHtml(rawPage);
+    const sanitized = ensureMassicContentWrapper(sanitizePageHtml(rawPage));
     const serverCanonical = canonicalizeHtml(sanitized);
     const localCanonical = canonicalizeHtml(lastSavedHtmlRef.current);
-    const hasPendingEdits = Object.keys(editsRef.current).length > 0;
+    const hasPendingEdits =
+      Object.keys(editsRef.current).length > 0 ||
+      Object.keys(linkEditsRef.current).length > 0 ||
+      Object.keys(spacingEditsRef.current).length > 0;
     const localChangeInProgress = hasLocalEditsRef.current || hasPendingEdits || isSavingRef.current;
     const serverMatchesLocal = localCanonical.length > 0 && serverCanonical === localCanonical;
 
@@ -302,10 +440,19 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
     sourceHtmlRef.current = sanitized;
     textNodeIndexRef.current = model.textNodeIndex;
+    linkIndexRef.current = model.linkIndex;
+    spacingIndexRef.current = model.spacingIndex;
     editsRef.current = {};
+    linkEditsRef.current = {};
+    spacingEditsRef.current = {};
     lastSavedHtmlRef.current = canonicalizeHtml(sanitized);
     setTextNodeIndex(model.textNodeIndex);
     setPreviewHtml(model.previewHtml);
+    setActiveLinkEditor(null);
+    setLinkHrefDraft("");
+    setLinkHrefError(null);
+    setActiveSpacingEditor(null);
+    setSpacingDraft(createEmptySpacingValue());
 
     if (isInitialLoadRef.current) {
       window.setTimeout(() => {
@@ -343,47 +490,432 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     };
   }, [flushSave]);
 
-  const openEmbeddedPreview = React.useCallback((url: string, title: string) => {
-    if (!url) return;
-    setEmbeddedPreviewUrl(url);
-    setEmbeddedPreviewTitle(title);
-    setIsEmbeddedPreviewLoading(true);
-    setShowEmbedFallbackHint(false);
-    setPreviewViewport("desktop");
-    setIsEmbeddedPreviewOpen(true);
-  }, []);
-
-  React.useEffect(() => {
-    if (!isEmbeddedPreviewOpen || !isEmbeddedPreviewLoading) return;
-    const timer = window.setTimeout(() => {
-      setShowEmbedFallbackHint(true);
-    }, 8000);
-    return () => window.clearTimeout(timer);
-  }, [isEmbeddedPreviewLoading, isEmbeddedPreviewOpen]);
-
-  const handleCopyAll = async () => {
+  const handleCopyText = async () => {
     const safeHtml = composeCurrentHtml();
     const plainText = extractPlainTextFromHtml(safeHtml);
+    const ok = await copyToClipboard(plainText);
+    if (ok) toast.success("Text copied");
+    else toast.error("Copy failed");
+  };
+
+  const handleCopyHtml = async () => {
+    const safeHtml = composeCurrentHtml();
+    const baseCss = await getMassicCssText();
+    const styledHtml = buildStyledMassicHtml(safeHtml, {
+      baseCss,
+      cssVarOverrides,
+    });
+
+    if (!styledHtml) {
+      toast.error("Nothing to copy");
+      return;
+    }
 
     try {
       if (typeof ClipboardItem !== "undefined") {
         const clipboardItem = new ClipboardItem({
-          "text/html": new Blob([safeHtml], { type: "text/html" }),
-          "text/plain": new Blob([plainText], { type: "text/plain" }),
+          "text/html": new Blob([styledHtml], { type: "text/html" }),
+          "text/plain": new Blob([styledHtml], { type: "text/plain" }),
         });
         await navigator.clipboard.write([clipboardItem]);
       } else {
-        await copyToClipboard(plainText);
+        await copyToClipboard(styledHtml);
       }
-      toast.success("Copied");
+      toast.success("HTML copied with styles");
     } catch {
-      const ok = await copyToClipboard(plainText);
-      if (ok) toast.success("Copied");
+      const ok = await copyToClipboard(styledHtml);
+      if (ok) toast.success("HTML copied with styles");
       else toast.error("Copy failed");
     }
   };
 
+  const resolveSpacingLabel = React.useCallback((ref: EditableSpacingRef | undefined) => {
+    if (!ref) return "Container";
+    const rawClasses = String(ref.className || "")
+      .split(/\s+/)
+      .map((name) => name.trim())
+      .filter(Boolean);
+    const preferredClass = rawClasses.find((className) => className.startsWith("massic-")) || rawClasses[0];
+    if (preferredClass) {
+      return `${ref.tagName}.${preferredClass}`;
+    }
+    return ref.tagName;
+  }, []);
+
+  const setClassNameOnPreviewSpacingTarget = React.useCallback((spacingId: string, className: string) => {
+    const target = previewContainerRef.current?.querySelector(
+      `[data-massic-spacing-id="${spacingId}"]`
+    ) as HTMLElement | null;
+    if (!target) return;
+    if (className) {
+      target.setAttribute("class", className);
+    } else {
+      target.removeAttribute("class");
+    }
+  }, []);
+
+  const closeActiveSpacingEditor = React.useCallback(() => {
+    setActiveSpacingEditor(null);
+    setSpacingDraft(createEmptySpacingValue());
+    setHoveredSpacingId(null);
+    isEditorFocusedRef.current = false;
+    if (
+      !Object.keys(editsRef.current).length &&
+      !Object.keys(linkEditsRef.current).length &&
+      !Object.keys(spacingEditsRef.current).length &&
+      !isSavingRef.current
+    ) {
+      isEditingSessionRef.current = false;
+      setPollingDisabled(false);
+    }
+  }, []);
+
+  const cancelActiveSpacingEditor = React.useCallback(() => {
+    if (activeSpacingEditor?.id) {
+      setClassNameOnPreviewSpacingTarget(activeSpacingEditor.id, activeSpacingEditor.baseClassName);
+    }
+    closeActiveSpacingEditor();
+  }, [activeSpacingEditor, closeActiveSpacingEditor, setClassNameOnPreviewSpacingTarget]);
+
+  const closeActiveLinkEditor = React.useCallback(() => {
+    setActiveLinkEditor(null);
+    setLinkHrefError(null);
+    isEditorFocusedRef.current = false;
+    if (
+      !Object.keys(editsRef.current).length &&
+      !Object.keys(linkEditsRef.current).length &&
+      !Object.keys(spacingEditsRef.current).length &&
+      !isSavingRef.current
+    ) {
+      isEditingSessionRef.current = false;
+      setPollingDisabled(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (previewEditMode === "spacing") {
+      setActiveLinkEditor(null);
+      setLinkHrefError(null);
+      return;
+    }
+    cancelActiveSpacingEditor();
+  }, [cancelActiveSpacingEditor, previewEditMode]);
+
+  React.useEffect(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+
+    const previousActive = container.querySelectorAll("[data-massic-spacing-selected='true']");
+    previousActive.forEach((node) => {
+      (node as HTMLElement).removeAttribute("data-massic-spacing-selected");
+    });
+
+    if (!activeSpacingEditor?.id) return;
+    const nextActive = container.querySelector(`[data-massic-spacing-id="${activeSpacingEditor.id}"]`) as HTMLElement | null;
+    if (!nextActive) return;
+    nextActive.setAttribute("data-massic-spacing-selected", "true");
+  }, [activeSpacingEditor?.id, previewHtml]);
+
+  React.useEffect(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+
+    const previousHovered = container.querySelectorAll("[data-massic-spacing-hovered='true']");
+    previousHovered.forEach((node) => {
+      (node as HTMLElement).removeAttribute("data-massic-spacing-hovered");
+    });
+
+    if (!hoveredSpacingId) return;
+    const nextHovered = container.querySelector(`[data-massic-spacing-id="${hoveredSpacingId}"]`) as HTMLElement | null;
+    if (!nextHovered) return;
+    nextHovered.setAttribute("data-massic-spacing-hovered", "true");
+  }, [hoveredSpacingId, previewHtml]);
+
+  React.useEffect(() => {
+    if (previewEditMode !== "spacing") return;
+    if (!activeSpacingEditor?.id) return;
+
+    const nextClassName = mergeSpacingUtilityClasses(activeSpacingEditor.baseClassName, spacingDraft);
+    setClassNameOnPreviewSpacingTarget(activeSpacingEditor.id, nextClassName);
+  }, [
+    activeSpacingEditor?.baseClassName,
+    activeSpacingEditor?.id,
+    hoveredSpacingId,
+    previewEditMode,
+    previewHtml,
+    setClassNameOnPreviewSpacingTarget,
+    spacingDraft,
+  ]);
+
+  const handlePreviewClickCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+
+    if (target.closest("[data-massic-link-editor='true']")) {
+      return;
+    }
+    if (target.closest("[data-massic-spacing-editor='true']")) {
+      return;
+    }
+
+    const anyAnchor = getAnyAnchorElement(target);
+    if (anyAnchor) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    if (previewEditMode === "spacing") {
+      const spacingTarget = getEditableSpacingElement(target);
+      if (!spacingTarget) {
+        if (activeSpacingEditor) {
+          cancelActiveSpacingEditor();
+        }
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const spacingId = spacingTarget.dataset.massicSpacingId;
+      if (!spacingId || !previewContainerRef.current) return;
+      const baseClassName = String(spacingTarget.getAttribute("class") || "");
+      const baseSpacingValue = parseEditableSpacingValueFromClassName(baseClassName);
+
+      if (activeSpacingEditor?.id && activeSpacingEditor.id !== spacingId) {
+        setClassNameOnPreviewSpacingTarget(activeSpacingEditor.id, activeSpacingEditor.baseClassName);
+      }
+
+      const container = previewContainerRef.current;
+      const targetRect = spacingTarget.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const nextLeft = Math.max(
+        8,
+        Math.min(targetRect.left - containerRect.left + container.scrollLeft, container.scrollWidth - 292)
+      );
+      const nextTop = Math.max(8, targetRect.bottom - containerRect.top + container.scrollTop + 8);
+
+      const spacingRef = spacingIndexRef.current.find((item) => item.id === spacingId);
+      setSpacingDraft(baseSpacingValue);
+      setActiveSpacingEditor({
+        id: spacingId,
+        left: Number.isFinite(nextLeft) ? nextLeft : 8,
+        top: Number.isFinite(nextTop) ? nextTop : 8,
+        label: resolveSpacingLabel(spacingRef),
+        baseClassName,
+      });
+      setHoveredSpacingId(spacingId);
+      isEditorFocusedRef.current = true;
+      isEditingSessionRef.current = true;
+      if (!pollingDisabled) {
+        setPollingDisabled(true);
+      }
+      return;
+    }
+
+    const anchor = getEditableLinkElement(target);
+    if (!anchor) {
+      if (activeLinkEditor) {
+        closeActiveLinkEditor();
+      }
+      return;
+    }
+
+    const linkId = anchor.dataset.massicLinkId;
+    if (!linkId || !previewContainerRef.current) return;
+
+    const container = previewContainerRef.current;
+    const anchorRect = anchor.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const anchorLeft = anchorRect.left - containerRect.left + container.scrollLeft;
+    const anchorTop = anchorRect.bottom - containerRect.top + container.scrollTop + 8;
+    const nextLeft = Math.max(8, Math.min(anchorLeft, container.scrollWidth - 308));
+    const nextTop = Math.max(8, anchorTop);
+
+    const linkRef = linkIndexRef.current.find((item) => item.id === linkId);
+    const currentHref = normalizeEditableLinkHref(
+      Object.prototype.hasOwnProperty.call(linkEditsRef.current, linkId)
+        ? linkEditsRef.current[linkId]
+        : (linkRef?.href || anchor.getAttribute("href") || "")
+    );
+
+    setActiveLinkEditor({
+      id: linkId,
+      left: Number.isFinite(nextLeft) ? nextLeft : 8,
+      top: Number.isFinite(nextTop) ? nextTop : 8,
+      label: linkRef?.label || (anchor.textContent || "").trim() || "Link",
+    });
+    setLinkHrefDraft(currentHref);
+    setLinkHrefError(null);
+    isEditorFocusedRef.current = true;
+    isEditingSessionRef.current = true;
+    if (!pollingDisabled) {
+      setPollingDisabled(true);
+    }
+  }, [
+    activeLinkEditor,
+    activeSpacingEditor,
+    closeActiveLinkEditor,
+    closeActiveSpacingEditor,
+    pollingDisabled,
+    previewEditMode,
+    setClassNameOnPreviewSpacingTarget,
+    resolveSpacingLabel,
+    cancelActiveSpacingEditor,
+  ]);
+
+  const handlePreviewAuxClickCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const anchor = getAnyAnchorElement(event.target);
+    if (!anchor) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, []);
+
+  const handlePreviewMouseMoveCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (previewEditMode !== "spacing") return;
+    if (activeSpacingEditor?.id) {
+      // Keep hover/selection locked to the active edited target while previewing draft spacing values.
+      const lockedId = activeSpacingEditor.id;
+      setHoveredSpacingId((prev) => (prev === lockedId ? prev : lockedId));
+      return;
+    }
+    const target = getEditableSpacingElement(event.target);
+    const nextHoveredId = target?.dataset.massicSpacingId || null;
+    setHoveredSpacingId((prev) => (prev === nextHoveredId ? prev : nextHoveredId));
+  }, [activeSpacingEditor?.id, previewEditMode]);
+
+  const handlePreviewMouseLeaveCapture = React.useCallback(() => {
+    if (previewEditMode !== "spacing") return;
+    if (activeSpacingEditor?.id) {
+      setHoveredSpacingId((prev) => (prev === activeSpacingEditor.id ? prev : activeSpacingEditor.id));
+      return;
+    }
+    setHoveredSpacingId(null);
+  }, [activeSpacingEditor?.id, previewEditMode]);
+
+  const syncSpacingIndexEntry = React.useCallback((spacingId: string, spacingValue: EditableSpacingValue, className: string) => {
+    spacingIndexRef.current = spacingIndexRef.current.map((entry) => {
+      if (entry.id !== spacingId) return entry;
+      return {
+        ...entry,
+        className,
+        outsideTop: spacingValue.outsideTop,
+        outsideBottom: spacingValue.outsideBottom,
+      };
+    });
+  }, []);
+
+  const setSpacingPresetValue = React.useCallback((key: keyof EditableSpacingValue, nextValue: string) => {
+    if (nextValue === "") {
+      setSpacingDraft((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      return;
+    }
+    if (nextValue === SPACING_CUSTOM_OPTION_VALUE) {
+      setSpacingDraft((prev) => {
+        const current = prev[key];
+        const customPx = parseSpacingNumberToken(current) ?? 0;
+        return {
+          ...prev,
+          [key]: toSpacingNumberToken(customPx),
+        };
+      });
+      return;
+    }
+    const parsedPreset = Number(nextValue);
+    if (!Number.isFinite(parsedPreset)) return;
+    setSpacingDraft((prev) => ({
+      ...prev,
+      [key]: toSpacingNumberToken(parsedPreset),
+    }));
+  }, []);
+
+  const setSpacingCustomPxValue = React.useCallback((key: keyof EditableSpacingValue, rawValue: string) => {
+    const pxValue = parseSpacingNumberInput(rawValue);
+    setSpacingDraft((prev) => ({
+      ...prev,
+      [key]: pxValue == null ? null : toSpacingNumberToken(pxValue),
+    }));
+  }, []);
+
+  const saveActiveSpacingValue = React.useCallback(async (nextValue: EditableSpacingValue) => {
+    const active = activeSpacingEditor;
+    if (!active) return;
+    const nextClassName = mergeSpacingUtilityClasses(active.baseClassName, nextValue);
+
+    spacingEditsRef.current = {
+      ...spacingEditsRef.current,
+      [active.id]: nextValue,
+    };
+
+    setClassNameOnPreviewSpacingTarget(active.id, nextClassName);
+    syncSpacingIndexEntry(active.id, nextValue, nextClassName);
+    closeActiveSpacingEditor();
+
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    await flushSave("blur");
+  }, [activeSpacingEditor, closeActiveSpacingEditor, flushSave, setClassNameOnPreviewSpacingTarget, syncSpacingIndexEntry]);
+
+  const handleApplySpacingForActiveTarget = React.useCallback(async () => {
+    await saveActiveSpacingValue(spacingDraft);
+  }, [saveActiveSpacingValue, spacingDraft]);
+
+  const handleResetSpacingForActiveTarget = React.useCallback(async () => {
+    await saveActiveSpacingValue(createEmptySpacingValue());
+  }, [saveActiveSpacingValue]);
+
+  const saveActiveLinkHref = React.useCallback(async (nextHrefInput: string) => {
+    const active = activeLinkEditor;
+    if (!active) return;
+
+    const normalizedHref = normalizeEditableLinkHref(nextHrefInput);
+    if (normalizedHref && !isSafeEditableLinkHref(normalizedHref)) {
+      setLinkHrefError("Enter a valid URL (https://, mailto:, tel:, /path, #anchor).");
+      return;
+    }
+
+    linkEditsRef.current = {
+      ...linkEditsRef.current,
+      [active.id]: normalizedHref,
+    };
+
+    if (previewContainerRef.current) {
+      const selector = `a[data-massic-link-id="${active.id}"]`;
+      const linkEl = previewContainerRef.current.querySelector(selector) as HTMLAnchorElement | null;
+      if (linkEl) {
+        if (normalizedHref) {
+          linkEl.setAttribute("href", normalizedHref);
+        } else {
+          linkEl.removeAttribute("href");
+        }
+      }
+    }
+
+    setLinkHrefDraft(normalizedHref);
+    setLinkHrefError(null);
+    closeActiveLinkEditor();
+
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    await flushSave("blur");
+  }, [activeLinkEditor, closeActiveLinkEditor, flushSave]);
+
+  const handleSaveActiveLinkHref = React.useCallback(async () => {
+    await saveActiveLinkHref(linkHrefDraft);
+  }, [linkHrefDraft, saveActiveLinkHref]);
+
+  const handleRemoveActiveLinkHref = React.useCallback(async () => {
+    await saveActiveLinkHref("");
+  }, [saveActiveLinkHref]);
+
   const handleInputCapture = (event: React.FormEvent<HTMLDivElement>) => {
+    if (previewEditMode !== "text") return;
     if (!isEditableSpan(event.target)) return;
     hasLocalEditsRef.current = true;
     isEditingSessionRef.current = true;
@@ -392,6 +924,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   };
 
   const handleBlurCapture = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (previewEditMode !== "text") return;
     if (!isEditableSpan(event.target)) return;
     editsRef.current = updateEditFromElement(editsRef.current, event.target);
 
@@ -417,6 +950,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   };
 
   const handleFocusCapture = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (previewEditMode !== "text") return;
     if (!isEditableSpan(event.target)) return;
     isEditorFocusedRef.current = true;
     isEditingSessionRef.current = true;
@@ -426,6 +960,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   };
 
   const handlePasteCapture = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (previewEditMode !== "text") return;
     if (!isEditableSpan(event.target)) return;
     event.preventDefault();
     const text = event.clipboardData?.getData("text/plain") || "";
@@ -433,6 +968,27 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   };
 
   const handleKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (previewEditMode === "spacing") {
+      if (activeSpacingEditor && event.key === "Escape") {
+        event.preventDefault();
+        cancelActiveSpacingEditor();
+      }
+      return;
+    }
+
+    if (activeLinkEditor && event.key === "Escape") {
+      event.preventDefault();
+      closeActiveLinkEditor();
+      return;
+    }
+
+    const anchorTarget = getAnyAnchorElement(event.target);
+    if (anchorTarget && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (!isEditableSpan(event.target)) return;
     const key = event.key.toLowerCase();
     if ((event.metaKey || event.ctrlKey) && ["b", "i", "u", "k"].includes(key)) {
@@ -471,9 +1027,13 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleCopyAll} disabled={isProcessing}>
+            <Button variant="outline" className="gap-2" onClick={handleCopyHtml} disabled={isProcessing}>
               <Copy className="h-4 w-4" />
-              Copy
+              Copy HTML
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={handleCopyText} disabled={isProcessing}>
+              <Copy className="h-4 w-4" />
+              Copy Text
             </Button>
           </div>
         </div>
@@ -504,27 +1064,307 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         ) : null}
 
         {!isProcessing && status !== "error" ? (
-          <Card className="p-4 space-y-3">
-            <Typography variant="muted" className="text-xs">
-              Text-only editing is enabled in preview. HTML structure and classes are preserved.
-            </Typography>
-            <div
-              ref={previewContainerRef}
-              className="massic-html-preview min-h-[420px] overflow-auto rounded-md border bg-background p-4"
-              style={previewStyleVars}
-              onInputCapture={handleInputCapture}
-              onBlurCapture={handleBlurCapture}
-              onFocusCapture={handleFocusCapture}
-              onPasteCapture={handlePasteCapture}
-              onKeyDownCapture={handleKeyDownCapture}
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
-            />
+          <Card className="p-0">
+            <div className="sticky top-0 z-30 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Typography variant="muted" className="text-xs">
+                  {previewEditMode === "text"
+                    ? "Text + link editing is enabled. HTML structure and classes are preserved."
+                    : "Spacing mode is enabled. Hover a container and click to adjust top/bottom spacing with presets or custom px."}
+                </Typography>
+                <div className="inline-flex items-center rounded-md border border-border p-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={previewEditMode === "text" ? "default" : "ghost"}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setPreviewEditMode("text")}
+                  >
+                    Text
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={previewEditMode === "spacing" ? "default" : "ghost"}
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setPreviewEditMode("spacing")}
+                  >
+                    Spacing
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="relative p-4 pt-3">
+              <div
+                ref={previewContainerRef}
+                className={cn(
+                  "massic-html-preview min-h-[420px] overflow-auto rounded-md border bg-background p-4",
+                  previewEditMode === "spacing" ? "massic-mode-spacing" : "massic-mode-text"
+                )}
+                style={previewStyleVars}
+                onClickCapture={handlePreviewClickCapture}
+                onAuxClickCapture={handlePreviewAuxClickCapture}
+                onMouseMoveCapture={handlePreviewMouseMoveCapture}
+                onMouseLeave={handlePreviewMouseLeaveCapture}
+                onInputCapture={handleInputCapture}
+                onBlurCapture={handleBlurCapture}
+                onFocusCapture={handleFocusCapture}
+                onPasteCapture={handlePasteCapture}
+                onKeyDownCapture={handleKeyDownCapture}
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+              {previewEditMode === "text" && activeLinkEditor ? (
+                <div
+                  data-massic-link-editor="true"
+                  className="absolute z-20 w-[300px] rounded-md border bg-background p-3 shadow-lg"
+                  style={{
+                    top: activeLinkEditor.top,
+                    left: activeLinkEditor.left,
+                  }}
+                >
+                  <div className="space-y-2">
+                    <Typography className="text-xs font-medium">Edit Link</Typography>
+                    <Typography className="text-[11px] text-muted-foreground break-words">
+                      {activeLinkEditor.label}
+                    </Typography>
+                    <Input
+                      value={linkHrefDraft}
+                      onChange={(event) => {
+                        setLinkHrefDraft(event.target.value);
+                        if (linkHrefError) {
+                          setLinkHrefError(null);
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleSaveActiveLinkHref();
+                        }
+                      }}
+                      placeholder="https://example.com"
+                      className="h-8"
+                      autoFocus
+                    />
+                    {linkHrefError ? (
+                      <Typography className="text-[11px] text-destructive">{linkHrefError}</Typography>
+                    ) : null}
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => void handleRemoveActiveLinkHref()}
+                      >
+                        Remove URL
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        onClick={closeActiveLinkEditor}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => void handleSaveActiveLinkHref()}
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {previewEditMode === "spacing" && activeSpacingEditor ? (
+                <div
+                  data-massic-spacing-editor="true"
+                  className="absolute z-20 w-[264px] max-w-[calc(100vw-24px)] rounded-md border bg-background p-3 shadow-lg"
+                  style={{
+                    top: activeSpacingEditor.top,
+                    left: activeSpacingEditor.left,
+                  }}
+                >
+                  <div className="space-y-3">
+                    <Typography className="text-xs font-semibold">Adjust Spacing</Typography>
+                    <Typography className="text-[11px] text-muted-foreground break-words">
+                      {activeSpacingEditor.label}
+                    </Typography>
+                    <div className="rounded-md border bg-muted/30 p-2.5 space-y-2.5">
+                      <div className="grid grid-cols-[56px_minmax(0,1fr)_74px] items-center gap-2">
+                        <Typography className="text-xs text-muted-foreground">Top</Typography>
+                        <div className="min-w-0">
+                          <select
+                            className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs leading-none"
+                            value={toSpacingPresetValue(spacingDraft.outsideTop)}
+                            onChange={(event) => setSpacingPresetValue("outsideTop", event.target.value)}
+                          >
+                            {SPACING_SELECT_OPTIONS.map((option) => (
+                              <option key={`outsideTop-${option.value || "default"}`} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                            <option value={SPACING_CUSTOM_OPTION_VALUE}>Custom</option>
+                          </select>
+                        </div>
+                        <div className="relative min-w-0">
+                          <Input
+                            type="number"
+                            min={EDITABLE_SPACING_PX_MIN}
+                            max={EDITABLE_SPACING_PX_MAX}
+                            step={1}
+                            className="h-9 w-full min-w-0 pr-7 text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            value={resolveSpacingInputValue(spacingDraft.outsideTop)}
+                            onChange={(event) => setSpacingCustomPxValue("outsideTop", event.target.value)}
+                            placeholder="0"
+                          />
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                            px
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-[56px_minmax(0,1fr)_74px] items-center gap-2">
+                        <Typography className="text-xs text-muted-foreground">Bottom</Typography>
+                        <div className="min-w-0">
+                          <select
+                            className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs leading-none"
+                            value={toSpacingPresetValue(spacingDraft.outsideBottom)}
+                            onChange={(event) => setSpacingPresetValue("outsideBottom", event.target.value)}
+                          >
+                            {SPACING_SELECT_OPTIONS.map((option) => (
+                              <option key={`outsideBottom-${option.value || "default"}`} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                            <option value={SPACING_CUSTOM_OPTION_VALUE}>Custom</option>
+                          </select>
+                        </div>
+                        <div className="relative min-w-0">
+                          <Input
+                            type="number"
+                            min={EDITABLE_SPACING_PX_MIN}
+                            max={EDITABLE_SPACING_PX_MAX}
+                            step={1}
+                            className="h-9 w-full min-w-0 pr-7 text-xs text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            value={resolveSpacingInputValue(spacingDraft.outsideBottom)}
+                            onChange={(event) => setSpacingCustomPxValue("outsideBottom", event.target.value)}
+                            placeholder="0"
+                          />
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                            px
+                          </span>
+                        </div>
+                      </div>
+                      <Typography className="text-[10px] text-muted-foreground">
+                        Range: {EDITABLE_SPACING_PX_MIN} to {EDITABLE_SPACING_PX_MAX}
+                      </Typography>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => void handleResetSpacingForActiveTarget()}
+                      >
+                        Reset Element
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2 text-xs"
+                        onClick={cancelActiveSpacingEditor}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => void handleApplySpacingForActiveTarget()}
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
             <style>{`
               ${previewMassicVarCss}
               .massic-html-preview .massic-text-editable {
                 border-radius: 4px;
                 outline: none;
                 transition: background-color 120ms ease, box-shadow 120ms ease;
+              }
+              .massic-html-preview.massic-mode-spacing .massic-text-editable {
+                pointer-events: none;
+              }
+              .massic-html-preview a[data-massic-link-id] {
+                cursor: pointer;
+                position: relative;
+                transition: box-shadow 120ms ease, background-color 120ms ease, color 120ms ease;
+              }
+              .massic-html-preview a[data-massic-link-id]:hover,
+              .massic-html-preview a[data-massic-link-id]:focus-visible {
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 12%, transparent);
+                box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 35%, transparent);
+                border-radius: 4px;
+                outline: none;
+              }
+              .massic-html-preview a[data-massic-link-id]:hover::after,
+              .massic-html-preview a[data-massic-link-id]:focus-visible::after {
+                content: "Click to edit link";
+                position: absolute;
+                left: 0;
+                bottom: calc(100% + 4px);
+                z-index: 5;
+                padding: 2px 6px;
+                border-radius: 999px;
+                background: #111827;
+                color: #ffffff;
+                font-size: 10px;
+                line-height: 1.2;
+                white-space: nowrap;
+                pointer-events: none;
+              }
+              .massic-html-preview.massic-mode-spacing a[data-massic-link-id]:hover::after,
+              .massic-html-preview.massic-mode-spacing a[data-massic-link-id]:focus-visible::after {
+                content: none;
+              }
+              .massic-html-preview.massic-mode-spacing [data-massic-spacing-id] {
+                position: relative;
+                cursor: pointer;
+                outline: 1px dashed transparent;
+                outline-offset: 2px;
+                transition: outline-color 120ms ease, background-color 120ms ease;
+              }
+              .massic-html-preview.massic-mode-spacing [data-massic-spacing-hovered='true'] {
+                outline-color: color-mix(in srgb, var(--massic-primary, #2E6A56) 45%, transparent);
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 8%, transparent);
+              }
+              .massic-html-preview.massic-mode-spacing [data-massic-spacing-hovered='true']::after {
+                content: "Click to adjust spacing";
+                position: absolute;
+                left: 6px;
+                top: 6px;
+                z-index: 5;
+                padding: 2px 6px;
+                border-radius: 999px;
+                background: #111827;
+                color: #ffffff;
+                font-size: 10px;
+                line-height: 1.2;
+                white-space: nowrap;
+                pointer-events: none;
+              }
+              .massic-html-preview.massic-mode-spacing [data-massic-spacing-selected='true'] {
+                outline-color: color-mix(in srgb, var(--massic-primary, #2E6A56) 70%, transparent);
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 10%, transparent);
               }
               .massic-html-preview .massic-text-editable:focus {
                 background: color-mix(in srgb, var(--massic-primary, #2E6A56) 8%, transparent);
@@ -534,111 +1374,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
           </Card>
         ) : null}
       </div>
-
-      <Dialog open={isEmbeddedPreviewOpen} onOpenChange={setIsEmbeddedPreviewOpen}>
-        <DialogContent
-          className="w-[96vw] h-[90vh] max-w-[1400px] sm:max-w-[1400px] p-0 overflow-hidden"
-          showCloseButton={false}
-        >
-          <DialogTitle className="sr-only">Preview {embeddedPreviewTitle}</DialogTitle>
-          <div className="h-full flex flex-col bg-background">
-            <div className="shrink-0 border-b px-5 py-3 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <Typography variant="h6" className="truncate">{embeddedPreviewTitle}</Typography>
-                <Typography className="text-xs text-muted-foreground truncate">{embeddedPreviewUrl}</Typography>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="hidden md:flex items-center gap-1 rounded-md border p-1 bg-muted/40">
-                  <Button
-                    size="sm"
-                    variant={previewViewport === "desktop" ? "default" : "ghost"}
-                    className="gap-1.5"
-                    onClick={() => setPreviewViewport("desktop")}
-                  >
-                    <Monitor className="h-4 w-4" />
-                    Desktop
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={previewViewport === "tablet" ? "default" : "ghost"}
-                    className="gap-1.5"
-                    onClick={() => setPreviewViewport("tablet")}
-                  >
-                    <Tablet className="h-4 w-4" />
-                    Tablet
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={previewViewport === "mobile" ? "default" : "ghost"}
-                    className="gap-1.5"
-                    onClick={() => setPreviewViewport("mobile")}
-                  >
-                    <Smartphone className="h-4 w-4" />
-                    Mobile
-                  </Button>
-                </div>
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    if (embeddedPreviewUrl) {
-                      window.open(embeddedPreviewUrl, "_blank", "noopener,noreferrer");
-                    }
-                  }}
-                  disabled={!embeddedPreviewUrl}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Open in New Tab
-                </Button>
-                <DialogClose asChild>
-                  <Button variant="ghost" size="icon" aria-label="Close preview">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </DialogClose>
-              </div>
-            </div>
-
-            <div className="relative flex-1 bg-muted/20">
-              {isEmbeddedPreviewLoading ? (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/75 backdrop-blur-[1px]">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading preview...
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="h-full w-full overflow-auto p-4 md:p-5">
-                <div
-                  className={cn(
-                    "mx-auto h-full transition-all duration-300",
-                    previewViewport === "desktop" && "w-full",
-                    previewViewport === "tablet" && "w-full max-w-[900px]",
-                    previewViewport === "mobile" && "w-full max-w-[430px]"
-                  )}
-                >
-                  <iframe
-                    title={embeddedPreviewTitle}
-                    src={embeddedPreviewUrl}
-                    className={cn(
-                      "h-full w-full border-0 bg-white",
-                      previewViewport !== "desktop" && "rounded-xl border shadow-sm"
-                    )}
-                    onLoad={() => setIsEmbeddedPreviewLoading(false)}
-                    referrerPolicy="no-referrer-when-downgrade"
-                  />
-                </div>
-              </div>
-
-              {showEmbedFallbackHint ? (
-                <div className="absolute bottom-3 right-3 rounded-md border bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm">
-                  If preview is blocked, use "Open in New Tab".
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
+

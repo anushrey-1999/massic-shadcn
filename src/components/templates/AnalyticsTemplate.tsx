@@ -337,23 +337,17 @@ export function AnalyticsTemplate() {
               </TabsList>
             </Tabs>
             <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
-            <AnalyticsFilterControls
-              periodSelector={
-                <PeriodSelector
-                  value={selectedPeriod}
-                  onValueChange={setSelectedPeriod}
-                  groupBy={groupBy}
-                  onGroupByChange={setGroupBy}
-                  disabledGroupByOptions={ALL_GROUP_BY_OPTIONS.filter(
-                    (option) => !availableGroupByOptions.includes(option)
-                  )}
-                  className="h-10 cursor-pointer rounded-[8px] border-[#d4d4d4] bg-transparent px-4 py-[7.5px] text-sm font-medium tracking-[0.07px] shadow-none"
-                />
-              }
-              keywordScope={keywordScope}
-              onKeywordScopeChange={handleKeywordScopeChange}
-              showKeywordScope={selectedTab === "organic"}
-              hasActiveKeywordScope={keywordScope !== "all"}
+            <AnalyticsReportsActions
+              onViewReports={() => {
+                if (!businessId) return;
+                router.push(`/business/${businessId}/reports`);
+              }}
+              onContentGroupsClick={() => {
+                if (!businessId) return;
+                setCustomContentGroupsOpen(true);
+              }}
+              reportsDisabled={!businessId}
+              contentGroupsDisabled={!businessId}
             />
           </div>
           <div className="flex items-center gap-3">
@@ -395,17 +389,23 @@ export function AnalyticsTemplate() {
               ))}
             </div>
             <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
-            <AnalyticsReportsActions
-              onViewReports={() => {
-                if (!businessId) return;
-                router.push(`/business/${businessId}/reports`);
-              }}
-              onContentGroupsClick={() => {
-                if (!businessId) return;
-                setCustomContentGroupsOpen(true);
-              }}
-              reportsDisabled={!businessId}
-              contentGroupsDisabled={!businessId}
+            <AnalyticsFilterControls
+              periodSelector={
+                <PeriodSelector
+                  value={selectedPeriod}
+                  onValueChange={setSelectedPeriod}
+                  groupBy={groupBy}
+                  onGroupByChange={setGroupBy}
+                  disabledGroupByOptions={ALL_GROUP_BY_OPTIONS.filter(
+                    (option) => !availableGroupByOptions.includes(option)
+                  )}
+                  className="h-10 cursor-pointer rounded-[8px] border-[#d4d4d4] bg-transparent px-4 py-[7.5px] text-sm font-medium tracking-[0.07px] shadow-none"
+                />
+              }
+              keywordScope={keywordScope}
+              onKeywordScopeChange={handleKeywordScopeChange}
+              showKeywordScope={selectedTab === "organic"}
+              hasActiveKeywordScope={keywordScope !== "all"}
             />
           </div>
         </div>
@@ -435,7 +435,7 @@ export function AnalyticsTemplate() {
         </div>
         <DiscoveryPerformanceSection
           period={selectedPeriod}
-          visibleMetrics={visibleLines}
+          visibleMetrics={overviewVisibleLines}
           filters={filtersForApi}
           onSelectFilter={handleOverviewFilterSelect}
           onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}

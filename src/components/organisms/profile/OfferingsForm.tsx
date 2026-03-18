@@ -22,6 +22,7 @@ import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { toast } from "sonner";
 import { AlertCircle, Boxes, Handshake, Loader2, PackageSearch, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { normalizeWebsiteUrl } from "@/utils/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -65,6 +66,32 @@ export const OfferingsForm = ({
   // Component will only re-render when these fields change
   const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
   const website = useStore(form.store, (state: any) => state.values?.website || "");
+
+  const normalizeOfferingLink = useCallback(
+    (rawLink: unknown) => {
+      const link = String(rawLink ?? "").replace(/^sc-domain:/i, "").trim();
+      if (!link) return "";
+      if (/^(mailto:|tel:)/i.test(link)) return link;
+
+      if (/^https?:\/\//i.test(link)) {
+        return link.replace(/^http:\/\//i, "https://");
+      }
+
+      if (/^[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(link)) {
+        return `https://${link.replace(/^\/+/, "")}`;
+      }
+
+      const baseUrl = normalizeWebsiteUrl(String(website ?? ""));
+      if (!baseUrl) return "";
+
+      try {
+        return new URL(link, baseUrl).toString();
+      } catch {
+        return "";
+      }
+    },
+    [website]
+  );
   const hasAnyOffering = useMemo(() => {
     return (offeringsData || []).some((o) =>
       Boolean(
@@ -171,7 +198,7 @@ export const OfferingsForm = ({
       .map((offering: any) => ({
         name: (offering.name || offering.offering || "").trim(),
         description: (offering.description || "").trim(),
-        link: (offering.url || offering.link || "").trim(),
+        link: normalizeOfferingLink(offering.url || offering.link),
       }))
       .filter((offering) => offering.name !== ""); // Filter out empty names
 
@@ -229,7 +256,7 @@ export const OfferingsForm = ({
 
     // Clear extraction state after processing
     clearExtraction();
-  }, [extractionStatus, extractionData, extractedOfferings, offeringsData, form, clearExtraction, taskId]);
+  }, [extractionStatus, extractionData, extractedOfferings, offeringsData, form, clearExtraction, taskId, normalizeOfferingLink]);
 
   const offeringsTypeInput = (
     <div className="w-1/2">

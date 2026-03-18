@@ -160,7 +160,7 @@ export function PeriodSelector({
       </PopoverTrigger>
 
       <PopoverContent
-        align="start"
+        align="end"
         sideOffset={8}
         className={cn("p-0", showGroupBySelector ? "w-[280px]" : "w-[260px]")}
       >

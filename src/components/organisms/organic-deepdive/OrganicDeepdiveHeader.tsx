@@ -54,7 +54,7 @@ export function OrganicDeepdiveHeader({
   onRemoveFilter,
 }: OrganicDeepdiveHeaderProps) {
   return (
-    <div className="flex items-center justify-between py-4 w-full bg-blue-50 rounded-lg px-3 border border-blue-100 mb-4">
+    <div className="flex items-center justify-between py-2 w-full bg-blue-50 rounded-lg px-3 border border-blue-100 mb-4">
       <div />
 
       {filters.length > 0 && (

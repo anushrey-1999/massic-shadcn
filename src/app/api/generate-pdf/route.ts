@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import puppeteer, { Browser } from "puppeteer-core";
 import chromium from "@sparticuz/chromium-min";
 import Showdown from "showdown";
+import {
+  buildPerformanceReportV2BodyHtml,
+  parsePerformanceReport,
+  PERFORMANCE_REPORT_V2_CSS,
+} from "@/utils/performance-report-v2";
 
 const CHROMIUM_URL =
   "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar";
@@ -856,11 +861,25 @@ function snapshotHtmlFromData(args: {
 export async function POST(request: NextRequest) {
   let page = null;
   try {
-    const { markdown, title, template, html, expressPitch, generatedAt, quickEvaluation, profileTags, competitors, footerSummary, poweredByName } =
+    const {
+      markdown,
+      title,
+      template,
+      html,
+      performanceReport,
+      expressPitch,
+      generatedAt,
+      quickEvaluation,
+      profileTags,
+      competitors,
+      footerSummary,
+      poweredByName,
+    } =
       await request.json();
 
     const normalizedTitle = String(title || "Document");
     const isSnapshotTemplate = template === "snapshot" && !!expressPitch;
+    const isPerformanceV2Template = template === "performance-v2";
 
     let bodyHtml = "";
     let css = CSS;
@@ -877,6 +896,20 @@ export async function POST(request: NextRequest) {
         poweredByName: String(poweredByName || ""),
       });
       css = SNAPSHOT_CSS;
+    } else if (isPerformanceV2Template) {
+      const parsed = parsePerformanceReport(
+        performanceReport !== undefined && performanceReport !== null ? performanceReport : html
+      );
+
+      if (parsed.kind !== "v2") {
+        return NextResponse.json(
+          { error: "performanceReport JSON payload is required for template performance-v2" },
+          { status: 400 }
+        );
+      }
+
+      bodyHtml = buildPerformanceReportV2BodyHtml(parsed.document);
+      css = PERFORMANCE_REPORT_V2_CSS;
     } else if (typeof html === "string" && html.trim()) {
       bodyHtml = html;
       css = CSS;
@@ -912,7 +945,7 @@ export async function POST(request: NextRequest) {
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: isSnapshotTemplate
+      margin: isSnapshotTemplate || isPerformanceV2Template
         ? { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" }
         : { top: "20mm", right: "20mm", bottom: "20mm", left: "20mm" },
     });

@@ -2,13 +2,13 @@
 
 import { useGscPositionDistribution, type TimePeriodValue } from "@/hooks/use-gsc-position-distribution";
 import { PositionDistributionCard } from "@/components/molecules/analytics/PositionDistributionCard";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
 
 interface PositionDistributionSectionProps {
   businessUniqueId: string | null;
   website: string | null;
   period: TimePeriodValue;
-  filters?: DeepdiveFilter[];
+  filters?: DeepdiveApiFilter[];
 }
 
 export function PositionDistributionSection({

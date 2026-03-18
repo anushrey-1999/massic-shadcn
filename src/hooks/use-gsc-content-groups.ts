@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { useMemo, useState, useCallback } from "react";
 import { calculateTrend, type TrendResult } from "@/utils/gsc-deepdive-utils";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
+import type { TimePeriodValue } from "@/utils/analytics-period";
 
-export type TimePeriodValue = "7 days" | "14 days" | "28 days" | "3 months" | "6 months" | "12 months";
+export type { TimePeriodValue };
 export type TableFilterType = "popular" | "growing" | "decaying";
 export type SortColumn = "impressions" | "clicks";
 export type SortDirection = "asc" | "desc";
@@ -22,7 +23,7 @@ export function useGscContentGroups(
   businessId: string | null,
   siteUrl: string | null,
   period: TimePeriodValue = "3 months",
-  apiFilters: DeepdiveFilter[] = []
+  apiFilters: DeepdiveApiFilter[] = []
 ) {
   const [filter, setFilter] = useState<TableFilterType>("popular");
   const [sort, setSort] = useState<{ column: SortColumn; direction: SortDirection }>({
@@ -34,6 +35,7 @@ export function useGscContentGroups(
     queryKey: ["gsc-deepdive-content-group", businessId, siteUrl, period, apiFilters],
     queryFn: async () => {
       const response = await api.post<GscV2Response>("/analytics/gsc/analytics-v2", "node", {
+        businessUniqueId: businessId,
         dimension: "content_group",
         period,
         site_url: siteUrl,
@@ -52,12 +54,20 @@ export function useGscContentGroups(
     return contentGroupData.data.current.map((item: any) => {
       const group = item.group ?? item.keys?.[0] ?? "";
       const displayName = item.displayName ?? group;
-      const prevItem = contentGroupData.data.previous.find((p: any) => (p.group ?? p.keys?.[0]) === group);
+      const source = item.source === "custom" ? "custom" : "default";
+      const prevItem = contentGroupData.data.previous.find((p: any) => {
+        const previousGroup = p.group ?? p.keys?.[0] ?? "";
+        const previousSource = p.source === "custom" ? "custom" : "default";
+        return previousGroup === group && previousSource === source;
+      });
       return {
         group,
         displayName,
+        source,
         impressions: item.impressions ?? 0,
         clicks: item.clicks ?? 0,
+        previousImpressions: prevItem?.impressions ?? 0,
+        previousClicks: prevItem?.clicks ?? 0,
         position: item.position ?? 0,
         impressionsTrend: calculateTrend(item.impressions ?? 0, prevItem?.impressions ?? 0),
         clicksTrend: calculateTrend(item.clicks ?? 0, prevItem?.clicks ?? 0),

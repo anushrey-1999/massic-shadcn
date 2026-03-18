@@ -1,6 +1,26 @@
 export interface EditableTextNodeRef {
   id: string;
   path: number[];
+  ownerPath: number[];
+  tagName: string;
+  label: string;
+}
+
+export interface EditableTextStyleValue {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  align: "left" | "center" | "right";
+  lineHeight: string;
+  letterSpacing: string;
+}
+
+export interface EditableTextBlockInfo {
+  id: string;
+  label: string;
+  text: string;
+  style: EditableTextStyleValue;
 }
 
 export interface EditableLinkRef {
@@ -29,6 +49,7 @@ export interface EditableSpacingRef extends EditableSpacingValue {
   path: number[];
   tagName: string;
   className: string;
+  nodeKind: "block" | "layout";
 }
 
 export interface EditableSectionRef {
@@ -46,12 +67,45 @@ export interface ParsedVideoUrl {
   embedUrl: string;
 }
 
+interface EditableLayoutNodeBase {
+  id: string;
+  path: number[];
+  tagName: string;
+  className: string;
+}
+
+export interface EditableLayoutNode extends EditableLayoutNodeBase {
+  kind: "layout";
+  slotIds: string[];
+}
+
+export interface EditableSlotNode extends EditableLayoutNodeBase {
+  kind: "slot";
+  side: "left" | "right";
+  layoutId: string;
+  isEmpty: boolean;
+}
+
+export interface EditableBlockNode extends EditableLayoutNodeBase {
+  kind: "block";
+  parentLayoutId: string | null;
+  parentSlotId: string | null;
+}
+
+export interface LayoutValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
 export interface EditableHtmlModel {
   previewHtml: string;
   textNodeIndex: EditableTextNodeRef[];
   linkIndex: EditableLinkRef[];
   spacingIndex: EditableSpacingRef[];
   sectionIndex: EditableSectionRef[];
+  layoutIndex: EditableLayoutNode[];
+  slotIndex: EditableSlotNode[];
+  blockIndex: EditableBlockNode[];
 }
 
 const FORBIDDEN_TAGS = new Set([
@@ -121,6 +175,9 @@ const SAFE_STYLE_PROPS = new Set([
   "margin", "padding",
   "text-align", "vertical-align",
   "border-radius",
+  "width", "max-width",
+  "line-height", "letter-spacing",
+  "font-weight", "font-style", "text-decoration",
 ]);
 const UNSAFE_STYLE_VALUE_PATTERN = /expression|url\s*\(|javascript:|behavior|-moz-binding|@import/i;
 
@@ -139,9 +196,39 @@ function sanitizeStyleAttr(raw: string): string {
   return safe.join("; ");
 }
 const NON_EDITABLE_TAGS = new Set(["code", "pre"]);
-const SPACING_CONTAINER_TAGS = new Set(["section", "article", "div"]);
+const EDITABLE_TEXT_BLOCK_TAGS = new Set([
+  "p",
+  "blockquote",
+  "h1", "h2", "h3", "h4", "h5", "h6",
+  "li",
+  "summary",
+  "details",
+]);
+const EDITABLE_ELEMENT_TAGS = new Set([
+  "section", "article", "div",
+  "p", "blockquote",
+  "h1", "h2", "h3", "h4", "h5", "h6",
+  "ul", "ol", "li",
+  "details", "summary",
+  "img", "iframe",
+]);
+const MEDIA_ELEMENT_TAGS = new Set(["img", "iframe"]);
+const EDITABLE_ELEMENT_SELECTOR = [
+  "section", "article", "div",
+  "p", "blockquote",
+  "h1", "h2", "h3", "h4", "h5", "h6",
+  "ul", "ol", "li",
+  "details", "summary",
+  "img", "iframe",
+].join(",");
 const SPACING_MASSIC_CLASS_PATTERN = /\bmassic-[a-z0-9_-]+\b/i;
 const SPACING_CLASS_NAME_PATTERN = /^massic-sp-(?:mt|mb|ml|mr)-(?:none|xs|s|m|l|xl|px-\d{1,3}|nx-\d{1,3})$/;
+const CANONICAL_LAYOUT_CLASS = "massic-layout";
+const CANONICAL_LAYOUT_GRID_CLASS = "massic-grid";
+const CANONICAL_LAYOUT_TWO_COL_CLASS = "cols-2";
+const CANONICAL_SLOT_CLASS = "massic-slot";
+const CANONICAL_SLOT_LEFT_CLASS = "massic-slot-left";
+const CANONICAL_SLOT_RIGHT_CLASS = "massic-slot-right";
 const SPACING_CLASS_PREFIX_BY_KEY: Record<keyof EditableSpacingValue, string> = {
   outsideTop: "massic-sp-mt-",
   outsideBottom: "massic-sp-mb-",
@@ -418,6 +505,364 @@ function getSectionLabel(element: Element): string {
   return "Block";
 }
 
+function getTextBlockLabel(tagName: string): string {
+  const normalized = String(tagName || "").toLowerCase();
+  if (normalized === "a") return "Link";
+  if (normalized === "p") return "Paragraph";
+  if (/^h[1-6]$/.test(normalized)) return "Heading";
+  if (normalized === "li") return "List Item";
+  if (normalized === "blockquote") return "Quote";
+  if (normalized === "summary") return "Summary";
+  if (normalized === "details") return "Details";
+  return normalized === "div" ? "Text Block" : normalized;
+}
+
+function hasClass(element: Element, className: string): boolean {
+  return element.classList.contains(className);
+}
+
+function isCanonicalLayoutElement(element: Element): boolean {
+  return hasClass(element, CANONICAL_LAYOUT_CLASS);
+}
+
+function isCanonicalSlotElement(element: Element): boolean {
+  return hasClass(element, CANONICAL_SLOT_CLASS);
+}
+
+function getCanonicalSlotSide(element: Element): "left" | "right" {
+  return hasClass(element, CANONICAL_SLOT_RIGHT_CLASS) ? "right" : "left";
+}
+
+function isLegacySplitLayoutElement(element: Element): boolean {
+  return (
+    element.tagName.toLowerCase() === "div" &&
+    (hasClass(element, CANONICAL_LAYOUT_GRID_CLASS) || hasClass(element, "massic-split")) &&
+    !hasClass(element, CANONICAL_LAYOUT_CLASS)
+  );
+}
+
+function isAnonymousLayoutWrapper(element: Element): boolean {
+  if (element.tagName.toLowerCase() !== "div") return false;
+  if (element.attributes.length > 0) return false;
+  return true;
+}
+
+function hasMeaningfulChildContent(element: Element): boolean {
+  if (element.children.length > 0) return true;
+  return Array.from(element.childNodes).some((node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return String(node.textContent || "").replace(/\u00A0/g, " ").trim().length > 0;
+    }
+    return false;
+  });
+}
+
+function unwrapElement(element: Element) {
+  const parent = element.parentNode;
+  if (!parent) return;
+  while (element.firstChild) {
+    parent.insertBefore(element.firstChild, element);
+  }
+  parent.removeChild(element);
+}
+
+function getEditableTextOwnerElement(element: Element | null): HTMLElement | null {
+  let current = element;
+  while (current) {
+    if (EDITABLE_TEXT_BLOCK_TAGS.has(current.tagName.toLowerCase())) {
+      return current as HTMLElement;
+    }
+    if (
+      current.tagName.toLowerCase() === "a"
+      && current.hasAttribute("data-massic-editable-link")
+    ) {
+      return current as HTMLElement;
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function normalizeTextAlignValue(value: string): "left" | "center" | "right" {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "center") return "center";
+  if (normalized === "right") return "right";
+  return "left";
+}
+
+function readEditableTextStyleFromElement(element: HTMLElement): EditableTextStyleValue {
+  const textDecoration = String(
+    element.style.textDecorationLine || element.style.textDecoration || ""
+  ).toLowerCase();
+
+  return {
+    bold: element.style.fontWeight === "700" || element.style.fontWeight === "bold",
+    italic: element.style.fontStyle === "italic",
+    underline: textDecoration.includes("underline"),
+    strike: textDecoration.includes("line-through"),
+    align: normalizeTextAlignValue(element.style.textAlign),
+    lineHeight: element.style.lineHeight || "",
+    letterSpacing: element.style.letterSpacing || "",
+  };
+}
+
+function writeEditableTextStyleToElement(element: HTMLElement, style: Partial<EditableTextStyleValue>) {
+  if (style.bold !== undefined) {
+    if (style.bold) {
+      element.style.setProperty("font-weight", "700");
+    } else {
+      element.style.removeProperty("font-weight");
+    }
+  }
+
+  if (style.italic !== undefined) {
+    if (style.italic) {
+      element.style.setProperty("font-style", "italic");
+    } else {
+      element.style.removeProperty("font-style");
+    }
+  }
+
+  if (style.align !== undefined) {
+    if (style.align && style.align !== "left") {
+      element.style.setProperty("text-align", style.align);
+    } else {
+      element.style.removeProperty("text-align");
+    }
+  }
+
+  if (style.lineHeight !== undefined) {
+    if (style.lineHeight.trim()) {
+      element.style.setProperty("line-height", style.lineHeight.trim());
+    } else {
+      element.style.removeProperty("line-height");
+    }
+  }
+
+  if (style.letterSpacing !== undefined) {
+    if (style.letterSpacing.trim()) {
+      element.style.setProperty("letter-spacing", style.letterSpacing.trim());
+    } else {
+      element.style.removeProperty("letter-spacing");
+    }
+  }
+
+  if (style.underline !== undefined || style.strike !== undefined) {
+    const current = readEditableTextStyleFromElement(element);
+    const underline = style.underline ?? current.underline;
+    const strike = style.strike ?? current.strike;
+    const parts: string[] = [];
+    if (underline) parts.push("underline");
+    if (strike) parts.push("line-through");
+    if (parts.length) {
+      element.style.setProperty("text-decoration", parts.join(" "));
+    } else {
+      element.style.removeProperty("text-decoration");
+      element.style.removeProperty("text-decoration-line");
+    }
+  }
+}
+
+function ensureCanonicalLayoutClasses(element: Element) {
+  element.classList.add(CANONICAL_LAYOUT_CLASS);
+}
+
+function createCanonicalSlot(doc: Document, side: "left" | "right"): HTMLDivElement {
+  const slot = doc.createElement("div");
+  slot.classList.add(CANONICAL_SLOT_CLASS);
+  slot.classList.add(side === "left" ? CANONICAL_SLOT_LEFT_CLASS : CANONICAL_SLOT_RIGHT_CLASS);
+  return slot;
+}
+
+function normalizeSingleLayoutElement(layout: Element) {
+  if (!isCanonicalLayoutElement(layout)) return;
+
+  ensureCanonicalLayoutClasses(layout);
+
+  const directChildren = Array.from(layout.children);
+  if (!directChildren.length) {
+    return;
+  }
+
+  const alreadyCanonical = directChildren.every(isCanonicalSlotElement);
+  if (!alreadyCanonical) {
+    const slots = directChildren.map((child, index) => {
+      const slot = createCanonicalSlot(
+        layout.ownerDocument,
+        index === 1 ? "right" : "left"
+      );
+      slot.appendChild(child);
+      return slot;
+    });
+    layout.replaceChildren(...slots);
+  }
+
+  const slots = Array.from(layout.children).filter(isCanonicalSlotElement);
+  slots.forEach((slot, index) => {
+    slot.classList.add(CANONICAL_SLOT_CLASS);
+    if (index < 2) {
+      slot.classList.remove(CANONICAL_SLOT_LEFT_CLASS, CANONICAL_SLOT_RIGHT_CLASS);
+      slot.classList.add(index === 1 ? CANONICAL_SLOT_RIGHT_CLASS : CANONICAL_SLOT_LEFT_CLASS);
+    }
+
+    while (slot.children.length === 1 && isAnonymousLayoutWrapper(slot.children[0]!)) {
+      unwrapElement(slot.children[0]!);
+    }
+  });
+}
+
+const SPACING_PX_CLASS_RE = /^massic-sp-(mt|mb|ml|mr)-(px-(\d{1,3})|nx-(\d{1,3}))$/;
+const SPACING_SCALE_CLASS_RE = /^massic-sp-(mt|mb|ml|mr)-(none|xs|s|m|l|xl)$/;
+const SPACING_PY_SCALE_CLASS_RE = /^massic-sp-py-(none|xs|s|m|l|xl)$/;
+const SPACING_DIR_TO_PROP: Record<string, string> = { mt: "margin-top", mb: "margin-bottom", ml: "margin-left", mr: "margin-right" };
+const SPACING_SCALE_PX: Record<string, number> = { none: 0, xs: 8, s: 12, m: 16, l: 24, xl: 32 };
+
+function migrateSpacingClassesToInlineStyles(doc: Document) {
+  const allElements = Array.from(doc.body.querySelectorAll("[class]"));
+  for (const el of allElements) {
+    const classNames = (el.getAttribute("class") || "").split(/\s+/).filter(Boolean);
+    const keep: string[] = [];
+    const inlineOverrides: Record<string, string> = {};
+
+    for (const cn of classNames) {
+      const pxMatch = SPACING_PX_CLASS_RE.exec(cn);
+      if (pxMatch) {
+        const dir = pxMatch[1];
+        const prop = SPACING_DIR_TO_PROP[dir];
+        if (prop) {
+          const positivePx = pxMatch[3];
+          const negativePx = pxMatch[4];
+          const px = positivePx != null ? Number(positivePx) : -(Number(negativePx));
+          inlineOverrides[prop] = `${px}px`;
+        }
+        continue;
+      }
+      const scaleMatch = SPACING_SCALE_CLASS_RE.exec(cn);
+      if (scaleMatch) {
+        const dir = scaleMatch[1];
+        const scaleName = scaleMatch[2];
+        const prop = SPACING_DIR_TO_PROP[dir];
+        if (prop && scaleName in SPACING_SCALE_PX) {
+          inlineOverrides[prop] = `${SPACING_SCALE_PX[scaleName]}px`;
+        }
+        continue;
+      }
+      const pyMatch = SPACING_PY_SCALE_CLASS_RE.exec(cn);
+      if (pyMatch) {
+        const scaleName = pyMatch[1];
+        if (scaleName in SPACING_SCALE_PX) {
+          const px = SPACING_SCALE_PX[scaleName];
+          inlineOverrides["padding-top"] = `${px}px`;
+          inlineOverrides["padding-bottom"] = `${px}px`;
+        }
+        continue;
+      }
+      keep.push(cn);
+    }
+
+    if (Object.keys(inlineOverrides).length === 0) continue;
+
+    if (keep.length > 0) {
+      el.setAttribute("class", keep.join(" "));
+    } else {
+      el.removeAttribute("class");
+    }
+
+    const existingStyle = (el.getAttribute("style") || "").split(";").map((s) => s.trim()).filter(Boolean);
+    const overrideProps = new Set(Object.keys(inlineOverrides));
+    const filteredExisting = existingStyle.filter((decl) => {
+      const prop = decl.slice(0, decl.indexOf(":")).trim();
+      return !overrideProps.has(prop);
+    });
+    for (const [prop, val] of Object.entries(inlineOverrides)) {
+      if (val === "0px") continue;
+      filteredExisting.push(`${prop}: ${val}`);
+    }
+    if (filteredExisting.length > 0) {
+      el.setAttribute("style", filteredExisting.join("; "));
+    } else {
+      el.removeAttribute("style");
+    }
+  }
+}
+
+function normalizeLayoutDocument(doc: Document) {
+  const contentRoot = findMassicContentRoot(doc);
+
+  migrateSpacingClassesToInlineStyles(doc);
+
+  Array.from(contentRoot.querySelectorAll(`.${CANONICAL_SLOT_CLASS}`)).forEach((slot) => {
+    const parent = slot.parentElement;
+    if (!parent || !isCanonicalLayoutElement(parent)) {
+      if (hasMeaningfulChildContent(slot)) {
+        unwrapElement(slot);
+      } else {
+        slot.remove();
+      }
+    }
+  });
+
+  const layouts = Array.from(contentRoot.querySelectorAll(`.${CANONICAL_LAYOUT_CLASS}`));
+  layouts.forEach((layout) => normalizeSingleLayoutElement(layout));
+}
+
+export function upgradeLegacySplitLayouts(sourceHtml: string): string {
+  if (!sourceHtml) return sourceHtml || "";
+  const doc = parseHtml(sourceHtml);
+  const contentRoot = findMassicContentRoot(doc);
+
+  Array.from(contentRoot.querySelectorAll("div")).forEach((element) => {
+    if (!isLegacySplitLayoutElement(element)) return;
+    ensureCanonicalLayoutClasses(element);
+  });
+
+  normalizeLayoutDocument(doc);
+  return doc.body.innerHTML;
+}
+
+export function normalizeLayoutHtml(sourceHtml: string): string {
+  if (!sourceHtml) return sourceHtml || "";
+  const upgraded = upgradeLegacySplitLayouts(sourceHtml);
+  const doc = parseHtml(upgraded);
+  normalizeLayoutDocument(doc);
+  return doc.body.innerHTML;
+}
+
+function serializeNormalizedHtml(doc: Document): string {
+  normalizeLayoutDocument(doc);
+  return doc.body.innerHTML;
+}
+
+export function validatePublishableLayoutHtml(sourceHtml: string): LayoutValidationResult {
+  if (!sourceHtml) {
+    return { isValid: true, errors: [] };
+  }
+
+  const normalized = normalizeLayoutHtml(sourceHtml);
+  const doc = parseHtml(normalized);
+  const contentRoot = findMassicContentRoot(doc);
+  const errors: string[] = [];
+
+  Array.from(contentRoot.querySelectorAll(`.${CANONICAL_SLOT_CLASS}`)).forEach((slot) => {
+    if (!slot.parentElement || !isCanonicalLayoutElement(slot.parentElement)) {
+      errors.push("Found an orphan layout slot outside a canonical two-column layout.");
+    }
+  });
+
+  Array.from(contentRoot.querySelectorAll(`.${CANONICAL_LAYOUT_CLASS}`)).forEach((layout) => {
+    const slots = Array.from(layout.children).filter(isCanonicalSlotElement);
+    if (!slots.length) {
+      errors.push("A layout wrapper is missing its editable slots.");
+      return;
+    }
+  });
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
 function parseSectionIndex(sectionId: string): number {
   const match = /^sec-(\d+)$/.exec(sectionId);
   if (!match) return -1;
@@ -446,11 +891,17 @@ function hasMassicClassName(classNameInput: string): boolean {
 
 function isSpacingContainerTarget(element: Element): boolean {
   const tagName = element.tagName.toLowerCase();
-  if (!SPACING_CONTAINER_TAGS.has(tagName)) return false;
+  if (!EDITABLE_ELEMENT_TAGS.has(tagName)) return false;
   if (tagName === "div" && element.classList.contains("massic-content")) return false;
+  if (isCanonicalSlotElement(element)) return false;
   if (element.hasAttribute("data-massic-text-id")) return false;
   if (element.hasAttribute("data-massic-link-id")) return false;
   if (element.classList.contains("massic-text-editable")) return false;
+  if (element.closest("[data-massic-text-id]")) return false;
+
+  if (MEDIA_ELEMENT_TAGS.has(tagName)) {
+    return true;
+  }
 
   const text = (element.textContent || "").replace(/\u00A0/g, " ").trim();
   if (element.childElementCount === 0 && !text) return false;
@@ -534,12 +985,70 @@ export function sanitizePageHtml(html: string): string {
   return doc.body.innerHTML;
 }
 
+const GRID_COL_MAP: Record<string, string> = {
+  "cols-2": "repeat(2, minmax(0, 1fr))",
+  "cols-3": "repeat(3, minmax(0, 1fr))",
+  "cols-4": "repeat(4, minmax(0, 1fr))",
+};
+
+function applyInlineGridStyles(element: Element) {
+  const cls = element.classList;
+  if (!cls.contains(CANONICAL_LAYOUT_GRID_CLASS) && !cls.contains("massic-grid")) return;
+
+  const existingStyle = element.getAttribute("style") || "";
+  const parts: string[] = existingStyle
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s && !s.startsWith("display") && !s.startsWith("grid-template-columns") && !s.startsWith("gap"));
+
+  parts.push("display: grid");
+  parts.push("gap: var(--massic-s5, 20px)");
+
+  for (const [clsName, colVal] of Object.entries(GRID_COL_MAP)) {
+    if (cls.contains(clsName)) {
+      parts.push(`grid-template-columns: ${colVal}`);
+      break;
+    }
+  }
+
+  element.setAttribute("style", parts.join("; "));
+
+  const children = Array.from(element.children);
+  children.forEach((child) => {
+    const childStyle = child.getAttribute("style") || "";
+    const childParts = childStyle
+      .split(";")
+      .map((s) => s.trim())
+      .filter((s) => s && !s.startsWith("min-width"));
+    childParts.push("min-width: 0");
+    child.setAttribute("style", childParts.join("; "));
+  });
+}
+
+function applyInlineSplitStyles(element: Element) {
+  if (!element.classList.contains("massic-split")) return;
+  const existingStyle = element.getAttribute("style") || "";
+  const parts: string[] = existingStyle
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s && !s.startsWith("display") && !s.startsWith("grid-template-columns") && !s.startsWith("gap") && !s.startsWith("align-items"));
+
+  parts.push("display: grid");
+  parts.push("gap: var(--massic-s6, 24px)");
+  parts.push("align-items: center");
+  parts.push("grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr)");
+  element.setAttribute("style", parts.join("; "));
+}
+
 export function buildEditableHtmlModel(sanitizedHtml: string): EditableHtmlModel {
-  const doc = parseHtml(sanitizedHtml);
+  const doc = parseHtml(normalizeLayoutHtml(sanitizedHtml));
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
   const refs: EditableTextNodeRef[] = [];
   const linkRefs: EditableLinkRef[] = [];
   const spacingRefs: EditableSpacingRef[] = [];
+  const layoutRefs: EditableLayoutNode[] = [];
+  const slotRefs: EditableSlotNode[] = [];
+  const blockRefs: EditableBlockNode[] = [];
   const targetNodes: Text[] = [];
   const links = Array.from(doc.body.querySelectorAll("a"));
 
@@ -547,19 +1056,26 @@ export function buildEditableHtmlModel(sanitizedHtml: string): EditableHtmlModel
     const node = walker.currentNode as Text;
     const parentTag = node.parentElement?.tagName.toLowerCase() || "";
     if (NON_EDITABLE_TAGS.has(parentTag)) continue;
+    if (!getEditableTextOwnerElement(node.parentElement)) continue;
     if (!hasNonWhitespaceText(node)) continue;
     targetNodes.push(node);
   }
 
   targetNodes.forEach((node, index) => {
+    const owner = getEditableTextOwnerElement(node.parentElement);
+    if (!owner) return;
     const id = `txt-${index}`;
     const path = buildNodePath(doc.body, node);
-    refs.push({ id, path });
+    const ownerPath = buildNodePath(doc.body, owner);
+    const tagName = owner.tagName.toLowerCase();
+    const label = getTextBlockLabel(tagName);
+    refs.push({ id, path, ownerPath, tagName, label });
 
     const span = doc.createElement("span");
     span.setAttribute("data-massic-text-id", id);
     span.setAttribute("data-massic-editable", "true");
-    span.setAttribute("contenteditable", "plaintext-only");
+    span.setAttribute("data-massic-text-label", label);
+    span.setAttribute("title", `Edit ${label.toLowerCase()}`);
     span.className = "massic-text-editable";
     span.textContent = node.textContent || "";
     node.parentNode?.replaceChild(span, node);
@@ -583,7 +1099,7 @@ export function buildEditableHtmlModel(sanitizedHtml: string): EditableHtmlModel
     link.setAttribute("title", "Click to edit link");
   });
 
-  const spacingTargets = Array.from(doc.body.querySelectorAll("section,article,div"))
+  const spacingTargets = Array.from(doc.body.querySelectorAll(EDITABLE_ELEMENT_SELECTOR))
     .filter(isSpacingContainerTarget)
     .map((element, index) => ({
       element,
@@ -604,18 +1120,105 @@ export function buildEditableHtmlModel(sanitizedHtml: string): EditableHtmlModel
     const className = String(target.getAttribute("class") || "").trim();
     const styleStr = String(target.getAttribute("style") || "").trim();
     const spacingValue = parseEditableSpacingValue(className, styleStr);
+    const nodeKind: EditableSpacingRef["nodeKind"] = isCanonicalLayoutElement(target) ? "layout" : "block";
 
     spacingRefs.push({
       id,
       path,
       tagName: target.tagName.toLowerCase(),
       className,
+      nodeKind,
       ...spacingValue,
     });
 
     target.setAttribute("data-massic-spacing-id", id);
     target.setAttribute("data-massic-spacing-target", "true");
+    if (target.tagName.toLowerCase() === "img") {
+      target.setAttribute("data-massic-media-editable", "img");
+      target.setAttribute("data-massic-edit-hint", "Click to edit image");
+    } else if (
+      target.tagName.toLowerCase() === "iframe" ||
+      (target.tagName.toLowerCase() === "div" && target.classList.contains("massic-video-wrap"))
+    ) {
+      const iframe = target.tagName.toLowerCase() === "iframe"
+        ? target
+        : target.querySelector("iframe");
+      if (iframe) {
+        iframe.setAttribute("loading", "eager");
+      }
+      target.setAttribute("data-massic-media-editable", "iframe");
+      target.setAttribute("data-massic-edit-hint", "Click to edit video");
+    }
   });
+
+  const layouts = Array.from(doc.body.querySelectorAll(`.${CANONICAL_LAYOUT_CLASS}`))
+    .filter(isCanonicalLayoutElement);
+
+  layouts.forEach((layout, index) => {
+    const id = `lay-${index}`;
+    const slots = Array.from(layout.children).filter(isCanonicalSlotElement);
+    layoutRefs.push({
+      id,
+      kind: "layout",
+      path: buildNodePath(doc.body, layout),
+      tagName: layout.tagName.toLowerCase(),
+      className: String(layout.getAttribute("class") || "").trim(),
+      slotIds: slots.map((_, slotIndex) => `slot-${index}-${slotIndex}`),
+    });
+    layout.setAttribute("data-massic-layout-id", id);
+    applyInlineGridStyles(layout);
+  });
+
+  layouts.forEach((layout, layoutIndex) => {
+    const layoutId = `lay-${layoutIndex}`;
+    const slots = Array.from(layout.children).filter(isCanonicalSlotElement);
+    slots.forEach((slot, slotIndex) => {
+      const id = `slot-${layoutIndex}-${slotIndex}`;
+      const side = getCanonicalSlotSide(slot);
+      const isEmpty = !hasMeaningfulChildContent(slot);
+      slotRefs.push({
+        id,
+        kind: "slot",
+        side,
+        layoutId,
+        isEmpty,
+        path: buildNodePath(doc.body, slot),
+        tagName: slot.tagName.toLowerCase(),
+        className: String(slot.getAttribute("class") || "").trim(),
+      });
+      slot.setAttribute("data-massic-slot-id", id);
+      slot.setAttribute("data-massic-slot-side", side);
+      if (isEmpty) {
+        slot.setAttribute("data-massic-slot-empty", "true");
+      }
+    });
+  });
+
+  const nonCanonicalGrids = Array.from(doc.body.querySelectorAll(".massic-grid, .massic-split"))
+    .filter((el) => !isCanonicalLayoutElement(el));
+  for (const el of nonCanonicalGrids) {
+    if (el.classList.contains("massic-split")) {
+      applyInlineSplitStyles(el);
+    } else {
+      applyInlineGridStyles(el);
+    }
+  }
+
+  spacingTargets
+    .filter((target) => !isCanonicalLayoutElement(target))
+    .forEach((target, blockIndex) => {
+      const parentSlot = target.closest(`.${CANONICAL_SLOT_CLASS}`) as Element | null;
+      const parentLayout = target.closest(`.${CANONICAL_LAYOUT_CLASS}`) as Element | null;
+      blockRefs.push({
+        id: `blk-${blockIndex}`,
+        kind: "block",
+        path: buildNodePath(doc.body, target),
+        tagName: target.tagName.toLowerCase(),
+        className: String(target.getAttribute("class") || "").trim(),
+        parentLayoutId: parentLayout?.getAttribute("data-massic-layout-id") || null,
+        parentSlotId: parentSlot?.getAttribute("data-massic-slot-id") || null,
+      });
+    });
 
   const contentRoot = findMassicContentRoot(doc);
   const sectionElements = Array.from(contentRoot.children);
@@ -639,6 +1242,9 @@ export function buildEditableHtmlModel(sanitizedHtml: string): EditableHtmlModel
     linkIndex: linkRefs,
     spacingIndex: spacingRefs,
     sectionIndex: sectionRefs,
+    layoutIndex: layoutRefs,
+    slotIndex: slotRefs,
+    blockIndex: blockRefs,
   };
 }
 
@@ -659,6 +1265,53 @@ export function applyTextEditsToHtml(
   }
 
   return doc.body.innerHTML;
+}
+
+export function getTextBlockInfoFromElement(target: HTMLElement): EditableTextBlockInfo | null {
+  const textEl = target.closest("[data-massic-text-id]") as HTMLElement | null;
+  if (!textEl) return null;
+  const owner = getEditableTextOwnerElement(textEl.parentElement);
+  if (!owner) return null;
+  const id = textEl.dataset.massicTextId || "";
+  if (!id) return null;
+
+  return {
+    id,
+    label: textEl.dataset.massicTextLabel || getTextBlockLabel(owner.tagName.toLowerCase()),
+    text: textEl.textContent || "",
+    style: readEditableTextStyleFromElement(owner),
+  };
+}
+
+export function updateTextBlockByTextId(
+  sourceHtml: string,
+  textNodeIndex: EditableTextNodeRef[],
+  textId: string,
+  updates: {
+    text?: string;
+    style?: Partial<EditableTextStyleValue>;
+  }
+): string {
+  if (!sourceHtml || !textId) return sourceHtml;
+  const ref = textNodeIndex.find((item) => item.id === textId);
+  if (!ref) return sourceHtml;
+
+  const doc = parseHtml(sourceHtml);
+  const textNode = getNodeByPath(doc.body, ref.path);
+  if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
+    return sourceHtml;
+  }
+
+  if (updates.text !== undefined) {
+    textNode.textContent = updates.text;
+  }
+
+  const ownerNode = getNodeByPath(doc.body, ref.ownerPath);
+  if (ownerNode && ownerNode.nodeType === Node.ELEMENT_NODE && updates.style) {
+    writeEditableTextStyleToElement(ownerNode as HTMLElement, updates.style);
+  }
+
+  return serializeNormalizedHtml(doc);
 }
 
 export function applyLinkEditsToHtml(
@@ -689,6 +1342,44 @@ export function applyLinkEditsToHtml(
     }
 
     element.setAttribute("href", nextHref);
+  }
+
+  return doc.body.innerHTML;
+}
+
+export function applyLinkLabelEditsToHtml(
+  sourceHtml: string,
+  linkIndex: EditableLinkRef[],
+  edits: Record<string, string>
+): string {
+  if (!sourceHtml || !linkIndex.length) return sourceHtml || "";
+
+  const doc = parseHtml(sourceHtml);
+  for (const ref of linkIndex) {
+    if (!Object.prototype.hasOwnProperty.call(edits, ref.id)) continue;
+
+    const nextLabel = String(edits[ref.id] ?? "").replace(/\u00A0/g, " ").trim();
+    const node = getNodeByPath(doc.body, ref.path);
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) continue;
+
+    const element = node as Element;
+    if (element.tagName.toLowerCase() !== "a") continue;
+
+    const walker = doc.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    while (walker.nextNode()) {
+      textNodes.push(walker.currentNode as Text);
+    }
+
+    if (textNodes.length === 0) {
+      element.appendChild(doc.createTextNode(nextLabel));
+      continue;
+    }
+
+    textNodes[0].textContent = nextLabel;
+    for (let index = 1; index < textNodes.length; index += 1) {
+      textNodes[index].textContent = "";
+    }
   }
 
   return doc.body.innerHTML;
@@ -752,7 +1443,7 @@ export function moveSectionInHtml(
     root.insertBefore(target, after);
   }
 
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
 }
 
 export function deleteSectionFromHtml(
@@ -767,7 +1458,7 @@ export function deleteSectionFromHtml(
   if (index < 0 || index >= children.length) return sourceHtml;
 
   root.removeChild(children[index]);
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
 }
 
 export function duplicateSectionInHtml(
@@ -784,7 +1475,7 @@ export function duplicateSectionInHtml(
   const clone = children[index].cloneNode(true) as Element;
   const nextSibling = children[index].nextSibling;
   root.insertBefore(clone, nextSibling);
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
 }
 
 export function insertBlockInHtml(
@@ -805,7 +1496,7 @@ export function insertBlockInHtml(
     for (const el of newElements) {
       root.appendChild(doc.adoptNode(el));
     }
-    return doc.body.innerHTML;
+    return serializeNormalizedHtml(doc);
   }
 
   const children = Array.from(root.children);
@@ -814,7 +1505,7 @@ export function insertBlockInHtml(
     for (const el of newElements) {
       root.appendChild(doc.adoptNode(el));
     }
-    return doc.body.innerHTML;
+    return serializeNormalizedHtml(doc);
   }
 
   const anchor = children[index];
@@ -829,7 +1520,7 @@ export function insertBlockInHtml(
     }
   }
 
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
 }
 
 export function buildImageBlockHtml(
@@ -889,7 +1580,7 @@ export function buildVideoEmbedHtml(url: string): string {
     `<div class="massic-video-wrap">`,
     `<iframe src="${escapedSrc}" width="100%" height="400" frameborder="0" `,
     `allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" `,
-    `allowfullscreen loading="lazy" title="Embedded video"></iframe>`,
+    `allowfullscreen loading="eager" title="Embedded video"></iframe>`,
     `</div></div></section>`,
   ].join("");
 }
@@ -920,11 +1611,22 @@ function parseSpacingIndex(spacingId: string): number {
   return match ? Number(match[1]) : -1;
 }
 
+function parseSlotIndex(slotId: string): [number, number] | null {
+  const match = /^slot-(\d+)-(\d+)$/.exec(slotId);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2])];
+}
+
+function parseLayoutIndex(layoutId: string): number {
+  const match = /^lay-(\d+)$/.exec(layoutId);
+  return match ? Number(match[1]) : -1;
+}
+
 function findSpacingTargetElement(doc: Document, spacingId: string): Element | null {
   const idx = parseSpacingIndex(spacingId);
   if (idx < 0) return null;
 
-  const allTargets = Array.from(doc.body.querySelectorAll("section,article,div"))
+  const allTargets = Array.from(doc.body.querySelectorAll(EDITABLE_ELEMENT_SELECTOR))
     .filter(isSpacingContainerTarget)
     .map((element, i) => ({
       element,
@@ -937,6 +1639,41 @@ function findSpacingTargetElement(doc: Document, spacingId: string): Element | n
     });
 
   return allTargets[idx]?.element ?? null;
+}
+
+function findLayoutElement(doc: Document, layoutId: string): Element | null {
+  const idx = parseLayoutIndex(layoutId);
+  if (idx < 0) return null;
+  const layouts = Array.from(doc.body.querySelectorAll(`.${CANONICAL_LAYOUT_CLASS}`))
+    .filter(isCanonicalLayoutElement);
+  return layouts[idx] ?? null;
+}
+
+function findSlotElement(doc: Document, slotId: string): Element | null {
+  const parsed = parseSlotIndex(slotId);
+  if (!parsed) return null;
+  const [layoutIndex, slotIndex] = parsed;
+  const layout = findLayoutElement(doc, `lay-${layoutIndex}`);
+  if (!layout) return null;
+  const slots = Array.from(layout.children).filter(isCanonicalSlotElement);
+  return slots[slotIndex] ?? null;
+}
+
+function collapseSingleEmptyTwoSlotLayout(layout: Element) {
+  if (!isCanonicalLayoutElement(layout) || !layout.parentNode) return;
+  const slots = Array.from(layout.children).filter(isCanonicalSlotElement);
+  if (slots.length !== 2) return;
+
+  const [firstSlot, secondSlot] = slots;
+  const firstHasContent = hasMeaningfulChildContent(firstSlot);
+  const secondHasContent = hasMeaningfulChildContent(secondSlot);
+  if (firstHasContent === secondHasContent) return;
+
+  const survivingSlot = firstHasContent ? firstSlot : secondSlot;
+  while (survivingSlot.firstChild) {
+    layout.parentNode.insertBefore(survivingSlot.firstChild, layout);
+  }
+  layout.remove();
 }
 
 export interface ElementSiblingInfo {
@@ -970,12 +1707,47 @@ export function getElementSiblingInfo(sourceHtml: string, spacingId: string): El
 }
 
 export function deleteElementBySpacingId(sourceHtml: string, spacingId: string): string {
+  return deleteBlockAndNormalize(sourceHtml, spacingId);
+}
+
+export function deleteBlockAndNormalize(sourceHtml: string, spacingId: string): string {
   if (!sourceHtml) return sourceHtml;
   const doc = parseHtml(sourceHtml);
   const el = findSpacingTargetElement(doc, spacingId);
   if (!el || !el.parentElement) return sourceHtml;
+  if (isCanonicalLayoutElement(el)) return sourceHtml;
+  const parentLayout = el.closest(`.${CANONICAL_LAYOUT_CLASS}`) as Element | null;
   el.parentElement.removeChild(el);
-  return doc.body.innerHTML;
+  if (parentLayout) {
+    collapseSingleEmptyTwoSlotLayout(parentLayout);
+  }
+  return serializeNormalizedHtml(doc);
+}
+
+export function deleteSlotById(sourceHtml: string, slotId: string): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const slot = findSlotElement(doc, slotId);
+  if (!slot || !slot.parentElement) return sourceHtml;
+  const layout = slot.parentElement;
+  slot.remove();
+
+  const remainingSlots = Array.from(layout.children).filter(isCanonicalSlotElement);
+  if (!remainingSlots.length) {
+    layout.remove();
+    return serializeNormalizedHtml(doc);
+  }
+
+  if (remainingSlots.length === 1 && layout.parentNode) {
+    const survivingSlot = remainingSlots[0]!;
+    while (survivingSlot.firstChild) {
+      layout.parentNode.insertBefore(survivingSlot.firstChild, layout);
+    }
+    layout.remove();
+    return serializeNormalizedHtml(doc);
+  }
+
+  return serializeNormalizedHtml(doc);
 }
 
 export function duplicateElementBySpacingId(sourceHtml: string, spacingId: string): string {
@@ -983,9 +1755,10 @@ export function duplicateElementBySpacingId(sourceHtml: string, spacingId: strin
   const doc = parseHtml(sourceHtml);
   const el = findSpacingTargetElement(doc, spacingId);
   if (!el || !el.parentElement) return sourceHtml;
+  if (isCanonicalLayoutElement(el)) return sourceHtml;
   const clone = el.cloneNode(true) as Element;
   el.parentElement.insertBefore(clone, el.nextSibling);
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
 }
 
 export function moveElementBySpacingId(
@@ -997,6 +1770,7 @@ export function moveElementBySpacingId(
   const doc = parseHtml(sourceHtml);
   const el = findSpacingTargetElement(doc, spacingId);
   if (!el || !el.parentElement) return sourceHtml;
+  if (isCanonicalLayoutElement(el)) return sourceHtml;
 
   const parent = el.parentElement;
   const siblings = Array.from(parent.children);
@@ -1008,7 +1782,7 @@ export function moveElementBySpacingId(
     parent.insertBefore(el, siblings[idx + 1].nextSibling);
   }
 
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
 }
 
 function unwrapSectionContainer(blockHtml: string): string {
@@ -1047,7 +1821,7 @@ export function insertInsideElementBySpacingId(
     }
   }
 
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
 }
 
 export function insertAdjacentToElementBySpacingId(
@@ -1078,14 +1852,60 @@ export function insertAdjacentToElementBySpacingId(
     }
   }
 
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
+}
+
+export function insertBlockIntoSlot(
+  sourceHtml: string,
+  slotId: string,
+  blockHtml: string,
+  position: "start" | "end" = "end"
+): string {
+  if (!sourceHtml || !blockHtml) return sourceHtml || "";
+  const doc = parseHtml(sourceHtml);
+  const slot = findSlotElement(doc, slotId);
+  if (!slot) return sourceHtml;
+
+  const innerHtml = unwrapSectionContainer(blockHtml);
+  const frag = parseHtml(innerHtml);
+  const newChildren = Array.from(frag.body.children);
+  if (!newChildren.length) return sourceHtml;
+
+  if (position === "start") {
+    const first = slot.firstChild;
+    for (const child of newChildren) {
+      slot.insertBefore(doc.adoptNode(child), first);
+    }
+  } else {
+    for (const child of newChildren) {
+      slot.appendChild(doc.adoptNode(child));
+    }
+  }
+
+  return serializeNormalizedHtml(doc);
+}
+
+export function collapseLayoutBySpacingId(sourceHtml: string, spacingId: string): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const layout = findSpacingTargetElement(doc, spacingId);
+  if (!layout || !isCanonicalLayoutElement(layout) || !layout.parentNode) return sourceHtml;
+
+  const slots = Array.from(layout.children).filter(isCanonicalSlotElement);
+  for (const slot of slots) {
+    while (slot.firstChild) {
+      layout.parentNode.insertBefore(slot.firstChild, layout);
+    }
+  }
+  layout.remove();
+  return serializeNormalizedHtml(doc);
 }
 
 // ---------------------------------------------------------------------------
-//  Wrap element with a sibling in a 2-column grid (Insert Left / Right)
+//  Wrap element with a sibling in a canonical 2-column layout (Insert Left / Right)
 // ---------------------------------------------------------------------------
 
-export function wrapElementWithSiblingGrid(
+export function wrapBlockInTwoColumnLayout(
   sourceHtml: string,
   spacingId: string,
   insertSide: "left" | "right",
@@ -1095,35 +1915,48 @@ export function wrapElementWithSiblingGrid(
   const doc = parseHtml(sourceHtml);
   const el = findSpacingTargetElement(doc, spacingId);
   if (!el || !el.parentElement) return sourceHtml;
+  if (isCanonicalLayoutElement(el)) return sourceHtml;
 
   const innerHtml = unwrapSectionContainer(newContentHtml);
   const frag = parseHtml(innerHtml);
   const newChildren = Array.from(frag.body.children);
   if (!newChildren.length) return sourceHtml;
 
-  const grid = doc.createElement("div");
-  grid.className = "massic-grid cols-2";
+  const layout = doc.createElement("div");
+  ensureCanonicalLayoutClasses(layout);
+  layout.classList.add(CANONICAL_LAYOUT_GRID_CLASS, CANONICAL_LAYOUT_TWO_COL_CLASS);
+  const existingSlot = createCanonicalSlot(doc, insertSide === "left" ? "right" : "left");
+  const newSlot = createCanonicalSlot(doc, insertSide);
 
-  const newCell = doc.createElement("div");
   for (const child of newChildren) {
-    newCell.appendChild(doc.adoptNode(child));
+    newSlot.appendChild(doc.adoptNode(child));
   }
 
   const parent = el.parentElement;
   const nextSibling = el.nextSibling;
 
   parent.removeChild(el);
+  existingSlot.appendChild(el);
 
   if (insertSide === "left") {
-    grid.appendChild(newCell);
-    grid.appendChild(el);
+    layout.appendChild(newSlot);
+    layout.appendChild(existingSlot);
   } else {
-    grid.appendChild(el);
-    grid.appendChild(newCell);
+    layout.appendChild(existingSlot);
+    layout.appendChild(newSlot);
   }
 
-  parent.insertBefore(grid, nextSibling);
-  return doc.body.innerHTML;
+  parent.insertBefore(layout, nextSibling);
+  return serializeNormalizedHtml(doc);
+}
+
+export function wrapElementWithSiblingGrid(
+  sourceHtml: string,
+  spacingId: string,
+  insertSide: "left" | "right",
+  newContentHtml: string
+): string {
+  return wrapBlockInTwoColumnLayout(sourceHtml, spacingId, insertSide, newContentHtml);
 }
 
 // ---------------------------------------------------------------------------
@@ -1147,7 +1980,9 @@ export function getMediaInfoFromElement(
     : clickTarget.closest("img") as HTMLImageElement | null;
 
   if (imgEl) {
-    const allImgs = Array.from(containerEl.querySelectorAll("img"));
+    const allImgs = containerEl.tagName === "IMG"
+      ? [containerEl]
+      : Array.from(containerEl.querySelectorAll("img"));
     const idx = allImgs.indexOf(imgEl);
     return {
       type: "img",
@@ -1162,10 +1997,12 @@ export function getMediaInfoFromElement(
   const iframeEl = clickTarget.tagName === "IFRAME"
     ? (clickTarget as HTMLIFrameElement)
     : (videoWrap?.querySelector("iframe") as HTMLIFrameElement | null)
-      ?? (clickTarget.closest("iframe") as HTMLIFrameElement | null);
+    ?? (clickTarget.closest("iframe") as HTMLIFrameElement | null);
 
   if (iframeEl) {
-    const allIframes = Array.from(containerEl.querySelectorAll("iframe"));
+    const allIframes = containerEl.tagName === "IFRAME"
+      ? [containerEl]
+      : Array.from(containerEl.querySelectorAll("iframe"));
     const idx = allIframes.indexOf(iframeEl);
     return {
       type: "iframe",
@@ -1191,12 +2028,20 @@ export function updateMediaInElementBySpacingId(
   const el = findSpacingTargetElement(doc, spacingId);
   if (!el) return sourceHtml;
 
-  const mediaElements = Array.from(el.querySelectorAll(mediaType));
+  const mediaElements = el.tagName.toLowerCase() === mediaType
+    ? [el]
+    : Array.from(el.querySelectorAll(mediaType));
   const media = mediaElements[mediaIndex] as HTMLElement | undefined;
   if (!media) return sourceHtml;
 
   if (updates.src !== undefined) {
-    media.setAttribute("src", updates.src);
+    const nextSrc = mediaType === "iframe"
+      ? (parseVideoUrl(updates.src)?.embedUrl || String(updates.src || "").trim())
+      : String(updates.src || "").trim();
+    media.setAttribute("src", nextSrc);
+    if (mediaType === "iframe") {
+      media.setAttribute("loading", "eager");
+    }
   }
   if (updates.alt !== undefined) {
     if (mediaType === "img") {
@@ -1208,13 +2053,15 @@ export function updateMediaInElementBySpacingId(
   if (updates.width !== undefined) {
     const w = updates.width;
     if (w) {
+      media.removeAttribute("width");
       media.style.width = w;
       media.style.maxWidth = w;
     } else {
+      media.removeAttribute("width");
       media.style.removeProperty("width");
       media.style.removeProperty("max-width");
     }
   }
 
-  return doc.body.innerHTML;
+  return serializeNormalizedHtml(doc);
 }

@@ -82,6 +82,7 @@ export interface LayoutPanelProps {
   top: number;
   left: number;
 
+  targetKind: "section" | "block" | "layout" | "slot";
   isSection: boolean;
   isFirst: boolean;
   isLast: boolean;
@@ -96,6 +97,9 @@ export interface LayoutPanelProps {
   onSelectParentSection?: () => void;
 
   isElement: boolean;
+  isLayout?: boolean;
+  isSlot?: boolean;
+  canInsertInside?: boolean;
   isFirstSibling: boolean;
   isLastSibling: boolean;
   isEmptyElement: boolean;
@@ -109,6 +113,9 @@ export interface LayoutPanelProps {
 
   onInsertLeft?: () => void;
   onInsertRight?: () => void;
+  onInsertIntoSlot?: () => void;
+  onDeleteSlot?: () => void;
+  onCollapseLayout?: () => void;
 
   mediaTarget: MediaElementInfo | null;
   onMediaUpdate?: (updates: { src?: string; alt?: string; width?: string }) => void;
@@ -167,26 +174,30 @@ function IconBtn({
   );
 }
 
-function MediaEditSection({
+export function MediaEditorPanel({
   media,
   onUpdate,
+  onCancel,
 }: {
   media: MediaElementInfo;
   onUpdate: (updates: { src?: string; alt?: string; width?: string }) => void;
+  onCancel?: () => void;
 }) {
   const [srcDraft, setSrcDraft] = React.useState(media.src);
   const [altDraft, setAltDraft] = React.useState(media.alt);
+  const [widthDraft, setWidthDraft] = React.useState(media.width || "");
 
   React.useEffect(() => {
     setSrcDraft(media.src);
     setAltDraft(media.alt);
-  }, [media.src, media.alt]);
+    setWidthDraft(media.width || "");
+  }, [media.src, media.alt, media.width]);
 
   const isImage = media.type === "img";
   const currentWidth = media.width || "100%";
 
   return (
-    <div className="border-b px-2 py-2 space-y-2">
+    <div className="space-y-2">
       <div className="flex items-center gap-1.5">
         <ImageIcon className="h-3 w-3 text-muted-foreground" />
         <Typography className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -218,31 +229,28 @@ function MediaEditSection({
         </div>
       </div>
 
-      {/* Alt text (images only) */}
-      {isImage && (
-        <div className="space-y-1">
-          <Typography className="text-[10px] font-medium text-muted-foreground">
-            Alt Text
-          </Typography>
-          <div className="flex gap-1">
-            <Input
-              value={altDraft}
-              onChange={(e) => setAltDraft(e.target.value)}
-              placeholder="Describe the image"
-              className="h-7 text-[11px] flex-1"
-            />
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 w-7 p-0 shrink-0"
-              disabled={altDraft === media.alt}
-              onClick={() => onUpdate({ alt: altDraft })}
-            >
-              <Check className="h-3 w-3" />
-            </Button>
-          </div>
+      <div className="space-y-1">
+        <Typography className="text-[10px] font-medium text-muted-foreground">
+          {isImage ? "Alt Text" : "Video Title"}
+        </Typography>
+        <div className="flex gap-1">
+          <Input
+            value={altDraft}
+            onChange={(e) => setAltDraft(e.target.value)}
+            placeholder={isImage ? "Describe the image" : "Describe the embedded video"}
+            className="h-7 text-[11px] flex-1"
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 w-7 p-0 shrink-0"
+            disabled={altDraft === media.alt}
+            onClick={() => onUpdate({ alt: altDraft })}
+          >
+            <Check className="h-3 w-3" />
+          </Button>
         </div>
-      )}
+      </div>
 
       {/* Width resize */}
       <div className="space-y-1">
@@ -272,7 +280,37 @@ function MediaEditSection({
             Auto
           </Button>
         </div>
+        <div className="flex gap-1">
+          <Input
+            value={widthDraft}
+            onChange={(e) => setWidthDraft(e.target.value)}
+            placeholder="100%, 320px"
+            className="h-7 text-[11px] flex-1"
+          />
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 w-7 p-0 shrink-0"
+            disabled={widthDraft === (media.width || "")}
+            onClick={() => onUpdate({ width: widthDraft.trim() })}
+          >
+            <Check className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
+      {onCancel ? (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-[10px]"
+            onClick={onCancel}
+          >
+            Close
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -281,6 +319,7 @@ export function LayoutPanel({
   label,
   top,
   left,
+  targetKind,
   isSection,
   isFirst,
   isLast,
@@ -293,6 +332,9 @@ export function LayoutPanel({
   hasParentSection,
   onSelectParentSection,
   isElement,
+  isLayout = false,
+  isSlot = false,
+  canInsertInside = true,
   isFirstSibling,
   isLastSibling,
   isEmptyElement,
@@ -305,6 +347,9 @@ export function LayoutPanel({
   onInsertAfterSibling,
   onInsertLeft,
   onInsertRight,
+  onInsertIntoSlot,
+  onDeleteSlot,
+  onCollapseLayout,
   mediaTarget,
   onMediaUpdate,
   spacingDraft,
@@ -425,6 +470,7 @@ export function LayoutPanel({
                 size="sm"
                 variant={isEmptyElement ? "default" : "outline"}
                 className="flex-1 h-7 gap-1 text-[10px]"
+                disabled={!canInsertInside}
                 onClick={() => onInsertInside?.()}
               >
                 <Plus className="h-3 w-3" />
@@ -444,12 +490,52 @@ export function LayoutPanel({
           </div>
         ) : null}
 
+        {isLayout ? (
+          <div className="border-b px-1.5 py-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 w-full text-[10px]"
+              onClick={() => onCollapseLayout?.()}
+            >
+              Collapse Layout
+            </Button>
+          </div>
+        ) : null}
+
+        {isSlot ? (
+          <div className="border-b px-1.5 py-1.5 space-y-1">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 w-full gap-1 text-[10px]"
+              onClick={() => onInsertIntoSlot?.()}
+            >
+              <Plus className="h-3 w-3" />
+              {isEmptyElement ? "Add Content" : "Add More Content"}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 w-full text-[10px] text-destructive hover:text-destructive"
+              onClick={() => setConfirmDelete(true)}
+            >
+              Delete Slot
+            </Button>
+          </div>
+        ) : null}
+
         {/* Media editing (image URL, alt, width) */}
         {mediaTarget && onMediaUpdate ? (
-          <MediaEditSection media={mediaTarget} onUpdate={onMediaUpdate} />
+          <div className="border-b px-2 py-2">
+            <MediaEditorPanel media={mediaTarget} onUpdate={onMediaUpdate} />
+          </div>
         ) : null}
 
         {/* Spacing controls */}
+        {targetKind !== "slot" ? (
         <div className="px-2 py-2 space-y-2">
           <div className="flex items-center justify-center gap-1">
             {SPACING_DIRS.map(({ key, label: dirLabel, Icon }) => {
@@ -514,16 +600,17 @@ export function LayoutPanel({
             </Tooltip>
           </div>
         </div>
+        ) : null}
       </div>
 
       {/* Delete confirmation */}
-      {(isSection || isElement) ? (
+      {(isSection || isElement || isSlot) ? (
         <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete {label}?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently remove this {isSection ? "section" : "element"} from the page. You can undo with Ctrl+Z.
+                This will permanently remove this {isSection ? "section" : isSlot ? "slot" : "element"} from the page. You can undo with Ctrl+Z.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -534,6 +621,8 @@ export function LayoutPanel({
                   setConfirmDelete(false);
                   if (isSection) {
                     onDelete();
+                  } else if (isSlot) {
+                    onDeleteSlot?.();
                   } else {
                     onDeleteElement?.();
                   }

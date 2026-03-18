@@ -20,6 +20,8 @@ export type EditableSpacingToken = EditableSpacingScale | EditableSpacingCustomP
 export interface EditableSpacingValue {
   outsideTop: EditableSpacingToken | null;
   outsideBottom: EditableSpacingToken | null;
+  outsideLeft: EditableSpacingToken | null;
+  outsideRight: EditableSpacingToken | null;
 }
 
 export interface EditableSpacingRef extends EditableSpacingValue {
@@ -29,17 +31,32 @@ export interface EditableSpacingRef extends EditableSpacingValue {
   className: string;
 }
 
+export interface EditableSectionRef {
+  id: string;
+  tagName: string;
+  className: string;
+  label: string;
+}
+
+export type ImageAlignment = "left" | "center" | "right";
+
+export interface ParsedVideoUrl {
+  provider: "youtube" | "vimeo";
+  videoId: string;
+  embedUrl: string;
+}
+
 export interface EditableHtmlModel {
   previewHtml: string;
   textNodeIndex: EditableTextNodeRef[];
   linkIndex: EditableLinkRef[];
   spacingIndex: EditableSpacingRef[];
+  sectionIndex: EditableSectionRef[];
 }
 
 const FORBIDDEN_TAGS = new Set([
   "script",
   "style",
-  "iframe",
   "object",
   "embed",
   "form",
@@ -49,6 +66,24 @@ const FORBIDDEN_TAGS = new Set([
   "svg",
   "math",
 ]);
+
+const SAFE_IFRAME_HOSTS = new Set([
+  "www.youtube.com",
+  "youtube.com",
+  "www.youtube-nocookie.com",
+  "player.vimeo.com",
+]);
+
+function isSafeIframe(element: Element): boolean {
+  const src = String(element.getAttribute("src") || "").trim();
+  if (!src) return false;
+  try {
+    const url = new URL(src);
+    return SAFE_IFRAME_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
 
 const URL_ATTRS = new Set(["href", "src", "xlink:href", "poster", "action", "formaction"]);
 const SAFE_ATTRS = new Set([
@@ -74,14 +109,44 @@ const SAFE_ATTRS = new Set([
   "decoding",
   "srcset",
   "sizes",
+  "frameborder",
+  "allow",
+  "allowfullscreen",
+  "style",
 ]);
+
+const SAFE_STYLE_PROPS = new Set([
+  "margin-top", "margin-bottom", "margin-left", "margin-right",
+  "padding-top", "padding-bottom", "padding-left", "padding-right",
+  "margin", "padding",
+  "text-align", "vertical-align",
+  "border-radius",
+]);
+const UNSAFE_STYLE_VALUE_PATTERN = /expression|url\s*\(|javascript:|behavior|-moz-binding|@import/i;
+
+function sanitizeStyleAttr(raw: string): string {
+  const parts = raw.split(";").map((s) => s.trim()).filter(Boolean);
+  const safe: string[] = [];
+  for (const part of parts) {
+    const colonIdx = part.indexOf(":");
+    if (colonIdx < 1) continue;
+    const prop = part.slice(0, colonIdx).trim().toLowerCase();
+    const val = part.slice(colonIdx + 1).trim();
+    if (!SAFE_STYLE_PROPS.has(prop)) continue;
+    if (UNSAFE_STYLE_VALUE_PATTERN.test(val)) continue;
+    safe.push(`${prop}: ${val}`);
+  }
+  return safe.join("; ");
+}
 const NON_EDITABLE_TAGS = new Set(["code", "pre"]);
 const SPACING_CONTAINER_TAGS = new Set(["section", "article", "div"]);
 const SPACING_MASSIC_CLASS_PATTERN = /\bmassic-[a-z0-9_-]+\b/i;
-const SPACING_CLASS_NAME_PATTERN = /^massic-sp-(?:mt|mb)-(?:none|xs|s|m|l|xl|px-\d{1,3}|nx-\d{1,3})$/;
+const SPACING_CLASS_NAME_PATTERN = /^massic-sp-(?:mt|mb|ml|mr)-(?:none|xs|s|m|l|xl|px-\d{1,3}|nx-\d{1,3})$/;
 const SPACING_CLASS_PREFIX_BY_KEY: Record<keyof EditableSpacingValue, string> = {
   outsideTop: "massic-sp-mt-",
   outsideBottom: "massic-sp-mb-",
+  outsideLeft: "massic-sp-ml-",
+  outsideRight: "massic-sp-mr-",
 };
 const SPACING_SCALE_SET = new Set<string>(EDITABLE_SPACING_SCALE_VALUES);
 
@@ -210,32 +275,87 @@ function normalizeSpacingToken(value: unknown): EditableSpacingToken | null {
   return null;
 }
 
-export function parseEditableSpacingValueFromClassName(classNameInput: string): EditableSpacingValue {
-  const classNames = String(classNameInput || "")
-    .split(/\s+/)
-    .map((name) => name.trim())
-    .filter(Boolean);
-  const classSet = new Set(classNames);
+const SPACING_STYLE_PROP_BY_KEY: Record<keyof EditableSpacingValue, string> = {
+  outsideTop: "margin-top",
+  outsideBottom: "margin-bottom",
+  outsideLeft: "margin-left",
+  outsideRight: "margin-right",
+};
 
-  const resolveToken = (prefix: string): EditableSpacingToken | null => {
+function parseInlineStylePx(styleStr: string, prop: string): number | null {
+  const pattern = new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*(-?\\d+(?:\\.\\d+)?)\\s*px`, "i");
+  const match = pattern.exec(styleStr);
+  if (!match) return null;
+  const n = Number(match[1]);
+  return Number.isFinite(n) ? clampSpacingPx(n) : null;
+}
+
+export function parseEditableSpacingValue(classNameInput: string, styleInput?: string): EditableSpacingValue {
+  const classNames = String(classNameInput || "").split(/\s+/).map((n) => n.trim()).filter(Boolean);
+  const classSet = new Set(classNames);
+  const styleStr = String(styleInput || "");
+
+  const resolveToken = (prefix: string, styleProp: string): EditableSpacingToken | null => {
+    const inlinePx = parseInlineStylePx(styleStr, styleProp);
+    if (inlinePx != null) return `num:${inlinePx}`;
+
     for (const scale of EDITABLE_SPACING_SCALE_VALUES) {
-      if (classSet.has(`${prefix}${scale}`)) {
-        return scale;
-      }
+      if (classSet.has(`${prefix}${scale}`)) return scale;
     }
-    for (const className of classNames) {
-      if (!className.startsWith(`${prefix}px-`) && !className.startsWith(`${prefix}nx-`)) continue;
-      const token = normalizeSpacingToken(className.slice(prefix.length));
-      if (!token || !token.startsWith("num:")) continue;
-      return token;
+    for (const cn of classNames) {
+      if (!cn.startsWith(`${prefix}px-`) && !cn.startsWith(`${prefix}nx-`)) continue;
+      const token = normalizeSpacingToken(cn.slice(prefix.length));
+      if (token?.startsWith("num:")) return token;
     }
     return null;
   };
 
   return {
-    outsideTop: resolveToken(SPACING_CLASS_PREFIX_BY_KEY.outsideTop),
-    outsideBottom: resolveToken(SPACING_CLASS_PREFIX_BY_KEY.outsideBottom),
+    outsideTop: resolveToken(SPACING_CLASS_PREFIX_BY_KEY.outsideTop, "margin-top"),
+    outsideBottom: resolveToken(SPACING_CLASS_PREFIX_BY_KEY.outsideBottom, "margin-bottom"),
+    outsideLeft: resolveToken(SPACING_CLASS_PREFIX_BY_KEY.outsideLeft, "margin-left"),
+    outsideRight: resolveToken(SPACING_CLASS_PREFIX_BY_KEY.outsideRight, "margin-right"),
   };
+}
+
+/** @deprecated Use parseEditableSpacingValue instead */
+export function parseEditableSpacingValueFromClassName(classNameInput: string): EditableSpacingValue {
+  return parseEditableSpacingValue(classNameInput);
+}
+
+export function buildSpacingStyleString(spacing: Partial<EditableSpacingValue> | null | undefined): string {
+  if (!spacing) return "";
+  const parts: string[] = [];
+  for (const key of Object.keys(SPACING_STYLE_PROP_BY_KEY) as Array<keyof EditableSpacingValue>) {
+    const token = spacing[key];
+    if (!token) continue;
+    const px = parseSpacingNumberToken(token);
+    if (px == null) continue;
+    parts.push(`${SPACING_STYLE_PROP_BY_KEY[key]}: ${px}px`);
+  }
+  return parts.join("; ");
+}
+
+function stripSpacingFromClassName(classNameInput: string): string {
+  return splitClassNames(classNameInput).filter((c) => !SPACING_CLASS_NAME_PATTERN.test(c)).join(" ").trim();
+}
+
+function mergeStyleStrings(existingStyle: string, spacingStyle: string): string {
+  const spacingProps = new Set(
+    Object.values(SPACING_STYLE_PROP_BY_KEY)
+  );
+  const existing = existingStyle
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((part) => {
+      const colonIdx = part.indexOf(":");
+      if (colonIdx < 1) return true;
+      const prop = part.slice(0, colonIdx).trim().toLowerCase();
+      return !spacingProps.has(prop);
+    });
+  const spacingParts = spacingStyle.split(";").map((s) => s.trim()).filter(Boolean);
+  return [...existing, ...spacingParts].join("; ");
 }
 
 function normalizeEditableSpacingEdit(input: Partial<EditableSpacingValue> | null | undefined): Partial<EditableSpacingValue> {
@@ -264,31 +384,60 @@ function splitClassNames(classNameInput: string): string[] {
     .filter(Boolean);
 }
 
+const SECTION_LABEL_MAP: Record<string, string> = {
+  "massic-hero": "Hero",
+  "massic-hero-media": "Hero Media",
+  "massic-cta-band": "CTA",
+  "massic-cta": "CTA",
+  "massic-stats": "Stats",
+  "massic-faq": "FAQ",
+  "massic-prose": "Content",
+  "massic-testimonial": "Testimonials",
+  "massic-logo-bar": "Logo Bar",
+  "massic-breadcrumb": "Breadcrumb",
+  "massic-author": "Author",
+  "massic-comparison-table": "Comparison",
+  "massic-alert": "Alert",
+};
+
+function findMassicContentRoot(doc: Document): Element {
+  return doc.body.querySelector(".massic-content") || doc.body;
+}
+
+function getSectionLabel(element: Element): string {
+  const classes = splitClassNames(element.getAttribute("class") || "");
+  for (const cls of classes) {
+    if (SECTION_LABEL_MAP[cls]) return SECTION_LABEL_MAP[cls];
+  }
+  if (classes.some((c) => c === "massic-section")) return "Section";
+  if (classes.some((c) => c.startsWith("massic-surface"))) return "Section";
+  const tagName = element.tagName.toLowerCase();
+  if (tagName === "section") return "Section";
+  if (tagName === "article") return "Article";
+  if (tagName === "hr") return "Divider";
+  return "Block";
+}
+
+function parseSectionIndex(sectionId: string): number {
+  const match = /^sec-(\d+)$/.exec(sectionId);
+  if (!match) return -1;
+  return Number(match[1]);
+}
+
+function escapeHtmlAttr(value: string): string {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** @deprecated Kept for backward compat; new code should use inline styles via buildSpacingStyleString */
 export function mergeSpacingUtilityClasses(
   classNameInput: string,
   spacingEdit: Partial<EditableSpacingValue> | null | undefined
 ): string {
-  const normalizedEdit = normalizeEditableSpacingEdit(spacingEdit);
-  const classNames = splitClassNames(classNameInput).filter((className) => !SPACING_CLASS_NAME_PATTERN.test(className));
-
-  for (const key of Object.keys(SPACING_CLASS_PREFIX_BY_KEY) as Array<keyof EditableSpacingValue>) {
-    if (!Object.prototype.hasOwnProperty.call(normalizedEdit, key)) continue;
-    const token = normalizedEdit[key];
-    if (!token) continue;
-    if (SPACING_SCALE_SET.has(token)) {
-      classNames.push(`${SPACING_CLASS_PREFIX_BY_KEY[key]}${token}`);
-      continue;
-    }
-    const spacingPx = parseSpacingNumberToken(token);
-    if (spacingPx == null) continue;
-    if (spacingPx < 0) {
-      classNames.push(`${SPACING_CLASS_PREFIX_BY_KEY[key]}nx-${Math.abs(spacingPx)}`);
-      continue;
-    }
-    classNames.push(`${SPACING_CLASS_PREFIX_BY_KEY[key]}px-${spacingPx}`);
-  }
-
-  return Array.from(new Set(classNames)).join(" ").trim();
+  return stripSpacingFromClassName(classNameInput);
 }
 
 function hasMassicClassName(classNameInput: string): boolean {
@@ -316,8 +465,18 @@ function sanitizeAttributes(element: Element) {
     const name = attr.name.toLowerCase();
     const value = attr.value;
 
-    if (name.startsWith("on") || name === "style") {
+    if (name.startsWith("on")) {
       element.removeAttribute(attr.name);
+      continue;
+    }
+
+    if (name === "style") {
+      const sanitized = sanitizeStyleAttr(value);
+      if (sanitized) {
+        element.setAttribute("style", sanitized);
+      } else {
+        element.removeAttribute("style");
+      }
       continue;
     }
 
@@ -353,7 +512,12 @@ function sanitizeNodeTree(root: ParentNode) {
 
   while (walker.nextNode()) {
     const element = walker.currentNode as Element;
-    if (FORBIDDEN_TAGS.has(element.tagName.toLowerCase())) {
+    const tagName = element.tagName.toLowerCase();
+    if (FORBIDDEN_TAGS.has(tagName)) {
+      toRemove.push(element);
+      continue;
+    }
+    if (tagName === "iframe" && !isSafeIframe(element)) {
       toRemove.push(element);
       continue;
     }
@@ -438,7 +602,8 @@ export function buildEditableHtmlModel(sanitizedHtml: string): EditableHtmlModel
     const id = `spc-${index}`;
     const path = buildNodePath(doc.body, target);
     const className = String(target.getAttribute("class") || "").trim();
-    const spacingValue = parseEditableSpacingValueFromClassName(className);
+    const styleStr = String(target.getAttribute("style") || "").trim();
+    const spacingValue = parseEditableSpacingValue(className, styleStr);
 
     spacingRefs.push({
       id,
@@ -452,11 +617,28 @@ export function buildEditableHtmlModel(sanitizedHtml: string): EditableHtmlModel
     target.setAttribute("data-massic-spacing-target", "true");
   });
 
+  const contentRoot = findMassicContentRoot(doc);
+  const sectionElements = Array.from(contentRoot.children);
+  const sectionRefs: EditableSectionRef[] = [];
+
+  sectionElements.forEach((element, index) => {
+    const id = `sec-${index}`;
+    const className = String(element.getAttribute("class") || "").trim();
+    sectionRefs.push({
+      id,
+      tagName: element.tagName.toLowerCase(),
+      className,
+      label: getSectionLabel(element),
+    });
+    element.setAttribute("data-massic-section-id", id);
+  });
+
   return {
     previewHtml: doc.body.innerHTML,
     textNodeIndex: refs,
     linkIndex: linkRefs,
     spacingIndex: spacingRefs,
+    sectionIndex: sectionRefs,
   };
 }
 
@@ -530,15 +712,194 @@ export function applySpacingEditsToHtml(
     const element = node as Element;
     if (element.tagName.toLowerCase() !== ref.tagName.toLowerCase()) continue;
 
-    const nextClassName = mergeSpacingUtilityClasses(String(element.getAttribute("class") || ""), edit);
-    if (!nextClassName) {
+    const cleanedClass = stripSpacingFromClassName(String(element.getAttribute("class") || ""));
+    if (cleanedClass) {
+      element.setAttribute("class", cleanedClass);
+    } else {
       element.removeAttribute("class");
-      continue;
     }
-    element.setAttribute("class", nextClassName);
+
+    const spacingStyle = buildSpacingStyleString(edit);
+    const existingStyle = String(element.getAttribute("style") || "");
+    const merged = mergeStyleStrings(existingStyle, spacingStyle);
+    if (merged) {
+      element.setAttribute("style", merged);
+    } else {
+      element.removeAttribute("style");
+    }
   }
 
   return doc.body.innerHTML;
+}
+
+export function moveSectionInHtml(
+  sourceHtml: string,
+  sectionId: string,
+  direction: "up" | "down"
+): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const root = findMassicContentRoot(doc);
+  const children = Array.from(root.children);
+  const index = parseSectionIndex(sectionId);
+  if (index < 0 || index >= children.length) return sourceHtml;
+
+  const target = children[index];
+  if (direction === "up" && index > 0) {
+    root.insertBefore(target, children[index - 1]);
+  } else if (direction === "down" && index < children.length - 1) {
+    const after = children[index + 1].nextSibling;
+    root.insertBefore(target, after);
+  }
+
+  return doc.body.innerHTML;
+}
+
+export function deleteSectionFromHtml(
+  sourceHtml: string,
+  sectionId: string
+): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const root = findMassicContentRoot(doc);
+  const children = Array.from(root.children);
+  const index = parseSectionIndex(sectionId);
+  if (index < 0 || index >= children.length) return sourceHtml;
+
+  root.removeChild(children[index]);
+  return doc.body.innerHTML;
+}
+
+export function duplicateSectionInHtml(
+  sourceHtml: string,
+  sectionId: string
+): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const root = findMassicContentRoot(doc);
+  const children = Array.from(root.children);
+  const index = parseSectionIndex(sectionId);
+  if (index < 0 || index >= children.length) return sourceHtml;
+
+  const clone = children[index].cloneNode(true) as Element;
+  const nextSibling = children[index].nextSibling;
+  root.insertBefore(clone, nextSibling);
+  return doc.body.innerHTML;
+}
+
+export function insertBlockInHtml(
+  sourceHtml: string,
+  anchorSectionId: string | null,
+  position: "before" | "after",
+  blockHtml: string
+): string {
+  if (!sourceHtml || !blockHtml) return sourceHtml || "";
+  const doc = parseHtml(sourceHtml);
+  const root = findMassicContentRoot(doc);
+
+  const blockDoc = parseHtml(blockHtml);
+  const newElements = Array.from(blockDoc.body.children);
+  if (!newElements.length) return sourceHtml;
+
+  if (!anchorSectionId) {
+    for (const el of newElements) {
+      root.appendChild(doc.adoptNode(el));
+    }
+    return doc.body.innerHTML;
+  }
+
+  const children = Array.from(root.children);
+  const index = parseSectionIndex(anchorSectionId);
+  if (index < 0 || index >= children.length) {
+    for (const el of newElements) {
+      root.appendChild(doc.adoptNode(el));
+    }
+    return doc.body.innerHTML;
+  }
+
+  const anchor = children[index];
+  if (position === "before") {
+    for (const el of newElements) {
+      root.insertBefore(doc.adoptNode(el), anchor);
+    }
+  } else {
+    const nextSibling = anchor.nextSibling;
+    for (const el of newElements) {
+      root.insertBefore(doc.adoptNode(el), nextSibling);
+    }
+  }
+
+  return doc.body.innerHTML;
+}
+
+export function buildImageBlockHtml(
+  src: string,
+  alt?: string,
+  alignment?: ImageAlignment
+): string {
+  const safeSrc = String(src || "").trim();
+  if (!safeSrc || !isSafeUrl(safeSrc)) return "";
+
+  const safeAlt = escapeHtmlAttr(alt || "");
+  const containerClasses =
+    alignment === "left" ? "massic-container" : "massic-container massic-center";
+
+  return `<section class="massic-section"><div class="${containerClasses}"><img src="${safeSrc}" alt="${safeAlt}" loading="lazy" decoding="async" /></div></section>`;
+}
+
+export function parseVideoUrl(url: string): ParsedVideoUrl | null {
+  const normalized = String(url || "").trim();
+  if (!normalized) return null;
+
+  const ytPatterns = [
+    /(?:youtube\.com\/watch\?.*v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const pattern of ytPatterns) {
+    const match = pattern.exec(normalized);
+    if (match) {
+      return {
+        provider: "youtube",
+        videoId: match[1],
+        embedUrl: `https://www.youtube.com/embed/${match[1]}`,
+      };
+    }
+  }
+
+  const vimeoMatch = /vimeo\.com\/(?:video\/)?(\d+)/.exec(normalized);
+  if (vimeoMatch) {
+    return {
+      provider: "vimeo",
+      videoId: vimeoMatch[1],
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+    };
+  }
+
+  return null;
+}
+
+export function buildVideoEmbedHtml(url: string): string {
+  const parsed = parseVideoUrl(url);
+  if (!parsed) return "";
+
+  const escapedSrc = escapeHtmlAttr(parsed.embedUrl);
+  return [
+    `<section class="massic-section">`,
+    `<div class="massic-container massic-center">`,
+    `<div class="massic-video-wrap">`,
+    `<iframe src="${escapedSrc}" width="100%" height="400" frameborder="0" `,
+    `allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" `,
+    `allowfullscreen loading="lazy" title="Embedded video"></iframe>`,
+    `</div></div></section>`,
+  ].join("");
+}
+
+export function buildTextSectionHtml(): string {
+  return `<section class="massic-section"><div class="massic-container massic-stack"><p>New section — click to edit text.</p></div></section>`;
+}
+
+export function buildDividerHtml(): string {
+  return `<hr class="massic-divider" />`;
 }
 
 export function extractPlainTextFromHtml(html: string): string {
@@ -548,4 +909,312 @@ export function extractPlainTextFromHtml(html: string): string {
 
 export function canonicalizeHtml(html: string): string {
   return String(html || "").replace(/\r\n/g, "\n").trim();
+}
+
+// ---------------------------------------------------------------------------
+//  Element-level operations (operate on any spacing-targeted element by its ID)
+// ---------------------------------------------------------------------------
+
+function parseSpacingIndex(spacingId: string): number {
+  const match = /^spc-(\d+)$/.exec(spacingId);
+  return match ? Number(match[1]) : -1;
+}
+
+function findSpacingTargetElement(doc: Document, spacingId: string): Element | null {
+  const idx = parseSpacingIndex(spacingId);
+  if (idx < 0) return null;
+
+  const allTargets = Array.from(doc.body.querySelectorAll("section,article,div"))
+    .filter(isSpacingContainerTarget)
+    .map((element, i) => ({
+      element,
+      i,
+      hasMassicClass: hasMassicClassName(String(element.getAttribute("class") || "")),
+    }))
+    .sort((a, b) => {
+      if (a.hasMassicClass !== b.hasMassicClass) return a.hasMassicClass ? -1 : 1;
+      return a.i - b.i;
+    });
+
+  return allTargets[idx]?.element ?? null;
+}
+
+export interface ElementSiblingInfo {
+  isFirst: boolean;
+  isLast: boolean;
+  siblingCount: number;
+  isEmpty: boolean;
+}
+
+export function getElementSiblingInfo(sourceHtml: string, spacingId: string): ElementSiblingInfo {
+  const fallback: ElementSiblingInfo = { isFirst: true, isLast: true, siblingCount: 1, isEmpty: false };
+  if (!sourceHtml || !spacingId) return fallback;
+
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el || !el.parentElement) return fallback;
+
+  const siblings = Array.from(el.parentElement.children).filter(
+    (c) => c.nodeType === Node.ELEMENT_NODE
+  );
+  const idx = siblings.indexOf(el);
+  const text = (el.textContent || "").replace(/\u00A0/g, " ").trim();
+  const isEmpty = el.childElementCount === 0 && !text;
+
+  return {
+    isFirst: idx === 0,
+    isLast: idx === siblings.length - 1,
+    siblingCount: siblings.length,
+    isEmpty,
+  };
+}
+
+export function deleteElementBySpacingId(sourceHtml: string, spacingId: string): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el || !el.parentElement) return sourceHtml;
+  el.parentElement.removeChild(el);
+  return doc.body.innerHTML;
+}
+
+export function duplicateElementBySpacingId(sourceHtml: string, spacingId: string): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el || !el.parentElement) return sourceHtml;
+  const clone = el.cloneNode(true) as Element;
+  el.parentElement.insertBefore(clone, el.nextSibling);
+  return doc.body.innerHTML;
+}
+
+export function moveElementBySpacingId(
+  sourceHtml: string,
+  spacingId: string,
+  direction: "up" | "down"
+): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el || !el.parentElement) return sourceHtml;
+
+  const parent = el.parentElement;
+  const siblings = Array.from(parent.children);
+  const idx = siblings.indexOf(el);
+
+  if (direction === "up" && idx > 0) {
+    parent.insertBefore(el, siblings[idx - 1]);
+  } else if (direction === "down" && idx < siblings.length - 1) {
+    parent.insertBefore(el, siblings[idx + 1].nextSibling);
+  }
+
+  return doc.body.innerHTML;
+}
+
+function unwrapSectionContainer(blockHtml: string): string {
+  const doc = parseHtml(blockHtml);
+  const section = doc.body.querySelector("section.massic-section");
+  if (!section) return blockHtml;
+  const container = section.querySelector(".massic-container");
+  if (container) return container.innerHTML;
+  return section.innerHTML;
+}
+
+export function insertInsideElementBySpacingId(
+  sourceHtml: string,
+  spacingId: string,
+  position: "start" | "end",
+  blockHtml: string
+): string {
+  if (!sourceHtml || !blockHtml) return sourceHtml || "";
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el) return sourceHtml;
+
+  const innerHtml = unwrapSectionContainer(blockHtml);
+  const frag = parseHtml(innerHtml);
+  const newElements = Array.from(frag.body.children);
+  if (!newElements.length) return sourceHtml;
+
+  if (position === "start") {
+    const first = el.firstChild;
+    for (const child of newElements) {
+      el.insertBefore(doc.adoptNode(child), first);
+    }
+  } else {
+    for (const child of newElements) {
+      el.appendChild(doc.adoptNode(child));
+    }
+  }
+
+  return doc.body.innerHTML;
+}
+
+export function insertAdjacentToElementBySpacingId(
+  sourceHtml: string,
+  spacingId: string,
+  position: "before" | "after",
+  blockHtml: string
+): string {
+  if (!sourceHtml || !blockHtml) return sourceHtml || "";
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el || !el.parentElement) return sourceHtml;
+
+  const innerHtml = unwrapSectionContainer(blockHtml);
+  const frag = parseHtml(innerHtml);
+  const newElements = Array.from(frag.body.children);
+  if (!newElements.length) return sourceHtml;
+
+  const parent = el.parentElement;
+  if (position === "before") {
+    for (const child of newElements) {
+      parent.insertBefore(doc.adoptNode(child), el);
+    }
+  } else {
+    const nextSib = el.nextSibling;
+    for (const child of newElements) {
+      parent.insertBefore(doc.adoptNode(child), nextSib);
+    }
+  }
+
+  return doc.body.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+//  Wrap element with a sibling in a 2-column grid (Insert Left / Right)
+// ---------------------------------------------------------------------------
+
+export function wrapElementWithSiblingGrid(
+  sourceHtml: string,
+  spacingId: string,
+  insertSide: "left" | "right",
+  newContentHtml: string
+): string {
+  if (!sourceHtml || !newContentHtml) return sourceHtml || "";
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el || !el.parentElement) return sourceHtml;
+
+  const innerHtml = unwrapSectionContainer(newContentHtml);
+  const frag = parseHtml(innerHtml);
+  const newChildren = Array.from(frag.body.children);
+  if (!newChildren.length) return sourceHtml;
+
+  const grid = doc.createElement("div");
+  grid.className = "massic-grid cols-2";
+
+  const newCell = doc.createElement("div");
+  for (const child of newChildren) {
+    newCell.appendChild(doc.adoptNode(child));
+  }
+
+  const parent = el.parentElement;
+  const nextSibling = el.nextSibling;
+
+  parent.removeChild(el);
+
+  if (insertSide === "left") {
+    grid.appendChild(newCell);
+    grid.appendChild(el);
+  } else {
+    grid.appendChild(el);
+    grid.appendChild(newCell);
+  }
+
+  parent.insertBefore(grid, nextSibling);
+  return doc.body.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+//  Media (image / iframe) operations within elements
+// ---------------------------------------------------------------------------
+
+export interface MediaElementInfo {
+  type: "img" | "iframe";
+  src: string;
+  alt: string;
+  width: string;
+  mediaIndex: number;
+}
+
+export function getMediaInfoFromElement(
+  containerEl: HTMLElement,
+  clickTarget: HTMLElement
+): MediaElementInfo | null {
+  const imgEl = clickTarget.tagName === "IMG"
+    ? (clickTarget as HTMLImageElement)
+    : clickTarget.closest("img") as HTMLImageElement | null;
+
+  if (imgEl) {
+    const allImgs = Array.from(containerEl.querySelectorAll("img"));
+    const idx = allImgs.indexOf(imgEl);
+    return {
+      type: "img",
+      src: imgEl.getAttribute("src") || "",
+      alt: imgEl.getAttribute("alt") || "",
+      width: imgEl.style.width || imgEl.getAttribute("width") || "",
+      mediaIndex: idx >= 0 ? idx : 0,
+    };
+  }
+
+  const videoWrap = clickTarget.closest(".massic-video-wrap");
+  const iframeEl = clickTarget.tagName === "IFRAME"
+    ? (clickTarget as HTMLIFrameElement)
+    : (videoWrap?.querySelector("iframe") as HTMLIFrameElement | null)
+      ?? (clickTarget.closest("iframe") as HTMLIFrameElement | null);
+
+  if (iframeEl) {
+    const allIframes = Array.from(containerEl.querySelectorAll("iframe"));
+    const idx = allIframes.indexOf(iframeEl);
+    return {
+      type: "iframe",
+      src: iframeEl.getAttribute("src") || "",
+      alt: iframeEl.getAttribute("title") || "",
+      width: iframeEl.style.width || iframeEl.getAttribute("width") || "",
+      mediaIndex: idx >= 0 ? idx : 0,
+    };
+  }
+
+  return null;
+}
+
+export function updateMediaInElementBySpacingId(
+  sourceHtml: string,
+  spacingId: string,
+  mediaIndex: number,
+  mediaType: "img" | "iframe",
+  updates: { src?: string; alt?: string; width?: string }
+): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el) return sourceHtml;
+
+  const mediaElements = Array.from(el.querySelectorAll(mediaType));
+  const media = mediaElements[mediaIndex] as HTMLElement | undefined;
+  if (!media) return sourceHtml;
+
+  if (updates.src !== undefined) {
+    media.setAttribute("src", updates.src);
+  }
+  if (updates.alt !== undefined) {
+    if (mediaType === "img") {
+      media.setAttribute("alt", updates.alt);
+    } else {
+      media.setAttribute("title", updates.alt);
+    }
+  }
+  if (updates.width !== undefined) {
+    const w = updates.width;
+    if (w) {
+      media.style.width = w;
+      media.style.maxWidth = w;
+    } else {
+      media.style.removeProperty("width");
+      media.style.removeProperty("max-width");
+    }
+  }
+
+  return doc.body.innerHTML;
 }

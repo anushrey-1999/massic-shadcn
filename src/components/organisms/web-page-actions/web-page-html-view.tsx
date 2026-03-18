@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  ChevronDown,
   Copy,
   ExternalLink,
   Globe,
@@ -43,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/clipboard";
 import { resolvePageContent } from "@/utils/page-content-resolver";
@@ -107,7 +109,21 @@ import {
   useWordpressSlugCheck,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
-import { useWordpressConnection } from "@/hooks/use-wordpress-connector";
+import {
+  useWordpressConnection,
+  useWordpressStyleProfile,
+  useUpdateWordpressStyleOverrides,
+} from "@/hooks/use-wordpress-connector";
+import {
+  applyMassicStyleOverrides,
+  buildMassicCssVariableOverrides,
+  MASSIC_STYLE_COLOR_KEYS,
+  MASSIC_STYLE_TYPOGRAPHY_KEYS,
+  normalizeMassicStyleColorOverrides,
+  normalizeMassicStyleTypographyOverrides,
+  type MassicStyleColorKey,
+  type MassicStyleTypographyKey,
+} from "@/utils/massic-style-overrides";
 import { LayoutPanel, MediaEditorPanel } from "@/components/ui/layout-panel";
 import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 
@@ -251,6 +267,56 @@ function areSpacingValuesEqual(left: Partial<EditableSpacingValue> | null | unde
   );
 }
 
+const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
+  primary: "Primary",
+  secondary: "Secondary",
+  accent: "Accent",
+  link: "Link",
+  text: "Text",
+  mutedText: "Muted Text",
+  background: "Background",
+  surface: "Surface",
+  buttonBg: "Button Background",
+  buttonText: "Button Text",
+};
+const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "primary",
+  "secondary",
+  "accent",
+  "link",
+  "buttonBg",
+  "buttonText",
+];
+const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "text",
+  "mutedText",
+  "background",
+  "surface",
+];
+const STYLE_TYPOGRAPHY_OPTION_LABELS: Partial<Record<MassicStyleTypographyKey, string>> = {
+  baseFontSize: "Base Text Size",
+  baseLineHeight: "Base Line Height",
+  h1Size: "H1 Size",
+  h2Size: "H2 Size",
+  h3Size: "H3 Size",
+};
+const VISIBLE_STYLE_TYPOGRAPHY_KEYS: MassicStyleTypographyKey[] = [
+  "baseFontSize",
+  "baseLineHeight",
+  "h1Size",
+  "h2Size",
+  "h3Size",
+];
+const LINE_HEIGHT_PRESETS = ["1.3", "1.4", "1.5", "1.6", "1.8", "2"];
+const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
+  bodyFontFamily: [],
+  headingFontFamily: [],
+  baseFontSize: ["14px", "16px", "18px", "20px", "22px", "24px"],
+  baseLineHeight: LINE_HEIGHT_PRESETS,
+  h1Size: ["28px", "32px", "36px", "40px", "42px", "48px"],
+  h2Size: ["22px", "24px", "28px", "32px", "36px"],
+  h3Size: ["18px", "20px", "22px", "26px", "30px"],
+};
 
 export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
@@ -312,7 +378,17 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const { mutateAsync: slugCheckMutateAsync } = useWordpressSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
+  const wpStyleProfileQuery = useWordpressStyleProfile(wpConnection?.connectionId || null);
+  const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
+  const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
+    Partial<Record<MassicStyleColorKey, string>>
+  >({});
+  const [showAllStyleColorOptions, setShowAllStyleColorOptions] = React.useState(false);
+  const [openStylePaletteKey, setOpenStylePaletteKey] = React.useState<MassicStyleColorKey | null>(null);
+  const [styleTypographyOverridesDraft, setStyleTypographyOverridesDraft] = React.useState<
+    Partial<Record<MassicStyleTypographyKey, string>>
+  >({});
   const inferPage = data?.output_data?.page || {};
   const publishTitle = inferPage?.meta_title || inferPage?.title || keyword || "Untitled";
   const publishContentId = inferPage?.page_id || pageId;
@@ -381,6 +457,247 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     }
     return null;
   }, [isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId, wpConnection?.siteUrl]);
+
+  const normalizedStoredStyleColorOverrides = React.useMemo(
+    () => normalizeMassicStyleColorOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).colors || {},
+    [wpStyleProfileQuery.data?.styleOverrides]
+  );
+  const serializedStoredColorOverrides = React.useMemo(
+    () => JSON.stringify(normalizedStoredStyleColorOverrides),
+    [normalizedStoredStyleColorOverrides]
+  );
+  const normalizedStoredStyleTypographyOverrides = React.useMemo(
+    () => normalizeMassicStyleTypographyOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).typography || {},
+    [wpStyleProfileQuery.data?.styleOverrides]
+  );
+  const serializedStoredTypographyOverrides = React.useMemo(
+    () => JSON.stringify(normalizedStoredStyleTypographyOverrides),
+    [normalizedStoredStyleTypographyOverrides]
+  );
+  React.useEffect(() => {
+    setStyleColorOverridesDraft((prev) => {
+      const prevSerialized = JSON.stringify(
+        normalizeMassicStyleColorOverrides({ colors: prev }).colors || {}
+      );
+      if (prevSerialized === serializedStoredColorOverrides) return prev;
+      return normalizedStoredStyleColorOverrides;
+    });
+  }, [normalizedStoredStyleColorOverrides, serializedStoredColorOverrides]);
+  React.useEffect(() => {
+    setStyleTypographyOverridesDraft((prev) => {
+      const prevSerialized = JSON.stringify(
+        normalizeMassicStyleTypographyOverrides({ typography: prev }).typography || {}
+      );
+      if (prevSerialized === serializedStoredTypographyOverrides) return prev;
+      return normalizedStoredStyleTypographyOverrides;
+    });
+  }, [normalizedStoredStyleTypographyOverrides, serializedStoredTypographyOverrides]);
+
+  const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
+  const shouldApplyWpStyle = isWpConnected && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
+  const styleProfileForPreview = React.useMemo(
+    () =>
+      shouldApplyWpStyle
+        ? applyMassicStyleOverrides(wpStyleProfileQuery.data?.profile, {
+            colors: styleColorOverridesDraft,
+            typography: styleTypographyOverridesDraft,
+          })
+        : null,
+    [shouldApplyWpStyle, styleColorOverridesDraft, styleTypographyOverridesDraft, wpStyleProfileQuery.data?.profile]
+  );
+  const cssVarOverrides = React.useMemo(
+    () =>
+      styleProfileForPreview
+        ? buildMassicCssVariableOverrides({ normalizedProfile: styleProfileForPreview })
+        : {},
+    [styleProfileForPreview]
+  );
+  const previewStyleVars = React.useMemo(() => {
+    const style: React.CSSProperties = {};
+    for (const [key, value] of Object.entries(cssVarOverrides)) {
+      (style as Record<string, string>)[key] = value;
+    }
+    return style;
+  }, [cssVarOverrides]);
+  const previewMassicVarCss = React.useMemo(() => {
+    const entries = Object.entries(cssVarOverrides);
+    if (!entries.length) return "";
+    const declarations = entries.map(([key, value]) => `${key}: ${value};`).join(" ");
+    return `.massic-html-preview .massic-content { ${declarations} }`;
+  }, [cssVarOverrides]);
+  const extractedStyleColors = React.useMemo(() => {
+    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as { colors?: Record<string, unknown> } | undefined;
+    return (extractedProfile?.colors || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.extractedProfile]);
+  const effectiveProfileColors = React.useMemo(() => {
+    const profile = wpStyleProfileQuery.data?.profile as { colors?: Record<string, unknown> } | undefined;
+    return (profile?.colors || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.profile]);
+  const normalizeAnyColor = React.useCallback((value: unknown) => {
+    if (typeof value !== "string") return null;
+    return normalizeMassicStyleColorOverrides({ colors: { primary: value } }).colors?.primary || null;
+  }, []);
+  const extractedColorByKey = React.useMemo(() => {
+    const next: Partial<Record<MassicStyleColorKey, string>> = {};
+    for (const key of MASSIC_STYLE_COLOR_KEYS) {
+      const extracted = normalizeAnyColor(extractedStyleColors[key]);
+      const profileFallback = normalizeAnyColor(effectiveProfileColors[key]);
+      if (extracted) next[key] = extracted;
+      else if (profileFallback) next[key] = profileFallback;
+    }
+    return next;
+  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
+  const extractedPaletteColors = React.useMemo(() => {
+    const candidates: string[] = [];
+    for (const value of Object.values(extractedStyleColors || {})) {
+      const normalized = normalizeAnyColor(value);
+      if (normalized) candidates.push(normalized);
+    }
+    for (const value of Object.values(effectiveProfileColors || {})) {
+      const normalized = normalizeAnyColor(value);
+      if (normalized) candidates.push(normalized);
+    }
+    return Array.from(new Set(candidates));
+  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
+  const visibleStyleColorKeys = showAllStyleColorOptions
+    ? [...CORE_STYLE_COLOR_KEYS, ...ADVANCED_STYLE_COLOR_KEYS]
+    : CORE_STYLE_COLOR_KEYS;
+  const extractedStyleTypography = React.useMemo(() => {
+    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as
+      | { typography?: Record<string, unknown> }
+      | undefined;
+    return (extractedProfile?.typography || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.extractedProfile]);
+  const effectiveProfileTypography = React.useMemo(() => {
+    const profile = wpStyleProfileQuery.data?.profile as
+      | { typography?: Record<string, unknown> }
+      | undefined;
+    return (profile?.typography || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.profile]);
+  const extractedTypographyByKey = React.useMemo(() => {
+    const readTypographyValue = (source: Record<string, unknown>, key: MassicStyleTypographyKey): string | null => {
+      if (key === "h1Size") {
+        const value = (source.h1 as Record<string, unknown> | undefined)?.size;
+        return typeof value === "string" ? value : null;
+      }
+      if (key === "h2Size") {
+        const value = (source.h2 as Record<string, unknown> | undefined)?.size;
+        return typeof value === "string" ? value : null;
+      }
+      if (key === "h3Size") {
+        const value = (source.h3 as Record<string, unknown> | undefined)?.size;
+        return typeof value === "string" ? value : null;
+      }
+      const value = source[key];
+      return typeof value === "string" ? value : null;
+    };
+
+    const next: Partial<Record<MassicStyleTypographyKey, string>> = {};
+    for (const key of MASSIC_STYLE_TYPOGRAPHY_KEYS) {
+      const extracted = readTypographyValue(extractedStyleTypography, key);
+      const fallback = readTypographyValue(effectiveProfileTypography, key);
+      if (extracted) {
+        next[key] = extracted;
+      } else if (fallback) {
+        next[key] = fallback;
+      }
+    }
+    return next;
+  }, [effectiveProfileTypography, extractedStyleTypography]);
+  const normalizedDraftStyleColorOverrides = React.useMemo(
+    () => normalizeMassicStyleColorOverrides({ colors: styleColorOverridesDraft }).colors || {},
+    [styleColorOverridesDraft]
+  );
+  const normalizedDraftStyleTypographyOverrides = React.useMemo(
+    () => normalizeMassicStyleTypographyOverrides({ typography: styleTypographyOverridesDraft }).typography || {},
+    [styleTypographyOverridesDraft]
+  );
+  const serializedDraftColorOverrides = React.useMemo(
+    () => JSON.stringify(normalizedDraftStyleColorOverrides),
+    [normalizedDraftStyleColorOverrides]
+  );
+  const serializedDraftTypographyOverrides = React.useMemo(
+    () => JSON.stringify(normalizedDraftStyleTypographyOverrides),
+    [normalizedDraftStyleTypographyOverrides]
+  );
+  const hasUnsavedStyleColorOverrides = serializedDraftColorOverrides !== serializedStoredColorOverrides;
+  const hasUnsavedStyleTypographyOverrides = serializedDraftTypographyOverrides !== serializedStoredTypographyOverrides;
+  const invalidTypographyKeys = React.useMemo(
+    () =>
+      VISIBLE_STYLE_TYPOGRAPHY_KEYS.filter((key) => {
+        const raw = String(styleTypographyOverridesDraft[key] || "").trim();
+        if (!raw) return false;
+        return !normalizedDraftStyleTypographyOverrides[key];
+      }),
+    [normalizedDraftStyleTypographyOverrides, styleTypographyOverridesDraft]
+  );
+  const hasTypographyValidationErrors = invalidTypographyKeys.length > 0;
+  const isStyleOverrideSaving = wpStyleOverridesMutation.isPending;
+
+  const handleStyleOverrideColorChange = React.useCallback((key: MassicStyleColorKey, value: string) => {
+    const normalized = normalizeMassicStyleColorOverrides({ colors: { [key]: value } }).colors?.[key];
+    if (!normalized) return;
+    setStyleColorOverridesDraft((prev) => ({
+      ...prev,
+      [key]: normalized,
+    }));
+  }, []);
+  const handleStyleOverrideTypographyChange = React.useCallback((key: MassicStyleTypographyKey, value: string) => {
+    setStyleTypographyOverridesDraft((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  }, []);
+
+  const resetStyleOverrideKey = React.useCallback((key: MassicStyleColorKey) => {
+    setStyleColorOverridesDraft((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+  const handleSaveStyleColorOverrides = React.useCallback(async () => {
+    if (!wpConnection?.connectionId) return;
+    const response = await wpStyleOverridesMutation.mutateAsync({
+      connectionId: wpConnection.connectionId,
+      overrides: {
+        colors: normalizedDraftStyleColorOverrides,
+        typography: normalizedStoredStyleTypographyOverrides,
+      },
+    });
+    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
+    const savedTypography = normalizeMassicStyleTypographyOverrides(response?.data?.styleOverrides || {}).typography || {};
+    setStyleColorOverridesDraft(savedColors);
+    setStyleTypographyOverridesDraft(savedTypography);
+  }, [
+    normalizedDraftStyleColorOverrides,
+    normalizedStoredStyleTypographyOverrides,
+    wpConnection?.connectionId,
+    wpStyleOverridesMutation,
+  ]);
+
+  const handleSaveStyleTypographyOverrides = React.useCallback(async () => {
+    if (!wpConnection?.connectionId) return;
+    if (hasTypographyValidationErrors) return;
+    const response = await wpStyleOverridesMutation.mutateAsync({
+      connectionId: wpConnection.connectionId,
+      overrides: {
+        colors: normalizedStoredStyleColorOverrides,
+        typography: normalizedDraftStyleTypographyOverrides,
+      },
+    });
+    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
+    const savedTypography = normalizeMassicStyleTypographyOverrides(response?.data?.styleOverrides || {}).typography || {};
+    setStyleColorOverridesDraft(savedColors);
+    setStyleTypographyOverridesDraft(savedTypography);
+  }, [
+    hasTypographyValidationErrors,
+    normalizedDraftStyleTypographyOverrides,
+    normalizedStoredStyleColorOverrides,
+    wpConnection?.connectionId,
+    wpStyleOverridesMutation,
+  ]);
+
   const [previewEditMode, setPreviewEditMode] = React.useState<PreviewEditMode>("text");
   const [activeLinkEditor, setActiveLinkEditor] = React.useState<ActiveLinkEditorState | null>(null);
   const [linkHrefDraft, setLinkHrefDraft] = React.useState("");
@@ -424,10 +741,6 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const isEditingSessionRef = React.useRef(false);
   const lastCommittedHtmlRef = React.useRef("");
   const pendingBackgroundRefetchRef = React.useRef(false);
-
-  const cssVarOverrides: Record<string, string> = {};
-  const previewStyleVars: React.CSSProperties = {};
-  const previewMassicVarCss = "";
 
   const status = (data?.status || "").toString().toLowerCase();
   const isProcessing = status === "pending" || status === "processing";
@@ -2257,6 +2570,277 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                   ) : null}
                 </div>
               ) : null}
+
+              <div className="space-y-2 pt-2 border-t border-border/60">
+                <div className="flex items-center justify-between gap-2">
+                  <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Style Colors
+                  </Typography>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStyleColorOverridesDraft({})}
+                      disabled={isStyleOverrideSaving || !Object.keys(styleColorOverridesDraft).length}
+                    >
+                      Reset All
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveStyleColorOverrides}
+                      disabled={isStyleOverrideSaving || !hasUnsavedStyleColorOverrides}
+                    >
+                      {isStyleOverrideSaving ? "Saving..." : "Save Colors"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <Typography className="text-xs text-muted-foreground">
+                    Overrides are saved separately. Use extracted colors or custom picks.
+                  </Typography>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setShowAllStyleColorOptions((prev) => !prev)}
+                  >
+                    {showAllStyleColorOptions
+                      ? "Show Core"
+                      : `Show All (${MASSIC_STYLE_COLOR_KEYS.length})`}
+                  </Button>
+                </div>
+                {extractedPaletteColors.length ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Typography className="text-[11px] text-muted-foreground">
+                      Extracted palette:
+                    </Typography>
+                    {extractedPaletteColors.slice(0, 10).map((color) => (
+                      <span
+                        key={color}
+                        className="inline-flex h-5 w-5 rounded-full border border-border"
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {visibleStyleColorKeys.map((key) => {
+                    const label = STYLE_COLOR_OPTION_LABELS[key] || key;
+                    const extractedColor = extractedColorByKey[key] || null;
+                    const overrideColor = normalizedDraftStyleColorOverrides[key] || null;
+                    const pickerValue =
+                      overrideColor ||
+                      extractedColor ||
+                      extractedPaletteColors[0] ||
+                      "#000000";
+                    return (
+                      <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <Typography className="text-xs font-medium">{label}</Typography>
+                          <Typography className="text-[11px] text-muted-foreground font-mono">
+                            {overrideColor || extractedColor || "n/a"}
+                          </Typography>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="color"
+                            value={pickerValue}
+                            onChange={(e) => handleStyleOverrideColorChange(key, e.target.value)}
+                            disabled={isStyleOverrideSaving}
+                            className="h-8 w-11 p-1 shrink-0"
+                          />
+                          <Popover
+                            open={openStylePaletteKey === key}
+                            onOpenChange={(open) => setOpenStylePaletteKey(open ? key : null)}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
+                                disabled={isStyleOverrideSaving || !extractedPaletteColors.length}
+                              >
+                                <span className="flex min-w-0 items-center gap-2">
+                                  <span
+                                    className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
+                                    style={{
+                                      backgroundColor:
+                                        overrideColor ||
+                                        extractedColor ||
+                                        extractedPaletteColors[0] ||
+                                        "#000000",
+                                    }}
+                                  />
+                                  <span className="truncate">
+                                    {overrideColor || extractedColor || "Use extracted"}
+                                  </span>
+                                </span>
+                                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-56 p-1">
+                              <div className="max-h-56 space-y-1 overflow-y-auto">
+                                {extractedPaletteColors.map((color) => (
+                                  <button
+                                    key={`${key}-${color}`}
+                                    type="button"
+                                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
+                                    onClick={() => {
+                                      handleStyleOverrideColorChange(key, color);
+                                      setOpenStylePaletteKey(null);
+                                    }}
+                                  >
+                                    <span
+                                      className="h-4 w-4 shrink-0 rounded-full border border-border"
+                                      style={{ backgroundColor: color }}
+                                    />
+                                    <span className="font-mono">{color}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-xs"
+                            onClick={() => resetStyleOverrideKey(key)}
+                            disabled={isStyleOverrideSaving || !overrideColor}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!showAllStyleColorOptions ? (
+                  <Typography className="text-[11px] text-muted-foreground">
+                    Showing core colors. Enable &quot;Show All&quot; for text/surface options.
+                  </Typography>
+                ) : null}
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-border/60">
+                <div className="flex items-center justify-between gap-2">
+                  <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Typography
+                  </Typography>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStyleTypographyOverridesDraft({})}
+                      disabled={isStyleOverrideSaving || !Object.keys(styleTypographyOverridesDraft).length}
+                    >
+                      Reset Typography
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveStyleTypographyOverrides}
+                      disabled={isStyleOverrideSaving || hasTypographyValidationErrors || !hasUnsavedStyleTypographyOverrides}
+                    >
+                      {isStyleOverrideSaving ? "Saving..." : "Save Typography"}
+                    </Button>
+                  </div>
+                </div>
+                <Typography className="text-xs text-muted-foreground">
+                  Adjust only the core text scale. Font-family overrides are hidden for a simpler setup.
+                </Typography>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {VISIBLE_STYLE_TYPOGRAPHY_KEYS.map((key) => {
+                    const label = STYLE_TYPOGRAPHY_OPTION_LABELS[key] || key;
+                    const extractedValue = extractedTypographyByKey[key] || "";
+                    const overrideValue = styleTypographyOverridesDraft[key] || "";
+                    const displayValue = overrideValue || extractedValue || "";
+                    const isInvalid = Boolean(
+                      overrideValue &&
+                      !normalizedDraftStyleTypographyOverrides[key]
+                    );
+                    const presetOptions = TYPOGRAPHY_PRESETS[key] || [];
+                    const presetMenuOptions = (() => {
+                      const seen = new Set<string>();
+                      const merged: Array<{ value: string; label: string }> = [];
+
+                      const pushOption = (value: string, label: string) => {
+                        const trimmed = String(value || "").trim();
+                        if (!trimmed) return;
+                        const dedupeKey = trimmed.toLowerCase();
+                        if (seen.has(dedupeKey)) return;
+                        seen.add(dedupeKey);
+                        merged.push({ value: trimmed, label });
+                      };
+
+                      if (extractedValue) {
+                        pushOption(extractedValue, `Extracted: ${extractedValue}`);
+                      }
+                      for (const preset of presetOptions) {
+                        pushOption(preset, preset);
+                      }
+
+                      return merged;
+                    })();
+                    return (
+                      <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <Typography className="text-xs font-medium">{label}</Typography>
+                          <Typography className="text-[11px] text-muted-foreground font-mono truncate">
+                            {displayValue || "n/a"}
+                          </Typography>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={overrideValue}
+                            onChange={(event) => handleStyleOverrideTypographyChange(key, event.target.value)}
+                            placeholder={extractedValue || "Enter value"}
+                            className={cn("h-8 text-xs", isInvalid ? "border-destructive" : "")}
+                            disabled={isStyleOverrideSaving}
+                          />
+                          <select
+                            className="h-8 w-[128px] shrink-0 rounded-md border border-input bg-background px-2 text-xs"
+                            value=""
+                            disabled={isStyleOverrideSaving || !presetMenuOptions.length}
+                            onChange={(event) => {
+                              const selected = event.target.value;
+                              if (!selected) return;
+                              handleStyleOverrideTypographyChange(key, selected);
+                            }}
+                          >
+                            <option value="">Presets</option>
+                            {presetMenuOptions.map((option) => (
+                              <option key={`${key}-${option.value}`} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <Typography className="text-[11px] text-muted-foreground truncate">
+                            {extractedValue ? `Extracted: ${extractedValue}` : "No extracted value"}
+                          </Typography>
+                          {isInvalid ? (
+                            <Typography className="text-[11px] text-destructive">
+                              Invalid format
+                            </Typography>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {hasTypographyValidationErrors ? (
+                  <Typography className="text-[11px] text-destructive">
+                    Invalid values found. Use sizes like 16px and line-height like 1.6.
+                  </Typography>
+                ) : null}
+              </div>
             </div>
           )}
           <DialogFooter className="gap-2 sm:gap-2">

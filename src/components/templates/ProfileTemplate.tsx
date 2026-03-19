@@ -26,6 +26,7 @@ import {
   cleanWebsiteUrl,
   normalizeWebsiteUrl,
 } from "@/utils/utils";
+import { getAutofillErrorMessage } from "@/utils/profile-autofill";
 import { Button } from "@/components/ui/button";
 import { GenericInput } from "@/components/ui/generic-input";
 import { Stepper } from "@/components/ui/stepper";
@@ -75,8 +76,15 @@ interface ProfileAutofillResponse {
     brand_terms?: string[];
     web_tone?: string[];
     social_tone?: string[];
+    error?: string | null;
+    reason?: string | null;
+    recommendation?: string | null;
+    [key: string]: unknown;
   };
   errors?: string | string[] | null;
+  error?: string | null;
+  message?: string | null;
+  detail?: string | null;
 }
 
 interface ProfileTemplateProps {
@@ -84,7 +92,10 @@ interface ProfileTemplateProps {
   profileData?: BusinessProfile | null;
   jobDetails?: any | null; // Job details from job API
   isLoading?: boolean;
-  onUpdateProfile?: (payload: any, formValues?: any) => Promise<void>;
+  onUpdateProfile?: (
+    payload: any,
+    formValues?: any
+  ) => Promise<{ jobExistsAfterSave?: boolean } | void>;
 }
 
 const PROFILE_STEPPER_STEPS = [
@@ -117,7 +128,6 @@ const ProfileTemplate = ({
   const profiles = useBusinessStore((state) => state.profiles);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
-  const isJobCreated = Boolean(externalJobDetails?.job_id);
   const offeringsExtractor = useOfferingsExtractor(businessId);
 
   // Derive whitelist status from profiles (agency-level check)
@@ -131,6 +141,7 @@ const ProfileTemplate = ({
   const [isCheckingPlan, setIsCheckingPlan] = useState(false);
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
+  const [hasCreatedJobAfterSave, setHasCreatedJobAfterSave] = useState(false);
   const {
     loading: subscriptionLoading,
     data: subscriptionData,
@@ -146,6 +157,7 @@ const ProfileTemplate = ({
   const lastProfileDataStringRef = useRef<string | null>(null);
   // Track the offerings that were just saved to prevent overwriting with stale data
   const lastSavedOfferingsRef = useRef<OfferingRow[] | null>(null);
+  const isJobCreated = Boolean(externalJobDetails?.job_id) || hasCreatedJobAfterSave;
 
   // Helper function to map profile data and job data to form values
   // ALWAYS checks if job exists first - this determines which data source to use
@@ -543,7 +555,11 @@ const ProfileTemplate = ({
           })
         );
 
-        await onUpdateProfile(payload, value);
+        const updateResult = await onUpdateProfile(payload, value);
+
+        if (updateResult?.jobExistsAfterSave) {
+          setHasCreatedJobAfterSave(true);
+        }
 
         // Update initial values after successful save
         initialValuesRef.current = JSON.stringify(value);
@@ -589,12 +605,17 @@ const ProfileTemplate = ({
         { business_url: website },
         { timeout: 120000 }
       );
-      if (res?.errors) {
-        toast.error("Failed to autofill profile");
+      const autofillErrorMessage = getAutofillErrorMessage(res, "");
+      if (autofillErrorMessage) {
+        toast.error(autofillErrorMessage);
         return;
       }
       const pa = res?.profile_autofill;
-      if (!pa) return;
+      if (!pa) {
+        const fallbackMessage = String(res?.message ?? res?.detail ?? "").trim();
+        toast.error(fallbackMessage || "Failed to autofill profile");
+        return;
+      }
 
       const ensureHttpsUrl = (raw: unknown): string => {
         const s = String(raw ?? "")
@@ -705,8 +726,18 @@ const ProfileTemplate = ({
 
       setHasAutofilledProfile(true);
       toast.success("Profile fields updated from website");
-    } catch {
-      toast.error("Failed to autofill profile");
+    } catch (error: any) {
+      const fallbackMessage = String(
+        error?.response?.data?.message ??
+        error?.response?.data?.detail ??
+        error?.message ??
+        ""
+      ).trim();
+      toast.error(
+        getAutofillErrorMessage(error?.response?.data ?? error, "") ||
+        fallbackMessage ||
+        "Failed to autofill profile"
+      );
     } finally {
       setIsAutofillLoading(false);
     }
@@ -826,6 +857,15 @@ const ProfileTemplate = ({
       initialValuesRef.current = JSON.stringify(form.state.values);
     }
   }, []);
+
+  useEffect(() => {
+    if (externalJobDetails?.job_id) {
+      setHasCreatedJobAfterSave(true);
+      return;
+    }
+
+    setHasCreatedJobAfterSave(false);
+  }, [businessId, externalJobDetails?.job_id]);
 
   // Use form store subscription for real-time change detection
   // Optimized: Batches updates using requestAnimationFrame to avoid excessive JSON.stringify calls
@@ -1120,7 +1160,7 @@ const ProfileTemplate = ({
     ? externalLoading ||
       isSaving ||
       isAutofillWorkflowInProgress ||
-      hasAnyValidationErrors // Save Changes: disable during loading, saving, autofill/extraction, or validation errors
+      hasAnyValidationErrors
     : externalLoading ||
     isSaving ||
       isAutofillWorkflowInProgress ||
@@ -1475,8 +1515,7 @@ const ProfileTemplate = ({
                             externalLoading ||
                             isSaving ||
                             hasAnyValidationErrors ||
-                            isAutofillLoading ||
-                            offeringsExtractor.isExtracting
+                            isAutofillWorkflowInProgress
                           }
                           title={buttonHelperText}
                         >

@@ -23,6 +23,7 @@ import { LoaderOverlay } from "@/components/ui/loader";
 import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { Loader2 } from "lucide-react";
 import { cleanWebsiteUrl } from "@/utils/utils";
+import { getAutofillErrorMessage } from "@/utils/profile-autofill";
 import {
   Tooltip,
   TooltipContent,
@@ -72,8 +73,15 @@ interface ProfileAutofillResponse {
     b2b_b2c?: string;
     competitors?: string[];
     segment?: number;
+    error?: string | null;
+    reason?: string | null;
+    recommendation?: string | null;
+    [key: string]: unknown;
   };
   errors?: string | string[] | null;
+  error?: string | null;
+  message?: string | null;
+  detail?: string | null;
 }
 
 export function PitchProfileTemplate() {
@@ -228,12 +236,17 @@ export function PitchProfileTemplate() {
         { business_url: website },
         { timeout: 120000 }
       );
-      if (res?.errors) {
-        toast.error("Failed to autofill profile");
+      const autofillErrorMessage = getAutofillErrorMessage(res, "");
+      if (autofillErrorMessage) {
+        toast.error(autofillErrorMessage);
         return;
       }
       const pa = res?.profile_autofill;
-      if (!pa) return;
+      if (!pa) {
+        const fallbackMessage = String(res?.message ?? res?.detail ?? "").trim();
+        toast.error(fallbackMessage || "Failed to autofill profile");
+        return;
+      }
 
       const market = (pa.market ?? "").toLowerCase();
       if (market === "local" || market === "online") {
@@ -258,8 +271,18 @@ export function PitchProfileTemplate() {
       }
 
       toast.success("Profile fields updated from website");
-    } catch {
-      toast.error("Failed to autofill profile");
+    } catch (error: any) {
+      const fallbackMessage = String(
+        error?.response?.data?.message ??
+        error?.response?.data?.detail ??
+        error?.message ??
+        ""
+      ).trim();
+      toast.error(
+        getAutofillErrorMessage(error?.response?.data ?? error, "") ||
+        fallbackMessage ||
+        "Failed to autofill profile"
+      );
     } finally {
       setIsAutofillLoading(false);
     }

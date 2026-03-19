@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
-import { useMemo, useState, useCallback } from "react"
+import { useMemo, useState, useCallback, useEffect } from "react"
 import { calculateTrend } from "@/utils/gsc-deepdive-utils"
 import type { DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters"
 import { eachDayOfInterval, format, isValid, parseISO } from "date-fns"
@@ -691,9 +691,22 @@ export function useGSCAnalytics(
   const [topPagesFilter, setTopPagesFilter] = useState<TableFilterType>("popular")
   const [topQueriesFilter, setTopQueriesFilter] = useState<TableFilterType>("popular")
 
-  const [contentGroupsSort, setContentGroupsSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
-  const [topPagesSort, setTopPagesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
-  const [topQueriesSort, setTopQueriesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: "impressions", direction: "desc" })
+  const defaultSortColumn: SortColumn = ga4TrafficScope === "all" ? "sessions" : "impressions"
+  const [contentGroupsSort, setContentGroupsSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: defaultSortColumn, direction: "desc" })
+  const [topPagesSort, setTopPagesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: defaultSortColumn, direction: "desc" })
+  const [topQueriesSort, setTopQueriesSort] = useState<{ column: SortColumn; direction: SortDirection }>({ column: defaultSortColumn, direction: "desc" })
+
+  useEffect(() => {
+    if (ga4TrafficScope === "all") {
+      setContentGroupsSort({ column: "sessions", direction: "desc" })
+      setTopPagesSort({ column: "sessions", direction: "desc" })
+      setTopQueriesSort({ column: "sessions", direction: "desc" })
+    } else {
+      setContentGroupsSort({ column: "impressions", direction: "desc" })
+      setTopPagesSort({ column: "impressions", direction: "desc" })
+      setTopQueriesSort({ column: "impressions", direction: "desc" })
+    }
+  }, [ga4TrafficScope])
 
   const filtersQueryKey = useMemo(() => JSON.stringify(filters ?? []), [filters])
   const enabled = Boolean(businessUniqueId && website)

@@ -7,6 +7,7 @@ import type { ContentGroupFilterSource } from "@/utils/custom-content-groups"
 export type { TimePeriodValue }
 export type TableFilterType = "popular" | "growing" | "decaying"
 export type GA4SortColumn = "sessions" | "goals"
+export type TrackedCtaSortColumn = "users" | "conversionRate" | "goals"
 export type SortDirection = "asc" | "desc"
 
 interface V2Ranges {
@@ -28,8 +29,10 @@ interface V2Response<T = any> {
 interface Ga4MetricRow {
   keys?: string[]
   source?: ContentGroupFilterSource
+  activeUsers?: number
   sessions?: number
   keyEvents?: number
+  conversionRate?: number
 }
 
 export interface GA4ChartDataFormatted {
@@ -52,9 +55,11 @@ export interface GA4ChannelDataFormatted {
   goals: number
 }
 
-export interface GA4GoalDataFormatted {
-  goal: string
-  goals: { value: number; change: number; rawValue: number; previousValue: number }
+export interface GA4TrackedCtaDataFormatted {
+  trackedCta: string
+  users: { value: string | number; change: number; rawValue: number; previousValue: number }
+  conversionRate: { value: string | number; change: number; rawValue: number; previousValue: number }
+  goals: { value: string | number; change: number; rawValue: number; previousValue: number }
 }
 
 interface TimescaleTableInternal {
@@ -67,6 +72,19 @@ interface TimescaleTableInternal {
   previousGoals: number
   sessionsChange: number
   goalsChange: number
+}
+
+interface TrackedCtaTableInternal {
+  key: string
+  users: number
+  goals: number
+  conversionRate: number
+  previousUsers: number
+  previousGoals: number
+  previousConversionRate: number
+  usersChange: number
+  goalsChange: number
+  conversionRateChange: number
 }
 
 export interface GA4AnalyticsLoadingState {
@@ -96,6 +114,16 @@ function formatNumber(value: number | string): string {
   if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`
   if (value >= 1000) return `${(value / 1000).toFixed(1)}K`
   return value.toLocaleString()
+}
+
+function formatPercent(value: number): string {
+  if (!Number.isFinite(value)) return "0%"
+
+  const percentage = value * 100
+  return `${percentage.toLocaleString(undefined, {
+    minimumFractionDigits: percentage !== 0 && Math.abs(percentage) < 10 ? 1 : 0,
+    maximumFractionDigits: 1,
+  })}%`
 }
 
 function formatDate(dateString: string): string {
@@ -219,6 +247,58 @@ function buildTimescaleTableRows(current: Ga4MetricRow[], previous: Ga4MetricRow
   })
 }
 
+function buildTrackedCtaRowIdentity(row?: Ga4MetricRow): string {
+  return String(row?.keys?.[0] || "").trim().toLowerCase()
+}
+
+function buildTrackedCtaTableRows(current: Ga4MetricRow[], previous: Ga4MetricRow[]): TrackedCtaTableInternal[] {
+  const currentMap = new Map<string, Ga4MetricRow>()
+  const previousMap = new Map<string, Ga4MetricRow>()
+
+  for (const row of current || []) {
+    const key = buildTrackedCtaRowIdentity(row)
+    if (!key) continue
+    currentMap.set(key, row)
+  }
+
+  for (const row of previous || []) {
+    const key = buildTrackedCtaRowIdentity(row)
+    if (!key) continue
+    previousMap.set(key, row)
+  }
+
+  const orderedKeys = [
+    ...Array.from(currentMap.keys()),
+    ...Array.from(previousMap.keys()).filter((key) => !currentMap.has(key)),
+  ]
+
+  return orderedKeys.map((identity) => {
+    const currentRow = currentMap.get(identity)
+    const previousRow = previousMap.get(identity)
+    const key = String(currentRow?.keys?.[0] || previousRow?.keys?.[0] || "").trim()
+
+    const currentUsers = asNumber(currentRow?.activeUsers)
+    const previousUsers = asNumber(previousRow?.activeUsers)
+    const currentGoals = asNumber(currentRow?.keyEvents)
+    const previousGoals = asNumber(previousRow?.keyEvents)
+    const currentConversionRate = asNumber(currentRow?.conversionRate)
+    const previousConversionRate = asNumber(previousRow?.conversionRate)
+
+    return {
+      key,
+      users: currentUsers,
+      goals: currentGoals,
+      conversionRate: currentConversionRate,
+      previousUsers,
+      previousGoals,
+      previousConversionRate,
+      usersChange: signedChange(currentUsers, previousUsers),
+      goalsChange: signedChange(currentGoals, previousGoals),
+      conversionRateChange: signedChange(currentConversionRate, previousConversionRate),
+    }
+  }).filter((row) => row.key)
+}
+
 function includeTimescaleRow(row: TimescaleTableInternal, filter: TableFilterType): boolean {
   if (filter === "popular") return true
 
@@ -236,6 +316,38 @@ function sortTimescaleRows(
   return [...rows].sort((a, b) => {
     const aValue = sort.column === "sessions" ? a.sessions : a.goals
     const bValue = sort.column === "sessions" ? b.sessions : b.goals
+    return sort.direction === "desc" ? bValue - aValue : aValue - bValue
+  })
+}
+
+function includeTrackedCtaRow(row: TrackedCtaTableInternal, filter: TableFilterType): boolean {
+  if (filter === "popular") return true
+
+  if (filter === "growing") {
+    return row.usersChange > 0 || row.goalsChange > 0 || row.conversionRateChange > 0
+  }
+
+  return row.usersChange < 0 || row.goalsChange < 0 || row.conversionRateChange < 0
+}
+
+function sortTrackedCtaRows(
+  rows: TrackedCtaTableInternal[],
+  sort: { column: TrackedCtaSortColumn; direction: SortDirection }
+): TrackedCtaTableInternal[] {
+  return [...rows].sort((a, b) => {
+    const aValue =
+      sort.column === "users"
+        ? a.users
+        : sort.column === "conversionRate"
+          ? a.conversionRate
+          : a.goals
+    const bValue =
+      sort.column === "users"
+        ? b.users
+        : sort.column === "conversionRate"
+          ? b.conversionRate
+          : b.goals
+
     return sort.direction === "desc" ? bValue - aValue : aValue - bValue
   })
 }
@@ -267,7 +379,7 @@ export function useGA4Analytics(
   const [contentGroupsFilter, setContentGroupsFilter] = useState<TableFilterType>("popular")
   const [topPagesFilter, setTopPagesFilter] = useState<TableFilterType>("popular")
 
-  const [goalsSort, setGoalsSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "goals", direction: "desc" })
+  const [goalsSort, setGoalsSort] = useState<{ column: TrackedCtaSortColumn; direction: SortDirection }>({ column: "goals", direction: "desc" })
   const [topSourcesSort, setTopSourcesSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "sessions", direction: "desc" })
   const [contentGroupsSort, setContentGroupsSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "sessions", direction: "desc" })
   const [topPagesSort, setTopPagesSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "sessions", direction: "desc" })
@@ -343,8 +455,8 @@ export function useGA4Analytics(
     gcTime: 30 * 60 * 1000,
   })
 
-  const eventNameQuery = useQuery<V2Response<Ga4MetricRow>>({
-    queryKey: ["ga4-event-name", trafficScope, businessUniqueId, website, period],
+  const trackedCtaQuery = useQuery<V2Response<Ga4MetricRow>>({
+    queryKey: ["ga4-tracked-cta", trafficScope, businessUniqueId, website, period],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
@@ -353,7 +465,7 @@ export function useGA4Analytics(
       try {
         return await api.post<V2Response<Ga4MetricRow>>("/analytics/ga4/analytics-v2", "node", {
           ...basePayload,
-          dimension: "event_name",
+          dimension: "tracked_cta",
           limit: 200,
         })
       } catch {
@@ -412,7 +524,7 @@ export function useGA4Analytics(
   const dateData = dateQuery.data ?? buildEmptyV2Response()
   const contentGroupData = contentGroupQuery.data ?? buildEmptyV2Response()
   const pageData = pageQuery.data ?? buildEmptyV2Response()
-  const eventNameData = eventNameQuery.data ?? buildEmptyV2Response()
+  const trackedCtaData = trackedCtaQuery.data ?? buildEmptyV2Response()
   const sourceMediumData = sourceMediumQuery.data ?? buildEmptyV2Response()
   const channelGroupData = channelGroupQuery.data ?? buildEmptyV2Response()
 
@@ -453,8 +565,8 @@ export function useGA4Analytics(
   }, [dateRows, previousDateRows])
 
   const goalsRows = useMemo(() => {
-    return buildTimescaleTableRows(eventNameData.data.current, eventNameData.data.previous)
-  }, [eventNameData.data.current, eventNameData.data.previous])
+    return buildTrackedCtaTableRows(trackedCtaData.data.current, trackedCtaData.data.previous)
+  }, [trackedCtaData.data.current, trackedCtaData.data.previous])
 
   const contentGroupRows = useMemo(() => {
     return buildTimescaleTableRows(contentGroupData.data.current, contentGroupData.data.previous)
@@ -472,14 +584,26 @@ export function useGA4Analytics(
     return buildTimescaleTableRows(channelGroupData.data.current, channelGroupData.data.previous)
   }, [channelGroupData.data.current, channelGroupData.data.previous])
 
-  const goalsData = useMemo<GA4GoalDataFormatted[]>(() => {
-    return sortTimescaleRows(
-      goalsRows.filter((row) => includeTimescaleRow(row, goalsFilter)),
+  const goalsData = useMemo<GA4TrackedCtaDataFormatted[]>(() => {
+    return sortTrackedCtaRows(
+      goalsRows.filter((row) => includeTrackedCtaRow(row, goalsFilter)),
       goalsSort
     ).map((row) => ({
-      goal: row.key,
+      trackedCta: row.key,
+      users: {
+        value: formatNumber(row.users),
+        change: row.usersChange,
+        rawValue: row.users,
+        previousValue: row.previousUsers,
+      },
+      conversionRate: {
+        value: formatPercent(row.conversionRate),
+        change: row.conversionRateChange,
+        rawValue: row.conversionRate * 100,
+        previousValue: row.previousConversionRate * 100,
+      },
       goals: {
-        value: row.goals,
+        value: formatNumber(row.goals),
         change: row.goalsChange,
         rawValue: row.goals,
         previousValue: row.previousGoals,
@@ -628,7 +752,7 @@ export function useGA4Analytics(
     setTopPagesFilter(filter)
   }, [])
 
-  const handleGoalsSort = useCallback((column: GA4SortColumn) => {
+  const handleGoalsSort = useCallback((column: TrackedCtaSortColumn) => {
     setGoalsSort((prev) => ({
       column,
       direction: prev.column === column && prev.direction === "desc" ? "asc" : "desc",
@@ -665,7 +789,7 @@ export function useGA4Analytics(
 
   const loadingState: GA4AnalyticsLoadingState = {
     chart: dateQuery.isLoading,
-    goals: eventNameQuery.isLoading,
+    goals: trackedCtaQuery.isLoading,
     topSources: sourceMediumQuery.isLoading,
     channels: channelGroupQuery.isLoading,
     contentGroups: contentGroupQuery.isLoading,
@@ -677,7 +801,7 @@ export function useGA4Analytics(
     dateQuery,
     contentGroupQuery,
     pageQuery,
-    eventNameQuery,
+    trackedCtaQuery,
     sourceMediumQuery,
     channelGroupQuery,
   ].some((query) => query.isFetching)
@@ -687,11 +811,11 @@ export function useGA4Analytics(
       dateQuery.refetch(),
       contentGroupQuery.refetch(),
       pageQuery.refetch(),
-      eventNameQuery.refetch(),
+      trackedCtaQuery.refetch(),
       sourceMediumQuery.refetch(),
       channelGroupQuery.refetch(),
     ])
-  }, [channelGroupQuery, contentGroupQuery, dateQuery, eventNameQuery, pageQuery, sourceMediumQuery])
+  }, [channelGroupQuery, contentGroupQuery, dateQuery, pageQuery, sourceMediumQuery, trackedCtaQuery])
 
   return {
     chartData,

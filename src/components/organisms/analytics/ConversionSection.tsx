@@ -15,12 +15,12 @@ import {
   useGA4Analytics,
   type TimePeriodValue,
   type TableFilterType,
-  type GA4SortColumn,
+  type TrackedCtaSortColumn,
   type GA4TrafficScope,
 } from "@/hooks/use-ga4-analytics";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 
 interface ConversionSectionProps {
   period?: TimePeriodValue;
@@ -81,16 +81,30 @@ const ConversionSection = ({ period = "3 months", ga4TrafficScope = "all" }: Con
               handleGoalsFilterChange(value as TableFilterType)
             }
             columns={[
-              { key: "goal", label: "Goal", width: "flex-1" },
+              { key: "trackedCta", label: "Tracked CTA", width: "w-[40%]" },
+              {
+                key: "users",
+                label: "Users",
+                sortable: true,
+                width: "w-[20%]",
+              },
+              {
+                key: "conversionRate",
+                label: "Conversion Rate",
+                sortable: true,
+                width: "w-[20%]",
+              },
               {
                 key: "goals",
                 label: "Goals",
                 sortable: true,
-                width: "w-[156px]",
+                width: "w-[20%]",
               },
             ]}
             data={goalsData.map((item) => ({
-              goal: item.goal,
+              trackedCta: item.trackedCta,
+              users: item.users,
+              conversionRate: item.conversionRate,
               goals: item.goals,
             }))}
             isLoading={showGoalsLoader}
@@ -99,7 +113,7 @@ const ConversionSection = ({ period = "3 months", ga4TrafficScope = "all" }: Con
               column: goalsSort.column,
               direction: goalsSort.direction,
             }}
-            onSort={(column) => handleGoalsSort(column as GA4SortColumn)}
+            onSort={(column) => handleGoalsSort(column as TrackedCtaSortColumn)}
             onArrowClick={() => setGoalsModalOpen(true)}
             maxRows={10}
           />
@@ -154,18 +168,22 @@ const ConversionSection = ({ period = "3 months", ga4TrafficScope = "all" }: Con
           handleGoalsFilterChange(value as TableFilterType)
         }
         columns={[
-          { key: "goal", label: "Goal" },
+          { key: "trackedCta", label: "Tracked CTA" },
+          { key: "users", label: "Users", sortable: true },
+          { key: "conversionRate", label: "Conversion Rate", sortable: true },
           { key: "goals", label: "Goals", sortable: true },
         ]}
         data={goalsData.map((item) => ({
-          goal: item.goal,
+          trackedCta: item.trackedCta,
+          users: item.users,
+          conversionRate: item.conversionRate,
           goals: item.goals,
         }))}
         sortConfig={{
           column: goalsSort.column,
           direction: goalsSort.direction,
         }}
-        onSort={(column) => handleGoalsSort(column as GA4SortColumn)}
+        onSort={(column) => handleGoalsSort(column as TrackedCtaSortColumn)}
         isLoading={showGoalsLoader}
       />
     </div>

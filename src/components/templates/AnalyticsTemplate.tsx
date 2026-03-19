@@ -376,9 +376,9 @@ export function AnalyticsTemplate() {
                       ) : key === "clicks" ? (
                         <MousePointerClick className="h-4 w-4 rotate-90 text-[#2563eb]" />
                       ) : key === "sessions" ? (
-                        <Target className="h-4 w-4 text-[#10b981]" />
-                      ) : (
                         <BarChart3 className="h-4 w-4 text-[#f97316]" />
+                      ) : (
+                        <Target className="h-4 w-4 text-[#10b981]" />
                       )}
                     </Button>
                   </TooltipTrigger>

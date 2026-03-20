@@ -89,14 +89,14 @@ const ConversionSection = ({ period = "3 months", ga4TrafficScope = "all" }: Con
                 width: "w-[20%]",
               },
               {
-                key: "conversionRate",
-                label: "Conversion Rate",
+                key: "goals",
+                label: "Goals",
                 sortable: true,
                 width: "w-[20%]",
               },
               {
-                key: "goals",
-                label: "Goals",
+                key: "conversionRate",
+                label: "Conversion Rate",
                 sortable: true,
                 width: "w-[20%]",
               },
@@ -104,8 +104,8 @@ const ConversionSection = ({ period = "3 months", ga4TrafficScope = "all" }: Con
             data={goalsData.map((item) => ({
               trackedCta: item.trackedCta,
               users: item.users,
-              conversionRate: item.conversionRate,
               goals: item.goals,
+              conversionRate: item.conversionRate,
             }))}
             isLoading={showGoalsLoader}
             hasData={hasGoalsData}
@@ -170,14 +170,14 @@ const ConversionSection = ({ period = "3 months", ga4TrafficScope = "all" }: Con
         columns={[
           { key: "trackedCta", label: "Tracked CTA" },
           { key: "users", label: "Users", sortable: true },
-          { key: "conversionRate", label: "Conversion Rate", sortable: true },
           { key: "goals", label: "Goals", sortable: true },
+          { key: "conversionRate", label: "Conversion Rate", sortable: true },
         ]}
         data={goalsData.map((item) => ({
           trackedCta: item.trackedCta,
           users: item.users,
-          conversionRate: item.conversionRate,
           goals: item.goals,
+          conversionRate: item.conversionRate,
         }))}
         sortConfig={{
           column: goalsSort.column,

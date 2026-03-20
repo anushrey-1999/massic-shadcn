@@ -58,7 +58,12 @@ import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { ContentConverter } from "@/utils/content-converter";
 import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { detectPageContentFormat } from "@/utils/page-content-format";
-import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
+import {
+  normalizeWordpressBlogEditableSlug,
+  normalizeWordpressBlogEditableSlugInput,
+  normalizeWordpressSlugPath,
+  wordpressSlugToDisplay,
+} from "@/utils/wordpress-slug";
 import {
   applyMassicStyleColorOverrides,
   buildMassicCssVariableOverrides,
@@ -1282,7 +1287,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                 <Input
                   value={editableSlug}
                   onChange={(event) => {
-                    setEditableSlug(normalizeWordpressBlogEditableSlug(event.target.value));
+                    setEditableSlug(normalizeWordpressBlogEditableSlugInput(event.target.value));
                     setIsSlugEdited(true);
                   }}
                   placeholder="enter-blog-slug"

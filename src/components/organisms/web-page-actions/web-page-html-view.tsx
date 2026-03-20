@@ -45,7 +45,7 @@ import { copyToClipboard } from "@/utils/clipboard";
 import { resolvePageContent } from "@/utils/page-content-resolver";
 import { api } from "@/hooks/use-api";
 import { ensureMassicContentWrapper } from "@/utils/page-content-format";
-import { normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
+import { normalizeWordpressSlugPath, normalizeWordpressSlugPathInput, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import {
   applySpacingEditsToHtml,
   applyLinkEditsToHtml,
@@ -2353,7 +2353,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 <Input
                   value={editableSlug}
                   onChange={(event) => {
-                    setEditableSlug(normalizeWordpressSlugPath(event.target.value));
+                    setEditableSlug(normalizeWordpressSlugPathInput(event.target.value));
                     setIsSlugEdited(true);
                   }}
                   placeholder="enter-page-slug"

@@ -35,6 +35,26 @@ function sanitizeSlugSegment(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+/** Same as {@link sanitizeSlugSegment} but keeps leading/trailing `-` so users can type `word-` before the next segment. */
+function sanitizeSlugSegmentForInput(value: string) {
+  return value
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
+
+export function normalizeWordpressSlugPathInput(value: string | null | undefined) {
+  const normalized = extractPathFromPossibleUrl(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+  const segments = normalized.split("/").map((segment) => sanitizeSlugSegmentForInput(segment));
+  return segments.join("/").replace(/\/+/g, "/");
+}
+
 export function normalizeWordpressSlugPath(value: string | null | undefined) {
   const normalized = extractPathFromPossibleUrl(value || "")
     .normalize("NFKD")
@@ -52,6 +72,18 @@ export function normalizeWordpressSlugPath(value: string | null | undefined) {
 
 export function normalizeWordpressBlogEditableSlug(value: string | null | undefined) {
   const normalized = normalizeWordpressSlugPath(value || "");
+  if (!normalized) return "";
+
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.length > 1 && (segments[0] === "blog" || segments[0] === "blogs")) {
+    return segments.slice(1).join("/");
+  }
+
+  return segments.join("/");
+}
+
+export function normalizeWordpressBlogEditableSlugInput(value: string | null | undefined) {
+  const normalized = normalizeWordpressSlugPathInput(value || "");
   if (!normalized) return "";
 
   const segments = normalized.split("/").filter(Boolean);

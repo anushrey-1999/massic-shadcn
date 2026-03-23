@@ -1641,6 +1641,28 @@ function findSpacingTargetElement(doc: Document, spacingId: string): Element | n
   return allTargets[idx]?.element ?? null;
 }
 
+export const RESELECT_MARKER_ATTR = "data-massic-reselect";
+
+export function markSpacingElementForReselect(sourceHtml: string, spacingId: string): string {
+  if (!sourceHtml || !spacingId) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (el) el.setAttribute(RESELECT_MARKER_ATTR, "1");
+  return serializeNormalizedHtml(doc);
+}
+
+export function markSectionElementForReselect(sourceHtml: string, sectionId: string): string {
+  if (!sourceHtml || !sectionId) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const root = findMassicContentRoot(doc);
+  const index = parseSectionIndex(sectionId);
+  const children = Array.from(root.children);
+  if (index >= 0 && index < children.length) {
+    children[index].setAttribute(RESELECT_MARKER_ATTR, "1");
+  }
+  return serializeNormalizedHtml(doc);
+}
+
 function findLayoutElement(doc: Document, layoutId: string): Element | null {
   const idx = parseLayoutIndex(layoutId);
   if (idx < 0) return null;

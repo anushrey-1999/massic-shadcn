@@ -90,6 +90,9 @@ import {
   collapseLayoutBySpacingId,
   getMediaInfoFromElement,
   getTextBlockInfoFromElement,
+  markSectionElementForReselect,
+  markSpacingElementForReselect,
+  RESELECT_MARKER_ATTR,
   updateMediaInElementBySpacingId,
   type EditableBlockNode,
   type EditableLayoutNode,
@@ -404,6 +407,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const lastCommittedHtmlRef = React.useRef("");
   const pendingBackgroundRefetchRef = React.useRef(false);
   const lastAppliedActiveTextSignatureRef = React.useRef("");
+  const pendingReselectRef = React.useRef<boolean>(false);
 
   const cssVarOverrides: Record<string, string> = {};
   const previewStyleVars: React.CSSProperties = {};
@@ -699,6 +703,15 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     if (lastRenderedHtmlRef.current === previewHtml) return;
     lastRenderedHtmlRef.current = previewHtml;
     container.innerHTML = previewHtml;
+
+    if (pendingReselectRef.current) {
+      pendingReselectRef.current = false;
+      const marked = container.querySelector(`[${RESELECT_MARKER_ATTR}]`) as HTMLElement | null;
+      if (marked) {
+        marked.removeAttribute(RESELECT_MARKER_ATTR);
+        requestAnimationFrame(() => marked.click());
+      }
+    }
   }, [previewHtml]);
 
   const handleCopyText = async () => {
@@ -1881,10 +1894,12 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   }, [handleManualSave, handleUndo, handleRedo]);
 
   const executeSectionMutation = React.useCallback(
-    (mutatedHtml: string) => {
-      const sanitized = normalizeEditorHtml(mutatedHtml);
+    (mutatedHtml: string, reselect?: boolean) => {
+      const markerRegex = new RegExp(` ${RESELECT_MARKER_ATTR}="1"`, "g");
+      const sanitized = normalizeEditorHtml(mutatedHtml.replace(markerRegex, ""));
       sourceHtmlRef.current = sanitized;
-      const model = buildEditableHtmlModel(sanitized);
+      const modelHtml = reselect ? normalizeEditorHtml(mutatedHtml) : sanitized;
+      const model = buildEditableHtmlModel(modelHtml);
       textNodeIndexRef.current = model.textNodeIndex;
       linkIndexRef.current = model.linkIndex;
       spacingIndexRef.current = model.spacingIndex;
@@ -1911,6 +1926,10 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       isEditingSessionRef.current = true;
       if (!pollingDisabled) setPollingDisabled(true);
       setIsDirty(true);
+
+      if (reselect) {
+        pendingReselectRef.current = true;
+      }
     },
     [normalizeEditorHtml, pollingDisabled]
   );
@@ -1920,14 +1939,15 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const active = activeMediaEditor;
       if (!active) return;
       pushUndo();
+      const marked = markSpacingElementForReselect(sourceHtmlRef.current, active.spacingId);
       const result = updateMediaInElementBySpacingId(
-        sourceHtmlRef.current,
+        marked,
         active.spacingId,
         active.media.mediaIndex,
         active.media.type,
         updates,
       );
-      executeSectionMutation(result);
+      executeSectionMutation(result, true);
       setActiveMediaEditor(null);
     },
     [activeMediaEditor, executeSectionMutation, pushUndo]
@@ -1936,8 +1956,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleMoveSection = React.useCallback(
     (sectionId: string, direction: "up" | "down") => {
       pushUndo();
-      const result = moveSectionInHtml(sourceHtmlRef.current, sectionId, direction);
-      executeSectionMutation(result);
+      const marked = markSectionElementForReselect(sourceHtmlRef.current, sectionId);
+      const result = moveSectionInHtml(marked, sectionId, direction);
+      executeSectionMutation(result, true);
     },
     [executeSectionMutation, pushUndo]
   );
@@ -1954,8 +1975,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleDuplicateSection = React.useCallback(
     (sectionId: string) => {
       pushUndo();
-      const result = duplicateSectionInHtml(sourceHtmlRef.current, sectionId);
-      executeSectionMutation(result);
+      const marked = markSectionElementForReselect(sourceHtmlRef.current, sectionId);
+      const result = duplicateSectionInHtml(marked, sectionId);
+      executeSectionMutation(result, true);
     },
     [executeSectionMutation, pushUndo]
   );
@@ -1971,22 +1993,31 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleInsertBlock = React.useCallback(
     (blockHtml: string) => {
       pushUndo();
+      let src = sourceHtmlRef.current;
+      let shouldReselect = false;
+      if (insertAnchor?.kind === "element" || insertAnchor?.kind === "wrap-grid") {
+        src = markSpacingElementForReselect(src, insertAnchor.spacingId);
+        shouldReselect = true;
+      } else if (insertAnchor?.kind === "section" && insertAnchor.sectionId) {
+        src = markSectionElementForReselect(src, insertAnchor.sectionId);
+        shouldReselect = true;
+      }
       let result: string;
       if (insertAnchor?.kind === "wrap-grid") {
         const { spacingId, side } = insertAnchor;
-        result = wrapBlockInTwoColumnLayout(sourceHtmlRef.current, spacingId, side, blockHtml);
+        result = wrapBlockInTwoColumnLayout(src, spacingId, side, blockHtml);
       } else if (insertAnchor?.kind === "slot") {
-        result = insertBlockIntoSlot(sourceHtmlRef.current, insertAnchor.slotId, blockHtml, "end");
+        result = insertBlockIntoSlot(src, insertAnchor.slotId, blockHtml, "end");
       } else if (insertAnchor?.kind === "element") {
         const { spacingId, position } = insertAnchor;
         if (position === "inside") {
-          result = insertInsideElementBySpacingId(sourceHtmlRef.current, spacingId, "end", blockHtml);
+          result = insertInsideElementBySpacingId(src, spacingId, "end", blockHtml);
         } else {
-          result = insertAdjacentToElementBySpacingId(sourceHtmlRef.current, spacingId, position, blockHtml);
+          result = insertAdjacentToElementBySpacingId(src, spacingId, position, blockHtml);
         }
       } else {
         result = insertBlockInHtml(
-          sourceHtmlRef.current,
+          src,
           insertAnchor?.sectionId ?? null,
           insertAnchor?.position ?? "after",
           blockHtml
@@ -1994,7 +2025,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       }
       setInsertDialogOpen(false);
       setInsertAnchor(null);
-      executeSectionMutation(result);
+      executeSectionMutation(result, shouldReselect);
     },
     [executeSectionMutation, insertAnchor, pushUndo]
   );
@@ -2012,8 +2043,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleDuplicateElement = React.useCallback(
     (spacingId: string) => {
       pushUndo();
-      const result = duplicateElementBySpacingId(sourceHtmlRef.current, spacingId);
-      executeSectionMutation(result);
+      const marked = markSpacingElementForReselect(sourceHtmlRef.current, spacingId);
+      const result = duplicateElementBySpacingId(marked, spacingId);
+      executeSectionMutation(result, true);
     },
     [executeSectionMutation, pushUndo]
   );
@@ -2021,8 +2053,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleMoveElement = React.useCallback(
     (spacingId: string, direction: "up" | "down") => {
       pushUndo();
-      const result = moveElementBySpacingId(sourceHtmlRef.current, spacingId, direction);
-      executeSectionMutation(result);
+      const marked = markSpacingElementForReselect(sourceHtmlRef.current, spacingId);
+      const result = moveElementBySpacingId(marked, spacingId, direction);
+      executeSectionMutation(result, true);
     },
     [executeSectionMutation, pushUndo]
   );
@@ -2030,14 +2063,15 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleUpdateMedia = React.useCallback(
     (spacingId: string, media: MediaElementInfo, updates: { src?: string; alt?: string; width?: string }) => {
       pushUndo();
+      const marked = markSpacingElementForReselect(sourceHtmlRef.current, spacingId);
       const result = updateMediaInElementBySpacingId(
-        sourceHtmlRef.current,
+        marked,
         spacingId,
         media.mediaIndex,
         media.type,
         updates,
       );
-      executeSectionMutation(result);
+      executeSectionMutation(result, true);
     },
     [executeSectionMutation, pushUndo]
   );
@@ -2045,8 +2079,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleCollapseLayout = React.useCallback(
     (spacingId: string) => {
       pushUndo();
-      const result = collapseLayoutBySpacingId(sourceHtmlRef.current, spacingId);
-      executeSectionMutation(result);
+      const marked = markSpacingElementForReselect(sourceHtmlRef.current, spacingId);
+      const result = collapseLayoutBySpacingId(marked, spacingId);
+      executeSectionMutation(result, true);
     },
     [executeSectionMutation, pushUndo]
   );

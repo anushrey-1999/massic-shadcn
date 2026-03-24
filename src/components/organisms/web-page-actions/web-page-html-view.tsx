@@ -8,8 +8,10 @@ import {
   AlignLeft,
   AlignRight,
   ArrowDown,
+  ArrowDownFromLine,
   ArrowLeft,
   ArrowUp,
+  ArrowUpFromLine,
   Bold,
   Check,
   CopyPlus,
@@ -74,6 +76,7 @@ import {
   duplicateSectionInHtml,
   insertBlockInHtml,
   deleteBlockAndNormalize,
+  deleteLayoutBySpacingId,
   deleteSlotById,
   duplicateElementBySpacingId,
   moveElementBySpacingId,
@@ -408,6 +411,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const pendingBackgroundRefetchRef = React.useRef(false);
   const lastAppliedActiveTextSignatureRef = React.useRef("");
   const pendingReselectRef = React.useRef<boolean>(false);
+  const pendingScrollToInsertRef = React.useRef<boolean>(false);
 
   const cssVarOverrides: Record<string, string> = {};
   const previewStyleVars: React.CSSProperties = {};
@@ -712,7 +716,21 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         requestAnimationFrame(() => marked.click());
       }
     }
-  }, [previewHtml]);
+
+    if (pendingScrollToInsertRef.current) {
+      pendingScrollToInsertRef.current = false;
+      const inserted = container.querySelector('[data-massic-inserted]') as HTMLElement | null;
+      if (inserted) {
+        inserted.removeAttribute('data-massic-inserted');
+        requestAnimationFrame(() => {
+          inserted.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (previewEditMode === 'layout') {
+            setTimeout(() => inserted.click(), 350);
+          }
+        });
+      }
+    }
+  }, [previewHtml, previewEditMode]);
 
   const handleCopyText = async () => {
     const safeHtml = composeCurrentHtml();
@@ -1896,9 +1914,12 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const executeSectionMutation = React.useCallback(
     (mutatedHtml: string, reselect?: boolean) => {
       const markerRegex = new RegExp(` ${RESELECT_MARKER_ATTR}="1"`, "g");
-      const sanitized = normalizeEditorHtml(mutatedHtml.replace(markerRegex, ""));
+      const insertedRegex = / data-massic-inserted="1"/g;
+      const cleanHtml = mutatedHtml.replace(markerRegex, "").replace(insertedRegex, "");
+      const sanitized = normalizeEditorHtml(cleanHtml);
       sourceHtmlRef.current = sanitized;
-      const modelHtml = reselect ? normalizeEditorHtml(mutatedHtml) : sanitized;
+      const needsMarkers = reselect || pendingScrollToInsertRef.current;
+      const modelHtml = needsMarkers ? normalizeEditorHtml(mutatedHtml) : sanitized;
       const model = buildEditableHtmlModel(modelHtml);
       textNodeIndexRef.current = model.textNodeIndex;
       linkIndexRef.current = model.linkIndex;
@@ -1993,39 +2014,33 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const handleInsertBlock = React.useCallback(
     (blockHtml: string) => {
       pushUndo();
+      const markedBlock = blockHtml.replace(/^(<\w+)/, '$1 data-massic-inserted="1"');
       let src = sourceHtmlRef.current;
-      let shouldReselect = false;
-      if (insertAnchor?.kind === "element" || insertAnchor?.kind === "wrap-grid") {
-        src = markSpacingElementForReselect(src, insertAnchor.spacingId);
-        shouldReselect = true;
-      } else if (insertAnchor?.kind === "section" && insertAnchor.sectionId) {
-        src = markSectionElementForReselect(src, insertAnchor.sectionId);
-        shouldReselect = true;
-      }
       let result: string;
       if (insertAnchor?.kind === "wrap-grid") {
         const { spacingId, side } = insertAnchor;
-        result = wrapBlockInTwoColumnLayout(src, spacingId, side, blockHtml);
+        result = wrapBlockInTwoColumnLayout(src, spacingId, side, markedBlock);
       } else if (insertAnchor?.kind === "slot") {
-        result = insertBlockIntoSlot(src, insertAnchor.slotId, blockHtml, "end");
+        result = insertBlockIntoSlot(src, insertAnchor.slotId, markedBlock, "end");
       } else if (insertAnchor?.kind === "element") {
         const { spacingId, position } = insertAnchor;
         if (position === "inside") {
-          result = insertInsideElementBySpacingId(src, spacingId, "end", blockHtml);
+          result = insertInsideElementBySpacingId(src, spacingId, "end", markedBlock);
         } else {
-          result = insertAdjacentToElementBySpacingId(src, spacingId, position, blockHtml);
+          result = insertAdjacentToElementBySpacingId(src, spacingId, position, markedBlock);
         }
       } else {
         result = insertBlockInHtml(
           src,
           insertAnchor?.sectionId ?? null,
           insertAnchor?.position ?? "after",
-          blockHtml
+          markedBlock
         );
       }
       setInsertDialogOpen(false);
       setInsertAnchor(null);
-      executeSectionMutation(result, shouldReselect);
+      pendingScrollToInsertRef.current = true;
+      executeSectionMutation(result);
     },
     [executeSectionMutation, insertAnchor, pushUndo]
   );
@@ -2095,6 +2110,15 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     [executeSectionMutation, pushUndo]
   );
 
+  const handleDeleteLayout = React.useCallback(
+    (spacingId: string) => {
+      pushUndo();
+      const result = deleteLayoutBySpacingId(sourceHtmlRef.current, spacingId);
+      executeSectionMutation(result);
+    },
+    [executeSectionMutation, pushUndo]
+  );
+
   const handleConfirmActiveLayoutDelete = React.useCallback(() => {
     const active = activeLayoutEditor;
     setLayoutDeleteDialogOpen(false);
@@ -2107,10 +2131,14 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       handleDeleteSlot(active.slotId);
       return;
     }
+    if (active.targetKind === "layout" && active.spacingId) {
+      handleDeleteLayout(active.spacingId);
+      return;
+    }
     if (active.spacingId) {
       handleDeleteElement(active.spacingId);
     }
-  }, [activeLayoutEditor, handleDeleteElement, handleDeleteSection, handleDeleteSlot]);
+  }, [activeLayoutEditor, handleDeleteElement, handleDeleteLayout, handleDeleteSection, handleDeleteSlot]);
 
   const handleSelectParentSection = React.useCallback(() => {
     if (!activeLayoutEditor || !previewContainerRef.current) return;
@@ -2210,9 +2238,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         event.preventDefault();
         cancelActiveLayoutEditor();
       }
-      if (activeLayoutEditor?.sectionId && (event.key === "Delete" || event.key === "Backspace")) {
+      if (activeLayoutEditor && (event.key === "Delete" || event.key === "Backspace")) {
         event.preventDefault();
-        handleDeleteSection(activeLayoutEditor.sectionId);
+        setLayoutDeleteDialogOpen(true);
       }
       return;
     }
@@ -2257,7 +2285,17 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 Layout
               </Button>
             </div>
-            <Button type="button" size="sm" variant="outline" className="h-[34px] gap-1 px-3 text-xs" onClick={() => handleOpenInsertDialog(null)}>
+            <Button type="button" size="sm" variant="outline" className="h-[34px] gap-1 px-3 text-xs" onClick={() => {
+              if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) {
+                handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "after" });
+              } else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) {
+                handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "after" });
+              } else if (activeLayoutEditor?.isSlot && activeLayoutEditor.slotId) {
+                handleOpenInsertDialog({ kind: "slot", slotId: activeLayoutEditor.slotId });
+              } else {
+                handleOpenInsertDialog(null);
+              }
+            }}>
               <Plus className="h-4 w-4" />
               Insert
             </Button>
@@ -2493,14 +2531,14 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                         <div className="mx-0.5 h-5 w-px bg-border" />
                         <Tooltip><TooltipTrigger asChild>
                           <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "before" }); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "before" }); }}>
-                            <Plus className="h-4 w-4" />
+                            <ArrowUpFromLine className="h-4 w-4" />
                           </Button>
-                        </TooltipTrigger><TooltipContent>Insert Before</TooltipContent></Tooltip>
+                        </TooltipTrigger><TooltipContent>Insert Above</TooltipContent></Tooltip>
                         <Tooltip><TooltipTrigger asChild>
                           <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "after" }); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "after" }); else if (activeLayoutEditor?.isSlot && activeLayoutEditor.slotId) handleOpenInsertDialog({ kind: "slot", slotId: activeLayoutEditor.slotId }); }}>
-                            <Plus className="h-4 w-4" />
+                            <ArrowDownFromLine className="h-4 w-4" />
                           </Button>
-                        </TooltipTrigger><TooltipContent>Insert After</TooltipContent></Tooltip>
+                        </TooltipTrigger><TooltipContent>Insert Below</TooltipContent></Tooltip>
                         <Tooltip><TooltipTrigger asChild>
                           <Button type="button" size="icon" variant={activeLayoutEditor?.isEmptyElement ? "default" : "ghost"} className="h-8 w-8" disabled={!activeLayoutEditor?.isElement || !activeLayoutEditor?.canInsertInside} onClick={() => { if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "inside" }); }}>
                             <SquarePlus className="h-4 w-4" />
@@ -2637,6 +2675,23 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 (insertAnchor?.kind === "element" && insertAnchor.position === "inside") || insertAnchor?.kind === "wrap-grid" || insertAnchor?.kind === "slot"
                   ? "inner"
                   : "section"
+              }
+              insertHint={
+                insertAnchor?.kind === "element" && insertAnchor.position === "inside"
+                  ? "Will be added inside the selected element"
+                  : insertAnchor?.kind === "element" && insertAnchor.position === "before"
+                    ? "Will be inserted before the selected element"
+                    : insertAnchor?.kind === "element" && insertAnchor.position === "after"
+                      ? "Will be inserted after the selected element"
+                      : insertAnchor?.kind === "section" && insertAnchor.position === "before"
+                        ? "Will be inserted before the selected section"
+                        : insertAnchor?.kind === "section" && insertAnchor.position === "after"
+                          ? "Will be inserted after the selected section"
+                          : insertAnchor?.kind === "slot"
+                            ? "Will be added inside the selected slot"
+                            : insertAnchor?.kind === "wrap-grid"
+                              ? `Will add a column to the ${insertAnchor.side}`
+                              : "Will be inserted at the end of the page"
               }
             />
             <AlertDialog open={layoutDeleteDialogOpen} onOpenChange={setLayoutDeleteDialogOpen}>

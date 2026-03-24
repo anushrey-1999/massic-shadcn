@@ -1746,6 +1746,23 @@ export function deleteBlockAndNormalize(sourceHtml: string, spacingId: string): 
   return serializeNormalizedHtml(doc);
 }
 
+export function deleteLayoutBySpacingId(sourceHtml: string, spacingId: string): string {
+  if (!sourceHtml) return sourceHtml;
+  const doc = parseHtml(sourceHtml);
+  const el = findSpacingTargetElement(doc, spacingId);
+  if (!el || !el.parentElement) return sourceHtml;
+  if (!isCanonicalLayoutElement(el)) return deleteBlockAndNormalize(sourceHtml, spacingId);
+  const parent = el.parentElement;
+  const slots = Array.from(el.children).filter(isCanonicalSlotElement);
+  for (const slot of slots) {
+    while (slot.firstChild) {
+      parent.insertBefore(slot.firstChild, el);
+    }
+  }
+  parent.removeChild(el);
+  return serializeNormalizedHtml(doc);
+}
+
 export function deleteSlotById(sourceHtml: string, slotId: string): string {
   if (!sourceHtml) return sourceHtml;
   const doc = parseHtml(sourceHtml);

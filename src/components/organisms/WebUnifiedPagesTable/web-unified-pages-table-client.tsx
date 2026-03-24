@@ -9,9 +9,11 @@ import { useUnifiedWebOptimization, type UnifiedPageRow, NO_SNAPSHOT_CODE } from
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { WebUnifiedPagesTable } from "./web-unified-pages-table";
+import { WebUnifiedPagesSplitView } from "./web-unified-pages-split-view";
 
 interface Props {
   businessId: string;
+  onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -49,8 +51,11 @@ function applyLocalSearch(rows: UnifiedPageRow[], search: string): UnifiedPageRo
   });
 }
 
-export function WebUnifiedPagesTableClient({ businessId }: Props) {
+export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Props) {
   const [search, setSearch] = React.useState("");
+  const [isSplitView, setIsSplitView] = React.useState(false);
+  const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null);
+  const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [isGenerating, setIsGenerating] = React.useState(false);
   const { connectGoogleAccount } = useGoogleAccounts();
   const { fetchUnifiedPages, triggerGenerate } = useUnifiedWebOptimization();
@@ -104,6 +109,26 @@ export function WebUnifiedPagesTableClient({ businessId }: Props) {
     () => applyLocalSearch(allRows || [], search),
     [allRows, search]
   );
+
+  const handleRowClick = React.useCallback(
+    (row: UnifiedPageRow) => {
+      setSelectedRowId(row.id);
+      setIsSplitView(true);
+      onSplitViewChange?.(true);
+    },
+    [onSplitViewChange]
+  );
+
+  const handleBackToMain = React.useCallback(() => {
+    setIsSplitView(false);
+    setSelectedRowId(null);
+    setSplitViewSearch("");
+    onSplitViewChange?.(false);
+  }, [onSplitViewChange]);
+
+  const handleLeftTableRowSelect = React.useCallback((rowId: string) => {
+    setSelectedRowId(rowId);
+  }, []);
 
   if (isError && !isNoSnapshot(error)) {
     if (isGoogleNotConnected(error)) {
@@ -163,6 +188,23 @@ export function WebUnifiedPagesTableClient({ businessId }: Props) {
     );
   }
 
+  if (isSplitView) {
+    const splitFilteredRows = applyLocalSearch(allRows || [], splitViewSearch);
+
+    return (
+      <div className="relative h-full flex flex-col">
+        <WebUnifiedPagesSplitView
+          leftTableData={splitFilteredRows}
+          selectedRowId={selectedRowId}
+          onRowSelect={handleLeftTableRowSelect}
+          search={splitViewSearch}
+          onSearchChange={setSplitViewSearch}
+          onBack={handleBackToMain}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-full flex flex-col">
       <WebUnifiedPagesTable
@@ -174,6 +216,7 @@ export function WebUnifiedPagesTableClient({ businessId }: Props) {
         onSearchChange={setSearch}
         onGenerate={handleGenerate}
         isGenerating={isGenerating}
+        onRowClick={handleRowClick}
       />
     </div>
   );

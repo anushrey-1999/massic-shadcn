@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { api } from "@/hooks/use-api";
@@ -23,12 +23,24 @@ import { LoaderOverlay } from "@/components/ui/loader";
 import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { Loader2 } from "lucide-react";
 import { cleanWebsiteUrl } from "@/utils/utils";
+import { getAutofillErrorMessage } from "@/utils/profile-autofill";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { TagsInput } from "@/components/ui/tags-input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
 
 function toPrimaryLocationString(input: any): string {
   const location = String(input?.Location || "").trim();
@@ -61,11 +73,19 @@ interface ProfileAutofillResponse {
     b2b_b2c?: string;
     competitors?: string[];
     segment?: number;
+    error?: string | null;
+    reason?: string | null;
+    recommendation?: string | null;
+    [key: string]: unknown;
   };
   errors?: string | string[] | null;
+  error?: string | null;
+  message?: string | null;
+  detail?: string | null;
 }
 
 export function PitchProfileTemplate() {
+  const router = useRouter();
   const params = useParams();
   const businessId = (params as any)?.id as string | undefined;
 
@@ -81,8 +101,10 @@ export function PitchProfileTemplate() {
   const jobQuery = useJobByBusinessId(businessId ?? null);
   const createJobMutation = useCreateJob();
   const updateJobMutation = useUpdateJob();
+  const convertPitchMutation = useConvertPitchToBusiness();
 
   const [isAutofillLoading, setIsAutofillLoading] = useState(false);
+  const [isConvertConfirmOpen, setIsConvertConfirmOpen] = useState(false);
 
   React.useEffect(() => {
     resetProfileForm();
@@ -214,12 +236,17 @@ export function PitchProfileTemplate() {
         { business_url: website },
         { timeout: 120000 }
       );
-      if (res?.errors) {
-        toast.error("Failed to autofill profile");
+      const autofillErrorMessage = getAutofillErrorMessage(res, "");
+      if (autofillErrorMessage) {
+        toast.error(autofillErrorMessage);
         return;
       }
       const pa = res?.profile_autofill;
-      if (!pa) return;
+      if (!pa) {
+        const fallbackMessage = String(res?.message ?? res?.detail ?? "").trim();
+        toast.error(fallbackMessage || "Failed to autofill profile");
+        return;
+      }
 
       const market = (pa.market ?? "").toLowerCase();
       if (market === "local" || market === "online") {
@@ -244,8 +271,18 @@ export function PitchProfileTemplate() {
       }
 
       toast.success("Profile fields updated from website");
-    } catch {
-      toast.error("Failed to autofill profile");
+    } catch (error: any) {
+      const fallbackMessage = String(
+        error?.response?.data?.message ??
+        error?.response?.data?.detail ??
+        error?.message ??
+        ""
+      ).trim();
+      toast.error(
+        getAutofillErrorMessage(error?.response?.data ?? error, "") ||
+        fallbackMessage ||
+        "Failed to autofill profile"
+      );
     } finally {
       setIsAutofillLoading(false);
     }
@@ -411,6 +448,14 @@ export function PitchProfileTemplate() {
     await form.handleSubmit();
   }, [form]);
 
+  const handleConvertToBusiness = React.useCallback(async () => {
+    if (!businessId) return;
+
+    await convertPitchMutation.mutateAsync({ businessId });
+    setIsConvertConfirmOpen(false);
+    router.push(`/business/${businessId}/profile`);
+  }, [businessId, convertPitchMutation, router]);
+
   return (
     <div className="flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden">
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
@@ -435,21 +480,32 @@ export function PitchProfileTemplate() {
                   scrollableContent
                   contentClassName="pb-6"
                   rightAction={
-                    <Button
-                      type="button"
-                      className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                      onClick={handleConfirmAndProceed}
-                      disabled={!canConfirmAndProceed || isSubmitting || isLoading}
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        "Save"
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-general-border-three text-general-foreground"
+                        onClick={() => setIsConvertConfirmOpen(true)}
+                        disabled={convertPitchMutation.isPending || isLoading}
+                      >
+                        {convertPitchMutation.isPending ? "Converting..." : "Convert to Business"}
+                      </Button>
+                      <Button
+                        type="button"
+                        className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                        onClick={handleConfirmAndProceed}
+                        disabled={!canConfirmAndProceed || isSubmitting || isLoading || convertPitchMutation.isPending}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save"
+                        )}
+                      </Button>
+                    </div>
                   }
                 >
                   <BusinessInfoForm
@@ -522,7 +578,28 @@ export function PitchProfileTemplate() {
           </div>
         </div>
       </LoaderOverlay>
+      <AlertDialog open={isConvertConfirmOpen} onOpenChange={setIsConvertConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Convert to Business?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This pitch will be moved to Businesses.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={convertPitchMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConvertToBusiness();
+              }}
+              disabled={convertPitchMutation.isPending}
+            >
+              {convertPitchMutation.isPending ? "Converting..." : "Convert"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-

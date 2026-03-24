@@ -20,6 +20,10 @@ function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
         return `Page: ${filter.expression}`;
       case "content_group":
         return `Group: ${filter.expression}`;
+      case "keyword_scope":
+        return filter.expression === "branded"
+          ? "Branded queries"
+          : "Non-branded queries";
       default:
         return filter.expression;
     }
@@ -28,11 +32,11 @@ function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
   return (
     <div className="flex flex-row items-center self-stretch">
       <div
-        className="bg-general-unofficial-outline border border-general-border rounded-lg flex gap-1.5 items-center justify-center min-h-6 px-2 py-1.5 cursor-pointer hover:bg-neutral-100 transition-colors"
+        className="bg-white border border-general-border rounded-lg flex gap-1.5 items-center justify-center min-h-6 px-2 py-1.5 cursor-pointer hover:bg-blue-50 transition-colors"
         onClick={() => onRemove(filter.dimension)}
       >
         <X className="h-3 w-3 text-neutral-400" strokeWidth={2} />
-        <span className="font-sans font-medium text-xs text-general-foreground text-center tracking-wide leading-normal max-w-[150px] truncate">
+        <span className="font-sans font-medium text-xs text-general-foreground text-center tracking-wide leading-normal max-w-[320px] truncate">
           {getLabel()}
         </span>
       </div>
@@ -50,7 +54,7 @@ export function OrganicDeepdiveHeader({
   onRemoveFilter,
 }: OrganicDeepdiveHeaderProps) {
   return (
-    <div className="flex items-center justify-between py-4 w-full">
+    <div className="flex items-center justify-between py-2 w-full bg-blue-50 rounded-lg px-2 border border-blue-100 mb-4">
       <div />
 
       {filters.length > 0 && (

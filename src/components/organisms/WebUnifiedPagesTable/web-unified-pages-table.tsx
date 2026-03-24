@@ -21,6 +21,7 @@ interface WebUnifiedPagesTableProps {
   onSearchChange?: (value: string) => void;
   onGenerate?: () => void;
   isGenerating?: boolean;
+  onRowClick?: (row: UnifiedPageRow) => void;
 }
 
 export function WebUnifiedPagesTable({
@@ -32,6 +33,7 @@ export function WebUnifiedPagesTable({
   onSearchChange,
   onGenerate,
   isGenerating = false,
+  onRowClick,
 }: WebUnifiedPagesTableProps) {
   const columns = React.useMemo(
     () => getWebUnifiedPagesTableColumns({ businessId }),
@@ -100,6 +102,7 @@ export function WebUnifiedPagesTable({
           isFetching={isFetching}
           pageSizeOptions={[10, 30, 50, 100, 200]}
           emptyMessage="No pages found."
+          onRowClick={onRowClick}
           disableHorizontalScroll={false}
           className="h-full"
         />

@@ -204,6 +204,8 @@ export default function BusinessProfilePage() {
       await updateBusinessProfileMutation.mutateAsync(businessPayloadWithUsps)
 
       // Step 3: Handle Job API - sync data to maintain consistency
+      let jobExistsAfterSave = Boolean(jobExists)
+
       if (jobExists) {
         // Job exists - ALWAYS update both APIs to keep them in sync
         if (formValues) {
@@ -274,6 +276,7 @@ export default function BusinessProfilePage() {
             businessProfilePayload: payloadWithCTAs,
             offerings,
           })
+          jobExistsAfterSave = true
 
           const refreshedJob = await refetchJob()
           const refreshedUsps = normalizeUsps(
@@ -297,6 +300,8 @@ export default function BusinessProfilePage() {
         // Always refetch job details after save to get latest job existence status
         refetchJob()
       }, 1000)
+
+      return { jobExistsAfterSave }
     } catch (error) {
       // Error is handled by the mutations' onError
       throw error

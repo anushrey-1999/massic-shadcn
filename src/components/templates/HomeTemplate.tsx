@@ -23,6 +23,10 @@ import {
   type BusinessPreviewItem,
 } from "@/hooks/use-business-previews";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
+import {
+  useHealthStatusBatch,
+  type HealthStatusRow,
+} from "@/hooks/use-health-status";
 import { api } from "@/hooks/use-api";
 import type { JobDetails } from "@/hooks/use-jobs";
 import { cn } from "@/lib/utils";
@@ -85,6 +89,21 @@ function normalizeUrlDomain(input: string) {
 
 function compareStrings(a: string, b: string) {
   return a.localeCompare(b, undefined, { sensitivity: "base" });
+}
+
+// PRD §2.1 — sort order: Red+Down first … Green+Up … Gray … no-data last
+const HEALTH_URGENCY: Partial<Record<string, number>> = {
+  "red-down": 0,   "red-flat": 1,   "red-up": 2,
+  "amber-down": 3, "amber-flat": 4, "amber-up": 5,
+  "green-down": 6, "green-flat": 7, "green-up": 8,
+  "gray-none": 9,
+};
+
+function getUrgencyScore(status: HealthStatusRow | undefined): number {
+  if (!status?.health_color) return 10; // not yet computed → bottom
+  if (status.health_color === "gray") return 9;
+  const key = `${status.health_color}-${status.trend_arrow ?? "flat"}`;
+  return HEALTH_URGENCY[key] ?? 10;
 }
 function getGreetingName(user: any) {
   return (
@@ -337,9 +356,28 @@ export function HomeTemplate() {
       }
     }
 
+    // A-Z as base order; urgency sort is applied in sortedActiveBusinesses below
     active.sort((a, b) => compareStrings(a.name, b.name));
     return active;
   }, [filtered]);
+
+  // Collect business IDs to fetch health status in one batch call
+  const activeBusinessIds = useMemo(
+    () => activeBusinesses.map((b) => b.uniqueId).filter((id): id is string => !!id),
+    [activeBusinesses]
+  );
+
+  const { statusMap } = useHealthStatusBatch(activeBusinessIds);
+
+  // Re-sort by PRD urgency order (Red+Down → … → Gray → no-data)
+  // Ties in urgency keep the underlying A-Z order (stable sort)
+  const sortedActiveBusinesses = useMemo(() => {
+    return [...activeBusinesses].sort((a, b) => {
+      const scoreA = getUrgencyScore(a.uniqueId ? statusMap[a.uniqueId] : undefined);
+      const scoreB = getUrgencyScore(b.uniqueId ? statusMap[b.uniqueId] : undefined);
+      return scoreA - scoreB;
+    });
+  }, [activeBusinesses, statusMap]);
 
   const selectedCount = Number(showActive) + Number(showOnboarding);
   const showThreeColumnLayout = selectedCount === 2;
@@ -495,7 +533,7 @@ export function HomeTemplate() {
                     />
                   ) : (
                     <div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1 auto-rows-max">
-                      {activeBusinesses.map(
+                      {sortedActiveBusinesses.map(
                         ({ preview, name, domain, uniqueId }) => {
                           const mainStats = safeJsonParse<PreviewMainStats>(
                             preview.mainstats,
@@ -508,7 +546,7 @@ export function HomeTemplate() {
 
                           return (
                             <BusinessPreviewCard
-                              key={domain}
+                              key={uniqueId ?? domain}
                               name={name}
                               url={preview.url}
                               graph={graph}
@@ -516,6 +554,7 @@ export function HomeTemplate() {
                               clicks={mainStats?.Clicks}
                               goals={mainStats?.goals}
                               period={period}
+                              healthStatus={uniqueId ? statusMap[uniqueId] : undefined}
                               onConnectGoogle={connectGoogleAccount}
                               onClick={() => handleOpen(uniqueId, preview.url)}
                             />
@@ -640,7 +679,7 @@ export function HomeTemplate() {
                     />
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                      {activeBusinesses.map(
+                      {sortedActiveBusinesses.map(
                         ({ preview, name, domain, uniqueId }) => {
                           const mainStats = safeJsonParse<PreviewMainStats>(
                             preview.mainstats,
@@ -653,7 +692,7 @@ export function HomeTemplate() {
 
                           return (
                             <BusinessPreviewCard
-                              key={domain}
+                              key={uniqueId ?? domain}
                               name={name}
                               url={preview.url}
                               graph={graph}
@@ -661,6 +700,7 @@ export function HomeTemplate() {
                               clicks={mainStats?.Clicks}
                               goals={mainStats?.goals}
                               period={period}
+                              healthStatus={uniqueId ? statusMap[uniqueId] : undefined}
                               onConnectGoogle={connectGoogleAccount}
                               onClick={() => handleOpen(uniqueId, preview.url)}
                             />

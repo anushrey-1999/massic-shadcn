@@ -31,11 +31,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Typography } from "@/components/ui/typography";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   buildImageBlockHtml,
   buildVideoEmbedHtml,
@@ -55,6 +55,7 @@ interface InsertBlockDialogProps {
   onOpenChange: (open: boolean) => void;
   onInsert: (blockHtml: string) => void;
   mode?: InsertBlockMode;
+  insertHint?: string;
 }
 
 interface LayoutBlockDef {
@@ -651,7 +652,7 @@ const TOP_TABS: Array<{ id: TopTab; label: string; icon: React.ElementType }> = 
   { id: "text", label: "Text & More", icon: Type },
 ];
 
-export function InsertBlockDialog({ open, onOpenChange, onInsert, mode = "section" }: InsertBlockDialogProps) {
+export function InsertBlockDialog({ open, onOpenChange, onInsert, mode = "section", insertHint }: InsertBlockDialogProps) {
   const [activeTab, setActiveTab] = React.useState<TopTab>("layouts");
   const [mediaSubTab, setMediaSubTab] = React.useState<"image" | "video">("image");
   const isInner = mode === "inner";
@@ -665,24 +666,24 @@ export function InsertBlockDialog({ open, onOpenChange, onInsert, mode = "sectio
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px] max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{isInner ? "Add Content Inside" : "Insert Block"}</DialogTitle>
-          {isInner && (
-            <Typography className="text-xs text-muted-foreground">
-              Content will be added inside the selected element
-            </Typography>
-          )}
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex flex-col sm:max-w-[360px]">
+        <SheetHeader className="pb-0">
+          <SheetTitle className="text-sm">{isInner ? "Add Content Inside" : "Insert Block"}</SheetTitle>
+          {insertHint ? (
+            <div className="rounded-md bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+              {insertHint}
+            </div>
+          ) : null}
+        </SheetHeader>
 
         {isInner ? (
-          <div className="flex-1 overflow-y-auto pt-1 -mx-1 px-1">
+          <div className="flex-1 overflow-y-auto px-4 pb-4">
             <InnerBlocksTab onInsert={handleInsert} />
           </div>
         ) : (
           <>
-            <div className="flex gap-1 border-b pb-2">
+            <div className="flex gap-1 border-b px-4 pb-2">
               {TOP_TABS.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -701,7 +702,7 @@ export function InsertBlockDialog({ open, onOpenChange, onInsert, mode = "sectio
               })}
             </div>
 
-            <div className="flex-1 overflow-y-auto pt-1 -mx-1 px-1">
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
               {activeTab === "layouts" && <LayoutsTab onInsert={handleInsert} />}
               {activeTab === "media" && (
                 <div className="space-y-3">
@@ -735,7 +736,7 @@ export function InsertBlockDialog({ open, onOpenChange, onInsert, mode = "sectio
             </div>
           </>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

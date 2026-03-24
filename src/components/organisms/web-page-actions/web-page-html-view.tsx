@@ -1371,6 +1371,24 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     spacingDraft,
   ]);
 
+  const getResolvedSpacingValue = React.useCallback((spacingId: string | null, fallback: EditableSpacingValue) => {
+    if (!spacingId) return fallback;
+
+    if (Object.prototype.hasOwnProperty.call(spacingEditsRef.current, spacingId)) {
+      return spacingEditsRef.current[spacingId];
+    }
+
+    const spacingRef = spacingIndexRef.current.find((entry) => entry.id === spacingId);
+    if (!spacingRef) return fallback;
+
+    return {
+      outsideTop: spacingRef.outsideTop,
+      outsideBottom: spacingRef.outsideBottom,
+      outsideLeft: spacingRef.outsideLeft,
+      outsideRight: spacingRef.outsideRight,
+    };
+  }, []);
+
   const handlePreviewMouseDownCapture = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (previewEditMode !== "text") return;
     const target = event.target as HTMLElement | null;
@@ -1432,10 +1450,15 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const sectionId = sectionTarget?.dataset.massicSectionId || null;
       const baseClassName = spacingId ? String(spacingTarget!.getAttribute("class") || "") : "";
       const baseStyleStr = spacingId ? String(spacingTarget!.getAttribute("style") || "") : "";
-      const baseSpacingValue = spacingId ? parseEditableSpacingValue(baseClassName, baseStyleStr) : createEmptySpacingValue();
+      const baseSpacingValue = spacingId
+        ? getResolvedSpacingValue(spacingId, parseEditableSpacingValue(baseClassName, baseStyleStr))
+        : createEmptySpacingValue();
 
       if (activeLayoutEditor?.spacingId && activeLayoutEditor.spacingId !== spacingId) {
-        applySpacingPreviewToTarget(activeLayoutEditor.spacingId, activeLayoutEditor.baseSpacing);
+        applySpacingPreviewToTarget(
+          activeLayoutEditor.spacingId,
+          getResolvedSpacingValue(activeLayoutEditor.spacingId, activeLayoutEditor.baseSpacing)
+        );
       }
 
       if (!previewContainerRef.current) return;
@@ -1626,6 +1649,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     pollingDisabled,
     previewEditMode,
     applySpacingPreviewToTarget,
+    getResolvedSpacingValue,
     resolveSpacingLabel,
   ]);
 
@@ -2166,10 +2190,15 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const parentSpacingId = parentSection.dataset.massicSpacingId || null;
     const baseClassName = parentSpacingId ? String(parentSection.getAttribute("class") || "") : "";
     const baseStyleStr = parentSpacingId ? String(parentSection.getAttribute("style") || "") : "";
-    const baseSpacingValue = parentSpacingId ? parseEditableSpacingValue(baseClassName, baseStyleStr) : createEmptySpacingValue();
+    const baseSpacingValue = parentSpacingId
+      ? getResolvedSpacingValue(parentSpacingId, parseEditableSpacingValue(baseClassName, baseStyleStr))
+      : createEmptySpacingValue();
 
     if (activeLayoutEditor.spacingId) {
-      applySpacingPreviewToTarget(activeLayoutEditor.spacingId, activeLayoutEditor.baseSpacing);
+      applySpacingPreviewToTarget(
+        activeLayoutEditor.spacingId,
+        getResolvedSpacingValue(activeLayoutEditor.spacingId, activeLayoutEditor.baseSpacing)
+      );
     }
     setSpacingDraft(baseSpacingValue);
     setActiveLayoutEditor({
@@ -2197,7 +2226,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       mediaTarget: null,
     });
     setHoveredLayoutId(parentSpacingId || sectionId);
-  }, [activeLayoutEditor, applySpacingPreviewToTarget]);
+  }, [activeLayoutEditor, applySpacingPreviewToTarget, getResolvedSpacingValue]);
 
   const handleInputCapture = () => {
     return;

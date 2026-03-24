@@ -4,9 +4,8 @@ import { useState, type MouseEvent } from "react";
 import {
 	AlertTriangle,
 	ArrowRight,
-	TrendingUp,
-	TrendingDown,
-	Minus,
+	ArrowUp,
+	ArrowDown,
 	Eye,
 	MousePointerClick,
 	Target,
@@ -27,10 +26,10 @@ import {
 	TooltipTrigger,
 	TooltipContent,
 } from "@/components/ui/tooltip";
-import type { HealthStatusRow, HealthColor, TrendArrow } from "@/hooks/use-health-status";
+import type { HealthStatusRow, HealthColor } from "@/hooks/use-health-status";
 
 // PRD §2.1 — signal colors
-const HEALTH_BORDER_COLOR: Record<NonNullable<HealthColor>, string> = {
+const HEALTH_ACCENT_COLOR: Record<NonNullable<HealthColor>, string> = {
 	green: "#639922",
 	amber: "#EF9F27",
 	red:   "#E24B4A",
@@ -40,18 +39,16 @@ const HEALTH_BORDER_COLOR: Record<NonNullable<HealthColor>, string> = {
 const HEALTH_LABEL: Record<NonNullable<HealthColor>, string> = {
 	green: "Healthy",
 	amber: "Watch Closely",
-	red:   "Needs Attention",
-	gray:  "",
+	red:   "Need Attention",
+	gray:  "Unranked",
 };
 
-// Squiggly trend-line icons (TrendingUp / TrendingDown / Minus)
-function TrendIcon({ arrow, color }: { arrow: TrendArrow; color: string }) {
-	const cls = "h-3.5 w-3.5 shrink-0";
-	if (arrow === "up")   return <TrendingUp   className={cls} style={{ color }} />;
-	if (arrow === "down") return <TrendingDown  className={cls} style={{ color }} />;
-	if (arrow === "flat") return <Minus         className={cls} style={{ color }} />;
-	return null;
-}
+const HEALTH_BADGE_CLASSNAME: Record<NonNullable<HealthColor>, string> = {
+	green: "border-transparent bg-[#EEF6E4] text-[#639922]",
+	amber: "border-transparent bg-[#FFF3E2] text-[#EF9F27]",
+	red: "border-transparent bg-[#FDECEC] text-[#E24B4A]",
+	gray: "border-transparent bg-[#F2F1EE] text-[#7E7B73]",
+};
 
 // ─── Tooltip helpers ──────────────────────────────────────────────────────────
 
@@ -112,7 +109,7 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 			{/* Header */}
 			<div className="flex items-center justify-between gap-2">
 				<span className="text-[11px] font-semibold text-foreground">
-					{color && color !== "gray" ? HEALTH_LABEL[color] : "Insufficient data"}
+					{color ? HEALTH_LABEL[color] : "Insufficient data"}
 				</span>
 				<span className="text-[10px] text-muted-foreground shrink-0">14d vs prior 14d</span>
 			</div>
@@ -152,15 +149,24 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 	);
 }
 
-// ─── Health badge (label + trend icon) wrapped in a metrics tooltip ───────────
+// ─── Health badge wrapped in a metrics tooltip ─────────────────────────────────
 
 function HealthBadge({ healthStatus }: { healthStatus: HealthStatusRow }) {
 	const color = healthStatus.health_color;
-	if (!color || color === "gray" || !healthStatus.ga4_connected) return null;
+	if (!color) return null;
 
-	const borderColor = HEALTH_BORDER_COLOR[color];
-	const label       = HEALTH_LABEL[color];
-	const arrow       = healthStatus.trend_arrow;
+	const badgeColor = HEALTH_ACCENT_COLOR[color];
+	const label = HEALTH_LABEL[color];
+	const trendArrow = healthStatus.trend_arrow;
+
+	const trendIndicator =
+		color === "gray" || trendArrow === "flat" || trendArrow === "none" || !trendArrow ? (
+			<span className="text-[11px] font-semibold leading-none text-[#667085]">-</span>
+		) : trendArrow === "up" ? (
+			<ArrowUp className="h-3 w-3 shrink-0 text-[#667085]" strokeWidth={2} />
+		) : (
+			<ArrowDown className="h-3 w-3 shrink-0 text-[#667085]" strokeWidth={2} />
+		);
 
 	return (
 		<Tooltip>
@@ -168,16 +174,22 @@ function HealthBadge({ healthStatus }: { healthStatus: HealthStatusRow }) {
 				asChild
 				onClick={(e: MouseEvent) => e.stopPropagation()}
 			>
-				<div className="flex items-center gap-1 shrink-0 cursor-default">
-					<span
-						className="text-xs font-medium leading-none"
-						style={{ color: borderColor }}
+				<div
+					className="flex shrink-0 items-center gap-1.5 cursor-default"
+				>
+					<div
+						className={cn(
+							"inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium leading-none",
+							HEALTH_BADGE_CLASSNAME[color]
+						)}
 					>
+						<span
+							className="h-2 w-2 rounded-full shrink-0"
+							style={{ backgroundColor: badgeColor }}
+						/>
 						{label}
-					</span>
-					{arrow && arrow !== "none" && (
-						<TrendIcon arrow={arrow} color={borderColor} />
-					)}
+					</div>
+					{trendIndicator}
 				</div>
 			</TooltipTrigger>
 
@@ -302,17 +314,9 @@ export function BusinessPreviewCard({
 
 	if (showConnectGoogle) return null;
 
-	// Compute left-border color from health status (PRD §2.1)
-	const healthColor = healthStatus?.health_color ?? null;
-	const borderLeftStyle =
-		healthColor && HEALTH_BORDER_COLOR[healthColor]
-			? { borderLeft: `4px solid ${HEALTH_BORDER_COLOR[healthColor]}` }
-			: undefined;
-
 	return (
 		<Card
 			onClick={onClick}
-			style={borderLeftStyle}
 			className="overflow-hidden border border-[#f4f4f4] p-2 shadow-none rounded-lg gap-4 flex flex-col h-full cursor-pointer"
 		>
 			<CardTitle className="text-sm font-medium p-0 shrink-0">
@@ -321,7 +325,7 @@ export function BusinessPreviewCard({
 						<BusinessIcon website={url} name={name} />
 						<Typography
 							variant="p"
-							className="text-base font-mono text-general-unofficial-foreground-alt truncate"
+							className="min-w-0 flex-1 truncate text-base font-mono text-general-unofficial-foreground-alt"
 						>
 							{name || domain}
 						</Typography>

@@ -10,6 +10,7 @@ import {
   AnalyticsFilterControls,
   AnalyticsReportsActions,
   PeriodSelector,
+  PrimaryDriversSheet,
   type AnalyticsGroupBy,
   type AnalyticsKeywordScope,
 } from "../molecules/analytics";
@@ -81,6 +82,7 @@ export function AnalyticsTemplate() {
     useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [customContentGroupsOpen, setCustomContentGroupsOpen] = useState(false);
+  const [primaryDriversOpen, setPrimaryDriversOpen] = useState(false);
   const [showDeferredSections, setShowDeferredSections] = useState(false);
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     impressions: true,
@@ -338,6 +340,10 @@ export function AnalyticsTemplate() {
             </Tabs>
             <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
             <AnalyticsReportsActions
+              onPrimaryDrivers={() => {
+                if (!businessId) return;
+                setPrimaryDriversOpen(true);
+              }}
               onViewReports={() => {
                 if (!businessId) return;
                 router.push(`/business/${businessId}/reports`);
@@ -347,6 +353,7 @@ export function AnalyticsTemplate() {
                 setCustomContentGroupsOpen(true);
               }}
               reportsDisabled={!businessId}
+              primaryDriversDisabled={!businessId}
               contentGroupsDisabled={!businessId}
             />
           </div>
@@ -466,6 +473,13 @@ export function AnalyticsTemplate() {
         siteUrl={businessProfile?.Website || null}
         period={selectedPeriod}
         trafficScope={selectedTab}
+      />
+
+      <PrimaryDriversSheet
+        open={primaryDriversOpen}
+        onOpenChange={setPrimaryDriversOpen}
+        businessId={businessId}
+        businessName={businessName}
       />
     </div>
   );

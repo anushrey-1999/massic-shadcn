@@ -55,22 +55,6 @@ function TrendIcon({ arrow, color }: { arrow: TrendArrow; color: string }) {
 
 // ─── Tooltip helpers ──────────────────────────────────────────────────────────
 
-// Score → colored dot matching PRD signal colors
-// score: 100 = green, 50 = amber, 0 = red, null = no data
-function ScoreDot({ score }: { score: number | null }) {
-	if (score == null) return null;
-	const color =
-		score >= 100 ? HEALTH_BORDER_COLOR.green
-		: score >= 50 ? HEALTH_BORDER_COLOR.amber
-		:               HEALTH_BORDER_COLOR.red;
-	return (
-		<span
-			className="inline-block h-1.5 w-1.5 rounded-full shrink-0"
-			style={{ backgroundColor: color }}
-		/>
-	);
-}
-
 function formatCompact(n: number | null | undefined): string {
 	if (n == null) return "—";
 	const abs = Math.abs(n);
@@ -91,14 +75,12 @@ function MetricRow({
 	recent,
 	baseline,
 	changePct,
-	score,
 }: {
 	icon: React.ReactNode;
 	label: string;
 	recent: number | null;
 	baseline: number | null;
 	changePct: number | null;
-	score: number | null;
 }) {
 	if (recent == null && baseline == null) return null;
 
@@ -116,7 +98,6 @@ function MetricRow({
 				<span className="font-medium text-foreground">{formatCompact(recent)}</span>
 				<span className={cn("font-semibold", pctColor)}>{formatPct(changePct)}</span>
 				<span className="text-muted-foreground text-[10px]">vs {formatCompact(baseline)}</span>
-				<ScoreDot score={score} />
 			</div>
 		</div>
 	);
@@ -145,7 +126,6 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 						recent={s.recent_leads}
 						baseline={s.baseline_leads}
 						changePct={s.lead_change_pct}
-						score={s.leads_score}
 					/>
 					<MetricRow
 						icon={<MousePointerClick className="h-3 w-3 text-blue-600 rotate-90 shrink-0" />}
@@ -153,7 +133,6 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 						recent={s.recent_traffic}
 						baseline={s.baseline_traffic}
 						changePct={s.traffic_change_pct}
-						score={s.traffic_score}
 					/>
 				</div>
 			)}

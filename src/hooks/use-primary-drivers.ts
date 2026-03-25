@@ -4,67 +4,63 @@ import { useQuery } from "@tanstack/react-query"
 import { AxiosError } from "axios"
 import { api } from "./use-api"
 
-export type PrimaryDriversStatus = "needs_attention" | "watch_closely" | "stable"
-export type PrimaryDriversConfidence = "high" | "medium" | "low"
-export type PrimaryDriverTag = "internal" | "external" | "opportunity"
+// ─── v2 Types ─────────────────────────────────────────────────────────────────
 
-export interface PrimaryDriversMetricValue {
-  current: number | null
-  previous: number | null
-  abs_change: number | null
+export type PrimaryDriversWindowBucket = "7d" | "28d" | "90d" | "365d"
+export type PrimaryDriversSeverity = "HIGH" | "MEDIUM" | "LOW"
+export type PrimaryDriversDirection = "up" | "down" | "flat"
+
+export interface PrimaryDriversPrimaryMetric {
+  metric: string
+  direction: PrimaryDriversDirection
+  absolute_delta: number
   pct_change: number | null
+  flags: string[]
 }
 
-export interface PrimaryDriversTopDriver {
-  name: string
-  tag: PrimaryDriverTag
+export interface PrimaryDriversDriver {
+  metric: string
+  driver_type: string
+  direction: "up" | "down"
+  pct_change: number
+  driver_score: number
+  delta_traffic: number | null
+  delta_cvr: number | null
+  cvr_share: number | null
+  flags: string[]
+}
+
+export interface PrimaryDriversContributor {
+  dimension: string
   value: string
-  explanation: string
-  score: number
+  absolute_delta: number
+  contribution_share: number
+  contributor_score: number
+  flags: string[]
+  children: PrimaryDriversContributor[]
 }
 
-export interface PrimaryDriversChannelBreakdownRow {
-  channel: string
-  sessions: number
-  sessions_change_pct: number | null
-  conversions: number
-  conversions_change_pct: number | null
-}
-
-export interface PrimaryDriversDeviceBreakdownRow {
-  device: string
-  sessions: number
-  sessions_change_pct: number | null
-  conversion_rate: number
-  conversion_rate_change_pct: number | null
-}
-
-export interface PrimaryDriversTopPageRow {
-  url: string
-  clicks_change: number
-  conversion_rate_change: number
+export interface PrimaryDriversOrganicBlock {
+  present: boolean
+  suppressed_reason?: string
+  clicks_delta: number
+  impressions_delta: number
+  ctr_pp_change: number
+  position_delta: number
+  brand_clicks_delta: number | null
+  nonbrand_clicks_delta: number | null
+  brand_impressions_delta: number | null
+  nonbrand_impressions_delta: number | null
+  flags: string[]
 }
 
 export interface PrimaryDriversResponse {
-  headline: string
-  status: PrimaryDriversStatus
-  primary_metric: "conversions" | "traffic" | "visibility" | "flat"
-  confidence: PrimaryDriversConfidence
-  metric_strip: {
-    conversions: PrimaryDriversMetricValue
-    sessions: PrimaryDriversMetricValue
-    clicks: PrimaryDriversMetricValue
-    impressions: PrimaryDriversMetricValue
-    ctr: PrimaryDriversMetricValue
-    avg_position: PrimaryDriversMetricValue
-    conversion_rate: PrimaryDriversMetricValue
-  }
-  top_drivers: PrimaryDriversTopDriver[]
-  segment_breakdowns: {
-    channels: PrimaryDriversChannelBreakdownRow[]
-    devices: PrimaryDriversDeviceBreakdownRow[]
-    top_pages: PrimaryDriversTopPageRow[]
-  }
+  window_bucket: PrimaryDriversWindowBucket
+  severity: PrimaryDriversSeverity
+  primary_metric: PrimaryDriversPrimaryMetric
+  drivers: PrimaryDriversDriver[]
+  contributors: PrimaryDriversContributor[]
+  organic_block: PrimaryDriversOrganicBlock
   edge_case_flags: string[]
   date_range: {
     start: string
@@ -72,6 +68,8 @@ export interface PrimaryDriversResponse {
     comparison_start: string
     comparison_end: string
   }
+  error?: string
+  message?: string
 }
 
 interface ApiResponse<T> {
@@ -127,6 +125,10 @@ export function usePrimaryDrivers({
 
       if (response.err) {
         throw new Error(response.message || "Failed to fetch primary drivers")
+      }
+
+      if (response.data?.error === "INSUFFICIENT_HISTORY") {
+        throw new Error(response.data.message || "No comparison period available.")
       }
 
       return response.data ?? null

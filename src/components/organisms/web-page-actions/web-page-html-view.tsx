@@ -49,6 +49,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Typography } from "@/components/ui/typography";
 import {
@@ -222,6 +223,8 @@ type InsertAnchor = {
   side: "left" | "right";
 } | null;
 
+const TEXT_OWNER_SELECTOR = "p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details, a[data-massic-link-id]";
+
 function getEditableLinkElement(target: EventTarget | null): HTMLAnchorElement | null {
   if (!(target instanceof HTMLElement)) return null;
   return target.closest("a[data-massic-link-id]") as HTMLAnchorElement | null;
@@ -345,6 +348,18 @@ function getInlineFormatTagNames(format: "bold" | "italic" | "underline" | "stri
 
 function normalizeSelectedText(value: string): string {
   return String(value || "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function formatSpacingButtonLabel(spacing: EditableSpacingValue): string {
+  const parts = [
+    ["T", spacingTokenToPx(spacing.outsideTop)],
+    ["R", spacingTokenToPx(spacing.outsideRight)],
+    ["B", spacingTokenToPx(spacing.outsideBottom)],
+    ["L", spacingTokenToPx(spacing.outsideLeft)],
+  ].filter(([, value]) => value !== 0);
+
+  if (!parts.length) return "0";
+  return parts.map(([label, value]) => `${label} ${value}`).join("  ");
 }
 
 function fragmentHasMeaningfulContent(fragment: DocumentFragment): boolean {
@@ -866,6 +881,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const lastAppliedActiveTextSignatureRef = React.useRef("");
   const pendingReselectRef = React.useRef<boolean>(false);
   const pendingScrollToInsertRef = React.useRef<boolean>(false);
+  const savedTextSelectionRef = React.useRef<{ range: Range; textId: string | null } | null>(null);
 
   const status = (data?.status || "").toString().toLowerCase();
   const isProcessing = status === "pending" || status === "processing";
@@ -1595,9 +1611,51 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
   const getPreviewTextOwnerElement = React.useCallback((target: HTMLElement | null) => {
     if (!target) return null;
-    return target.closest(
-      "p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details, a[data-massic-link-id]"
-    ) as HTMLElement | null;
+    return target.closest(TEXT_OWNER_SELECTOR) as HTMLElement | null;
+  }, []);
+
+  const persistPreviewSelection = React.useCallback((selectionInput?: Selection | null) => {
+    const container = previewContainerRef.current;
+    const selection = selectionInput ?? window.getSelection();
+    if (!container || !selection || selection.rangeCount === 0) {
+      savedTextSelectionRef.current = null;
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+      savedTextSelectionRef.current = null;
+      return;
+    }
+
+    const startTextElement = getPreviewTextElement(range.startContainer);
+    const endTextElement = getPreviewTextElement(range.endContainer);
+    const startOwner = getPreviewTextOwnerElement(startTextElement);
+    const endOwner = getPreviewTextOwnerElement(endTextElement);
+    if (!startOwner || !endOwner || startOwner !== endOwner) {
+      savedTextSelectionRef.current = null;
+      return;
+    }
+
+    savedTextSelectionRef.current = {
+      range: range.cloneRange(),
+      textId: startTextElement?.dataset.massicTextId || endTextElement?.dataset.massicTextId || null,
+    };
+  }, [getPreviewTextElement, getPreviewTextOwnerElement]);
+
+  const restoreSavedPreviewSelection = React.useCallback(() => {
+    const saved = savedTextSelectionRef.current;
+    const selection = window.getSelection();
+    if (!saved || !selection) return selection;
+
+    try {
+      selection.removeAllRanges();
+      selection.addRange(saved.range.cloneRange());
+    } catch {
+      savedTextSelectionRef.current = null;
+    }
+
+    return selection;
   }, []);
 
   const serializePreviewDomToSourceHtml = React.useCallback(() => {
@@ -1620,6 +1678,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       element.removeAttribute("title");
       element.removeAttribute("contenteditable");
       element.removeAttribute("spellcheck");
+      element.removeAttribute("tabindex");
       element.classList.remove("massic-text-editable");
       if (!element.className.trim()) {
         element.removeAttribute("class");
@@ -1737,6 +1796,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
   const closeActiveTextEditor = React.useCallback(() => {
     setActiveTextEditor(null);
+    savedTextSelectionRef.current = null;
     isEditorFocusedRef.current = false;
     if (
       !Object.keys(editsRef.current).length &&
@@ -1755,6 +1815,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const info = getTextBlockInfoFromElement(target);
     const textTarget = target.closest("[data-massic-text-id]") as HTMLElement | null;
     if (!info || !textTarget) return;
+    persistPreviewSelection();
 
     const container = previewContainerRef.current;
     const targetRect = textTarget.getBoundingClientRect();
@@ -1784,7 +1845,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     if (!pollingDisabled) {
       setPollingDisabled(true);
     }
-  }, [activeTextEditor, pollingDisabled, pushUndo]);
+  }, [activeTextEditor, persistPreviewSelection, pollingDisabled, pushUndo]);
 
   const updateActiveTextStyle = React.useCallback((patch: Partial<EditableTextStyleValue>) => {
     setActiveTextEditor((current) => current ? {
@@ -1797,7 +1858,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   }, []);
 
   const handleApplyInlineTextFormat = React.useCallback((format: "bold" | "italic" | "underline" | "strike") => {
-    const selection = window.getSelection();
+    let selection = window.getSelection();
     const container = previewContainerRef.current;
 
     const applyBlockFallback = () => {
@@ -1809,6 +1870,10 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
               : { strike: !activeTextEditor.style.strike };
       updateActiveTextStyle(patch);
     };
+
+    if ((!selection || selection.rangeCount === 0 || selection.isCollapsed) && savedTextSelectionRef.current) {
+      selection = restoreSavedPreviewSelection();
+    }
 
     if (!selection || !container || selection.rangeCount === 0) {
       applyBlockFallback();
@@ -1826,7 +1891,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
     const ownerElement = (() => {
       const el = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement;
-      return el?.closest("p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details") as HTMLElement | null;
+      return el?.closest(TEXT_OWNER_SELECTOR) as HTMLElement | null;
     })();
 
     if (!ownerElement || !container.contains(ownerElement)) {
@@ -1884,6 +1949,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         parentNode.insertBefore(beforeWrapper, formatAncestor);
       }
 
+      const middleNodes = Array.from(middleFragment.childNodes);
       if (fragmentHasMeaningfulContent(middleFragment)) {
         parentNode.insertBefore(middleFragment, formatAncestor);
       }
@@ -1895,7 +1961,17 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       }
 
       parentNode.removeChild(formatAncestor);
-      selection.removeAllRanges();
+      if (middleNodes.length > 0) {
+        const nextRange = document.createRange();
+        nextRange.setStartBefore(middleNodes[0]!);
+        nextRange.setEndAfter(middleNodes[middleNodes.length - 1]!);
+        selection.removeAllRanges();
+        selection.addRange(nextRange);
+        persistPreviewSelection(selection);
+      } else {
+        selection.removeAllRanges();
+        savedTextSelectionRef.current = null;
+      }
       setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
       commitPreviewDomToSource();
       return;
@@ -1921,9 +1997,10 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     nextRange.selectNodeContents(wrapper);
     selection.removeAllRanges();
     selection.addRange(nextRange);
+    persistPreviewSelection(selection);
     setSelectionFormats(detectInlineFormatsAtNode(wrapper, container));
     commitPreviewDomToSource();
-  }, [activeTextEditor, commitPreviewDomToSource, pushUndo, updateActiveTextStyle]);
+  }, [activeTextEditor, commitPreviewDomToSource, persistPreviewSelection, pushUndo, restoreSavedPreviewSelection, updateActiveTextStyle]);
 
   const closeActiveLayoutEditor = React.useCallback(() => {
     setActiveLayoutEditor(null);
@@ -2031,12 +2108,37 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       `[data-massic-text-id="${activeTextEditor.id}"]`
     ) as HTMLElement | null;
     if (!selectedText) return;
-    const owner = selectedText.closest(
-      "p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details, a[data-massic-link-id]"
-    ) as HTMLElement | null;
+    const owner = selectedText.closest(TEXT_OWNER_SELECTOR) as HTMLElement | null;
     if (!owner) return;
     owner.setAttribute("data-massic-text-owner-selected", "true");
   }, [activeTextEditor?.id, previewEditMode, previewHtml]);
+
+  React.useEffect(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+
+    const previousEditable = container.querySelectorAll("[data-massic-text-editing='true']");
+    previousEditable.forEach((node) => {
+      const element = node as HTMLElement;
+      element.removeAttribute("data-massic-text-editing");
+      element.removeAttribute("contenteditable");
+      element.removeAttribute("spellcheck");
+      element.removeAttribute("tabindex");
+    });
+
+    if (previewEditMode !== "text" || !activeTextEditor?.id) return;
+
+    const selectedText = container.querySelector(
+      `[data-massic-text-id="${activeTextEditor.id}"]`
+    ) as HTMLElement | null;
+    const owner = getPreviewTextOwnerElement(selectedText);
+    if (!owner) return;
+
+    owner.setAttribute("contenteditable", "true");
+    owner.setAttribute("spellcheck", "true");
+    owner.setAttribute("tabindex", "0");
+    owner.setAttribute("data-massic-text-editing", "true");
+  }, [activeTextEditor?.id, getPreviewTextOwnerElement, previewEditMode, previewHtml]);
 
   React.useEffect(() => {
     if (previewEditMode !== "text") {
@@ -2049,19 +2151,23 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const handleSelectionChange = () => {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
+        savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
       }
       const range = selection.getRangeAt(0);
       if (!container.contains(range.startContainer)) {
+        savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
       }
+      persistPreviewSelection(selection);
       if (selection.isCollapsed) {
         setSelectionFormats(detectInlineFormatsAtNode(range.startContainer, container));
         return;
       }
       if (!container.contains(range.endContainer)) {
+        savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
       }
@@ -2077,7 +2183,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [previewEditMode]);
+  }, [persistPreviewSelection, previewEditMode]);
 
   React.useEffect(() => {
     const container = previewContainerRef.current;
@@ -2132,8 +2238,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     if (previewEditMode !== "text") return;
     const target = event.target as HTMLElement | null;
     if (!target || isEditorPopoverTarget(target)) return;
+    if (target.closest("[data-massic-text-editing='true']")) return;
 
-    if (resolveMediaSelection(target) || getEditableLinkElement(target)) {
+    if (resolveMediaSelection(target) || (getEditableLinkElement(target) && !target.closest("[data-massic-text-id]"))) {
       event.preventDefault();
       event.stopPropagation();
     }
@@ -2308,6 +2415,11 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       return;
     }
 
+    const textTarget = target.closest("[data-massic-text-id]") as HTMLElement | null;
+    if (textTarget) {
+      return;
+    }
+
     const anchor = getEditableLinkElement(target);
     if (anchor) {
       const linkId = anchor.dataset.massicLinkId;
@@ -2355,11 +2467,6 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       if (!pollingDisabled) {
         setPollingDisabled(true);
       }
-      return;
-    }
-
-    const textTarget = target.closest("[data-massic-text-id]") as HTMLElement | null;
-    if (textTarget) {
       return;
     }
 
@@ -2967,9 +3074,24 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     setHoveredLayoutId(parentSpacingId || sectionId);
   }, [activeLayoutEditor, applySpacingPreviewToTarget, getResolvedSpacingValue]);
 
-  const handleInputCapture = () => {
-    return;
-  };
+  const handleInputCapture = React.useCallback(() => {
+    if (previewEditMode !== "text") return;
+
+    const selection = window.getSelection();
+    const target = selection?.anchorNode instanceof HTMLElement
+      ? selection.anchorNode
+      : selection?.anchorNode?.parentElement;
+    const info = target ? getTextBlockInfoFromElement(target as HTMLElement) : null;
+    if (!info) return;
+
+    persistPreviewSelection(selection);
+    setActiveTextEditor((current) => current && current.id === info.id ? {
+      ...current,
+      text: info.text,
+      style: info.style,
+    } : current);
+    commitPreviewDomToSource();
+  }, [commitPreviewDomToSource, persistPreviewSelection, previewEditMode]);
 
   const handleBlurCapture = (event: React.FocusEvent<HTMLDivElement>) => {
     if (previewEditMode !== "text") return;
@@ -2988,11 +3110,78 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     return;
   };
 
-  const handlePasteCapture = () => {
-    return;
-  };
+  const handlePasteCapture = React.useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (previewEditMode !== "text") return;
 
-  const handleKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest("[data-massic-text-editing='true']")) return;
+
+    event.preventDefault();
+    const plainText = event.clipboardData.getData("text/plain");
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    const textNode = document.createTextNode(plainText);
+    range.insertNode(textNode);
+    range.setStartAfter(textNode);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    textNode.parentElement?.normalize();
+    persistPreviewSelection(selection);
+    handleInputCapture();
+  }, [handleInputCapture, persistPreviewSelection, previewEditMode]);
+
+  const preserveSelectionOnToolbarMouseDown = React.useCallback((event: React.MouseEvent<HTMLElement>) => {
+    if (previewEditMode !== "text") return;
+    persistPreviewSelection();
+    event.preventDefault();
+  }, [persistPreviewSelection, previewEditMode]);
+
+  const updateActiveSpacingDraft = React.useCallback((key: SpacingDraftKey, nextToken: EditableSpacingValue[SpacingDraftKey]) => {
+    setSpacingDraft((prev) => {
+      const next = { ...prev, [key]: nextToken };
+      const active = activeLayoutEditor;
+      if (active?.spacingId) {
+        spacingEditsRef.current = { ...spacingEditsRef.current, [active.spacingId]: next };
+        applySpacingPreviewToTarget(active.spacingId, next);
+        syncSpacingIndexEntry(active.spacingId, next, active.baseClassName);
+        hasLocalEditsRef.current = true;
+        isEditingSessionRef.current = true;
+        setIsDirty(true);
+      }
+      return next;
+    });
+  }, [activeLayoutEditor, applySpacingPreviewToTarget, syncSpacingIndexEntry]);
+
+  const applyUniformSpacingDraft = React.useCallback((px: number | null) => {
+    const token = px == null ? null : pxToSpacingToken(px);
+    const nextValue: EditableSpacingValue = {
+      outsideTop: token,
+      outsideRight: token,
+      outsideBottom: token,
+      outsideLeft: token,
+    };
+
+    setSpacingDraft(nextValue);
+
+    const active = activeLayoutEditor;
+    if (!active?.spacingId) return;
+
+    spacingEditsRef.current = {
+      ...spacingEditsRef.current,
+      [active.spacingId]: nextValue,
+    };
+    applySpacingPreviewToTarget(active.spacingId, nextValue);
+    syncSpacingIndexEntry(active.spacingId, nextValue, active.baseClassName);
+    hasLocalEditsRef.current = true;
+    isEditingSessionRef.current = true;
+    setIsDirty(true);
+  }, [activeLayoutEditor, applySpacingPreviewToTarget, syncSpacingIndexEntry]);
+
+  const handleKeyDownCapture = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.shiftKey) {
       if (undoStackRef.current.length > 0) {
         event.preventDefault();
@@ -3026,8 +3215,32 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     if (activeTextEditor && event.key === "Escape") {
       event.preventDefault();
       closeActiveTextEditor();
+      return;
     }
-  };
+
+    if (previewEditMode === "text" && activeTextEditor && (event.metaKey || event.ctrlKey) && !event.altKey) {
+      const key = event.key.toLowerCase();
+      if (key === "b") {
+        event.preventDefault();
+        handleApplyInlineTextFormat("bold");
+        return;
+      }
+      if (key === "i") {
+        event.preventDefault();
+        handleApplyInlineTextFormat("italic");
+        return;
+      }
+      if (key === "u") {
+        event.preventDefault();
+        handleApplyInlineTextFormat("underline");
+        return;
+      }
+      if (event.shiftKey && key === "x") {
+        event.preventDefault();
+        handleApplyInlineTextFormat("strike");
+      }
+    }
+  }, [activeLayoutEditor, activeLinkEditor, activeMediaEditor, activeTextEditor, cancelActiveLayoutEditor, closeActiveLinkEditor, closeActiveMediaEditor, closeActiveTextEditor, handleApplyInlineTextFormat, handleUndo, previewEditMode]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -3633,38 +3846,38 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                   <div data-massic-text-editor="true" className="space-y-3">
                     <div className="flex flex-wrap items-center gap-1">
                       <Tooltip><TooltipTrigger asChild>
-                        <Button type="button" size="icon" variant={selectionFormats.bold || activeTextEditor?.style.bold ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onClick={() => handleApplyInlineTextFormat("bold")}>
+                        <Button type="button" size="icon" variant={selectionFormats.bold || activeTextEditor?.style.bold ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onMouseDown={preserveSelectionOnToolbarMouseDown} onClick={() => handleApplyInlineTextFormat("bold")}>
                           <Bold className="h-4 w-4" />
                         </Button>
-                      </TooltipTrigger><TooltipContent>Bold</TooltipContent></Tooltip>
+                      </TooltipTrigger><TooltipContent>Bold (Ctrl/Cmd+B)</TooltipContent></Tooltip>
                       <Tooltip><TooltipTrigger asChild>
-                        <Button type="button" size="icon" variant={selectionFormats.italic || activeTextEditor?.style.italic ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onClick={() => handleApplyInlineTextFormat("italic")}>
+                        <Button type="button" size="icon" variant={selectionFormats.italic || activeTextEditor?.style.italic ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onMouseDown={preserveSelectionOnToolbarMouseDown} onClick={() => handleApplyInlineTextFormat("italic")}>
                           <Italic className="h-4 w-4" />
                         </Button>
-                      </TooltipTrigger><TooltipContent>Italic</TooltipContent></Tooltip>
+                      </TooltipTrigger><TooltipContent>Italic (Ctrl/Cmd+I)</TooltipContent></Tooltip>
                       <Tooltip><TooltipTrigger asChild>
-                        <Button type="button" size="icon" variant={selectionFormats.underline || activeTextEditor?.style.underline ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onClick={() => handleApplyInlineTextFormat("underline")}>
+                        <Button type="button" size="icon" variant={selectionFormats.underline || activeTextEditor?.style.underline ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onMouseDown={preserveSelectionOnToolbarMouseDown} onClick={() => handleApplyInlineTextFormat("underline")}>
                           <Underline className="h-4 w-4" />
                         </Button>
-                      </TooltipTrigger><TooltipContent>Underline</TooltipContent></Tooltip>
+                      </TooltipTrigger><TooltipContent>Underline (Ctrl/Cmd+U)</TooltipContent></Tooltip>
                       <Tooltip><TooltipTrigger asChild>
-                        <Button type="button" size="icon" variant={selectionFormats.strike || activeTextEditor?.style.strike ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onClick={() => handleApplyInlineTextFormat("strike")}>
+                        <Button type="button" size="icon" variant={selectionFormats.strike || activeTextEditor?.style.strike ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onMouseDown={preserveSelectionOnToolbarMouseDown} onClick={() => handleApplyInlineTextFormat("strike")}>
                           <Strikethrough className="h-4 w-4" />
                         </Button>
-                      </TooltipTrigger><TooltipContent>Strikethrough</TooltipContent></Tooltip>
+                      </TooltipTrigger><TooltipContent>Strikethrough (Ctrl/Cmd+Shift+X)</TooltipContent></Tooltip>
                       <div className="mx-1 h-5 w-px bg-border" />
                       <Tooltip><TooltipTrigger asChild>
-                        <Button type="button" size="icon" variant={activeTextEditor?.style.align === "left" ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onClick={() => activeTextEditor && updateActiveTextStyle({ align: "left" })}>
+                        <Button type="button" size="icon" variant={activeTextEditor?.style.align === "left" ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onMouseDown={preserveSelectionOnToolbarMouseDown} onClick={() => activeTextEditor && updateActiveTextStyle({ align: "left" })}>
                           <AlignLeft className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger><TooltipContent>Align Left</TooltipContent></Tooltip>
                       <Tooltip><TooltipTrigger asChild>
-                        <Button type="button" size="icon" variant={activeTextEditor?.style.align === "center" ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onClick={() => activeTextEditor && updateActiveTextStyle({ align: "center" })}>
+                        <Button type="button" size="icon" variant={activeTextEditor?.style.align === "center" ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onMouseDown={preserveSelectionOnToolbarMouseDown} onClick={() => activeTextEditor && updateActiveTextStyle({ align: "center" })}>
                           <AlignCenter className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger><TooltipContent>Align Center</TooltipContent></Tooltip>
                       <Tooltip><TooltipTrigger asChild>
-                        <Button type="button" size="icon" variant={activeTextEditor?.style.align === "right" ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onClick={() => activeTextEditor && updateActiveTextStyle({ align: "right" })}>
+                        <Button type="button" size="icon" variant={activeTextEditor?.style.align === "right" ? "default" : "ghost"} className="h-8 w-8" disabled={!activeTextEditor} onMouseDown={preserveSelectionOnToolbarMouseDown} onClick={() => activeTextEditor && updateActiveTextStyle({ align: "right" })}>
                           <AlignRight className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger><TooltipContent>Align Right</TooltipContent></Tooltip>
@@ -3766,9 +3979,8 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                     ) : null}
                   </div>
                 ) : (
-                  <div data-massic-section-editor="true">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1">
+                  <div data-massic-section-editor="true" className="overflow-x-auto pb-1">
+                    <div className="flex min-w-max items-center gap-1 whitespace-nowrap">
                         {activeLayoutEditor ? (
                           <span className="mr-1 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                             {activeLayoutEditor.label}
@@ -3830,6 +4042,112 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                           </Button>
                         </TooltipTrigger><TooltipContent>Collapse Layout</TooltipContent></Tooltip>
                         <div className="mx-0.5 h-5 w-px bg-border" />
+                        <Popover>
+                          <Tooltip><TooltipTrigger asChild>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                disabled={!activeLayoutEditor?.spacingId || activeLayoutEditor.targetKind === "slot"}
+                              >
+                                <MoveVertical className="h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                          </TooltipTrigger><TooltipContent>Spacing</TooltipContent></Tooltip>
+                          <PopoverContent align="start" className="w-80 p-3">
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <Typography className="text-xs font-medium">Spacing</Typography>
+                                  <Typography className="text-[11px] text-muted-foreground">
+                                    {formatSpacingButtonLabel(spacingDraft)}
+                                  </Typography>
+                                </div>
+                                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => void handleResetSpacingForActiveTarget()}>
+                                  <RotateCcw className="mr-1.5 h-3 w-3" />
+                                  Reset
+                                </Button>
+                              </div>
+                              <div className="flex items-center gap-1 rounded-md border bg-muted/20 p-1">
+                                {[
+                                  { label: "0", value: null },
+                                  { label: "16", value: 16 },
+                                  { label: "24", value: 24 },
+                                ].map((preset) => {
+                                  const isActive = ["outsideTop", "outsideRight", "outsideBottom", "outsideLeft"].every((key) => {
+                                    const spacingKey = key as SpacingDraftKey;
+                                    return spacingTokenToPx(spacingDraft[spacingKey]) === (preset.value ?? 0);
+                                  });
+
+                                  return (
+                                    <Button
+                                      key={preset.label}
+                                      type="button"
+                                      variant={isActive ? "default" : "ghost"}
+                                      size="sm"
+                                      className="h-7 flex-1 text-[11px]"
+                                      onClick={() => applyUniformSpacingDraft(preset.value)}
+                                    >
+                                      {preset.label}
+                                    </Button>
+                                  );
+                                })}
+                              </div>
+                              <div className="space-y-2">
+                                {([
+                                  ["outsideTop", "Top", ArrowUp],
+                                  ["outsideRight", "Right", PanelRight],
+                                  ["outsideBottom", "Bottom", ArrowDown],
+                                  ["outsideLeft", "Left", PanelLeft],
+                                ] as Array<[SpacingDraftKey, string, React.ComponentType<{ className?: string }>]>).map(([key, label, Icon]) => (
+                                  <div key={key} className="rounded-md border bg-muted/20 px-2 py-1.5">
+                                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-background text-muted-foreground">
+                                          <Icon className="h-3.5 w-3.5" />
+                                        </div>
+                                        <Typography className="text-[11px] font-medium">{label}</Typography>
+                                      </div>
+                                      <div className="rounded bg-background px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                                        {spacingTokenToPx(spacingDraft[key])} px
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Button type="button" size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepActiveSpacingDraft(key, -1)}>
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <Slider
+                                        min={EDITABLE_SPACING_PX_MIN}
+                                        max={EDITABLE_SPACING_PX_MAX}
+                                        step={SPACING_STEP}
+                                        value={[spacingTokenToPx(spacingDraft[key])]}
+                                        onValueChange={(values) => {
+                                          const nextValue = values[0];
+                                          updateActiveSpacingDraft(
+                                            key,
+                                            typeof nextValue === "number" ? pxToSpacingToken(nextValue) : null
+                                          );
+                                        }}
+                                        className="flex-1"
+                                      />
+                                      <Button type="button" size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepActiveSpacingDraft(key, 1)}>
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        <div className="inline-flex h-8 items-center rounded-md bg-muted px-2 text-[10px] font-medium text-muted-foreground">
+                          {activeLayoutEditor?.spacingId && activeLayoutEditor.targetKind !== "slot"
+                            ? formatSpacingButtonLabel(spacingDraft)
+                            : "0"}
+                        </div>
+                        <div className="mx-0.5 h-5 w-px bg-border" />
                         <Tooltip><TooltipTrigger asChild>
                           <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" disabled={!activeLayoutEditor} onClick={() => setLayoutDeleteDialogOpen(true)}>
                             <Trash2 className="h-4 w-4" />
@@ -3840,67 +4158,6 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                             <X className="h-4 w-4" />
                           </Button>
                         </TooltipTrigger><TooltipContent>Deselect</TooltipContent></Tooltip>
-                      </div>
-                      <Popover>
-                        <Tooltip><TooltipTrigger asChild>
-                          <PopoverTrigger asChild>
-                            <Button type="button" size="icon" variant="outline" className="h-8 w-8 shrink-0" disabled={!activeLayoutEditor || activeLayoutEditor.targetKind === "slot"}>
-                              <MoveVertical className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                        </TooltipTrigger><TooltipContent>Spacing</TooltipContent></Tooltip>
-                        <PopoverContent align="end" className="w-auto p-3">
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-10 text-right text-[11px] text-muted-foreground">Top</span>
-                              <Button type="button" size="icon" variant="outline" className="h-6 w-6" onClick={() => stepActiveSpacingDraft("outsideTop", -1)}>
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-8 text-center text-xs font-medium tabular-nums">{spacingTokenToPx(spacingDraft.outsideTop)}</span>
-                              <Button type="button" size="icon" variant="outline" className="h-6 w-6" onClick={() => stepActiveSpacingDraft("outsideTop", 1)}>
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-10 text-right text-[11px] text-muted-foreground">Left</span>
-                                <Button type="button" size="icon" variant="outline" className="h-6 w-6" onClick={() => stepActiveSpacingDraft("outsideLeft", -1)}>
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <span className="w-8 text-center text-xs font-medium tabular-nums">{spacingTokenToPx(spacingDraft.outsideLeft)}</span>
-                                <Button type="button" size="icon" variant="outline" className="h-6 w-6" onClick={() => stepActiveSpacingDraft("outsideLeft", 1)}>
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                              </div>
-                              <div className="h-8 w-10 rounded border-2 border-dashed border-muted-foreground/30" />
-                              <div className="flex items-center gap-1.5">
-                                <Button type="button" size="icon" variant="outline" className="h-6 w-6" onClick={() => stepActiveSpacingDraft("outsideRight", -1)}>
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <span className="w-8 text-center text-xs font-medium tabular-nums">{spacingTokenToPx(spacingDraft.outsideRight)}</span>
-                                <Button type="button" size="icon" variant="outline" className="h-6 w-6" onClick={() => stepActiveSpacingDraft("outsideRight", 1)}>
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                                <span className="w-10 text-[11px] text-muted-foreground">Right</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-10 text-right text-[11px] text-muted-foreground">Bottom</span>
-                              <Button type="button" size="icon" variant="outline" className="h-6 w-6" onClick={() => stepActiveSpacingDraft("outsideBottom", -1)}>
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-8 text-center text-xs font-medium tabular-nums">{spacingTokenToPx(spacingDraft.outsideBottom)}</span>
-                              <Button type="button" size="icon" variant="outline" className="h-6 w-6" onClick={() => stepActiveSpacingDraft("outsideBottom", 1)}>
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            <Button type="button" variant="ghost" size="sm" className="mt-1 h-7 text-xs text-muted-foreground" onClick={() => void handleResetSpacingForActiveTarget()}>
-                              <RotateCcw className="mr-1.5 h-3 w-3" />
-                              Reset
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
                     </div>
                     {activeLayoutEditor?.mediaTarget && activeLayoutEditor.spacingId ? (
                       <div className="mt-2 rounded-md border bg-background p-3">
@@ -4024,6 +4281,10 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 border-radius: 6px;
                 background: color-mix(in srgb, var(--massic-primary, #2E6A56) 5%, transparent);
                 box-shadow: 0 0 0 2px color-mix(in srgb, var(--massic-primary, #2E6A56) 28%, transparent);
+              }
+              .massic-html-preview.massic-mode-text [data-massic-text-editing='true'] {
+                cursor: text;
+                outline: none;
               }
               .massic-html-preview.massic-mode-text a[data-massic-link-id] .massic-text-editable:hover {
                 background: transparent;

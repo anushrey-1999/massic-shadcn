@@ -55,6 +55,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { AIRefineToolbarDom } from "@/components/ui/ai-refine-toolbar";
 import { copyToClipboard } from "@/utils/clipboard";
 import { resolvePageContent } from "@/utils/page-content-resolver";
 import { api } from "@/hooks/use-api";
@@ -2343,14 +2344,15 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       ? selection.anchorNode
       : selection?.anchorNode?.parentElement;
     const info = target ? getTextBlockInfoFromElement(target as HTMLElement) : null;
-    if (!info) return;
 
-    persistPreviewSelection(selection);
-    setActiveTextEditor((current) => current && current.id === info.id ? {
-      ...current,
-      text: info.text,
-      style: info.style,
-    } : current);
+    if (info) {
+      persistPreviewSelection(selection);
+      setActiveTextEditor((current) => current && current.id === info.id ? {
+        ...current,
+        text: info.text,
+        style: info.style,
+      } : current);
+    }
     commitPreviewDomToSource();
   }, [commitPreviewDomToSource, persistPreviewSelection, previewEditMode]);
 
@@ -2477,6 +2479,25 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       event.preventDefault();
       closeActiveTextEditor();
       return;
+    }
+
+    if (previewEditMode === "text" && activeTextEditor && event.key === "Enter" && !event.shiftKey) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-massic-text-editing='true']")) {
+        event.preventDefault();
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+          const br = document.createElement("br");
+          range.insertNode(br);
+          range.setStartAfter(br);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        return;
+      }
     }
 
     if (previewEditMode === "text" && activeTextEditor && (event.metaKey || event.ctrlKey) && !event.altKey) {
@@ -2951,6 +2972,10 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 onFocusCapture={handleFocusCapture}
                 onPasteCapture={handlePasteCapture}
                 onKeyDownCapture={handleKeyDownCapture}
+              />
+              <AIRefineToolbarDom
+                containerRef={previewContainerRef}
+                enabled={previewEditMode === "text"}
               />
             </div>
             <InsertBlockDialog

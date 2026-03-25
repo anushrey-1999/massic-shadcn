@@ -4,17 +4,19 @@ import { useQuery } from "@tanstack/react-query"
 import { AxiosError } from "axios"
 import { api } from "./use-api"
 
-// ─── v2 Types ─────────────────────────────────────────────────────────────────
+// ─── v2.2 Types ────────────────────────────────────────────────────────────────
 
 export type PrimaryDriversWindowBucket = "7d" | "28d" | "90d" | "365d"
 export type PrimaryDriversSeverity = "HIGH" | "MEDIUM" | "LOW"
 export type PrimaryDriversDirection = "up" | "down" | "flat"
 
-export interface PrimaryDriversPrimaryMetric {
-  metric: string
-  direction: PrimaryDriversDirection
-  absolute_delta: number
-  pct_change: number | null
+export interface PrimaryDriversQuery {
+  query: string
+  brand: boolean
+  clicks_delta: number
+  impressions_delta: number
+  ctr_pp_change: number
+  position_delta: number  // inverted: positive = improvement
   flags: string[]
 }
 
@@ -22,11 +24,12 @@ export interface PrimaryDriversDriver {
   metric: string
   driver_type: string
   direction: "up" | "down"
-  pct_change: number
+  value_delta: number        // absolute delta (position_delta for AVG_POSITION, pp_change for CVR/CTR, absolute_delta for counts)
+  pct_change: number | null  // null for AVG_POSITION
   driver_score: number
-  delta_traffic: number | null
-  delta_cvr: number | null
-  cvr_share: number | null
+  delta_traffic: number | null  // CVR only
+  delta_cvr: number | null      // CVR only
+  cvr_share: number | null      // CVR only
   flags: string[]
 }
 
@@ -37,37 +40,22 @@ export interface PrimaryDriversContributor {
   contribution_share: number
   contributor_score: number
   flags: string[]
-  children: PrimaryDriversContributor[]
-}
-
-export interface PrimaryDriversOrganicBlock {
-  present: boolean
-  suppressed_reason?: string
-  clicks_delta: number
-  impressions_delta: number
-  ctr_pp_change: number
-  position_delta: number
-  brand_clicks_delta: number | null
-  nonbrand_clicks_delta: number | null
-  brand_impressions_delta: number | null
-  nonbrand_impressions_delta: number | null
-  flags: string[]
+  children?: PrimaryDriversContributor[]   // PAGE-level children (or CHANNEL under DEVICE)
+  queries?: PrimaryDriversQuery[] | null   // populated only when dimension=PAGE and parent=Organic
 }
 
 export interface PrimaryDriversResponse {
   window_bucket: PrimaryDriversWindowBucket
   severity: PrimaryDriversSeverity
-  primary_metric: PrimaryDriversPrimaryMetric
-  drivers: PrimaryDriversDriver[]
-  contributors: PrimaryDriversContributor[]
-  organic_block: PrimaryDriversOrganicBlock
-  edge_case_flags: string[]
   date_range: {
     start: string
     end: string
     comparison_start: string
     comparison_end: string
   }
+  drivers: PrimaryDriversDriver[]
+  contributors: PrimaryDriversContributor[]
+  edge_case_flags: string[]
   error?: string
   message?: string
 }

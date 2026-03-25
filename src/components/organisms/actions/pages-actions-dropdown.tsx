@@ -149,6 +149,22 @@ function getNumberFromAny(obj: any, keys: string[]): number | null {
   return null
 }
 
+function getErrorMessage(error: unknown): string | null {
+  if (!error || typeof error !== "object") {
+    return error instanceof Error ? error.message : null
+  }
+
+  const anyError = error as any
+  const responseMessage =
+    firstNonEmptyString(anyError?.response?.data?.detail) ||
+    firstNonEmptyString(anyError?.response?.data?.message) ||
+    firstNonEmptyString(anyError?.response?.data?.error)
+
+  if (responseMessage) return responseMessage
+  if (error instanceof Error) return firstNonEmptyString(error.message)
+  return firstNonEmptyString(anyError?.message)
+}
+
 function getItemTitle(item: any): string {
   return (
     getStringFromAny(item, [
@@ -411,6 +427,7 @@ export function PagesActionsDropdown({
   const [plansOpen, setPlansOpen] = React.useState(false)
   const [refineDialogOpen, setRefineDialogOpen] = React.useState(false)
   const [isGenerating, setIsGenerating] = React.useState(false)
+  const [generateError, setGenerateError] = React.useState<string | null>(null)
   const [sourceMode, setSourceMode] = React.useState<"active" | "generated" | "placeholder">("placeholder")
   const [planItems, setPlanItems] = React.useState<PagePlannerPlanItem[]>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
@@ -538,6 +555,7 @@ export function PagesActionsDropdown({
 
   React.useEffect(() => {
     if (!planItemsOverride) return
+    setGenerateError(null)
     setPlanItems(planItemsOverride)
     setRowSelection({})
     setVisibleCount(10)
@@ -546,6 +564,7 @@ export function PagesActionsDropdown({
   React.useEffect(() => {
     // In split-view we pass planItemsOverride after refine/regenerate; rebuild rows so highlighting works.
     if (!planItemsOverride || planItemsOverride.length === 0) return
+    setGenerateError(null)
     const nextRows = buildRowsFromPlanItems(planItemsOverride)
     const uniqRows = ensureUniqueRowIds(nextRows)
     setRows(uniqRows)
@@ -613,6 +632,7 @@ export function PagesActionsDropdown({
       setSourceMode("active")
       return
     }
+    setGenerateError(null)
     setPlanItems(extracted)
     setRowSelection({})
     setVisibleCount(10)
@@ -658,6 +678,7 @@ export function PagesActionsDropdown({
     if (!pagesOverridePlanItems || pagesOverridePlanItems.length === 0) return
     if (pagesBusy) return
 
+    setGenerateError(null)
     setPlanItems(pagesOverridePlanItems)
     setRowSelection({})
     setVisibleCount(10)
@@ -710,6 +731,7 @@ export function PagesActionsDropdown({
       setVisibleCount(10)
       return
     }
+    setGenerateError(null)
     const uniqRows = ensureUniqueRowIds(items)
     setRows(uniqRows)
     setOpenItemId(uniqRows[0]?.id ?? null)
@@ -720,6 +742,7 @@ export function PagesActionsDropdown({
 
   const handleGenerate = React.useCallback(async () => {
     if (!businessId || isGenerating) return
+    setGenerateError(null)
     setIsGenerating(true)
     try {
       const response = await pagePlanner.generatePlan(businessId, {
@@ -766,6 +789,7 @@ export function PagesActionsDropdown({
       setRows(uniqRows)
       setOpenItemId(uniqRows[0]?.id ?? null)
       setDoneIds(new Set())
+      setGenerateError(null)
       setSourceMode("generated")
       await queryClient.invalidateQueries({ queryKey: [PAGE_PLANS_QUERY_KEY, businessId] })
 
@@ -787,6 +811,16 @@ export function PagesActionsDropdown({
       } catch {
         // If activation fails, keep showing the generated plan as a fallback.
       }
+    } catch (error) {
+      const message = getErrorMessage(error)
+      setPlanItems([])
+      setRowSelection({})
+      setVisibleCount(10)
+      setRows([])
+      setOpenItemId(null)
+      setDoneIds(new Set())
+      setSourceMode("placeholder")
+      setGenerateError(message ? message.replace(/\.$/, "") : null)
     } finally {
       setIsGenerating(false)
     }
@@ -942,7 +976,7 @@ export function PagesActionsDropdown({
               </div>
             ) : displayRows.length === 0 && showGenerateButton && !plansQuery.isLoading ? (
               <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-                No Data
+                {generateError ?? "No Data"}
               </div>
             ) : displayRows.length === 0 ? (
               <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">

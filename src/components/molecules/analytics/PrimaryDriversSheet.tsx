@@ -3,11 +3,7 @@
 import * as React from "react"
 import { format, differenceInCalendarDays, startOfDay, subDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
-import {
-  AlertTriangle,
-  Calendar as CalendarIcon,
-  Loader2,
-} from "lucide-react"
+import { AlertTriangle, Calendar as CalendarIcon, Info, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -23,53 +19,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { getAnalyticsPeriodBounds } from "@/utils/analytics-period"
 import {
   usePrimaryDrivers,
+  type PrimaryDriversBaseline,
   type PrimaryDriversContributor,
-  type PrimaryDriversDriver,
+  type PrimaryDriversDeviceBreakdown,
+  type PrimaryDriversPageContributor,
   type PrimaryDriversQuery,
   type PrimaryDriversResponse,
-  type PrimaryDriversSeverity,
+  type PrimaryDriversWin,
 } from "@/hooks/use-primary-drivers"
-
-// ─── Constants ──────────────────────────────────────────────────────────────────
-
-const METRIC_LABELS: Record<string, string> = {
-  GOALS: "Goals",
-  SESSIONS: "Sessions",
-  CLICKS: "Clicks",
-  CVR: "CVR",
-  CTR: "CTR",
-  IMPRESSIONS: "Impressions",
-  AVG_POSITION: "Position",
-}
-
-const SEVERITY_CONFIG: Record<PrimaryDriversSeverity, { label: string; bg: string; text: string }> = {
-  HIGH:   { label: "High severity",   bg: "bg-red-100",   text: "text-red-700"   },
-  MEDIUM: { label: "Medium severity", bg: "bg-[#FAEEDA]", text: "text-[#854F0B]" },
-  LOW:    { label: "Low severity",    bg: "bg-slate-100", text: "text-slate-600"  },
-}
-
-const EDGE_CASE_BANNERS: Record<string, { title: string; description: string; color: "amber" | "red" | "blue" }> = {
-  POSSIBLE_TRACKING_ISSUE: {
-    title: "Possible tracking issue detected",
-    description: "GA4 sessions dropped sharply while search impressions stayed stable. This usually means a GA4 tag problem, not a real traffic loss — verify before reporting to the client.",
-    color: "amber",
-  },
-  POSSIBLE_PENALTY: {
-    title: "Possible Google penalty or de-indexing",
-    description: "Impressions dropped sharply while sessions held. This could be an algorithmic penalty or pages being removed from the index. Escalate for manual review.",
-    color: "red",
-  },
-  DISTRIBUTED: {
-    title: "Change is spread across many segments",
-    description: "No single channel, device, or page explains more than 25% of this movement. The change is broad — not driven by one thing.",
-    color: "blue",
-  },
-  LOW_VOLUME: {
-    title: "Low data volume — interpret with caution",
-    description: "One or more metrics had very few data points in the comparison period. Percentages can look dramatic on small numbers.",
-    color: "amber",
-  },
-}
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -108,371 +65,596 @@ function fmtAbsolute(value: number | null | undefined): string {
   return `${sign}${(abs / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
 }
 
-function fmtPct(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—"
-  if (!Number.isFinite(value)) return value > 0 ? "New" : "—"
-  const abs = Math.abs(value)
-  const sign = value > 0 ? "+" : value < 0 ? "−" : ""
-  return `${sign}${(abs * 100).toFixed(abs * 100 >= 10 ? 0 : 1)}%`
-}
-
-function fmtPp(value: number | null | undefined): string {
+function fmtPp(value: number | null | undefined, decimals = 1): string {
   if (value === null || value === undefined) return "—"
   const abs = Math.abs(value * 100)
   const sign = value > 0 ? "+" : value < 0 ? "−" : ""
-  return `${sign}${abs.toFixed(abs >= 10 ? 1 : 2)}pp`
+  return `${sign}${abs.toFixed(decimals)} pts`
 }
 
-// Driver chip value display
-function getDriverDisplay(driver: PrimaryDriversDriver): { main: string; sub: string | null; unit: string | null } {
-  if (driver.metric === "AVG_POSITION") {
-    const arrow = driver.direction === "up" ? "↑" : "↓"
-    return {
-      main: `${arrow} ${Math.abs(driver.value_delta).toFixed(1)}`,
-      sub: null,
-      unit: "spots",
+function fmtPosDelta(delta: number): string {
+  const abs = Math.abs(delta)
+  const sign = delta > 0 ? "↑" : delta < 0 ? "↓" : ""
+  return `${sign}${abs.toFixed(1)}`
+}
+
+function deltaColor(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) return "text-muted-foreground"
+  return value > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
+}
+
+// ─── Baseline phrase ─────────────────────────────────────────────────────────────
+
+function formatBaselinePeriod(baselineDays: number): string {
+  if (baselineDays < 90) {
+    const weeks = Math.round(baselineDays / 7)
+    return `${weeks}-week`
+  }
+  const months = Math.round(baselineDays / 30)
+  return `${months}-month`
+}
+
+function buildBaselinePhrase(baseline: PrimaryDriversBaseline, anchor: string): string | null {
+  if (baseline.status === "NONE") return null
+  const metricKey = anchor.toLowerCase() as "goals" | "sessions" | "clicks"
+  const anchorMetric =
+    baseline.per_metric[metricKey] ??
+    baseline.per_metric.sessions
+  if (!anchorMetric || anchorMetric.vs_baseline_pct === null) return null
+
+  const vsPct = anchorMetric.vs_baseline_pct
+  const period = formatBaselinePeriod(baseline.baseline_days)
+  const suffix = baseline.status === "PARTIAL" ? " (limited history)" : ""
+
+  if (Math.abs(vsPct) < 0.10) return `in line with ${period} average${suffix}`
+  if (vsPct >= 0.10) return `above ${period} average${suffix}`
+  return `below ${period} average${suffix}`
+}
+
+// ─── Headline segment coloring ────────────────────────────────────────────────────
+
+type ReelColor = "neg" | "pos" | "flat" | "neutral"
+
+function classifySegment(text: string): ReelColor {
+  const s = text.toLowerCase()
+  if (s.includes(" down") || s.includes("below ") || s.includes("dropped") || s.includes("compounding")) return "neg"
+  if (s.includes(" up") || s.includes("above ") || s.includes("holding")) return "pos"
+  if (s.includes("steady") || s.includes("in line") || s.includes("is the story") || s.includes("unusually")) return "flat"
+  return "neutral"
+}
+
+const REEL_COLOR_CLS: Record<ReelColor, string> = {
+  neg:     "text-[#A32D2D] font-medium",
+  pos:     "text-[#0F6E56] font-medium",
+  flat:    "text-muted-foreground font-medium",
+  neutral: "text-muted-foreground",
+}
+
+// ─── Bottom line builder ──────────────────────────────────────────────────────────
+
+interface BottomSegment {
+  text: string
+  color: ReelColor
+}
+
+function buildBottomLine(
+  contributors: PrimaryDriversContributor[],
+  baseline: PrimaryDriversBaseline,
+  anchor: string,
+  isDivergence: boolean,
+): BottomSegment[] {
+  const parts: BottomSegment[] = []
+
+  // Channel breakdown (top 3)
+  for (const ch of contributors.slice(0, 3)) {
+    const sessions = ch.sessions_delta
+    if (sessions === null) continue
+
+    const isOrganic = ch.value.toLowerCase().includes("organic")
+    let text = `${ch.value} ${fmtAbsolute(sessions)} sessions`
+    if (isOrganic && ch.clicks_delta !== null) {
+      text += `, ${fmtAbsolute(ch.clicks_delta)} clicks`
+    }
+    const dir: ReelColor = sessions > 0 ? "pos" : sessions < 0 ? "neg" : "neutral"
+    parts.push({ text, color: dir })
+  }
+
+  // CVR detail when divergence
+  if (isDivergence) {
+    const organic = contributors.find((c) => c.value.toLowerCase().includes("organic"))
+    if (organic?.cvr_pp_delta !== null && organic?.cvr_pp_delta !== undefined) {
+      const pp = Math.abs(organic.cvr_pp_delta * 100).toFixed(1)
+      const dir = organic.cvr_pp_delta > 0 ? "rose" : "dropped"
+      const topPage = organic.children?.[0]?.value ?? ""
+      const pageStr = topPage ? ` on ${topPage}` : ""
+      parts.push({ text: `CVR ${dir} ${pp} pts${pageStr}`, color: organic.cvr_pp_delta > 0 ? "pos" : "neg" })
     }
   }
-  if (driver.metric === "CVR" || driver.metric === "CTR") {
-    return { main: fmtPp(driver.value_delta), sub: null, unit: null }
+
+  // Baseline phrase
+  const baselinePhrase = buildBaselinePhrase(baseline, anchor)
+  if (baselinePhrase) {
+    const isAbove = baselinePhrase.startsWith("above")
+    const isBelow = baselinePhrase.startsWith("below")
+    parts.push({ text: baselinePhrase, color: isAbove ? "pos" : isBelow ? "neg" : "flat" })
   }
-  // Outcome (Goals): show absolute as main, pct as sub
-  if (driver.driver_type === "Outcome") {
-    return {
-      main: fmtAbsolute(driver.value_delta),
-      sub: driver.pct_change !== null ? fmtPct(driver.pct_change) : null,
-      unit: null,
-    }
-  }
-  // Traffic / Demand: show pct as main (no sub for cleaner chips)
-  if (driver.pct_change !== null) {
-    return { main: fmtPct(driver.pct_change), sub: null, unit: null }
-  }
-  return { main: fmtAbsolute(driver.value_delta), sub: null, unit: null }
+
+  return parts
 }
 
-// Query stat value display
-function fmtQueryStat(value: number): { text: string; cls: string } {
-  const sign = value > 0 ? "+" : value < 0 ? "−" : ""
-  const abs = Math.abs(value)
-  const text = `${sign}${abs < 1000 ? Math.round(abs) : (abs / 1000).toFixed(1) + "K"}`
-  return {
-    text,
-    cls: value > 0 ? "text-[#0F6E56]" : value < 0 ? "text-[#A32D2D]" : "text-muted-foreground",
-  }
-}
+// ─── Window tag ───────────────────────────────────────────────────────────────────
 
-function fmtQueryPos(positionDelta: number): { text: string; cls: string } {
-  if (Math.abs(positionDelta) < 0.1) {
-    return { text: `${positionDelta > 0 ? "+" : "−"}${Math.abs(positionDelta).toFixed(1)}`, cls: "text-muted-foreground" }
-  }
-  const arrow = positionDelta > 0 ? "↑" : "↓"
-  return {
-    text: `${arrow}${Math.abs(positionDelta).toFixed(1)}`,
-    cls: positionDelta > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]",
-  }
-}
+function WindowTag({ bucket, baseline }: { bucket: string; baseline: PrimaryDriversBaseline }) {
+  const is7d = bucket === "7d"
+  const isPartialBaseline = baseline.status === "PARTIAL" && bucket !== "7d"
 
-// ─── Warning banner ──────────────────────────────────────────────────────────────
+  let label = bucket === "7d" ? "7 days" : bucket === "28d" ? "28 days" : bucket === "90d" ? "90 days" : "12 months"
+  let noisy = false
 
-function WarningBanner({ title, description, color }: { title: string; description: string; color: "amber" | "red" | "blue" }) {
-  const styles = {
-    amber: { wrap: "border-amber-200 bg-amber-50", icon: "text-amber-600", title: "text-amber-900", body: "text-amber-800" },
-    red:   { wrap: "border-red-200 bg-red-50",     icon: "text-red-600",   title: "text-red-900",   body: "text-red-800"   },
-    blue:  { wrap: "border-blue-200 bg-blue-50",   icon: "text-blue-600",  title: "text-blue-900",  body: "text-blue-800"  },
-  }[color]
+  if (is7d) { label = "7 days · high variance"; noisy = true }
+  else if (isPartialBaseline) { label += " · limited baseline"; noisy = true }
 
   return (
-    <div className={cn("rounded-lg border p-3", styles.wrap)}>
-      <div className="flex items-start gap-2">
-        <AlertTriangle className={cn("mt-0.5 h-3.5 w-3.5 shrink-0", styles.icon)} />
-        <div>
-          <p className={cn("text-xs font-semibold", styles.title)}>{title}</p>
-          <p className={cn("mt-0.5 text-xs leading-relaxed", styles.body)}>{description}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Content header ──────────────────────────────────────────────────────────────
-
-function ContentHeader({ businessName, data }: { businessName: string; data: PrimaryDriversResponse }) {
-  const sev = SEVERITY_CONFIG[data.severity]
-  const windowDays = data.window_bucket === "7d" ? "7 days"
-    : data.window_bucket === "28d" ? "28 days"
-    : data.window_bucket === "90d" ? "90 days"
-    : "12 months"
-
-  return (
-    <div className="flex items-start justify-between">
-      <div>
-        <p className="text-[15px] font-medium text-foreground">{businessName}</p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
-          {fmtDateRange(data.date_range.start, data.date_range.end)}
-          <span className="mx-1.5">·</span>
-          vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
-          <span className="mx-1.5">·</span>
-          {windowDays}
-        </p>
-      </div>
-      <span className={cn("text-[11px] font-medium px-2.5 py-1 rounded-md flex-shrink-0", sev.bg, sev.text)}>
-        {sev.label}
-      </span>
-    </div>
-  )
-}
-
-// ─── Driver chip ─────────────────────────────────────────────────────────────────
-
-function DriverChip({ driver }: { driver: PrimaryDriversDriver }) {
-  const isPos = driver.direction === "up"
-  const { main, sub, unit } = getDriverDisplay(driver)
-  const label = METRIC_LABELS[driver.metric] ?? driver.metric
-
-  const cvrTooltip = driver.metric === "CVR" && driver.cvr_share !== null
-    ? `CVR explains ${(driver.cvr_share * 100).toFixed(0)}% of the conversion move. Traffic: ${fmtAbsolute(driver.delta_traffic)} · CVR component: ${fmtAbsolute(driver.delta_cvr)}`
-    : null
-
-  const chip = (
-    <div className={cn(
-      "flex items-center gap-2 px-3 py-[9px] rounded-lg border",
-      isPos
-        ? "bg-secondary border-border/60"
-        : "bg-red-50 border-red-200",
+    <span className={cn(
+      "text-[10px] px-2 py-0.5 rounded border",
+      noisy
+        ? "bg-[#FFFBEB] border-[#FAC775] text-[#854F0B]"
+        : "border-border/50 text-muted-foreground",
     )}>
-      <div className={cn(
-        "w-1.5 h-1.5 rounded-full flex-shrink-0",
-        isPos ? "bg-[#1D9E75]" : "bg-[#E24B4A]",
-      )} />
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <span className={cn("text-sm font-medium", isPos ? "text-[#0F6E56]" : "text-[#A32D2D]")}>
-        {main}
-      </span>
-      {sub && (
-        <span className="text-[11px] text-muted-foreground">{sub}</span>
-      )}
-      {unit && (
-        <span className="text-[11px] text-muted-foreground">{unit}</span>
-      )}
-    </div>
-  )
-
-  if (!cvrTooltip) return chip
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{chip}</TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[260px] text-xs leading-relaxed">
-        {cvrTooltip}
-      </TooltipContent>
-    </Tooltip>
+      {label}
+    </span>
   )
 }
 
-// ─── Drivers section ──────────────────────────────────────────────────────────────
+// ─── Notice bar ───────────────────────────────────────────────────────────────────
 
-function DriversSection({ drivers }: { drivers: PrimaryDriversDriver[] }) {
-  if (!drivers || drivers.length === 0) {
+function NoticeBar({ icon, text }: { icon?: React.ReactNode; text: string }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#FFFBEB] border border-[#FAC775] text-[#633806] text-[12px]">
+      {icon ?? <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-[#B45309]" />}
+      <span>{text}</span>
+    </div>
+  )
+}
+
+function InfoBar({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-[12px]">
+      <Info className="h-3.5 w-3.5 flex-shrink-0 text-blue-500" />
+      <span>{text}</span>
+    </div>
+  )
+}
+
+// ─── Headline panel ───────────────────────────────────────────────────────────────
+
+function HeadlinePanel({ data }: { data: PrimaryDriversResponse }) {
+  const segments = data.headline
+    .split(/\s{1,2}·\s{1,2}/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const bottomParts = buildBottomLine(
+    data.contributors,
+    data.baseline,
+    data.contributor_anchor,
+    data.contributor_divergence,
+  )
+
+  return (
+    <div className="px-3.5 py-3 rounded-lg bg-secondary/60 mb-3.5">
+      {/* Top line */}
+      <p className="text-[15px] leading-[1.5] mb-1">
+        {segments.map((seg, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <span className="text-border mx-[5px]">·</span>}
+            <span className={REEL_COLOR_CLS[classifySegment(seg)]}>{seg}</span>
+          </React.Fragment>
+        ))}
+      </p>
+
+      {/* Bottom line */}
+      {bottomParts.length > 0 && (
+        <p className="text-[12px] leading-[1.6] text-muted-foreground">
+          {bottomParts.map((part, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <span className="mx-1 text-border/60">·</span>}
+              <span className={cn(
+                part.color === "neg" ? "text-[#E24B4A]"
+                : part.color === "pos" ? "text-[#1D9E75]"
+                : undefined,
+              )}>
+                {part.text}
+              </span>
+            </React.Fragment>
+          ))}
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Wins bar ─────────────────────────────────────────────────────────────────────
+
+function WinsBar({ wins }: { wins: PrimaryDriversWin[] }) {
+  if (!wins || wins.length === 0) return null
+
+  return (
+    <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-[#F0FDFA] rounded-lg border border-[#9FE1CB] mb-4">
+      <span className="text-[10px] font-semibold tracking-[0.08em] uppercase text-[#0F6E56] flex-shrink-0">Wins</span>
+      <div className="flex flex-wrap gap-3">
+        {wins.map((win, i) => (
+          <span key={i} className="text-[12px] text-[#085041]">
+            <span className="text-[#9FE1CB] mr-1">·</span>
+            {win.label} {win.value}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Channel stat columns ─────────────────────────────────────────────────────────
+
+interface StatDef {
+  key: "goals" | "sessions" | "clicks" | "cvr"
+  value: number | null
+}
+
+function getChannelStats(
+  ch: PrimaryDriversContributor,
+  anchor: string,
+  isDivergence: boolean,
+): StatDef[] {
+  const isOrganic = ch.value.toLowerCase().includes("organic")
+
+  if (isDivergence) {
+    return [
+      { key: "goals",    value: ch.goals_delta },
+      { key: "sessions", value: ch.sessions_delta },
+      { key: "cvr",      value: ch.cvr_pp_delta },
+    ].filter((s) => s.value !== null) as StatDef[]
+  }
+
+  const order = anchor === "CLICKS"
+    ? ["clicks", "sessions", "goals"]
+    : anchor === "SESSIONS"
+      ? ["sessions", "goals", "clicks"]
+      : ["goals", "sessions", "clicks"]
+
+  const result: StatDef[] = []
+  for (const key of order) {
+    if (key === "clicks" && !isOrganic) continue
+    const val = key === "goals" ? ch.goals_delta
+      : key === "sessions" ? ch.sessions_delta
+      : ch.clicks_delta
+    if (val !== null && val !== 0) {
+      result.push({ key: key as StatDef["key"], value: val })
+    }
+  }
+  return result
+}
+
+function getPageStats(
+  page: PrimaryDriversPageContributor,
+  anchor: string,
+  isDivergence: boolean,
+  isOrganic: boolean,
+): StatDef[] {
+  if (isDivergence) {
+    return [
+      { key: "goals",    value: page.goals_delta },
+      { key: "sessions", value: page.sessions_delta },
+      { key: "cvr",      value: page.cvr_pp_delta },
+    ].filter((s) => s.value !== null) as StatDef[]
+  }
+
+  const order = anchor === "CLICKS"
+    ? ["clicks", "sessions", "goals"]
+    : anchor === "SESSIONS"
+      ? ["sessions", "goals", "clicks"]
+      : ["goals", "sessions", "clicks"]
+
+  const result: StatDef[] = []
+  for (const key of order) {
+    if (key === "clicks" && !isOrganic) continue
+    const val = key === "goals" ? page.goals_delta
+      : key === "sessions" ? page.sessions_delta
+      : page.clicks_delta
+    if (val !== null && val !== 0) {
+      result.push({ key: key as StatDef["key"], value: val })
+    }
+  }
+  return result
+}
+
+function statLabel(key: StatDef["key"], value: number | null): string {
+  if (key === "cvr") return "CVR"
+  const base = key === "goals" ? "Goals" : key === "sessions" ? "Sessions" : "Clicks"
+  if (value === null || value === 0) return base
+  return value > 0 ? `${base} gained` : `${base} lost`
+}
+
+function statDisplay(key: StatDef["key"], value: number | null): string {
+  if (value === null) return "—"
+  if (key === "cvr") return fmtPp(value)
+  return fmtAbsolute(value)
+}
+
+// ─── Channel header stat chip ─────────────────────────────────────────────────────
+
+function ChStat({ def }: { def: StatDef }) {
+  const val = def.value
+  const cls = val === null ? "text-muted-foreground"
+    : def.key === "cvr" ? (val > 0 ? "text-[#0F6E56]" : val < 0 ? "text-[#A32D2D]" : "text-muted-foreground")
+    : deltaColor(val)
+
+  return (
+    <div className="text-right">
+      <p className="text-[9px] uppercase tracking-[0.06em] text-muted-foreground/70 mb-px">
+        {statLabel(def.key, def.value)}
+      </p>
+      <p className={cn("text-[14px] font-medium tabular-nums", cls)}>
+        {statDisplay(def.key, val)}
+      </p>
+    </div>
+  )
+}
+
+// ─── Query section ────────────────────────────────────────────────────────────────
+
+function buildQuerySummary(queries: PrimaryDriversQuery[]) {
+  const totalClicks = queries.reduce((s, q) => s + q.clicks_delta, 0)
+  const totalImpr   = queries.reduce((s, q) => s + q.impressions_delta, 0)
+  const avgPos      = queries.length > 0
+    ? queries.reduce((s, q) => s + q.position_delta, 0) / queries.length
+    : 0
+  return { totalClicks, totalImpr, avgPos }
+}
+
+function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d: boolean }) {
+  if (is7d) {
     return (
-      <p className="text-sm text-muted-foreground">No significant drivers identified for this period.</p>
+      <div className="px-4 py-2 text-[11px] text-muted-foreground bg-secondary/40 border-t border-dashed border-border/50">
+        Query data unavailable for 7-day windows
+      </div>
     )
   }
 
-  return (
-    <div className="flex flex-wrap gap-2">
-      {drivers.map((driver, i) => (
-        <DriverChip key={`${driver.metric}-${i}`} driver={driver} />
-      ))}
-    </div>
-  )
-}
+  if (!queries || queries.length === 0) return null
 
-// ─── Query row ───────────────────────────────────────────────────────────────────
+  const { totalClicks, totalImpr, avgPos } = buildQuerySummary(queries)
 
-function QueryRow({ query }: { query: PrimaryDriversQuery }) {
-  const clicks = fmtQueryStat(query.clicks_delta)
-  const impr = fmtQueryStat(query.impressions_delta)
-  const pos = fmtQueryPos(query.position_delta)
+  const clicksColor = deltaColor(totalClicks)
+  const imprColor   = deltaColor(totalImpr)
+  const posColor    = Math.abs(avgPos) < 0.1
+    ? "text-muted-foreground"
+    : avgPos > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
 
   return (
-    <div className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/60 transition-colors">
-      <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
-        <span className={cn(
-          "text-[9px] font-medium px-1.5 py-0.5 rounded flex-shrink-0",
-          query.brand
-            ? "bg-indigo-100 text-indigo-700"
-            : "bg-emerald-100 text-[#0F6E56]",
-        )}>
-          {query.brand ? "brand" : "non-brand"}
+    <div className="px-4 py-2.5 bg-secondary/30 border-t border-dashed border-border/50">
+      {/* Summary numbers */}
+      <div className="flex gap-3 mb-1.5">
+        <span className={cn("text-[11px] font-medium", clicksColor)}>
+          <span className="text-[9px] font-normal text-muted-foreground mr-0.5">clicks</span>
+          {fmtAbsolute(totalClicks)}
         </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="block truncate text-[11px] text-muted-foreground cursor-default min-w-0 max-w-[200px]">
-              {query.query}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-[400px] break-all text-xs">
-            {query.query}
-          </TooltipContent>
-        </Tooltip>
+        <span className={cn("text-[11px] font-medium", imprColor)}>
+          <span className="text-[9px] font-normal text-muted-foreground mr-0.5">impr</span>
+          {fmtAbsolute(totalImpr)}
+        </span>
+        <span className={cn("text-[11px] font-medium", posColor)}>
+          <span className="text-[9px] font-normal text-muted-foreground mr-0.5">pos avg</span>
+          {fmtPosDelta(avgPos)}
+        </span>
       </div>
-      <div className="flex gap-3 flex-shrink-0 ml-3">
-        <div className="text-right">
-          <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60">clicks</p>
-          <p className={cn("text-[11px] font-medium", clicks.cls)}>{clicks.text}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60">impr</p>
-          <p className={cn("text-[11px] font-medium", impr.cls)}>{impr.text}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60">pos</p>
-          <p className={cn("text-[11px] font-medium", pos.cls)}>{pos.text}</p>
-        </div>
+
+      {/* Query pills */}
+      <div className="flex flex-wrap gap-1.5">
+        {queries.map((q, i) => (
+          <Tooltip key={i}>
+            <TooltipTrigger asChild>
+              <span className="text-[11px] px-2 py-[3px] rounded-full bg-background border border-border/60 text-muted-foreground max-w-[240px] truncate cursor-default">
+                {q.query}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
+              {q.query_full || q.query}
+            </TooltipContent>
+          </Tooltip>
+        ))}
       </div>
     </div>
   )
 }
 
-// ─── Page row ────────────────────────────────────────────────────────────────────
+// ─── Device rows ──────────────────────────────────────────────────────────────────
 
-function PageRow({ page, isOrganic }: { page: PrimaryDriversContributor; isOrganic: boolean }) {
-  const isPos = page.absolute_delta >= 0
-  const hasQueries = isOrganic && page.queries && page.queries.length > 0
+function DeviceRows({ breakdown }: { breakdown: PrimaryDriversDeviceBreakdown[] }) {
+  return (
+    <>
+      {breakdown.map((dev, i) => (
+        <div
+          key={i}
+          className="flex items-center justify-between pl-12 pr-4 py-1 bg-secondary/30 border-t border-border/30"
+        >
+          <span className="text-[10px] text-muted-foreground capitalize">{dev.device}</span>
+          <div className="flex gap-3">
+            {dev.goals_delta !== 0 && (
+              <span className={cn("text-[10px] font-medium", deltaColor(dev.goals_delta))}>
+                <span className="text-[9px] font-normal text-muted-foreground mr-0.5">goals</span>
+                {fmtAbsolute(dev.goals_delta)}
+              </span>
+            )}
+            {dev.sessions_delta !== 0 && (
+              <span className={cn("text-[10px] font-medium", deltaColor(dev.sessions_delta))}>
+                <span className="text-[9px] font-normal text-muted-foreground mr-0.5">sessions</span>
+                {fmtAbsolute(dev.sessions_delta)}
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+// ─── Page row ─────────────────────────────────────────────────────────────────────
+
+function PageRow({
+  page,
+  isOrganic,
+  anchor,
+  isDivergence,
+  is7d,
+}: {
+  page: PrimaryDriversPageContributor
+  isOrganic: boolean
+  anchor: string
+  isDivergence: boolean
+  is7d: boolean
+}) {
+  const stats = getPageStats(page, anchor, isDivergence, isOrganic)
+  const hasDevices = !!page.device_breakdown && page.device_breakdown.length > 0
+  const hasQueries = isOrganic && !!page.queries && page.queries.length > 0
+  const showQuerySection = isOrganic  // organic shows query section (7d shows "unavailable")
 
   return (
     <div>
-      <div className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-muted/50 transition-colors">
+      {/* Page row */}
+      <div className="flex items-center justify-between pl-8 pr-4 py-2 gap-3 hover:bg-secondary/40 transition-colors">
         <div className="min-w-0 flex-1 overflow-hidden">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="block truncate text-[12px] font-mono text-muted-foreground cursor-default max-w-[280px]">
+              <span className="block truncate text-[11px] font-mono text-muted-foreground cursor-default max-w-[220px]">
                 {page.value}
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[400px] break-all text-xs">{page.value}</TooltipContent>
           </Tooltip>
         </div>
-        <span className={cn("text-[13px] font-medium flex-shrink-0 ml-3 tabular-nums", isPos ? "text-[#0F6E56]" : "text-[#A32D2D]")}>
-          {fmtAbsolute(page.absolute_delta)}
-        </span>
-      </div>
-
-      {hasQueries && (
-        <div className="ml-2 border-l border-dashed border-border/60 pl-3">
-          {page.queries!.map((q, i) => (
-            <QueryRow key={`${q.query}-${i}`} query={q} />
+        <div className="flex gap-3 flex-shrink-0">
+          {stats.map((def, i) => (
+            <div key={i} className="text-right">
+              <p className="text-[9px] uppercase tracking-[0.06em] text-muted-foreground/60 mb-px">
+                {def.key === "cvr" ? "CVR" : def.key === "goals" ? "Goals" : def.key === "sessions" ? "Sessions" : "Clicks"}
+              </p>
+              <p className={cn("text-[12px] font-medium tabular-nums",
+                def.value === null ? "text-muted-foreground"
+                : deltaColor(def.value),
+              )}>
+                {def.value === null ? "—" : def.key === "cvr" ? fmtPp(def.value) : fmtAbsolute(def.value)}
+              </p>
+            </div>
           ))}
         </div>
+      </div>
+
+      {/* Device breakdown */}
+      {hasDevices && <DeviceRows breakdown={page.device_breakdown!} />}
+
+      {/* Query section */}
+      {showQuerySection && (
+        <QuerySection queries={hasQueries ? page.queries! : []} is7d={is7d} />
       )}
     </div>
   )
 }
 
-// ─── Contributor block ───────────────────────────────────────────────────────────
+// ─── Coverage indicator ───────────────────────────────────────────────────────────
 
-function ContributorBlock({ contributor, depth = 0 }: { contributor: PrimaryDriversContributor; depth?: number }) {
-  const isPos = contributor.absolute_delta >= 0
-  const isOrganic = String(contributor.value || "").toLowerCase().includes("organic")
-  const hasChildren = contributor.children && contributor.children.length > 0
+function CoverageRow({
+  shownPct,
+  hiddenCount,
+  channelName,
+}: {
+  shownPct: number
+  hiddenCount: number
+  channelName: string
+}) {
+  const pct = Math.round(shownPct * 100)
+  const channelLabel = channelName.toLowerCase()
 
-  if (depth === 0) {
-    // Top-level (DEVICE / CHANNEL / PAGE) — colored card
+  if (pct >= 100 && hiddenCount === 0) {
     return (
-      <div className="mb-2">
-        <div className={cn(
-          "flex items-center justify-between px-3 py-2.5 rounded-lg",
-          isPos ? "bg-[#F0FDFA] border border-[#9FE1CB]" : "bg-[#FEF2F2] border border-[#F7C1C1]",
-        )}>
-          <div className="flex items-center gap-2.5">
-            <div className={cn("w-[3px] h-5 rounded-full flex-shrink-0", isPos ? "bg-[#1D9E75]" : "bg-[#E24B4A]")} />
-            <p className="text-[13px] font-medium text-foreground">{contributor.value}</p>
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className={cn("text-[17px] font-medium cursor-default tabular-nums", isPos ? "text-[#0F6E56]" : "text-[#A32D2D]")}>
-                {fmtAbsolute(contributor.absolute_delta)}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="text-xs">
-              {Math.round(contributor.contribution_share * 100)}% of total change
-            </TooltipContent>
-          </Tooltip>
-        </div>
+      <div className="px-4 py-1.5 text-[11px] text-muted-foreground/70">
+        Showing 100% of {channelLabel} change
+      </div>
+    )
+  }
 
-        {hasChildren && (
-          <div className="ml-3 mt-0.5 border-l-[1.5px] border-border/50 pl-3 pt-0.5 pb-1">
-            {contributor.children!.map((child, i) => {
-              if (child.dimension !== "PAGE") {
-                // Intermediate channel under DEVICE — lightweight row, no heavy card
-                return (
-                  <ContributorBlock
-                    key={`${child.dimension}-${child.value}-${i}`}
-                    contributor={child}
-                    depth={1}
-                  />
-                )
-              }
-              return (
-                <PageRow key={`${child.value}-${i}`} page={child} isOrganic={isOrganic} />
-              )
-            })}
-          </div>
+  return (
+    <div className="px-4 py-1.5 text-[11px] text-muted-foreground/70">
+      {hiddenCount > 0 ? `+ ${hiddenCount} more ${hiddenCount === 1 ? "page" : "pages"} · ` : ""}
+      showing {pct}% of {channelLabel} change
+    </div>
+  )
+}
+
+// ─── Channel block ────────────────────────────────────────────────────────────────
+
+function ChannelBlock({
+  ch,
+  anchor,
+  isDivergence,
+  is7d,
+}: {
+  ch: PrimaryDriversContributor
+  anchor: string
+  isDivergence: boolean
+  is7d: boolean
+}) {
+  const isOrganic = ch.value.toLowerCase().includes("organic")
+  const isPos = ch.anchor_delta >= 0
+  const stats = getChannelStats(ch, anchor, isDivergence)
+  const lastPage = ch.children[ch.children.length - 1]
+  const shownPct = lastPage?.coverage_pct ?? ch.coverage_pct
+
+  return (
+    <div className="rounded-xl overflow-hidden border border-border/40">
+      {/* Channel header */}
+      <div className={cn(
+        "flex items-center justify-between px-4 py-3 gap-3",
+        isPos
+          ? "bg-[#F0FDFA] border-b border-[#9FE1CB]"
+          : "bg-[#FEF2F2] border-b border-[#F7C1C1]",
+      )}>
+        <div className="flex items-center gap-2.5">
+          <div className={cn("w-1 h-[22px] rounded-sm flex-shrink-0", isPos ? "bg-[#1D9E75]" : "bg-[#E24B4A]")} />
+          <span className="text-[13px] font-medium">{ch.value}</span>
+        </div>
+        <div className="flex gap-4 flex-wrap justify-end">
+          {stats.map((def, i) => (
+            <ChStat key={i} def={def} />
+          ))}
+        </div>
+      </div>
+
+      {/* Page list */}
+      <div className="bg-background divide-y divide-border/30">
+        {ch.children.map((page, i) => (
+          <PageRow
+            key={`${page.value}-${i}`}
+            page={page}
+            isOrganic={isOrganic}
+            anchor={anchor}
+            isDivergence={isDivergence}
+            is7d={is7d}
+          />
+        ))}
+        {ch.children.length > 0 && (
+          <CoverageRow
+            shownPct={shownPct}
+            hiddenCount={ch.page_hidden_count ?? 0}
+            channelName={ch.value}
+          />
         )}
       </div>
-    )
-  }
-
-  // Depth 1 — intermediate channel under DEVICE
-  // Rendered as a compact label row, not a full colored card
-  const isIntermediateOrganic = String(contributor.value || "").toLowerCase().includes("organic")
-  return (
-    <div className="mb-1.5">
-      <div className="flex items-center justify-between px-2 py-1.5">
-        <div className="flex items-center gap-2">
-          <div className={cn("w-[2px] h-4 rounded-full flex-shrink-0", isPos ? "bg-[#1D9E75]" : "bg-[#E24B4A]")} />
-          <p className="text-[12px] font-medium text-foreground/80">{contributor.value}</p>
-        </div>
-        <span className={cn("text-[12px] font-medium tabular-nums", isPos ? "text-[#0F6E56]" : "text-[#A32D2D]")}>
-          {fmtAbsolute(contributor.absolute_delta)}
-        </span>
-      </div>
-
-      {contributor.children && contributor.children.length > 0 && (
-        <div className="ml-3 border-l border-border/40 pl-3">
-          {contributor.children.map((child, i) => (
-            <PageRow key={`${child.value}-${i}`} page={child} isOrganic={isIntermediateOrganic} />
-          ))}
-        </div>
-      )}
     </div>
   )
 }
 
-// ─── Contributors section ─────────────────────────────────────────────────────────
-
-function ContributorsSection({ contributors }: { contributors: PrimaryDriversContributor[] }) {
-  if (!contributors || contributors.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">No contributor breakdown available for this period.</p>
-    )
-  }
-
-  return (
-    <div className="space-y-0">
-      {contributors.map((c, i) => (
-        <ContributorBlock
-          key={`${c.dimension}-${c.value}-${i}`}
-          contributor={c}
-          depth={0}
-        />
-      ))}
-    </div>
-  )
-}
-
-// ─── Date range picker ───────────────────────────────────────────────────────────
+// ─── Date range picker ────────────────────────────────────────────────────────────
 
 function PrimaryDriversRangePicker({
   value,
@@ -517,7 +699,7 @@ function PrimaryDriversRangePicker({
   )
 }
 
-// ─── Main Sheet ──────────────────────────────────────────────────────────────────
+// ─── Main Sheet ───────────────────────────────────────────────────────────────────
 
 interface PrimaryDriversSheetProps {
   open: boolean
@@ -557,13 +739,6 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
     setCommittedRange({ from: startOfDay(next.from), to: startOfDay(next.to) })
   }, [])
 
-  const banners = React.useMemo(() => {
-    if (!data) return []
-    return (data.edge_case_flags ?? [])
-      .filter((f) => f in EDGE_CASE_BANNERS)
-      .map((f) => ({ key: f, ...EDGE_CASE_BANNERS[f] }))
-  }, [data])
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full border-l border-general-border p-0 pt-8 sm:max-w-2xl">
@@ -598,38 +773,58 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
           ) : data ? (
             <div className="relative h-full">
               <ScrollArea className="h-full">
-                <div className="px-6 py-5 max-w-[720px] space-y-0">
+                <div className="px-6 py-5 max-w-[720px] space-y-3.5">
 
-                  {/* Business name + date range + severity */}
-                  <ContentHeader businessName={businessName} data={data} />
+                  {/* Business + date meta */}
+                  <div>
+                    <p className="text-[15px] font-medium text-foreground mb-1">{businessName}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] text-muted-foreground">
+                        {fmtDateRange(data.date_range.start, data.date_range.end)}
+                        <span className="mx-1.5">·</span>
+                        vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
+                      </span>
+                      <WindowTag bucket={data.window_bucket} baseline={data.baseline} />
+                    </div>
+                  </div>
 
-                  {/* Edge case banners */}
-                  {banners.length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      {banners.map((b) => (
-                        <WarningBanner key={b.key} title={b.title} description={b.description} color={b.color} />
-                      ))}
+                  {/* Notices */}
+                  {(data.no_goal_tracking || data.anomalous_comparison_period || data.contributor_divergence) && (
+                    <div className="space-y-2">
+                      {data.no_goal_tracking && (
+                        <InfoBar text="Goal tracking not configured · showing Sessions as primary metric" />
+                      )}
+                      {data.anomalous_comparison_period && (
+                        <NoticeBar text="Prior period was unusually high — comparison may be inflated" />
+                      )}
+                      {data.contributor_divergence && (
+                        <NoticeBar text="Goal loss and session gain on different pages — conversion rate is the story, not traffic" />
+                      )}
                     </div>
                   )}
 
-                  {/* Drivers */}
-                  <div className="mt-5">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.09em] text-muted-foreground mb-2.5">
-                      Drivers
-                    </p>
-                    <DriversSection drivers={data.drivers} />
-                  </div>
+                  {/* Headline panel */}
+                  {data.headline && <HeadlinePanel data={data} />}
 
-                  {/* Divider */}
-                  <div className="my-5 h-px bg-border/60" />
+                  {/* Wins bar */}
+                  {data.wins && data.wins.length > 0 && <WinsBar wins={data.wins} />}
 
-                  {/* Contributors */}
-                  <div>
-                    <p className="text-[10px] font-medium uppercase tracking-[0.09em] text-muted-foreground mb-2.5">
-                      Contributors
-                    </p>
-                    <ContributorsSection contributors={data.contributors} />
-                  </div>
+                  {/* Channel blocks */}
+                  {data.contributors && data.contributors.length > 0 ? (
+                    <div className="space-y-2">
+                      {data.contributors.map((ch, i) => (
+                        <ChannelBlock
+                          key={`${ch.value}-${i}`}
+                          ch={ch}
+                          anchor={data.contributor_anchor}
+                          isDivergence={data.contributor_divergence}
+                          is7d={data.window_bucket === "7d"}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No contributor breakdown available for this period.</p>
+                  )}
 
                 </div>
               </ScrollArea>

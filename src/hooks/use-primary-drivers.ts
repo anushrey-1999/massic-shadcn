@@ -4,14 +4,17 @@ import { useQuery } from "@tanstack/react-query"
 import { AxiosError } from "axios"
 import { api } from "./use-api"
 
-// ─── v2.2 Types ────────────────────────────────────────────────────────────────
+// ─── v1.3 Types ────────────────────────────────────────────────────────────────
 
 export type PrimaryDriversWindowBucket = "7d" | "28d" | "90d" | "365d"
-export type PrimaryDriversSeverity = "HIGH" | "MEDIUM" | "LOW"
-export type PrimaryDriversDirection = "up" | "down" | "flat"
+export type PrimaryDriversContributorAnchor = "GOALS" | "SESSIONS" | "CLICKS" | "CVR"
+export type PrimaryDriversDirection = "up" | "down" | "steady" | "flat"
+export type PrimaryDriversBaselineStatus = "FULL" | "PARTIAL" | "NONE"
 
+// Query row — under organic page children
 export interface PrimaryDriversQuery {
-  query: string
+  query: string       // middle-truncated at 40 chars
+  query_full: string  // full query for tooltip
   brand: boolean
   clicks_delta: number
   impressions_delta: number
@@ -20,45 +23,122 @@ export interface PrimaryDriversQuery {
   flags: string[]
 }
 
+// Device breakdown — nested under page child when one device > 60% of page delta
+export interface PrimaryDriversDeviceBreakdown {
+  device: "mobile" | "desktop" | "tablet"
+  goals_delta: number
+  sessions_delta: number
+}
+
+// Driver entry
 export interface PrimaryDriversDriver {
-  metric: string
-  driver_type: string
-  direction: "up" | "down"
-  value_delta: number        // absolute delta (position_delta for AVG_POSITION, pp_change for CVR/CTR, absolute_delta for counts)
-  pct_change: number | null  // null for AVG_POSITION
+  metric: "GOALS" | "SESSIONS" | "CLICKS" | "CVR"
+  display_name: string          // e.g. 'Contact Form Submit', 'Sessions'
+  driver_type: string           // 'Outcome' | 'Traffic' | 'Organic Traffic' | 'Conversion Efficiency'
+  direction: PrimaryDriversDirection
+  value_delta: number           // absolute delta (pp_change for CVR)
+  pct_change: number | null     // null for CVR
+  pp_change: number | null      // CVR only (percentage points)
+  cvr_baseline_pct: number | null  // CVR only — 'was X%' context
   driver_score: number
-  delta_traffic: number | null  // CVR only
-  delta_cvr: number | null      // CVR only
-  cvr_share: number | null      // CVR only
+  delta_traffic: number | null  // CVR decomposition
+  delta_cvr: number | null      // CVR decomposition
+  cvr_share: number | null      // CVR decomposition
   flags: string[]
 }
 
-export interface PrimaryDriversContributor {
-  dimension: string
+// Page-level contributor (child under CHANNEL)
+export interface PrimaryDriversPageContributor {
+  dimension: "PAGE"
   value: string
-  absolute_delta: number
+  anchor_delta: number
+  goals_delta: number | null
+  sessions_delta: number | null
+  clicks_delta: number | null
+  cvr_pp_delta: number | null
   contribution_share: number
   contributor_score: number
+  coverage_pct: number           // cumulative coverage within parent channel
   flags: string[]
-  children?: PrimaryDriversContributor[]   // PAGE-level children (or CHANNEL under DEVICE)
-  queries?: PrimaryDriversQuery[] | null   // populated only when dimension=PAGE and parent=Organic
+  device_breakdown?: PrimaryDriversDeviceBreakdown[]
+  queries?: PrimaryDriversQuery[]
 }
 
+// Channel-level contributor (top-level)
+export interface PrimaryDriversContributor {
+  dimension: "CHANNEL"
+  value: string
+  anchor_delta: number
+  goals_delta: number | null
+  sessions_delta: number | null
+  clicks_delta: number | null
+  cvr_pp_delta: number | null
+  contribution_share: number
+  contributor_score: number
+  coverage_pct: number           // cumulative top-level coverage
+  page_hidden_count: number      // pages above 5% floor not shown
+  flags: string[]
+  children: PrimaryDriversPageContributor[]
+}
+
+// Baseline per-metric entry
+export interface PrimaryDriversBaselineMetric {
+  baseline_mean: number | null
+  baseline_stddev: number | null
+  vs_baseline_pct: number | null   // fraction: 0.10 = 10% above baseline
+  yoy_pct: number | null
+}
+
+// Baseline section
+export interface PrimaryDriversBaseline {
+  status: PrimaryDriversBaselineStatus
+  baseline_days: number
+  yoy_available: boolean
+  per_metric: {
+    goals: PrimaryDriversBaselineMetric
+    sessions: PrimaryDriversBaselineMetric
+    clicks: PrimaryDriversBaselineMetric
+  }
+}
+
+// Wins bar entry
+export interface PrimaryDriversWin {
+  type: "driver" | "channel" | "query"
+  label: string
+  value: string
+}
+
+// Coverage summary
+export interface PrimaryDriversCoverage {
+  shown_pct: number
+  hidden_count: number
+}
+
+// Full response
 export interface PrimaryDriversResponse {
   window_bucket: PrimaryDriversWindowBucket
-  severity: PrimaryDriversSeverity
   date_range: {
     start: string
     end: string
     comparison_start: string
     comparison_end: string
   }
+  no_goal_tracking: boolean
+  anomalous_comparison_period: boolean
+  headline: string                         // assembled top-line reel string
+  contributor_anchor: PrimaryDriversContributorAnchor
+  contributor_divergence: boolean
   drivers: PrimaryDriversDriver[]
+  baseline: PrimaryDriversBaseline
+  wins: PrimaryDriversWin[]
   contributors: PrimaryDriversContributor[]
+  coverage: PrimaryDriversCoverage
   edge_case_flags: string[]
   error?: string
   message?: string
 }
+
+// ─── Hook ───────────────────────────────────────────────────────────────────────
 
 interface ApiResponse<T> {
   data: T

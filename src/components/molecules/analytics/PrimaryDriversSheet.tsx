@@ -21,7 +21,7 @@ import {
   usePrimaryDrivers,
   type PrimaryDriversBaseline,
   type PrimaryDriversContributor,
-  type PrimaryDriversDeviceBreakdown,
+  type PrimaryDriversHeadlineReel,
   type PrimaryDriversPageContributor,
   type PrimaryDriversQuery,
   type PrimaryDriversResponse,
@@ -67,7 +67,8 @@ function fmtAbsolute(value: number | null | undefined): string {
 
 function fmtPp(value: number | null | undefined, decimals = 1): string {
   if (value === null || value === undefined) return "—"
-  const abs = Math.abs(value * 100)
+  // value is already in percentage points (e.g. -1.2 = -1.2 pp) — do NOT multiply by 100
+  const abs = Math.abs(value)
   const sign = value > 0 ? "+" : value < 0 ? "−" : ""
   return `${sign}${abs.toFixed(decimals)} pts`
 }
@@ -111,16 +112,16 @@ function buildBaselinePhrase(baseline: PrimaryDriversBaseline, anchor: string): 
   return `below ${period} average${suffix}`
 }
 
-// ─── Headline segment coloring ────────────────────────────────────────────────────
+// ─── Headline reel colour mapping ─────────────────────────────────────────────────
+// Direction comes directly from the backend — no keyword scanning needed.
 
 type ReelColor = "neg" | "pos" | "flat" | "neutral"
 
-function classifySegment(text: string): ReelColor {
-  const s = text.toLowerCase()
-  if (s.includes(" down") || s.includes("below ") || s.includes("dropped") || s.includes("compounding")) return "neg"
-  if (s.includes(" up") || s.includes("above ") || s.includes("holding")) return "pos"
-  if (s.includes("steady") || s.includes("in line") || s.includes("is the story") || s.includes("unusually")) return "flat"
-  return "neutral"
+const DIRECTION_TO_COLOR: Record<PrimaryDriversHeadlineReel["direction"], ReelColor> = {
+  down:    "neg",
+  up:      "pos",
+  flat:    "flat",
+  neutral: "neutral",
 }
 
 const REEL_COLOR_CLS: Record<ReelColor, string> = {
@@ -163,7 +164,7 @@ function buildBottomLine(
   if (isDivergence) {
     const organic = contributors.find((c) => c.value.toLowerCase().includes("organic"))
     if (organic?.cvr_pp_delta !== null && organic?.cvr_pp_delta !== undefined) {
-      const pp = Math.abs(organic.cvr_pp_delta * 100).toFixed(1)
+      const pp = Math.abs(organic.cvr_pp_delta).toFixed(1)
       const dir = organic.cvr_pp_delta > 0 ? "rose" : "dropped"
       const topPage = organic.children?.[0]?.value ?? ""
       const pageStr = topPage ? ` on ${topPage}` : ""
@@ -229,10 +230,15 @@ function InfoBar({ text }: { text: string }) {
 // ─── Headline panel ───────────────────────────────────────────────────────────────
 
 function HeadlinePanel({ data }: { data: PrimaryDriversResponse }) {
-  const segments = data.headline
-    .split(/\s{1,2}·\s{1,2}/)
-    .map((s) => s.trim())
-    .filter(Boolean)
+  // Use structured reels from backend — each has an explicit direction tag.
+  // Fall back to plain-text split only if headline_reels is missing (old API response).
+  const reels: PrimaryDriversHeadlineReel[] = data.headline_reels?.length
+    ? data.headline_reels
+    : data.headline
+        .split(/\s{1,2}·\s{1,2}/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => ({ text: s, direction: "neutral" as const }))
 
   const bottomParts = buildBottomLine(
     data.contributors,
@@ -245,10 +251,10 @@ function HeadlinePanel({ data }: { data: PrimaryDriversResponse }) {
     <div className="px-3.5 py-3 rounded-lg bg-secondary/60 mb-3.5">
       {/* Top line */}
       <p className="text-[15px] leading-[1.5] mb-1">
-        {segments.map((seg, i) => (
+        {reels.map((reel, i) => (
           <React.Fragment key={i}>
-            {i > 0 && <span className="text-border mx-[5px]">·</span>}
-            <span className={REEL_COLOR_CLS[classifySegment(seg)]}>{seg}</span>
+            {i > 0 && <span className="text-foreground/70 mx-[6px] text-[18px] leading-none">·</span>}
+            <span className={REEL_COLOR_CLS[DIRECTION_TO_COLOR[reel.direction]]}>{reel.text}</span>
           </React.Fragment>
         ))}
       </p>
@@ -258,7 +264,7 @@ function HeadlinePanel({ data }: { data: PrimaryDriversResponse }) {
         <p className="text-[12px] leading-[1.6] text-muted-foreground">
           {bottomParts.map((part, i) => (
             <React.Fragment key={i}>
-              {i > 0 && <span className="mx-1 text-border/60">·</span>}
+              {i > 0 && <span className="mx-1 text-foreground/60 text-[14px] leading-none">·</span>}
               <span className={cn(
                 part.color === "neg" ? "text-[#E24B4A]"
                 : part.color === "pos" ? "text-[#1D9E75]"
@@ -415,7 +421,7 @@ function buildQuerySummary(queries: PrimaryDriversQuery[]) {
 function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d: boolean }) {
   if (is7d) {
     return (
-      <div className="px-4 py-2 text-[11px] text-muted-foreground bg-secondary/40 border-t border-dashed border-border/50">
+      <div className="pl-8 pr-4 py-2 text-[11px] text-muted-foreground bg-secondary/40 border-t border-dashed border-border/50">
         Query data unavailable for 7-day windows
       </div>
     )
@@ -432,7 +438,7 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
     : avgPos > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
 
   return (
-    <div className="px-4 py-2.5 bg-secondary/30 border-t border-dashed border-border/50">
+    <div className="pl-8 pr-4 py-2.5 bg-secondary/30 border-t border-dashed border-border/50">
       {/* Summary numbers */}
       <div className="flex gap-3 mb-1.5">
         <span className={cn("text-[11px] font-medium", clicksColor)}>
@@ -468,37 +474,6 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
   )
 }
 
-// ─── Device rows ──────────────────────────────────────────────────────────────────
-
-function DeviceRows({ breakdown }: { breakdown: PrimaryDriversDeviceBreakdown[] }) {
-  return (
-    <>
-      {breakdown.map((dev, i) => (
-        <div
-          key={i}
-          className="flex items-center justify-between pl-12 pr-4 py-1 bg-secondary/30 border-t border-border/30"
-        >
-          <span className="text-[10px] text-muted-foreground capitalize">{dev.device}</span>
-          <div className="flex gap-3">
-            {dev.goals_delta !== 0 && (
-              <span className={cn("text-[10px] font-medium", deltaColor(dev.goals_delta))}>
-                <span className="text-[9px] font-normal text-muted-foreground mr-0.5">goals</span>
-                {fmtAbsolute(dev.goals_delta)}
-              </span>
-            )}
-            {dev.sessions_delta !== 0 && (
-              <span className={cn("text-[10px] font-medium", deltaColor(dev.sessions_delta))}>
-                <span className="text-[9px] font-normal text-muted-foreground mr-0.5">sessions</span>
-                {fmtAbsolute(dev.sessions_delta)}
-              </span>
-            )}
-          </div>
-        </div>
-      ))}
-    </>
-  )
-}
-
 // ─── Page row ─────────────────────────────────────────────────────────────────────
 
 function PageRow({
@@ -515,7 +490,6 @@ function PageRow({
   is7d: boolean
 }) {
   const stats = getPageStats(page, anchor, isDivergence, isOrganic)
-  const hasDevices = !!page.device_breakdown && page.device_breakdown.length > 0
   const hasQueries = isOrganic && !!page.queries && page.queries.length > 0
   const showQuerySection = isOrganic  // organic shows query section (7d shows "unavailable")
 
@@ -549,9 +523,6 @@ function PageRow({
           ))}
         </div>
       </div>
-
-      {/* Device breakdown */}
-      {hasDevices && <DeviceRows breakdown={page.device_breakdown!} />}
 
       {/* Query section */}
       {showQuerySection && (

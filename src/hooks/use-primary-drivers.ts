@@ -23,11 +23,10 @@ export interface PrimaryDriversQuery {
   flags: string[]
 }
 
-// Device breakdown — nested under page child when one device > 60% of page delta
-export interface PrimaryDriversDeviceBreakdown {
-  device: "mobile" | "desktop" | "tablet"
-  goals_delta: number
-  sessions_delta: number
+// Structured headline reel — per-segment direction for colour coding
+export interface PrimaryDriversHeadlineReel {
+  text: string
+  direction: "up" | "down" | "flat" | "neutral"
 }
 
 // Driver entry
@@ -60,7 +59,6 @@ export interface PrimaryDriversPageContributor {
   contributor_score: number
   coverage_pct: number           // cumulative coverage within parent channel
   flags: string[]
-  device_breakdown?: PrimaryDriversDeviceBreakdown[]
   queries?: PrimaryDriversQuery[]
 }
 
@@ -125,7 +123,8 @@ export interface PrimaryDriversResponse {
   }
   no_goal_tracking: boolean
   anomalous_comparison_period: boolean
-  headline: string                         // assembled top-line reel string
+  headline: string                         // assembled top-line reel string (legacy / full text)
+  headline_reels: PrimaryDriversHeadlineReel[]  // per-segment direction metadata for colour coding
   contributor_anchor: PrimaryDriversContributorAnchor
   contributor_divergence: boolean
   drivers: PrimaryDriversDriver[]

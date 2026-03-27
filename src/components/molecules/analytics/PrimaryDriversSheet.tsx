@@ -3,7 +3,7 @@
 import * as React from "react"
 import { format, differenceInCalendarDays, startOfDay, subDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
-import { AlertTriangle, Calendar as CalendarIcon, Info, Loader2 } from "lucide-react"
+import { AlertTriangle, Calendar as CalendarIcon, Check, Info, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -16,7 +16,14 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { getAnalyticsPeriodBounds } from "@/utils/analytics-period"
+import { Separator } from "@/components/ui/separator"
+import {
+  getAnalyticsPeriodBounds,
+  PERIOD_SELECTOR_GROUPS,
+  formatTimePeriodSummary,
+  resolveTimePeriodRange,
+  type TimePeriodPreset,
+} from "@/utils/analytics-period"
 import {
   usePrimaryDrivers,
   type PrimaryDriversBaseline,
@@ -34,7 +41,7 @@ function toIsoDate(date: Date) { return format(date, "yyyy-MM-dd") }
 
 function createDefaultRange() {
   const { presetAnchorDate } = getAnalyticsPeriodBounds()
-  return { from: subDays(presetAnchorDate, 6), to: presetAnchorDate }
+  return { from: subDays(presetAnchorDate, 13), to: presetAnchorDate }
 }
 
 function formatDisplayRange(range: DateRange | undefined) {
@@ -45,6 +52,25 @@ function formatDisplayRange(range: DateRange | undefined) {
 function getRangeLength(range: DateRange | undefined) {
   if (!range?.from || !range?.to) return 0
   return differenceInCalendarDays(startOfDay(range.to), startOfDay(range.from)) + 1
+}
+
+function rangeMatchesPreset(value: DateRange | undefined, preset: TimePeriodPreset): boolean {
+  if (!value?.from || !value?.to) return false
+  const r = resolveTimePeriodRange(preset)
+  if (!r) return false
+  return (
+    startOfDay(value.from).getTime() === r.from.getTime()
+    && startOfDay(value.to).getTime() === r.to.getTime()
+  )
+}
+
+function matchesAnyPreset(value: DateRange | undefined): boolean {
+  for (const group of PERIOD_SELECTOR_GROUPS) {
+    for (const period of group.options) {
+      if (rangeMatchesPreset(value, period.value)) return true
+    }
+  }
+  return false
 }
 
 function fmtDateRange(start: string, end: string): string {
@@ -286,11 +312,13 @@ function WinsBar({ wins }: { wins: PrimaryDriversWin[] }) {
   if (!wins || wins.length === 0) return null
 
   return (
-    <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-[#F0FDFA] rounded-lg border border-[#9FE1CB] mb-4">
-      <span className="text-[10px] font-semibold tracking-[0.08em] uppercase text-[#0F6E56] flex-shrink-0">Wins</span>
-      <div className="flex flex-wrap gap-3">
+    <div className="flex items-baseline gap-2 px-3 py-2 bg-[#F0FDFA] rounded-lg border border-[#9FE1CB] mb-4">
+      <span className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.08em] text-[#0F6E56]">
+        Wins
+      </span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
         {wins.map((win, i) => (
-          <span key={i} className="text-[12px] text-[#085041]">
+          <span key={i} className="text-[12px] leading-snug text-[#085041]">
             <span className="text-[#9FE1CB] mr-1">·</span>
             {win.label} {win.value}
           </span>
@@ -637,7 +665,30 @@ function PrimaryDriversRangePicker({
   validationMessage: string | null
 }) {
   const [open, setOpen] = React.useState(false)
+  const [customExpanded, setCustomExpanded] = React.useState(false)
   const { minSelectableDate, presetAnchorDate } = getAnalyticsPeriodBounds()
+
+  React.useEffect(() => {
+    if (!open) return
+    setCustomExpanded(!matchesAnyPreset(value))
+  }, [open, value])
+
+  const handlePresetSelect = (preset: TimePeriodPreset) => {
+    const r = resolveTimePeriodRange(preset)
+    if (!r) return
+    onChange({ from: r.from, to: r.to })
+    setCustomExpanded(false)
+    if (getRangeLength({ from: r.from, to: r.to }) >= 7) {
+      setOpen(false)
+    }
+  }
+
+  const handleCustomCalendarSelect = (r: DateRange | undefined) => {
+    onChange(r)
+    if (r?.from && r?.to && getRangeLength(r) >= 7) {
+      setOpen(false)
+    }
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -647,24 +698,84 @@ function PrimaryDriversRangePicker({
           {formatDisplayRange(value)}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto p-0">
+      <PopoverContent align="end" className="w-auto max-w-[min(100vw-1rem,720px)] min-w-[260px] p-0">
         <div className="border-b bg-muted/20 px-4 py-3">
           <p className="text-sm font-semibold">Select date range</p>
           <p className="text-xs text-muted-foreground">Minimum 7 days. Previous period compared automatically.</p>
           {validationMessage && <p className="mt-1.5 text-xs font-medium text-red-600">{validationMessage}</p>}
         </div>
-        <Calendar
-          mode="range"
-          selected={value}
-          onSelect={(r) => {
-            onChange(r)
-            if (r?.from && r?.to && getRangeLength(r) >= 7) setOpen(false)
-          }}
-          numberOfMonths={2}
-          disabled={(d) => d < minSelectableDate || d > presetAnchorDate}
-          defaultMonth={value?.from}
-          initialFocus
-        />
+
+        <div className="max-h-[min(40vh,320px)] overflow-y-auto">
+          {PERIOD_SELECTOR_GROUPS.map((group, index) => (
+            <div key={group.id}>
+              {index > 0 ? <Separator /> : null}
+              <div className="p-1">
+                {group.options.map((period) => {
+                  const isActive = rangeMatchesPreset(value, period.value)
+                  return (
+                    <button
+                      key={period.id}
+                      type="button"
+                      onClick={() => handlePresetSelect(period.value)}
+                      className={cn(
+                        "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
+                        isActive && "bg-muted",
+                      )}
+                    >
+                      <span className="flex flex-col">
+                        <span className="text-sm font-medium text-foreground">{period.label}</span>
+                        {isActive ? (
+                          <span className="text-xs text-muted-foreground">
+                            {formatTimePeriodSummary(period.value)}
+                          </span>
+                        ) : null}
+                      </span>
+                      {isActive ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : null}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Separator />
+
+        <div className="p-1">
+          <button
+            type="button"
+            onClick={() => setCustomExpanded((e) => !e)}
+            className={cn(
+              "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
+              (customExpanded || !matchesAnyPreset(value)) && "bg-muted",
+            )}
+          >
+            <span className="flex flex-col">
+              <span className="text-sm font-medium text-foreground">Custom</span>
+              {(customExpanded || !matchesAnyPreset(value)) && value?.from && value?.to ? (
+                <span className="text-xs text-muted-foreground">{formatDisplayRange(value)}</span>
+              ) : null}
+            </span>
+            {!matchesAnyPreset(value) && value?.from && value?.to ? (
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            ) : null}
+          </button>
+        </div>
+
+        {customExpanded ? (
+          <>
+            <Separator />
+            <Calendar
+              mode="range"
+              selected={value}
+              onSelect={handleCustomCalendarSelect}
+              numberOfMonths={2}
+              disabled={(d) => d < minSelectableDate || d > presetAnchorDate}
+              defaultMonth={value?.from}
+              initialFocus
+            />
+          </>
+        ) : null}
       </PopoverContent>
     </Popover>
   )
@@ -717,7 +828,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
         {/* Sheet header — sticky */}
         <SheetHeader className="border-b border-general-border bg-background px-6 py-4 pr-14">
           <div className="flex items-center justify-between gap-3">
-            <SheetTitle className="text-base font-semibold tracking-tight">Primary Drivers</SheetTitle>
+            <SheetTitle className="text-base font-semibold tracking-tight">What&apos;s Happening?</SheetTitle>
             <PrimaryDriversRangePicker value={draftRange} onChange={handleRangeChange} validationMessage={rangeMsg} />
           </div>
         </SheetHeader>
@@ -728,14 +839,14 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
             <div className="flex h-full items-center justify-center">
               <div className="text-center space-y-2">
                 <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Computing primary drivers…</p>
+                <p className="text-sm text-muted-foreground">Loading insights…</p>
               </div>
             </div>
           ) : isError ? (
             <div className="flex h-full items-center justify-center px-6">
               <div className="max-w-sm rounded-xl border border-red-200 bg-red-50 p-5 text-center">
                 <AlertTriangle className="mx-auto h-5 w-5 text-red-600" />
-                <h3 className="mt-3 text-sm font-semibold text-red-900">Unable to load Primary Drivers</h3>
+                <h3 className="mt-3 text-sm font-semibold text-red-900">Unable to load What&apos;s Happening?</h3>
                 <p className="mt-1.5 text-xs leading-relaxed text-red-700">
                   {error || "Something went wrong. Try changing the date range."}
                 </p>

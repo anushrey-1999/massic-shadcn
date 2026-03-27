@@ -26,7 +26,11 @@ import {
 	TooltipTrigger,
 	TooltipContent,
 } from "@/components/ui/tooltip";
-import type { HealthStatusRow, HealthColor } from "@/hooks/use-health-status";
+import type {
+	HealthStatusRow,
+	HealthColor,
+	Confidence,
+} from "@/hooks/use-health-status";
 
 // PRD §2.1 — signal colors
 const HEALTH_ACCENT_COLOR: Record<NonNullable<HealthColor>, string> = {
@@ -40,7 +44,7 @@ const HEALTH_LABEL: Record<NonNullable<HealthColor>, string> = {
 	green: "Strong",
 	amber: "Dip",
 	red:   "Check",
-	gray:  "No data",
+	gray:  "No Signal",
 };
 
 const HEALTH_BADGE_CLASSNAME: Record<NonNullable<HealthColor>, string> = {
@@ -49,6 +53,53 @@ const HEALTH_BADGE_CLASSNAME: Record<NonNullable<HealthColor>, string> = {
 	red: "border-transparent bg-[#FDECEC] text-[#E24B4A]",
 	gray: "border-transparent bg-[#F2F1EE] text-[#7E7B73]",
 };
+
+/** Strong / Dip / Check × (high | medium vs low) — medium uses high copy per product spec. */
+const HEALTH_TOOLTIP_NARRATIVE: Record<
+	"green" | "amber" | "red",
+	{ strongSignal: { subtitle: string; footer: string }; thinData: { subtitle: string; footer: string } }
+> = {
+	green: {
+		strongSignal: {
+			subtitle: "Performing well and holding steady",
+			footer: "Strong signal · 14 days of data",
+		},
+		thinData: {
+			subtitle: "Looking good so far — check back as more data comes in",
+			footer: "Thin data · too early to confirm",
+		},
+	},
+	amber: {
+		strongSignal: {
+			subtitle: "Healthy, but momentum is softening",
+			footer: "Strong signal · 14 days of data",
+		},
+		thinData: {
+			subtitle: "Some soft signals — could be noise",
+			footer: "Thin data · too early to act on this",
+		},
+	},
+	red: {
+		strongSignal: {
+			subtitle: "Traffic is down and the pattern is consistent",
+			footer: "Strong signal · 14 days of data",
+		},
+		thinData: {
+			subtitle: "Some dips, but not enough data to confirm a real problem",
+			footer: "Thin data · hold off before drawing conclusions",
+		},
+	},
+};
+
+function healthTooltipNarrativeBlock(
+	color: NonNullable<HealthColor>,
+	confidence: Confidence
+): { subtitle: string; footer: string } | null {
+	if (color === "gray") return null;
+	const row = HEALTH_TOOLTIP_NARRATIVE[color];
+	const thin = confidence === "low";
+	return thin ? row.thinData : row.strongSignal;
+}
 
 // ─── Tooltip helpers ──────────────────────────────────────────────────────────
 
@@ -103,6 +154,10 @@ function MetricRow({
 function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 	const color = s.health_color;
 	const hasAny = s.recent_leads != null || s.recent_traffic != null;
+	const narrative =
+		color && color !== "gray"
+			? healthTooltipNarrativeBlock(color, s.confidence ?? "medium")
+			: null;
 
 	return (
 		<div className="w-56 space-y-2 py-0.5">
@@ -113,6 +168,18 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 				</span>
 				<span className="text-[10px] text-muted-foreground shrink-0">14d vs prior 14d</span>
 			</div>
+
+			{narrative && (
+				<p className="text-[10px] leading-snug text-muted-foreground">
+					{narrative.subtitle}
+				</p>
+			)}
+
+			{color === "gray" && (
+				<p className="text-[10px] leading-snug text-muted-foreground">
+					{s.reason_text ?? "Insufficient data to score"}
+				</p>
+			)}
 
 			{/* Metric rows — Goals (70% weight) first, Clicks (30%) second */}
 			{hasAny && (
@@ -134,17 +201,22 @@ function HealthTooltipBody({ s }: { s: HealthStatusRow }) {
 				</div>
 			)}
 
-			{/* Confidence + stale notice */}
-			<div className="flex items-center justify-between border-t border-border/50 pt-1.5">
-				{s.confidence && (
-					<span className="text-[10px] text-muted-foreground">
-						Confidence: <span className="font-medium">{s.confidence}</span>
-					</span>
-				)}
-				{s.is_stale && (
-					<span className="text-[10px] text-amber-600 ml-auto">stale data</span>
-				)}
-			</div>
+			{narrative && (
+				<div className="border-t border-border/50 pt-1.5 space-y-1">
+					<p className="text-[10px] text-muted-foreground leading-snug">
+						{narrative.footer}
+					</p>
+					{s.is_stale && (
+						<span className="text-[10px] text-amber-600">Stale data</span>
+					)}
+				</div>
+			)}
+
+			{color === "gray" && s.is_stale && (
+				<div className="border-t border-border/50 pt-1.5">
+					<span className="text-[10px] text-amber-600">Stale data</span>
+				</div>
+			)}
 		</div>
 	);
 }

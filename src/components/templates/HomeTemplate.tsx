@@ -153,7 +153,7 @@ const HOME_HEALTH_FILTERS = [
   },
   {
     value: "gray",
-    label: "No data",
+    label: "No Signal",
     dotClassName: "bg-[#708091]",
     activeClassName: "border border-[#DBDEE3] bg-[#ECEFF2] text-[#708091]",
     inactiveClassName: "border border-transparent bg-[#ECEFF2] text-[#708091]",

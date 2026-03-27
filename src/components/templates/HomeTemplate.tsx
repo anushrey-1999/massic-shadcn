@@ -128,7 +128,8 @@ const HOME_PERIODS = [
 const HOME_HEALTH_FILTERS = [
   {
     value: "all",
-    label: "All Clients",
+    label: "All",
+    dotClassName: "",
     activeClassName:
       "border border-[#9CC3B0] bg-[#3E6F61] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.55)_inset]",
     inactiveClassName: "border border-transparent bg-[#EEF3F1] text-[#3E6F61]",
@@ -136,31 +137,35 @@ const HOME_HEALTH_FILTERS = [
   },
   {
     value: "red",
-    label: "Needs attention",
+    label: "Check",
+    dotClassName: "bg-[#E24B4A]",
     activeClassName: "border border-[#F4B8B8] bg-[#FDECEC] text-[#E24B4A]",
     inactiveClassName: "border border-transparent bg-[#FDECEC] text-[#E24B4A]",
     countClassName: "text-[#E24B4A]/80",
   },
   {
     value: "amber",
-    label: "Watch closely",
+    label: "Dip",
+    dotClassName: "bg-[#D88A10]",
     activeClassName: "border border-[#F7D496] bg-[#FFF3D8] text-[#D88A10]",
     inactiveClassName: "border border-transparent bg-[#FFF3D8] text-[#D88A10]",
     countClassName: "text-[#D88A10]/80",
   },
   {
     value: "gray",
-    label: "Unranked",
+    label: "No data",
+    dotClassName: "bg-[#708091]",
     activeClassName: "border border-[#DBDEE3] bg-[#ECEFF2] text-[#708091]",
     inactiveClassName: "border border-transparent bg-[#ECEFF2] text-[#708091]",
     countClassName: "text-[#708091]/80",
   },
   {
     value: "green",
-    label: "Healthy",
-    activeClassName: "border border-[#AEE5B8] bg-[#DFF7E4] text-[#3BAA52]",
-    inactiveClassName: "border border-transparent bg-[#DFF7E4] text-[#3BAA52]",
-    countClassName: "text-[#3BAA52]/80",
+    label: "Strong",
+    dotClassName: "bg-[#639922]",
+    activeClassName: "border border-[#D7E8BF] bg-[#EEF6E4] text-[#639922]",
+    inactiveClassName: "border border-transparent bg-[#EEF6E4] text-[#639922]",
+    countClassName: "text-[#639922]/80",
   },
 ] as const;
 
@@ -540,6 +545,11 @@ export function HomeTemplate() {
                     isActive ? option.activeClassName : option.inactiveClassName
                   )}
                 >
+                  {option.value !== "all" ? (
+                    <span
+                      className={cn("h-2 w-2 rounded-full shrink-0", option.dotClassName)}
+                    />
+                  ) : null}
                   <span>{option.label}</span>
                   {option.value !== "all" ? (
                     <span

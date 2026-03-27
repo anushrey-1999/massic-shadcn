@@ -37,10 +37,10 @@ const HEALTH_ACCENT_COLOR: Record<NonNullable<HealthColor>, string> = {
 };
 
 const HEALTH_LABEL: Record<NonNullable<HealthColor>, string> = {
-	green: "Healthy",
-	amber: "Watch Closely",
-	red:   "Need Attention",
-	gray:  "Unranked",
+	green: "Strong",
+	amber: "Dip",
+	red:   "Check",
+	gray:  "No data",
 };
 
 const HEALTH_BADGE_CLASSNAME: Record<NonNullable<HealthColor>, string> = {
@@ -179,7 +179,7 @@ function HealthBadge({ healthStatus }: { healthStatus: HealthStatusRow }) {
 				>
 					<div
 						className={cn(
-							"inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium leading-none",
+							"inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium leading-none shrink-0",
 							HEALTH_BADGE_CLASSNAME[color]
 						)}
 					>
@@ -258,7 +258,7 @@ function BusinessIcon({ website, name }: BusinessIconProps) {
 				alt=""
 				width={16}
 				height={16}
-				className="h-full w-full object-contain"
+				className="h-full w-full object-contain grayscale"
 				onError={() => setImgError(true)}
 			/>
 		</div>
@@ -392,14 +392,14 @@ export function BusinessPreviewCard({
 					<div className="relative h-full flex items-center justify-center gap-1.5 ">
 						<div className="flex items-center gap-0.5">
 							<Eye className="text-gray-500 w-3 h-3 " />
-							<span className="text-xs font-medium text-gray-500 leading-0 ">
+							<span className="text-xs font-medium text-general-unofficial-foreground-alt leading-none">
 								{formatTotal(impressions?.Total)}
 							</span>
 						</div>
 						<StatsBadge
 							value={parsePercent(impressions?.Diff, impressions?.Trend)}
 							variant="big"
-							className="flex items-baseline"
+							className="flex items-center text-xs"
 						/>
 					</div>
 				</div>
@@ -420,16 +420,16 @@ export function BusinessPreviewCard({
 						/>
 					</svg>
 					<div className="relative h-full flex items-center justify-center gap-1.5">
-						<div className="flex items-center gap-0.5 leading-[150%]">
+						<div className="flex items-center gap-0.5">
 							<MousePointerClick className="text-blue-600 w-3 h-3 rotate-90" />
-							<span className="text-xs font-medium  text-blue-600">
+							<span className="text-xs font-medium text-general-unofficial-foreground-alt leading-none">
 								{formatTotal(clicks?.Total)}
 							</span>
 						</div>
 						<StatsBadge
 							value={parsePercent(clicks?.Diff, clicks?.Trend)}
 							variant="big"
-							className="flex items-baseline"
+							className="flex items-center text-xs"
 						/>
 					</div>
 				</div>
@@ -450,16 +450,16 @@ export function BusinessPreviewCard({
 						/>
 					</svg>
 					<div className="relative h-full flex items-center justify-center gap-1.5">
-						<div className="flex items-center gap-0.5 leading-[150%]">
+						<div className="flex items-center gap-0.5">
 							<Target className="text-emerald-600 w-3 h-3 " />
-							<span className="text-xs font-medium text-emerald-600">
+							<span className="text-xs font-medium text-general-unofficial-foreground-alt leading-none">
 								{formatTotal(goals?.Total)}
 							</span>
 						</div>
 						<StatsBadge
 							value={parsePercent(goals?.Diff, goals?.Trend)}
 							variant="big"
-							className="flex items-baseline"
+							className="flex items-center text-xs"
 						/>
 					</div>
 				</div>

@@ -117,6 +117,9 @@ import { MediaEditorPanel } from "@/components/ui/layout-panel";
 import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 
 type SaveReason = "debounce" | "blur" | "unmount";
+type AiTextTransformResponse = {
+  revised_text?: string;
+};
 type ActiveLinkEditorState = {
   id: string;
   top: number;
@@ -182,6 +185,7 @@ type InsertAnchor = {
 } | null;
 
 const TEXT_OWNER_SELECTOR = "p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details, a[data-massic-link-id]";
+const AI_SELECTION_ATTR = "data-massic-ai-selection";
 
 function getEditableLinkElement(target: EventTarget | null): HTMLAnchorElement | null {
   if (!(target instanceof HTMLElement)) return null;
@@ -397,6 +401,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const [isSaving, setIsSaving] = React.useState(false);
   const [layoutDeleteDialogOpen, setLayoutDeleteDialogOpen] = React.useState(false);
   const [selectionFormats, setSelectionFormats] = React.useState<{ bold: boolean; italic: boolean; underline: boolean; strike: boolean }>({ bold: false, italic: false, underline: false, strike: false });
+  const [isAiRefineExpanded, setIsAiRefineExpanded] = React.useState(false);
 
   const sourceHtmlRef = React.useRef("");
   const textNodeIndexRef = React.useRef<EditableTextNodeRef[]>([]);
@@ -920,6 +925,98 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     return selection;
   }, []);
 
+  const getSavedPreviewSelectionContext = React.useCallback(() => {
+    const container = previewContainerRef.current;
+    if (!container) return null;
+
+    const highlightedSelection = container.querySelector(
+      `[${AI_SELECTION_ATTR}="true"]`
+    ) as HTMLElement | null;
+    if (highlightedSelection) {
+      const owner = highlightedSelection.closest(TEXT_OWNER_SELECTOR) as HTMLElement | null;
+      if (!owner) return null;
+      const range = document.createRange();
+      range.selectNodeContents(highlightedSelection);
+      return {
+        range,
+        owner,
+        textId:
+          highlightedSelection.closest("[data-massic-text-id]")?.getAttribute("data-massic-text-id") ||
+          savedTextSelectionRef.current?.textId ||
+          null,
+        surroundingContext: normalizeSelectedText(owner.textContent || ""),
+      };
+    }
+
+    const savedRange = savedTextSelectionRef.current?.range?.cloneRange();
+    const liveSelection = window.getSelection();
+    const liveRange = liveSelection && liveSelection.rangeCount > 0
+      ? liveSelection.getRangeAt(0).cloneRange()
+      : null;
+    const range = savedRange || liveRange;
+    if (!range || range.collapsed) return null;
+
+    if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+      return null;
+    }
+
+    const startTextElement = getPreviewTextElement(range.startContainer);
+    const endTextElement = getPreviewTextElement(range.endContainer);
+    const startOwner = getPreviewTextOwnerElement(startTextElement);
+    const endOwner = getPreviewTextOwnerElement(endTextElement);
+    if (!startOwner || !endOwner || startOwner !== endOwner) {
+      return null;
+    }
+
+    return {
+      range,
+      owner: startOwner,
+      textId:
+        savedTextSelectionRef.current?.textId ||
+        startTextElement?.dataset.massicTextId ||
+        endTextElement?.dataset.massicTextId ||
+        null,
+      surroundingContext: normalizeSelectedText(startOwner.textContent || ""),
+    };
+  }, [getPreviewTextElement, getPreviewTextOwnerElement]);
+
+  const clearAiSelectionHighlight = React.useCallback(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+    const highlightedNodes = Array.from(
+      container.querySelectorAll(`[${AI_SELECTION_ATTR}="true"]`)
+    );
+    highlightedNodes.forEach((node) => {
+      unwrapElementPreservingChildren(node);
+    });
+  }, []);
+
+  const applyAiSelectionHighlight = React.useCallback(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+
+    clearAiSelectionHighlight();
+
+    const selectionContext = getSavedPreviewSelectionContext();
+    if (!selectionContext) return;
+
+    const selectedText = normalizeSelectedText(selectionContext.range.toString());
+    if (!selectedText) return;
+
+    const wrapper = document.createElement("span");
+    wrapper.setAttribute(AI_SELECTION_ATTR, "true");
+    const fragment = selectionContext.range.extractContents();
+    wrapper.appendChild(fragment);
+    selectionContext.range.insertNode(wrapper);
+
+    const nextRange = document.createRange();
+    nextRange.selectNodeContents(wrapper);
+    savedTextSelectionRef.current = {
+      range: nextRange.cloneRange(),
+      textId: selectionContext.textId,
+    };
+  }, [clearAiSelectionHighlight, getSavedPreviewSelectionContext]);
+
   const serializePreviewDomToSourceHtml = React.useCallback(() => {
     const container = previewContainerRef.current;
     if (!container) return sourceHtmlRef.current;
@@ -927,6 +1024,13 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
     const textWrappers = Array.from(clone.querySelectorAll("[data-massic-text-id]"));
     textWrappers.forEach((node) => {
+      unwrapElementPreservingChildren(node);
+    });
+
+    const aiSelectionWrappers = Array.from(
+      clone.querySelectorAll(`[${AI_SELECTION_ATTR}="true"]`)
+    );
+    aiSelectionWrappers.forEach((node) => {
       unwrapElementPreservingChildren(node);
     });
 
@@ -1264,6 +1368,115 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     commitPreviewDomToSource();
   }, [activeTextEditor, commitPreviewDomToSource, persistPreviewSelection, pushUndo, restoreSavedPreviewSelection, updateActiveTextStyle]);
 
+  const handleAiRefine = React.useCallback(
+    async (_action: "custom", selectedText: string, customPrompt?: string) => {
+      const instruction = customPrompt?.trim();
+      if (!instruction) {
+        throw new Error("Add an instruction to refine the selected text.");
+      }
+
+      const selectionContext = getSavedPreviewSelectionContext();
+      if (!selectionContext) {
+        throw new Error("Select text within a single paragraph to refine it.");
+      }
+
+      const response = await api.post<AiTextTransformResponse>(
+        `/ai/text/transform?business_id=${encodeURIComponent(businessId)}`,
+        "python",
+        {
+          selected_text: selectedText,
+          instruction,
+          surrounding_context: selectionContext.surroundingContext || null,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            accept: "application/json",
+          },
+        }
+      );
+
+      const revisedText = String(response?.revised_text || "").trim();
+      if (!revisedText) {
+        throw new Error("AI returned an empty refinement.");
+      }
+
+      return revisedText;
+    },
+    [businessId, getSavedPreviewSelectionContext]
+  );
+
+  const handleAcceptAiRefine = React.useCallback(
+    (revisedText: string) => {
+      const highlightedSelection = previewContainerRef.current?.querySelector(
+        `[${AI_SELECTION_ATTR}="true"]`
+      ) as HTMLElement | null;
+      const selectionContext = getSavedPreviewSelectionContext();
+      if (!selectionContext && !highlightedSelection) {
+        toast.error("The selected text is no longer available.");
+        return;
+      }
+
+      pushUndo();
+      const textNode = document.createTextNode(revisedText);
+      if (highlightedSelection?.parentNode) {
+        highlightedSelection.parentNode.insertBefore(textNode, highlightedSelection);
+        highlightedSelection.parentNode.removeChild(highlightedSelection);
+      } else if (selectionContext) {
+        const selection = restoreSavedPreviewSelection();
+        const range = selectionContext.range.cloneRange();
+        range.deleteContents();
+        range.insertNode(textNode);
+      } else {
+        return;
+      }
+
+      const nextRange = document.createRange();
+      nextRange.selectNodeContents(textNode);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(nextRange);
+      persistPreviewSelection(selection);
+      commitPreviewDomToSource();
+
+      const textId = selectionContext?.textId || null;
+      const textElement = textId
+        ? (previewContainerRef.current?.querySelector(
+            `[data-massic-text-id="${textId}"]`
+          ) as HTMLElement | null)
+        : getPreviewTextElement(textNode);
+      const info = textElement ? getTextBlockInfoFromElement(textElement) : null;
+
+      if (info) {
+        setActiveTextEditor((current) =>
+          current
+            ? {
+                ...current,
+                id: info.id,
+                label: info.label,
+                text: info.text,
+                style: info.style,
+              }
+            : current
+        );
+      }
+
+      if (previewContainerRef.current) {
+        setSelectionFormats(
+          detectInlineFormatsAtNode(textNode, previewContainerRef.current)
+        );
+      }
+    },
+    [
+      commitPreviewDomToSource,
+      getPreviewTextElement,
+      getSavedPreviewSelectionContext,
+      persistPreviewSelection,
+      pushUndo,
+      restoreSavedPreviewSelection,
+    ]
+  );
+
   const closeActiveLayoutEditor = React.useCallback(() => {
     setActiveLayoutEditor(null);
     setSpacingDraft(createEmptySpacingValue());
@@ -1403,6 +1616,24 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   }, [activeTextEditor?.id, getPreviewTextOwnerElement, previewEditMode, previewHtml]);
 
   React.useEffect(() => {
+    if (previewEditMode !== "text" || !isAiRefineExpanded) {
+      clearAiSelectionHighlight();
+      return;
+    }
+
+    applyAiSelectionHighlight();
+
+    return () => {
+      clearAiSelectionHighlight();
+    };
+  }, [
+    applyAiSelectionHighlight,
+    clearAiSelectionHighlight,
+    isAiRefineExpanded,
+    previewEditMode,
+  ]);
+
+  React.useEffect(() => {
     if (previewEditMode !== "text") {
       setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
       return;
@@ -1413,12 +1644,14 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const handleSelectionChange = () => {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
+        if (isAiRefineExpanded) return;
         savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
       }
       const range = selection.getRangeAt(0);
       if (!container.contains(range.startContainer)) {
+        if (isAiRefineExpanded) return;
         savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
@@ -1429,6 +1662,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         return;
       }
       if (!container.contains(range.endContainer)) {
+        if (isAiRefineExpanded) return;
         savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
@@ -1445,7 +1679,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [persistPreviewSelection, previewEditMode]);
+  }, [isAiRefineExpanded, persistPreviewSelection, previewEditMode]);
 
   React.useEffect(() => {
     const container = previewContainerRef.current;
@@ -2976,6 +3210,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
               <AIRefineToolbarDom
                 containerRef={previewContainerRef}
                 enabled={previewEditMode === "text"}
+                onRefine={handleAiRefine}
+                onAccept={handleAcceptAiRefine}
+                onExpandedChange={setIsAiRefineExpanded}
               />
             </div>
             <InsertBlockDialog
@@ -3066,6 +3303,11 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 border-radius: 6px;
                 background: color-mix(in srgb, var(--massic-primary, #2E6A56) 5%, transparent);
                 box-shadow: 0 0 0 2px color-mix(in srgb, var(--massic-primary, #2E6A56) 28%, transparent);
+              }
+              .massic-html-preview.massic-mode-text [data-massic-ai-selection='true'] {
+                border-radius: 3px;
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 24%, white);
+                box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 35%, transparent);
               }
               .massic-html-preview.massic-mode-text [data-massic-text-editing='true'] {
                 cursor: text;

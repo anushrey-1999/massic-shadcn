@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import {
   Sparkles,
   ArrowUp,
@@ -180,7 +181,11 @@ interface RefineToolbarPanelProps {
   isExpanded: boolean;
   onExpand: () => void;
   onClose: () => void;
-  onRefine?: (action: RefineAction, customPrompt?: string) => void;
+  onRefine?: (
+    action: RefineAction,
+    customPrompt?: string
+  ) => Promise<string | null | undefined> | string | null | undefined;
+  onAccept?: (revisedText: string) => void | Promise<void>;
 }
 
 function RefineToolbarPanel({
@@ -190,12 +195,15 @@ function RefineToolbarPanel({
   onExpand,
   onClose,
   onRefine,
+  onAccept,
 }: RefineToolbarPanelProps) {
   const [promptValue, setPromptValue] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const [refinedPreview, setRefinedPreview] = React.useState<string | null>(
     null
   );
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [lastPromptValue, setLastPromptValue] = React.useState("");
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
   const toolbarRef = React.useRef<HTMLDivElement>(null);
 
@@ -203,6 +211,8 @@ function RefineToolbarPanel({
     setPromptValue("");
     setIsLoading(false);
     setRefinedPreview(null);
+    setErrorMessage(null);
+    setLastPromptValue("");
   }, []);
 
   React.useEffect(() => {
@@ -224,41 +234,61 @@ function RefineToolbarPanel({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isExpanded, onClose]);
 
+  const runRefine = React.useCallback(
+    async (nextPrompt: string) => {
+      const text = nextPrompt.trim();
+      if (!text) return;
+
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const revisedText = (await onRefine?.("custom", text))?.trim();
+        if (!revisedText) {
+          throw new Error("AI could not refine the selected text.");
+        }
+        setLastPromptValue(text);
+        setPromptValue(text);
+        setRefinedPreview(revisedText);
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Failed to refine the selected text.";
+        setRefinedPreview(null);
+        setErrorMessage(message);
+        toast.error(message);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [onRefine]
+  );
+
   const handleSubmitPrompt = React.useCallback(() => {
-    const text = promptValue.trim();
-    if (!text) return;
-
-    setIsLoading(true);
-
-    setTimeout(() => {
-      setIsLoading(false);
-      setRefinedPreview(
-        `[AI will refine the selected text with your instruction: "${text}"]`
-      );
-    }, 1500);
-
-    onRefine?.("custom", text);
-  }, [promptValue, onRefine]);
+    void runRefine(promptValue);
+  }, [promptValue, runRefine]);
 
   const handleAccept = React.useCallback(() => {
+    if (!refinedPreview) return;
+    void onAccept?.(refinedPreview);
     resetInner();
     onClose();
-  }, [resetInner, onClose]);
+  }, [onAccept, onClose, refinedPreview, resetInner]);
 
   const handleDiscard = React.useCallback(() => {
     setRefinedPreview(null);
     setIsLoading(false);
+    setErrorMessage(null);
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
   const handleRetry = React.useCallback(() => {
     setRefinedPreview(null);
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setRefinedPreview("[AI will retry refining the selected text]");
-    }, 1500);
-  }, []);
+    const retryPrompt = lastPromptValue || promptValue.trim();
+    if (!retryPrompt) return;
+    void runRefine(retryPrompt);
+  }, [lastPromptValue, promptValue, runRefine]);
 
   const handleKeyDown = React.useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -407,6 +437,9 @@ function RefineToolbarPanel({
                   <ArrowUp className="h-4 w-4" />
                 </button>
               </div>
+              {errorMessage ? (
+                <p className="mt-2 text-xs text-destructive">{errorMessage}</p>
+              ) : null}
             </div>
           )}
         </div>
@@ -426,13 +459,17 @@ interface AIRefineToolbarDomProps {
     action: RefineAction,
     selectedText: string,
     customPrompt?: string
-  ) => void;
+  ) => Promise<string | null | undefined> | string | null | undefined;
+  onAccept?: (revisedText: string, selectedText: string) => void | Promise<void>;
+  onExpandedChange?: (isExpanded: boolean) => void;
 }
 
 export function AIRefineToolbarDom({
   containerRef,
   enabled = true,
   onRefine,
+  onAccept,
+  onExpandedChange,
 }: AIRefineToolbarDomProps) {
   const { coords, hasSelection, selectedText, lock, unlock } =
     useDomSelectionPosition(containerRef);
@@ -447,6 +484,10 @@ export function AIRefineToolbarDom({
     if (!hasSelection && !isExpanded) resetState();
   }, [hasSelection, isExpanded, resetState]);
 
+  React.useEffect(() => {
+    onExpandedChange?.(isExpanded);
+  }, [isExpanded, onExpandedChange]);
+
   const handleExpand = React.useCallback(() => {
     lock();
     setIsExpanded(true);
@@ -458,9 +499,16 @@ export function AIRefineToolbarDom({
 
   const handleRefine = React.useCallback(
     (action: RefineAction, customPrompt?: string) => {
-      onRefine?.(action, selectedText, customPrompt);
+      return onRefine?.(action, selectedText, customPrompt);
     },
     [onRefine, selectedText]
+  );
+
+  const handleAccept = React.useCallback(
+    (revisedText: string) => {
+      return onAccept?.(revisedText, selectedText);
+    },
+    [onAccept, selectedText]
   );
 
   if (!enabled) return null;
@@ -473,6 +521,7 @@ export function AIRefineToolbarDom({
       onExpand={handleExpand}
       onClose={handleClose}
       onRefine={handleRefine}
+      onAccept={handleAccept}
     />
   );
 }

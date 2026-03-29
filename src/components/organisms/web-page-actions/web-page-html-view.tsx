@@ -186,6 +186,7 @@ type InsertAnchor = {
 
 const TEXT_OWNER_SELECTOR = "p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details, a[data-massic-link-id]";
 const AI_SELECTION_ATTR = "data-massic-ai-selection";
+const AI_SELECTION_OWNER_ATTR = "data-massic-ai-selection-owner";
 
 function getEditableLinkElement(target: EventTarget | null): HTMLAnchorElement | null {
   if (!(target instanceof HTMLElement)) return null;
@@ -881,6 +882,20 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     return target.closest(TEXT_OWNER_SELECTOR) as HTMLElement | null;
   }, []);
 
+  const getPreviewTextOwnersForRange = React.useCallback((range: Range) => {
+    const container = previewContainerRef.current;
+    if (!container) return [] as HTMLElement[];
+    return Array.from(
+      container.querySelectorAll(TEXT_OWNER_SELECTOR)
+    ).filter((node) => {
+      try {
+        return range.intersectsNode(node);
+      } catch {
+        return false;
+      }
+    }) as HTMLElement[];
+  }, []);
+
   const persistPreviewSelection = React.useCallback((selectionInput?: Selection | null) => {
     const container = previewContainerRef.current;
     const selection = selectionInput ?? window.getSelection();
@@ -899,7 +914,8 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const endTextElement = getPreviewTextElement(range.endContainer);
     const startOwner = getPreviewTextOwnerElement(startTextElement);
     const endOwner = getPreviewTextOwnerElement(endTextElement);
-    if (!startOwner || !endOwner || startOwner !== endOwner) {
+    const owners = getPreviewTextOwnersForRange(range);
+    if (!startOwner || !endOwner || owners.length === 0) {
       savedTextSelectionRef.current = null;
       return;
     }
@@ -908,7 +924,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       range: range.cloneRange(),
       textId: startTextElement?.dataset.massicTextId || endTextElement?.dataset.massicTextId || null,
     };
-  }, [getPreviewTextElement, getPreviewTextOwnerElement]);
+  }, [getPreviewTextElement, getPreviewTextOwnerElement, getPreviewTextOwnersForRange]);
 
   const restoreSavedPreviewSelection = React.useCallback(() => {
     const saved = savedTextSelectionRef.current;
@@ -940,6 +956,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       return {
         range,
         owner,
+        owners: [owner],
         textId:
           highlightedSelection.closest("[data-massic-text-id]")?.getAttribute("data-massic-text-id") ||
           savedTextSelectionRef.current?.textId ||
@@ -964,21 +981,26 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const endTextElement = getPreviewTextElement(range.endContainer);
     const startOwner = getPreviewTextOwnerElement(startTextElement);
     const endOwner = getPreviewTextOwnerElement(endTextElement);
-    if (!startOwner || !endOwner || startOwner !== endOwner) {
+    const owners = getPreviewTextOwnersForRange(range);
+    if (!startOwner || !endOwner || owners.length === 0) {
       return null;
     }
 
     return {
       range,
       owner: startOwner,
+      owners,
       textId:
         savedTextSelectionRef.current?.textId ||
         startTextElement?.dataset.massicTextId ||
         endTextElement?.dataset.massicTextId ||
         null,
-      surroundingContext: normalizeSelectedText(startOwner.textContent || ""),
+      surroundingContext: owners
+        .map((owner) => normalizeSelectedText(owner.textContent || ""))
+        .filter(Boolean)
+        .join("\n\n"),
     };
-  }, [getPreviewTextElement, getPreviewTextOwnerElement]);
+  }, [getPreviewTextElement, getPreviewTextOwnerElement, getPreviewTextOwnersForRange]);
 
   const clearAiSelectionHighlight = React.useCallback(() => {
     const container = previewContainerRef.current;
@@ -988,6 +1010,12 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     );
     highlightedNodes.forEach((node) => {
       unwrapElementPreservingChildren(node);
+    });
+    const highlightedOwners = Array.from(
+      container.querySelectorAll(`[${AI_SELECTION_OWNER_ATTR}="true"]`)
+    );
+    highlightedOwners.forEach((node) => {
+      (node as HTMLElement).removeAttribute(AI_SELECTION_OWNER_ATTR);
     });
   }, []);
 
@@ -1003,6 +1031,17 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const selectedText = normalizeSelectedText(selectionContext.range.toString());
     if (!selectedText) return;
 
+    if (selectionContext.owners.length > 1) {
+      selectionContext.owners.forEach((owner) => {
+        owner.setAttribute(AI_SELECTION_OWNER_ATTR, "true");
+      });
+      savedTextSelectionRef.current = {
+        range: selectionContext.range.cloneRange(),
+        textId: selectionContext.textId,
+      };
+      return;
+    }
+
     const wrapper = document.createElement("span");
     wrapper.setAttribute(AI_SELECTION_ATTR, "true");
     const fragment = selectionContext.range.extractContents();
@@ -1016,6 +1055,134 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       textId: selectionContext.textId,
     };
   }, [clearAiSelectionHighlight, getSavedPreviewSelectionContext]);
+
+  const createPlainTextFragment = React.useCallback((value: string) => {
+    const fragment = document.createDocumentFragment();
+    const normalized = String(value || "").replace(/\r\n/g, "\n");
+    const lines = normalized.split("\n");
+    lines.forEach((line, index) => {
+      if (index > 0) {
+        fragment.appendChild(document.createElement("br"));
+      }
+      fragment.appendChild(document.createTextNode(line));
+    });
+    return fragment;
+  }, []);
+
+  const splitRefinedTextIntoBlocks = React.useCallback((value: string) => {
+    const normalized = String(value || "").replace(/\r\n/g, "\n").trim();
+    if (!normalized) return [];
+    const blocks = normalized
+      .split(/\n\s*\n+/)
+      .map((block) => block.trim())
+      .filter(Boolean);
+    if (blocks.length > 1) return blocks;
+    return normalized
+      .split("\n")
+      .map((block) => block.trim())
+      .filter(Boolean);
+  }, []);
+
+  const sanitizeClonedTextOwner = React.useCallback((element: HTMLElement) => {
+    element.removeAttribute("contenteditable");
+    element.removeAttribute("spellcheck");
+    element.removeAttribute("tabindex");
+    element.removeAttribute("data-massic-text-editing");
+    element.removeAttribute("data-massic-text-owner-selected");
+    element.removeAttribute(AI_SELECTION_OWNER_ATTR);
+  }, []);
+
+  const describeTextOwnerForAi = React.useCallback((owner: HTMLElement) => {
+    const tagName = owner.tagName.toLowerCase();
+    if (/^h[1-6]$/.test(tagName)) {
+      return `heading (${tagName.toUpperCase()})`;
+    }
+    if (tagName === "p") return "paragraph";
+    if (tagName === "li") return "list item";
+    if (tagName === "blockquote") return "blockquote";
+    if (tagName === "summary") return "summary";
+    if (tagName === "details") return "details";
+    if (tagName === "a") return "link";
+    return tagName;
+  }, []);
+
+  const normalizeRefinedTextForOwner = React.useCallback((owner: HTMLElement, value: string) => {
+    const tagName = owner.tagName.toLowerCase();
+    const normalized = String(value || "").replace(/\r\n/g, "\n").trim();
+
+    if (/^h[1-6]$/.test(tagName)) {
+      return normalized.replace(/^#{1,6}\s+/, "").trim();
+    }
+
+    if (tagName === "li") {
+      return normalized.replace(/^([-*+]|\d+\.)\s+/, "").trim();
+    }
+
+    return normalized;
+  }, []);
+
+  const splitRefinedTextAcrossOwners = React.useCallback((value: string, owners: HTMLElement[]) => {
+    const cleaned = String(value || "").replace(/\r\n/g, "\n").trim();
+    if (!owners.length) return [];
+    if (!cleaned) return owners.map(() => "");
+
+    const blocks = splitRefinedTextIntoBlocks(cleaned);
+    if (blocks.length === owners.length) {
+      return blocks;
+    }
+
+    if (blocks.length > owners.length) {
+      return [
+        ...blocks.slice(0, owners.length - 1),
+        blocks.slice(owners.length - 1).join("\n\n"),
+      ];
+    }
+
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (owners.length === 1 || words.length <= 1) {
+      return [cleaned, ...owners.slice(1).map(() => "")].slice(0, owners.length);
+    }
+
+    const originalWordCounts = owners.map((owner) => {
+      const ownerWords = normalizeSelectedText(owner.textContent || "")
+        .split(/\s+/)
+        .filter(Boolean);
+      return Math.max(1, ownerWords.length);
+    });
+
+    const result: string[] = [];
+    let cursor = 0;
+
+    for (let index = 0; index < owners.length; index += 1) {
+      const remainingOwners = owners.length - index;
+      const remainingWords = words.length - cursor;
+
+      if (index === owners.length - 1) {
+        result.push(words.slice(cursor).join(" "));
+        break;
+      }
+
+      const remainingOriginalWords = originalWordCounts
+        .slice(index)
+        .reduce((sum, count) => sum + count, 0);
+      const proportionalTake = Math.round(
+        (originalWordCounts[index]! / remainingOriginalWords) * remainingWords
+      );
+      const takeCount = Math.max(
+        1,
+        Math.min(proportionalTake, remainingWords - (remainingOwners - 1))
+      );
+
+      result.push(words.slice(cursor, cursor + takeCount).join(" "));
+      cursor += takeCount;
+    }
+
+    while (result.length < owners.length) {
+      result.push("");
+    }
+
+    return result.slice(0, owners.length);
+  }, [splitRefinedTextIntoBlocks]);
 
   const serializePreviewDomToSourceHtml = React.useCallback(() => {
     const container = previewContainerRef.current;
@@ -1377,15 +1544,22 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
       const selectionContext = getSavedPreviewSelectionContext();
       if (!selectionContext) {
-        throw new Error("Select text within a single paragraph to refine it.");
+        throw new Error("Select text in the editor to refine it.");
       }
+
+      const instructionWithStructure =
+        selectionContext.owners.length > 1
+          ? `${instruction}\n\nPreserve the same content structure as the selected text. Return exactly ${selectionContext.owners.length} blocks in this order: ${selectionContext.owners
+              .map((owner) => describeTextOwnerForAi(owner))
+              .join(", ")}. Do not merge headings and paragraphs into one paragraph.`
+          : instruction;
 
       const response = await api.post<AiTextTransformResponse>(
         `/ai/text/transform?business_id=${encodeURIComponent(businessId)}`,
         "python",
         {
           selected_text: selectedText,
-          instruction,
+          instruction: instructionWithStructure,
           surrounding_context: selectionContext.surroundingContext || null,
         },
         {
@@ -1403,7 +1577,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
       return revisedText;
     },
-    [businessId, getSavedPreviewSelectionContext]
+    [businessId, describeTextOwnerForAi, getSavedPreviewSelectionContext]
   );
 
   const handleAcceptAiRefine = React.useCallback(
@@ -1418,33 +1592,96 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       }
 
       pushUndo();
-      const textNode = document.createTextNode(revisedText);
-      if (highlightedSelection?.parentNode) {
-        highlightedSelection.parentNode.insertBefore(textNode, highlightedSelection);
+      let insertedAnchor: Node | null = null;
+
+      if (
+        selectionContext &&
+        selectionContext.owners.length > 1
+      ) {
+        const owners = selectionContext.owners;
+        const firstOwner = owners[0] || null;
+        const lastOwner = owners[owners.length - 1] || null;
+        const firstParent = firstOwner?.parentNode || null;
+        const mappedBlocks = splitRefinedTextAcrossOwners(revisedText, owners);
+        const canReplaceAsBlocks =
+          !!firstOwner &&
+          !!lastOwner &&
+          !!firstParent &&
+          owners.every((owner) => owner.parentNode === firstParent);
+
+        if (canReplaceAsBlocks) {
+          const fragment = document.createDocumentFragment();
+          const replacements = owners.map((owner, index) => {
+            const replacement = owner.cloneNode(false) as HTMLElement;
+            sanitizeClonedTextOwner(replacement);
+            replacement.replaceChildren(
+              createPlainTextFragment(
+                normalizeRefinedTextForOwner(owner, mappedBlocks[index] || "")
+              )
+            );
+            fragment.appendChild(replacement);
+            return replacement;
+          });
+          firstParent.insertBefore(fragment, firstOwner!);
+          insertedAnchor = replacements[0] || null;
+          owners.forEach((owner) => {
+            owner.parentNode?.removeChild(owner);
+          });
+        } else {
+          const selection = restoreSavedPreviewSelection();
+          const range = selectionContext.range.cloneRange();
+          range.deleteContents();
+          const fragment = createPlainTextFragment(revisedText);
+          insertedAnchor = fragment.lastChild;
+          range.insertNode(fragment);
+          selection?.removeAllRanges();
+        }
+      } else if (highlightedSelection?.parentNode) {
+        const normalizedText = selectionContext?.owners[0]
+          ? normalizeRefinedTextForOwner(selectionContext.owners[0], revisedText)
+          : revisedText;
+        const fragment = createPlainTextFragment(normalizedText);
+        insertedAnchor = fragment.lastChild || highlightedSelection.previousSibling;
+        highlightedSelection.parentNode.insertBefore(fragment, highlightedSelection);
         highlightedSelection.parentNode.removeChild(highlightedSelection);
-      } else if (selectionContext) {
-        const selection = restoreSavedPreviewSelection();
-        const range = selectionContext.range.cloneRange();
-        range.deleteContents();
-        range.insertNode(textNode);
       } else {
-        return;
+        const selection = restoreSavedPreviewSelection();
+        const range = selectionContext?.range.cloneRange();
+        if (!range) return;
+        range.deleteContents();
+        const normalizedText = selectionContext?.owners[0]
+          ? normalizeRefinedTextForOwner(selectionContext.owners[0], revisedText)
+          : revisedText;
+        const fragment = createPlainTextFragment(normalizedText);
+        insertedAnchor = fragment.lastChild;
+        range.insertNode(fragment);
+        selection?.removeAllRanges();
       }
 
+      const textNode = insertedAnchor instanceof Text
+        ? insertedAnchor
+        : getPreviewTextElement(insertedAnchor)?.firstChild;
       const nextRange = document.createRange();
-      nextRange.selectNodeContents(textNode);
+      if (insertedAnchor instanceof HTMLElement) {
+        nextRange.selectNodeContents(insertedAnchor);
+      } else if (textNode) {
+        nextRange.selectNodeContents(textNode);
+      } else {
+        nextRange.selectNodeContents(previewContainerRef.current || document.body);
+      }
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(nextRange);
       persistPreviewSelection(selection);
       commitPreviewDomToSource();
 
-      const textId = selectionContext?.textId || null;
+      const textId =
+        selectionContext?.owners.length === 1 ? selectionContext.textId || null : null;
       const textElement = textId
         ? (previewContainerRef.current?.querySelector(
             `[data-massic-text-id="${textId}"]`
           ) as HTMLElement | null)
-        : getPreviewTextElement(textNode);
+        : getPreviewTextElement(insertedAnchor);
       const info = textElement ? getTextBlockInfoFromElement(textElement) : null;
 
       if (info) {
@@ -1463,17 +1700,21 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
       if (previewContainerRef.current) {
         setSelectionFormats(
-          detectInlineFormatsAtNode(textNode, previewContainerRef.current)
+          detectInlineFormatsAtNode(insertedAnchor, previewContainerRef.current)
         );
       }
     },
     [
       commitPreviewDomToSource,
+      createPlainTextFragment,
       getPreviewTextElement,
       getSavedPreviewSelectionContext,
       persistPreviewSelection,
       pushUndo,
       restoreSavedPreviewSelection,
+      normalizeRefinedTextForOwner,
+      sanitizeClonedTextOwner,
+      splitRefinedTextAcrossOwners,
     ]
   );
 
@@ -3308,6 +3549,11 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 border-radius: 3px;
                 background: color-mix(in srgb, var(--massic-primary, #2E6A56) 24%, white);
                 box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 35%, transparent);
+              }
+              .massic-html-preview.massic-mode-text [data-massic-ai-selection-owner='true'] {
+                border-radius: 6px;
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 10%, transparent);
+                box-shadow: 0 0 0 2px color-mix(in srgb, var(--massic-primary, #2E6A56) 22%, transparent);
               }
               .massic-html-preview.massic-mode-text [data-massic-text-editing='true'] {
                 cursor: text;

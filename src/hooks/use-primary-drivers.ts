@@ -10,6 +10,7 @@ export type PrimaryDriversWindowBucket = "7d" | "28d" | "90d" | "365d"
 export type PrimaryDriversContributorAnchor = "GOALS" | "SESSIONS" | "CLICKS" | "CVR"
 export type PrimaryDriversDirection = "up" | "down" | "steady" | "flat"
 export type PrimaryDriversBaselineStatus = "FULL" | "PARTIAL" | "NONE"
+export type CallPrepHighlightTone = "positive" | "negative" | "neutral"
 
 // Query row — under organic page children
 export interface PrimaryDriversQuery {
@@ -112,6 +113,13 @@ export interface PrimaryDriversCoverage {
   hidden_count: number
 }
 
+export interface PrimaryDriversOtherGoals {
+  present: boolean
+  value_delta: number | null
+  pct_change: number | null
+  direction: PrimaryDriversDirection | null
+}
+
 // Full response
 export interface PrimaryDriversResponse {
   window_bucket: PrimaryDriversWindowBucket
@@ -133,8 +141,101 @@ export interface PrimaryDriversResponse {
   contributors: PrimaryDriversContributor[]
   coverage: PrimaryDriversCoverage
   edge_case_flags: string[]
+  other_goals?: PrimaryDriversOtherGoals
   error?: string
   message?: string
+}
+
+export interface CallPrepDateRange {
+  start: string
+  end: string
+  comparison_start: string
+  comparison_end: string
+}
+
+export interface CallPrepSelectedCurveball {
+  type: string
+  score: number
+  question: string
+  evaluation_areas: string[]
+  evidence_bundle?: Record<string, unknown>
+}
+
+export interface CallPrepHighlight {
+  text: string
+  tone?: CallPrepHighlightTone
+}
+
+export type CallPrepBriefHighlight = string | CallPrepHighlight
+
+export interface CallPrepBriefLocation {
+  label: string
+  detail: string
+}
+
+export interface CallPrepBriefCurveball {
+  question: string
+  short_answer: string
+  deeper_explanation: string
+  evaluation_areas: string[]
+}
+
+export interface CallPrepBriefResponse {
+  business_name: string
+  date_range: CallPrepDateRange
+  window_bucket: PrimaryDriversWindowBucket
+  generated_at: string
+  all_positive: boolean
+  curveball_analysis: {
+    candidates_evaluated: number
+    selected_count: number
+    selected_curveballs: CallPrepSelectedCurveball[]
+  }
+  brief: {
+    open_with: string
+    highlights: CallPrepBriefHighlight[]
+    where_this_is_happening: {
+      summary: string
+      locations: CallPrepBriefLocation[]
+    }
+    curveballs: CallPrepBriefCurveball[]
+    confidence_note: string | null
+  }
+  validation: {
+    hallucination_check_passed: boolean
+    hallucination_flagged_fields: string[]
+  }
+  primary_drivers_ref: {
+    window_bucket: PrimaryDriversWindowBucket
+    contributor_anchor: PrimaryDriversContributorAnchor
+    headline: string
+  }
+}
+
+export interface CallPrepRunListItem {
+  id: string
+  business_id: string
+  period_start: string | null
+  period_end: string | null
+  comparison_start: string | null
+  comparison_end: string | null
+  window_bucket: PrimaryDriversWindowBucket | null
+  created_at: string | null
+  date_generated: string | null
+  time_generated: string | null
+}
+
+export interface CallPrepRunsListResponse {
+  items: CallPrepRunListItem[]
+  page: number
+  page_size: number
+  total: number | null
+}
+
+export interface CallPrepRunDetail extends CallPrepRunListItem {
+  primary_drivers_snapshot: PrimaryDriversResponse | Record<string, unknown> | null
+  llm_input_snapshot: Record<string, unknown> | null
+  call_brief_snapshot: CallPrepBriefResponse | null
 }
 
 // ─── Hook ───────────────────────────────────────────────────────────────────────

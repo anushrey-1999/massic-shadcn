@@ -21,8 +21,10 @@ interface AnalyticsHeaderActionsProps {
   keywordScope: AnalyticsKeywordScope;
   onKeywordScopeChange: (value: AnalyticsKeywordScope) => void;
   onViewReports: () => void;
+  onPrimaryDrivers?: () => void;
   onContentGroupsClick?: () => void;
   reportsDisabled?: boolean;
+  primaryDriversDisabled?: boolean;
   contentGroupsDisabled?: boolean;
 }
 
@@ -36,8 +38,10 @@ interface AnalyticsFilterControlsProps {
 
 interface AnalyticsReportsActionsProps {
   onViewReports: () => void;
+  onPrimaryDrivers?: () => void;
   onContentGroupsClick?: () => void;
   reportsDisabled?: boolean;
+  primaryDriversDisabled?: boolean;
   contentGroupsDisabled?: boolean;
 }
 
@@ -121,8 +125,10 @@ export function AnalyticsHeaderActions({
   keywordScope,
   onKeywordScopeChange,
   onViewReports,
+  onPrimaryDrivers,
   onContentGroupsClick,
   reportsDisabled = false,
+  primaryDriversDisabled = false,
   contentGroupsDisabled = false,
 }: AnalyticsHeaderActionsProps) {
   return (
@@ -134,8 +140,10 @@ export function AnalyticsHeaderActions({
       />
       <AnalyticsReportsActions
         onViewReports={onViewReports}
+        onPrimaryDrivers={onPrimaryDrivers}
         onContentGroupsClick={onContentGroupsClick}
         reportsDisabled={reportsDisabled}
+        primaryDriversDisabled={primaryDriversDisabled}
         contentGroupsDisabled={contentGroupsDisabled}
       />
     </div>
@@ -208,12 +216,32 @@ export function AnalyticsFilterControls({
 
 export function AnalyticsReportsActions({
   onViewReports,
+  onPrimaryDrivers,
   onContentGroupsClick,
   reportsDisabled = false,
+  primaryDriversDisabled = false,
   contentGroupsDisabled = false,
 }: AnalyticsReportsActionsProps) {
   return (
     <div className="flex items-center gap-2">
+      {onPrimaryDrivers ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
+              onClick={onPrimaryDrivers}
+              disabled={primaryDriversDisabled}
+            >
+              What&apos;s Happening?
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>
+            What&apos;s Happening?
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

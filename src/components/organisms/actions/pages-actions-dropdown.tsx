@@ -746,7 +746,7 @@ export function PagesActionsDropdown({
     setIsGenerating(true)
     try {
       const response = await pagePlanner.generatePlan(businessId, {
-        page_ideas_required: 30,
+        page_ideas_required: 20,
         calendar_events: [],
         regenerate: false,
       })

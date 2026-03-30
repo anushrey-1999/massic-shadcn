@@ -233,11 +233,11 @@ export function AnalyticsReportsActions({
               onClick={onPrimaryDrivers}
               disabled={primaryDriversDisabled}
             >
-              What&apos;s Happening?
+              What's Happening?
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={8}>
-            What&apos;s Happening?
+            What's Happening?
           </TooltipContent>
         </Tooltip>
       ) : null}

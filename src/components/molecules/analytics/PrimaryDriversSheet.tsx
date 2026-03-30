@@ -1,9 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { useQuery } from "@tanstack/react-query"
 import { format, differenceInCalendarDays, startOfDay, subDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
-import { AlertTriangle, Calendar as CalendarIcon, Check, Info, Loader2 } from "lucide-react"
+import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronLeft, ChevronRight, History, Info, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -17,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   getAnalyticsPeriodBounds,
   PERIOD_SELECTOR_GROUPS,
@@ -25,7 +27,9 @@ import {
   type TimePeriodPreset,
 } from "@/utils/analytics-period"
 import {
+  type CallPrepRunDetail,
   usePrimaryDrivers,
+  type CallPrepBriefResponse,
   type PrimaryDriversBaseline,
   type PrimaryDriversContributor,
   type PrimaryDriversHeadlineReel,
@@ -34,6 +38,9 @@ import {
   type PrimaryDriversResponse,
   type PrimaryDriversWin,
 } from "@/hooks/use-primary-drivers"
+import { useCallPrepBrief } from "@/hooks/use-call-prep-brief"
+import { useCallPrepRunDetail, useCallPrepRuns } from "@/hooks/use-call-prep-runs"
+import { CallPrepBriefView } from "./CallPrepBriefView"
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -790,11 +797,240 @@ interface PrimaryDriversSheetProps {
   businessName: string
 }
 
+type PrimaryDriversSheetView = "whats-happening" | "call-brief"
+type PrimaryDriversSheetMode = "current" | "history"
+type HistoryDetailTab = "call-brief" | "primary-drivers"
+
+function isPrimaryDriversSnapshot(value: unknown): value is PrimaryDriversResponse {
+  return Boolean(value)
+    && typeof value === "object"
+    && "headline" in (value as Record<string, unknown>)
+    && Array.isArray((value as PrimaryDriversResponse).drivers)
+    && Array.isArray((value as PrimaryDriversResponse).contributors)
+}
+
+function getHistoryWindowBucketLabel(bucket: string | null | undefined) {
+  if (bucket === "7d") return "7 days"
+  if (bucket === "28d") return "28 days"
+  if (bucket === "90d") return "90 days"
+  if (bucket === "365d") return "12 months"
+  return "Custom"
+}
+
+function PrimaryDriversSnapshotView({
+  data,
+  businessName,
+}: {
+  data: PrimaryDriversResponse
+  businessName: string
+}) {
+  return (
+    <div className="space-y-3.5">
+      <div>
+        <p className="mb-1 text-[15px] font-medium text-foreground">{businessName}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-muted-foreground">
+            {fmtDateRange(data.date_range.start, data.date_range.end)}
+            <span className="mx-1.5">·</span>
+            vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
+          </span>
+          <WindowTag bucket={data.window_bucket} baseline={data.baseline} />
+        </div>
+      </div>
+
+      {(data.no_goal_tracking || data.anomalous_comparison_period || data.contributor_divergence) && (
+        <div className="space-y-2">
+          {data.no_goal_tracking && (
+            <InfoBar text="Goal tracking not configured · showing Sessions as primary metric" />
+          )}
+          {data.anomalous_comparison_period && (
+            <NoticeBar text="Prior period was unusually high — comparison may be inflated" />
+          )}
+          {data.contributor_divergence && (
+            <NoticeBar text="Goal loss and session gain on different pages — conversion rate is the story, not traffic" />
+          )}
+        </div>
+      )}
+
+      {data.headline ? <HeadlinePanel data={data} /> : null}
+      {data.wins && data.wins.length > 0 ? <WinsBar wins={data.wins} /> : null}
+
+      {data.contributors && data.contributors.length > 0 ? (
+        <div className="space-y-2">
+          {data.contributors.map((ch, i) => (
+            <ChannelBlock
+              key={`${ch.value}-${i}`}
+              ch={ch}
+              anchor={data.contributor_anchor}
+              isDivergence={data.contributor_divergence}
+              is7d={data.window_bucket === "7d"}
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No contributor breakdown available for this period.</p>
+      )}
+    </div>
+  )
+}
+
+function CallPrepHistoryList({
+  items,
+  page,
+  pageCount,
+  onOpen,
+  onPreviousPage,
+  onNextPage,
+  isLoading,
+}: {
+  items: CallPrepRunDetail[] | Array<{
+    id: string
+    period_start: string | null
+    period_end: string | null
+    comparison_start: string | null
+    comparison_end: string | null
+    window_bucket: string | null
+    date_generated: string | null
+    time_generated: string | null
+  }>
+  page: number
+  pageCount: number
+  onOpen: (id: string) => void
+  onPreviousPage: () => void
+  onNextPage: () => void
+  isLoading: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center space-y-2">
+          <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading saved meeting prep notes…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!items.length) {
+    return (
+      <div className="rounded-2xl border border-dashed border-general-border bg-secondary/20 px-5 py-12 text-center">
+        <p className="text-sm font-medium text-foreground">No saved meeting prep notes yet</p>
+        <p className="mt-1 text-xs leading-6 text-muted-foreground">
+          Generate meeting prep notes and they will appear here as read-only snapshots.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Meeting Prep Notes History</p>
+          <p className="text-xs text-muted-foreground">
+            Open any saved run to review the generated notes and the matching Primary Drivers snapshot.
+          </p>
+        </div>
+        <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+          {items.length} saved
+        </span>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-general-border bg-card">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-general-border/70 px-5 py-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          <span>Period</span>
+          <span>Generated</span>
+        </div>
+
+        <div className="divide-y divide-general-border/70">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onOpen(item.id)}
+              className="group grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto_auto] gap-4 px-5 py-4 text-left transition-all hover:bg-secondary/50 focus-visible:bg-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            >
+              <div className="min-w-0 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-[15px] font-medium text-foreground transition-colors group-hover:text-foreground/90">
+                    {item.period_start && item.period_end
+                      ? fmtDateRange(item.period_start, item.period_end)
+                      : "Period unavailable"}
+                  </p>
+                  <span className="rounded-full border border-border/60 px-2 py-0.5 text-[11px] text-muted-foreground">
+                    {getHistoryWindowBucketLabel(item.window_bucket)}
+                  </span>
+                </div>
+                <p className="text-[12px] text-muted-foreground">
+                  {item.comparison_start && item.comparison_end
+                    ? `Compared with ${fmtDateRange(item.comparison_start, item.comparison_end)}`
+                    : "Comparison period unavailable"}
+                </p>
+              </div>
+
+              <div className="shrink-0 self-start text-right">
+                <p className="text-[12px] font-medium text-foreground">
+                  {item.date_generated || "Unknown date"}
+                </p>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">
+                  {item.time_generated || "Unknown time"}
+                </p>
+              </div>
+
+              <div className="flex h-full items-center justify-end self-center">
+                <div className="rounded-full border border-transparent p-1.5 text-muted-foreground transition-all group-hover:border-border/70 group-hover:bg-background group-hover:text-foreground/80">
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 px-1 pt-1">
+        <p className="text-xs text-muted-foreground">
+          Page {pageCount === 0 ? 0 : page} of {pageCount || 0}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onPreviousPage}
+            disabled={page <= 1}
+            className="h-8 px-3 text-xs"
+          >
+            Previous
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onNextPage}
+            disabled={pageCount === 0 || page >= pageCount}
+            className="h-8 px-3 text-xs"
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessName }: PrimaryDriversSheetProps) {
   const defaultRange = React.useMemo(() => createDefaultRange(), [])
   const [draftRange, setDraftRange]         = React.useState<DateRange | undefined>(defaultRange)
   const [committedRange, setCommittedRange] = React.useState<DateRange | undefined>(defaultRange)
   const [rangeMsg, setRangeMsg]             = React.useState<string | null>(null)
+  const [mode, setMode]                     = React.useState<PrimaryDriversSheetMode>("current")
+  const [view, setView]                     = React.useState<PrimaryDriversSheetView>("whats-happening")
+  const [callBrief, setCallBrief]           = React.useState<CallPrepBriefResponse | null>(null)
+  const [callBriefRangeKey, setCallBriefRangeKey] = React.useState<string | null>(null)
+  const [isGeneratingMeetingPrepNotes, setIsGeneratingMeetingPrepNotes] = React.useState(false)
+  const [historyPage, setHistoryPage]       = React.useState(1)
+  const [selectedHistoryRunId, setSelectedHistoryRunId] = React.useState<string | null>(null)
+  const [historyDetailTab, setHistoryDetailTab] = React.useState<HistoryDetailTab>("call-brief")
 
   React.useEffect(() => {
     if (!open) {
@@ -802,14 +1038,53 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
       setDraftRange(d)
       setCommittedRange(d)
       setRangeMsg(null)
+      setMode("current")
+      setView("whats-happening")
+      setCallBrief(null)
+      setCallBriefRangeKey(null)
+      setIsGeneratingMeetingPrepNotes(false)
+      setHistoryPage(1)
+      setSelectedHistoryRunId(null)
+      setHistoryDetailTab("call-brief")
     }
   }, [open])
 
   const startDate = committedRange?.from ? toIsoDate(committedRange.from) : null
   const endDate   = committedRange?.to   ? toIsoDate(committedRange.to)   : null
+  const committedRangeKey = startDate && endDate ? `${startDate}:${endDate}` : null
 
   const { data, isLoading, isFetching, isError, error } = usePrimaryDrivers({
     businessId, startDate, endDate, enabled: open,
+  })
+  const callPrepBriefMutation = useCallPrepBrief()
+  const { fetchCallPrepRuns } = useCallPrepRuns()
+  const currentCallBrief = callBriefRangeKey === committedRangeKey ? callBrief : null
+
+  const historyQuery = useQuery({
+    queryKey: ["call-prep-runs", businessId, historyPage],
+    enabled: open && mode === "history" && !!businessId,
+    queryFn: async () => {
+      if (!businessId) {
+        return {
+          data: [],
+          pageCount: 0,
+          pagination: { page: historyPage, page_size: 10, total: 0 },
+        }
+      }
+
+      return fetchCallPrepRuns({
+        business_id: businessId,
+        page: historyPage,
+        perPage: 10,
+        sort: [{ field: "created_at", desc: true }],
+      })
+    },
+    staleTime: 30 * 1000,
+  })
+
+  const historyDetailQuery = useCallPrepRunDetail({
+    callPrepRunId: selectedHistoryRunId,
+    enabled: open && mode === "history" && !!selectedHistoryRunId,
   })
 
   const handleRangeChange = React.useCallback((next: DateRange | undefined) => {
@@ -821,21 +1096,143 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
     setCommittedRange({ from: startOfDay(next.from), to: startOfDay(next.to) })
   }, [])
 
+  const previousRangeKeyRef = React.useRef<string | null>(committedRangeKey)
+
+  React.useEffect(() => {
+    if (previousRangeKeyRef.current !== committedRangeKey) {
+      setView("whats-happening")
+      setCallBrief(null)
+      setCallBriefRangeKey(null)
+      previousRangeKeyRef.current = committedRangeKey
+    }
+  }, [committedRangeKey])
+
+  React.useEffect(() => {
+    setHistoryPage(1)
+    setSelectedHistoryRunId(null)
+    setHistoryDetailTab("call-brief")
+  }, [businessId])
+
+  const handleGenerateCallBrief = React.useCallback(async () => {
+    if (!businessId || !data || !committedRangeKey) return
+    setIsGeneratingMeetingPrepNotes(true)
+    try {
+      const generatedBrief = await callPrepBriefMutation.mutateAsync({
+        businessId,
+        businessName,
+        primaryDrivers: data,
+      })
+
+      setCallBrief(generatedBrief)
+      setCallBriefRangeKey(committedRangeKey)
+      setView("call-brief")
+    } catch {
+      setView("whats-happening")
+    } finally {
+      setIsGeneratingMeetingPrepNotes(false)
+      callPrepBriefMutation.reset()
+    }
+  }, [
+    businessId,
+    businessName,
+    callPrepBriefMutation,
+    committedRangeKey,
+    data,
+  ])
+
+  const hasCurrentCallBrief = Boolean(currentCallBrief)
+  const isCallBriefLoading = isGeneratingMeetingPrepNotes
+  const showFooterActions = Boolean(
+    data &&
+    mode === "current" &&
+    view === "whats-happening" &&
+    !isLoading &&
+    !isError,
+  )
+
+  const historyItems = historyQuery.data?.data ?? []
+  const historyPageCount = historyQuery.data?.pageCount ?? 0
+  const historyDetail = historyDetailQuery.data ?? null
+  const historyPrimaryDriversSnapshot = isPrimaryDriversSnapshot(historyDetail?.primary_drivers_snapshot)
+    ? historyDetail.primary_drivers_snapshot
+    : null
+  const historyCallBriefSnapshot = historyDetail?.call_brief_snapshot ?? null
+
+  const headerActionMode = (
+    mode === "current" && view === "whats-happening"
+      ? "history"
+      : "back"
+  ) as "history" | "back"
+  const sheetTitle = mode === "current"
+    ? (view === "call-brief" ? "Meeting Prep Notes" : "What's Happening?")
+    : (selectedHistoryRunId ? "Saved Meeting Prep Notes" : "Meeting Prep Notes History")
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full border-l border-general-border p-0 pt-8 sm:max-w-2xl">
 
         {/* Sheet header — sticky */}
-        <SheetHeader className="border-b border-general-border bg-background px-6 py-4 pr-14">
-          <div className="flex items-center justify-between gap-3">
-            <SheetTitle className="text-base font-semibold tracking-tight">What&apos;s Happening?</SheetTitle>
-            <PrimaryDriversRangePicker value={draftRange} onChange={handleRangeChange} validationMessage={rangeMsg} />
+        <SheetHeader className="border-b border-general-border bg-background px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0">
+              <SheetTitle className="text-base font-semibold tracking-tight">
+                {sheetTitle}
+              </SheetTitle>
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              {mode === "current" ? (
+                <PrimaryDriversRangePicker value={draftRange} onChange={handleRangeChange} validationMessage={rangeMsg} />
+              ) : null}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      if (headerActionMode === "history") {
+                        setMode("history")
+                        setSelectedHistoryRunId(null)
+                        setHistoryDetailTab("call-brief")
+                        return
+                      }
+
+                      if (mode === "current") {
+                        setView("whats-happening")
+                        return
+                      }
+
+                      if (selectedHistoryRunId) {
+                        setSelectedHistoryRunId(null)
+                        setHistoryDetailTab("call-brief")
+                        return
+                      }
+
+                      setMode("current")
+                    }}
+                    className="h-9 w-9 shrink-0"
+                    aria-label={headerActionMode === "history" ? "View meeting prep notes history" : "Back"}
+                  >
+                    {headerActionMode === "history" ? (
+                      <History className="h-4 w-4" />
+                    ) : (
+                      <ChevronLeft className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {headerActionMode === "history" ? "View meeting prep notes history" : "Back"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </SheetHeader>
 
         {/* Body */}
         <div className="flex-1 overflow-hidden">
-          {isLoading ? (
+          {mode === "current" ? (
+            <>
+              {isLoading ? (
             <div className="flex h-full items-center justify-center">
               <div className="text-center space-y-2">
                 <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
@@ -846,70 +1243,68 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
             <div className="flex h-full items-center justify-center px-6">
               <div className="max-w-sm rounded-xl border border-red-200 bg-red-50 p-5 text-center">
                 <AlertTriangle className="mx-auto h-5 w-5 text-red-600" />
-                <h3 className="mt-3 text-sm font-semibold text-red-900">Unable to load What&apos;s Happening?</h3>
+                <h3 className="mt-3 text-sm font-semibold text-red-900">Unable to load What's Happening?</h3>
                 <p className="mt-1.5 text-xs leading-relaxed text-red-700">
                   {error || "Something went wrong. Try changing the date range."}
                 </p>
               </div>
             </div>
           ) : data ? (
-            <div className="relative h-full">
-              <ScrollArea className="h-full">
-                <div className="px-6 py-5 max-w-[720px] space-y-3.5">
-
-                  {/* Business + date meta */}
-                  <div>
-                    <p className="text-[15px] font-medium text-foreground mb-1">{businessName}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] text-muted-foreground">
-                        {fmtDateRange(data.date_range.start, data.date_range.end)}
-                        <span className="mx-1.5">·</span>
-                        vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
-                      </span>
-                      <WindowTag bucket={data.window_bucket} baseline={data.baseline} />
-                    </div>
-                  </div>
-
-                  {/* Notices */}
-                  {(data.no_goal_tracking || data.anomalous_comparison_period || data.contributor_divergence) && (
-                    <div className="space-y-2">
-                      {data.no_goal_tracking && (
-                        <InfoBar text="Goal tracking not configured · showing Sessions as primary metric" />
-                      )}
-                      {data.anomalous_comparison_period && (
-                        <NoticeBar text="Prior period was unusually high — comparison may be inflated" />
-                      )}
-                      {data.contributor_divergence && (
-                        <NoticeBar text="Goal loss and session gain on different pages — conversion rate is the story, not traffic" />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Headline panel */}
-                  {data.headline && <HeadlinePanel data={data} />}
-
-                  {/* Wins bar */}
-                  {data.wins && data.wins.length > 0 && <WinsBar wins={data.wins} />}
-
-                  {/* Channel blocks */}
-                  {data.contributors && data.contributors.length > 0 ? (
-                    <div className="space-y-2">
-                      {data.contributors.map((ch, i) => (
-                        <ChannelBlock
-                          key={`${ch.value}-${i}`}
-                          ch={ch}
-                          anchor={data.contributor_anchor}
-                          isDivergence={data.contributor_divergence}
-                          is7d={data.window_bucket === "7d"}
-                        />
-                      ))}
-                    </div>
+            <div className="relative flex h-full flex-col">
+              <ScrollArea className="flex-1">
+                <div className="max-w-[720px] px-6 py-5">
+                  {view === "call-brief" && currentCallBrief ? (
+                    <CallPrepBriefView callBrief={currentCallBrief} wins={data.wins} />
                   ) : (
-                    <p className="text-sm text-muted-foreground">No contributor breakdown available for this period.</p>
+                    <PrimaryDriversSnapshotView data={data} businessName={businessName} />
                   )}
-
                 </div>
               </ScrollArea>
+
+              {showFooterActions ? (
+                <div className="border-t border-general-border bg-background px-6 py-4">
+                  <div className="grid gap-3 sm:grid-cols-2 sm:items-center">
+                    <div />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      {hasCurrentCallBrief ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleGenerateCallBrief}
+                          disabled={isCallBriefLoading || !businessId}
+                          className="min-w-[132px]"
+                        >
+                          {isCallBriefLoading ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Generating Meeting Prep Notes...
+                            </>
+                          ) : (
+                            "Regenerate"
+                          )}
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        onClick={hasCurrentCallBrief ? () => setView("call-brief") : handleGenerateCallBrief}
+                        disabled={isCallBriefLoading || !businessId}
+                        className="min-w-[156px]"
+                      >
+                        {isCallBriefLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Generating Meeting Prep Notes...
+                          </>
+                        ) : hasCurrentCallBrief ? (
+                          "View Meeting Prep Notes"
+                        ) : (
+                          "Generate Meeting Prep Notes"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {isFetching && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
@@ -921,6 +1316,118 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
               )}
             </div>
           ) : null}
+            </>
+          ) : (
+              <div className="flex h-full flex-col">
+                <ScrollArea className="flex-1">
+                  <div className="max-w-[720px] px-6 py-5">
+                    {selectedHistoryRunId ? (
+                      historyDetailQuery.isLoading ? (
+                        <div className="flex h-full min-h-[320px] items-center justify-center">
+                          <div className="text-center space-y-2">
+                            <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">Loading saved brief…</p>
+                          </div>
+                        </div>
+                      ) : historyDetailQuery.isError ? (
+                        <div className="max-w-sm rounded-xl border border-red-200 bg-red-50 p-5 text-center">
+                          <AlertTriangle className="mx-auto h-5 w-5 text-red-600" />
+                          <h3 className="mt-3 text-sm font-semibold text-red-900">Unable to load saved call brief</h3>
+                          <p className="mt-1.5 text-xs leading-relaxed text-red-700">
+                            {historyDetailQuery.error instanceof Error
+                              ? historyDetailQuery.error.message
+                              : "Something went wrong while loading this snapshot."}
+                          </p>
+                        </div>
+                      ) : historyDetail ? (
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-[15px] font-medium text-foreground">{historyCallBriefSnapshot?.business_name || businessName}</p>
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Saved {historyDetail.date_generated || "Unknown date"} at {historyDetail.time_generated || "Unknown time"}
+                            </p>
+                          </div>
+
+                          <Tabs
+                            value={historyDetailTab}
+                            onValueChange={(nextValue) => setHistoryDetailTab(nextValue as HistoryDetailTab)}
+                            className="space-y-4"
+                          >
+                            <TabsList className="grid w-full grid-cols-2">
+                              <TabsTrigger value="call-brief" className="w-full">
+                                Meeting Prep Notes
+                              </TabsTrigger>
+                              <TabsTrigger value="primary-drivers" className="w-full">
+                                Primary Drivers Snapshot
+                              </TabsTrigger>
+                            </TabsList>
+
+                            <TabsContent value="call-brief" className="mt-0">
+                              {historyCallBriefSnapshot ? (
+                                <CallPrepBriefView
+                                  callBrief={historyCallBriefSnapshot}
+                                  wins={historyPrimaryDriversSnapshot?.wins ?? []}
+                                />
+                              ) : (
+                                <div className="rounded-xl border border-dashed border-general-border px-5 py-10 text-center">
+                                  <p className="text-sm font-medium text-foreground">Saved meeting prep notes unavailable</p>
+                                  <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                                    This history record does not include renderable meeting prep notes.
+                                  </p>
+                                </div>
+                              )}
+                            </TabsContent>
+
+                            <TabsContent value="primary-drivers" className="mt-0">
+                              {historyPrimaryDriversSnapshot ? (
+                                <PrimaryDriversSnapshotView
+                                  data={historyPrimaryDriversSnapshot}
+                                  businessName={historyCallBriefSnapshot?.business_name || businessName}
+                                />
+                              ) : (
+                                <div className="rounded-xl border border-dashed border-general-border px-5 py-10 text-center">
+                                  <p className="text-sm font-medium text-foreground">Primary Drivers snapshot unavailable</p>
+                                  <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                                    This saved record was generated without a full Primary Drivers snapshot.
+                                  </p>
+                                </div>
+                              )}
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+                      ) : null
+                    ) : (
+                      historyQuery.isError ? (
+                        <div className="max-w-sm rounded-xl border border-red-200 bg-red-50 p-5 text-center">
+                          <AlertTriangle className="mx-auto h-5 w-5 text-red-600" />
+                          <h3 className="mt-3 text-sm font-semibold text-red-900">Unable to load history</h3>
+                          <p className="mt-1.5 text-xs leading-relaxed text-red-700">
+                            {historyQuery.error instanceof Error
+                              ? historyQuery.error.message
+                              : "Something went wrong while loading saved call briefs."}
+                          </p>
+                        </div>
+                      ) : (
+                        <CallPrepHistoryList
+                          items={historyItems}
+                          page={historyQuery.data?.pagination.page ?? historyPage}
+                          pageCount={historyPageCount}
+                          onOpen={(id) => {
+                            setSelectedHistoryRunId(id)
+                            setHistoryDetailTab("call-brief")
+                          }}
+                          onPreviousPage={() => setHistoryPage((current) => Math.max(1, current - 1))}
+                          onNextPage={() => setHistoryPage((current) => (
+                            historyPageCount > 0 ? Math.min(historyPageCount, current + 1) : current
+                          ))}
+                          isLoading={historyQuery.isLoading}
+                        />
+                      )
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+          )}
         </div>
 
       </SheetContent>

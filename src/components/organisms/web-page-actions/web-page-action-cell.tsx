@@ -19,7 +19,7 @@ import {
 import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { resolvePageContent } from "@/utils/page-content-resolver";
+import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 
 const VIEW_ACTION_STATUSES = new Set([
@@ -115,12 +115,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const isGenerating = status === "pending" || status === "processing";
 
   const outlineFromServer = cleanEscapedContent(content?.output_data?.page?.outline || "");
-  const blogFromContent = content?.output_data?.page?.blog;
   const finalFromServer =
     type === "blog"
-      ? cleanEscapedContent(
-        (typeof blogFromContent === "string" ? blogFromContent : blogFromContent?.blog_post) || ""
-      )
+      ? resolveBlogFinalContent(content)
       : resolvePageContent(content);
 
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;

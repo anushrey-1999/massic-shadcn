@@ -74,7 +74,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AIRefineToolbarDom } from "@/components/ui/ai-refine-toolbar";
 import { copyToClipboard } from "@/utils/clipboard";
-import { resolvePageContent } from "@/utils/page-content-resolver";
+import { resolveBlogFinalContent, resolveFormattedBlogHtml, resolvePageContent } from "@/utils/page-content-resolver";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import { ContentConverter } from "@/utils/content-converter";
 import { api } from "@/hooks/use-api";
@@ -130,7 +130,7 @@ import {
   type LayoutValidationResult,
   type MediaElementInfo,
 } from "@/utils/page-html-editor";
-import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
+import { buildStyledMassicHtml, getMassicBlogCssText, getMassicCssText } from "@/utils/massic-html-copy";
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 import {
   type WordpressSlugConflictInfo,
@@ -460,14 +460,28 @@ const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
   h3Size: ["18px", "20px", "22px", "26px", "30px"],
 };
 
-export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pageId: string }) {
+type HtmlContentType = "page" | "blog";
+
+export function WebPageHtmlView({
+  businessId,
+  pageId,
+  contentType = "page",
+}: {
+  businessId: string;
+  pageId: string;
+  contentType?: HtmlContentType;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const keyword = searchParams.get("keyword") || "";
+  const isBlogContent = contentType === "blog";
+  const contentLabel = isBlogContent ? "Blog" : "Page";
+  const contentLabelLower = contentLabel.toLowerCase();
 
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
   const [previewHtml, setPreviewHtml] = React.useState("");
   const [textNodeIndex, setTextNodeIndex] = React.useState<EditableTextNodeRef[]>([]);
+  const [editorBaseCss, setEditorBaseCss] = React.useState("");
   const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
   const [lastPublishedData, setLastPublishedData] = React.useState<{
     contentId: string;
@@ -505,7 +519,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   const lastAutoSlugCheckKeyRef = React.useRef("");
 
   const contentQuery = useWebActionContentQuery({
-    type: "page",
+    type: contentType,
     businessId,
     pageId,
     enabled: !!businessId && !!pageId,
@@ -532,9 +546,20 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     Partial<Record<MassicStyleTypographyKey, string>>
   >({});
   const inferPage = data?.output_data?.page || {};
-  const publishTitle = inferPage?.meta_title || inferPage?.title || keyword || "Untitled";
+  const inferFormattedBlog = inferPage?.formatted_blog || {};
+  const inferBlog = inferPage?.blog || {};
+  const publishTitle = isBlogContent
+    ? inferFormattedBlog?.meta_title || inferBlog?.meta_title || keyword || "Untitled"
+    : inferPage?.meta_title || inferPage?.title || keyword || "Untitled";
+  const publishDescription = isBlogContent
+    ? typeof inferFormattedBlog?.meta_description === "string" && inferFormattedBlog.meta_description.trim()
+      ? inferFormattedBlog.meta_description.trim()
+      : typeof inferBlog?.meta_description === "string" && inferBlog.meta_description.trim()
+        ? inferBlog.meta_description.trim()
+        : ""
+    : "";
   const publishContentId = inferPage?.page_id || pageId;
-  const publishType = "page" as const;
+  const publishType: "post" | "page" = isBlogContent ? "post" : "page";
   const contentStatusQuery = useWordpressContentStatus(
     wpConnection?.connectionId || null,
     publishContentId ? String(publishContentId) : null
@@ -584,7 +609,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       ? "A draft exists in WordPress."
       : isPersistedTrashed
         ? "This content was moved to trash."
-        : "No WordPress page exists yet.";
+        : `No WordPress ${isBlogContent ? "post" : "page"} exists yet.`;
   const publishUrlPreview = React.useMemo(() => {
     const siteUrl = String(wpConnection?.siteUrl || "").replace(/\/+$/, "");
     const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
@@ -641,9 +666,9 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     () =>
       shouldApplyWpStyle
         ? applyMassicStyleOverrides(wpStyleProfileQuery.data?.profile, {
-            colors: styleColorOverridesDraft,
-            typography: styleTypographyOverridesDraft,
-          })
+          colors: styleColorOverridesDraft,
+          typography: styleTypographyOverridesDraft,
+        })
         : null,
     [shouldApplyWpStyle, styleColorOverridesDraft, styleTypographyOverridesDraft, wpStyleProfileQuery.data?.profile]
   );
@@ -655,18 +680,51 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     [styleProfileForPreview]
   );
   const previewStyleVars = React.useMemo(() => {
+    if (isBlogContent) return {};
     const style: React.CSSProperties = {};
     for (const [key, value] of Object.entries(cssVarOverrides)) {
       (style as Record<string, string>)[key] = value;
     }
     return style;
-  }, [cssVarOverrides]);
+  }, [cssVarOverrides, isBlogContent]);
   const previewMassicVarCss = React.useMemo(() => {
+    if (isBlogContent) return "";
     const entries = Object.entries(cssVarOverrides);
     if (!entries.length) return "";
     const declarations = entries.map(([key, value]) => `${key}: ${value};`).join(" ");
     return `.massic-html-preview .massic-content { ${declarations} }`;
-  }, [cssVarOverrides]);
+  }, [cssVarOverrides, isBlogContent]);
+  const previewBaseCss = React.useMemo(() => {
+    if (!editorBaseCss) return "";
+    if (!isBlogContent) return editorBaseCss;
+    return editorBaseCss.replace(/:root\b/g, ".massic-html-preview .massic-content");
+  }, [editorBaseCss, isBlogContent]);
+  const resolveHtmlContent = React.useCallback(
+    (responseData: any) => {
+      if (isBlogContent) {
+        return resolveFormattedBlogHtml(responseData) || resolveBlogFinalContent(responseData);
+      }
+      return resolvePageContent(responseData);
+    },
+    [isBlogContent]
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadCss = async () => {
+      const cssText = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
+      if (!cancelled) {
+        setEditorBaseCss(cssText);
+      }
+    };
+
+    void loadCss();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isBlogContent]);
   const extractedStyleColors = React.useMemo(() => {
     const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as { colors?: Record<string, unknown> } | undefined;
     return (extractedProfile?.colors || {}) as Record<string, unknown>;
@@ -912,8 +970,32 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     return normalizeEditorHtml(mergedSpacing);
   }, [normalizeEditorHtml]);
 
-  const updatePageContentRequest = React.useCallback(
+  const updateHtmlContentRequest = React.useCallback(
     async (content: string) => {
+      if (isBlogContent) {
+        const endpoint = `/client/update-ai-blog-writer-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+        await api.post(
+          endpoint,
+          "python",
+          {
+            blog_post: ContentConverter.htmlToMarkdown(content),
+            meta_description: publishDescription,
+            formatted_blog: {
+              html: content,
+              meta_title: String(publishTitle),
+              meta_description: publishDescription || undefined,
+            },
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              accept: "application/json",
+            },
+          }
+        );
+        return;
+      }
+
       const endpoint = `/client/update-page-builder-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
       await api.post(
         endpoint,
@@ -927,7 +1009,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         }
       );
     },
-    [businessId, pageId]
+    [businessId, isBlogContent, pageId, publishDescription, publishTitle]
   );
 
   const runBackgroundRefetch = React.useCallback(
@@ -936,7 +1018,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const latestData = result.data;
       if (!latestData) return;
 
-      const serverCanonical = canonicalizeHtml(normalizeEditorHtml(resolvePageContent(latestData)));
+      const serverCanonical = canonicalizeHtml(normalizeEditorHtml(resolveHtmlContent(latestData)));
       const committedCanonical = canonicalizeHtml(lastCommittedHtmlRef.current);
       if (!committedCanonical) return;
 
@@ -989,7 +1071,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       const submittedLinkLabelEdits = { ...linkLabelEditsRef.current };
       const submittedSpacingEdits = { ...spacingEditsRef.current };
       try {
-        await updatePageContentRequest(nextHtml);
+        await updateHtmlContentRequest(nextHtml);
         sourceHtmlRef.current = nextHtml;
         lastSavedHtmlRef.current = canonicalizeHtml(nextHtml);
         lastCommittedHtmlRef.current = canonicalizeHtml(nextHtml);
@@ -1061,7 +1143,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         }
       }
     },
-    [composeCurrentHtml, runBackgroundRefetch, updatePageContentRequest, validateEditorHtml, normalizeEditorHtml]
+    [composeCurrentHtml, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml, normalizeEditorHtml, resolveHtmlContent]
   );
 
   React.useEffect(() => {
@@ -1072,7 +1154,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     const wasPolling = previousStatus === "pending" || previousStatus === "processing";
     const isPolling = nextStatus === "pending" || nextStatus === "processing";
     const transitionedFromPollingToTerminal = wasPolling && !isPolling;
-    const rawPage = resolvePageContent(data);
+    const rawPage = resolveHtmlContent(data);
     const sanitized = normalizeEditorHtml(rawPage);
     const serverCanonical = canonicalizeHtml(sanitized);
     const localCanonical = canonicalizeHtml(lastSavedHtmlRef.current);
@@ -1141,7 +1223,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         isInitialLoadRef.current = false;
       }, 250);
     }
-  }, [data, normalizeEditorHtml]);
+  }, [data, normalizeEditorHtml, resolveHtmlContent]);
 
   React.useEffect(() => {
     const nextStatus = (data?.status || "").toString().toLowerCase();
@@ -1183,21 +1265,25 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
   }, []);
 
   const buildPublishPayload = React.useCallback(
-    (targetStatus: "draft" | "publish") => ({
-      connectionId: String(wpConnection?.connectionId || ""),
-      status: targetStatus,
-      workflowSource: "infer_ai" as const,
-      workflowPayload: data || {},
-      contentId: String(publishContentId),
-      type: publishType,
-      title: String(publishTitle),
-      slug: normalizedSlugForPublish || null,
-      contentMarkdown: extractPlainTextFromHtml(previewHtml),
-      contentHtml: previewHtml,
-      excerpt: null,
-      head: { title: String(publishTitle), meta: { description: undefined } },
-    }),
-    [data, previewHtml, publishContentId, publishTitle, publishType, normalizedSlugForPublish, wpConnection?.connectionId]
+    (targetStatus: "draft" | "publish") => {
+      return {
+        connectionId: String(wpConnection?.connectionId || ""),
+        status: targetStatus,
+        workflowSource: "infer_ai" as const,
+        workflowPayload: data || {},
+        contentId: String(publishContentId),
+        type: publishType,
+        title: String(publishTitle),
+        slug: normalizedSlugForPublish || null,
+        contentMarkdown: isBlogContent
+          ? ContentConverter.htmlToMarkdown(previewHtml)
+          : extractPlainTextFromHtml(previewHtml),
+        contentHtml: previewHtml,
+        excerpt: publishDescription || null,
+        head: { title: String(publishTitle), meta: { description: publishDescription || undefined } },
+      };
+    },
+    [data, isBlogContent, previewHtml, publishContentId, publishDescription, publishTitle, publishType, normalizedSlugForPublish, wpConnection?.connectionId]
   );
 
   const runSlugCheck = React.useCallback(
@@ -1211,7 +1297,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       }
       if (hasInvalidBlogSlug) {
         setSlugCheckResult(null);
-        setSlugCheckError("Page slug must be a single segment (no nested '/' paths).");
+        setSlugCheckError(`${contentLabel} slug must be a single segment (no nested '/' paths).`);
         lastAutoSlugCheckKeyRef.current = "";
         return null;
       }
@@ -1247,6 +1333,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       publishContentId,
       publishType,
       slugCheckMutateAsync,
+      contentLabel,
       wpConnection?.connectionId,
     ]
   );
@@ -1295,14 +1382,14 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     }
     if (hasInvalidBlogSlug) {
       setSlugCheckResult(null);
-      setSlugCheckError("Page slug must be a single segment (no nested '/' paths).");
+      setSlugCheckError(`${contentLabel} slug must be a single segment (no nested '/' paths).`);
       lastAutoSlugCheckKeyRef.current = "";
       return;
     }
     const delayMs = isSlugEdited ? 350 : 0;
     const timer = window.setTimeout(() => void runSlugCheck(), delayMs);
     return () => window.clearTimeout(timer);
-  }, [isPublishModalOpen, hasInvalidBlogSlug, isWpConnected, isSlugEdited, normalizedEditableSlug, publishContentId, runSlugCheck, wpConnection?.connectionId]);
+  }, [isPublishModalOpen, hasInvalidBlogSlug, isWpConnected, isSlugEdited, normalizedEditableSlug, publishContentId, runSlugCheck, wpConnection?.connectionId, contentLabel]);
 
   const handleRedirectToChannels = React.useCallback(() => {
     router.push(`/business/${businessId}/web?integrations=1`);
@@ -1504,7 +1591,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
 
   const handleCopyHtml = async () => {
     const safeHtml = composeCurrentHtml();
-    const baseCss = await getMassicCssText();
+    const baseCss = editorBaseCss || (await (isBlogContent ? getMassicBlogCssText() : getMassicCssText()));
     const styledHtml = buildStyledMassicHtml(safeHtml, {
       baseCss,
       cssVarOverrides,
@@ -3202,7 +3289,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     }
     setIsSaving(true);
     try {
-      await updatePageContentRequest(nextHtml);
+      await updateHtmlContentRequest(nextHtml);
       sourceHtmlRef.current = nextHtml;
       lastSavedHtmlRef.current = canonicalizeHtml(nextHtml);
       lastCommittedHtmlRef.current = canonicalizeHtml(nextHtml);
@@ -3237,7 +3324,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
     } finally {
       setIsSaving(false);
     }
-  }, [composeCurrentHtml, runBackgroundRefetch, updatePageContentRequest, validateEditorHtml]);
+  }, [composeCurrentHtml, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml]);
 
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -3746,7 +3833,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => router.back()}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <Typography variant="h4" className="shrink-0">Page</Typography>
+            <Typography variant="h4" className="shrink-0">{contentLabel}</Typography>
             {keyword ? (
               <Typography variant="muted" className="ml-2 truncate text-xs">
                 {keyword}
@@ -3822,7 +3909,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
         <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Publish to WordPress</DialogTitle>
-            <DialogDescription>Choose what to do with this page.</DialogDescription>
+            <DialogDescription>{`Choose what to do with this ${contentLabelLower}.`}</DialogDescription>
           </DialogHeader>
           {!isWpConnected ? (
             <div className="rounded-md border bg-background p-4 space-y-3">
@@ -3851,7 +3938,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                     setEditableSlug(normalizeWordpressBlogEditableSlug(e.target.value));
                     setIsSlugEdited(true);
                   }}
-                  placeholder="enter-page-slug"
+                  placeholder={isBlogContent ? "enter-blog-slug" : "enter-page-slug"}
                   disabled={isPublishBusy || isSlugChecking}
                 />
               </div>
@@ -3876,276 +3963,280 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 </div>
               ) : null}
 
-              <div className="space-y-2 pt-2 border-t border-border/60">
-                <div className="flex items-center justify-between gap-2">
-                  <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                    Style Colors
-                  </Typography>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStyleColorOverridesDraft({})}
-                      disabled={isStyleOverrideSaving || !Object.keys(styleColorOverridesDraft).length}
-                    >
-                      Reset All
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleSaveStyleColorOverrides}
-                      disabled={isStyleOverrideSaving || !hasUnsavedStyleColorOverrides}
-                    >
-                      {isStyleOverrideSaving ? "Saving..." : "Save Colors"}
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <Typography className="text-xs text-muted-foreground">
-                    Overrides are saved separately. Use extracted colors or custom picks.
-                  </Typography>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setShowAllStyleColorOptions((prev) => !prev)}
-                  >
-                    {showAllStyleColorOptions
-                      ? "Show Core"
-                      : `Show All (${MASSIC_STYLE_COLOR_KEYS.length})`}
-                  </Button>
-                </div>
-                {extractedPaletteColors.length ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Typography className="text-[11px] text-muted-foreground">
-                      Extracted palette:
-                    </Typography>
-                    {extractedPaletteColors.slice(0, 10).map((color) => (
-                      <span
-                        key={color}
-                        className="inline-flex h-5 w-5 rounded-full border border-border"
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {visibleStyleColorKeys.map((key) => {
-                    const label = STYLE_COLOR_OPTION_LABELS[key] || key;
-                    const extractedColor = extractedColorByKey[key] || null;
-                    const overrideColor = normalizedDraftStyleColorOverrides[key] || null;
-                    const pickerValue =
-                      overrideColor ||
-                      extractedColor ||
-                      extractedPaletteColors[0] ||
-                      "#000000";
-                    return (
-                      <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <Typography className="text-xs font-medium">{label}</Typography>
-                          <Typography className="text-[11px] text-muted-foreground font-mono">
-                            {overrideColor || extractedColor || "n/a"}
-                          </Typography>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="color"
-                            value={pickerValue}
-                            onChange={(e) => handleStyleOverrideColorChange(key, e.target.value)}
-                            disabled={isStyleOverrideSaving}
-                            className="h-8 w-11 p-1 shrink-0"
+              {!isBlogContent ? (
+                <>
+                  <div className="space-y-2 pt-2 border-t border-border/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
+                        Style Colors
+                      </Typography>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setStyleColorOverridesDraft({})}
+                          disabled={isStyleOverrideSaving || !Object.keys(styleColorOverridesDraft).length}
+                        >
+                          Reset All
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleSaveStyleColorOverrides}
+                          disabled={isStyleOverrideSaving || !hasUnsavedStyleColorOverrides}
+                        >
+                          {isStyleOverrideSaving ? "Saving..." : "Save Colors"}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <Typography className="text-xs text-muted-foreground">
+                        Overrides are saved separately. Use extracted colors or custom picks.
+                      </Typography>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setShowAllStyleColorOptions((prev) => !prev)}
+                      >
+                        {showAllStyleColorOptions
+                          ? "Show Core"
+                          : `Show All (${MASSIC_STYLE_COLOR_KEYS.length})`}
+                      </Button>
+                    </div>
+                    {extractedPaletteColors.length ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Typography className="text-[11px] text-muted-foreground">
+                          Extracted palette:
+                        </Typography>
+                        {extractedPaletteColors.slice(0, 10).map((color) => (
+                          <span
+                            key={color}
+                            className="inline-flex h-5 w-5 rounded-full border border-border"
+                            style={{ backgroundColor: color }}
+                            title={color}
                           />
-                          <Popover
-                            open={openStylePaletteKey === key}
-                            onOpenChange={(open) => setOpenStylePaletteKey(open ? key : null)}
-                          >
-                            <PopoverTrigger asChild>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {visibleStyleColorKeys.map((key) => {
+                        const label = STYLE_COLOR_OPTION_LABELS[key] || key;
+                        const extractedColor = extractedColorByKey[key] || null;
+                        const overrideColor = normalizedDraftStyleColorOverrides[key] || null;
+                        const pickerValue =
+                          overrideColor ||
+                          extractedColor ||
+                          extractedPaletteColors[0] ||
+                          "#000000";
+                        return (
+                          <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <Typography className="text-xs font-medium">{label}</Typography>
+                              <Typography className="text-[11px] text-muted-foreground font-mono">
+                                {overrideColor || extractedColor || "n/a"}
+                              </Typography>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="color"
+                                value={pickerValue}
+                                onChange={(e) => handleStyleOverrideColorChange(key, e.target.value)}
+                                disabled={isStyleOverrideSaving}
+                                className="h-8 w-11 p-1 shrink-0"
+                              />
+                              <Popover
+                                open={openStylePaletteKey === key}
+                                onOpenChange={(open) => setOpenStylePaletteKey(open ? key : null)}
+                              >
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
+                                    disabled={isStyleOverrideSaving || !extractedPaletteColors.length}
+                                  >
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <span
+                                        className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
+                                        style={{
+                                          backgroundColor:
+                                            overrideColor ||
+                                            extractedColor ||
+                                            extractedPaletteColors[0] ||
+                                            "#000000",
+                                        }}
+                                      />
+                                      <span className="truncate">
+                                        {overrideColor || extractedColor || "Use extracted"}
+                                      </span>
+                                    </span>
+                                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="w-56 p-1">
+                                  <div className="max-h-56 space-y-1 overflow-y-auto">
+                                    {extractedPaletteColors.map((color) => (
+                                      <button
+                                        key={`${key}-${color}`}
+                                        type="button"
+                                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
+                                        onClick={() => {
+                                          handleStyleOverrideColorChange(key, color);
+                                          setOpenStylePaletteKey(null);
+                                        }}
+                                      >
+                                        <span
+                                          className="h-4 w-4 shrink-0 rounded-full border border-border"
+                                          style={{ backgroundColor: color }}
+                                        />
+                                        <span className="font-mono">{color}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
                               <Button
                                 type="button"
-                                variant="outline"
-                                className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
-                                disabled={isStyleOverrideSaving || !extractedPaletteColors.length}
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => resetStyleOverrideKey(key)}
+                                disabled={isStyleOverrideSaving || !overrideColor}
                               >
-                                <span className="flex min-w-0 items-center gap-2">
-                                  <span
-                                    className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
-                                    style={{
-                                      backgroundColor:
-                                        overrideColor ||
-                                        extractedColor ||
-                                        extractedPaletteColors[0] ||
-                                        "#000000",
-                                    }}
-                                  />
-                                  <span className="truncate">
-                                    {overrideColor || extractedColor || "Use extracted"}
-                                  </span>
-                                </span>
-                                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                                Clear
                               </Button>
-                            </PopoverTrigger>
-                            <PopoverContent align="start" className="w-56 p-1">
-                              <div className="max-h-56 space-y-1 overflow-y-auto">
-                                {extractedPaletteColors.map((color) => (
-                                  <button
-                                    key={`${key}-${color}`}
-                                    type="button"
-                                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
-                                    onClick={() => {
-                                      handleStyleOverrideColorChange(key, color);
-                                      setOpenStylePaletteKey(null);
-                                    }}
-                                  >
-                                    <span
-                                      className="h-4 w-4 shrink-0 rounded-full border border-border"
-                                      style={{ backgroundColor: color }}
-                                    />
-                                    <span className="font-mono">{color}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 px-2 text-xs"
-                            onClick={() => resetStyleOverrideKey(key)}
-                            disabled={isStyleOverrideSaving || !overrideColor}
-                          >
-                            Clear
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {!showAllStyleColorOptions ? (
-                  <Typography className="text-[11px] text-muted-foreground">
-                    Showing core colors. Enable &quot;Show All&quot; for text/surface options.
-                  </Typography>
-                ) : null}
-              </div>
-
-              <div className="space-y-2 pt-2 border-t border-border/60">
-                <div className="flex items-center justify-between gap-2">
-                  <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                    Typography
-                  </Typography>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStyleTypographyOverridesDraft({})}
-                      disabled={isStyleOverrideSaving || !Object.keys(styleTypographyOverridesDraft).length}
-                    >
-                      Reset Typography
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleSaveStyleTypographyOverrides}
-                      disabled={isStyleOverrideSaving || hasTypographyValidationErrors || !hasUnsavedStyleTypographyOverrides}
-                    >
-                      {isStyleOverrideSaving ? "Saving..." : "Save Typography"}
-                    </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {!showAllStyleColorOptions ? (
+                      <Typography className="text-[11px] text-muted-foreground">
+                        Showing core colors. Enable &quot;Show All&quot; for text/surface options.
+                      </Typography>
+                    ) : null}
                   </div>
-                </div>
-                <Typography className="text-xs text-muted-foreground">
-                  Adjust only the core text scale. Font-family overrides are hidden for a simpler setup.
-                </Typography>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {VISIBLE_STYLE_TYPOGRAPHY_KEYS.map((key) => {
-                    const label = STYLE_TYPOGRAPHY_OPTION_LABELS[key] || key;
-                    const extractedValue = extractedTypographyByKey[key] || "";
-                    const overrideValue = styleTypographyOverridesDraft[key] || "";
-                    const displayValue = overrideValue || extractedValue || "";
-                    const isInvalid = Boolean(
-                      overrideValue &&
-                      !normalizedDraftStyleTypographyOverrides[key]
-                    );
-                    const presetOptions = TYPOGRAPHY_PRESETS[key] || [];
-                    const presetMenuOptions = (() => {
-                      const seen = new Set<string>();
-                      const merged: Array<{ value: string; label: string }> = [];
 
-                      const pushOption = (value: string, label: string) => {
-                        const trimmed = String(value || "").trim();
-                        if (!trimmed) return;
-                        const dedupeKey = trimmed.toLowerCase();
-                        if (seen.has(dedupeKey)) return;
-                        seen.add(dedupeKey);
-                        merged.push({ value: trimmed, label });
-                      };
-
-                      if (extractedValue) {
-                        pushOption(extractedValue, `Extracted: ${extractedValue}`);
-                      }
-                      for (const preset of presetOptions) {
-                        pushOption(preset, preset);
-                      }
-
-                      return merged;
-                    })();
-                    return (
-                      <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <Typography className="text-xs font-medium">{label}</Typography>
-                          <Typography className="text-[11px] text-muted-foreground font-mono truncate">
-                            {displayValue || "n/a"}
-                          </Typography>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={overrideValue}
-                            onChange={(event) => handleStyleOverrideTypographyChange(key, event.target.value)}
-                            placeholder={extractedValue || "Enter value"}
-                            className={cn("h-8 text-xs", isInvalid ? "border-destructive" : "")}
-                            disabled={isStyleOverrideSaving}
-                          />
-                          <select
-                            className="h-8 w-[128px] shrink-0 rounded-md border border-input bg-background px-2 text-xs"
-                            value=""
-                            disabled={isStyleOverrideSaving || !presetMenuOptions.length}
-                            onChange={(event) => {
-                              const selected = event.target.value;
-                              if (!selected) return;
-                              handleStyleOverrideTypographyChange(key, selected);
-                            }}
-                          >
-                            <option value="">Presets</option>
-                            {presetMenuOptions.map((option) => (
-                              <option key={`${key}-${option.value}`} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <Typography className="text-[11px] text-muted-foreground truncate">
-                            {extractedValue ? `Extracted: ${extractedValue}` : "No extracted value"}
-                          </Typography>
-                          {isInvalid ? (
-                            <Typography className="text-[11px] text-destructive">
-                              Invalid format
-                            </Typography>
-                          ) : null}
-                        </div>
+                  <div className="space-y-2 pt-2 border-t border-border/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
+                        Typography
+                      </Typography>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setStyleTypographyOverridesDraft({})}
+                          disabled={isStyleOverrideSaving || !Object.keys(styleTypographyOverridesDraft).length}
+                        >
+                          Reset Typography
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleSaveStyleTypographyOverrides}
+                          disabled={isStyleOverrideSaving || hasTypographyValidationErrors || !hasUnsavedStyleTypographyOverrides}
+                        >
+                          {isStyleOverrideSaving ? "Saving..." : "Save Typography"}
+                        </Button>
                       </div>
-                    );
-                  })}
-                </div>
-                {hasTypographyValidationErrors ? (
-                  <Typography className="text-[11px] text-destructive">
-                    Invalid values found. Use sizes like 16px and line-height like 1.6.
-                  </Typography>
-                ) : null}
-              </div>
+                    </div>
+                    <Typography className="text-xs text-muted-foreground">
+                      Adjust only the core text scale. Font-family overrides are hidden for a simpler setup.
+                    </Typography>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {VISIBLE_STYLE_TYPOGRAPHY_KEYS.map((key) => {
+                        const label = STYLE_TYPOGRAPHY_OPTION_LABELS[key] || key;
+                        const extractedValue = extractedTypographyByKey[key] || "";
+                        const overrideValue = styleTypographyOverridesDraft[key] || "";
+                        const displayValue = overrideValue || extractedValue || "";
+                        const isInvalid = Boolean(
+                          overrideValue &&
+                          !normalizedDraftStyleTypographyOverrides[key]
+                        );
+                        const presetOptions = TYPOGRAPHY_PRESETS[key] || [];
+                        const presetMenuOptions = (() => {
+                          const seen = new Set<string>();
+                          const merged: Array<{ value: string; label: string }> = [];
+
+                          const pushOption = (value: string, label: string) => {
+                            const trimmed = String(value || "").trim();
+                            if (!trimmed) return;
+                            const dedupeKey = trimmed.toLowerCase();
+                            if (seen.has(dedupeKey)) return;
+                            seen.add(dedupeKey);
+                            merged.push({ value: trimmed, label });
+                          };
+
+                          if (extractedValue) {
+                            pushOption(extractedValue, `Extracted: ${extractedValue}`);
+                          }
+                          for (const preset of presetOptions) {
+                            pushOption(preset, preset);
+                          }
+
+                          return merged;
+                        })();
+                        return (
+                          <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <Typography className="text-xs font-medium">{label}</Typography>
+                              <Typography className="text-[11px] text-muted-foreground font-mono truncate">
+                                {displayValue || "n/a"}
+                              </Typography>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={overrideValue}
+                                onChange={(event) => handleStyleOverrideTypographyChange(key, event.target.value)}
+                                placeholder={extractedValue || "Enter value"}
+                                className={cn("h-8 text-xs", isInvalid ? "border-destructive" : "")}
+                                disabled={isStyleOverrideSaving}
+                              />
+                              <select
+                                className="h-8 w-[128px] shrink-0 rounded-md border border-input bg-background px-2 text-xs"
+                                value=""
+                                disabled={isStyleOverrideSaving || !presetMenuOptions.length}
+                                onChange={(event) => {
+                                  const selected = event.target.value;
+                                  if (!selected) return;
+                                  handleStyleOverrideTypographyChange(key, selected);
+                                }}
+                              >
+                                <option value="">Presets</option>
+                                {presetMenuOptions.map((option) => (
+                                  <option key={`${key}-${option.value}`} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <Typography className="text-[11px] text-muted-foreground truncate">
+                                {extractedValue ? `Extracted: ${extractedValue}` : "No extracted value"}
+                              </Typography>
+                              {isInvalid ? (
+                                <Typography className="text-[11px] text-destructive">
+                                  Invalid format
+                                </Typography>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {hasTypographyValidationErrors ? (
+                      <Typography className="text-[11px] text-destructive">
+                        Invalid values found. Use sizes like 16px and line-height like 1.6.
+                      </Typography>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
             </div>
           )}
           <DialogFooter className="gap-2 sm:gap-2">
@@ -4159,7 +4250,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                     <Button variant="outline" onClick={() => handleChangeWordpressStatus("draft")} disabled={wpUnpublishMutation.isPending}>
                       {wpUnpublishMutation.isPending ? "Updating..." : "Move to Draft"}
                     </Button>
-                    <Button onClick={() => liveUrl && openEmbeddedPreview(liveUrl, "Published WordPress Page")} disabled={!liveUrl}>
+                    <Button onClick={() => liveUrl && openEmbeddedPreview(liveUrl, `Published WordPress ${contentLabel}`)} disabled={!liveUrl}>
                       View Live
                     </Button>
                   </>
@@ -4477,183 +4568,183 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 ) : (
                   <div data-massic-section-editor="true" className="overflow-x-auto pb-1">
                     <div className="flex min-w-max items-center gap-1 whitespace-nowrap">
-                        {activeLayoutEditor ? (
-                          <span className="mr-1 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                            {activeLayoutEditor.label}
-                          </span>
-                        ) : (
-                          <span className="mr-1 text-xs text-muted-foreground">Select an element</span>
-                        )}
-                        <div className="mx-0.5 h-5 w-px bg-border" />
+                      {activeLayoutEditor ? (
+                        <span className="mr-1 rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                          {activeLayoutEditor.label}
+                        </span>
+                      ) : (
+                        <span className="mr-1 text-xs text-muted-foreground">Select an element</span>
+                      )}
+                      <div className="mx-0.5 h-5 w-px bg-border" />
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={activeLayoutEditor ? handleSelectParentSection : undefined}>
+                          <CornerLeftUp className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Select Parent Section</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleMoveSection(activeLayoutEditor.sectionId, "up"); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleMoveElement(activeLayoutEditor.spacingId, "up"); }}>
+                          <ArrowUp className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Move Up</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleMoveSection(activeLayoutEditor.sectionId, "down"); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleMoveElement(activeLayoutEditor.spacingId, "down"); }}>
+                          <ArrowDown className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Move Down</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleDuplicateSection(activeLayoutEditor.sectionId); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleDuplicateElement(activeLayoutEditor.spacingId); }}>
+                          <CopyPlus className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Duplicate</TooltipContent></Tooltip>
+                      <div className="mx-0.5 h-5 w-px bg-border" />
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "before" }); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "before" }); }}>
+                          <ArrowUpFromLine className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Insert Above</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "after" }); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "after" }); else if (activeLayoutEditor?.isSlot && activeLayoutEditor.slotId) handleOpenInsertDialog({ kind: "slot", slotId: activeLayoutEditor.slotId }); }}>
+                          <ArrowDownFromLine className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Insert Below</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant={activeLayoutEditor?.isEmptyElement ? "default" : "ghost"} className="h-8 w-8" disabled={!activeLayoutEditor?.isElement || !activeLayoutEditor?.canInsertInside} onClick={() => { if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "inside" }); }}>
+                          <SquarePlus className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Insert Inside</TooltipContent></Tooltip>
+                      <div className="mx-0.5 h-5 w-px bg-border" />
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor?.isElement} onClick={() => { if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "wrap-grid", spacingId: activeLayoutEditor.spacingId, side: "left" }); }}>
+                          <PanelLeft className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Add Column Left</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor?.isElement} onClick={() => { if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "wrap-grid", spacingId: activeLayoutEditor.spacingId, side: "right" }); }}>
+                          <PanelRight className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Add Column Right</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor?.isLayout} onClick={() => { if (activeLayoutEditor?.isLayout && activeLayoutEditor.spacingId) handleCollapseLayout(activeLayoutEditor.spacingId); }}>
+                          <Minimize2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Collapse Layout</TooltipContent></Tooltip>
+                      <div className="mx-0.5 h-5 w-px bg-border" />
+                      <Popover>
                         <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={activeLayoutEditor ? handleSelectParentSection : undefined}>
-                            <CornerLeftUp className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Select Parent Section</TooltipContent></Tooltip>
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleMoveSection(activeLayoutEditor.sectionId, "up"); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleMoveElement(activeLayoutEditor.spacingId, "up"); }}>
-                            <ArrowUp className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Move Up</TooltipContent></Tooltip>
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleMoveSection(activeLayoutEditor.sectionId, "down"); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleMoveElement(activeLayoutEditor.spacingId, "down"); }}>
-                            <ArrowDown className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Move Down</TooltipContent></Tooltip>
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleDuplicateSection(activeLayoutEditor.sectionId); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleDuplicateElement(activeLayoutEditor.spacingId); }}>
-                            <CopyPlus className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Duplicate</TooltipContent></Tooltip>
-                        <div className="mx-0.5 h-5 w-px bg-border" />
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "before" }); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "before" }); }}>
-                            <ArrowUpFromLine className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Insert Above</TooltipContent></Tooltip>
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={() => { if (activeLayoutEditor?.targetKind === "section" && activeLayoutEditor.sectionId) handleOpenInsertDialog({ kind: "section", sectionId: activeLayoutEditor.sectionId, position: "after" }); else if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "after" }); else if (activeLayoutEditor?.isSlot && activeLayoutEditor.slotId) handleOpenInsertDialog({ kind: "slot", slotId: activeLayoutEditor.slotId }); }}>
-                            <ArrowDownFromLine className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Insert Below</TooltipContent></Tooltip>
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant={activeLayoutEditor?.isEmptyElement ? "default" : "ghost"} className="h-8 w-8" disabled={!activeLayoutEditor?.isElement || !activeLayoutEditor?.canInsertInside} onClick={() => { if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "element", spacingId: activeLayoutEditor.spacingId, position: "inside" }); }}>
-                            <SquarePlus className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Insert Inside</TooltipContent></Tooltip>
-                        <div className="mx-0.5 h-5 w-px bg-border" />
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor?.isElement} onClick={() => { if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "wrap-grid", spacingId: activeLayoutEditor.spacingId, side: "left" }); }}>
-                            <PanelLeft className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Add Column Left</TooltipContent></Tooltip>
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor?.isElement} onClick={() => { if (activeLayoutEditor?.isElement && activeLayoutEditor.spacingId) handleOpenInsertDialog({ kind: "wrap-grid", spacingId: activeLayoutEditor.spacingId, side: "right" }); }}>
-                            <PanelRight className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Add Column Right</TooltipContent></Tooltip>
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor?.isLayout} onClick={() => { if (activeLayoutEditor?.isLayout && activeLayoutEditor.spacingId) handleCollapseLayout(activeLayoutEditor.spacingId); }}>
-                            <Minimize2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Collapse Layout</TooltipContent></Tooltip>
-                        <div className="mx-0.5 h-5 w-px bg-border" />
-                        <Popover>
-                          <Tooltip><TooltipTrigger asChild>
-                            <PopoverTrigger asChild>
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8"
-                                disabled={!activeLayoutEditor?.spacingId || activeLayoutEditor.targetKind === "slot"}
-                              >
-                                <MoveVertical className="h-4 w-4" />
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              disabled={!activeLayoutEditor?.spacingId || activeLayoutEditor.targetKind === "slot"}
+                            >
+                              <MoveVertical className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                        </TooltipTrigger><TooltipContent>Spacing</TooltipContent></Tooltip>
+                        <PopoverContent align="start" className="w-80 p-3">
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <Typography className="text-xs font-medium">Spacing</Typography>
+                                <Typography className="text-[11px] text-muted-foreground">
+                                  {formatSpacingButtonLabel(spacingDraft)}
+                                </Typography>
+                              </div>
+                              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => void handleResetSpacingForActiveTarget()}>
+                                <RotateCcw className="mr-1.5 h-3 w-3" />
+                                Reset
                               </Button>
-                            </PopoverTrigger>
-                          </TooltipTrigger><TooltipContent>Spacing</TooltipContent></Tooltip>
-                          <PopoverContent align="start" className="w-80 p-3">
-                            <div className="space-y-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <Typography className="text-xs font-medium">Spacing</Typography>
-                                  <Typography className="text-[11px] text-muted-foreground">
-                                    {formatSpacingButtonLabel(spacingDraft)}
-                                  </Typography>
-                                </div>
-                                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => void handleResetSpacingForActiveTarget()}>
-                                  <RotateCcw className="mr-1.5 h-3 w-3" />
-                                  Reset
-                                </Button>
-                              </div>
-                              <div className="flex items-center gap-1 rounded-md border bg-muted/20 p-1">
-                                {[
-                                  { label: "0", value: null },
-                                  { label: "16", value: 16 },
-                                  { label: "24", value: 24 },
-                                ].map((preset) => {
-                                  const isActive = ["outsideTop", "outsideRight", "outsideBottom", "outsideLeft"].every((key) => {
-                                    const spacingKey = key as SpacingDraftKey;
-                                    return spacingTokenToPx(spacingDraft[spacingKey]) === (preset.value ?? 0);
-                                  });
+                            </div>
+                            <div className="flex items-center gap-1 rounded-md border bg-muted/20 p-1">
+                              {[
+                                { label: "0", value: null },
+                                { label: "16", value: 16 },
+                                { label: "24", value: 24 },
+                              ].map((preset) => {
+                                const isActive = ["outsideTop", "outsideRight", "outsideBottom", "outsideLeft"].every((key) => {
+                                  const spacingKey = key as SpacingDraftKey;
+                                  return spacingTokenToPx(spacingDraft[spacingKey]) === (preset.value ?? 0);
+                                });
 
-                                  return (
-                                    <Button
-                                      key={preset.label}
-                                      type="button"
-                                      variant={isActive ? "default" : "ghost"}
-                                      size="sm"
-                                      className="h-7 flex-1 text-[11px]"
-                                      onClick={() => applyUniformSpacingDraft(preset.value)}
-                                    >
-                                      {preset.label}
-                                    </Button>
-                                  );
-                                })}
-                              </div>
-                              <div className="space-y-2">
-                                {([
-                                  ["outsideTop", "Top", ArrowUp],
-                                  ["outsideRight", "Right", PanelRight],
-                                  ["outsideBottom", "Bottom", ArrowDown],
-                                  ["outsideLeft", "Left", PanelLeft],
-                                ] as Array<[SpacingDraftKey, string, React.ComponentType<{ className?: string }>]>).map(([key, label, Icon]) => (
-                                  <div key={key} className="rounded-md border bg-muted/20 px-2 py-1.5">
-                                    <div className="mb-1.5 flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-1.5">
-                                        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-background text-muted-foreground">
-                                          <Icon className="h-3.5 w-3.5" />
-                                        </div>
-                                        <Typography className="text-[11px] font-medium">{label}</Typography>
+                                return (
+                                  <Button
+                                    key={preset.label}
+                                    type="button"
+                                    variant={isActive ? "default" : "ghost"}
+                                    size="sm"
+                                    className="h-7 flex-1 text-[11px]"
+                                    onClick={() => applyUniformSpacingDraft(preset.value)}
+                                  >
+                                    {preset.label}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                            <div className="space-y-2">
+                              {([
+                                ["outsideTop", "Top", ArrowUp],
+                                ["outsideRight", "Right", PanelRight],
+                                ["outsideBottom", "Bottom", ArrowDown],
+                                ["outsideLeft", "Left", PanelLeft],
+                              ] as Array<[SpacingDraftKey, string, React.ComponentType<{ className?: string }>]>).map(([key, label, Icon]) => (
+                                <div key={key} className="rounded-md border bg-muted/20 px-2 py-1.5">
+                                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="flex h-6 w-6 items-center justify-center rounded-md bg-background text-muted-foreground">
+                                        <Icon className="h-3.5 w-3.5" />
                                       </div>
-                                      <div className="rounded bg-background px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                                        {spacingTokenToPx(spacingDraft[key])} px
-                                      </div>
+                                      <Typography className="text-[11px] font-medium">{label}</Typography>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <Button type="button" size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepActiveSpacingDraft(key, -1)}>
-                                        <Minus className="h-3 w-3" />
-                                      </Button>
-                                      <Slider
-                                        min={EDITABLE_SPACING_PX_MIN}
-                                        max={EDITABLE_SPACING_PX_MAX}
-                                        step={SPACING_STEP}
-                                        value={[spacingTokenToPx(spacingDraft[key])]}
-                                        onValueChange={(values) => {
-                                          const nextValue = values[0];
-                                          updateActiveSpacingDraft(
-                                            key,
-                                            typeof nextValue === "number" ? pxToSpacingToken(nextValue) : null
-                                          );
-                                        }}
-                                        className="flex-1"
-                                      />
-                                      <Button type="button" size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepActiveSpacingDraft(key, 1)}>
-                                        <Plus className="h-3 w-3" />
-                                      </Button>
+                                    <div className="rounded bg-background px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                                      {spacingTokenToPx(spacingDraft[key])} px
                                     </div>
                                   </div>
-                                ))}
-                              </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button type="button" size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepActiveSpacingDraft(key, -1)}>
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                    <Slider
+                                      min={EDITABLE_SPACING_PX_MIN}
+                                      max={EDITABLE_SPACING_PX_MAX}
+                                      step={SPACING_STEP}
+                                      value={[spacingTokenToPx(spacingDraft[key])]}
+                                      onValueChange={(values) => {
+                                        const nextValue = values[0];
+                                        updateActiveSpacingDraft(
+                                          key,
+                                          typeof nextValue === "number" ? pxToSpacingToken(nextValue) : null
+                                        );
+                                      }}
+                                      className="flex-1"
+                                    />
+                                    <Button type="button" size="icon" variant="outline" className="h-7 w-7 shrink-0" onClick={() => stepActiveSpacingDraft(key, 1)}>
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          </PopoverContent>
-                        </Popover>
-                        <div className="inline-flex h-8 items-center rounded-md bg-muted px-2 text-[10px] font-medium text-muted-foreground">
-                          {activeLayoutEditor?.spacingId && activeLayoutEditor.targetKind !== "slot"
-                            ? formatSpacingButtonLabel(spacingDraft)
-                            : "0"}
-                        </div>
-                        <div className="mx-0.5 h-5 w-px bg-border" />
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" disabled={!activeLayoutEditor} onClick={() => setLayoutDeleteDialogOpen(true)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Delete</TooltipContent></Tooltip>
-                        <Tooltip><TooltipTrigger asChild>
-                          <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={activeLayoutEditor ? cancelActiveLayoutEditor : undefined}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger><TooltipContent>Deselect</TooltipContent></Tooltip>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <div className="inline-flex h-8 items-center rounded-md bg-muted px-2 text-[10px] font-medium text-muted-foreground">
+                        {activeLayoutEditor?.spacingId && activeLayoutEditor.targetKind !== "slot"
+                          ? formatSpacingButtonLabel(spacingDraft)
+                          : "0"}
+                      </div>
+                      <div className="mx-0.5 h-5 w-px bg-border" />
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" disabled={!activeLayoutEditor} onClick={() => setLayoutDeleteDialogOpen(true)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Delete</TooltipContent></Tooltip>
+                      <Tooltip><TooltipTrigger asChild>
+                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!activeLayoutEditor} onClick={activeLayoutEditor ? cancelActiveLayoutEditor : undefined}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger><TooltipContent>Deselect</TooltipContent></Tooltip>
                     </div>
                     {activeLayoutEditor?.mediaTarget && activeLayoutEditor.spacingId ? (
                       <div className="mt-2 rounded-md border bg-background p-3">
@@ -4728,7 +4819,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete {activeLayoutEditor?.label || "selection"}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will permanently remove the selected {activeLayoutEditor?.targetKind || "item"} from the page. You can undo it with Ctrl+Z.
+                    {`This will permanently remove the selected ${activeLayoutEditor?.targetKind || "item"} from the ${contentLabelLower}. You can undo it with Ctrl+Z.`}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -4743,6 +4834,7 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
               </AlertDialogContent>
             </AlertDialog>
             <style>{`
+              ${previewBaseCss}
               ${previewMassicVarCss}
               .massic-html-preview .massic-text-editable {
                 border-radius: 4px;
@@ -4975,4 +5067,8 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
       </div>
     </div>
   );
+}
+
+export function WebBlogHtmlView({ businessId, pageId }: { businessId: string; pageId: string }) {
+  return <WebPageHtmlView businessId={businessId} pageId={pageId} contentType="blog" />;
 }

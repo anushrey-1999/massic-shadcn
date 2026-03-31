@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { resolvePageContent } from "@/utils/page-content-resolver";
+import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 
 function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
@@ -112,11 +112,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const typeLabel = type === "blog" ? "blog" : "page";
   const finalContent =
     type === "blog"
-      ? cleanEscapedContent(
-          (typeof data?.output_data?.page?.blog === "string"
-            ? data?.output_data?.page?.blog
-            : data?.output_data?.page?.blog?.blog_post) || ""
-        )
+      ? resolveBlogFinalContent(data)
       : resolvePageContent(data);
   const hasFinalContent = !!finalContent && finalContent.trim().length > 0;
   const hasOutline = !!outline && outline.trim().length > 0;

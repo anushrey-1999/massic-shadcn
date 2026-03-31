@@ -136,6 +136,11 @@ export function useWebPageActions() {
     params: {
       blog_post: string;
       meta_description: string;
+      formatted_blog?: {
+        html: string;
+        meta_title?: string;
+        meta_description?: string;
+      };
     }
   ) => {
     const endpoint = `/client/update-ai-blog-writer-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;

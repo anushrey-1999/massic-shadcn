@@ -24,6 +24,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { api } from "@/hooks/use-api";
 import { Loader2 } from "lucide-react";
 import { cleanWebsiteUrl } from "@/utils/utils";
+import { getAutofillErrorMessage } from "@/utils/profile-autofill";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { TagsInput } from "@/components/ui/tags-input";
 import {
@@ -47,8 +48,15 @@ interface ProfileAutofillResponse {
     brand_terms?: string[];
     web_tone?: string[];
     social_tone?: string[];
+    error?: string | null;
+    reason?: string | null;
+    recommendation?: string | null;
+    [key: string]: unknown;
   };
   errors?: string | string[] | null;
+  error?: string | null;
+  message?: string | null;
+  detail?: string | null;
 }
 
 export function CreatePitchTemplate() {
@@ -216,12 +224,17 @@ export function CreatePitchTemplate() {
         { business_url: website },
         { timeout: 120000 }
       );
-      if (res?.errors) {
-        toast.error("Failed to autofill profile");
+      const autofillErrorMessage = getAutofillErrorMessage(res, "");
+      if (autofillErrorMessage) {
+        toast.error(autofillErrorMessage);
         return;
       }
       const pa = res?.profile_autofill;
-      if (!pa) return;
+      if (!pa) {
+        const fallbackMessage = String(res?.message ?? res?.detail ?? "").trim();
+        toast.error(fallbackMessage || "Failed to autofill profile");
+        return;
+      }
 
       const ensureHttpsUrl = (raw: unknown): string => {
         const s = String(raw ?? "")
@@ -327,8 +340,18 @@ export function CreatePitchTemplate() {
 
       setHasAutofilledProfile(true);
       toast.success("Profile fields updated from website");
-    } catch {
-      toast.error("Failed to autofill profile");
+    } catch (error: any) {
+      const fallbackMessage = String(
+        error?.response?.data?.message ??
+        error?.response?.data?.detail ??
+        error?.message ??
+        ""
+      ).trim();
+      toast.error(
+        getAutofillErrorMessage(error?.response?.data ?? error, "") ||
+        fallbackMessage ||
+        "Failed to autofill profile"
+      );
     } finally {
       setIsAutofillLoading(false);
     }

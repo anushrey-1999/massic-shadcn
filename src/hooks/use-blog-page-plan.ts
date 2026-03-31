@@ -111,15 +111,15 @@ export function useBlogPagePlan(businessId: string) {
           : metricsMaybe;
         const metrics: WebPageMetrics | null = metricsFirst
           ? {
-              total_pages:
-                typeof metricsFirst?.total_pages === "number"
-                  ? metricsFirst.total_pages
-                  : 0,
-              total_supporting_keywords:
-                typeof metricsFirst?.total_supporting_keywords === "number"
-                  ? metricsFirst.total_supporting_keywords
-                  : 0,
-            }
+            total_pages:
+              typeof metricsFirst?.total_pages === "number"
+                ? metricsFirst.total_pages
+                : 0,
+            total_supporting_keywords:
+              typeof metricsFirst?.total_supporting_keywords === "number"
+                ? metricsFirst.total_supporting_keywords
+                : 0,
+          }
           : null;
 
         return {

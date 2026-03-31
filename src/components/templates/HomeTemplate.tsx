@@ -23,6 +23,10 @@ import {
   type BusinessPreviewItem,
 } from "@/hooks/use-business-previews";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
+import {
+  useHealthStatusBatch,
+  type HealthStatusRow,
+} from "@/hooks/use-health-status";
 import { api } from "@/hooks/use-api";
 import type { JobDetails } from "@/hooks/use-jobs";
 import { cn } from "@/lib/utils";
@@ -86,6 +90,21 @@ function normalizeUrlDomain(input: string) {
 function compareStrings(a: string, b: string) {
   return a.localeCompare(b, undefined, { sensitivity: "base" });
 }
+
+// PRD §2.1 — sort order: Red+Down first … Green+Up … Gray … no-data last
+const HEALTH_URGENCY: Partial<Record<string, number>> = {
+  "red-down": 0,   "red-flat": 1,   "red-up": 2,
+  "amber-down": 3, "amber-flat": 4, "amber-up": 5,
+  "green-down": 6, "green-flat": 7, "green-up": 8,
+  "gray-none": 9,
+};
+
+function getUrgencyScore(status: HealthStatusRow | undefined): number {
+  if (!status?.health_color) return 10; // not yet computed → bottom
+  if (status.health_color === "gray") return 9;
+  const key = `${status.health_color}-${status.trend_arrow ?? "flat"}`;
+  return HEALTH_URGENCY[key] ?? 10;
+}
 function getGreetingName(user: any) {
   return (
     user?.firstName ||
@@ -106,7 +125,52 @@ const HOME_PERIODS = [
   { label: "12 Months", value: "12 months" },
 ] as const;
 
+const HOME_HEALTH_FILTERS = [
+  {
+    value: "all",
+    label: "All",
+    dotClassName: "",
+    activeClassName:
+      "border border-[#9CC3B0] bg-[#3E6F61] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.55)_inset]",
+    inactiveClassName: "border border-transparent bg-[#EEF3F1] text-[#3E6F61]",
+    countClassName: "text-white/85",
+  },
+  {
+    value: "red",
+    label: "Check",
+    dotClassName: "bg-[#E24B4A]",
+    activeClassName: "border border-[#F4B8B8] bg-[#FDECEC] text-[#E24B4A]",
+    inactiveClassName: "border border-transparent bg-[#FDECEC] text-[#E24B4A]",
+    countClassName: "text-[#E24B4A]/80",
+  },
+  {
+    value: "amber",
+    label: "Dip",
+    dotClassName: "bg-[#D88A10]",
+    activeClassName: "border border-[#F7D496] bg-[#FFF3D8] text-[#D88A10]",
+    inactiveClassName: "border border-transparent bg-[#FFF3D8] text-[#D88A10]",
+    countClassName: "text-[#D88A10]/80",
+  },
+  {
+    value: "gray",
+    label: "No Signal",
+    dotClassName: "bg-[#708091]",
+    activeClassName: "border border-[#DBDEE3] bg-[#ECEFF2] text-[#708091]",
+    inactiveClassName: "border border-transparent bg-[#ECEFF2] text-[#708091]",
+    countClassName: "text-[#708091]/80",
+  },
+  {
+    value: "green",
+    label: "Strong",
+    dotClassName: "bg-[#639922]",
+    activeClassName: "border border-[#D7E8BF] bg-[#EEF6E4] text-[#639922]",
+    inactiveClassName: "border border-transparent bg-[#EEF6E4] text-[#639922]",
+    countClassName: "text-[#639922]/80",
+  },
+] as const;
+
 const HOME_SECTIONS_STORAGE_KEY = "home:sections";
+type HomeHealthFilterValue = (typeof HOME_HEALTH_FILTERS)[number]["value"];
 
 function parseStoredHomeSections(value: string | null) {
   if (!value) return null;
@@ -132,6 +196,8 @@ export function HomeTemplate() {
   const [search, setSearch] = useState("");
   const [period, setPeriod] =
     useState<(typeof HOME_PERIODS)[number]["value"]>("3 months");
+  const [healthFilter, setHealthFilter] =
+    useState<HomeHealthFilterValue>("all");
   // Default to nothing selected on first render to avoid briefly showing the wrong
   // selection before localStorage is read.
   const [showActive, setShowActive] = useState(false);
@@ -337,9 +403,69 @@ export function HomeTemplate() {
       }
     }
 
+    // A-Z as base order; urgency sort is applied in sortedActiveBusinesses below
     active.sort((a, b) => compareStrings(a.name, b.name));
     return active;
   }, [filtered]);
+
+  // Collect business IDs to fetch health status in one batch call
+  const activeBusinessIds = useMemo(
+    () => activeBusinesses.map((b) => b.uniqueId).filter((id): id is string => !!id),
+    [activeBusinesses]
+  );
+
+  const { statusMap } = useHealthStatusBatch(activeBusinessIds);
+
+  const filteredActiveBusinesses = useMemo(() => {
+    if (healthFilter === "all") return activeBusinesses;
+    return activeBusinesses.filter(({ uniqueId }) => {
+      const status = uniqueId ? statusMap[uniqueId] : undefined;
+      if (healthFilter === "gray") {
+        return !status?.health_color || status.health_color === "gray";
+      }
+      return status?.health_color === healthFilter;
+    });
+  }, [activeBusinesses, healthFilter, statusMap]);
+
+  const healthFilterCounts = useMemo(() => {
+    const counts: Record<HomeHealthFilterValue, number> = {
+      all: activeBusinesses.length,
+      red: 0,
+      amber: 0,
+      gray: 0,
+      green: 0,
+    };
+
+    for (const business of activeBusinesses) {
+      const status = business.uniqueId ? statusMap[business.uniqueId] : undefined;
+      const color = status?.health_color;
+
+      if (!color || color === "gray") {
+        counts.gray += 1;
+        continue;
+      }
+
+      counts[color] += 1;
+    }
+
+    return counts;
+  }, [activeBusinesses, statusMap]);
+
+  // Re-sort by PRD urgency order (Red+Down → … → Gray → no-data)
+  // Ties in urgency keep the underlying A-Z order (stable sort)
+  const sortedActiveBusinesses = useMemo(() => {
+    return [...filteredActiveBusinesses].sort((a, b) => {
+      const scoreA = getUrgencyScore(a.uniqueId ? statusMap[a.uniqueId] : undefined);
+      const scoreB = getUrgencyScore(b.uniqueId ? statusMap[b.uniqueId] : undefined);
+      return scoreA - scoreB;
+    });
+  }, [filteredActiveBusinesses, statusMap]);
+
+  const selectedHealthFilterOption =
+    HOME_HEALTH_FILTERS.find((option) => option.value === healthFilter) ??
+    HOME_HEALTH_FILTERS[0];
+  const isStatusFilterEmpty =
+    activeBusinesses.length > 0 && sortedActiveBusinesses.length === 0;
 
   const selectedCount = Number(showActive) + Number(showOnboarding);
   const showThreeColumnLayout = selectedCount === 2;
@@ -401,7 +527,42 @@ export function HomeTemplate() {
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 rounded-full p-1">
+            {HOME_HEALTH_FILTERS.map((option) => {
+              const isActive = healthFilter === option.value;
+              const count = healthFilterCounts[option.value];
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    setHealthFilter(option.value as HomeHealthFilterValue)
+                  }
+                  className={cn(
+                    "inline-flex h-8 cursor-pointer items-center gap-1 rounded-full px-3 text-[13px] font-medium whitespace-nowrap transition-colors",
+                    isActive ? option.activeClassName : option.inactiveClassName
+                  )}
+                >
+                  {option.value !== "all" ? (
+                    <span
+                      className={cn("h-2 w-2 rounded-full shrink-0", option.dotClassName)}
+                    />
+                  ) : null}
+                  <span>{option.label}</span>
+                  {option.value !== "all" ? (
+                    <span
+                      className={cn("text-[13px] font-medium", option.countClassName)}
+                    >
+                      {count}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex items-center gap-4 bg-white px-3 py-2 rounded-lg">
             <div className="flex items-center gap-2">
               <Checkbox
@@ -493,9 +654,16 @@ export function HomeTemplate() {
                       ]}
                       className="h-full"
                     />
+                  ) : isStatusFilterEmpty ? (
+                    <EmptyState
+                      title="No matching clients"
+                      description={`No active businesses match the ${selectedHealthFilterOption.label.toLowerCase()} filter`}
+                      cardClassName="bg-white h-full flex items-center justify-center"
+                      className="h-full"
+                    />
                   ) : (
                     <div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1 auto-rows-max">
-                      {activeBusinesses.map(
+                      {sortedActiveBusinesses.map(
                         ({ preview, name, domain, uniqueId }) => {
                           const mainStats = safeJsonParse<PreviewMainStats>(
                             preview.mainstats,
@@ -508,7 +676,7 @@ export function HomeTemplate() {
 
                           return (
                             <BusinessPreviewCard
-                              key={domain}
+                              key={uniqueId ?? domain}
                               name={name}
                               url={preview.url}
                               graph={graph}
@@ -516,6 +684,7 @@ export function HomeTemplate() {
                               clicks={mainStats?.Clicks}
                               goals={mainStats?.goals}
                               period={period}
+                              healthStatus={uniqueId ? statusMap[uniqueId] : undefined}
                               onConnectGoogle={connectGoogleAccount}
                               onClick={() => handleOpen(uniqueId, preview.url)}
                             />
@@ -532,7 +701,7 @@ export function HomeTemplate() {
               <Card className="flex flex-col gap-3 p-4 border-none shadow-none bg-general-primary-foreground rounded-(--rounded-12,12px) min-h-0 overflow-hidden">
                 <Typography
                   variant="h4"
-                  className="text-general-unofficial-foreground-alt flex-shrink-0"
+                  className="text-general-unofficial-foreground-alt shrink-0"
                 >
                   Onboarding
                 </Typography>
@@ -638,9 +807,16 @@ export function HomeTemplate() {
                       ]}
                       className="h-full"
                     />
+                  ) : isStatusFilterEmpty ? (
+                    <EmptyState
+                      title="No matching clients"
+                      description={`No active businesses match the ${selectedHealthFilterOption.label.toLowerCase()} filter`}
+                      cardClassName="bg-white"
+                      className="h-full"
+                    />
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-                      {activeBusinesses.map(
+                      {sortedActiveBusinesses.map(
                         ({ preview, name, domain, uniqueId }) => {
                           const mainStats = safeJsonParse<PreviewMainStats>(
                             preview.mainstats,
@@ -653,7 +829,7 @@ export function HomeTemplate() {
 
                           return (
                             <BusinessPreviewCard
-                              key={domain}
+                              key={uniqueId ?? domain}
                               name={name}
                               url={preview.url}
                               graph={graph}
@@ -661,6 +837,7 @@ export function HomeTemplate() {
                               clicks={mainStats?.Clicks}
                               goals={mainStats?.goals}
                               period={period}
+                              healthStatus={uniqueId ? statusMap[uniqueId] : undefined}
                               onConnectGoogle={connectGoogleAccount}
                               onClick={() => handleOpen(uniqueId, preview.url)}
                             />

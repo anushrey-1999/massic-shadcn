@@ -8,8 +8,9 @@ import {
   type TrendResult,
   type ContentGroup
 } from "@/utils/gsc-deepdive-utils";
+import type { TimePeriodValue } from "@/utils/analytics-period";
 
-export type TimePeriodValue = "7 days" | "14 days" | "28 days" | "3 months" | "6 months" | "12 months";
+export type { TimePeriodValue };
 export type TableFilterType = "popular" | "growing" | "decaying";
 export type SortColumn = "impressions" | "clicks";
 export type SortDirection = "asc" | "desc";

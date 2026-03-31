@@ -99,7 +99,7 @@ function calculateChange(trendData: Array<{ date: string; value: number }>): num
 
   const latestValue = trendData[trendData.length - 1]?.value ?? 0
   const previousValue = trendData[0]?.value ?? 0
-  console.log("Latest Value:", latestValue, "Previous Value:", previousValue, trendData)
+
   if (previousValue === 0) return latestValue > 0 ? 100 : 0
 
   return Math.round(((latestValue - previousValue) / previousValue) * 100)

@@ -47,7 +47,10 @@ interface DataTableModalProps {
   onTabChange?: (value: string) => void
   sortConfig?: SortConfig
   onSort?: (column: string) => void
+  onRowClick?: (row: DataTableRow) => void
   isLoading?: boolean
+  dynamicFirstColumn?: boolean
+  renderFirstColumn?: (row: DataTableRow, value: string) => React.ReactNode
 }
 
 const ROW_LIMITS = [25, 50, 100] as const
@@ -64,7 +67,10 @@ export function DataTableModal({
   onTabChange,
   sortConfig,
   onSort,
+  onRowClick,
   isLoading = false,
+  dynamicFirstColumn = false,
+  renderFirstColumn,
 }: DataTableModalProps) {
   const [rowsPerPage, setRowsPerPage] = useState<number>(25)
   const [currentPage, setCurrentPage] = useState(1)
@@ -164,10 +170,13 @@ export function DataTableModal({
             hasData={data.length > 0}
             sortConfig={sortConfig}
             onSort={onSort}
+            onRowClick={onRowClick}
             variant="standalone"
             stickyHeader
             maxHeight="calc(85vh - 180px)"
             cellSize="md"
+            dynamicFirstColumn={dynamicFirstColumn}
+            renderFirstColumn={renderFirstColumn}
           />
         </div>
 

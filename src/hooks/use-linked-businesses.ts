@@ -58,6 +58,8 @@ export interface FetchBusinessesResponse {
 interface CreateBusinessPayload {
   userUniqueId: string;
   accountUniqueId: string;
+  mergeExisting?: boolean;
+  mergeTargetUniqueId?: string;
   businesses: {
     name: string;
     description: string;
@@ -90,6 +92,40 @@ interface LinkPropertyPayload {
 interface BusinessStatusPayload {
   businessId: string;
   isActive: boolean;
+}
+
+export interface ExistingBusinessConflict {
+  code: "BUSINESS_ALREADY_EXISTS";
+  existingBusiness: {
+    UniqueId: string;
+    Name: string;
+    Website: string;
+    IsPitch: boolean;
+    LinkedAuthId: string | null;
+  };
+  incomingBusiness: {
+    website: string;
+    authId: string | null;
+  };
+}
+
+export class CreateBusinessConflictError extends Error {
+  code: "BUSINESS_ALREADY_EXISTS";
+  conflict: ExistingBusinessConflict;
+
+  constructor(conflict: ExistingBusinessConflict, message?: string) {
+    super(message || "Business already exists");
+    this.name = "CreateBusinessConflictError";
+    this.code = "BUSINESS_ALREADY_EXISTS";
+    this.conflict = conflict;
+  }
+}
+
+interface CreateAgencyBusinessVariables {
+  businesses: LinkedBusiness[];
+  mergeExisting?: boolean;
+  mergeTargetUniqueId?: string;
+  suppressDuplicateToast?: boolean;
 }
 
 export function useFetchBusinesses() {
@@ -195,8 +231,12 @@ export function useCreateAgencyBusiness() {
   const { setBusinessProfiles } = useBusinessStore();
   const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
 
-  return useMutation<void, Error, LinkedBusiness[]>({
-    mutationFn: async (businesses: LinkedBusiness[]) => {
+  return useMutation<void, Error, CreateAgencyBusinessVariables>({
+    mutationFn: async ({
+      businesses,
+      mergeExisting = false,
+      mergeTargetUniqueId,
+    }: CreateAgencyBusinessVariables) => {
       if (!userUniqueId) {
         throw new Error("User not authenticated");
       }
@@ -225,6 +265,8 @@ export function useCreateAgencyBusiness() {
         const payload: CreateBusinessPayload = {
           userUniqueId,
           accountUniqueId: authId,
+          mergeExisting,
+          mergeTargetUniqueId,
           businesses: businessList.map((b) => ({
             name: b.title || "",
             description: "",
@@ -263,12 +305,36 @@ export function useCreateAgencyBusiness() {
           );
 
           if (response.err === true || response.success === false) {
+            if (response.code === "BUSINESS_ALREADY_EXISTS") {
+              const conflict: ExistingBusinessConflict = {
+                code: "BUSINESS_ALREADY_EXISTS",
+                existingBusiness: response.existingBusiness,
+                incomingBusiness: response.incomingBusiness,
+              };
+              throw new CreateBusinessConflictError(
+                conflict,
+                response.message || "Business already exists"
+              );
+            }
             throw new Error(response.message || "Failed to connect businesses");
           }
         } catch (error: any) {
-          // If axios error with response (status code error like 409)
+          if (error instanceof CreateBusinessConflictError) {
+            throw error;
+          }
           if (error.response?.data) {
-            const errorData = error.response.data;
+            const errorData = error.response.data as any;
+            if (errorData.code === "BUSINESS_ALREADY_EXISTS") {
+              const conflict: ExistingBusinessConflict = {
+                code: "BUSINESS_ALREADY_EXISTS",
+                existingBusiness: errorData.existingBusiness,
+                incomingBusiness: errorData.incomingBusiness,
+              };
+              throw new CreateBusinessConflictError(
+                conflict,
+                errorData.message || "Business already exists"
+              );
+            }
             throw new Error(errorData.message || errorData.error || "Failed to connect businesses");
           }
           throw error;
@@ -280,7 +346,13 @@ export function useCreateAgencyBusiness() {
       queryClient.invalidateQueries({ queryKey: [LINKED_BUSINESSES_KEY] });
       queryClient.invalidateQueries({ queryKey: ["businessProfiles"] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables: CreateAgencyBusinessVariables) => {
+      if (
+        variables?.suppressDuplicateToast &&
+        error instanceof CreateBusinessConflictError
+      ) {
+        return;
+      }
       toast.error("Failed to connect businesses", {
         description: error.message || "Please try again later.",
       });

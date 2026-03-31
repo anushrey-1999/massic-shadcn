@@ -1282,7 +1282,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                 <Input
                   value={editableSlug}
                   onChange={(event) => {
-                    setEditableSlug(normalizeWordpressBlogEditableSlug(event.target.value));
+                    setEditableSlug(event.target.value);
                     setIsSlugEdited(true);
                   }}
                   placeholder="enter-blog-slug"

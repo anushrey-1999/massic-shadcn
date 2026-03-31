@@ -10,12 +10,6 @@ import {
   ArrowDown,
   ArrowDownFromLine,
   ArrowLeft,
-  ChevronDown,
-  Copy,
-  ExternalLink,
-  Globe,
-  Loader2,
-  Monitor,
   ArrowUp,
   ArrowUpFromLine,
   Bold,
@@ -30,17 +24,23 @@ import {
   MoveVertical,
   PanelLeft,
   PanelRight,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Globe,
+  Loader2,
+  Monitor,
   Plus,
   Redo2,
   RotateCcw,
   Save,
-  Smartphone,
-  Tablet,
   SquarePlus,
   Strikethrough,
   Trash2,
   Underline,
   Unlink,
+  Smartphone,
+  Tablet,
   Undo2,
   X,
 } from "lucide-react";
@@ -72,6 +72,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { AIRefineToolbarDom } from "@/components/ui/ai-refine-toolbar";
 import { copyToClipboard } from "@/utils/clipboard";
 import { resolveBlogFinalContent, resolveFormattedBlogHtml, resolvePageContent } from "@/utils/page-content-resolver";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
@@ -159,6 +160,9 @@ import { LayoutPanel, MediaEditorPanel } from "@/components/ui/layout-panel";
 import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 
 type SaveReason = "debounce" | "blur" | "unmount";
+type AiTextTransformResponse = {
+  revised_text?: string;
+};
 type ActiveLinkEditorState = {
   id: string;
   top: number;
@@ -224,6 +228,8 @@ type InsertAnchor = {
 } | null;
 
 const TEXT_OWNER_SELECTOR = "p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details, a[data-massic-link-id]";
+const AI_SELECTION_ATTR = "data-massic-ai-selection";
+const AI_SELECTION_OWNER_ATTR = "data-massic-ai-selection-owner";
 
 function getEditableLinkElement(target: EventTarget | null): HTMLAnchorElement | null {
   if (!(target instanceof HTMLElement)) return null;
@@ -300,56 +306,6 @@ function areSpacingValuesEqual(left: Partial<EditableSpacingValue> | null | unde
   );
 }
 
-const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
-  primary: "Primary",
-  secondary: "Secondary",
-  accent: "Accent",
-  link: "Link",
-  text: "Text",
-  mutedText: "Muted Text",
-  background: "Background",
-  surface: "Surface",
-  buttonBg: "Button Background",
-  buttonText: "Button Text",
-};
-const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "primary",
-  "secondary",
-  "accent",
-  "link",
-  "buttonBg",
-  "buttonText",
-];
-const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "text",
-  "mutedText",
-  "background",
-  "surface",
-];
-const STYLE_TYPOGRAPHY_OPTION_LABELS: Partial<Record<MassicStyleTypographyKey, string>> = {
-  baseFontSize: "Base Text Size",
-  baseLineHeight: "Base Line Height",
-  h1Size: "H1 Size",
-  h2Size: "H2 Size",
-  h3Size: "H3 Size",
-};
-const VISIBLE_STYLE_TYPOGRAPHY_KEYS: MassicStyleTypographyKey[] = [
-  "baseFontSize",
-  "baseLineHeight",
-  "h1Size",
-  "h2Size",
-  "h3Size",
-];
-const LINE_HEIGHT_PRESETS = ["1.3", "1.4", "1.5", "1.6", "1.8", "2"];
-const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
-  bodyFontFamily: [],
-  headingFontFamily: [],
-  baseFontSize: ["14px", "16px", "18px", "20px", "22px", "24px"],
-  baseLineHeight: LINE_HEIGHT_PRESETS,
-  h1Size: ["28px", "32px", "36px", "40px", "42px", "48px"],
-  h2Size: ["22px", "24px", "28px", "32px", "36px"],
-  h3Size: ["18px", "20px", "22px", "26px", "30px"],
-};
 const SPACING_STEP = 8;
 const SPACING_PIXEL_BASE: Record<string, number> = {
   none: 0,
@@ -453,6 +409,56 @@ function detectInlineFormatsAtNode(node: Node | null, container: HTMLElement): {
   return result;
 }
 
+const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
+  primary: "Primary",
+  secondary: "Secondary",
+  accent: "Accent",
+  link: "Link",
+  text: "Text",
+  mutedText: "Muted Text",
+  background: "Background",
+  surface: "Surface",
+  buttonBg: "Button Background",
+  buttonText: "Button Text",
+};
+const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "primary",
+  "secondary",
+  "accent",
+  "link",
+  "buttonBg",
+  "buttonText",
+];
+const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "text",
+  "mutedText",
+  "background",
+  "surface",
+];
+const STYLE_TYPOGRAPHY_OPTION_LABELS: Partial<Record<MassicStyleTypographyKey, string>> = {
+  baseFontSize: "Base Text Size",
+  baseLineHeight: "Base Line Height",
+  h1Size: "H1 Size",
+  h2Size: "H2 Size",
+  h3Size: "H3 Size",
+};
+const VISIBLE_STYLE_TYPOGRAPHY_KEYS: MassicStyleTypographyKey[] = [
+  "baseFontSize",
+  "baseLineHeight",
+  "h1Size",
+  "h2Size",
+  "h3Size",
+];
+const LINE_HEIGHT_PRESETS = ["1.3", "1.4", "1.5", "1.6", "1.8", "2"];
+const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
+  bodyFontFamily: [],
+  headingFontFamily: [],
+  baseFontSize: ["14px", "16px", "18px", "20px", "22px", "24px"],
+  baseLineHeight: LINE_HEIGHT_PRESETS,
+  h1Size: ["28px", "32px", "36px", "40px", "42px", "48px"],
+  h2Size: ["22px", "24px", "28px", "32px", "36px"],
+  h3Size: ["18px", "20px", "22px", "26px", "30px"],
+};
 
 type HtmlContentType = "page" | "blog";
 
@@ -908,6 +914,7 @@ export function WebPageHtmlView({
   const [isSaving, setIsSaving] = React.useState(false);
   const [layoutDeleteDialogOpen, setLayoutDeleteDialogOpen] = React.useState(false);
   const [selectionFormats, setSelectionFormats] = React.useState<{ bold: boolean; italic: boolean; underline: boolean; strike: boolean }>({ bold: false, italic: false, underline: false, strike: false });
+  const [isAiRefineExpanded, setIsAiRefineExpanded] = React.useState(false);
 
   const sourceHtmlRef = React.useRef("");
   const textNodeIndexRef = React.useRef<EditableTextNodeRef[]>([]);
@@ -1701,6 +1708,20 @@ export function WebPageHtmlView({
     return target.closest(TEXT_OWNER_SELECTOR) as HTMLElement | null;
   }, []);
 
+  const getPreviewTextOwnersForRange = React.useCallback((range: Range) => {
+    const container = previewContainerRef.current;
+    if (!container) return [] as HTMLElement[];
+    return Array.from(
+      container.querySelectorAll(TEXT_OWNER_SELECTOR)
+    ).filter((node) => {
+      try {
+        return range.intersectsNode(node);
+      } catch {
+        return false;
+      }
+    }) as HTMLElement[];
+  }, []);
+
   const persistPreviewSelection = React.useCallback((selectionInput?: Selection | null) => {
     const container = previewContainerRef.current;
     const selection = selectionInput ?? window.getSelection();
@@ -1719,7 +1740,8 @@ export function WebPageHtmlView({
     const endTextElement = getPreviewTextElement(range.endContainer);
     const startOwner = getPreviewTextOwnerElement(startTextElement);
     const endOwner = getPreviewTextOwnerElement(endTextElement);
-    if (!startOwner || !endOwner || startOwner !== endOwner) {
+    const owners = getPreviewTextOwnersForRange(range);
+    if (!startOwner || !endOwner || owners.length === 0) {
       savedTextSelectionRef.current = null;
       return;
     }
@@ -1728,7 +1750,7 @@ export function WebPageHtmlView({
       range: range.cloneRange(),
       textId: startTextElement?.dataset.massicTextId || endTextElement?.dataset.massicTextId || null,
     };
-  }, [getPreviewTextElement, getPreviewTextOwnerElement]);
+  }, [getPreviewTextElement, getPreviewTextOwnerElement, getPreviewTextOwnersForRange]);
 
   const restoreSavedPreviewSelection = React.useCallback(() => {
     const saved = savedTextSelectionRef.current;
@@ -1745,6 +1767,249 @@ export function WebPageHtmlView({
     return selection;
   }, []);
 
+  const getSavedPreviewSelectionContext = React.useCallback(() => {
+    const container = previewContainerRef.current;
+    if (!container) return null;
+
+    const highlightedSelection = container.querySelector(
+      `[${AI_SELECTION_ATTR}="true"]`
+    ) as HTMLElement | null;
+    if (highlightedSelection) {
+      const owner = highlightedSelection.closest(TEXT_OWNER_SELECTOR) as HTMLElement | null;
+      if (!owner) return null;
+      const range = document.createRange();
+      range.selectNodeContents(highlightedSelection);
+      return {
+        range,
+        owner,
+        owners: [owner],
+        textId:
+          highlightedSelection.closest("[data-massic-text-id]")?.getAttribute("data-massic-text-id") ||
+          savedTextSelectionRef.current?.textId ||
+          null,
+        surroundingContext: normalizeSelectedText(owner.textContent || ""),
+      };
+    }
+
+    const savedRange = savedTextSelectionRef.current?.range?.cloneRange();
+    const liveSelection = window.getSelection();
+    const liveRange = liveSelection && liveSelection.rangeCount > 0
+      ? liveSelection.getRangeAt(0).cloneRange()
+      : null;
+    const range = savedRange || liveRange;
+    if (!range || range.collapsed) return null;
+
+    if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+      return null;
+    }
+
+    const startTextElement = getPreviewTextElement(range.startContainer);
+    const endTextElement = getPreviewTextElement(range.endContainer);
+    const startOwner = getPreviewTextOwnerElement(startTextElement);
+    const endOwner = getPreviewTextOwnerElement(endTextElement);
+    const owners = getPreviewTextOwnersForRange(range);
+    if (!startOwner || !endOwner || owners.length === 0) {
+      return null;
+    }
+
+    return {
+      range,
+      owner: startOwner,
+      owners,
+      textId:
+        savedTextSelectionRef.current?.textId ||
+        startTextElement?.dataset.massicTextId ||
+        endTextElement?.dataset.massicTextId ||
+        null,
+      surroundingContext: owners
+        .map((owner) => normalizeSelectedText(owner.textContent || ""))
+        .filter(Boolean)
+        .join("\n\n"),
+    };
+  }, [getPreviewTextElement, getPreviewTextOwnerElement, getPreviewTextOwnersForRange]);
+
+  const clearAiSelectionHighlight = React.useCallback(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+    const highlightedNodes = Array.from(
+      container.querySelectorAll(`[${AI_SELECTION_ATTR}="true"]`)
+    );
+    highlightedNodes.forEach((node) => {
+      unwrapElementPreservingChildren(node);
+    });
+    const highlightedOwners = Array.from(
+      container.querySelectorAll(`[${AI_SELECTION_OWNER_ATTR}="true"]`)
+    );
+    highlightedOwners.forEach((node) => {
+      (node as HTMLElement).removeAttribute(AI_SELECTION_OWNER_ATTR);
+    });
+  }, []);
+
+  const applyAiSelectionHighlight = React.useCallback(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+
+    clearAiSelectionHighlight();
+
+    const selectionContext = getSavedPreviewSelectionContext();
+    if (!selectionContext) return;
+
+    const selectedText = normalizeSelectedText(selectionContext.range.toString());
+    if (!selectedText) return;
+
+    if (selectionContext.owners.length > 1) {
+      selectionContext.owners.forEach((owner) => {
+        owner.setAttribute(AI_SELECTION_OWNER_ATTR, "true");
+      });
+      savedTextSelectionRef.current = {
+        range: selectionContext.range.cloneRange(),
+        textId: selectionContext.textId,
+      };
+      return;
+    }
+
+    const wrapper = document.createElement("span");
+    wrapper.setAttribute(AI_SELECTION_ATTR, "true");
+    const fragment = selectionContext.range.extractContents();
+    wrapper.appendChild(fragment);
+    selectionContext.range.insertNode(wrapper);
+
+    const nextRange = document.createRange();
+    nextRange.selectNodeContents(wrapper);
+    savedTextSelectionRef.current = {
+      range: nextRange.cloneRange(),
+      textId: selectionContext.textId,
+    };
+  }, [clearAiSelectionHighlight, getSavedPreviewSelectionContext]);
+
+  const createPlainTextFragment = React.useCallback((value: string) => {
+    const fragment = document.createDocumentFragment();
+    const normalized = String(value || "").replace(/\r\n/g, "\n");
+    const lines = normalized.split("\n");
+    lines.forEach((line, index) => {
+      if (index > 0) {
+        fragment.appendChild(document.createElement("br"));
+      }
+      fragment.appendChild(document.createTextNode(line));
+    });
+    return fragment;
+  }, []);
+
+  const splitRefinedTextIntoBlocks = React.useCallback((value: string) => {
+    const normalized = String(value || "").replace(/\r\n/g, "\n").trim();
+    if (!normalized) return [];
+    const blocks = normalized
+      .split(/\n\s*\n+/)
+      .map((block) => block.trim())
+      .filter(Boolean);
+    if (blocks.length > 1) return blocks;
+    return normalized
+      .split("\n")
+      .map((block) => block.trim())
+      .filter(Boolean);
+  }, []);
+
+  const sanitizeClonedTextOwner = React.useCallback((element: HTMLElement) => {
+    element.removeAttribute("contenteditable");
+    element.removeAttribute("spellcheck");
+    element.removeAttribute("tabindex");
+    element.removeAttribute("data-massic-text-editing");
+    element.removeAttribute("data-massic-text-owner-selected");
+    element.removeAttribute(AI_SELECTION_OWNER_ATTR);
+  }, []);
+
+  const describeTextOwnerForAi = React.useCallback((owner: HTMLElement) => {
+    const tagName = owner.tagName.toLowerCase();
+    if (/^h[1-6]$/.test(tagName)) {
+      return `heading (${tagName.toUpperCase()})`;
+    }
+    if (tagName === "p") return "paragraph";
+    if (tagName === "li") return "list item";
+    if (tagName === "blockquote") return "blockquote";
+    if (tagName === "summary") return "summary";
+    if (tagName === "details") return "details";
+    if (tagName === "a") return "link";
+    return tagName;
+  }, []);
+
+  const normalizeRefinedTextForOwner = React.useCallback((owner: HTMLElement, value: string) => {
+    const tagName = owner.tagName.toLowerCase();
+    const normalized = String(value || "").replace(/\r\n/g, "\n").trim();
+
+    if (/^h[1-6]$/.test(tagName)) {
+      return normalized.replace(/^#{1,6}\s+/, "").trim();
+    }
+
+    if (tagName === "li") {
+      return normalized.replace(/^([-*+]|\d+\.)\s+/, "").trim();
+    }
+
+    return normalized;
+  }, []);
+
+  const splitRefinedTextAcrossOwners = React.useCallback((value: string, owners: HTMLElement[]) => {
+    const cleaned = String(value || "").replace(/\r\n/g, "\n").trim();
+    if (!owners.length) return [];
+    if (!cleaned) return owners.map(() => "");
+
+    const blocks = splitRefinedTextIntoBlocks(cleaned);
+    if (blocks.length === owners.length) {
+      return blocks;
+    }
+
+    if (blocks.length > owners.length) {
+      return [
+        ...blocks.slice(0, owners.length - 1),
+        blocks.slice(owners.length - 1).join("\n\n"),
+      ];
+    }
+
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (owners.length === 1 || words.length <= 1) {
+      return [cleaned, ...owners.slice(1).map(() => "")].slice(0, owners.length);
+    }
+
+    const originalWordCounts = owners.map((owner) => {
+      const ownerWords = normalizeSelectedText(owner.textContent || "")
+        .split(/\s+/)
+        .filter(Boolean);
+      return Math.max(1, ownerWords.length);
+    });
+
+    const result: string[] = [];
+    let cursor = 0;
+
+    for (let index = 0; index < owners.length; index += 1) {
+      const remainingOwners = owners.length - index;
+      const remainingWords = words.length - cursor;
+
+      if (index === owners.length - 1) {
+        result.push(words.slice(cursor).join(" "));
+        break;
+      }
+
+      const remainingOriginalWords = originalWordCounts
+        .slice(index)
+        .reduce((sum, count) => sum + count, 0);
+      const proportionalTake = Math.round(
+        (originalWordCounts[index]! / remainingOriginalWords) * remainingWords
+      );
+      const takeCount = Math.max(
+        1,
+        Math.min(proportionalTake, remainingWords - (remainingOwners - 1))
+      );
+
+      result.push(words.slice(cursor, cursor + takeCount).join(" "));
+      cursor += takeCount;
+    }
+
+    while (result.length < owners.length) {
+      result.push("");
+    }
+
+    return result.slice(0, owners.length);
+  }, [splitRefinedTextIntoBlocks]);
+
   const serializePreviewDomToSourceHtml = React.useCallback(() => {
     const container = previewContainerRef.current;
     if (!container) return sourceHtmlRef.current;
@@ -1752,6 +2017,13 @@ export function WebPageHtmlView({
 
     const textWrappers = Array.from(clone.querySelectorAll("[data-massic-text-id]"));
     textWrappers.forEach((node) => {
+      unwrapElementPreservingChildren(node);
+    });
+
+    const aiSelectionWrappers = Array.from(
+      clone.querySelectorAll(`[${AI_SELECTION_ATTR}="true"]`)
+    );
+    aiSelectionWrappers.forEach((node) => {
       unwrapElementPreservingChildren(node);
     });
 
@@ -2089,6 +2361,189 @@ export function WebPageHtmlView({
     commitPreviewDomToSource();
   }, [activeTextEditor, commitPreviewDomToSource, persistPreviewSelection, pushUndo, restoreSavedPreviewSelection, updateActiveTextStyle]);
 
+  const handleAiRefine = React.useCallback(
+    async (_action: "custom", selectedText: string, customPrompt?: string) => {
+      const instruction = customPrompt?.trim();
+      if (!instruction) {
+        throw new Error("Add an instruction to refine the selected text.");
+      }
+
+      const selectionContext = getSavedPreviewSelectionContext();
+      if (!selectionContext) {
+        throw new Error("Select text in the editor to refine it.");
+      }
+
+      const instructionWithStructure =
+        selectionContext.owners.length > 1
+          ? `${instruction}\n\nPreserve the same content structure as the selected text. Return exactly ${selectionContext.owners.length} blocks in this order: ${selectionContext.owners
+              .map((owner) => describeTextOwnerForAi(owner))
+              .join(", ")}. Do not merge headings and paragraphs into one paragraph.`
+          : instruction;
+
+      const response = await api.post<AiTextTransformResponse>(
+        `/ai/text/transform?business_id=${encodeURIComponent(businessId)}`,
+        "python",
+        {
+          selected_text: selectedText,
+          instruction: instructionWithStructure,
+          surrounding_context: selectionContext.surroundingContext || null,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            accept: "application/json",
+          },
+        }
+      );
+
+      const revisedText = String(response?.revised_text || "").trim();
+      if (!revisedText) {
+        throw new Error("AI returned an empty refinement.");
+      }
+
+      return revisedText;
+    },
+    [businessId, describeTextOwnerForAi, getSavedPreviewSelectionContext]
+  );
+
+  const handleAcceptAiRefine = React.useCallback(
+    (revisedText: string) => {
+      const highlightedSelection = previewContainerRef.current?.querySelector(
+        `[${AI_SELECTION_ATTR}="true"]`
+      ) as HTMLElement | null;
+      const selectionContext = getSavedPreviewSelectionContext();
+      if (!selectionContext && !highlightedSelection) {
+        toast.error("The selected text is no longer available.");
+        return;
+      }
+
+      pushUndo();
+      let insertedAnchor: Node | null = null;
+
+      if (
+        selectionContext &&
+        selectionContext.owners.length > 1
+      ) {
+        const owners = selectionContext.owners;
+        const firstOwner = owners[0] || null;
+        const lastOwner = owners[owners.length - 1] || null;
+        const firstParent = firstOwner?.parentNode || null;
+        const mappedBlocks = splitRefinedTextAcrossOwners(revisedText, owners);
+        const canReplaceAsBlocks =
+          !!firstOwner &&
+          !!lastOwner &&
+          !!firstParent &&
+          owners.every((owner) => owner.parentNode === firstParent);
+
+        if (canReplaceAsBlocks) {
+          const fragment = document.createDocumentFragment();
+          const replacements = owners.map((owner, index) => {
+            const replacement = owner.cloneNode(false) as HTMLElement;
+            sanitizeClonedTextOwner(replacement);
+            replacement.replaceChildren(
+              createPlainTextFragment(
+                normalizeRefinedTextForOwner(owner, mappedBlocks[index] || "")
+              )
+            );
+            fragment.appendChild(replacement);
+            return replacement;
+          });
+          firstParent.insertBefore(fragment, firstOwner!);
+          insertedAnchor = replacements[0] || null;
+          owners.forEach((owner) => {
+            owner.parentNode?.removeChild(owner);
+          });
+        } else {
+          const selection = restoreSavedPreviewSelection();
+          const range = selectionContext.range.cloneRange();
+          range.deleteContents();
+          const fragment = createPlainTextFragment(revisedText);
+          insertedAnchor = fragment.lastChild;
+          range.insertNode(fragment);
+          selection?.removeAllRanges();
+        }
+      } else if (highlightedSelection?.parentNode) {
+        const normalizedText = selectionContext?.owners[0]
+          ? normalizeRefinedTextForOwner(selectionContext.owners[0], revisedText)
+          : revisedText;
+        const fragment = createPlainTextFragment(normalizedText);
+        insertedAnchor = fragment.lastChild || highlightedSelection.previousSibling;
+        highlightedSelection.parentNode.insertBefore(fragment, highlightedSelection);
+        highlightedSelection.parentNode.removeChild(highlightedSelection);
+      } else {
+        const selection = restoreSavedPreviewSelection();
+        const range = selectionContext?.range.cloneRange();
+        if (!range) return;
+        range.deleteContents();
+        const normalizedText = selectionContext?.owners[0]
+          ? normalizeRefinedTextForOwner(selectionContext.owners[0], revisedText)
+          : revisedText;
+        const fragment = createPlainTextFragment(normalizedText);
+        insertedAnchor = fragment.lastChild;
+        range.insertNode(fragment);
+        selection?.removeAllRanges();
+      }
+
+      const textNode = insertedAnchor instanceof Text
+        ? insertedAnchor
+        : getPreviewTextElement(insertedAnchor)?.firstChild;
+      const nextRange = document.createRange();
+      if (insertedAnchor instanceof HTMLElement) {
+        nextRange.selectNodeContents(insertedAnchor);
+      } else if (textNode) {
+        nextRange.selectNodeContents(textNode);
+      } else {
+        nextRange.selectNodeContents(previewContainerRef.current || document.body);
+      }
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(nextRange);
+      persistPreviewSelection(selection);
+      commitPreviewDomToSource();
+
+      const textId =
+        selectionContext?.owners.length === 1 ? selectionContext.textId || null : null;
+      const textElement = textId
+        ? (previewContainerRef.current?.querySelector(
+            `[data-massic-text-id="${textId}"]`
+          ) as HTMLElement | null)
+        : getPreviewTextElement(insertedAnchor);
+      const info = textElement ? getTextBlockInfoFromElement(textElement) : null;
+
+      if (info) {
+        setActiveTextEditor((current) =>
+          current
+            ? {
+                ...current,
+                id: info.id,
+                label: info.label,
+                text: info.text,
+                style: info.style,
+              }
+            : current
+        );
+      }
+
+      if (previewContainerRef.current) {
+        setSelectionFormats(
+          detectInlineFormatsAtNode(insertedAnchor, previewContainerRef.current)
+        );
+      }
+    },
+    [
+      commitPreviewDomToSource,
+      createPlainTextFragment,
+      getPreviewTextElement,
+      getSavedPreviewSelectionContext,
+      persistPreviewSelection,
+      pushUndo,
+      restoreSavedPreviewSelection,
+      normalizeRefinedTextForOwner,
+      sanitizeClonedTextOwner,
+      splitRefinedTextAcrossOwners,
+    ]
+  );
+
   const closeActiveLayoutEditor = React.useCallback(() => {
     setActiveLayoutEditor(null);
     setSpacingDraft(createEmptySpacingValue());
@@ -2228,6 +2683,24 @@ export function WebPageHtmlView({
   }, [activeTextEditor?.id, getPreviewTextOwnerElement, previewEditMode, previewHtml]);
 
   React.useEffect(() => {
+    if (previewEditMode !== "text" || !isAiRefineExpanded) {
+      clearAiSelectionHighlight();
+      return;
+    }
+
+    applyAiSelectionHighlight();
+
+    return () => {
+      clearAiSelectionHighlight();
+    };
+  }, [
+    applyAiSelectionHighlight,
+    clearAiSelectionHighlight,
+    isAiRefineExpanded,
+    previewEditMode,
+  ]);
+
+  React.useEffect(() => {
     if (previewEditMode !== "text") {
       setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
       return;
@@ -2238,12 +2711,14 @@ export function WebPageHtmlView({
     const handleSelectionChange = () => {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
+        if (isAiRefineExpanded) return;
         savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
       }
       const range = selection.getRangeAt(0);
       if (!container.contains(range.startContainer)) {
+        if (isAiRefineExpanded) return;
         savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
@@ -2254,6 +2729,7 @@ export function WebPageHtmlView({
         return;
       }
       if (!container.contains(range.endContainer)) {
+        if (isAiRefineExpanded) return;
         savedTextSelectionRef.current = null;
         setSelectionFormats({ bold: false, italic: false, underline: false, strike: false });
         return;
@@ -2270,7 +2746,7 @@ export function WebPageHtmlView({
 
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
-  }, [persistPreviewSelection, previewEditMode]);
+  }, [isAiRefineExpanded, persistPreviewSelection, previewEditMode]);
 
   React.useEffect(() => {
     const container = previewContainerRef.current;
@@ -3169,14 +3645,15 @@ export function WebPageHtmlView({
       ? selection.anchorNode
       : selection?.anchorNode?.parentElement;
     const info = target ? getTextBlockInfoFromElement(target as HTMLElement) : null;
-    if (!info) return;
 
-    persistPreviewSelection(selection);
-    setActiveTextEditor((current) => current && current.id === info.id ? {
-      ...current,
-      text: info.text,
-      style: info.style,
-    } : current);
+    if (info) {
+      persistPreviewSelection(selection);
+      setActiveTextEditor((current) => current && current.id === info.id ? {
+        ...current,
+        text: info.text,
+        style: info.style,
+      } : current);
+    }
     commitPreviewDomToSource();
   }, [commitPreviewDomToSource, persistPreviewSelection, previewEditMode]);
 
@@ -3305,6 +3782,25 @@ export function WebPageHtmlView({
       return;
     }
 
+    if (previewEditMode === "text" && activeTextEditor && event.key === "Enter" && !event.shiftKey) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-massic-text-editing='true']")) {
+        event.preventDefault();
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+          const br = document.createElement("br");
+          range.insertNode(br);
+          range.setStartAfter(br);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        return;
+      }
+    }
+
     if (previewEditMode === "text" && activeTextEditor && (event.metaKey || event.ctrlKey) && !event.altKey) {
       const key = event.key.toLowerCase();
       if (key === "b") {
@@ -3367,7 +3863,6 @@ export function WebPageHtmlView({
               <Plus className="h-4 w-4" />
               Insert
             </Button>
-
             <div className="h-5 w-px bg-border" />
             <div className="inline-flex items-center gap-0.5">
               <Tooltip><TooltipTrigger asChild>
@@ -4284,6 +4779,13 @@ export function WebPageHtmlView({
                 onPasteCapture={handlePasteCapture}
                 onKeyDownCapture={handleKeyDownCapture}
               />
+              <AIRefineToolbarDom
+                containerRef={previewContainerRef}
+                enabled={previewEditMode === "text"}
+                onRefine={handleAiRefine}
+                onAccept={handleAcceptAiRefine}
+                onExpandedChange={setIsAiRefineExpanded}
+              />
             </div>
             <InsertBlockDialog
               open={insertDialogOpen}
@@ -4374,6 +4876,16 @@ export function WebPageHtmlView({
                 border-radius: 6px;
                 background: color-mix(in srgb, var(--massic-primary, #2E6A56) 5%, transparent);
                 box-shadow: 0 0 0 2px color-mix(in srgb, var(--massic-primary, #2E6A56) 28%, transparent);
+              }
+              .massic-html-preview.massic-mode-text [data-massic-ai-selection='true'] {
+                border-radius: 3px;
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 24%, white);
+                box-shadow: 0 0 0 1px color-mix(in srgb, var(--massic-primary, #2E6A56) 35%, transparent);
+              }
+              .massic-html-preview.massic-mode-text [data-massic-ai-selection-owner='true'] {
+                border-radius: 6px;
+                background: color-mix(in srgb, var(--massic-primary, #2E6A56) 10%, transparent);
+                box-shadow: 0 0 0 2px color-mix(in srgb, var(--massic-primary, #2E6A56) 22%, transparent);
               }
               .massic-html-preview.massic-mode-text [data-massic-text-editing='true'] {
                 cursor: text;

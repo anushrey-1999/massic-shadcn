@@ -1351,7 +1351,7 @@ export function WebPageHtmlView({
   }, [isPublishModalOpen, isWpConnected, publishContentId, wpConnection?.connectionId]);
 
   React.useEffect(() => {
-    if (!isPublishModalOpen) return;
+    if (isPublishModalOpen) return;
     setIsSlugEdited(false);
     setSlugCheckResult(null);
     setSlugCheckError(null);
@@ -3440,11 +3440,11 @@ export function WebPageHtmlView({
                 <Input
                   value={editableSlug}
                   onChange={(e) => {
-                    setEditableSlug(normalizeWordpressBlogEditableSlug(e.target.value));
+                    setEditableSlug(e.target.value);
                     setIsSlugEdited(true);
                   }}
                   placeholder={isBlogContent ? "enter-blog-slug" : "enter-page-slug"}
-                  disabled={isPublishBusy || isSlugChecking}
+                  disabled={isPublishBusy || isAutoResolvingSlug}
                 />
               </div>
               <div className="space-y-1">

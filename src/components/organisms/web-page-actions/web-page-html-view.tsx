@@ -75,10 +75,10 @@ import { cn } from "@/lib/utils";
 import { AIRefineToolbarDom } from "@/components/ui/ai-refine-toolbar";
 import { copyToClipboard } from "@/utils/clipboard";
 import { resolvePageContent } from "@/utils/page-content-resolver";
-import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import { ContentConverter } from "@/utils/content-converter";
 import { api } from "@/hooks/use-api";
 import { ensureMassicContentWrapper } from "@/utils/page-content-format";
+import { normalizeWordpressSlugPath, normalizeWordpressSlugPathInput, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import {
   applySpacingEditsToHtml,
   applyLinkEditsToHtml,
@@ -3847,8 +3847,8 @@ export function WebPageHtmlView({ businessId, pageId }: { businessId: string; pa
                 <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
                 <Input
                   value={editableSlug}
-                  onChange={(e) => {
-                    setEditableSlug(normalizeWordpressBlogEditableSlug(e.target.value));
+                  onChange={(event) => {
+                    setEditableSlug(normalizeWordpressSlugPathInput(event.target.value));
                     setIsSlugEdited(true);
                   }}
                   placeholder="enter-page-slug"

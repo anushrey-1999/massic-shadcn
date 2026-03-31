@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { resolvePageContent } from "@/utils/page-content-resolver";
+import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
@@ -111,12 +111,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const isGenerating = status === "pending" || status === "processing";
 
   const outlineFromServer = cleanEscapedContent(content?.output_data?.page?.outline || "");
-  const blogFromContent = content?.output_data?.page?.blog;
   const finalFromServer =
     type === "blog"
-      ? cleanEscapedContent(
-        (typeof blogFromContent === "string" ? blogFromContent : blogFromContent?.blog_post) || ""
-      )
+      ? resolveBlogFinalContent(content)
       : resolvePageContent(content);
 
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;

@@ -1,34 +1,48 @@
 const MASSIC_CSS_PUBLIC_PATH = "/wp-css-component-library.css";
+const MASSIC_BLOG_CSS_PUBLIC_PATH = "/wp-massic-blog-library.css";
 
-let massicCssCache: string | null = null;
-let massicCssPromise: Promise<string> | null = null;
+const cssTextCache = new Map<string, string>();
+const cssTextPromiseCache = new Map<string, Promise<string>>();
 
 function hasMassicContentClass(html: string): boolean {
   return /class\s*=\s*["'][^"']*\bmassic-content\b[^"']*["']/i.test(html);
 }
 
-export async function getMassicCssText(): Promise<string> {
-  if (massicCssCache !== null) return massicCssCache;
-  if (massicCssPromise) return massicCssPromise;
+async function getPublicCssText(path: string): Promise<string> {
+  const cached = cssTextCache.get(path);
+  if (typeof cached === "string") return cached;
 
-  massicCssPromise = fetch(MASSIC_CSS_PUBLIC_PATH, { method: "GET" })
+  const existingPromise = cssTextPromiseCache.get(path);
+  if (existingPromise) return existingPromise;
+
+  const nextPromise = fetch(path, { method: "GET" })
     .then(async (response) => {
       if (!response.ok) return "";
       return response.text();
     })
     .then((css) => {
-      massicCssCache = typeof css === "string" ? css.trim() : "";
-      return massicCssCache;
+      const normalized = typeof css === "string" ? css.trim() : "";
+      cssTextCache.set(path, normalized);
+      return normalized;
     })
     .catch(() => {
-      massicCssCache = "";
+      cssTextCache.set(path, "");
       return "";
     })
     .finally(() => {
-      massicCssPromise = null;
+      cssTextPromiseCache.delete(path);
     });
 
-  return massicCssPromise;
+  cssTextPromiseCache.set(path, nextPromise);
+  return nextPromise;
+}
+
+export async function getMassicCssText(): Promise<string> {
+  return getPublicCssText(MASSIC_CSS_PUBLIC_PATH);
+}
+
+export async function getMassicBlogCssText(): Promise<string> {
+  return getPublicCssText(MASSIC_BLOG_CSS_PUBLIC_PATH);
 }
 
 function buildCssVarOverrideBlock(cssVarOverrides?: Record<string, string>): string {

@@ -984,6 +984,52 @@ export function sanitizePageHtml(html: string): string {
   return doc.body.innerHTML;
 }
 
+export function stripMassicEditorArtifacts(html: string): string {
+  if (!html || typeof html !== "string") return "";
+
+  const doc = parseHtml(html);
+  const textWrappers = Array.from(doc.body.querySelectorAll("[data-massic-text-id]"));
+  textWrappers.forEach((wrapper) => {
+    const parent = wrapper.parentNode;
+    if (!parent) return;
+    while (wrapper.firstChild) {
+      parent.insertBefore(wrapper.firstChild, wrapper);
+    }
+    parent.removeChild(wrapper);
+  });
+
+  const elements = Array.from(doc.body.querySelectorAll("*"));
+  elements.forEach((element) => {
+    const hadEditorMarkers =
+      element.classList.contains("massic-text-editable") ||
+      Array.from(element.attributes).some((attr) => attr.name.startsWith("data-massic-"));
+
+    Array.from(element.attributes).forEach((attr) => {
+      if (attr.name.startsWith("data-massic-")) {
+        element.removeAttribute(attr.name);
+      }
+    });
+
+    element.removeAttribute("contenteditable");
+    element.removeAttribute("spellcheck");
+    element.removeAttribute("tabindex");
+    element.classList.remove("massic-text-editable");
+
+    if (hadEditorMarkers) {
+      const title = String(element.getAttribute("title") || "").trim();
+      if (/^edit\s+/i.test(title) || /^click to edit link$/i.test(title)) {
+        element.removeAttribute("title");
+      }
+    }
+
+    if (!String(element.getAttribute("class") || "").trim()) {
+      element.removeAttribute("class");
+    }
+  });
+
+  return doc.body.innerHTML;
+}
+
 const GRID_COL_MAP: Record<string, string> = {
   "cols-2": "repeat(2, minmax(0, 1fr))",
   "cols-3": "repeat(3, minmax(0, 1fr))",

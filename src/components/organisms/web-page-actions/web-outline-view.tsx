@@ -188,7 +188,6 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
       await updateOutline(type, businessId, pageId, next);
       lastSavedOutlineRef.current = next;
       setOutline(next);
-      toast.success("Changes Saved");
     } catch {
       toast.error("Failed to save changes to server");
     }
@@ -290,6 +289,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
               content={outline}
               onEditorReady={setOutlineEditor}
               onSave={handleSaveOutline}
+              autoSaveDelayMs={1000}
               placeholder={type === "blog" ? "Write your blog outline here..." : "Write your page outline here..."}
             />
           </Card>

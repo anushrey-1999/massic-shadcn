@@ -18,6 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Tooltip,
   TooltipContent,
@@ -41,14 +49,17 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useBusinessStore, BusinessProfile } from "@/store/business-store";
-import { useSubscription, SubscribeParams } from "@/hooks/use-subscription";
+import { useSubscription } from "@/hooks/use-subscription";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { Typography } from "@/components/ui/typography";
 import { useMassicOpportunitiesStatus, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
 import { MassicOpportunitiesModal } from "@/components/molecules/MassicOpportunitiesModal";
-import { useAuthStore } from "@/store/auth-store";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
+import { useBillingReconciliation } from "@/hooks/use-billing-reconciliation";
+import { BillingReconciliationReport as BillingReconciliationReportView } from "@/components/organisms/settings/BillingReconciliationReport";
+import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
+import { generatePdfFromBillingReconciliation } from "@/utils/pdf-generator";
 
 const toTitleCasePlan = (planType?: string) => {
   if (!planType) return "";
@@ -73,6 +84,31 @@ const formatShortDate = (value?: string | number | Date | null) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+const getCurrentMonthValue = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+};
+
+const downloadTextFile = (filename: string, contents: string, mimeType: string) => {
+  const blob = new Blob([contents], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+const escapeCsvCell = (value: string | number | null | undefined) => {
+  const stringValue = String(value ?? "");
+  if (/[",\n]/.test(stringValue)) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
 };
 
 // Helper to calculate linked businesses count for plans
@@ -158,6 +194,10 @@ export function BillingSettings() {
     business: BusinessProfile;
   } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [reconciliationSheetOpen, setReconciliationSheetOpen] = useState(false);
+  const [selectedReportMonth, setSelectedReportMonth] = useState(getCurrentMonthValue);
+  const [reconciliationReport, setReconciliationReport] = useState<BillingReconciliationReport | null>(null);
+  const [reconciliationPdfLoading, setReconciliationPdfLoading] = useState(false);
   const [planChangeConfirm, setPlanChangeConfirm] = useState<{
     planName: string;
     action: "UPGRADE" | "DOWNGRADE";
@@ -187,8 +227,8 @@ export function BillingSettings() {
   const cancelMassicOpportunities = useCancelMassicOpportunities();
   const subscribeMassicOpportunities = useSubscribeMassicOpportunities();
   const reactivateMassicOpportunities = useReactivateMassicOpportunities();
-  const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const billingReconciliation = useBillingReconciliation();
 
   const loading = subscriptionLoading || creditsLoading;
   const settingsReturnUrl = useMemo(() => {
@@ -200,6 +240,78 @@ export function BillingSettings() {
   const handlePurchaseCredits = useCallback((params?: { quantity?: number }) => {
     return purchaseCredits({ ...params, returnUrl: settingsReturnUrl });
   }, [purchaseCredits, settingsReturnUrl]);
+
+  const handleGenerateReconciliationReport = useCallback(async () => {
+    try {
+      const report = await billingReconciliation.mutateAsync({ month: selectedReportMonth });
+      setReconciliationReport(report);
+      setReconciliationSheetOpen(true);
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to load billing reconciliation report"
+      );
+    }
+  }, [billingReconciliation, selectedReportMonth]);
+
+  const handleDownloadReconciliationCsv = useCallback(() => {
+    if (!reconciliationReport) return;
+
+    const header = [
+      "Business",
+      "Plan",
+      "Billing Period Start",
+      "Billing Period End",
+      "Last Billed",
+      "Next Billing",
+      "Invoice",
+      "Amount",
+      "Currency",
+      "Row Type",
+      "Match Status",
+    ];
+
+    const rows = reconciliationReport.rows.map((row) => [
+      row.businessName,
+      row.planName,
+      row.billingPeriodStart || "",
+      row.billingPeriodEnd || "",
+      row.lastBilledAt || "",
+      row.nextBillingAt || "",
+      row.invoiceNumber,
+      row.amount,
+      row.currency,
+      row.rowType,
+      row.matchStatus,
+    ]);
+
+    const csv = [header, ...rows]
+      .map((line) => line.map((cell) => escapeCsvCell(cell)).join(","))
+      .join("\n");
+
+    downloadTextFile(
+      `billing-reconciliation-${reconciliationReport.month}.csv`,
+      csv,
+      "text/csv;charset=utf-8"
+    );
+  }, [reconciliationReport]);
+
+  const handleDownloadReconciliationPdf = useCallback(async () => {
+    if (!reconciliationReport) return;
+
+    try {
+      setReconciliationPdfLoading(true);
+      await generatePdfFromBillingReconciliation(
+        reconciliationReport,
+        `billing-reconciliation-${reconciliationReport.month}`
+      );
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to generate reconciliation PDF");
+    } finally {
+      setReconciliationPdfLoading(false);
+    }
+  }, [reconciliationReport]);
 
   // Dynamic plans data based on current subscriptions
   const plansStats = useMemo(
@@ -623,12 +735,23 @@ export function BillingSettings() {
       <div className="flex-[1.2] min-w-0 h-full overflow-hidden">
         <Card className="border-none shadow-none py-0">
           <CardHeader className="px-0 pb-2">
-            <CardTitle className="text-base">Business Billing</CardTitle>
-            <CardDescription>
-              Manage subscriptions, renewals, and billing periods per business.
-            </CardDescription>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle className="text-base">Business Billing</CardTitle>
+                <CardDescription>
+                  Manage subscriptions, renewals, and billing periods per business.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReconciliationSheetOpen(true)}
+              >
+                Reconciliation report
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="space-y-6 p-0">
             {loading && profiles.length === 0 ? (
               <div className="flex justify-center p-8">
                 <Loader2 className="h-8 w-8 animate-spin" />
@@ -815,6 +938,53 @@ export function BillingSettings() {
           subscribeMassicOpportunities.mutate({ returnUrl: settingsReturnUrl || "" });
         }}
       />
+
+      <Sheet open={reconciliationSheetOpen} onOpenChange={setReconciliationSheetOpen}>
+        <SheetContent side="right" className="w-[100vw] gap-0 p-0 sm:max-w-[1080px]">
+          <SheetHeader className="border-b border-border/60 pr-12">
+            <SheetTitle>Billing reconciliation report</SheetTitle>
+            <SheetDescription>
+              Review the selected month, export CSV, or download the PDF without leaving the billing screen.
+            </SheetDescription>
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1">
+                <Input
+                  id="reconciliation-month-sheet"
+                  type="month"
+                  value={selectedReportMonth}
+                  onChange={(event) => setSelectedReportMonth(event.target.value)}
+                  max={getCurrentMonthValue()}
+                  aria-label="Select reconciliation month"
+                  className="max-w-[220px]"
+                />
+              </div>
+              <Button
+                onClick={handleGenerateReconciliationReport}
+                disabled={!selectedReportMonth || billingReconciliation.isPending}
+                className="sm:self-end"
+              >
+                {billingReconciliation.isPending ? "Loading..." : "Load report"}
+              </Button>
+            </div>
+          </SheetHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            {reconciliationReport ? (
+              <BillingReconciliationReportView
+                report={reconciliationReport}
+                onDownloadCsv={handleDownloadReconciliationCsv}
+                onDownloadPdf={handleDownloadReconciliationPdf}
+                isDownloadingPdf={reconciliationPdfLoading}
+              />
+            ) : (
+              <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground">
+                Generate a reconciliation report to view it here.
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

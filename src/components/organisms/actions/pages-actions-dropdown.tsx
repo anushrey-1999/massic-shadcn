@@ -7,10 +7,12 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Download,
   Loader2,
   RotateCw,
 } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -19,6 +21,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogOverlay, DialogTitle } from "@/components/ui/dialog"
 import { RelevancePill } from "@/components/ui/relevance-pill"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { PagesPlansDialog } from "./pages-plans-dialog"
 import { usePagePlanner } from "@/hooks/use-page-planner"
@@ -76,6 +79,14 @@ type Props = {
 const DEFAULT_ITEMS: PagesActionsItem[] = []
 
 const PAGE_PLANS_QUERY_KEY = "page-planner-plans"
+const VIEW_ACTION_STATUSES = new Set([
+  "success",
+  "update_required",
+  "outline_only",
+  "final_only",
+  "pending",
+  "processing",
+])
 
 function isTruthyFlag(value: unknown): boolean {
   if (value === true) return true
@@ -197,6 +208,25 @@ function oppScoreLabel(score: number | undefined): "High" | "Medium" | "Low" {
   if (v >= 0.67) return "High"
   if (v >= 0.34) return "Medium"
   return "Low"
+}
+
+function formatPlanItemStatus(value: unknown): string {
+  const status = firstNonEmptyString(value)
+  if (!status) return "Build"
+  return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function getGeneratedViewLabel(item: PagePlannerPlanItem): string {
+  const status = String((item as any)?.status || "").trim().toLowerCase()
+  return VIEW_ACTION_STATUSES.has(status) ? "Report generated" : "Not generated"
+}
+
+function escapeCsvValue(value: unknown): string {
+  const stringValue = String(value ?? "")
+  if (/[",\n]/.test(stringValue)) {
+    return `"${stringValue.replace(/"/g, "\"\"")}"`
+  }
+  return stringValue
 }
 
 function extractPlanItems(payload: unknown): PagePlannerPlanItem[] | null {
@@ -553,6 +583,11 @@ export function PagesActionsDropdown({
     retry: 1,
   })
 
+  const activePlanItems = React.useMemo(
+    () => extractPlanItemsFromDetail(activePlanQuery.data) ?? [],
+    [activePlanQuery.data]
+  )
+
   React.useEffect(() => {
     if (!planItemsOverride) return
     setGenerateError(null)
@@ -892,6 +927,62 @@ export function PagesActionsDropdown({
     if (pagesBusy) return
     setRefineDialogOpen(true)
   }, [handleGenerate, showGenerateButton, pagesBusy, isPlansLoading])
+
+  const handleDownloadCsv = React.useCallback(() => {
+    if (activePlanItems.length === 0) {
+      toast.error("No active plan available to download.")
+      return
+    }
+
+    const headers = ["Title", "Page Type", "Relevance", "Status", "Vol", "Opp Score", "Generated / View"]
+    const csvRows = activePlanItems.map((item) => {
+      const raw: any = item as any
+      const relevance =
+        getNumberFromAny(raw, [
+          "business_relevance_score",
+          "businessRelevanceScore",
+          "relevance_score",
+          "relevanceScore",
+          "relevance",
+          "score",
+        ]) ?? 0
+      const vol = getNumberFromAny(raw, ["search_volume", "searchVolume", "volume"]) ?? 0
+      const opp = oppScoreLabel(
+        getNumberFromAny(raw, [
+          "page_opportunity_score",
+          "pageOpportunityScore",
+          "opportunity_score",
+          "opportunityScore",
+        ]) ?? 0
+      )
+      const pageType = getStringFromAny(raw, ["page_type", "pageType", "type"]) || ""
+
+      return [
+        getItemTitle(raw),
+        toTitleCase(pageType) || "—",
+        String(relevance),
+        formatPlanItemStatus(getPlanItemStatus(raw)),
+        formatVolume(vol),
+        opp,
+        getGeneratedViewLabel(item),
+      ]
+    })
+
+    const csvContent = [headers, ...csvRows]
+      .map((row) => row.map((value) => escapeCsvValue(value)).join(","))
+      .join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fileSuffix = typeof activePlanId === "number" ? `_${activePlanId}` : ""
+    link.href = url
+    link.download = `active_pages_plan${fileSuffix}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [activePlanId, activePlanItems])
 
   const table = isPanelOpen ? (
     <div
@@ -1320,6 +1411,27 @@ export function PagesActionsDropdown({
           <span className="text-xs font-mono text-general-muted-foreground">
             {lastUpdatedLabelDisplay}
           </span>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="secondary"
+                size="icon"
+                className="h-9 w-9 rounded-lg"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDownloadCsv()
+                }}
+                disabled={!businessId || activePlanQuery.isLoading || activePlanItems.length === 0}
+                aria-label="Download CSV"
+              >
+                <Download className="h-[13px] w-[13px]" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={8}>
+              Download CSV
+            </TooltipContent>
+          </Tooltip>
 
           <Button
             variant="secondary"

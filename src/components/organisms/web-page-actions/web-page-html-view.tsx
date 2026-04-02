@@ -957,6 +957,9 @@ export function WebPageHtmlView({
   const saveTimerRef = React.useRef<number | null>(null);
   const isSavingRef = React.useRef(false);
   const queuedSaveRef = React.useRef(false);
+  const flushSaveRef = React.useRef<((reason: SaveReason) => Promise<void>) | null>(null);
+  const blogMetaTitleDraftRef = React.useRef("");
+  const blogMetaDescriptionDraftRef = React.useRef("");
   const previewContainerRef = React.useRef<HTMLDivElement | null>(null);
   const lastRenderedHtmlRef = React.useRef("");
   const isEditorFocusedRef = React.useRef(false);
@@ -1005,14 +1008,9 @@ export function WebPageHtmlView({
           endpoint,
           "python",
           {
-            blog_post: ContentConverter.htmlToMarkdown(content),
+            html: content,
             meta_title: metaTitle || undefined,
             meta_description: metaDescription,
-            formatted_blog: {
-              html: content,
-              meta_title: metaTitle || undefined,
-              meta_description: metaDescription || undefined,
-            },
           },
           {
             headers: {
@@ -1039,6 +1037,11 @@ export function WebPageHtmlView({
     },
     [businessId, isBlogContent, pageId]
   );
+
+  React.useEffect(() => {
+    blogMetaTitleDraftRef.current = blogMetaTitleDraft;
+    blogMetaDescriptionDraftRef.current = blogMetaDescriptionDraft;
+  }, [blogMetaDescriptionDraft, blogMetaTitleDraft]);
 
   const runBackgroundRefetch = React.useCallback(
     async (attempt = 0) => {
@@ -1080,12 +1083,23 @@ export function WebPageHtmlView({
     [canonicalizeMetaValue, contentQuery, isBlogContent, normalizeEditorHtml, resolveBlogMetaFields, resolveHtmlContent]
   );
 
+  const scheduleDebouncedSave = React.useCallback(() => {
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void flushSaveRef.current?.("debounce");
+    }, 1000);
+  }, []);
+
   const flushSave = React.useCallback(
     async (reason: SaveReason) => {
       const nextHtml = composeCurrentHtml();
       if (!nextHtml) return;
-      const nextMetaTitle = canonicalizeMetaValue(blogMetaTitleDraft);
-      const nextMetaDescription = canonicalizeMetaValue(blogMetaDescriptionDraft);
+      const nextMetaTitle = canonicalizeMetaValue(blogMetaTitleDraftRef.current);
+      const nextMetaDescription = canonicalizeMetaValue(blogMetaDescriptionDraftRef.current);
       const validation = validateEditorHtml(nextHtml);
       if (!validation.isValid) {
         toast.error(validation.errors[0] || "Layout is invalid and could not be saved.");
@@ -1181,12 +1195,16 @@ export function WebPageHtmlView({
         isSavingRef.current = false;
         if (queuedSaveRef.current) {
           queuedSaveRef.current = false;
-          void flushSave("debounce");
+          scheduleDebouncedSave();
         }
       }
     },
-    [blogMetaDescriptionDraft, blogMetaTitleDraft, canonicalizeMetaValue, composeCurrentHtml, isBlogContent, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml]
+    [canonicalizeMetaValue, composeCurrentHtml, isBlogContent, runBackgroundRefetch, scheduleDebouncedSave, updateHtmlContentRequest, validateEditorHtml]
   );
+
+  React.useEffect(() => {
+    flushSaveRef.current = flushSave;
+  }, [flushSave]);
 
   React.useEffect(() => {
     if (!data) return;
@@ -1207,8 +1225,8 @@ export function WebPageHtmlView({
       Object.keys(linkLabelEditsRef.current).length > 0 ||
       Object.keys(spacingEditsRef.current).length > 0;
     const hasPendingMetaEdits = isBlogContent && (
-      canonicalizeMetaValue(blogMetaTitleDraft) !== lastSavedMetaTitleRef.current ||
-      canonicalizeMetaValue(blogMetaDescriptionDraft) !== lastSavedMetaDescriptionRef.current
+      canonicalizeMetaValue(blogMetaTitleDraftRef.current) !== lastSavedMetaTitleRef.current ||
+      canonicalizeMetaValue(blogMetaDescriptionDraftRef.current) !== lastSavedMetaDescriptionRef.current
     );
     const localChangeInProgress = hasLocalEditsRef.current || hasPendingEdits || hasPendingMetaEdits || isSavingRef.current;
     const serverMetaMatchesLocal = !isBlogContent || (
@@ -1280,7 +1298,7 @@ export function WebPageHtmlView({
         isInitialLoadRef.current = false;
       }, 250);
     }
-  }, [blogMetaDescriptionDraft, blogMetaTitleDraft, canonicalizeMetaValue, data, isBlogContent, normalizeEditorHtml, resolveBlogMetaFields, resolveHtmlContent]);
+  }, [canonicalizeMetaValue, data, isBlogContent, normalizeEditorHtml, resolveBlogMetaFields, resolveHtmlContent]);
 
   React.useEffect(() => {
     const nextStatus = (data?.status || "").toString().toLowerCase();
@@ -1676,6 +1694,18 @@ export function WebPageHtmlView({
       if (ok) toast.success("HTML copied with styles");
       else toast.error("Copy failed");
     }
+  };
+
+  const handleCopyMetaTitle = async () => {
+    const ok = await copyToClipboard(blogMetaTitleDraft || "");
+    if (ok) toast.success("Copied");
+    else toast.error("Copy failed");
+  };
+
+  const handleCopyMetaDescription = async () => {
+    const ok = await copyToClipboard(blogMetaDescriptionDraft || "");
+    if (ok) toast.success("Copied");
+    else toast.error("Copy failed");
   };
 
   const resolveSpacingLabel = React.useCallback((ref: EditableSpacingRef | undefined) => {
@@ -2117,8 +2147,9 @@ export function WebPageHtmlView({
       setPollingDisabled(true);
     }
     setIsDirty(true);
+    scheduleDebouncedSave();
     return nextHtml;
-  }, [pollingDisabled, serializePreviewDomToSourceHtml]);
+  }, [pollingDisabled, scheduleDebouncedSave, serializePreviewDomToSourceHtml]);
 
   const applyTextStyleToPreviewOwner = React.useCallback((element: HTMLElement, style: Partial<EditableTextStyleValue>) => {
     if (style.bold !== undefined) {
@@ -3340,8 +3371,8 @@ export function WebPageHtmlView({
   const handleManualSave = React.useCallback(async () => {
     const nextHtml = composeCurrentHtml();
     if (!nextHtml) return;
-    const nextMetaTitle = canonicalizeMetaValue(blogMetaTitleDraft);
-    const nextMetaDescription = canonicalizeMetaValue(blogMetaDescriptionDraft);
+    const nextMetaTitle = canonicalizeMetaValue(blogMetaTitleDraftRef.current);
+    const nextMetaDescription = canonicalizeMetaValue(blogMetaDescriptionDraftRef.current);
     const validation = validateEditorHtml(nextHtml);
     if (!validation.isValid) {
       toast.error(validation.errors[0] || "Layout is invalid and could not be saved.");
@@ -3386,7 +3417,7 @@ export function WebPageHtmlView({
     } finally {
       setIsSaving(false);
     }
-  }, [blogMetaDescriptionDraft, blogMetaTitleDraft, canonicalizeMetaValue, composeCurrentHtml, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml]);
+  }, [canonicalizeMetaValue, composeCurrentHtml, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml]);
 
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -3729,6 +3760,7 @@ export function WebPageHtmlView({
         window.clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
+      void flushSaveRef.current?.("blur");
     }
   };
 
@@ -4853,7 +4885,12 @@ export function WebPageHtmlView({
               <div className="px-4 pb-4">
                 <Card className="space-y-4 p-4">
                   <div className="space-y-2">
-                    <Typography className="text-sm font-medium">Meta Title</Typography>
+                    <div className="flex items-center justify-between gap-2">
+                      <Typography className="text-sm font-medium">Meta Title</Typography>
+                      <Button variant="ghost" size="icon" onClick={handleCopyMetaTitle} type="button">
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Input
                       value={blogMetaTitleDraft}
                       onChange={(event) => {
@@ -4861,12 +4898,18 @@ export function WebPageHtmlView({
                         hasLocalEditsRef.current = true;
                         isEditingSessionRef.current = true;
                         setIsDirty(true);
+                        scheduleDebouncedSave();
                       }}
                       placeholder="Enter blog meta title"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Typography className="text-sm font-medium">Meta Description</Typography>
+                    <div className="flex items-center justify-between gap-2">
+                      <Typography className="text-sm font-medium">Meta Description</Typography>
+                      <Button variant="ghost" size="icon" onClick={handleCopyMetaDescription} type="button">
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Textarea
                       value={blogMetaDescriptionDraft}
                       onChange={(event) => {
@@ -4874,6 +4917,7 @@ export function WebPageHtmlView({
                         hasLocalEditsRef.current = true;
                         isEditingSessionRef.current = true;
                         setIsDirty(true);
+                        scheduleDebouncedSave();
                       }}
                       placeholder="Enter blog meta description"
                       className="min-h-[120px]"

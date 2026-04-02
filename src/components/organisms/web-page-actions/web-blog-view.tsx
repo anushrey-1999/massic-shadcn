@@ -985,7 +985,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     try {
       if (type === "blog") {
         await updateBlogContent(businessId, pageId, {
-          blog_post: next,
+          html: ContentConverter.markdownToHtml(next),
+          meta_title: String(publishTitle),
           meta_description: metaDescription,
         });
       } else {
@@ -1008,7 +1009,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
     try {
       await updateBlogContent(businessId, pageId, {
-        blog_post: mainContent,
+        html: ContentConverter.markdownToHtml(mainContent),
+        meta_title: String(publishTitle),
         meta_description: nextMeta,
       });
       lastSavedMetaRef.current = nextMeta;

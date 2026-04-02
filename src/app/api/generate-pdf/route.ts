@@ -7,6 +7,11 @@ import {
   parsePerformanceReport,
   PERFORMANCE_REPORT_V2_CSS,
 } from "@/utils/performance-report-v2";
+import {
+  BILLING_RECONCILIATION_CSS,
+  buildBillingReconciliationBodyHtml,
+} from "@/utils/billing-reconciliation-pdf";
+import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
 
 const CHROMIUM_URL =
   "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar";
@@ -874,12 +879,14 @@ export async function POST(request: NextRequest) {
       competitors,
       footerSummary,
       poweredByName,
+      report,
     } =
       await request.json();
 
     const normalizedTitle = String(title || "Document");
     const isSnapshotTemplate = template === "snapshot" && !!expressPitch;
     const isPerformanceV2Template = template === "performance-v2";
+    const isBillingReconciliationTemplate = template === "billing-reconciliation";
 
     let bodyHtml = "";
     let css = CSS;
@@ -910,6 +917,16 @@ export async function POST(request: NextRequest) {
 
       bodyHtml = buildPerformanceReportV2BodyHtml(parsed.document);
       css = PERFORMANCE_REPORT_V2_CSS;
+    } else if (isBillingReconciliationTemplate) {
+      if (!report) {
+        return NextResponse.json(
+          { error: "report JSON payload is required for template billing-reconciliation" },
+          { status: 400 }
+        );
+      }
+
+      bodyHtml = buildBillingReconciliationBodyHtml(report as BillingReconciliationReport);
+      css = BILLING_RECONCILIATION_CSS;
     } else if (typeof html === "string" && html.trim()) {
       bodyHtml = html;
       css = CSS;
@@ -945,7 +962,7 @@ export async function POST(request: NextRequest) {
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: isSnapshotTemplate || isPerformanceV2Template
+      margin: isSnapshotTemplate || isPerformanceV2Template || isBillingReconciliationTemplate
         ? { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" }
         : { top: "20mm", right: "20mm", bottom: "20mm", left: "20mm" },
     });

@@ -132,6 +132,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
 
   const [mainContent, setMainContent] = React.useState("");
+  const [metaTitle, setMetaTitle] = React.useState("");
   const [metaDescription, setMetaDescription] = React.useState("");
   const [citations, setCitations] = React.useState<string[]>([]);
   const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
@@ -169,7 +170,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [isAutoResolvingSlug, setIsAutoResolvingSlug] = React.useState(false);
 
   const lastSavedMainRef = React.useRef<string>("");
-  const lastSavedMetaRef = React.useRef<string>("");
+  const lastSavedMetaTitleRef = React.useRef<string>("");
+  const lastSavedMetaDescriptionRef = React.useRef<string>("");
 
   const canonicalize = React.useCallback((value: string) => {
     return (value || "").replace(/\r\n/g, "\n").replace(/\u00A0/g, " ").trimEnd();
@@ -243,6 +245,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       const blogData = data?.output_data?.page?.blog;
       const rawBlog =
         typeof blogData === "string" ? blogData : (blogData?.blog_post || "");
+      const rawMetaTitle =
+        typeof blogData === "object" && blogData !== null
+          ? blogData?.meta_title || ""
+          : "";
       const rawMeta =
         typeof blogData === "object" && blogData !== null
           ? blogData?.meta_description || ""
@@ -253,19 +259,23 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           : [];
 
       setMainContent(cleanEscapedContent(rawBlog));
+      setMetaTitle(cleanEscapedContent(rawMetaTitle));
       setMetaDescription(cleanEscapedContent(rawMeta));
       setCitations(Array.isArray(rawCitations) ? rawCitations : []);
 
       lastSavedMainRef.current = canonicalize(cleanEscapedContent(rawBlog));
-      lastSavedMetaRef.current = canonicalize(cleanEscapedContent(rawMeta));
+      lastSavedMetaTitleRef.current = canonicalize(cleanEscapedContent(rawMetaTitle));
+      lastSavedMetaDescriptionRef.current = canonicalize(cleanEscapedContent(rawMeta));
     } else {
       const rawPage = resolvePageContent(data);
       setMainContent(rawPage);
+      setMetaTitle("");
       setMetaDescription("");
       setCitations([]);
 
       lastSavedMainRef.current = canonicalize(rawPage);
-      lastSavedMetaRef.current = "";
+      lastSavedMetaTitleRef.current = "";
+      lastSavedMetaDescriptionRef.current = "";
     }
 
     if (isInitialLoadRef.current) {
@@ -308,15 +318,16 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const inferPage = data?.output_data?.page || {};
   const inferBlog = inferPage?.blog || {};
-  const publishTitle = inferBlog?.meta_title || keyword || "Untitled";
+  const visiblePostTitle = inferPage?.title || keyword || "Untitled";
+  const seoTitle = metaTitle.trim() || inferBlog?.meta_title || keyword || "Untitled";
   const publishContentId = inferPage?.page_id || pageId;
   const inferSlug = React.useMemo(
     () => (typeof inferPage?.slug === "string" ? String(inferPage.slug).trim() : ""),
     [inferPage?.slug]
   );
   const generatedSlugFallback = React.useMemo(
-    () => normalizeWordpressSlugPath(publishTitle || keyword || ""),
-    [keyword, publishTitle]
+    () => normalizeWordpressSlugPath(seoTitle || visiblePostTitle || keyword || ""),
+    [keyword, seoTitle, visiblePostTitle]
   );
   const generatedSlug = React.useMemo(() => {
     if (inferSlug) return normalizeWordpressBlogEditableSlug(inferSlug);
@@ -659,6 +670,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const buildPublishPayload = React.useCallback(
     (targetStatus: "draft" | "publish") => {
       const excerpt = (metaDescription || inferBlog?.meta_description || "").trim();
+      const normalizedSeoTitle = seoTitle.trim();
       return {
         connectionId: String(wpConnection?.connectionId || ""),
         status: targetStatus,
@@ -666,13 +678,23 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         workflowPayload: data || {},
         contentId: String(publishContentId),
         type: publishType,
-        title: String(publishTitle),
+        title: String(visiblePostTitle),
         slug: normalizedSlugForPublish || null,
         contentMarkdown: mainContent,
         contentHtml: ContentConverter.markdownToHtml(mainContent),
         excerpt: excerpt || null,
         head: {
-          title: String(publishTitle),
+          title: String(visiblePostTitle),
+          seoTitle: normalizedSeoTitle || undefined,
+          metaDescription: excerpt || undefined,
+          ogTitle: normalizedSeoTitle || undefined,
+          ogDescription: excerpt || undefined,
+          twitterTitle: normalizedSeoTitle || undefined,
+          twitterDescription: excerpt || undefined,
+          metaKeys: {
+            _massic_meta_title: normalizedSeoTitle || undefined,
+            _massic_meta_description: excerpt || undefined,
+          },
           meta: {
             description: excerpt || undefined,
           },
@@ -683,9 +705,11 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       data,
       inferBlog?.meta_description,
       mainContent,
+      metaTitle,
       metaDescription,
       publishContentId,
-      publishTitle,
+      seoTitle,
+      visiblePostTitle,
       publishType,
       normalizedSlugForPublish,
       wpConnection?.connectionId,
@@ -964,6 +988,12 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
   };
 
+  const handleCopyMetaTitle = async () => {
+    const ok = await copyToClipboard(metaTitle || "");
+    if (ok) toast.success("Copied");
+    else toast.error("Copy failed");
+  };
+
   const handleCopyMeta = async () => {
     const ok = await copyToClipboard(metaDescription || "");
     if (ok) toast.success("Copied");
@@ -986,7 +1016,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       if (type === "blog") {
         await updateBlogContent(businessId, pageId, {
           html: ContentConverter.markdownToHtml(next),
-          meta_title: String(publishTitle),
+          meta_title: metaTitle,
           meta_description: metaDescription,
         });
       } else {
@@ -1004,16 +1034,20 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     if (isInitialLoad) return;
     if (type !== "blog") return;
 
+    const nextMetaTitle = canonicalize(metaTitle);
     const nextMeta = canonicalize(metaDescription);
-    if (nextMeta === canonicalize(lastSavedMetaRef.current)) return;
+    const titleUnchanged = nextMetaTitle === canonicalize(lastSavedMetaTitleRef.current);
+    const descriptionUnchanged = nextMeta === canonicalize(lastSavedMetaDescriptionRef.current);
+    if (titleUnchanged && descriptionUnchanged) return;
 
     try {
       await updateBlogContent(businessId, pageId, {
         html: ContentConverter.markdownToHtml(mainContent),
-        meta_title: String(publishTitle),
+        meta_title: nextMetaTitle,
         meta_description: nextMeta,
       });
-      lastSavedMetaRef.current = nextMeta;
+      lastSavedMetaTitleRef.current = nextMetaTitle;
+      lastSavedMetaDescriptionRef.current = nextMeta;
       toast.success("Changes Saved");
     } catch {
       toast.error("Failed to save changes to server");
@@ -1220,6 +1254,21 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Card className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
+                    <Typography variant="h6">Meta Title</Typography>
+                    <Button variant="ghost" size="icon" onClick={handleCopyMetaTitle} type="button">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Input
+                    value={metaTitle}
+                    onChange={(e) => setMetaTitle(e.target.value)}
+                    onBlur={handleMetaBlur}
+                    placeholder="Write your meta title here..."
+                  />
+                </Card>
+
+                <Card className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
                     <Typography variant="h6">Meta Description</Typography>
                     <Button variant="ghost" size="icon" onClick={handleCopyMeta} type="button">
                       <Copy className="h-4 w-4" />
@@ -1274,7 +1323,16 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                 </Typography>
               </div>
               <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
-              <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
+              <div className="space-y-1">
+                <div>
+                  <Typography className="text-xs text-muted-foreground">Post title</Typography>
+                  <Typography className="text-sm line-clamp-2">{visiblePostTitle}</Typography>
+                </div>
+                <div>
+                  <Typography className="text-xs text-muted-foreground">SEO title</Typography>
+                  <Typography className="text-sm line-clamp-2">{seoTitle}</Typography>
+                </div>
+              </div>
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
                 <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>

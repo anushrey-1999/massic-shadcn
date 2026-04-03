@@ -1356,7 +1356,22 @@ export function WebPageHtmlView({
           : extractPlainTextFromHtml(publishHtml),
         contentHtml: publishHtml,
         excerpt: publishDescription || null,
-        head: { title: String(publishTitle), meta: { description: publishDescription || undefined } },
+        head: isBlogContent
+          ? {
+            title: String(publishTitle),
+            seoTitle: String(publishTitle),
+            metaDescription: publishDescription || undefined,
+            ogTitle: String(publishTitle),
+            ogDescription: publishDescription || undefined,
+            twitterTitle: String(publishTitle),
+            twitterDescription: publishDescription || undefined,
+            metaKeys: {
+              _massic_meta_title: String(publishTitle),
+              _massic_meta_description: publishDescription || undefined,
+            },
+            meta: { description: publishDescription || undefined },
+          }
+          : { title: String(publishTitle), meta: { description: publishDescription || undefined } },
       };
     },
     [composeCurrentHtml, data, isBlogContent, publishContentId, publishDescription, publishTitle, publishType, normalizedSlugForPublish, wpConnection?.connectionId]
@@ -3986,15 +4001,17 @@ export function WebPageHtmlView({
                 <FileText className="h-4 w-4" />
               </Button>
             </TooltipTrigger><TooltipContent>Copy Text</TooltipContent></Tooltip>
-            <Button
-              className="gap-2"
-              type="button"
-              onClick={() => setIsPublishModalOpen(true)}
-              disabled={isProcessing || !hasFinalContent}
-            >
-              <Globe className="h-4 w-4" />
-              Actions
-            </Button>
+            {isBlogContent ? (
+              <Button
+                className="gap-2"
+                type="button"
+                onClick={() => setIsPublishModalOpen(true)}
+                disabled={isProcessing || !hasFinalContent}
+              >
+                <Globe className="h-4 w-4" />
+                Actions
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

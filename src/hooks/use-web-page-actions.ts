@@ -134,7 +134,8 @@ export function useWebPageActions() {
     businessId: string,
     pageId: string,
     params: {
-      blog_post: string;
+      html: string;
+      meta_title?: string;
       meta_description: string;
     }
   ) => {

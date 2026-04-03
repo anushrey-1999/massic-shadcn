@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { resolvePageContent } from "@/utils/page-content-resolver";
+import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 
 function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
@@ -112,11 +112,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const typeLabel = type === "blog" ? "blog" : "page";
   const finalContent =
     type === "blog"
-      ? cleanEscapedContent(
-          (typeof data?.output_data?.page?.blog === "string"
-            ? data?.output_data?.page?.blog
-            : data?.output_data?.page?.blog?.blog_post) || ""
-        )
+      ? resolveBlogFinalContent(data)
       : resolvePageContent(data);
   const hasFinalContent = !!finalContent && finalContent.trim().length > 0;
   const hasOutline = !!outline && outline.trim().length > 0;
@@ -192,7 +188,6 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
       await updateOutline(type, businessId, pageId, next);
       lastSavedOutlineRef.current = next;
       setOutline(next);
-      toast.success("Changes Saved");
     } catch {
       toast.error("Failed to save changes to server");
     }
@@ -294,6 +289,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
               content={outline}
               onEditorReady={setOutlineEditor}
               onSave={handleSaveOutline}
+              autoSaveDelayMs={1000}
               placeholder={type === "blog" ? "Write your blog outline here..." : "Write your page outline here..."}
             />
           </Card>

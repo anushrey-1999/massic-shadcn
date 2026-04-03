@@ -444,7 +444,6 @@ function mergeStyleStrings(existingStyle: string, spacingStyle: string): string 
   const spacingParts = spacingStyle.split(";").map((s) => s.trim()).filter(Boolean);
   return [...existing, ...spacingParts].join("; ");
 }
-
 function normalizeEditableSpacingEdit(input: Partial<EditableSpacingValue> | null | undefined): Partial<EditableSpacingValue> {
   if (!input || typeof input !== "object") return {};
 
@@ -982,6 +981,52 @@ export function sanitizePageHtml(html: string): string {
   if (!html || typeof html !== "string") return "";
   const doc = parseHtml(html);
   sanitizeNodeTree(doc.body);
+  return doc.body.innerHTML;
+}
+
+export function stripMassicEditorArtifacts(html: string): string {
+  if (!html || typeof html !== "string") return "";
+
+  const doc = parseHtml(html);
+  const textWrappers = Array.from(doc.body.querySelectorAll("[data-massic-text-id]"));
+  textWrappers.forEach((wrapper) => {
+    const parent = wrapper.parentNode;
+    if (!parent) return;
+    while (wrapper.firstChild) {
+      parent.insertBefore(wrapper.firstChild, wrapper);
+    }
+    parent.removeChild(wrapper);
+  });
+
+  const elements = Array.from(doc.body.querySelectorAll("*"));
+  elements.forEach((element) => {
+    const hadEditorMarkers =
+      element.classList.contains("massic-text-editable") ||
+      Array.from(element.attributes).some((attr) => attr.name.startsWith("data-massic-"));
+
+    Array.from(element.attributes).forEach((attr) => {
+      if (attr.name.startsWith("data-massic-")) {
+        element.removeAttribute(attr.name);
+      }
+    });
+
+    element.removeAttribute("contenteditable");
+    element.removeAttribute("spellcheck");
+    element.removeAttribute("tabindex");
+    element.classList.remove("massic-text-editable");
+
+    if (hadEditorMarkers) {
+      const title = String(element.getAttribute("title") || "").trim();
+      if (/^edit\s+/i.test(title) || /^click to edit link$/i.test(title)) {
+        element.removeAttribute("title");
+      }
+    }
+
+    if (!String(element.getAttribute("class") || "").trim()) {
+      element.removeAttribute("class");
+    }
+  });
+
   return doc.body.innerHTML;
 }
 

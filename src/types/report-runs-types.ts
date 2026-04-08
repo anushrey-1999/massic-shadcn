@@ -41,6 +41,8 @@ export interface ReportRunDetail {
   processed_data: any | null
   narrative_text: {
     errors?: Record<string, any>
+    llm_outputs?: Record<string, any>
+    infer_metadata?: Record<string, any>
     metadata?: Record<string, any>
     output_data?: {
       output_path?: string

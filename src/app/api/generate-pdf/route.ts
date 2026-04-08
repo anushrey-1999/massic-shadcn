@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import puppeteer, { Browser } from "puppeteer-core";
 import chromium from "@sparticuz/chromium-min";
 import Showdown from "showdown";
+import { parsePerformanceReport } from "@/utils/performance-report-v2";
 import {
   buildPerformanceReportV2BodyHtml,
-  parsePerformanceReport,
+  buildPerformanceReportV2Document,
   PERFORMANCE_REPORT_V2_CSS,
-} from "@/utils/performance-report-v2";
+  type PerformanceReportV2TemplateContext,
+} from "@/utils/performance-report-v2-template";
 import {
   BILLING_RECONCILIATION_CSS,
   buildBillingReconciliationBodyHtml,
@@ -72,6 +74,7 @@ const converter = new Showdown.Converter({
 
 let browserInstance: Browser | null = null;
 let browserPromise: Promise<Browser> | null = null;
+const PDF_VIEWPORT = { width: 1440, height: 2200, deviceScaleFactor: 1 };
 
 async function getBrowser(): Promise<Browser> {
   if (browserInstance?.connected) return browserInstance;
@@ -872,6 +875,7 @@ export async function POST(request: NextRequest) {
       template,
       html,
       performanceReport,
+      reportContext,
       expressPitch,
       generatedAt,
       quickEvaluation,
@@ -915,8 +919,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      bodyHtml = buildPerformanceReportV2BodyHtml(parsed.document);
-      css = PERFORMANCE_REPORT_V2_CSS;
+      const reportDocument = buildPerformanceReportV2Document(
+        parsed.raw,
+        (reportContext ?? {}) as PerformanceReportV2TemplateContext,
+        normalizedTitle || "Performance Report"
+      );
+      bodyHtml = reportDocument.html;
+      css = reportDocument.css;
     } else if (isBillingReconciliationTemplate) {
       if (!report) {
         return NextResponse.json(
@@ -956,8 +965,11 @@ export async function POST(request: NextRequest) {
 
     const browser = await getBrowser();
     page = await browser.newPage();
+    await page.setViewport(PDF_VIEWPORT);
+    await page.emulateMediaType("screen");
 
-    await page.setContent(fullHtml, { waitUntil: "domcontentloaded" });
+    await page.setContent(fullHtml, { waitUntil: "networkidle0" });
+    await page.evaluateHandle("document.fonts.ready");
 
     const pdf = await page.pdf({
       format: "A4",

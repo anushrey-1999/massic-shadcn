@@ -1,7 +1,5 @@
-import {
-  buildPerformanceReportV2BodyHtml,
-  parsePerformanceReport,
-} from "@/utils/performance-report-v2";
+import { parsePerformanceReport } from "@/utils/performance-report-v2";
+import type { PerformanceReportV2TemplateContext } from "@/utils/performance-report-v2-template";
 import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
 
 export async function generatePdfFromMarkdown(markdown: string, filename: string): Promise<void> {
@@ -29,7 +27,8 @@ export async function generatePdfFromMarkdown(markdown: string, filename: string
 
 export async function generatePdfFromPerformanceReportV2(
   performanceReport: unknown,
-  filename: string
+  filename: string,
+  reportContext?: PerformanceReportV2TemplateContext
 ): Promise<void> {
   const parsed = parsePerformanceReport(performanceReport);
 
@@ -45,7 +44,7 @@ export async function generatePdfFromPerformanceReportV2(
     body: JSON.stringify({
       template: "performance-v2",
       performanceReport,
-      html: buildPerformanceReportV2BodyHtml(parsed.document),
+      reportContext,
       title: filename.replace(".pdf", ""),
     }),
   });

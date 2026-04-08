@@ -149,6 +149,42 @@ export function useGenerateReport() {
   });
 }
 
+export interface GenerateReportV2Params {
+  businessId: string;
+  startDate: string;
+  endDate: string;
+  custom_instructions?: string;
+}
+
+export function useGenerateReportV2() {
+  const queryClient = useQueryClient();
+
+  return useMutation<GenerateReportResponse, Error, GenerateReportV2Params>({
+    mutationFn: async ({ businessId, startDate, endDate, custom_instructions }) => {
+      if (!businessId) {
+        throw new Error("Business ID is required");
+      }
+
+      if (!startDate || !endDate) {
+        throw new Error("Start and end dates are required");
+      }
+
+      const response = await api.post<GenerateReportResponse>(
+        `/analytics/generate-performance-report-v2`,
+        "node",
+        { businessId, startDate, endDate, custom_instructions }
+      );
+
+      return response;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["report-runs", variables.businessId],
+      });
+    },
+  });
+}
+
 export interface UpdatePerformanceReportParams {
   reportRunId: string;
   performance_report: string;

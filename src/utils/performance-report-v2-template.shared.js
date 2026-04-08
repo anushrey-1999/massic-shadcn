@@ -661,6 +661,61 @@ function renderChannels(model) {
   `;
 }
 
+function renderChannelsPdf(model) {
+  if (!model.channels.length) return "";
+  return `
+    <div class="sec">Channel breakdown</div>
+    <div class="ch-stack">
+      ${model.channels
+        .map(
+          (channel) => `
+            <div class="ch-card">
+              <div class="ch-hdr ${channel.tone} ch-hdr-pdf">
+                <table class="ch-head-table" role="presentation">
+                  <tbody>
+                    <tr>
+                      <td class="ch-name-cell">
+                        <div class="ch-left">
+                          <div class="ch-bar ${channel.tone}"></div>
+                          <div class="ch-name">${escapeHtml(channel.name)}</div>
+                        </div>
+                      </td>
+                      <td class="ch-stats-cell">
+                        <table class="ch-stats-table" role="presentation">
+                          <tbody>
+                            <tr>
+                              ${channel.stats
+                                .map(
+                                  (stat) => `
+                                    <td class="ch-stat-cell">
+                                      <div class="ch-stat">
+                                        <div class="ch-stat-lbl">${escapeHtml(stat.label)}</div>
+                                        <div class="ch-stat-val ${channel.tone}">${escapeHtml(stat.value)}</div>
+                                      </div>
+                                    </td>
+                                  `
+                                )
+                                .join("")}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                      <td class="ch-pill-cell">
+                        <span class="pill ${channel.tone}">${escapeHtml(channel.pillLabel)}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              ${channel.note ? `<div class="ch-note">${escapeHtml(channel.note)}</div>` : ""}
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderGbp(model) {
   if (!model.gbp || !model.gbp.metrics.length) return "";
   return `
@@ -829,6 +884,57 @@ function renderOrganicPages(model) {
   `;
 }
 
+function renderOrganicPagesPdf(model) {
+  if (!model.organicPages || !model.organicPages.rows.length) return "";
+  return `
+    <div class="sec">Organic search — page detail</div>
+    <div class="pages-card">
+      <div class="pg-hdr">
+        <span class="pg-hdr-title">Top organic pages</span>
+        ${model.organicPages.note ? `<span class="pg-hdr-note">${escapeHtml(model.organicPages.note)}</span>` : ""}
+      </div>
+      ${model.organicPages.rows
+        .map(
+          (row) => `
+            <table class="pg-row-table" role="presentation">
+              <tbody>
+                <tr>
+                  <td class="pg-left-cell">
+                    <div class="pg-left">
+                      <div class="pg-url">${escapeHtml(row.url)}</div>
+                      ${row.note ? `<div class="pg-note">${escapeHtml(row.note)}</div>` : ""}
+                    </div>
+                  </td>
+                  <td class="pg-metrics-cell">
+                    <table class="pg-metrics-table" role="presentation">
+                      <tbody>
+                        <tr>
+                          ${row.metrics
+                            .map(
+                              (metric) => `
+                                <td class="pm-cell">
+                                  <div class="pm">
+                                    <div class="pm-lbl">${escapeHtml(metric.label)}</div>
+                                    <div class="pm-val ${metric.tone}">${escapeHtml(metric.value)}</div>
+                                  </div>
+                                </td>
+                              `
+                            )
+                            .join("")}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderRankings(model) {
   if (!model.rankings) return "";
   return `
@@ -864,6 +970,58 @@ function renderRankings(model) {
                   <div class="list-q">${escapeHtml(row.query)}</div>
                   <div class="list-v ${row.tone}">${escapeHtml(row.value)}</div>
                 </div>
+              `
+            )
+            .join("")}
+        `
+        : ""}
+    </div>
+  `;
+}
+
+function renderRankingsPdf(model) {
+  if (!model.rankings) return "";
+  return `
+    <div class="sec">Search rankings</div>
+    <div class="rk-card">
+      <div class="rk-hdr">
+        <div class="rk-title">Ranking movements</div>
+        ${model.rankings.subtitle ? `<div class="rk-sub">${escapeHtml(model.rankings.subtitle)}</div>` : ""}
+      </div>
+      ${model.rankings.summary ? `<div class="rk-summary">${escapeHtml(model.rankings.summary)}</div>` : ""}
+      ${model.rankings.biggestMovers.length
+        ? `
+          <div class="list-hdr">Biggest ranking jumps this period</div>
+          ${model.rankings.biggestMovers
+            .map(
+              (row) => `
+                <table class="list-row-table" role="presentation">
+                  <tbody>
+                    <tr>
+                      <td class="list-q-cell"><div class="list-q">${escapeHtml(row.query)}</div></td>
+                      <td class="list-v-cell"><div class="list-v ${row.tone}">${escapeHtml(row.value)}</div></td>
+                    </tr>
+                  </tbody>
+                </table>
+              `
+            )
+            .join("")}
+        `
+        : ""}
+      ${model.rankings.newRankings.length
+        ? `
+          <div class="list-hdr top-border">New searches you are now showing up for</div>
+          ${model.rankings.newRankings
+            .map(
+              (row) => `
+                <table class="list-row-table" role="presentation">
+                  <tbody>
+                    <tr>
+                      <td class="list-q-cell"><div class="list-q">${escapeHtml(row.query)}</div></td>
+                      <td class="list-v-cell"><div class="list-v ${row.tone}">${escapeHtml(row.value)}</div></td>
+                    </tr>
+                  </tbody>
+                </table>
               `
             )
             .join("")}
@@ -955,12 +1113,12 @@ function buildPerformanceReportV2PdfBodyHtml(input, context = {}) {
         ${model.headline ? `<div class="headline"><div class="hl-title">${escapeHtml(model.headline.title)}</div><div class="hl-body">${renderHtmlParagraphs(model.headline.body)}</div></div>` : ""}
         ${renderWins(model)}
         ${renderMetricCardsPdf(model)}
-        ${renderChannels(model)}
+        ${renderChannelsPdf(model)}
         ${renderGbpPdf(model)}
         ${renderReviewInsights(model)}
         ${renderBusinessIntelligence(model)}
-        ${renderOrganicPages(model)}
-        ${renderRankings(model)}
+        ${renderOrganicPagesPdf(model)}
+        ${renderRankingsPdf(model)}
         ${renderReviewAreas(model)}
         ${model.footer ? `<footer class="rpt-footer">${escapeHtml(model.footer)}</footer>` : ""}
       </div>
@@ -1049,6 +1207,13 @@ const PERFORMANCE_REPORT_V2_BASE_CSS = `
   .pr-v2-root .ch-name{font-size:14px;font-weight:600}
   .pr-v2-root .ch-stats{display:flex;gap:20px}
   .pr-v2-root .ch-stat{text-align:right}
+  .pr-v2-root .ch-head-table{width:100%;table-layout:fixed;border-collapse:collapse}
+  .pr-v2-root .ch-name-cell{width:32%;vertical-align:middle}
+  .pr-v2-root .ch-stats-cell{vertical-align:middle}
+  .pr-v2-root .ch-pill-cell{width:92px;vertical-align:middle;text-align:right}
+  .pr-v2-root .ch-stats-table{width:100%;table-layout:fixed;border-collapse:collapse}
+  .pr-v2-root .ch-stat-cell{vertical-align:top;text-align:right;padding-left:18px}
+  .pr-v2-root .ch-stat-cell:first-child{padding-left:0}
   .pr-v2-root .ch-stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-md);margin-bottom:2px}
   .pr-v2-root .ch-stat-val{font-size:15px;font-weight:700}
   .pr-v2-root .ch-stat-val.strong{color:var(--strong)} .pr-v2-root .ch-stat-val.dip{color:var(--dip)} .pr-v2-root .ch-stat-val.neu{color:var(--gray-dk)}
@@ -1109,6 +1274,13 @@ const PERFORMANCE_REPORT_V2_BASE_CSS = `
   .pr-v2-root .pg-url{font-size:11px;font-family:monospace;color:var(--black);font-weight:500}
   .pr-v2-root .pg-note{font-size:11px;color:var(--gray-md);margin-top:2px}
   .pr-v2-root .pg-metrics{display:flex;gap:16px;flex-shrink:0}
+  .pr-v2-root .pg-row-table{width:100%;table-layout:fixed;border-collapse:collapse;border-bottom:var(--rule)}
+  .pr-v2-root .pg-row-table:last-child{border-bottom:none}
+  .pr-v2-root .pg-left-cell{vertical-align:top;padding:12px 20px}
+  .pr-v2-root .pg-metrics-cell{width:220px;vertical-align:top;padding:12px 20px 12px 0}
+  .pr-v2-root .pg-metrics-table{width:100%;table-layout:fixed;border-collapse:collapse}
+  .pr-v2-root .pm-cell{vertical-align:top;text-align:right;padding-left:16px}
+  .pr-v2-root .pm-cell:first-child{padding-left:0}
   .pr-v2-root .pm{text-align:right}
   .pr-v2-root .pm-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-md)}
   .pr-v2-root .pm-val{font-size:13px;font-weight:600}
@@ -1125,6 +1297,10 @@ const PERFORMANCE_REPORT_V2_BASE_CSS = `
   .pr-v2-root .list-row{display:flex;justify-content:space-between;align-items:center;
     padding:10px 20px;border-bottom:var(--rule);gap:12px}
   .pr-v2-root .list-row:last-child{border-bottom:none}
+  .pr-v2-root .list-row-table{width:100%;table-layout:fixed;border-collapse:collapse;border-bottom:var(--rule)}
+  .pr-v2-root .list-row-table:last-child{border-bottom:none}
+  .pr-v2-root .list-q-cell{vertical-align:middle;padding:10px 20px}
+  .pr-v2-root .list-v-cell{width:220px;vertical-align:middle;padding:10px 20px 10px 0;text-align:right}
   .pr-v2-root .list-q{font-size:13px;color:var(--black)}
   .pr-v2-root .list-v{font-size:12px;font-weight:600}
   .pr-v2-root .list-v.strong{color:var(--strong)} .pr-v2-root .list-v.neu{color:var(--gray-dk)}
@@ -1165,6 +1341,42 @@ const PERFORMANCE_REPORT_V2_BASE_CSS = `
     .pr-v2-root .m-cell,
     .pr-v2-root .gbp-cell { width:25% !important; }
     .pr-v2-root .rv-cols { grid-template-columns:1fr 1fr !important; }
+    .pr-v2-root .pg-row {
+      display:flex !important;
+      flex-direction:row !important;
+      justify-content:space-between !important;
+      align-items:flex-start !important;
+    }
+    .pr-v2-root .pg-left {
+      flex:1 1 auto !important;
+      min-width:0 !important;
+    }
+    .pr-v2-root .pg-metrics {
+      display:flex !important;
+      flex-direction:row !important;
+      flex-wrap:nowrap !important;
+      justify-content:flex-end !important;
+      flex-shrink:0 !important;
+    }
+    .pr-v2-root .pm {
+      text-align:right !important;
+    }
+    .pr-v2-root .list-row {
+      display:flex !important;
+      flex-direction:row !important;
+      justify-content:space-between !important;
+      align-items:center !important;
+    }
+    .pr-v2-root .list-q {
+      flex:1 1 auto !important;
+      min-width:0 !important;
+    }
+    .pr-v2-root .list-v {
+      flex:0 0 auto !important;
+      text-align:right !important;
+      margin-left:16px !important;
+      white-space:nowrap !important;
+    }
     .pr-v2-root .m-card,
     .pr-v2-root .ch-card,
     .pr-v2-root .gbp-card,

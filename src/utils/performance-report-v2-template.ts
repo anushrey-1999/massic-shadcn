@@ -63,6 +63,7 @@ export interface ReportTemplateViewModel {
     newRankings: Array<{ query: string; value: string; tone: "strong" | "dip" | "neu" }>;
   } | null;
   reviewAreas: Array<{ title: string; body: string }>;
+  confidenceNote: string | null;
   footer: string | null;
 }
 

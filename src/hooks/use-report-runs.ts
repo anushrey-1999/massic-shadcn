@@ -3,7 +3,13 @@
 import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi, api, type ApiPlatform } from "./use-api";
-import type { ListReportRunsResponse, ReportRunListItem, ReportRunDetail } from "@/types/report-runs-types";
+import type {
+  ListReportRunsResponse,
+  ReportRunListItem,
+  ReportRunDetail,
+  PerformanceReportPayload,
+  PerformanceReportV2EditedFields,
+} from "@/types/report-runs-types";
 
 export interface ListReportRunsParams {
   business_id: string;
@@ -187,7 +193,9 @@ export function useGenerateReportV2() {
 
 export interface UpdatePerformanceReportParams {
   reportRunId: string;
-  performance_report: string;
+  performance_report?: string;
+  edited_field_updates?: PerformanceReportV2EditedFields;
+  discard_all_edits?: boolean;
 }
 
 export interface UpdatePerformanceReportResponse {
@@ -196,7 +204,7 @@ export interface UpdatePerformanceReportResponse {
   data: {
     id: string;
     narrative_text: {
-      performance_report: string;
+      performance_report?: PerformanceReportPayload;
     };
   };
 }
@@ -205,24 +213,43 @@ export function useUpdatePerformanceReport() {
   const queryClient = useQueryClient();
 
   return useMutation<UpdatePerformanceReportResponse, Error, UpdatePerformanceReportParams>({
-    mutationFn: async ({ reportRunId, performance_report }) => {
+    mutationFn: async ({ reportRunId, performance_report, edited_field_updates, discard_all_edits }) => {
       if (!reportRunId) {
         throw new Error("Report run ID is required");
+      }
+
+      if (
+        performance_report === undefined &&
+        edited_field_updates === undefined &&
+        !discard_all_edits
+      ) {
+        throw new Error("A report update payload is required");
       }
 
       const response = await api.put<UpdatePerformanceReportResponse>(
         `/analytics/report-runs/${encodeURIComponent(reportRunId)}/performance-report`,
         "node",
-        { performance_report }
+        {
+          ...(performance_report !== undefined ? { performance_report } : {}),
+          ...(edited_field_updates !== undefined ? { edited_field_updates } : {}),
+          ...(discard_all_edits ? { discard_all_edits } : {}),
+        }
       );
 
       return response;
     },
     onSuccess: (data, variables) => {
-      // Invalidate the current report detail to refresh the data
-      queryClient.invalidateQueries({
-        queryKey: ["report-run-detail", variables.reportRunId],
-      });
+      queryClient.setQueryData<ReportRunDetail | undefined>(
+        ["report-run-detail", variables.reportRunId],
+        (current) =>
+          current
+            ? {
+                ...current,
+                narrative_text: data.data.narrative_text,
+                updated_at: new Date().toISOString(),
+              }
+            : current
+      );
     },
   });
 }

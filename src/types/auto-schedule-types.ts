@@ -4,6 +4,7 @@ export interface CreateAutoScheduleRequest {
   period?: string;
   requiresApproval?: boolean;
   watermarkReport?: boolean;
+  recipients?: string[];
 }
 
 export interface UpdateAutoScheduleRequest {
@@ -14,6 +15,7 @@ export interface UpdateAutoScheduleRequest {
   requiresApproval?: boolean;
   watermarkReport?: boolean;
   isActive?: boolean;
+  recipients?: string[];
 }
 
 export interface CreateAutoScheduleResponse {
@@ -27,6 +29,7 @@ export interface CreateAutoScheduleResponse {
   watermarkReport: boolean;
   isActive: boolean;
   nextRunAt: string;
+  recipients: string[];
   createdAt: string;
 }
 
@@ -44,6 +47,7 @@ export interface AutoSchedule {
   nextRunAt: string;
   lastRunAt: string | null;
   lastRunStatus: string | null;
+  recipients: string[];
   createdAt: string;
   updatedAt?: string;
 }

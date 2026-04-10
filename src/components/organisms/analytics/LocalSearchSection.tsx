@@ -171,7 +171,7 @@ export function LocalSearchSection({
             />
             <RatingCard
               title={`Ratings Past ${period}`}
-              rating={Math.round(reviewsData.avgRating.value)}
+              rating={reviewsData.avgRating.value}
               maxRating={5}
               change={reviewsData.avgRating.change}
             />

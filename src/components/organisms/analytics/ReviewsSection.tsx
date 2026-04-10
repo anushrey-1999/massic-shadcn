@@ -70,7 +70,7 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
 
         <RatingCard
           title={`Ratings Past ${period}`}
-          rating={Math.round(reviewsData.avgRating.value)}
+          rating={reviewsData.avgRating.value}
           maxRating={5}
           change={reviewsData.avgRating.change}
         />

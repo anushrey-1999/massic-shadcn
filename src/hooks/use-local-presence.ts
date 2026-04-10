@@ -34,6 +34,12 @@ interface LocalPresenceApiResponse {
   reviews?: string
 }
 
+interface NodeApiResponse {
+  data: LocalPresenceApiResponse | null
+  err: boolean
+  message: string
+}
+
 export interface InteractionChartDataPoint {
   date: string
   interactions: number
@@ -106,12 +112,16 @@ export function useLocalPresence(
         throw new Error("Missing business ID")
       }
 
-      const response = await api.get<LocalPresenceApiResponse>(
-        `/Review/FetchLocalPresence?uniqueId=${businessUniqueId}&period=${encodeURIComponent(period)}&location=${encodeURIComponent(location)}`,
-        "dotnet"
+      const response = await api.get<NodeApiResponse>(
+        `/local-presence/data?uniqueId=${businessUniqueId}&period=${encodeURIComponent(period)}&location=${encodeURIComponent(location)}`,
+        "node"
       )
 
-      return response
+      if (response.err || !response.data) {
+        return { interactions: undefined, queries: undefined, reviews: undefined }
+      }
+
+      return response.data
     },
     enabled: !!businessUniqueId,
     staleTime: 5 * 60 * 1000,

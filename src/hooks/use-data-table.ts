@@ -67,6 +67,8 @@ interface UseDataTableProps<TData>
   scroll?: boolean;
   shallow?: boolean;
   startTransition?: React.TransitionStartFunction;
+  persistColumnVisibility?: boolean;
+  columnVisibilityKey?: string;
 }
 
 export function useDataTable<TData>(props: UseDataTableProps<TData>) {
@@ -83,6 +85,8 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     scroll = false,
     shallow = true,
     startTransition,
+    persistColumnVisibility = false,
+    columnVisibilityKey,
     ...tableProps
   } = props;
   const pageKey = queryKeys?.page ?? PAGE_KEY;
@@ -117,8 +121,48 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>(
     initialState?.rowSelection ?? {},
   );
+
+  const columnIds = React.useMemo(() => {
+    return new Set(
+      columns.map((column) => column.id).filter(Boolean) as string[],
+    );
+  }, [columns]);
+
+  const sanitizeColumnVisibility = React.useCallback(
+    (visibility: VisibilityState) => {
+      if (columnIds.size === 0) return visibility;
+      const next: VisibilityState = {};
+      for (const [id, value] of Object.entries(visibility)) {
+        if (columnIds.has(id)) {
+          next[id] = value;
+        }
+      }
+      return next;
+    },
+    [columnIds],
+  );
+
+  const readPersistedColumnVisibility = React.useCallback(() => {
+    if (!persistColumnVisibility || !columnVisibilityKey) return null;
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(columnVisibilityKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as VisibilityState;
+      if (!parsed || typeof parsed !== "object") return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }, [persistColumnVisibility, columnVisibilityKey]);
+
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>(initialState?.columnVisibility ?? {});
+    React.useState<VisibilityState>(() => {
+      const base = initialState?.columnVisibility ?? {};
+      const stored = readPersistedColumnVisibility();
+      const merged = stored ? { ...base, ...stored } : base;
+      return sanitizeColumnVisibility(merged);
+    });
 
   const [page, setPage] = useQueryState(
     pageKey,
@@ -152,11 +196,57 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     [pagination, setPage, setPerPage],
   );
 
-  const columnIds = React.useMemo(() => {
-    return new Set(
-      columns.map((column) => column.id).filter(Boolean) as string[],
-    );
-  }, [columns]);
+  React.useEffect(() => {
+    const next = sanitizeColumnVisibility(columnVisibility);
+    const prevKeys = Object.keys(columnVisibility);
+    const nextKeys = Object.keys(next);
+    if (
+      prevKeys.length === nextKeys.length &&
+      prevKeys.every((key) => nextKeys.includes(key))
+    ) {
+      return;
+    }
+    setColumnVisibility(next);
+  }, [columnVisibility, sanitizeColumnVisibility]);
+
+  React.useEffect(() => {
+    if (!persistColumnVisibility || !columnVisibilityKey) return;
+    if (typeof window === "undefined") return;
+    const next = sanitizeColumnVisibility(columnVisibility);
+    try {
+      window.localStorage.setItem(columnVisibilityKey, JSON.stringify(next));
+    } catch {
+      // Ignore storage errors (e.g., quota exceeded)
+    }
+  }, [
+    columnVisibility,
+    persistColumnVisibility,
+    columnVisibilityKey,
+    sanitizeColumnVisibility,
+  ]);
+
+  React.useEffect(() => {
+    if (!persistColumnVisibility || !columnVisibilityKey) return;
+    const stored = readPersistedColumnVisibility();
+    if (!stored) return;
+    setColumnVisibility((prev) => {
+      const base = initialState?.columnVisibility ?? {};
+      const merged = sanitizeColumnVisibility({ ...base, ...stored });
+      const prevEntries = Object.entries(prev);
+      const mergedEntries = Object.entries(merged);
+      if (prevEntries.length !== mergedEntries.length) return merged;
+      const hasDiff = prevEntries.some(
+        ([key, value]) => merged[key] !== value,
+      );
+      return hasDiff ? merged : prev;
+    });
+  }, [
+    persistColumnVisibility,
+    columnVisibilityKey,
+    readPersistedColumnVisibility,
+    sanitizeColumnVisibility,
+    initialState?.columnVisibility,
+  ]);
 
   const sortFieldMapper = React.useMemo(() => {
     const idToQueryField = new Map<string, string>();

@@ -4,7 +4,7 @@ import React from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, LucideIcon } from "lucide-react";
+import { ArrowRight, LucideIcon, Check } from "lucide-react";
 import * as Icons from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Typography } from "@/components/ui/typography";
@@ -20,6 +20,8 @@ interface PlanCardProps {
   hasBorder?: boolean;
   isRecommended?: boolean;
   isAddOn?: boolean;
+  isMassicOpportunitiesActive?: boolean;
+  onDeactivate?: () => void;
 }
 
 export function PlanCard({
@@ -33,6 +35,8 @@ export function PlanCard({
   isAddOn = false,
   hasBorder = false,
   isRecommended = false,
+  isMassicOpportunitiesActive = false,
+  onDeactivate,
 }: PlanCardProps) {
   const IconComponent = iconName
     ? (Icons[iconName as keyof typeof Icons] as LucideIcon)
@@ -84,7 +88,7 @@ export function PlanCard({
       <div className="flex items-center gap-2 ">
         <Badge variant="outline" className="px-2.5 py-1 rounded-full">
           <Typography variant="extraSmall" className="font-medium">
-            {isAddOn ? `$${price}` : `${price}/mo per business`}
+            {isAddOn ? isMassicOpportunitiesActive ? `$${price}/mo` : `$${price}` : `$${price}/mo per business`}
           </Typography>
         </Badge>
 
@@ -98,7 +102,7 @@ export function PlanCard({
             </Typography>
           </Badge>
         ) : (
-          <Badge className="bg-[#F0F8F8] text-[#0F4343] border border-[#E0F0F0] text-xs font-medium px-2.5 py-1 rounded-full">
+          <Badge className="bg-[#F0F8F8] text-[#0F4343] border border-[#E0F0F0] text-xs font-medium px-2.5 py-1 rounded-full pointer-events-none">
             {businessesLinked}
           </Badge>
         )}

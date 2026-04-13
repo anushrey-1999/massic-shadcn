@@ -24,10 +24,12 @@ export const useEntitlements = (businessId?: string) => {
   // We need to check global subscription status for whitelist
   // We import useSubscription here. Note: This assumes useSubscription uses React Query caching efficiently.
   const { data: subscriptionData } = useSubscription();
-  const isWhitelisted = subscriptionData?.whitelisted === true || subscriptionData?.status === 'whitelisted';
+  const isWhitelisted = subscriptionData?.whitelisted === true || subscriptionData?.status === "whitelisted";
+  const isCanceled = subscriptionData?.status === "canceled";
 
   const getPlanType = (id: string): PlanType => {
     if (isWhitelisted) return "whitelisted";
+    if (isCanceled) return "no_plan";
 
     const business = profiles.find((b) => b.UniqueId === id);
     if (!business || !business.SubscriptionItems) return "no_plan";

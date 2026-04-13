@@ -4,6 +4,22 @@ import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 
+export type ExpressPitchTactic = {
+  priority: number;
+  tactic: string;
+  context: string;
+};
+
+export type ExpressPitch = {
+  url?: string;
+  segment?: number;
+  tier?: number;
+  tier_label?: string;
+  why?: string;
+  tactics?: ExpressPitchTactic[];
+  [key: string]: any;
+};
+
 function toStringOrJson(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
@@ -13,6 +29,67 @@ function toStringOrJson(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function isNonNullObject(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function coerceExpressPitch(value: unknown): ExpressPitch | null {
+  if (!isNonNullObject(value)) return null;
+
+  const tacticsRaw = (value as any).tactics;
+  const tactics: ExpressPitchTactic[] | undefined = Array.isArray(tacticsRaw)
+    ? (tacticsRaw
+        .map((t: unknown) => {
+          if (!isNonNullObject(t)) return null;
+          const priority = Number((t as any).priority);
+          const tactic = String((t as any).tactic || "");
+          const context = String((t as any).context || "");
+          if (!Number.isFinite(priority) || !tactic.trim() || !context.trim()) return null;
+          return { priority, tactic, context };
+        })
+        .filter(Boolean) as ExpressPitchTactic[])
+    : undefined;
+
+  const result: ExpressPitch = {
+    ...(value as any),
+    url: (value as any).url != null ? String((value as any).url) : undefined,
+    segment: (value as any).segment != null ? Number((value as any).segment) : undefined,
+    tier: (value as any).tier != null ? Number((value as any).tier) : undefined,
+    tier_label:
+      (value as any).tier_label != null ? String((value as any).tier_label) : undefined,
+    why: (value as any).why != null ? String((value as any).why) : undefined,
+    tactics,
+  };
+
+  const hasAnyUsefulField =
+    Boolean(result.url?.trim()) ||
+    Boolean(result.tier_label?.trim()) ||
+    Boolean(result.why?.trim()) ||
+    Boolean(result.tactics?.length) ||
+    Number.isFinite(result.tier) ||
+    Number.isFinite(result.segment);
+
+  return hasAnyUsefulField ? result : null;
+}
+
+export function extractExpressPitch(payload: unknown): ExpressPitch | null {
+  const asAny = payload as any;
+
+  const candidates: unknown[] = [
+    asAny?.express_pitch,
+    asAny?.output_data?.quicky?.express_pitch,
+    asAny?.output_data?.express_pitch,
+    asAny?.output_data?.output_data?.quicky?.express_pitch,
+  ];
+
+  for (const candidate of candidates) {
+    const coerced = coerceExpressPitch(candidate);
+    if (coerced) return coerced;
+  }
+
+  return null;
 }
 
 function getSnapshotSections(payload: any): Record<string, unknown> | null {
@@ -73,12 +150,62 @@ export function extractSnapshotSectionsMarkdown(payload: unknown): string | null
   return result.length > 0 ? result : null;
 }
 
+export function extractDetailedSectionsMarkdown(payload: unknown): string | null {
+  const sections = getDetailedSections(payload as any);
+  if (!sections) return null;
+
+  const order = [
+    "executive_summary",
+    "business_snapshot",
+    "current_snapshot",
+    "topics_and_audiences",
+    "uncovered_opportunities",
+    "landscape_and_channels",
+    "conclusion",
+  ];
+
+  const parts: string[] = [];
+
+  for (const key of order) {
+    const raw = (sections as any)[key];
+    if (!raw) continue;
+    
+    const content = cleanEscapedContent(toStringOrJson(raw)).trim();
+    if (!content) continue;
+    
+    // For detailed pitch, the sections often come with their own headers or formatting.
+    // We append them directly.
+    parts.push(content);
+  }
+
+  const result = parts.join("\n\n").trim();
+  return result.length > 0 ? result : null;
+}
+
+function getDetailedSections(payload: any): Record<string, unknown> | null {
+  const direct = payload?.pitches?.sections;
+  if (direct && typeof direct === "object") return direct;
+
+  const nested = payload?.output_data?.pitches?.sections;
+  if (nested && typeof nested === "object") return nested;
+  
+  // Fallback: check if payload itself is the sections object (unlikely for detailed but possible)
+  if (payload?.executive_summary && payload?.business_snapshot) {
+      return payload;
+  }
+
+  return null;
+}
+
 function extractReportText(payload: unknown): string {
   if (payload == null) return "";
   if (typeof payload === "string") return payload;
 
   const snapshotMarkdown = extractSnapshotSectionsMarkdown(payload);
   if (snapshotMarkdown) return snapshotMarkdown;
+
+  const detailedMarkdown = extractDetailedSectionsMarkdown(payload);
+  if (detailedMarkdown) return detailedMarkdown;
 
   const asAny = payload as any;
 
@@ -118,6 +245,46 @@ function normalizeStatus(value: unknown): string {
   return String(value || "").trim().toLowerCase();
 }
 
+function extractSubscriptionError(error: any): string | null {
+  if (!error) return null;
+
+  const response = error?.response;
+  if (!response) return null;
+
+  const status = response.status;
+  if (status !== 403) return null;
+
+  const data = response.data;
+  if (!data) return null;
+
+  const detail = data.detail;
+  if (!detail) return null;
+
+  // Handle string detail
+  if (typeof detail === "string") return detail;
+
+  // Handle object detail
+  if (typeof detail === "object") {
+    // Try to get message property
+    const message = detail.message;
+    if (typeof message === "string" && message) return message;
+
+    // Try to stringify the detail object to show it
+    try {
+      const jsonStr = JSON.stringify(detail);
+      if (jsonStr && jsonStr !== '{}') return jsonStr;
+    } catch {
+      // Ignore stringify errors
+    }
+  }
+
+  return null;
+}
+
+function is403Error(error: any): boolean {
+  return error?.response?.status === 403;
+}
+
 export function useStartQuickyReport() {
   const queryClient = useQueryClient();
   return useMutation<ReportStatusResponse, Error, { businessId: string }>({
@@ -134,8 +301,19 @@ export function useStartQuickyReport() {
       queryClient.invalidateQueries({ queryKey: ["pitches"] });
     },
     onError: (error) => {
+      if (is403Error(error)) {
+        const subscriptionError = extractSubscriptionError(error);
+        if (subscriptionError) {
+          toast.error("Subscription Required", {
+            description: subscriptionError,
+          });
+          return;
+        }
+      }
+
+      const errorMessage = error.message || "Please try again.";
       toast.error("Failed to start snapshot", {
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     },
   });
@@ -151,9 +329,14 @@ export function useQuickyReportStatus(params: {
     queryKey: ["quicky", "status", businessId],
     queryFn: async () => {
       if (!businessId) return null;
-      return api.get<ReportStatusResponse>("/client/quicky", "python", {
-        params: { business_id: businessId },
-      });
+      try {
+        return await api.get<ReportStatusResponse>("/client/quicky", "python", {
+          params: { business_id: businessId },
+        });
+      } catch (error: any) {
+        if (error?.response?.status === 403) return null;
+        throw error;
+      }
     },
     enabled: enabled && !!businessId,
     staleTime: 0,
@@ -167,14 +350,22 @@ export function useQuickyReportStatus(params: {
 }
 
 export function useFetchReportFromDownloadUrl() {
-  return useMutation<string, Error, { downloadUrl: string }>({
+  return useMutation<
+    { content: string; expressPitch: ExpressPitch | null; payload: unknown },
+    Error,
+    { downloadUrl: string }
+  >({
     mutationFn: async ({ downloadUrl }) => {
       if (!downloadUrl) {
         throw new Error("download_url is required");
       }
 
       const response = await api.get(downloadUrl, "python");
-      return cleanEscapedContent(extractReportText(response));
+      return {
+        content: cleanEscapedContent(extractReportText(response)),
+        expressPitch: extractExpressPitch(response),
+        payload: response,
+      };
     },
     onError: (error) => {
       toast.error("Failed to fetch report", {
@@ -201,8 +392,19 @@ export function useGenerateQuickyReport() {
       queryClient.invalidateQueries({ queryKey: ["pitches"] });
     },
     onError: (error) => {
+      if (is403Error(error)) {
+        const subscriptionError = extractSubscriptionError(error);
+        if (subscriptionError) {
+          toast.error("Subscription Required", {
+            description: subscriptionError,
+          });
+          return;
+        }
+      }
+
+      const errorMessage = error.message || "Please try again.";
       toast.error("Failed to generate snapshot", {
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     },
   });
@@ -221,8 +423,19 @@ export function useGenerateDetailedPitch() {
       return cleanEscapedContent(extractReportText(response));
     },
     onError: (error) => {
+      if (is403Error(error)) {
+        const subscriptionError = extractSubscriptionError(error);
+        if (subscriptionError) {
+          toast.error("Subscription Required", {
+            description: subscriptionError,
+          });
+          return;
+        }
+      }
+
+      const errorMessage = error.message || "Please try again.";
       toast.error("Failed to generate detailed pitch", {
-        description: error.message || "Please try again.",
+        description: errorMessage,
       });
     },
   });
@@ -246,7 +459,7 @@ export function usePitchSummary(
 
         let content = "";
         const snapshotMarkdown = extractSnapshotSectionsMarkdown(response);
-        
+
         if (snapshotMarkdown) {
           content = snapshotMarkdown;
         } else {

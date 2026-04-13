@@ -24,6 +24,8 @@ interface DownloadReportDialogProps {
   onClose: () => void;
   markdownContent: string;
   defaultFilename: string;
+  onDownloadPdf?: (filename: string) => Promise<void>;
+  allowMarkdownDownload?: boolean;
 }
 
 type DownloadFormat = "pdf" | "md";
@@ -33,6 +35,8 @@ export function DownloadReportDialog({
   onClose,
   markdownContent,
   defaultFilename,
+  onDownloadPdf,
+  allowMarkdownDownload = true,
 }: DownloadReportDialogProps) {
   const [format, setFormat] = React.useState<DownloadFormat>("pdf");
   const [filename, setFilename] = React.useState(defaultFilename);
@@ -61,8 +65,12 @@ export function DownloadReportDialog({
         const pdfFilename = finalFilename.endsWith(".pdf")
           ? finalFilename
           : `${finalFilename}.pdf`;
-        await generatePdfFromMarkdown(markdownContent, pdfFilename);
-      } else {
+        if (onDownloadPdf) {
+          await onDownloadPdf(pdfFilename);
+        } else {
+          await generatePdfFromMarkdown(markdownContent, pdfFilename);
+        }
+      } else if (allowMarkdownDownload) {
         const mdFilename = finalFilename.endsWith(".md")
           ? finalFilename
           : `${finalFilename}.md`;
@@ -92,7 +100,7 @@ export function DownloadReportDialog({
         <div className="flex flex-col gap-6 py-4">
           <div className="flex flex-col gap-3">
             <Label>Format</Label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className={cn("grid gap-4", allowMarkdownDownload ? "grid-cols-2" : "grid-cols-1")}>
               <div
                 onClick={() => setFormat("pdf")}
                 className={cn(
@@ -105,18 +113,20 @@ export function DownloadReportDialog({
                 <FileType className="h-8 w-8 text-red-500" />
                 <span className="font-medium text-sm">PDF Document</span>
               </div>
-              <div
-                onClick={() => setFormat("md")}
-                className={cn(
-                  "cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center gap-2 hover:bg-muted/50 transition-colors",
-                  format === "md"
-                    ? "border-primary bg-primary/5"
-                    : "border-muted bg-transparent"
-                )}
-              >
-                <FileText className="h-8 w-8 text-blue-500" />
-                <span className="font-medium text-sm">Markdown File</span>
-              </div>
+              {allowMarkdownDownload ? (
+                <div
+                  onClick={() => setFormat("md")}
+                  className={cn(
+                    "cursor-pointer rounded-lg border-2 p-4 flex flex-col items-center gap-2 hover:bg-muted/50 transition-colors",
+                    format === "md"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted bg-transparent"
+                  )}
+                >
+                  <FileText className="h-8 w-8 text-blue-500" />
+                  <span className="font-medium text-sm">Markdown File</span>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -131,7 +141,7 @@ export function DownloadReportDialog({
                 className="flex-1"
               />
               <span className="text-sm text-muted-foreground w-12 text-right">
-                .{format}
+                .{allowMarkdownDownload ? format : "pdf"}
               </span>
             </div>
           </div>

@@ -35,6 +35,6 @@ export default function PitchStrategyPage() {
     );
   }
 
-  return <BusinessStrategyPage params={businessParams} />;
+  return <BusinessStrategyPage params={businessParams} skipEntitlements />;
 }
 

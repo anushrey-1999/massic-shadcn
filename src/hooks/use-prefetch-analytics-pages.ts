@@ -9,6 +9,7 @@ import { useBlogPagePlan } from "./use-blog-page-plan";
 import { useDigitalAds } from "./use-digital-ads";
 import { useAudience } from "./use-audience";
 import { useJobByBusinessId } from "./use-jobs";
+import { getWorkflowStatus, isWorkflowSuccess } from "@/lib/workflow-status";
 
 export function usePrefetchAnalyticsPages(businessId: string | null) {
   const queryClient = useQueryClient();
@@ -20,10 +21,11 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
   const { fetchAudience } = useAudience(businessId || "");
   const { data: jobDetails } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
-  const isWorkflowSuccess = jobDetails?.workflow_status?.status === "success";
+  const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
+  const isCoreSuccess = coreStatus === "success";
 
   const prefetchPage1 = useCallback(async () => {
-    if (!businessId || !jobExists || !isWorkflowSuccess) return;
+    if (!businessId || !jobExists || !isCoreSuccess) return;
 
     const defaultParams = {
       page: 1,
@@ -52,7 +54,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
     ];
 
     const strategyCached = queryClient.getQueryData(strategyQueryKey);
-    if (!strategyCached) {
+    if (!strategyCached && isWorkflowSuccess(jobDetails, "topic_strategy_builder")) {
       batch1Promises.push(
         queryClient.prefetchQuery({
           queryKey: strategyQueryKey,
@@ -80,7 +82,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
     ];
 
     const webPageCached = queryClient.getQueryData(webPageQueryKey);
-    if (!webPageCached && jobExists) {
+    if (!webPageCached && jobExists && isWorkflowSuccess(jobDetails, "blogs_and_pages_planner")) {
       batch1Promises.push(
         queryClient.prefetchQuery({
           queryKey: webPageQueryKey,
@@ -108,7 +110,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
     ];
 
     const audienceCached = queryClient.getQueryData(audienceQueryKey);
-    if (!audienceCached && jobExists) {
+    if (!audienceCached && jobExists && isWorkflowSuccess(jobDetails, "audience")) {
       batch1Promises.push(
         queryClient.prefetchQuery({
           queryKey: audienceQueryKey,
@@ -145,7 +147,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       ];
 
       const socialCached = queryClient.getQueryData(socialQueryKey);
-      if (!socialCached) {
+      if (!socialCached && isWorkflowSuccess(jobDetails, "channel_analyzer")) {
         batch2Promises.push(
           queryClient.prefetchQuery({
             queryKey: socialQueryKey,
@@ -174,7 +176,12 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       ];
 
       const digitalAdsCached = queryClient.getQueryData(digitalAdsQueryKey);
-      if (!digitalAdsCached && jobExists) {
+      if (
+        !digitalAdsCached &&
+        jobExists &&
+        isWorkflowSuccess(jobDetails, "digital_ads_opportunity_scorer") &&
+        isWorkflowSuccess(jobDetails, "ad_concept_generator")
+      ) {
         batch2Promises.push(
           queryClient.prefetchQuery({
             queryKey: digitalAdsQueryKey,
@@ -238,4 +245,3 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
 
   return { prefetchPage1 };
 }
-

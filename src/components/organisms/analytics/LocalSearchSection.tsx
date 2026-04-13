@@ -2,10 +2,12 @@
 
 import { useState, useMemo } from "react";
 import { usePathname } from "next/navigation";
-import { MapPin, Search, Loader2, ChartNoAxesCombined } from "lucide-react";
+import { MapPin, Search, Loader2 } from "lucide-react";
+import { Typography } from "@/components/ui/typography";
 import { DataTable, type SortConfig } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
 import { InteractionsChartCard } from "@/components/molecules/analytics/InteractionsChartCard";
+import { RatingCard } from "@/components/molecules/analytics/RatingCard";
 import {
   useLocalPresence,
   type TimePeriodValue,
@@ -48,6 +50,7 @@ export function LocalSearchSection({
     interactionsChartData,
     interactionsMetric,
     queriesData,
+    reviewsData,
     isLoading,
     hasInteractionsData,
     hasQueriesData,
@@ -78,53 +81,75 @@ export function LocalSearchSection({
     }));
   };
 
-  if (locations.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-[200px] border rounded-lg bg-muted/20">
-        <p className="text-sm text-muted-foreground">
-          No locations configured for this business
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <>
-      <div className="grid grid-cols-2 gap-3">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-[300px] border rounded-lg">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <InteractionsChartCard
-            icon={<MapPin className="h-4 w-4 text-muted-foreground" />}
-            title="Local interactions with your listing"
-            legend={{
-              color: "#3b82f6",
-              label: interactionsMetric.label,
-              value: interactionsMetric.value,
-              change: interactionsMetric.change,
-            }}
-            data={hasInteractionsData ? interactionsChartData : []}
-            dataKey="interactions"
-          />
-        )}
-
-        <DataTable
-          title="Local searches to discover you"
-          columns={[
-            { key: "query", label: "Query", width: "w-[250px]" },
-            { key: "searches", label: "Searches", sortable: true },
-          ]}
-          data={tableData}
-          isLoading={isLoading}
-          hasData={hasQueriesData}
-          maxRows={5}
-          sortConfig={sortConfig}
-          onSort={handleSort}
-          onArrowClick={() => setQueriesModalOpen(true)}
-        />
+    <div className="px-7 pb-10">
+      <div className="flex items-center gap-2 pb-6">
+        <MapPin className="h-8 w-8 text-general-foreground" />
+        <Typography variant="h2">Local Search</Typography>
       </div>
+
+      {locations.length === 0 ? (
+        <div className="flex items-center justify-center h-[200px] border rounded-lg bg-white mt-6">
+          <p className="text-sm text-muted-foreground">
+            No locations configured for this business
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center h-[300px] border rounded-lg">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <InteractionsChartCard
+                icon={<MapPin className="h-4 w-4 text-muted-foreground" />}
+                title="Local interactions with your listing"
+                legend={{
+                  color: "#3b82f6",
+                  label: interactionsMetric.label,
+                  value: interactionsMetric.value,
+                  change: interactionsMetric.change,
+                }}
+                data={hasInteractionsData ? interactionsChartData : []}
+                dataKey="interactions"
+                chartHeight={252}
+              />
+            )}
+
+            <DataTable
+              title="Top Queries"
+              titleTooltip="Local searches to discover you"
+              inlineHeader
+              columns={[
+                { key: "query", label: "Query", width: "w-[250px]" },
+                { key: "searches", label: "Searches", sortable: true },
+              ]}
+              data={tableData}
+              isLoading={isLoading}
+              hasData={hasQueriesData}
+              maxRows={10}
+              sortConfig={sortConfig}
+              onSort={handleSort}
+              onArrowClick={() => setQueriesModalOpen(true)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-6">
+            <RatingCard
+              title="All Time Reviews"
+              value={reviewsData.allTimeReviews.value}
+              change={reviewsData.allTimeReviews.change}
+            />
+            <RatingCard
+              title={`Ratings Past ${period}`}
+              rating={Math.round(reviewsData.avgRating.value)}
+              maxRating={5}
+              change={reviewsData.avgRating.change}
+            />
+          </div>
+        </>
+      )}
 
       <DataTableModal
         open={queriesModalOpen}
@@ -140,6 +165,6 @@ export function LocalSearchSection({
         sortConfig={sortConfig}
         onSort={handleSort}
       />
-    </>
+    </div>
   );
 }

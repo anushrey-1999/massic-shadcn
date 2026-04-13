@@ -18,9 +18,64 @@ interface ChartLegendProps {
   items: ChartLegendItem[];
   onToggle?: (key: string, checked: boolean) => void;
   className?: string;
+  variant?: "default" | "box";
+  showToggle?: boolean;
 }
 
-export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
+export function ChartLegend({
+  items,
+  onToggle,
+  className,
+  variant = "default",
+  showToggle = true,
+}: ChartLegendProps) {
+  if (variant === "box") {
+    return (
+      <div className={cn("flex flex-wrap items-center gap-2", className)}>
+        {items.map((item) => {
+          const checked = item.checked ?? true;
+          return (
+            <label
+              key={item.key}
+              className={cn(
+                "flex items-center gap-2 rounded-sm bg-foreground-light px-3 py-2",
+                showToggle ? "cursor-pointer" : "cursor-default",
+                !checked && "opacity-50"
+              )}
+            >
+              {showToggle && (
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={(nextChecked) =>
+                    onToggle?.(item.key, nextChecked as boolean)
+                  }
+                  className="cursor-pointer shrink-0"
+                />
+              )}
+              <span
+                style={item.color ? { color: item.color } : undefined}
+                className={cn(
+                  "flex items-center gap-1 [&_svg]:h-3.5 [&_svg]:w-3.5",
+                  item.color ? undefined : "text-muted-foreground"
+                )}
+              >
+                {item.icon}
+              </span>
+              <span className="text-xs font-medium text-foreground">
+                {item.value}
+              </span>
+              <StatsBadge
+                value={item.change}
+                variant="big"
+                className="flex items-baseline"
+              />
+            </label>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className={cn("flex items-center gap-4 ", className)}>
       {items.map((item) => (
@@ -46,13 +101,7 @@ export function ChartLegend({ items, onToggle, className }: ChartLegendProps) {
               {item.icon}
             </span>
             <div className="flex items-baseline gap-1 py-0.5 rounded">
-              <span
-                className="font-semibold leading-[120%] tracking-[-0.02em]"
-                style={{
-                  fontSize: "20px",
-                  ...(item.color ? { color: item.color } : {}),
-                }}
-              >
+              <span className="font-semibold leading-[120%] tracking-[-0.02em] text-foreground" style={{ fontSize: "20px" }}>
                 {item.value}
               </span>
               <StatsBadge

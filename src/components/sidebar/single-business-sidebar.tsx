@@ -1,7 +1,7 @@
 
 'use client'
 import React from 'react'
-import { Settings, Bell, LogOut, BarChart3, Target, Star, User, Link2, Globe, Tv, Share2, FileText } from 'lucide-react'
+import { Settings, Bell, LogOut, BarChart3, Target, Star, User, Link2, Globe, Tv, Share2, FileText, Wrench } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
@@ -171,7 +171,9 @@ export default function SingleBusinessSidebar() {
   const businessNavItems = [
     { label: 'Analytics', slug: 'analytics', icon: BarChart3 },
     { label: 'Strategy', slug: 'strategy', icon: Target },
+    { label: 'Actions', slug: 'actions', icon: Tv },
     { label: 'Web', slug: 'web', icon: Globe },
+    { label: 'Technical Audit', slug: 'technical-audit', icon: Wrench },
     { label: 'Social', slug: 'social', icon: Share2 },
     { label: 'Reviews', slug: 'reviews', icon: Star },
     { label: 'Profile', slug: 'profile', icon: User },
@@ -335,11 +337,15 @@ export default function SingleBusinessSidebar() {
           {businessNavItems.map((item) => {
             const itemHref = `/business/${business.UniqueId}/${item.slug}`
             const reportsPath = `/business/${business.UniqueId}/reports`
+            const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
 
             const itemBasePath = `/business/${business.UniqueId}/${item.slug}`
             let isActive = false
             if (item.slug === 'analytics') {
-              isActive = pathname === itemHref || pathname.startsWith(reportsPath)
+              isActive =
+                pathname === itemHref ||
+                pathname.startsWith(reportsPath) ||
+                pathname.startsWith(organicDeepdivePath)
             } else if (item.slug === 'profile') {
               isActive = pathname === itemHref
             } else {

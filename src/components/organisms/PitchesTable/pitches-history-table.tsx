@@ -29,14 +29,13 @@ export function PitchesHistoryTable({
         cell: ({ row }: any) => {
           const type = String(row.original?.type || "").trim().toLowerCase();
           const isSnapshot = type === "snapshot";
-          const isDetailed = type === "detailed";
           const status = String(row.original?.status || "").trim().toLowerCase();
           const isProcessing =
             status === "pending" || status === "processing" || status === "in_progress";
-          const disabled = isDetailed || isProcessing;
+          const disabled = isProcessing;
           const href = isSnapshot
             ? `/pitches/${businessId}/reports?open=snapshot`
-            : `/pitches/${businessId}/reports`;
+            : `/pitches/${businessId}/reports?open=detailed`;
 
           return (
             <div className="flex items-center justify-start">
@@ -79,8 +78,7 @@ export function PitchesHistoryTable({
       emptyMessage="No pitches found."
       showPagination={false}
       disableHorizontalScroll={true}
-      className="h-[calc(100vh-45rem)]"
+      className="h-full min-h-[240px]"
     />
   );
 }
-

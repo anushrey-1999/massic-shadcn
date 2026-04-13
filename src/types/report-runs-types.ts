@@ -46,7 +46,7 @@ export interface ReportRunDetail {
       output_path?: string
       download_url?: string
     }
-    performance_report?: string
+    performance_report?: string | Record<string, unknown>
   } | null
   html_url: string | null
   pdf_url: string | null

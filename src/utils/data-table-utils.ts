@@ -155,20 +155,39 @@ export function tableApplyAdvancedFilters<TData>(
 
       switch (filter.operator) {
         case "iLike":
-          return typeof value === "string" && typeof filter.value === "string"
-            ? value.toLowerCase().includes(filter.value.toLowerCase())
-            : false;
+          if (typeof filter.value !== "string") return false;
+          const iLikeHaystack =
+            typeof value === "number"
+              ? String(value)
+              : typeof value === "string"
+                ? value
+                : "";
+          return iLikeHaystack.toLowerCase().includes(filter.value.toLowerCase());
 
         case "notILike":
           return typeof value === "string" && typeof filter.value === "string"
             ? !value.toLowerCase().includes(filter.value.toLowerCase())
             : true;
 
-        case "eq":
+        case "eq": {
+          const eqFilterNum = Array.isArray(filter.value)
+            ? Number(filter.value[0] ?? filter.value[1] ?? "")
+            : Number(filter.value);
+          if (typeof value === "number" && !Number.isNaN(eqFilterNum)) {
+            return Math.abs(value - eqFilterNum) < 1e-9;
+          }
           return value === filter.value;
+        }
 
-        case "ne":
+        case "ne": {
+          const neFilterNum = Array.isArray(filter.value)
+            ? Number(filter.value[0] ?? filter.value[1] ?? "")
+            : Number(filter.value);
+          if (typeof value === "number" && !Number.isNaN(neFilterNum)) {
+            return Math.abs(value - neFilterNum) >= 1e-9;
+          }
           return value !== filter.value;
+        }
 
         case "inArray":
           return Array.isArray(filter.value)
@@ -180,25 +199,45 @@ export function tableApplyAdvancedFilters<TData>(
             ? !filter.value.includes(String(value))
             : true;
 
-        case "lt":
-          return typeof value === "number" && typeof filter.value === "string"
-            ? value < Number(filter.value)
-            : false;
+        case "lt": {
+          if (typeof value !== "number") return false;
+          const n = typeof filter.value === "string" || typeof filter.value === "number"
+            ? Number(filter.value)
+            : Array.isArray(filter.value) && filter.value[0] !== ""
+              ? Number(filter.value[0])
+              : NaN;
+          return !Number.isNaN(n) && value < n;
+        }
 
-        case "lte":
-          return typeof value === "number" && typeof filter.value === "string"
-            ? value <= Number(filter.value)
-            : false;
+        case "lte": {
+          if (typeof value !== "number") return false;
+          const nLte = typeof filter.value === "string" || typeof filter.value === "number"
+            ? Number(filter.value)
+            : Array.isArray(filter.value) && filter.value[0] !== ""
+              ? Number(filter.value[0])
+              : NaN;
+          return !Number.isNaN(nLte) && value <= nLte;
+        }
 
-        case "gt":
-          return typeof value === "number" && typeof filter.value === "string"
-            ? value > Number(filter.value)
-            : false;
+        case "gt": {
+          if (typeof value !== "number") return false;
+          const nGt = typeof filter.value === "string" || typeof filter.value === "number"
+            ? Number(filter.value)
+            : Array.isArray(filter.value) && filter.value[1] !== ""
+              ? Number(filter.value[1])
+              : NaN;
+          return !Number.isNaN(nGt) && value > nGt;
+        }
 
-        case "gte":
-          return typeof value === "number" && typeof filter.value === "string"
-            ? value >= Number(filter.value)
-            : false;
+        case "gte": {
+          if (typeof value !== "number") return false;
+          const nGte = typeof filter.value === "string" || typeof filter.value === "number"
+            ? Number(filter.value)
+            : Array.isArray(filter.value) && filter.value[1] !== ""
+              ? Number(filter.value[1])
+              : NaN;
+          return !Number.isNaN(nGte) && value >= nGte;
+        }
 
         case "isBetween":
           if (Array.isArray(filter.value) && filter.value.length === 2) {

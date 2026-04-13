@@ -105,12 +105,14 @@ export function NavigationTabs({
                 variant="outline"
                 size="icon"
                 className="h-9 w-9 bg-transparent"
+                onClick={() => businessId && router.push(`/business/${businessId}/organic-deepdive`)}
+                disabled={!businessId}
               >
                 <TextSearch className="h-5 w-5" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Organic Deep Dive (Coming Soon)</p>
+              <p>Organic Deep Dive</p>
             </TooltipContent>
           </Tooltip>
         </div>

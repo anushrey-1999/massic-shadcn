@@ -1,3 +1,9 @@
+import {
+  buildPerformanceReportV2BodyHtml,
+  parsePerformanceReport,
+} from "@/utils/performance-report-v2";
+import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
+
 export async function generatePdfFromMarkdown(markdown: string, filename: string): Promise<void> {
   const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
 
@@ -5,6 +11,116 @@ export async function generatePdfFromMarkdown(markdown: string, filename: string
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ markdown, title: filename.replace(".pdf", "") }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.details || "Failed to generate PDF");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = pdfFilename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function generatePdfFromPerformanceReportV2(
+  performanceReport: unknown,
+  filename: string
+): Promise<void> {
+  const parsed = parsePerformanceReport(performanceReport);
+
+  if (parsed.kind !== "v2") {
+    throw new Error("Performance report v2 payload is invalid");
+  }
+
+  const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+
+  const response = await fetch("/api/generate-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      template: "performance-v2",
+      performanceReport,
+      html: buildPerformanceReportV2BodyHtml(parsed.document),
+      title: filename.replace(".pdf", ""),
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.details || "Failed to generate PDF");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = pdfFilename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function generatePdfFromSnapshotTemplate(args: {
+  expressPitch: unknown;
+  quickEvaluation?: unknown;
+  profileTags?: unknown;
+  competitors?: unknown;
+  footerSummary?: string;
+  poweredByName?: string;
+  filename: string;
+  generatedAt?: string;
+}): Promise<void> {
+  const { expressPitch, quickEvaluation, profileTags, competitors, footerSummary, poweredByName, filename, generatedAt } = args;
+  const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+
+  const response = await fetch("/api/generate-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      template: "snapshot",
+      expressPitch,
+      quickEvaluation,
+      profileTags,
+      competitors,
+      footerSummary,
+      poweredByName,
+      generatedAt,
+      title: filename.replace(".pdf", ""),
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.details || "Failed to generate PDF");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = pdfFilename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function generatePdfFromBillingReconciliation(
+  report: BillingReconciliationReport,
+  filename: string
+): Promise<void> {
+  const pdfFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+
+  const response = await fetch("/api/generate-pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      template: "billing-reconciliation",
+      report,
+      title: filename.replace(".pdf", ""),
+    }),
   });
 
   if (!response.ok) {

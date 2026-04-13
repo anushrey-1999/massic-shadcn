@@ -20,7 +20,7 @@ export interface BusinessProfilePayload {
   Description?: string;
   UserDefinedBusinessDescription?: string;
   AOV?: number | string | null;
-  LTV?: number | string | null;
+  LTV?: "high" | "low" | string | null;
   BrandTerms?: string[] | null;
   RecurringFlag?: string | null;
   PrimaryLocation?: {
@@ -69,9 +69,11 @@ export interface JobDetails {
 function mapBusinessProfilePayloadToJobFormData(
   businessProfilePayload: BusinessProfilePayload,
   businessId: string,
-  offerings: Offering[]
+  offerings: Offering[],
+  options?: { includeOfferings?: boolean }
 ): FormData {
   const formDataPayload = new FormData();
+  const includeOfferings = options?.includeOfferings !== false;
 
   // Validate required fields
   if (!businessId) {
@@ -182,17 +184,19 @@ function mapBusinessProfilePayloadToJobFormData(
 
   formDataPayload.append("trigger_workflow", "False");
 
-  // Extra business metrics fields (python API expects snake_case)
+  // Extra business fields (python API expects snake_case)
   const aov = (businessProfilePayload as any).AOV ?? (businessProfilePayload as any).aov;
   const ltv = (businessProfilePayload as any).LTV ?? (businessProfilePayload as any).ltv;
-  const recurringFlag = (businessProfilePayload as any).RecurringFlag ?? (businessProfilePayload as any).recurring_flag;
+  const recurringFlag =
+    (businessProfilePayload as any).RecurringFlag ?? (businessProfilePayload as any).recurring_flag;
   const brandTerms = (businessProfilePayload as any).BrandTerms ?? (businessProfilePayload as any).brand_terms;
 
   if (aov !== undefined && aov !== null && String(aov).trim() !== "") {
     formDataPayload.append("aov", String(aov));
   }
-  if (ltv !== undefined && ltv !== null && String(ltv).trim() !== "") {
-    formDataPayload.append("ltv", String(ltv));
+  const ltvStr = ltv != null ? String(ltv).trim().toLowerCase() : "";
+  if (ltvStr === "high" || ltvStr === "low") {
+    formDataPayload.append("ltv", ltvStr);
   }
   if (typeof recurringFlag === "string" && recurringFlag.trim()) {
     formDataPayload.append("recurring_flag", recurringFlag.trim().toLowerCase());
@@ -204,27 +208,26 @@ function mapBusinessProfilePayloadToJobFormData(
     );
   }
 
-  // Handle offerings CSV - always send a CSV file with headers and at least one row (required by API)
-  // Simple CSV generation without external library
-  const csvRows: string[] = [];
-  csvRows.push("Offerings,Description,Url"); // Header
+  if (includeOfferings) {
+    const csvRows: string[] = [];
+    csvRows.push("Offerings,Description,Url,Link,URL,Website,offering_url");
 
-  if (offerings.length > 0) {
-    offerings.forEach((offering) => {
-      const name = (offering.name || "").replace(/"/g, '""'); // Escape quotes
-      const description = (offering.description || "").replace(/"/g, '""');
-      const url = (offering.link || "").replace(/"/g, '""');
-      csvRows.push(`"${name}","${description}","${url}"`);
-    });
-  } else {
-    // Empty row with headers if no offerings
-    csvRows.push('"","",""');
+    if (offerings.length > 0) {
+      offerings.forEach((offering) => {
+        const name = (offering.name || "").replace(/"/g, '""');
+        const description = (offering.description || "").replace(/"/g, '""');
+        const url = (offering.link || "").replace(/"/g, '""');
+        csvRows.push(`"${name}","${description}","${url}","${url}","${url}","${url}","${url}"`);
+      });
+    } else {
+      csvRows.push('"","",""');
+    }
+
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+    const file = new File([blob], "offerings.csv", { type: "text/csv" });
+    formDataPayload.append("csv_file", file);
   }
-
-  const csvString = csvRows.join("\n");
-  const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-  const file = new File([blob], "offerings.csv", { type: "text/csv" });
-  formDataPayload.append("csv_file", file);
 
   return formDataPayload;
 }
@@ -237,7 +240,7 @@ function createFormDataAxiosInstance() {
 
   return axios.create({
     baseURL,
-    timeout: 30000,
+    timeout: 300000,
     headers: {
       "Content-Type": "multipart/form-data",
       ...(token && { token }),
@@ -282,7 +285,7 @@ export function useJobByBusinessId(businessId: string | null) {
       // Poll every 20 seconds when workflow is processing or pending
       const data = query.state.data;
       const workflowStatus = data?.workflow_status?.status;
-      if (workflowStatus === "processing") {
+      if (workflowStatus === "processing" || workflowStatus === "pending") {
         return 20000; // 20 seconds
       }
       return false; // Stop polling when success or error
@@ -368,6 +371,7 @@ interface UpdateJobParams {
   businessId: string;
   businessProfilePayload: BusinessProfilePayload;
   offerings: Offering[];
+  includeOfferings?: boolean;
 }
 
 /**
@@ -377,7 +381,7 @@ export function useUpdateJob() {
   const queryClient = useQueryClient();
 
   return useMutation<JobDetails, Error, UpdateJobParams>({
-    mutationFn: async ({ businessId, businessProfilePayload, offerings }) => {
+    mutationFn: async ({ businessId, businessProfilePayload, offerings, includeOfferings }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
@@ -386,7 +390,8 @@ export function useUpdateJob() {
         const formDataPayload = mapBusinessProfilePayloadToJobFormData(
           businessProfilePayload,
           businessId,
-          offerings
+          offerings,
+          { includeOfferings }
         );
 
         const instance = createFormDataAxiosInstance();

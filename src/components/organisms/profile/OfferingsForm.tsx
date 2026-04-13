@@ -20,16 +20,21 @@ import { OfferingRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Boxes, Handshake, Loader2, PackageSearch, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { normalizeWebsiteUrl } from "@/utils/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type BusinessInfoFormData = {
   website: string;
   businessName: string;
   businessDescription: string;
   primaryLocation: string;
-  serviceType: "physical" | "online";
-  recurringRevenue: string;
-  avgOrderValue: string;
+  serviceType: "physical" | "online" | "both";
   lifetimeValue: string;
   offerings: "products" | "services" | "both";
   offeringsList?: Array<{
@@ -44,17 +49,58 @@ interface OfferingsFormProps {
   form: any; // TanStack Form instance
   businessId?: string | null; // Business ID for offerings extraction
   hideFetchOfferingsFromWebsite?: boolean;
+  embedded?: boolean;
+  disabled?: boolean;
+  extractionController?: ReturnType<typeof useOfferingsExtractor>;
 }
 
 export const OfferingsForm = ({
   form,
   businessId,
   hideFetchOfferingsFromWebsite = false,
+  embedded = false,
+  disabled = false,
+  extractionController,
 }: OfferingsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
   const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
   const website = useStore(form.store, (state: any) => state.values?.website || "");
+
+  const normalizeOfferingLink = useCallback(
+    (rawLink: unknown) => {
+      const link = String(rawLink ?? "").replace(/^sc-domain:/i, "").trim();
+      if (!link) return "";
+      if (/^(mailto:|tel:)/i.test(link)) return link;
+
+      if (/^https?:\/\//i.test(link)) {
+        return link.replace(/^http:\/\//i, "https://");
+      }
+
+      if (/^[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(link)) {
+        return `https://${link.replace(/^\/+/, "")}`;
+      }
+
+      const baseUrl = normalizeWebsiteUrl(String(website ?? ""));
+      if (!baseUrl) return "";
+
+      try {
+        return new URL(link, baseUrl).toString();
+      } catch {
+        return "";
+      }
+    },
+    [website]
+  );
+  const hasAnyOffering = useMemo(() => {
+    return (offeringsData || []).some((o) =>
+      Boolean(
+        String(o?.name ?? "").trim() ||
+          String(o?.description ?? "").trim() ||
+          String(o?.link ?? "").trim()
+      )
+    );
+  }, [offeringsData]);
 
   // Track offerings validation errors
   const [hasOfferingsErrors, setHasOfferingsErrors] = React.useState(false);
@@ -67,16 +113,18 @@ export const OfferingsForm = ({
     }));
   }, [hasOfferingsErrors, form]);
 
-  // Offerings extractor hook
+  // Offerings extractor hook (optionally controlled by parent)
+  const internalExtractor = useOfferingsExtractor(businessId || null);
   const {
     startExtraction,
     isExtracting,
     extractedOfferings,
     extractionStatus,
+    extractionError,
     clearExtraction,
     taskId,
     extractionData,
-  } = useOfferingsExtractor(businessId || null);
+  } = extractionController ?? internalExtractor;
 
   // Track processed taskId to avoid duplicate processing
   const processedTaskIdRef = useRef<string | null>(null);
@@ -102,13 +150,14 @@ export const OfferingsForm = ({
 
   // Handle fetch offerings from website
   const handleFetchOfferings = useCallback(async () => {
+    if (disabled) return;
     if (!website) {
       toast.error("Please enter a website URL first");
       return;
     }
 
     await startExtraction(website);
-  }, [website, startExtraction]);
+  }, [disabled, website, startExtraction]);
 
   // Merge extracted offerings with existing ones when extraction completes
   useEffect(() => {
@@ -149,7 +198,7 @@ export const OfferingsForm = ({
       .map((offering: any) => ({
         name: (offering.name || offering.offering || "").trim(),
         description: (offering.description || "").trim(),
-        link: (offering.url || offering.link || "").trim(),
+        link: normalizeOfferingLink(offering.url || offering.link),
       }))
       .filter((offering) => offering.name !== ""); // Filter out empty names
 
@@ -207,52 +256,43 @@ export const OfferingsForm = ({
 
     // Clear extraction state after processing
     clearExtraction();
-  }, [extractionStatus, extractionData, extractedOfferings, offeringsData, form, clearExtraction, taskId]);
+  }, [extractionStatus, extractionData, extractedOfferings, offeringsData, form, clearExtraction, taskId, normalizeOfferingLink]);
 
-  return (
-    <Card
-      id="offerings"
-      variant="profileCard"
-      className="py-6 px-4 bg-white border-none mt-6"
-    >
-      <CardHeader className="pb-4">
-        <CardTitle>
-          <Typography variant="h4">Offerings</Typography>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Card variant="profileCard">
-          <CardContent>
-            <GenericInput<BusinessInfoFormData>
-              form={form as any}
-              fieldName="offerings"
-              type="radio-group"
-              label="What type of offerings do you provide your customers?"
-              required={true}
-              orientation="horizontal"
-              options={[
-                { value: "products", label: "Products" },
-                { value: "services", label: "Services" },
-                { value: "both", label: "Both" },
-              ]}
-            />
-          </CardContent>
-        </Card>
-        <Card variant="profileCard" className="relative">
-          {/* Loading overlay for offerings extraction */}
-          {isExtracting && (
-            <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 rounded-lg">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <div className="text-center">
-                <Typography variant="h6" className="text-primary">
-                  Extracting offerings from website...
-                </Typography>
-                <Typography variant="small" className="text-muted-foreground mt-2">
-                  This may take a few minutes. You can continue editing other fields.
-                </Typography>
-              </div>
-            </div>
-          )}
+  const offeringsTypeInput = (
+    <div className="w-1/2">
+      <GenericInput<BusinessInfoFormData>
+        form={form as any}
+        fieldName="offerings"
+        type="radio-cards"
+        label="What type of offerings do you provide your customers?"
+        required={true}
+        orientation="horizontal"
+        disabled={disabled}
+        radioCardSize="sm"
+        radioCardIcons={{
+          products: <PackageSearch className="size-7" strokeWidth={1.5} />,
+          services: <Handshake className="size-7" strokeWidth={1.5} />,
+          both: <Boxes className="size-7" strokeWidth={1.5} />,
+        }}
+        options={[
+          { value: "products", label: "Products" },
+          { value: "services", label: "Services" },
+          { value: "both", label: "Both" },
+        ]}
+      />
+    </div>
+  );
+
+  const innerContent = (
+    <div className="space-y-7">
+        {embedded ? (
+          offeringsTypeInput
+        ) : (
+          <Card variant="noBorderShadowCard">
+            <CardContent>{offeringsTypeInput}</CardContent>
+          </Card>
+        )}
+        <Card variant="noBorderShadowCard">
           <CardHeader className="">
             <div className="flex items-center justify-between">
               <CardTitle>
@@ -261,41 +301,132 @@ export const OfferingsForm = ({
                   What products and services does your business sell?
                 </FieldLabel>
               </CardTitle>
-              {!hideFetchOfferingsFromWebsite ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleFetchOfferings}
-                  disabled={isExtracting || !website}
-                  className="min-w-[200px]"
-                >
-                  {isExtracting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Extracting...
-                    </>
-                  ) : offeringsData.length > 0 ? (
-                    "Add More from Website"
-                  ) : (
-                    "Fetch Offerings from Website"
+              {(!hideFetchOfferingsFromWebsite || hasAnyOffering) ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleFetchOfferings}
+                        disabled={disabled || isExtracting || !website}
+                        className="min-w-[200px]"
+                      >
+                        {isExtracting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Extracting...
+                          </>
+                        ) : hasAnyOffering ? (
+                          "Fetch more from Website"
+                        ) : (
+                          "Fetch Offerings from Website"
+                        )}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {(isExtracting || !website) && (
+                    <TooltipContent>
+                      Fill website URL to fetch offerings
+                    </TooltipContent>
                   )}
-                </Button>
+                </Tooltip>
               ) : null}
             </div>
           </CardHeader>
-          <CardContent>
-            <CustomAddRowTable
-              columns={offeringsColumns}
-              data={offeringsData}
-              onAddRow={handleAddRow}
-              onRowChange={handleRowChange}
-              onDeleteRow={handleDeleteRow}
-              addButtonText="Add Product/Service"
-              onValidationChange={setHasOfferingsErrors}
-                showErrorsWithoutTouch={hasOfferingsErrors}
-            />
+          <CardContent className="space-y-4">
+            <div className="w-full md:w-3/4">
+            {isExtracting ? (
+              <div className="rounded-lg border border-general-border-three bg-white px-6 py-8">
+                <div className="flex flex-col items-center justify-center gap-3 text-center">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-6 w-6 animate-spin text-general-primary" />
+                    <Typography variant="h6" className="text-general-foreground">
+                      Extracting offerings
+                    </Typography>
+                  </div>
+                  <Typography
+                    variant="small"
+                    className="text-general-muted-foreground/70 max-w-[420px]"
+                  >
+                    We’re pulling your products/services from the website in the background.
+                    You can continue to the next steps while this runs.
+                  </Typography>
+                </div>
+              </div>
+            ) : (
+              <>
+                {extractionError ? (
+                  <div className="flex items-center justify-between gap-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+                      <Typography variant="small" className="text-destructive">
+                        {extractionError}
+                      </Typography>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={clearExtraction}
+                      className="shrink-0"
+                    >
+                      <X className="mr-1.5 h-4 w-4" />
+                      Dismiss
+                    </Button>
+                  </div>
+                ) : null}
+                <CustomAddRowTable
+                  columns={offeringsColumns}
+                  data={offeringsData}
+                  onAddRow={() => {
+                    if (!disabled) handleAddRow();
+                  }}
+                  onRowChange={(rowIndex, field, value) => {
+                    if (!disabled) handleRowChange(rowIndex, field, value);
+                  }}
+                  onDeleteRow={(rowIndex) => {
+                    if (!disabled) handleDeleteRow(rowIndex);
+                  }}
+                  addButtonText="Add Product/Service"
+                  onValidationChange={setHasOfferingsErrors}
+                  showErrorsWithoutTouch={hasOfferingsErrors}
+                  variant="card"
+                  disabled={disabled}
+                />
+              </>
+            )}
+            </div>
           </CardContent>
         </Card>
+    </div>
+  );
+
+  if (embedded) {
+    return <div id="offerings-section">{innerContent}</div>;
+  }
+
+  return (
+    <Card
+      id="offerings-section"
+      variant="profileCard"
+      className="p-4 bg-transparent border-none shadow-none mt-6"
+    >
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-2">
+          <PackageSearch className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
+            <CardTitle>
+              <Typography variant="h4" className="text-2xl!">Offerings</Typography>
+            </CardTitle>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Defines what you actually sell so recommendations focus on revenue-driving products and services.
+            </Typography>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-7">
+        {innerContent}
       </CardContent>
     </Card>
   );

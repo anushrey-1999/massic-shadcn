@@ -5,7 +5,7 @@ import { isTokenExpired } from "@/utils/jwt";
 const PUBLIC_ROUTES = ["/login", "/signup", "/team-signup"];
 
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   const isPublicRoute = PUBLIC_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
@@ -17,7 +17,8 @@ export function proxy(request: NextRequest) {
 
   if ((!token || hasExpiredToken) && !isPublicRoute) {
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    const fullPathWithQuery = `${pathname}${search || ""}`;
+    loginUrl.searchParams.set("redirect", fullPathWithQuery);
 
     const response = NextResponse.redirect(loginUrl);
 

@@ -16,6 +16,7 @@ interface GetTacticsTableColumnsProps {
   businessId?: string;
   expandedRowId?: string | null;
   onExpandedRowChange?: (rowId: string | null) => void;
+  hideActions?: boolean;
 }
 
 function extractRedditThreadPath(url: string): string {
@@ -36,11 +37,13 @@ function extractRedditThreadPath(url: string): string {
   }
 }
 
-export function getTacticsTableColumns({ channelName, businessId, expandedRowId, onExpandedRowChange }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
+export function getTacticsTableColumns({ channelName, businessId, expandedRowId, onExpandedRowChange, hideActions = false }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
   const isReddit = channelName?.toLowerCase() === "reddit";
 
+  let columns: ColumnDef<TacticRow>[] = [];
+
   if (isReddit) {
-    return [
+    columns = [
       {
         id: "thread",
         accessorKey: "url",
@@ -172,184 +175,190 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
         maxSize: 250,
       },
     ];
+  } else {
+    columns = [
+      {
+        id: "tactic",
+        accessorKey: "cluster_name",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Tactic" />
+        ),
+        cell: ({ row }) => (
+          <Typography variant="p" className="truncate">
+            {row.original.cluster_name || "N/A"}
+          </Typography>
+        ),
+        meta: {
+          label: "Tactic",
+          placeholder: "Search tactics...",
+          variant: "text",
+          icon: Tag,
+        },
+        enableColumnFilter: true,
+        enableSorting: true,
+        size: 130,
+        minSize: 110,
+        maxSize: 160,
+      },
+      {
+        id: "title",
+        accessorKey: "title",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Title" />
+        ),
+        cell: ({ row }) => (
+          <Typography variant="p" className="truncate">
+            {row.getValue("title") || "N/A"}
+          </Typography>
+        ),
+        meta: {
+          label: "Title",
+          placeholder: "Search titles...",
+          variant: "text",
+          icon: FileText,
+        },
+        enableColumnFilter: true,
+        enableSorting: true,
+        size: 170,
+        minSize: 140,
+        maxSize: 200,
+      },
+      {
+        id: "description",
+        accessorKey: "description",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Description" />
+        ),
+        cell: ({ row }) => (
+          <Typography variant="p" className="line-clamp-2">
+            {row.getValue("description") || "N/A"}
+          </Typography>
+        ),
+        meta: {
+          label: "Description",
+          placeholder: "Search descriptions...",
+          variant: "text",
+          icon: FileText,
+        },
+        enableColumnFilter: true,
+        enableSorting: false,
+        size: 220,
+        minSize: 180,
+        maxSize: 280,
+      },
+      {
+        id: "campaign_relevance",
+        accessorKey: "campaign_relevance",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Relevance" />
+        ),
+        cell: ({ cell }) => {
+          const score = cell.getValue<number>();
+          return (
+            <div className="flex items-center">
+              <RelevancePill score={score || 0} />
+            </div>
+          );
+        },
+        meta: {
+          label: "Relevance",
+          variant: "range",
+          range: [0, 1],
+          icon: TrendingUp,
+        },
+        enableColumnFilter: true,
+        enableSorting: true,
+        size: 110,
+        minSize: 100,
+        maxSize: 130,
+      },
+      {
+        id: "related_keywords",
+        accessorFn: (row) => (row.related_keywords || []).length,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Keywords" />
+        ),
+        cell: ({ row }) => {
+          const keywords = row.original.related_keywords || [];
+          const rowId = row.original.id;
+          const isExpanded = expandedRowId === rowId;
+          return (
+            <div className="max-w-full">
+              <ExpandablePills
+                items={keywords}
+                pillVariant="outline"
+                expanded={isExpanded}
+                onExpandedChange={(next) => {
+                  onExpandedRowChange?.(next ? rowId : null);
+                }}
+              />
+            </div>
+          );
+        },
+        meta: {
+          label: "Keywords",
+          placeholder: "Search keywords...",
+          variant: "text",
+          icon: Hash,
+        },
+        enableColumnFilter: false,
+        enableSorting: true,
+        size: 170,
+        minSize: 140,
+        maxSize: 200,
+      },
+      {
+        id: "status",
+        accessorKey: "status",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Status" />
+        ),
+        cell: ({ row }) => {
+          const status = row.getValue<string>("status") || "N/A";
+          return (
+            <Badge variant="outline" className="capitalize">
+              {status}
+            </Badge>
+          );
+        },
+        meta: {
+          label: "Status",
+          placeholder: "Search status...",
+          variant: "text",
+          icon: CheckCircle2,
+        },
+        enableColumnFilter: true,
+        enableSorting: true,
+        size: 100,
+        minSize: 90,
+        maxSize: 120,
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-sm font-semibold">Actions</div>,
+        cell: ({ row }) => {
+          if (!businessId) {
+            return (
+              <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled>
+                <Sparkles className="h-4 w-4" />
+              </Button>
+            );
+          }
+
+          return <SocialActionCell businessId={businessId} row={row.original} channelName={channelName} />;
+        },
+        enableColumnFilter: false,
+        enableSorting: false,
+        size: 100,
+        minSize: 100,
+        maxSize: 100,
+      },
+    ];
   }
 
-  return [
-    {
-      id: "tactic",
-      accessorKey: "cluster_name",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Tactic" />
-      ),
-      cell: ({ row }) => (
-        <Typography variant="p" className="truncate">
-          {row.original.cluster_name || "N/A"}
-        </Typography>
-      ),
-      meta: {
-        label: "Tactic",
-        placeholder: "Search tactics...",
-        variant: "text",
-        icon: Tag,
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 130,
-      minSize: 110,
-      maxSize: 160,
-    },
-    {
-      id: "title",
-      accessorKey: "title",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Title" />
-      ),
-      cell: ({ row }) => (
-        <Typography variant="p" className="truncate">
-          {row.getValue("title") || "N/A"}
-        </Typography>
-      ),
-      meta: {
-        label: "Title",
-        placeholder: "Search titles...",
-        variant: "text",
-        icon: FileText,
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 170,
-      minSize: 140,
-      maxSize: 200,
-    },
-    {
-      id: "description",
-      accessorKey: "description",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Description" />
-      ),
-      cell: ({ row }) => (
-        <Typography variant="p" className="line-clamp-2">
-          {row.getValue("description") || "N/A"}
-        </Typography>
-      ),
-      meta: {
-        label: "Description",
-        placeholder: "Search descriptions...",
-        variant: "text",
-        icon: FileText,
-      },
-      enableColumnFilter: true,
-      enableSorting: false,
-      size: 220,
-      minSize: 180,
-      maxSize: 280,
-    },
-    {
-      id: "campaign_relevance",
-      accessorKey: "campaign_relevance",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Relevance" />
-      ),
-      cell: ({ cell }) => {
-        const score = cell.getValue<number>();
-        return (
-          <div className="flex items-center">
-            <RelevancePill score={score || 0} />
-          </div>
-        );
-      },
-      meta: {
-        label: "Relevance",
-        variant: "range",
-        range: [0, 1],
-        icon: TrendingUp,
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 110,
-      minSize: 100,
-      maxSize: 130,
-    },
-    {
-      id: "related_keywords",
-      accessorFn: (row) => (row.related_keywords || []).length,
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Keywords" />
-      ),
-      cell: ({ row }) => {
-        const keywords = row.original.related_keywords || [];
-        const rowId = row.original.id;
-        const isExpanded = expandedRowId === rowId;
-        return (
-          <div className="max-w-full">
-            <ExpandablePills
-              items={keywords}
-              pillVariant="outline"
-              expanded={isExpanded}
-              onExpandedChange={(next) => {
-                onExpandedRowChange?.(next ? rowId : null);
-              }}
-            />
-          </div>
-        );
-      },
-      meta: {
-        label: "Keywords",
-        placeholder: "Search keywords...",
-        variant: "text",
-        icon: Hash,
-      },
-      enableColumnFilter: false,
-      enableSorting: true,
-      size: 170,
-      minSize: 140,
-      maxSize: 200,
-    },
-    {
-      id: "status",
-      accessorKey: "status",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Status" />
-      ),
-      cell: ({ row }) => {
-        const status = row.getValue<string>("status") || "N/A";
-        return (
-          <Badge variant="outline" className="capitalize">
-            {status}
-          </Badge>
-        );
-      },
-      meta: {
-        label: "Status",
-        placeholder: "Search status...",
-        variant: "text",
-        icon: CheckCircle2,
-      },
-      enableColumnFilter: true,
-      enableSorting: true,
-      size: 100,
-      minSize: 90,
-      maxSize: 120,
-    },
-    {
-      id: "actions",
-      header: () => <div className="text-sm font-semibold">Actions</div>,
-      cell: ({ row }) => {
-        if (!businessId) {
-          return (
-            <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled>
-              <Sparkles className="h-4 w-4" />
-            </Button>
-          );
-        }
+  if (hideActions) {
+    return columns.filter((col) => col.id !== "actions");
+  }
 
-        return <SocialActionCell businessId={businessId} row={row.original} channelName={channelName} />;
-      },
-      enableColumnFilter: false,
-      enableSorting: false,
-      size: 100,
-      minSize: 100,
-      maxSize: 100,
-    },
-  ];
+  return columns;
 }

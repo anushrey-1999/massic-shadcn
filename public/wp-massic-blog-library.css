@@ -1,0 +1,220 @@
+/* =========================
+   ROOT VARIABLES (THEME CONTROL)
+========================= */
+:root {
+  --massic_text_color: #111827;
+  --massic_muted_text: #4b5563;
+  --massic_border_color: #d1d5db;
+  --massic_primary: #374151;
+  --massic_bg_light: #f3f4f6;
+  --massic_radius: 10px;
+}
+
+/* =========================
+ MAIN LAYOUT (FIXED)
+========================= */
+.massic_blog_wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+  padding: 2% 0;
+}
+
+aside.massic_blog_sidebar {
+  position: sticky;
+  top: 3rem;
+  width: 260px;
+  flex-shrink: 0;
+}
+
+.massic_blog_content {
+  flex: 1;
+}
+
+/* =========================
+ SIDEBAR
+========================= */
+h3.massic_toc_title {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+ul.massic_toc_list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.massic_toc_list a {
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.massic_toc_list a:hover {
+  color: var(--massic_text_color);
+}
+
+/* CTA */
+.massic_sidebar_cta {
+  background: var(--massic_bg_light);
+  border: 1px solid var(--massic_border_color);
+  padding: 1rem;
+  border-radius: var(--massic_radius);
+}
+
+h4.massic_cta_title {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+a.massic_cta_button {
+  display: inline-block;
+  font-size: 14px;
+  background: var(--massic_primary);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.massic_sidebar_cta .massic_cta_button {
+  width: 100%;
+  text-align: center;
+}
+
+/* =========================
+ CONTENT SPACING
+========================= */
+.massic_content_section {
+  margin-bottom: 1.5rem;
+}
+
+/* =========================
+ TYPOGRAPHY
+========================= */
+.massic_section_heading {
+  font-size: 1.5rem;
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+  color: var(--massic_text_color);
+  font-weight: 800;
+}
+
+.massic_section_paragraph {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--massic_text_color);
+  margin-bottom: 1rem;
+}
+
+.massic_content_section h3 {
+  font-size: 1.25rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* =========================
+ TABLE
+========================= */
+.massic_table_wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--massic_border_color);
+  border-radius: var(--massic_radius);
+}
+
+.massic_table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.massic_table th,
+.massic_table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--massic_border_color);
+  text-align: left;
+}
+
+.massic_table th {
+  font-weight: 600;
+  background: var(--massic_bg_light);
+}
+
+/* =========================
+ FAQ
+========================= */
+.massic_section_faq {
+  border-top: 1px solid var(--massic_border_color);
+  padding-top: 1.5rem;
+}
+
+.massic_faq_list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.massic_faq_item {
+  border: 1px solid var(--massic_border_color);
+  border-radius: var(--massic_radius);
+  padding: 0.75rem 1rem;
+  background: #fff;
+}
+
+.massic_faq_question {
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--massic_text_color);
+  list-style: none;
+}
+
+.massic_faq_item[open] {
+  background: var(--massic_bg_light);
+}
+
+.massic_faq_answer {
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+  color: var(--massic_muted_text);
+  line-height: 1.6;
+}
+
+/* =========================
+ FINAL CTA
+========================= */
+.massic_section_cta {
+  border: 1px solid var(--massic_border_color);
+  border-radius: var(--massic_radius);
+  padding: 2rem;
+  text-align: center;
+  background: var(--massic_bg_light);
+}
+
+.massic_cta_heading {
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.massic_cta_description {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  color: var(--massic_muted_text);
+}
+
+/* =========================
+ RESPONSIVE
+========================= */
+@media (max-width: 1024px) {
+  .massic_blog_wrapper {
+      flex-direction: column;
+  }
+
+  aside.massic_blog_sidebar {
+      position: relative;
+      /* disable sticky on mobile */
+      width: 100%;
+      top: 0;
+  }
+}

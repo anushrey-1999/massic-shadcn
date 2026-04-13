@@ -1,6 +1,15 @@
 import * as z from "zod";
 import { isValidWebsiteUrl } from "@/utils/utils";
 
+const isValidCtaUrl = (val: string): boolean => {
+  const s = String(val ?? "").trim();
+  if (!s) return false;
+  if (isValidWebsiteUrl(s)) return true;
+  if (/^mailto:/i.test(s)) return true;
+  if (/^tel:\s*\+?[0-9().\-\s]+$/i.test(s)) return true;
+  return false;
+};
+
 export const businessInfoSchema = z.object({
   website: z
     .string()
@@ -12,10 +21,10 @@ export const businessInfoSchema = z.object({
   businessName: z.string().min(1, "Business Name is required"),
   businessDescription: z.string(),
   primaryLocation: z.string().min(1, "Primary Location is required"),
-  serviceType: z.enum(["physical", "online"]),
-  recurringRevenue: z.string().optional(),
-  avgOrderValue: z.union([z.string(), z.number()]).optional(),
-  lifetimeValue: z.union([z.string(), z.number()]).optional(),
+  serviceType: z.enum(["physical", "online", "both"]),
+  lifetimeValue: z
+    .union([z.enum(["high", "low"]), z.literal("")])
+    .optional(),
   offerings: z.enum(["products", "services", "both"]),
   offeringsList: z
     .array(
@@ -48,13 +57,13 @@ export const businessInfoSchema = z.object({
         url: z
           .string()
           .min(1, "URL is required")
-          .refine((val) => isValidWebsiteUrl(val), {
+          .refine((val) => isValidCtaUrl(val), {
             message: "Please enter a valid URL",
           }),
       })
     )
     .optional(),
-  brandTerms: z.string().optional(),
+  brandTerms: z.array(z.string().trim().min(1)).optional(),
   stakeholders: z
     .array(
       z.object({

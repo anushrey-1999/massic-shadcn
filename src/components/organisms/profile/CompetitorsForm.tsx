@@ -13,6 +13,7 @@ import { FieldLabel } from "@/components/ui/field";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
 import { CompetitorRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
+import { Users } from "lucide-react";
 
 type BusinessInfoFormData = {
   competitors?: Array<{ url: string }>;
@@ -20,10 +21,12 @@ type BusinessInfoFormData = {
 
 interface CompetitorsFormProps {
   form: any; // TanStack Form instance
+  embedded?: boolean;
 }
 
 export const CompetitorsForm = ({
   form,
+  embedded = false,
 }: CompetitorsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
@@ -55,28 +58,19 @@ export const CompetitorsForm = ({
     emptyRowFactory: () => ({ url: "" }),
   });
 
-  return (
-    <Card
-      id="competitors"
-      variant="profileCard"
-      className="py-6 px-4 bg-white border-none mt-6"
-    >
-      <CardHeader className="pb-4">
+  const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
+  const innerContent = (
+    <Card variant={cardVariant}>
+      <CardHeader className="">
         <CardTitle>
-          <Typography variant="h4">Competitors</Typography>
+          <FieldLabel className="gap-0">
+            Websites of businesses that have similar offerings
+          </FieldLabel>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <Card variant="profileCard">
-          <CardHeader className="">
-            <CardTitle>
-              <FieldLabel className="gap-0">
-                Websites of businesses that have similar offerings
-              </FieldLabel>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CustomAddRowTable
+      <CardContent>
+        <div className="w-full md:w-3/4">
+<CustomAddRowTable
               columns={competitorsColumns}
               data={competitorsData}
               onAddRow={handleAddRow}
@@ -85,9 +79,38 @@ export const CompetitorsForm = ({
               addButtonText="Add URL"
               onValidationChange={setHasCompetitorErrors}
               showErrorsWithoutTouch={hasCompetitorErrors}
+              variant="card"
             />
-          </CardContent>
-        </Card>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  if (embedded) {
+    return <div id="competitors">{innerContent}</div>;
+  }
+
+  return (
+    <Card
+      id="competitors"
+      variant="profileCard"
+      className="p-4 bg-white border-none shadow-none mt-6"
+    >
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-2">
+          <Users className="h-[47px] w-[47px] shrink-0 text-[#D4D4D4]" strokeWidth={1} />
+          <div className="space-y-0">
+            <CardTitle>
+              <Typography variant="h4" className="text-2xl!">Competitors</Typography>
+            </CardTitle>
+            <Typography variant="muted" className="text-xs text-general-muted-foreground">
+              Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities.
+            </Typography>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-7">
+        {innerContent}
       </CardContent>
     </Card>
   );

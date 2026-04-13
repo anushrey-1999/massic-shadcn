@@ -24,15 +24,27 @@ import {
   useStartQuickyReport,
   useQuickyReportStatus,
   useFetchReportFromDownloadUrl,
+  extractExpressPitch,
   extractSnapshotSectionsMarkdown,
+  extractDetailedSectionsMarkdown,
 } from "@/hooks/use-pitch-reports";
 import { PitchReportViewer } from "@/components/templates/PitchReportViewer";
+import { SnapshotReportViewer } from "@/components/templates/SnapshotReportViewer";
 import {
   useGenerateDetailedReport,
 } from "@/hooks/use-detailed-pitch-workflow";
 import { api } from "@/hooks/use-api";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { PitchesHistoryTable } from "@/components/organisms/PitchesTable/pitches-history-table";
+import { MassicOpportunitiesModal } from "@/components/molecules/MassicOpportunitiesModal";
+import { ApplyCreditsModal } from "@/components/molecules/ApplyCreditsModal";
+import { CreditModal } from "@/components/molecules/settings/CreditModal";
+import { useCanExecuteMassicOpportunities, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
+import { useExecutionCredits } from "@/hooks/use-execution-credits";
+import { useAuthStore } from "@/store/auth-store";
+import { formatDate, formatVolume } from "@/lib/format";
+import { useQuickEvaluation } from "@/hooks/use-quick-evaluation";
+import { useAgencyInfo } from "@/hooks/use-agency-settings";
 
 export default function PitchReportsPage() {
   const params = useParams();
@@ -40,16 +52,53 @@ export default function PitchReportsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const businessId = (params as any)?.id as string | undefined;
+  const { user } = useAuthStore();
+  const { agencyInfo } = useAgencyInfo();
 
   const startQuickyMutation = useStartQuickyReport();
   const fetchReportMutation = useFetchReportFromDownloadUrl();
+  const quickEvaluationMutation = useQuickEvaluation();
   const [snapshotStarted, setSnapshotStarted] = React.useState(false);
   const [detailedPolling, setDetailedPolling] = React.useState(false);
+  const [downloadedSnapshotExpressPitch, setDownloadedSnapshotExpressPitch] =
+    React.useState<ReturnType<typeof extractExpressPitch>>(null);
 
   const [activeReport, setActiveReport] = React.useState<
     "snapshot" | "detailed" | null
   >(null);
   const [reportContent, setReportContent] = React.useState<string>("");
+  const [showUpgradeModal, setShowUpgradeModal] = React.useState(false);
+  const [upgradeModalMessage, setUpgradeModalMessage] = React.useState<string>("");
+
+  const [showApplyCreditsModal, setShowApplyCreditsModal] = React.useState(false);
+  const [applyCreditsReportType, setApplyCreditsReportType] = React.useState<"snapshot" | "detailed">("snapshot");
+  const [showBuyCreditsModal, setShowBuyCreditsModal] = React.useState(false);
+  const [buyCreditsAlertMessage, setBuyCreditsAlertMessage] = React.useState<string>("");
+  const [pendingGenerateAction, setPendingGenerateAction] = React.useState<(() => Promise<void>) | null>(null);
+
+  const {
+    canExecuteSnapshot,
+    canExecuteDetailed,
+    needsUpgradeForSnapshot,
+    needsUpgradeForDetailed,
+    isLoading: massicOpportunitiesLoading,
+    status,
+    getSnapshotChipsData,
+    getDetailedChipsData,
+  } = useCanExecuteMassicOpportunities();
+
+  const {
+    creditsBalance,
+    purchaseCredits,
+    refetchData: refetchCreditsData,
+  } = useExecutionCredits();
+
+  const snapshotChips = getSnapshotChipsData();
+  const detailedChips = getDetailedChipsData();
+
+  const cancelMassicOpportunities = useCancelMassicOpportunities();
+  const subscribeMassicOpportunities = useSubscribeMassicOpportunities();
+  const reactivateMassicOpportunities = useReactivateMassicOpportunities();
 
   const generateDetailedReportMutation = useGenerateDetailedReport();
 
@@ -63,6 +112,7 @@ export default function PitchReportsPage() {
         });
       } catch (error: any) {
         if (error?.response?.status === 404) return null;
+        if (error?.response?.status === 403) return null;
         throw error;
       }
     },
@@ -123,6 +173,13 @@ export default function PitchReportsPage() {
     businessProfile?.Name,
     businessProfile?.DisplayName,
   ]);
+
+  const businessWebsite = React.useMemo(() => {
+    const profileFromList = profiles.find((p) => p.UniqueId === businessId) as any;
+    const fromList = String(profileFromList?.Website || "").trim();
+    const fromProfile = String((businessProfile as any)?.Website || "").trim();
+    return fromList || fromProfile;
+  }, [profiles, businessId, businessProfile]);
 
   const businessPitchRows = React.useMemo(() => {
     const rows = Array.isArray(businessPitchesQuery.data)
@@ -220,6 +277,118 @@ export default function PitchReportsPage() {
     snapshotStarted,
   ]);
 
+  const hasUsageRemaining = React.useCallback((type: "snapshot" | "detailed") => {
+    if (!status) return false;
+    if (status.whitelisted) return true;
+
+    const hasSubscription = status.has_subscription && status.status === "active";
+
+    if (type === "snapshot") {
+      if (hasSubscription) {
+        const used = status.usage?.snapshot_report?.used ?? 0;
+        const limit = status.usage?.snapshot_report?.limit ?? 15;
+        return used < limit;
+      } else {
+        const used = status.free_snapshots?.used ?? 0;
+        const limit = status.free_snapshots?.limit ?? 3;
+        return used < limit;
+      }
+    }
+
+    if (type === "detailed") {
+      if (hasSubscription) {
+        const used = status.usage?.detailed_pitch?.used ?? 0;
+        const limit = status.usage?.detailed_pitch?.limit ?? 3;
+        return used < limit;
+      }
+      return false;
+    }
+
+    return false;
+  }, [status]);
+
+  const getUsageLimitForType = React.useCallback((type: "snapshot" | "detailed") => {
+    if (!status) return 0;
+    const hasSubscription = status.has_subscription && status.status === "active";
+
+    if (type === "snapshot") {
+      if (hasSubscription) {
+        return status.usage?.snapshot_report?.limit ?? 15;
+      }
+      return status.free_snapshots?.limit ?? 3;
+    }
+
+    if (type === "detailed") {
+      if (hasSubscription) {
+        return status.usage?.detailed_pitch?.limit ?? 3;
+      }
+    }
+
+    return 0;
+  }, [status]);
+
+  const getCreditsRequiredForType = (type: "snapshot" | "detailed") => {
+    return type === "snapshot" ? 10 : 100;
+  };
+
+  const handleGenerateWithCreditsCheck = React.useCallback(
+    async (
+      type: "snapshot" | "detailed",
+      generateFn: () => Promise<void>
+    ) => {
+      if (!status) return;
+
+      const hasSubscription = status.has_subscription && status.status === "active";
+      const hasUsage = hasUsageRemaining(type);
+
+      if (!hasSubscription && type === "detailed") {
+        setUpgradeModalMessage("Subscribe to Massic Opportunities to generate detailed reports.");
+        setShowUpgradeModal(true);
+        return;
+      }
+
+      if (!hasSubscription && type === "snapshot" && !hasUsage) {
+        const freeLimit = status.free_snapshots?.limit ?? 3;
+        setUpgradeModalMessage(`You've used all ${freeLimit} free snapshot reports. Subscribe to Massic Opportunities to continue generating snapshot reports.`);
+        setShowUpgradeModal(true);
+        return;
+      }
+
+      if (hasUsage) {
+        await generateFn();
+        return;
+      }
+
+      const creditsRequired = getCreditsRequiredForType(type);
+      const currentCredits = creditsBalance?.current_balance ?? 0;
+
+      if (currentCredits >= creditsRequired) {
+        setApplyCreditsReportType(type);
+        setPendingGenerateAction(() => generateFn);
+        setShowApplyCreditsModal(true);
+      } else {
+        const limit = getUsageLimitForType(type);
+        const reportTypeName = type === "snapshot" ? "snapshot reports" : "detailed reports";
+        setBuyCreditsAlertMessage(
+          `You've used all ${limit} ${reportTypeName} on the Massic Opportunities plan. Apply ${creditsRequired} Execution Credits to keep generating.`
+        );
+        setApplyCreditsReportType(type);
+        setPendingGenerateAction(() => generateFn);
+        setShowBuyCreditsModal(true);
+      }
+    },
+    [status, hasUsageRemaining, creditsBalance, getUsageLimitForType]
+  );
+
+  const handleApplyCreditsConfirm = React.useCallback(async () => {
+    if (pendingGenerateAction) {
+      setShowApplyCreditsModal(false);
+      await pendingGenerateAction();
+      setPendingGenerateAction(null);
+      refetchCreditsData();
+    }
+  }, [pendingGenerateAction, refetchCreditsData]);
+
   const detailedExistingQuery = useQuery({
     queryKey: ["detailed", "status", "existing", businessId],
     queryFn: async () => {
@@ -230,6 +399,7 @@ export default function PitchReportsPage() {
         });
       } catch (error: any) {
         if (error?.response?.status === 404) return null;
+        if (error?.response?.status === 403) return null;
         throw error;
       }
     },
@@ -258,6 +428,7 @@ export default function PitchReportsPage() {
         });
       } catch (error: any) {
         if (error?.response?.status === 404) return null;
+        if (error?.response?.status === 403) return null;
         throw error;
       }
     },
@@ -270,6 +441,122 @@ export default function PitchReportsPage() {
       return status === "pending" || status === "processing" ? 4000 : false;
     },
   });
+
+  const snapshotExpressPitch = React.useMemo(() => {
+    return (
+      downloadedSnapshotExpressPitch ||
+      extractExpressPitch(quickyStatusQuery.data) ||
+      extractExpressPitch(startQuickyMutation.data) ||
+      extractExpressPitch(snapshotExistingQuery.data)
+    );
+  }, [
+    downloadedSnapshotExpressPitch,
+    quickyStatusQuery.data,
+    startQuickyMutation.data,
+    snapshotExistingQuery.data,
+  ]);
+
+  const snapshotProfileTags = React.useMemo(() => {
+    const tags: { label: string; value: string }[] = [];
+
+    const objective = String((businessProfile as any)?.BusinessObjective || "").trim().toLowerCase();
+    const market =
+      objective === "local"
+        ? "Local"
+        : objective === "online"
+          ? "Online"
+          : "";
+    if (market) tags.push({ label: "Market", value: market });
+
+    const locationType = String((businessProfile as any)?.LocationType || "").trim().toLowerCase();
+    const sells =
+      locationType === "products"
+        ? "Products"
+        : locationType === "services"
+          ? "Services"
+          : locationType === "both"
+            ? "Both"
+            : "";
+    if (sells) tags.push({ label: "Sells", value: sells });
+
+    const ltvRaw = (businessProfile as any)?.LTV ?? (businessProfile as any)?.ltv;
+    const ltvNum = typeof ltvRaw === "number" ? ltvRaw : Number(ltvRaw);
+    if (Number.isFinite(ltvNum) && ltvNum > 0) {
+      tags.push({ label: "LTV", value: `$${formatVolume(ltvNum)}` });
+    } else {
+      const ltvStr = String(ltvRaw ?? "").trim();
+      if (ltvStr) tags.push({ label: "LTV", value: ltvStr });
+    }
+
+    const segment = snapshotExpressPitch?.segment;
+    const segmentNum = typeof segment === "number" ? segment : Number(segment);
+    if (Number.isFinite(segmentNum)) {
+      tags.push({ label: "Segment", value: `#${segmentNum}` });
+    }
+
+    return tags;
+  }, [businessProfile, snapshotExpressPitch?.segment]);
+
+  const snapshotCompetitors = React.useMemo(() => {
+    const rows = (businessProfile as any)?.Competitors;
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((c: any) => ({
+        name: String(c?.name || "").trim() || null,
+        website: String(c?.website || "").trim(),
+      }))
+      .filter((c: any) => c.website);
+  }, [businessProfile]);
+
+  const snapshotFooterSummary = React.useMemo(() => {
+    const parts: string[] = [];
+    const segment = snapshotExpressPitch?.segment;
+    const segmentNum = typeof segment === "number" ? segment : Number(segment);
+    if (Number.isFinite(segmentNum)) parts.push(`Segment #${segmentNum}`);
+
+    for (const t of snapshotProfileTags) {
+      const label = String(t.label || "").trim().toLowerCase();
+      const value = String(t.value || "").trim();
+      if (label === "segment") continue;
+      if (!value) continue;
+
+      if (label === "ltv") {
+        const v = value.toLowerCase();
+        if (v === "high" || v === "medium" || v === "low") {
+          parts.push(`${v.charAt(0).toUpperCase()}${v.slice(1)} LTV`);
+          continue;
+        }
+      }
+
+      parts.push(value);
+    }
+
+    return parts.join(" · ");
+  }, [snapshotExpressPitch?.segment, snapshotProfileTags]);
+
+  const snapshotGeneratedAt = React.useMemo(() => {
+    const fromHistory = latestSuccessfulSnapshotCreatedAt
+      ? formatDate(latestSuccessfulSnapshotCreatedAt, "MMMM d, yyyy")
+      : "";
+    if (fromHistory) return fromHistory;
+    return formatDate(new Date(), "MMMM d, yyyy");
+  }, [latestSuccessfulSnapshotCreatedAt]);
+
+  const quickEvaluationBusinessUrl = React.useMemo(() => {
+    const fromSnapshot = String(snapshotExpressPitch?.url || "").trim();
+    if (fromSnapshot) return fromSnapshot;
+    return String(businessWebsite || "").trim();
+  }, [snapshotExpressPitch?.url, businessWebsite]);
+
+  const triggerQuickEvaluation = React.useCallback(
+    (urlOverride?: string) => {
+      const url = String(urlOverride || quickEvaluationBusinessUrl || "").trim();
+      if (!url) return;
+      if (quickEvaluationMutation.isPending) return;
+      quickEvaluationMutation.mutate({ businessUrl: url });
+    },
+    [quickEvaluationBusinessUrl, quickEvaluationMutation]
+  );
 
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -322,8 +609,11 @@ export default function PitchReportsPage() {
 
     fetchReportMutation
       .mutateAsync({ downloadUrl })
-      .then((content) => {
-        setReportContent(content);
+      .then((result) => {
+        setReportContent(result.content);
+        if (result.expressPitch) {
+          setDownloadedSnapshotExpressPitch(result.expressPitch);
+        }
       })
       .catch(() => {
         // toast handled in hook
@@ -463,6 +753,14 @@ export default function PitchReportsPage() {
     }
 
     const data = detailedReportQuery.data as any;
+
+    const detailedFromPayload = extractDetailedSectionsMarkdown(data);
+    if (detailedFromPayload && !reportContent.trim()) {
+      setReportContent(detailedFromPayload);
+      setDetailedPolling(false);
+      return;
+    }
+
     const content = String(data?.report || data?.content || "").trim();
     if (content && !reportContent.trim()) {
       setReportContent(content);
@@ -474,8 +772,8 @@ export default function PitchReportsPage() {
     if (downloadUrl && !reportContent.trim() && !fetchReportMutation.isPending) {
       fetchReportMutation
         .mutateAsync({ downloadUrl })
-        .then((text) => {
-          setReportContent(text);
+        .then((result) => {
+          setReportContent(result.content);
           setDetailedPolling(false);
         })
         .catch(() => {
@@ -540,8 +838,10 @@ export default function PitchReportsPage() {
     setReportContent("");
     setSnapshotStarted(false);
     setDetailedPolling(false);
+    setDownloadedSnapshotExpressPitch(null);
     startQuickyMutation.reset();
     fetchReportMutation.reset();
+    quickEvaluationMutation.reset();
     generateDetailedReportMutation.reset();
 
     router.replace(`/pitches/${businessId}/reports`);
@@ -563,8 +863,10 @@ export default function PitchReportsPage() {
       setReportContent("");
       setSnapshotStarted(false);
       setDetailedPolling(false);
+      setDownloadedSnapshotExpressPitch(null);
       startQuickyMutation.reset();
       fetchReportMutation.reset();
+      quickEvaluationMutation.reset();
       generateDetailedReportMutation.reset();
     }
     prevOpenParamRef.current = openParam;
@@ -594,10 +896,22 @@ export default function PitchReportsPage() {
     queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
     setActiveReport("snapshot");
     setReportContent("");
+    setDownloadedSnapshotExpressPitch(null);
     setSnapshotStarted(true);
+    quickEvaluationMutation.reset();
+    triggerQuickEvaluation();
     startQuickyMutation.reset();
     fetchReportMutation.reset();
-  }, [openSnapshot, businessId, activeReport, queryClient, startQuickyMutation, fetchReportMutation]);
+  }, [
+    openSnapshot,
+    businessId,
+    activeReport,
+    queryClient,
+    triggerQuickEvaluation,
+    startQuickyMutation,
+    fetchReportMutation,
+    quickEvaluationMutation,
+  ]);
 
   return (
     <div className="flex flex-col h-screen">
@@ -617,15 +931,21 @@ export default function PitchReportsPage() {
                   size: "lg",
                   onClick: async () => {
                     if (!businessId) return;
-                    queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
-                    setActiveReport("snapshot");
-                    setReportContent("");
-                    setSnapshotStarted(false);
-                    startQuickyMutation.reset();
-                    fetchReportMutation.reset();
-                    await startQuickyMutation.mutateAsync({ businessId });
-                    queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                    setSnapshotStarted(true);
+
+                    const generateSnapshot = async () => {
+                      triggerQuickEvaluation();
+                      queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
+                      setActiveReport("snapshot");
+                      setReportContent("");
+                      setSnapshotStarted(false);
+                      startQuickyMutation.reset();
+                      fetchReportMutation.reset();
+                      await startQuickyMutation.mutateAsync({ businessId });
+                      queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                      setSnapshotStarted(true);
+                    };
+
+                    await handleGenerateWithCreditsCheck("snapshot", generateSnapshot);
                   },
                 },
                 {
@@ -637,42 +957,69 @@ export default function PitchReportsPage() {
               ]}
             />
           ) : (
-          shouldShowProcessingEmptyState ? (
-            <EmptyState
-              title={processingEmptyState.title}
-              description={processingEmptyState.description}
-              className="h-[calc(100vh-12rem)]"
-              isProcessing={processingEmptyState.isProcessing}
-              buttons={[
-                {
-                  label: "Back",
-                  href: businessId ? `/pitches/${businessId}/reports?view=cards` : "/pitches",
-                  variant: "outline",
-                  size: "lg",
-                },
-              ]}
-            />
-          ) : (
-            <PitchReportViewer
-              content={reportContent}
-              reportTitle={reportTitle}
-              isEditable={true}
-              isGenerating={isGenerating}
-              showStatus={
-                activeReport === "snapshot" &&
-                !reportContent.trim() &&
-                (snapshotStarted ||
-                  startQuickyMutation.isPending ||
-                  Boolean(startQuickyMutation.data?.status))
-              }
-              statusText={quickyStatus ? `Status: ${quickyStatus}` : "Status: generating"}
-              showWorkflowMessage={viewerShowWorkflowMessage}
-              workflowStatus={viewerWorkflowStatus}
-              onBack={() => {
-                router.push(businessId ? `/pitches/${businessId}/reports?view=cards` : "/pitches");
-              }}
-            />
-          )
+            shouldShowProcessingEmptyState ? (
+              <EmptyState
+                title={processingEmptyState.title}
+                description={processingEmptyState.description}
+                className="h-[calc(100vh-12rem)]"
+                isProcessing={processingEmptyState.isProcessing}
+                buttons={[
+                  {
+                    label: "Back",
+                    href: businessId ? `/pitches/${businessId}/reports?view=cards` : "/pitches",
+                    variant: "outline",
+                    size: "lg",
+                  },
+                ]}
+              />
+            ) : (
+              activeReport === "snapshot" && snapshotExpressPitch ? (
+                <SnapshotReportViewer
+                  expressPitch={snapshotExpressPitch}
+                  generatedAt={snapshotGeneratedAt}
+                  profileTags={snapshotProfileTags}
+                  competitors={snapshotCompetitors}
+                  footerSummary={snapshotFooterSummary}
+                  poweredByName={agencyInfo?.name}
+                  quickEvaluation={quickEvaluationMutation.data}
+                  quickEvaluationLoading={quickEvaluationMutation.isPending}
+                  quickEvaluationErrorMessage={quickEvaluationMutation.error?.message}
+                  onBack={() => {
+                    router.push(
+                      businessId
+                        ? `/pitches/${businessId}/reports?view=cards`
+                        : "/pitches"
+                    );
+                  }}
+                />
+              ) : (
+                <PitchReportViewer
+                  content={reportContent}
+                  reportTitle={reportTitle}
+                  isEditable={true}
+                  isGenerating={isGenerating}
+                  showStatus={
+                    activeReport === "snapshot" &&
+                    !reportContent.trim() &&
+                    (snapshotStarted ||
+                      startQuickyMutation.isPending ||
+                      Boolean(startQuickyMutation.data?.status))
+                  }
+                  statusText={
+                    quickyStatus ? `Status: ${quickyStatus}` : "Status: generating"
+                  }
+                  showWorkflowMessage={viewerShowWorkflowMessage}
+                  workflowStatus={viewerWorkflowStatus}
+                  onBack={() => {
+                    router.push(
+                      businessId
+                        ? `/pitches/${businessId}/reports?view=cards`
+                        : "/pitches"
+                    );
+                  }}
+                />
+              )
+            )
           )
         ) : (
           <div className="h-full bg-white rounded-lg p-6 flex flex-col gap-6 overflow-hidden">
@@ -687,9 +1034,9 @@ export default function PitchReportsPage() {
               </Button>
             </div>
 
-            <div className="flex gap-4 items-stretch justify-center ">
-              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none">
-                <CardContent className="p-0 h-full flex flex-col gap-4">
+            <div className="flex gap-4 items-stretch justify-center shrink-0 min-h-0 max-h-[44vh] overflow-hidden">
+              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none h-full min-h-0 flex flex-col">
+                <CardContent className="p-0 h-full flex flex-col gap-4 min-h-0">
                   <div className="flex items-center gap-2">
                     <Zap className="h-7.5 w-7.5 text-general-primary" />
                     <Typography
@@ -700,22 +1047,28 @@ export default function PitchReportsPage() {
                     </Typography>
                   </div>
 
-                  {/* <div className="flex gap-2">
-                    <Badge
-                      variant={"outline"}
-                      className="text-[10px] text-primary py-1"
-                    >
-                      5 pitches included in your Starter plan
-                    </Badge>
-                    <Badge
-                      variant={"secondary"}
-                      className="text-[10px] text-primary py-1"
-                    >
-                      2 of 5 used
-                    </Badge>
-                  </div> */}
+                  {snapshotChips && (
+                    <div className="flex gap-2">
+                      {snapshotChips.usageChip && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] text-primary py-1"
+                        >
+                          {snapshotChips.usageChip}
+                        </Badge>
+                      )}
+                      {snapshotChips.creditsChip && (
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] text-primary py-1"
+                        >
+                          {snapshotChips.creditsChip}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
 
-                  <div className="flex-1">
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     <Typography variant="p" className="text-primary">
                       A super-fast, low-cost snapshot of your SEO opportunity. In
                       10-20 seconds, it gives you a personalized, high-impact teaser
@@ -735,6 +1088,14 @@ export default function PitchReportsPage() {
                           disabled={!businessId || isSnapshotProcessing}
                           onClick={() => {
                             if (!businessId) return;
+                            if (!canExecuteSnapshot) {
+                              const freeUsed = status?.free_snapshots?.used || 0;
+                              const freeLimit = status?.free_snapshots?.limit || 3;
+                              setUpgradeModalMessage(`You've used all ${freeLimit} free snapshot reports. Subscribe to Massic Opportunities to continue generating snapshot reports.`);
+                              setShowUpgradeModal(true);
+                              return;
+                            }
+                            triggerQuickEvaluation();
                             queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                             setActiveReport("snapshot");
                             setReportContent("");
@@ -756,16 +1117,28 @@ export default function PitchReportsPage() {
                           }
                           onClick={async () => {
                             if (!businessId) return;
-                            queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
-                            setActiveReport("snapshot");
-                            setReportContent("");
-                            // Important: start POST first, then enable polling GET.
-                            setSnapshotStarted(false);
-                            startQuickyMutation.reset();
-                            fetchReportMutation.reset();
-                            await startQuickyMutation.mutateAsync({ businessId });
-                        queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                            setSnapshotStarted(true);
+
+                            const generateSnapshot = async () => {
+                              triggerQuickEvaluation();
+                              queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
+                              setActiveReport("snapshot");
+                              setReportContent("");
+                              setSnapshotStarted(false);
+                              startQuickyMutation.reset();
+                              fetchReportMutation.reset();
+                              try {
+                                await startQuickyMutation.mutateAsync({ businessId });
+                                queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                                setSnapshotStarted(true);
+                              } catch (error) {
+                                // Error is already handled by mutation's onError (toast)
+                                // Reset states to hide the processing UI
+                                setActiveReport(null);
+                                setSnapshotStarted(false);
+                              }
+                            };
+
+                            await handleGenerateWithCreditsCheck("snapshot", generateSnapshot);
                           }}
                         >
                           {startQuickyMutation.isPending ? "Generating..." : "Regenerate"}
@@ -782,15 +1155,28 @@ export default function PitchReportsPage() {
                         }
                         onClick={async () => {
                           if (!businessId) return;
-                          queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
-                          setActiveReport("snapshot");
-                          setReportContent("");
-                          setSnapshotStarted(false);
-                          startQuickyMutation.reset();
-                          fetchReportMutation.reset();
-                          await startQuickyMutation.mutateAsync({ businessId });
-                      queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                          setSnapshotStarted(true);
+
+                          const generateSnapshot = async () => {
+                            triggerQuickEvaluation();
+                            queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
+                            setActiveReport("snapshot");
+                            setReportContent("");
+                            setSnapshotStarted(false);
+                            startQuickyMutation.reset();
+                            fetchReportMutation.reset();
+                            try {
+                              await startQuickyMutation.mutateAsync({ businessId });
+                              queryClient.invalidateQueries({ queryKey: ["pitches"] });
+                              setSnapshotStarted(true);
+                            } catch (error) {
+                              // Error is already handled by mutation's onError (toast)
+                              // Reset states to hide the processing UI
+                              setActiveReport(null);
+                              setSnapshotStarted(false);
+                            }
+                          };
+
+                          await handleGenerateWithCreditsCheck("snapshot", generateSnapshot);
                         }}
                       >
                         {startQuickyMutation.isPending ? "Generating..." : "Generate"}
@@ -800,8 +1186,8 @@ export default function PitchReportsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none ">
-                <CardContent className="p-0 h-full flex flex-col gap-4">
+              <Card className="bg-white border border-general-primary p-8 w-[488px] shadow-none h-full min-h-0 flex flex-col">
+                <CardContent className="p-0 h-full flex flex-col gap-4 min-h-0">
                   <div className="flex items-center gap-2">
                     <ListChecks className="h-7.5 w-7.5 text-general-primary" />
                     <Typography
@@ -812,16 +1198,28 @@ export default function PitchReportsPage() {
                     </Typography>
                   </div>
 
-                  {/* <div className="flex gap-2">
-                    <Badge
-                      variant={"outline"}
-                      className="text-[10px] text-primary py-1"
-                    >
-                      100 credits per pitch
-                    </Badge>
-                  </div> */}
+                  {detailedChips && (
+                    <div className="flex gap-2">
+                      {detailedChips.usageChip && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] text-primary py-1"
+                        >
+                          {detailedChips.usageChip}
+                        </Badge>
+                      )}
+                      {detailedChips.creditsChip && (
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] text-primary py-1"
+                        >
+                          {detailedChips.creditsChip}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
 
-                  <div className="flex-1">
+                  <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     <Typography
                       variant="p"
                       className="text-primary leading-relaxed"
@@ -842,108 +1240,84 @@ export default function PitchReportsPage() {
               </div> */}
 
                   <div className="mt-4">
-                    {hasExistingDetailed ? (
-                      <div className="flex gap-2">
-                        <Button
-                          size="lg"
-                          className="flex-1"
-                          disabled={!businessId || isDetailedProcessing}
-                          onClick={() => {
-                            if (!businessId) return;
-                            queryClient.removeQueries({
-                              queryKey: ["detailed-report", businessId],
-                            });
-                            setActiveReport("detailed");
-                            setReportContent("");
-                            setDetailedPolling(true);
-                            generateDetailedReportMutation.reset();
-                            fetchReportMutation.reset();
-                          }}
-                        >
-                          View
-                        </Button>
-                        <Button
-                          size="lg"
-                          variant="outline"
-                          className="flex-1"
-                          disabled={
-                            !businessId ||
-                            generateDetailedReportMutation.isPending ||
-                            isDetailedProcessing
-                          }
-                          onClick={async () => {
-                            if (!businessId) return;
-                            queryClient.removeQueries({
-                              queryKey: ["detailed-report", businessId],
-                            });
-                            setActiveReport("detailed");
-                            setReportContent("");
-                            // Important: start POST first, then enable polling GET.
-                            setDetailedPolling(false);
-                            generateDetailedReportMutation.reset();
-                            fetchReportMutation.reset();
-                            await generateDetailedReportMutation.mutateAsync({ businessId });
-                            queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                            queryClient.invalidateQueries({
-                              queryKey: ["detailed", "status", "existing", businessId],
-                            });
-                            setDetailedPolling(true);
-                          }}
-                        >
-                          {generateDetailedReportMutation.isPending
-                            ? "Generating..."
-                            : "Regenerate"}
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        size="lg"
-                        className="w-full"
-                        disabled={
-                          !businessId ||
-                          generateDetailedReportMutation.isPending ||
-                          isDetailedProcessing
-                        }
-                        onClick={async () => {
-                          if (!businessId) return;
-                          queryClient.removeQueries({
-                            queryKey: ["detailed-report", businessId],
-                          });
-                          setActiveReport("detailed");
-                          setReportContent("");
-                          setDetailedPolling(false);
-                          generateDetailedReportMutation.reset();
-                          fetchReportMutation.reset();
-                          await generateDetailedReportMutation.mutateAsync({ businessId });
-                          queryClient.invalidateQueries({ queryKey: ["pitches"] });
-                          queryClient.invalidateQueries({
-                            queryKey: ["detailed", "status", "existing", businessId],
-                          });
-                          setDetailedPolling(true);
-                        }}
-                      >
-                        {generateDetailedReportMutation.isPending ? "Generating..." : "Generate"}
-                      </Button>
-                    )}
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      disabled
+                    >
+                      Coming Soon
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-             <div className="flex-1 min-h-0 rounded-lg overflow-hidden">
-               <div className="flex items-center justify-between mb-3">
-                 <Typography variant="h4">Pitch history</Typography>
-               </div>
+            <div className="flex-1 min-h-[260px] min-w-0 rounded-lg overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between mb-3 shrink-0">
+                <Typography variant="h4">Pitch history</Typography>
+              </div>
 
-               <PitchesHistoryTable
-                 businessId={businessId || ""}
-                 data={businessPitchRows}
-                 isLoading={businessPitchesQuery.isLoading}
-               />
+              <PitchesHistoryTable
+                businessId={businessId || ""}
+                data={businessPitchRows}
+                isLoading={businessPitchesQuery.isLoading}
+              />
             </div>
           </div>
         )}
       </div>
+
+      <MassicOpportunitiesModal
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
+        isActive={status?.status === "active" && status?.has_subscription}
+        isUpgrading={subscribeMassicOpportunities.isPending}
+        isDeactivating={cancelMassicOpportunities.isPending}
+        isReactivating={reactivateMassicOpportunities.isPending}
+        cancelAtPeriodEnd={status?.cancel_at_period_end || false}
+        periodEndDate={status?.current_period_end}
+        alertMessage={upgradeModalMessage}
+        onDeactivate={async () => {
+          await cancelMassicOpportunities.mutateAsync();
+          setShowUpgradeModal(false);
+        }}
+        onReactivate={async () => {
+          await reactivateMassicOpportunities.mutateAsync();
+          setShowUpgradeModal(false);
+        }}
+        onUpgrade={() => {
+          const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+          subscribeMassicOpportunities.mutate({ returnUrl: currentUrl });
+        }}
+      />
+
+      <ApplyCreditsModal
+        open={showApplyCreditsModal}
+        onOpenChange={(open) => {
+          setShowApplyCreditsModal(open);
+          if (!open) setPendingGenerateAction(null);
+        }}
+        onApplyCredits={handleApplyCreditsConfirm}
+        creditsBalance={creditsBalance?.current_balance ?? 0}
+        creditsToApply={getCreditsRequiredForType(applyCreditsReportType)}
+        reportType={applyCreditsReportType}
+        isApplying={startQuickyMutation.isPending || generateDetailedReportMutation.isPending}
+      />
+
+      <CreditModal
+        open={showBuyCreditsModal}
+        onClose={() => {
+          setShowBuyCreditsModal(false);
+          setBuyCreditsAlertMessage("");
+          setPendingGenerateAction(null);
+        }}
+        currentBalance={creditsBalance?.current_balance ?? 0}
+        autoTopupEnabled={creditsBalance?.auto_topup_enabled ?? false}
+        autoTopupThreshold={creditsBalance?.auto_topup_threshold ?? 0}
+        onPurchaseCredits={purchaseCredits}
+        alertMessage={buyCreditsAlertMessage}
+        description={`You need more execution credits to generate ${applyCreditsReportType} reports. Purchase credits to continue.`}
+      />
     </div>
   );
 }

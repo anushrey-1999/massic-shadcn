@@ -1,47 +1,110 @@
 "use client";
 
-import { useRef, useState, useEffect, useMemo } from "react";
-import { usePathname } from "next/navigation";
-import { OrganicPerformanceSection } from "@/components/organisms/analytics/OrganicPerformanceSection";
-import { LocalSearchSection } from "@/components/organisms/analytics/LocalSearchSection";
-import { ReviewsSection } from "@/components/organisms/analytics/ReviewsSection";
-import { NavigationTabs, PeriodSelector } from "../molecules/analytics";
+import { useState, useEffect, useMemo, useCallback, startTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Eye, MousePointerClick, Target, BarChart3 } from "lucide-react";
+import {
+  OrganicPerformanceSection,
+} from "@/components/organisms/analytics/OrganicPerformanceSection";
+import {
+  AnalyticsFilterControls,
+  AnalyticsReportsActions,
+  PeriodSelector,
+  PrimaryDriversSheet,
+  type AnalyticsGroupBy,
+  type AnalyticsKeywordScope,
+} from "../molecules/analytics";
 import { PageHeader } from "@/components/molecules/PageHeader";
-import { TIME_PERIODS, type TimePeriodValue } from "@/hooks/use-gsc-analytics";
+import { type TimePeriodValue } from "@/hooks/use-gsc-analytics";
 import { useBusinessStore } from "@/store/business-store";
 import DiscoveryPerformanceSection from "@/components/organisms/analytics/DiscoveryPerformanceSection";
+import { LocalSearchSection } from "@/components/organisms/analytics/LocalSearchSection";
 import SourcesSection from "@/components/organisms/analytics/SourcesSection";
 import ConversionSection from "@/components/organisms/analytics/ConversionSection";
-
+import { Button } from "@/components/ui/button";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 import { usePrefetchAnalyticsPages } from "@/hooks/use-prefetch-analytics-pages";
-import { MapPin } from "lucide-react";
-import { Typography } from "@/components/ui/typography";
+import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  useOrganicDeepdiveFilters,
+  type DeepdiveKeywordScope,
+  type DeepdiveFilter,
+} from "@/hooks/use-organic-deepdive-filters";
+import { OrganicDeepdiveHeader } from "@/components/organisms/organic-deepdive/OrganicDeepdiveHeader";
+import { getFallbackAnalyticsGrouping } from "@/utils/analytics-chart-grouping";
+import { CustomContentGroupsModal } from "@/components/molecules/analytics/CustomContentGroupsModal";
 
-const navItems = [
-  { id: "discovery", label: "Discovery" },
-  { id: "sources", label: "Sources" },
-  { id: "conversion", label: "Conversions" },
-  { id: "local-search", label: "Local Search" },
-];
+const CHART_LINE_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
+const METRIC_TOOLTIPS: Record<(typeof CHART_LINE_KEYS)[number], string> = {
+  impressions: "Impressions",
+  clicks: "Clicks",
+  sessions: "Sessions",
+  goals: "Goals",
+};
+const ALL_GROUP_BY_OPTIONS: AnalyticsGroupBy[] = ["day", "week", "month"];
+
+function normalizeBrandTerms(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((term) => String(term || "").trim())
+      .filter(Boolean);
+  }
+
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((term) => String(term || "").trim())
+          .filter(Boolean);
+      }
+    } catch {
+      return raw
+        .split(",")
+        .map((term) => term.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+}
 
 export function AnalyticsTemplate() {
-  const [activeSection, setActiveSection] = useState("discovery");
   const [selectedPeriod, setSelectedPeriod] =
     useState<TimePeriodValue>("3 months");
-  const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedTab, setSelectedTab] = useState<"all" | "organic">("all");
+  const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
+  const [availableGroupByOptions, setAvailableGroupByOptions] =
+    useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [customContentGroupsOpen, setCustomContentGroupsOpen] = useState(false);
+  const [primaryDriversOpen, setPrimaryDriversOpen] = useState(false);
+  const [showDeferredSections, setShowDeferredSections] = useState(false);
+  const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
+    impressions: true,
+    clicks: true,
+    sessions: true,
+    goals: true,
+  });
+  const overviewVisibleLines =
+    selectedTab === "all"
+      ? { impressions: false, clicks: false, sessions: true, goals: true }
+      : visibleLines;
+
+  const handleChartLineToggle = useCallback((key: string, checked: boolean) => {
+    setVisibleLines((prev) => {
+      const checkedCount = Object.values(prev).filter(Boolean).length;
+      if (!checked && checkedCount <= 1) return prev;
+      return { ...prev, [key]: checked };
+    });
+  }, []);
 
   const pathname = usePathname();
+  const router = useRouter();
   const profiles = useBusinessStore((state) => state.profiles);
 
   const { businessId, businessProfile } = useMemo(() => {
@@ -109,116 +172,119 @@ export function AnalyticsTemplate() {
     [businessName, businessId]
   );
 
-  const locations = useMemo(() => {
-    if (!businessProfile?.Locations || businessProfile.Locations.length === 0) {
-      return [];
-    }
-    return businessProfile.Locations.map((loc, index) => ({
-      value: `${loc.Name}__${index}`,
-      name: loc.Name,
-      label: `${loc.DisplayName} - ${index + 1}`,
+  const localSearchLocations = useMemo(() => {
+    const locs = (profileData as any)?.Locations ?? businessProfile?.Locations ?? [];
+    return (locs as { Name?: string; DisplayName?: string }[]).map((loc) => ({
+      value: loc.Name ?? "",
+      label: loc.DisplayName || loc.Name || "",
     }));
-  }, [businessProfile]);
+  }, [profileData, businessProfile]);
+  const brandTerms = useMemo(
+    () =>
+      normalizeBrandTerms(
+        (profileData as any)?.BrandTerms ??
+          (profileData as any)?.brand_terms ??
+          businessProfile?.BrandTerms
+      ),
+    [profileData, businessProfile?.BrandTerms]
+  );
+  const {
+    filters,
+    filtersForApi,
+    addFilter,
+    removeFilter,
+    clearAllFilters,
+    keywordScopeFilter,
+  } = useOrganicDeepdiveFilters(brandTerms);
+  const keywordScope = (keywordScopeFilter?.expression ??
+    "all") as AnalyticsKeywordScope;
+  const headerMetricKeys =
+    selectedTab === "all"
+      ? (["sessions", "goals"] as const)
+      : CHART_LINE_KEYS;
 
-  useEffect(() => {
-    if (locations.length === 0) {
-      if (selectedLocation) setSelectedLocation("");
-      return;
-    }
+  const handleOverviewFilterSelect = useCallback((filter: DeepdiveFilter) => {
+    addFilter(filter);
+  }, [addFilter]);
 
-    const exists = locations.some((loc) => loc.value === selectedLocation);
-    if (!exists) {
-      setSelectedLocation(locations[0].value);
-    }
-  }, [locations, selectedLocation]);
-
-  const selectedLocationName = useMemo(() => {
-    if (!selectedLocation) return "";
-    const match = locations.find((loc) => loc.value === selectedLocation);
-    return match?.name || "";
-  }, [locations, selectedLocation]);
-
-  const organicRef = useRef<HTMLDivElement>(null);
-  const sectionRefs = {
-    discovery: useRef<HTMLDivElement>(null),
-    sources: useRef<HTMLDivElement>(null),
-    conversion: useRef<HTMLDivElement>(null),
-    "local-search": useRef<HTMLDivElement>(null),
-  };
-  const isScrollingProgrammatically = useRef(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    const observers: IntersectionObserver[] = [];
-    const sectionStates: Record<string, boolean> = {};
-
-    const updateActiveSection = () => {
-      // Ignore updates during programmatic scrolling
-      if (isScrollingProgrammatically.current) {
+  const handleKeywordScopeChange = useCallback(
+    (value: AnalyticsKeywordScope) => {
+      if (value === "all") {
+        removeFilter("keyword_scope");
         return;
       }
 
-      // If organic is intersecting, discovery should be active
-      if (sectionStates["organic"]) {
-        setActiveSection("discovery");
-        return;
-      }
+      addFilter({
+        dimension: "keyword_scope",
+        expression: value as DeepdiveKeywordScope,
+        operator: "equals",
+      });
+    },
+    [addFilter, removeFilter]
+  );
 
-      // Otherwise, find the first intersecting section
-      const intersectingSections = Object.entries(sectionRefs)
-        .filter(([id]) => sectionStates[id])
-        .map(([id]) => id);
+  const handleTabChange = useCallback(
+    (value: string) => {
+      const nextTab = value as "all" | "organic";
 
-      if (intersectingSections.length > 0) {
-        setActiveSection(intersectingSections[0]);
+      if (nextTab === selectedTab) return;
+
+      setSelectedTab(nextTab);
+
+      if (filters.length > 0) {
+        clearAllFilters();
       }
+    },
+    [clearAllFilters, filters.length, selectedTab]
+  );
+
+  useEffect(() => {
+    if (availableGroupByOptions.includes(groupBy)) return;
+    setGroupBy(getFallbackAnalyticsGrouping(groupBy, availableGroupByOptions));
+  }, [availableGroupByOptions, groupBy]);
+
+  useEffect(() => {
+    if (selectedTab !== "all" || keywordScope === "all") return;
+    removeFilter("keyword_scope");
+  }, [keywordScope, removeFilter, selectedTab]);
+
+  useEffect(() => {
+    setShowDeferredSections(false);
+
+    let completed = false;
+    let timeoutId: number | undefined;
+    let idleId: number | undefined;
+
+    const revealDeferredSections = () => {
+      if (completed) return;
+      completed = true;
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+      if (idleId !== undefined && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      startTransition(() => {
+        setShowDeferredSections(true);
+      });
     };
 
-    // Observe organic section (part of discovery)
-    if (organicRef.current) {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            sectionStates["organic"] = entry.isIntersecting;
-            updateActiveSection();
-          });
-        },
-        { rootMargin: "-200px 0px -50% 0px", threshold: 0.1 }
-      );
-      observer.observe(organicRef.current);
-      observers.push(observer);
+    timeoutId = window.setTimeout(revealDeferredSections, 250);
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(revealDeferredSections);
     }
 
-    // Observe other sections
-    Object.entries(sectionRefs).forEach(([id, ref]) => {
-      if (ref.current) {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              sectionStates[id] = entry.isIntersecting;
-              updateActiveSection();
-            });
-          },
-          { rootMargin: "-200px 0px -50% 0px", threshold: 0.1 }
-        );
-        observer.observe(ref.current);
-        observers.push(observer);
+    return () => {
+      completed = true;
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
       }
-    });
-
-    return () => {
-      observers.forEach((observer) => observer.disconnect());
-    };
-  }, []);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
+      if (idleId !== undefined && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
       }
     };
-  }, []);
+  }, [businessId]);
 
   return (
     <div className="flex flex-col min-h-screen scroll-smooth ">
@@ -250,117 +316,171 @@ export function AnalyticsTemplate() {
           }}
           breadcrumbs={breadcrumbs}
         />
-        <div className="w-full max-w-[1224px] px-7">
-          <NavigationTabs
-            items={navItems}
-            activeSection={activeSection}
-            onSectionChange={(id) => {
-              setActiveSection(id);
-              // Set flag to prevent IntersectionObserver from interfering
-              isScrollingProgrammatically.current = true;
-              
-              // Clear any existing timeout
-              if (scrollTimeoutRef.current) {
-                clearTimeout(scrollTimeoutRef.current);
+        <div className="w-full max-w-[1224px] px-7 flex items-center justify-between gap-4 py-4">
+          <div className="flex items-center gap-3">
+            <Tabs
+              className="gap-0"
+              value={selectedTab}
+              onValueChange={handleTabChange}
+            >
+              <TabsList className="h-auto w-[206px] rounded-[12px] bg-general-border p-1">
+                <TabsTrigger
+                  value="all"
+                  className="min-h-8 rounded-[10px] px-4 py-[5.5px] text-sm leading-6 tracking-[0.07px]"
+                >
+                  All
+                </TabsTrigger>
+                <TabsTrigger
+                  value="organic"
+                  className="min-h-8 rounded-[10px] px-4 py-[5.5px] text-sm leading-6 tracking-[0.07px]"
+                >
+                  Organic
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
+            <AnalyticsReportsActions
+              onPrimaryDrivers={() => {
+                if (!businessId) return;
+                setPrimaryDriversOpen(true);
+              }}
+              onViewReports={() => {
+                if (!businessId) return;
+                router.push(`/business/${businessId}/reports`);
+              }}
+              onContentGroupsClick={() => {
+                if (!businessId) return;
+                setCustomContentGroupsOpen(true);
+              }}
+              reportsDisabled={!businessId}
+              primaryDriversDisabled={!businessId}
+              contentGroupsDisabled={!businessId}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              {headerMetricKeys.map((key) => (
+                <Tooltip key={key}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className={cn(
+                        "h-9 w-9 shrink-0 rounded-[8px] border-general-border bg-white shadow-xs",
+                        selectedTab === "all" && "cursor-default opacity-70",
+                        selectedTab !== "all" && !visibleLines[key] && "bg-transparent shadow-none"
+                      )}
+                      onClick={() => {
+                        if (selectedTab === "all") return;
+                        handleChartLineToggle(key, !visibleLines[key]);
+                      }}
+                      disabled={selectedTab === "all"}
+                      aria-label={METRIC_TOOLTIPS[key]}
+                      aria-pressed={selectedTab === "all" ? true : visibleLines[key]}
+                    >
+                      {key === "impressions" ? (
+                        <Eye className="h-4 w-4 text-[#a855f7]" />
+                      ) : key === "clicks" ? (
+                        <MousePointerClick className="h-4 w-4 rotate-90 text-[#2563eb]" />
+                      ) : key === "sessions" ? (
+                        <BarChart3 className="h-4 w-4 text-[#f97316]" />
+                      ) : (
+                        <Target className="h-4 w-4 text-[#10b981]" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={8}>
+                    {METRIC_TOOLTIPS[key]}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+            <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
+            <AnalyticsFilterControls
+              periodSelector={
+                <PeriodSelector
+                  value={selectedPeriod}
+                  onValueChange={setSelectedPeriod}
+                  groupBy={groupBy}
+                  onGroupByChange={setGroupBy}
+                  disabledGroupByOptions={ALL_GROUP_BY_OPTIONS.filter(
+                    (option) => !availableGroupByOptions.includes(option)
+                  )}
+                  className="h-10 cursor-pointer rounded-[8px] border-[#d4d4d4] bg-transparent px-4 py-[7.5px] text-sm font-medium tracking-[0.07px] shadow-none"
+                />
               }
-              
-              // Clear flag after scroll animation completes
-              scrollTimeoutRef.current = setTimeout(() => {
-                isScrollingProgrammatically.current = false;
-                scrollTimeoutRef.current = null;
-              }, 1000);
-            }}
-            periodSelector={
-              <PeriodSelector
-                value={selectedPeriod}
-                onValueChange={setSelectedPeriod}
-              />
-            }
+              keywordScope={keywordScope}
+              onKeywordScopeChange={handleKeywordScopeChange}
+              showKeywordScope={selectedTab === "organic"}
+              hasActiveKeywordScope={keywordScope !== "all"}
+            />
+          </div>
+        </div>
+        {filters.length > 0 ? (
+          <div className="w-full max-w-[1224px] px-7">
+            <OrganicDeepdiveHeader
+              filters={filters}
+              onRemoveFilter={removeFilter}
+            />
+          </div>
+        ) : null}
+      </div>
+
+      {/* Tab Content */}
+      <div className="w-full max-w-[1224px] flex flex-col">
+        <div className="p-7 pb-10">
+          <OrganicPerformanceSection
+            period={selectedPeriod}
+            visibleLines={overviewVisibleLines}
+            onLegendToggle={handleChartLineToggle}
+            filters={filtersForApi}
+            funnelVariant={selectedTab === "all" ? "sessions-goals" : "default"}
+            ga4TrafficScope={selectedTab}
+            groupBy={groupBy}
+            onAvailableGroupingsChange={setAvailableGroupByOptions}
           />
         </div>
+        <DiscoveryPerformanceSection
+          period={selectedPeriod}
+          visibleMetrics={overviewVisibleLines}
+          filters={filtersForApi}
+          onSelectFilter={handleOverviewFilterSelect}
+          onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}
+          hideTopQueries={selectedTab === "all"}
+          hideHowYouRank={selectedTab === "all"}
+          ga4TrafficScope={selectedTab}
+        />
+        {showDeferredSections ? (
+          <>
+            <SourcesSection
+              period={selectedPeriod}
+              hideChannelsChart={selectedTab === "organic"}
+              ga4TrafficScope={selectedTab}
+            />
+            <ConversionSection
+              period={selectedPeriod}
+              ga4TrafficScope={selectedTab}
+            />
+            <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
+          </>
+        ) : null}
       </div>
 
-      {/* Scrollable Content */}
-      <div className="w-full max-w-[1224px] flex flex-col">
-        <div
-          id="organic"
-          ref={organicRef}
-          className="scroll-mt-[200px] p-7 pb-10"
-        >
-          <OrganicPerformanceSection period={selectedPeriod} />
-        </div>
+      <CustomContentGroupsModal
+        open={customContentGroupsOpen}
+        onOpenChange={setCustomContentGroupsOpen}
+        businessUniqueId={businessId}
+        siteUrl={businessProfile?.Website || null}
+        period={selectedPeriod}
+        trafficScope={selectedTab}
+      />
 
-        <div
-          id="discovery"
-          ref={sectionRefs.discovery}
-          className="scroll-mt-[200px]"
-        >
-          <DiscoveryPerformanceSection period={selectedPeriod} />
-        </div>
-
-        <div
-          id="sources"
-          ref={sectionRefs.sources}
-          className="scroll-mt-[200px]"
-        >
-          <SourcesSection period={selectedPeriod} />
-        </div>
-
-        <div
-          id="conversion"
-          ref={sectionRefs.conversion}
-          className="scroll-mt-[200px]"
-        >
-          <ConversionSection period={selectedPeriod} />
-        </div>
-
-        <div
-          id="local-search"
-          ref={sectionRefs["local-search"]}
-          className="scroll-mt-[200px] px-7 pb-10"
-        >
-          <div className="flex items-center justify-between border-b border-general-muted-foreground py-5">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-8 w-8 text-general-foreground" />
-              <Typography variant="h2">Local Search</Typography>
-            </div>
-
-            {locations.length > 0 ? (
-              <Select
-                value={selectedLocation}
-                onValueChange={setSelectedLocation}
-              >
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="Select location" />
-                </SelectTrigger>
-                <SelectContent>
-                  {locations.map((location, index) => (
-                    <SelectItem
-                      key={`${location.value}-${index}`}
-                      value={location.value}
-                    >
-                      {location.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-          </div>
-
-          <div className="pt-10 flex flex-col gap-3">
-            <LocalSearchSection
-              period={selectedPeriod}
-              locations={locations}
-              selectedLocation={selectedLocationName}
-            />
-
-            <ReviewsSection
-              period={selectedPeriod}
-              selectedLocation={selectedLocationName}
-            />
-          </div>
-        </div>
-      </div>
+      <PrimaryDriversSheet
+        open={primaryDriversOpen}
+        onOpenChange={setPrimaryDriversOpen}
+        businessId={businessId}
+        businessName={businessName}
+      />
     </div>
   );
 }

@@ -15,10 +15,11 @@ interface GetWebPageTableColumnsProps {
   offeringCounts?: Record<string, number>;
   expandedRowId?: string | null;
   onExpandedRowChange?: (rowId: string | null) => void;
+  hideActions?: boolean;
 }
 
-export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
-  return [
+export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange, hideActions = false }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
+  const columns: ColumnDef<WebPageRow>[] = [
     {
       id: "keyword",
       accessorKey: "keyword",
@@ -55,14 +56,23 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       meta: {
         label: "Type",
         placeholder: "Select page type...",
-        variant: "select",
+        variant: "multiSelect",
         options: [
-          { label: "Geo page", value: "geographic landing page" },
-          { label: "Section in page", value: "section in existing page" },
-          { label: "Use case page", value: "category-use case page" },
-          { label: "Audience page", value: "category-audience page" },
-          { label: "Blog", value: "Blog" },
+          { label: "Blog", value: "blog" },
+          { label: "Use Case", value: "use case" },
+          { label: "Audience", value: "audience" },
+          { label: "Alternative", value: "alternative" },
+          { label: "Comparison", value: "comparison" },
+          { label: "Local", value: "local" },
+          { label: "Product/Service Page", value: "product/service page" },
+          { label: "Benefits", value: "benefits" },
+          { label: "Reviews Section", value: "reviews section" },
+          { label: "Page Section", value: "page section" },
+          { label: "Brand", value: "brand" },
+          { label: "Pricing", value: "pricing" },
+          { label: "Careers", value: "careers" },
         ],
+        operators: [{ label: "Has any of", value: "inArray" as const }],
         icon: Tag,
       },
       enableColumnFilter: true,
@@ -128,8 +138,8 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: true,
       enableSorting: true,
-      size: 130,
-      minSize: 110,
+      size: 100,
+      minSize: 100,
       maxSize: 160,
     },
     {
@@ -170,8 +180,8 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: true,
       enableSorting: true,
-      size: 120,
-      minSize: 100,
+      size: 90,
+      minSize: 90,
       maxSize: 150,
     },
     {
@@ -196,8 +206,8 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: false,
       enableSorting: true,
-      size: 130,
-      minSize: 110,
+      size: 80,
+      minSize: 80,
       maxSize: 160,
     },
     {
@@ -253,13 +263,33 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       enableColumnFilter: false,
       enableSorting: true,
-      size: 250,
-      minSize: 200,
-      maxSize: 350,
+      size: 180,
+      minSize: 120,
+      maxSize: 250,
     },
     {
       id: "actions",
-      header: () => <div className="text-center">Actions</div>,
+      accessorFn: (row) => {
+        const status = (row.status || "").toString().toLowerCase();
+        const VIEW_ACTION_STATUSES = new Set([
+          "success",
+          "updated",
+          "update_required",
+          "outline_only",
+          "final_only",
+          "pending",
+          "processing",
+        ]);
+        
+        if (VIEW_ACTION_STATUSES.has(status)) {
+          return "View";
+        }
+        
+        return "Generate";
+      },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Actions" />
+      ),
       cell: ({ row }) => {
         return (
           <div className="flex items-center justify-center">
@@ -268,13 +298,21 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         );
       },
       meta: {
+        label: "Actions",
         align: "center",
       },
       enableColumnFilter: false,
-      enableSorting: false,
-      size: 56,
-      minSize: 56,
-      maxSize: 64,
+      enableSorting: true,
+      sortingFn: "text",
+      size: 90,
+      minSize: 90,
+      maxSize: 120,
     },
   ];
+
+  if (hideActions) {
+    return columns.filter((col) => col.id !== "actions");
+  }
+
+  return columns;
 }

@@ -531,16 +531,28 @@ function DataTableFilterItem<TData>({
   const [showValueSelector, setShowValueSelector] = React.useState(false);
 
   // Local state for text input to prevent UI jank
-  const [localTextValue, setLocalTextValue] = React.useState(
-    typeof filter.value === "string" ? filter.value : ""
-  );
+  const initialTextValue =
+    typeof filter.value === "string"
+      ? filter.value
+      : typeof filter.value === "number"
+        ? String(filter.value)
+        : Array.isArray(filter.value) && filter.value[0] != null
+          ? String(filter.value[0])
+          : "";
+  const [localTextValue, setLocalTextValue] = React.useState(initialTextValue);
   const debouncedUpdateRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Sync local text value when filter.value changes externally
   React.useEffect(() => {
-    if (typeof filter.value === "string") {
-      setLocalTextValue(filter.value);
-    }
+    const next =
+      typeof filter.value === "string"
+        ? filter.value
+        : typeof filter.value === "number"
+          ? String(filter.value)
+          : Array.isArray(filter.value) && filter.value[0] != null
+            ? String(filter.value[0])
+            : "";
+    setLocalTextValue(next);
   }, [filter.value]);
 
   const column = columns.find((column) => column.id === filter.field);
@@ -628,7 +640,8 @@ function DataTableFilterItem<TData>({
             <SelectTrigger
               aria-label="Select join operator"
               aria-controls={joinOperatorListboxId}
-              className="h-8 rounded lowercase data-size:h-8"
+              size="sm"
+              className="rounded lowercase"
             >
               <SelectValue placeholder={joinOperator} />
             </SelectTrigger>
@@ -656,7 +669,7 @@ function DataTableFilterItem<TData>({
             aria-controls={fieldListboxId}
             variant="outline"
             size="sm"
-            className="w-32 justify-between rounded font-normal"
+            className="h-8 w-32 justify-between rounded font-normal"
           >
             <span className="truncate">
               {columns.find((column) => column.id === filter.field)?.columnDef
@@ -743,7 +756,8 @@ function DataTableFilterItem<TData>({
       >
         <SelectTrigger
           aria-controls={operatorListboxId}
-          className="h-8 w-32 rounded lowercase data-size:h-8"
+          size="sm"
+          className="w-32 rounded lowercase"
         >
           <div className="truncate">
             <SelectValue placeholder={filter.operator} />
@@ -820,7 +834,7 @@ function onFilterInputRender<TData>({
         id={inputId}
         disabled
         aria-label="Select a field to filter"
-        className="h-8 w-full rounded"
+        className="h-8! w-full rounded"
         placeholder="Select a field first"
       />
     );
@@ -834,7 +848,7 @@ function onFilterInputRender<TData>({
         aria-label={`${columnMeta?.label} filter is ${filter.operator === "isEmpty" ? "empty" : "not empty"
           }`}
         aria-live="polite"
-        className="h-8 w-full rounded border bg-transparent dark:bg-input/30"
+        className="h-8! w-full rounded border bg-transparent dark:bg-input/30"
       />
     );
   }
@@ -868,7 +882,7 @@ function onFilterInputRender<TData>({
           aria-describedby={`${inputId}-description`}
           inputMode={isNumber ? "numeric" : undefined}
           placeholder={columnMeta?.placeholder ?? "Enter a value..."}
-          className="h-8 w-full rounded"
+          className="h-8! w-full rounded"
           value={localTextValue}
           onChange={(event) => handleTextInputChange(event.target.value)}
         />
@@ -895,7 +909,8 @@ function onFilterInputRender<TData>({
             id={inputId}
             aria-controls={inputListboxId}
             aria-label={`${columnMeta?.label} boolean filter`}
-            className="h-8 w-full rounded data-size:h-8"
+            size="sm"
+            className="w-full rounded"
           >
             <SelectValue placeholder={filter.value ? "True" : "False"} />
           </SelectTrigger>
@@ -942,7 +957,7 @@ function onFilterInputRender<TData>({
               aria-label={`${columnMeta?.label} filter value${multiple ? "s" : ""}`}
               variant="outline"
               size="sm"
-              className="w-full rounded font-normal"
+              className="h-8 w-full min-h-8 rounded font-normal"
             >
               <FacetedBadgeList
                 options={columnMeta?.options}
@@ -958,7 +973,7 @@ function onFilterInputRender<TData>({
               aria-label={`Search ${columnMeta?.label} options`}
               placeholder={columnMeta?.placeholder ?? "Search options..."}
             />
-            <FacetedList>
+            <FacetedList className="max-h-[420px]">
               <FacetedEmpty>No options found.</FacetedEmpty>
               <FacetedGroup>
                 {columnMeta?.options?.map((option) => (
@@ -1006,7 +1021,7 @@ function onFilterInputRender<TData>({
               variant="outline"
               size="sm"
               className={cn(
-                "w-full justify-start rounded text-left font-normal",
+                "h-8 w-full justify-start rounded text-left font-normal",
                 !filter.value && "text-muted-foreground",
               )}
             >

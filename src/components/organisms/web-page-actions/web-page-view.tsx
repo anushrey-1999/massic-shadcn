@@ -4,28 +4,36 @@ import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 import { useWebActionContentQuery, type WebActionType } from "@/hooks/use-web-page-actions";
-import { cleanEscapedContent } from "@/utils/content-cleaner";
+import { resolveBlogFinalContent, resolveFormattedBlogHtml, resolvePageContent } from "@/utils/page-content-resolver";
+import { detectPageContentFormat } from "@/utils/page-content-format";
 import { WebBlogView } from "@/components/organisms/web-page-actions/web-blog-view";
 import { WebOutlineView } from "@/components/organisms/web-page-actions/web-outline-view";
+import { WebBlogHtmlView, WebPageHtmlView } from "@/components/organisms/web-page-actions/web-page-html-view";
+import { WebPageMarkdownFallbackView } from "@/components/organisms/web-page-actions/web-page-markdown-fallback-view";
 
-function getTypeFromIntent(intent: string | null): WebActionType {
+function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
+  const pt = (pageType || "").toLowerCase();
+  if (pt === "blog") return "blog";
+  if (pt) return "page";
+  // Backward compatibility: old links used intent=informational for blog
   return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
 }
 
 function getFinalContent(type: WebActionType, data: any): string {
   if (type === "blog") {
-    return cleanEscapedContent(data?.output_data?.page?.blog?.blog_post || "");
+    return resolveBlogFinalContent(data);
   }
 
-  return cleanEscapedContent(data?.output_data?.page?.page_content || "");
+  return resolvePageContent(data);
 }
 
 export function WebPageView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pageType = searchParams.get("pageType");
   const intent = searchParams.get("intent");
   const mode = searchParams.get("mode");
-  const type = getTypeFromIntent(intent);
+  const type = getTypeFromPageType(pageType, intent);
 
   const contentQuery = useWebActionContentQuery({
     type,
@@ -38,6 +46,8 @@ export function WebPageView({ businessId, pageId }: { businessId: string; pageId
   const data = contentQuery.data;
   const finalContent = React.useMemo(() => getFinalContent(type, data), [type, data]);
   const hasFinal = !!finalContent && finalContent.trim().length > 0;
+  const pageContentFormat = React.useMemo(() => detectPageContentFormat(finalContent), [finalContent]);
+  const hasFormattedBlogHtml = React.useMemo(() => !!resolveFormattedBlogHtml(data), [data]);
 
   React.useEffect(() => {
     if (mode === "outline" && hasFinal) {
@@ -52,6 +62,15 @@ export function WebPageView({ businessId, pageId }: { businessId: string; pageId
   }
 
   if (mode === "final" || hasFinal) {
+    if (type === "page") {
+      if (pageContentFormat === "html") {
+        return <WebPageHtmlView businessId={businessId} pageId={pageId} />;
+      }
+      return <WebPageMarkdownFallbackView businessId={businessId} pageId={pageId} />;
+    }
+    if (hasFormattedBlogHtml) {
+      return <WebBlogHtmlView businessId={businessId} pageId={pageId} />;
+    }
     return <WebBlogView businessId={businessId} pageId={pageId} />;
   }
 

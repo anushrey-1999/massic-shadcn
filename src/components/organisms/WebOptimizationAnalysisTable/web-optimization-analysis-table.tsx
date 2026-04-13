@@ -2,11 +2,17 @@
 
 import * as React from "react";
 import { DataTable } from "../../filter-table/index";
+import { DataTableFilterList } from "../../filter-table/data-table-filter-list";
 import { DataTableSearch } from "../../filter-table/data-table-search";
 import { DataTableViewOptions } from "../../filter-table/data-table-view-options";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import type { WebOptimizationAnalysisRow } from "@/types/web-optimization-analysis-types";
 import { getWebOptimizationAnalysisTableColumns } from "./web-optimization-analysis-table-columns";
+
+const WEB_OPTIMIZE_QUERY_KEYS = {
+  filters: "webOptimizeFilters",
+  joinOperator: "webOptimizeJoin",
+} as const;
 
 interface WebOptimizationAnalysisTableProps {
   data: WebOptimizationAnalysisRow[];
@@ -38,6 +44,14 @@ export function WebOptimizationAnalysisTable({
       },
     },
     getRowId: (originalRow: WebOptimizationAnalysisRow) => originalRow.id,
+    meta: {
+      queryKeys: {
+        ...WEB_OPTIMIZE_QUERY_KEYS,
+        page: "page",
+        perPage: "perPage",
+        sort: "sort",
+      },
+    },
   });
 
   return (
@@ -56,6 +70,7 @@ export function WebOptimizationAnalysisTable({
                 placeholder="Search pages, opportunity, suggestions, or metrics..."
               />
             )}
+            <DataTableFilterList table={table} shallow={true} align="start" />
           </div>
           <div className="flex items-center gap-2">
             <DataTableViewOptions table={table} align="end" />

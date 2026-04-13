@@ -8,7 +8,7 @@ import type { ConversationPreview } from "./types";
 type Props = {
   conversations: ConversationPreview[];
   isLoading: boolean;
-  onSelectConversation: (convId: string) => void;
+  onSelectConversation: (convId: string, kind: "chat" | "planner") => void;
 };
 
 function formatConversationDate(title: string): string {
@@ -47,8 +47,8 @@ export function ChatHistoryList({ conversations, isLoading, onSelectConversation
     <div className="space-y-3">
       {conversations.map((conv) => (
         <button
-          key={conv.conv_id}
-          onClick={() => onSelectConversation(conv.conv_id)}
+          key={`${conv.kind || "chat"}:${conv.conv_id}`}
+          onClick={() => onSelectConversation(conv.conv_id, conv.kind || "chat")}
           className={cn(
             "w-full text-left p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted/80 transition-colors group",
             "flex items-center justify-between gap-3"

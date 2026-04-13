@@ -16,6 +16,7 @@ export interface ExecutionCreditsBalance {
 
 export interface PurchaseCreditsParams {
   quantity?: number; // Number of 100-credit packs to purchase
+  returnUrl?: string;
 }
 
 export interface UseExecutionCreditsResult {
@@ -66,7 +67,7 @@ export const useExecutionCredits = (): UseExecutionCreditsResult => {
 
     try {
       setPurchaseLoading(true);
-      const currentUrl = typeof window !== "undefined" ? window.location.href : "";
+      const currentUrl = params?.returnUrl ?? (typeof window !== "undefined" ? window.location.href : "");
 
       const payload = {
         userUniqueId: user.uniqueId,

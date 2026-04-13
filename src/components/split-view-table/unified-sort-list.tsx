@@ -361,7 +361,7 @@ function UnifiedSortItem({
             aria-controls={fieldListboxId}
             variant="outline"
             size="sm"
-            className="w-44 justify-between rounded font-normal"
+            className="h-8 w-44 justify-between rounded font-normal"
           >
             <span className="truncate">{currentLabel}</span>
             <ChevronsUpDown className="opacity-50" />
@@ -417,7 +417,8 @@ function UnifiedSortItem({
       >
         <SelectTrigger
           aria-controls={directionListboxId}
-          className="h-8 w-24 rounded data-size:h-8"
+          size="sm"
+          className="w-24 rounded"
         >
           <SelectValue />
         </SelectTrigger>
@@ -435,8 +436,8 @@ function UnifiedSortItem({
       <Button
         aria-controls={sortItemId}
         variant="outline"
-        size="icon"
-        className="size-8 shrink-0 rounded"
+        size="icon-sm"
+        className="shrink-0 rounded"
         onClick={() => onSortRemove(sortId)}
       >
         <Trash2 />

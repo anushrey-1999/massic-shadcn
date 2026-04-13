@@ -13,11 +13,13 @@ import type { WebPageMetrics } from "@/types/web-page-types";
 interface WebPageTableClientProps {
   businessId: string;
   onMetricsChange?: (metrics: WebPageMetrics | null) => void;
+  hideActions?: boolean;
 }
 
 export function WebPageTableClient({
   businessId,
   onMetricsChange,
+  hideActions = false,
 }: WebPageTableClientProps) {
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
   const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
@@ -296,6 +298,7 @@ export function WebPageTableClient({
         isFetching={webPageFetching}
         search={search}
         onSearchChange={setSearch}
+        hideActions={hideActions}
       />
     </div>
   );

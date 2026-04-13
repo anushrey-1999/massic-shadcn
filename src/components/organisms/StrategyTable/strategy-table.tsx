@@ -25,6 +25,7 @@ interface StrategyTableProps {
   onSearchChange?: (value: string) => void;
   onRowClick?: (row: StrategyRow) => void;
   toolbarRightPrefix?: React.ReactNode;
+  columnVisibilityKey?: string;
 }
 
 export function StrategyTable({
@@ -41,6 +42,7 @@ export function StrategyTable({
   onSearchChange,
   onRowClick,
   toolbarRightPrefix,
+  columnVisibilityKey,
 }: StrategyTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
@@ -75,6 +77,8 @@ export function StrategyTable({
     getRowId: (originalRow: StrategyRow) => originalRow.id,
     shallow: false,
     clearOnDefault: true,
+    persistColumnVisibility: Boolean(columnVisibilityKey),
+    columnVisibilityKey,
   });
 
   return (

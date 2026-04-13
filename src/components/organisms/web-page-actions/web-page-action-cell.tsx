@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
+import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
@@ -36,13 +37,14 @@ function getRowAction(row: WebPageRow): { icon: typeof Sparkles; label: string }
     return { icon: Eye, label: "View" };
   }
 
-  const intent = (row.search_intent || "").toString().toLowerCase();
-  const label = intent === "informational" ? "Write" : "Build";
+  const pageType = (row.page_type ?? (row as any).pageType ?? "").toString().toLowerCase();
+  const label = pageType === "blog" ? "Write" : "Build";
   return { icon: Sparkles, label };
 }
 
 function getType(row: WebPageRow): WebActionType {
-  return (row.search_intent || "").toString().toLowerCase() === "informational" ? "blog" : "page";
+  const pageType = (row.page_type ?? (row as any).pageType ?? "").toString().toLowerCase();
+  return pageType === "blog" ? "blog" : "page";
 }
 
 export function WebPageActionCell({ businessId, row }: { businessId: string; row: WebPageRow }) {
@@ -64,12 +66,12 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       return;
     }
 
-    const intent = row.search_intent || "";
+    const pageType = row.page_type ?? (row as any).pageType ?? "";
     const keyword = row.keyword || "";
 
     const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : "";
     router.push(
-      `/business/${businessId}/web/page/${pageId}/view?intent=${encodeURIComponent(intent)}&keyword=${encodeURIComponent(keyword)}${modeParam}`
+      `/business/${businessId}/web/page/${pageId}/view?pageType=${encodeURIComponent(pageType)}&keyword=${encodeURIComponent(keyword)}${modeParam}`
     );
   };
 
@@ -111,19 +113,17 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const outlineFromServer = cleanEscapedContent(content?.output_data?.page?.outline || "");
   const finalFromServer =
     type === "blog"
-      ? cleanEscapedContent(content?.output_data?.page?.blog?.blog_post || "")
-      : cleanEscapedContent(content?.output_data?.page?.page_content || "");
+      ? resolveBlogFinalContent(content)
+      : resolvePageContent(content);
 
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
   const hasFinal = !!finalFromServer && finalFromServer.trim().length > 0;
 
   const handleViewAction = () => {
-    setOpen(false);
     navigateToView();
   };
 
   const handleViewOutline = () => {
-    setOpen(false);
     navigateToView("outline");
   };
 
@@ -138,9 +138,10 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
     setWorkingAction("final");
     try {
       await startFinal(type, businessId, pageId);
+      queryClient.setQueryData(["web-action-content", type, businessId, pageId], { status: "pending" } as any);
       queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
+      queryClient.invalidateQueries({ queryKey: ["web-action-content", type, businessId, pageId] });
       toast.success(type === "blog" ? "Final blog generation started." : "Final page generation started.");
-      setOpen(false);
       navigateToView("final");
     } catch (error: any) {
       if (error?.response?.status === 403) {
@@ -164,9 +165,10 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
     setWorkingAction("outline");
     try {
       await startOutline(type, businessId, pageId);
+      queryClient.setQueryData(["web-action-content", type, businessId, pageId], { status: "pending" } as any);
       queryClient.invalidateQueries({ queryKey: ["web-page", businessId] });
+      queryClient.invalidateQueries({ queryKey: ["web-action-content", type, businessId, pageId] });
       toast.success(type === "blog" ? "Blog outline generation started." : "Page outline generation started.");
-      setOpen(false);
       navigateToView("outline");
     } catch (error: any) {
       if (error?.response?.status === 403) {
@@ -211,8 +213,27 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
         </TooltipContent>
       </Tooltip>
 
+      {/* Stop React synthetic event bubbling so row-level onClick/onRowClick
+          handlers are not triggered when the user clicks inside the dialog. */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent showCloseButton={false} className="sm:max-w-[520px] p-0">
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-[520px] p-0"
+          onPointerDownOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest?.("[data-slot=dialog-overlay]")) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest?.("[data-slot=dialog-overlay]")) {
+              e.preventDefault();
+            }
+          }}
+        >
           <div className="px-4 py-4">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-xl font-semibold leading-[1.2] tracking-[-0.4px] text-foreground">
@@ -234,7 +255,10 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
             ) : null}
           </div>
 
-          <DialogFooter className="px-4 py-4">
+          <DialogFooter
+            className="px-4 py-4"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             {contentLoading ? (
               <div className="flex w-full justify-center">
                 <Button type="button" disabled>
@@ -266,6 +290,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </>
   );
 }

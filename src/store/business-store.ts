@@ -14,7 +14,7 @@ export interface BusinessProfile {
   Description?: string;
   UserDefinedBusinessDescription?: string;
   AOV?: number | null;
-  LTV?: number | null;
+  LTV?: string | null;
   BrandTerms?: string[] | null;
   RecurringFlag?: "yes" | "no" | "partial" | string | null;
   ProductsServices?: string[];
@@ -32,10 +32,15 @@ export interface BusinessProfile {
   SubscriptionItems?: {
     plan_type?: string;
     status?: string;
+    cancel_at_period_end?: boolean;
+    cancelled_date?: string;
+    current_period_start?: string;
+    current_period_end?: string;
     [key: string]: any;
   };
   LinkedAuthId?: string | null;
   IsActive?: boolean;
+  isWhitelisted?: boolean;
 }
 
 // Profile form table row types

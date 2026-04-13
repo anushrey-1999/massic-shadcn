@@ -1,5 +1,5 @@
 import SettingsTemplate from '@/components/templates/SettingsTemplate'
-import React from 'react'
+import React, { Suspense } from 'react'
 import { getPageMetadata } from "@/config/seo";
 
 export const metadata = {
@@ -8,7 +8,9 @@ export const metadata = {
 
 const page = () => {
   return (
-    <SettingsTemplate />
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <SettingsTemplate />
+    </Suspense>
   )
 }
 

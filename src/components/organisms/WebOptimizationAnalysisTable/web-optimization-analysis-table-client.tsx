@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryState } from "nuqs";
+import { parseAsStringEnum } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useWebOptimizationAnalysis } from "@/hooks/use-web-optimization-analysis";
@@ -11,6 +13,10 @@ import { WebOptimizationAnalysisTable } from "./web-optimization-analysis-table"
 import { WebOptimizationAnalysisSplitView } from "./web-optimization-analysis-split-view";
 import type { WebOptimizationSuggestionRow } from "./suggestions-table-columns";
 import { EmptyState } from "@/components/molecules/EmptyState";
+import { getFiltersStateParser } from "@/components/filter-table/parsers";
+import { getValidFilters, tableApplyAdvancedFilters } from "@/utils/data-table-utils";
+import { getWebOptimizationAnalysisTableColumns } from "./web-optimization-analysis-table-columns";
+import type { ExtendedColumnFilter } from "@/types/data-table-types";
 
 interface WebOptimizationAnalysisTableClientProps {
   businessId: string;
@@ -87,6 +93,48 @@ function applyLocalSearch(rows: WebOptimizationAnalysisRow[], search: string): W
   });
 }
 
+function normalizePercentFilters(
+  filters: ExtendedColumnFilter<WebOptimizationAnalysisRow>[]
+): ExtendedColumnFilter<WebOptimizationAnalysisRow>[] {
+  const opsToDecimal = (v: number) => (v > 1 ? v / 100 : v);
+  const ctrToDecimal = (v: number) => v / 100;
+  return filters.map((filter) => {
+    if (filter.field === "ops") {
+      if (Array.isArray(filter.value)) {
+        const [min, max] = filter.value;
+        const minNum = min ? Number(min) : NaN;
+        const maxNum = max ? Number(max) : NaN;
+        return {
+          ...filter,
+          value: [
+            String(!Number.isNaN(minNum) ? opsToDecimal(minNum) : min),
+            String(!Number.isNaN(maxNum) ? opsToDecimal(maxNum) : max),
+          ],
+        };
+      }
+      const num = Number(filter.value);
+      return !Number.isNaN(num) ? { ...filter, value: String(opsToDecimal(num)) } : filter;
+    }
+    if (filter.field === "ctr") {
+      if (Array.isArray(filter.value)) {
+        const [min, max] = filter.value;
+        const minNum = min ? Number(min) : NaN;
+        const maxNum = max ? Number(max) : NaN;
+        return {
+          ...filter,
+          value: [
+            String(!Number.isNaN(minNum) ? ctrToDecimal(minNum) : min),
+            String(!Number.isNaN(maxNum) ? ctrToDecimal(maxNum) : max),
+          ],
+        };
+      }
+      const num = Number(filter.value);
+      return !Number.isNaN(num) ? { ...filter, value: String(ctrToDecimal(num)) } : filter;
+    }
+    return filter;
+  });
+}
+
 export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChange }: WebOptimizationAnalysisTableClientProps) {
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null);
@@ -130,10 +178,43 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
     enabled: !!businessId && !has400Or404Error, // Disable query if we have a 400/404 error
   });
 
-  const filteredRows = React.useMemo(
-    () => applyLocalSearch(allRows || [], search),
-    [allRows, search]
+  const filterFieldMapper = React.useMemo(() => {
+    const columns = getWebOptimizationAnalysisTableColumns();
+    const validQueryFields = columns
+      .map((c) => (c as { id?: string }).id)
+      .filter(Boolean) as string[];
+    return {
+      validQueryFields,
+      toQueryField: (f: string) => f,
+      fromQueryField: (f: string) => f,
+    };
+  }, []);
+
+  const [urlFilters] = useQueryState(
+    "webOptimizeFilters",
+    getFiltersStateParser<WebOptimizationAnalysisRow>(
+      filterFieldMapper.validQueryFields,
+      {
+        toQueryField: filterFieldMapper.toQueryField,
+        fromQueryField: filterFieldMapper.fromQueryField,
+      }
+    )
+      .withDefault([])
+      .withOptions({ shallow: true })
   );
+
+  const [joinOperator] = useQueryState(
+    "webOptimizeJoin",
+    parseAsStringEnum(["and", "or"]).withDefault("and").withOptions({ shallow: true })
+  );
+
+  const filteredRows = React.useMemo(() => {
+    const searchFiltered = applyLocalSearch(allRows || [], search);
+    const valid = getValidFilters(urlFilters ?? []);
+    if (valid.length === 0) return searchFiltered;
+    const normalized = normalizePercentFilters(valid);
+    return tableApplyAdvancedFilters(searchFiltered, normalized, joinOperator ?? "and");
+  }, [allRows, search, urlFilters, joinOperator]);
 
   const handleRowClick = React.useCallback((row: WebOptimizationAnalysisRow) => {
     setSelectedRowId(row.id);

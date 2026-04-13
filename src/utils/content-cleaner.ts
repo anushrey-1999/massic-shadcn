@@ -1,5 +1,5 @@
 export function cleanEscapedContent(content: string): string {
-  if (!content) return content;
+  if (!content || typeof content !== "string") return "";
 
   try {
     if (content.startsWith('"\\"\\"') && content.endsWith('\\"\\""')) {

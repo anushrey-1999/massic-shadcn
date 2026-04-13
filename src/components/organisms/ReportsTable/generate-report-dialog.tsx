@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { TIME_PERIODS } from "@/hooks/use-gsc-analytics";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
@@ -36,6 +37,7 @@ export function GenerateReportDialog({
 }: GenerateReportDialogProps) {
   const router = useRouter();
   const [period, setPeriod] = React.useState("3 months");
+  const [customInstructions, setCustomInstructions] = React.useState("");
 
   const { data: jobData, isLoading: isJobLoading } = useJobByBusinessId(businessId);
   const generateReport = useGenerateReport();
@@ -60,6 +62,12 @@ export function GenerateReportDialog({
     }
   }, [open, isJobLoading, hasNoJob, isJobProcessing]);
 
+  React.useEffect(() => {
+    if (!open) {
+      setCustomInstructions("");
+    }
+  }, [open]);
+
   const handleCancel = () => {
     onOpenChange(false);
   };
@@ -71,6 +79,7 @@ export function GenerateReportDialog({
       const result = await generateReport.mutateAsync({
         businessId,
         period,
+        custom_instructions: customInstructions.trim(),
       });
 
       if (result?.id) {
@@ -115,8 +124,8 @@ export function GenerateReportDialog({
 
         {/* Content */}
         <div className="pt-4 px-4 pb-0">
-          <div className="bg-general-primary-foreground rounded-lg p-2 flex flex-col gap-1.5">
-            <div className="h-10 flex items-start">
+          <div className="bg-general-primary-foreground rounded-lg p-2 flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="period"
                 className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
@@ -140,6 +149,23 @@ export function GenerateReportDialog({
                 ))}
               </SelectContent>
             </Select>
+
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="custom-instructions"
+                className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
+              >
+                Custom Instructions
+              </label>
+              <Textarea
+                id="custom-instructions"
+                value={customInstructions}
+                onChange={(event) => setCustomInstructions(event.target.value)}
+                disabled={!canGenerate || isGenerating}
+                placeholder="Optional: Add specific instructions for this report."
+                className="min-h-[96px] resize-y bg-white text-[12px] leading-[1.5] tracking-[0.18px] text-general-foreground border-general-border"
+              />
+            </div>
           </div>
 
           {/* Status message */}

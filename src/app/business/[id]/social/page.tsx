@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useSocial } from "@/hooks/use-social"
 import { Typography } from '@/components/ui/typography'
 import { BUSINESS_RELEVANCE_PALETTE } from '@/components/organisms/StrategyBubbleChart/strategy-bubble-chart'
+import { getWorkflowStatus, isWorkflowSuccess } from '@/lib/workflow-status'
 import {
   Select,
   SelectContent,
@@ -29,14 +30,21 @@ interface PageProps {
   }>
 }
 
+type BusinessSocialPageProps = PageProps & {
+  isReadOnly?: boolean
+  skipEntitlements?: boolean
+}
+
 function SocialEntitledContent({
   businessId,
   selectedChannel,
   onChannelSelect,
+  isReadOnly,
 }: {
   businessId: string
   selectedChannel: string | null
   onChannelSelect: (channel: string | null) => void
+  isReadOnly?: boolean
 }) {
 
   const [socialView, setSocialView] = React.useState<"list" | "bubble">("list")
@@ -128,9 +136,9 @@ function SocialEntitledContent({
         const offeringsRaw = (r.offerings ?? r.channel_offerings) as unknown
         const offerings = Array.isArray(offeringsRaw)
           ? offeringsRaw
-              .filter((o): o is string => typeof o === "string")
-              .map((o) => o.trim())
-              .filter(Boolean)
+            .filter((o): o is string => typeof o === "string")
+            .map((o) => o.trim())
+            .filter(Boolean)
           : undefined
 
         if (!channel_name || !campaign_name) return null
@@ -198,7 +206,7 @@ function SocialEntitledContent({
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
       <div className="flex-1 min-h-0 overflow-hidden">
         {socialView === "list" ? (
-          <SocialTableClient businessId={businessId} toolbarRightPrefix={socialViewTabs} />
+          <SocialTableClient businessId={businessId} toolbarRightPrefix={socialViewTabs} isReadOnly={isReadOnly} />
         ) : (
           <div className="bg-white rounded-lg p-4 h-full flex flex-col gap-3">
             <div className="shrink-0 flex items-center justify-between gap-4">
@@ -236,13 +244,11 @@ function SocialEntitledContent({
                   className="text-base font-mono text-general-muted-foreground"
                 >
                   {bubbleRows.length
-                    ? `${filteredBubbleRows.length} item${
-                        filteredBubbleRows.length === 1 ? "" : "s"
-                      }${
-                        selectedOffering === "all"
-                          ? ""
-                          : ` (of ${bubbleRows.length})`
-                      }`
+                    ? `${filteredBubbleRows.length} item${filteredBubbleRows.length === 1 ? "" : "s"
+                    }${selectedOffering === "all"
+                      ? ""
+                      : ` (of ${bubbleRows.length})`
+                    }`
                     : downloadUrlFetching || bubbleDataLoading || bubbleDataFetching
                       ? "Loading.."
                       : "No data"}
@@ -292,7 +298,11 @@ function SocialEntitledContent({
   )
 }
 
-export default function BusinessSocialPage({ params }: PageProps) {
+export default function BusinessSocialPage({
+  params,
+  isReadOnly,
+  skipEntitlements,
+}: BusinessSocialPageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
   const [selectedChannel, setSelectedChannel] = useQueryState(
     "channel_name",
@@ -309,8 +319,10 @@ export default function BusinessSocialPage({ params }: PageProps) {
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)
-  const workflowStatus = jobDetails?.workflow_status?.status
-  const showMainContent = workflowStatus === "success"
+  const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
+  const showMainContent =
+    coreStatus === "success" &&
+    isWorkflowSuccess(jobDetails, "channel_analyzer")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
@@ -347,31 +359,39 @@ export default function BusinessSocialPage({ params }: PageProps) {
     )
   }
 
+  const content = !jobDetailsLoading && showMainContent ? (
+    <SocialEntitledContent
+      businessId={businessId}
+      selectedChannel={selectedChannel || null}
+      onChannelSelect={(channel) => setSelectedChannel(channel)}
+      isReadOnly={isReadOnly}
+    />
+  ) : (
+    <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+      <WorkflowStatusBanner
+        businessId={businessId}
+        workflowKey="channel_analyzer"
+        emptyStateHeight="min-h-[calc(100vh-12rem)]"
+      />
+    </div>
+  )
+
   return (
     <div className="flex flex-col h-screen">
       <PageHeader
         breadcrumbs={breadcrumbs}
       />
-      <EntitlementsGuard
-        entitlement="content"
-        businessId={businessId}
-        alertMessage="Upgrade your plan to unlock Social content generation."
-      >
-        {!jobDetailsLoading && showMainContent ? (
-          <SocialEntitledContent
-            businessId={businessId}
-            selectedChannel={selectedChannel || null}
-            onChannelSelect={(channel) => setSelectedChannel(channel)}
-          />
-        ) : (
-          <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
-            <WorkflowStatusBanner
-              businessId={businessId}
-              emptyStateHeight="min-h-[calc(100vh-12rem)]"
-            />
-          </div>
-        )}
-      </EntitlementsGuard>
+      {skipEntitlements ? (
+        content
+      ) : (
+        <EntitlementsGuard
+          entitlement="content"
+          businessId={businessId}
+          alertMessage="Upgrade your plan to unlock Social content generation."
+        >
+          {content}
+        </EntitlementsGuard>
+      )}
     </div>
   )
 }

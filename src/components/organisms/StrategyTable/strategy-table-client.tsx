@@ -27,6 +27,10 @@ export function StrategyTableClient({
   toolbarRightPrefix,
   onMetricsChange,
 }: StrategyTableClientProps) {
+  const columnVisibilityKey = React.useMemo(
+    () => `strategy-topics-columns:${businessId}`,
+    [businessId],
+  );
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedTopicId, setSelectedTopicId] = React.useState<string | null>(null);
   // Read query parameters from URL
@@ -441,6 +445,7 @@ export function StrategyTableClient({
         onSearchChange={setSearch}
         onRowClick={handleRowClick}
         toolbarRightPrefix={toolbarRightPrefix}
+        columnVisibilityKey={columnVisibilityKey}
       />
     </div>
   );

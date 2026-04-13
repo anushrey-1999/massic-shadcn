@@ -14,6 +14,7 @@ import { Typography } from '@/components/ui/typography'
 import { formatVolume } from '@/lib/format'
 import type { DigitalAdsMetrics } from '@/types/digital-ads-types'
 import type { TvRadioAdsMetrics } from '@/types/tv-radio-ads-types'
+import { getWorkflowStatus, isWorkflowSuccess } from '@/lib/workflow-status'
 
 interface PageProps {
   params: Promise<{
@@ -60,6 +61,12 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
     return null
   }, [activeTab, digitalMetrics, tvRadioMetrics])
 
+  const { data: jobDetails } = useJobByBusinessId(businessId || null)
+  const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
+  const isCoreSuccess = coreStatus === "success"
+  const isDigitalReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "digital_ads_opportunity_scorer")
+  const isTvRadioReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "ad_concept_generator")
+
   return (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
@@ -78,10 +85,26 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
           )}
         </div>
         <TabsContent value="digital" className="flex-1 min-h-0 mt-4 overflow-hidden">
-          <DigitalAdsTableClient businessId={businessId} onMetricsChange={setDigitalMetrics} />
+          {isDigitalReady ? (
+            <DigitalAdsTableClient businessId={businessId} onMetricsChange={setDigitalMetrics} />
+          ) : (
+            <WorkflowStatusBanner
+              businessId={businessId}
+              workflowKey="digital_ads_opportunity_scorer"
+              emptyStateHeight="min-h-[calc(100vh-12rem)]"
+            />
+          )}
         </TabsContent>
         <TabsContent value="tv-radio" className="flex-1 min-h-0 mt-4">
-          <TvRadioAdsTableClient businessId={businessId} onMetricsChange={setTvRadioMetrics} />
+          {isTvRadioReady ? (
+            <TvRadioAdsTableClient businessId={businessId} onMetricsChange={setTvRadioMetrics} />
+          ) : (
+            <WorkflowStatusBanner
+              businessId={businessId}
+              workflowKey="ad_concept_generator"
+              emptyStateHeight="min-h-[calc(100vh-12rem)]"
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
@@ -97,8 +120,8 @@ export default function BusinessAdsPage({ params }: PageProps) {
 
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null)
   const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null)
-  const workflowStatus = jobDetails?.workflow_status?.status
-  const showMainContent = workflowStatus === "success"
+  const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
+  const showMainContent = coreStatus === "success"
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 

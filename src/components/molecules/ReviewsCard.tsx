@@ -3,7 +3,7 @@
 import React from "react"
 import { Star, X, SendHorizontal, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import { useDebounce } from "@/hooks/use-debounce"
 import { SendReviewReplyDialog } from "@/components/molecules/SendReviewReplyDialog"
@@ -259,10 +259,12 @@ export function ReviewsCard({
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  <Input
+                  <Textarea
                     value={response}
                     onChange={(e) => setResponse(e.target.value)}
                     placeholder="Generated response"
+                    rows={3}
+                    className="min-h-[4.5rem] resize-y"
                   />
                   {(isSaving || response !== lastSavedResponse || showSavedState) ? (
                     <div className="text-[11px] text-general-muted-foreground">

@@ -29,7 +29,14 @@ import { ResponderSettingsModal } from "@/components/molecules/ResponderSettings
 import { CustomersTableClient } from "@/components/organisms/ReviewsCustomersTable/customers-table-client"
 import { CampaignsTableClient } from "@/components/organisms/ReviewsCampaignTable/campaigns-table-client"
 import { useBusinessProfileById } from "@/hooks/use-business-profiles"
-import { useReviews, useIgnoreReview, type ReviewSortBy } from "@/hooks/use-reviews"
+import {
+  useReviews,
+  useIgnoreReview,
+  useSendReviewReply,
+  useUpdateReviewResponse,
+  type ReviewReplyFilter,
+  type ReviewSortBy,
+} from "@/hooks/use-reviews"
 import { useDebounce } from "@/hooks/use-debounce"
 import { useAuthStore } from "@/store/auth-store"
 import { useBusinessProfileSettings } from "@/hooks/use-review-responder-settings"
@@ -43,6 +50,7 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
   const [activeTab, setActiveTab] = React.useState<"reviews" | "campaign" | "customers">("reviews")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortBy, setSortBy] = React.useState<ReviewSortBy>("recent")
+  const [replyStatus, setReplyStatus] = React.useState<ReviewReplyFilter>("all")
   const [sortOpen, setSortOpen] = React.useState(false)
   const [selectedLocation, setSelectedLocation] = React.useState<string>("")
   const [settingsOpen, setSettingsOpen] = React.useState(false)
@@ -108,10 +116,23 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
   } = useReviews({
     locationId: selectedLocationId,
     sortBy,
+    replyStatus,
     search: debouncedSearch,
   })
 
   const ignoreReviewMutation = useIgnoreReview(selectedLocationId, sortBy, debouncedSearch)
+  const sendReviewReplyMutation = useSendReviewReply()
+  const { mutateAsync: saveReviewResponse } = useUpdateReviewResponse()
+  const handleAutoSaveReviewResponse = React.useCallback(
+    (payload: { businessId: string; reviewId: string; updatedResponse: string }) =>
+      saveReviewResponse(payload),
+    [saveReviewResponse]
+  )
+  const handleSendReviewReply = React.useCallback(
+    (payload: { businessId: string; reviewId: string; replyText: string }) =>
+      sendReviewReplyMutation.mutateAsync(payload),
+    [sendReviewReplyMutation]
+  )
 
   const handleIgnoreClick = React.useCallback((reviewId: string, reviewerName: string) => {
     setReviewToIgnore({ id: reviewId, name: reviewerName })
@@ -208,6 +229,16 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
                   </InputGroup>
+
+                  <Select value={replyStatus} onValueChange={(value) => setReplyStatus(value as ReviewReplyFilter)}>
+                    <SelectTrigger className="w-[170px] bg-white shadow-xs">
+                      <SelectValue placeholder="Reply status" />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      <SelectItem value="all">All reviews</SelectItem>
+                      <SelectItem value="needs_reply">Needs reply</SelectItem>
+                    </SelectContent>
+                  </Select>
 
                   <Popover open={sortOpen} onOpenChange={setSortOpen}>
                     <PopoverTrigger asChild>
@@ -321,14 +352,28 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                         {reviews.map((review, idx) => (
                           <ReviewsCard
                             key={review.ReviewId || idx}
+                            reviewId={review.ReviewId}
+                            businessId={businessId}
                             title={review.ReviewerDisplayName || "Anonymous"}
                             rating={review.numericRating || parseInt(review.StarRating) || 0}
                             reviewText={review.Comment || ""}
                             reviewerImageSrc={review.ReviewerProfilePhotoUrl || undefined}
+                            generatedResponse={review.SuggestedResponse}
+                            editedResponse={review.EditedResponse}
                             existingReply={review.ReviewReplyComment}
+                            replySource={review.ReplySource}
                             isIgnored={review.IsIgnored}
                             isIgnoring={ignoringReviewId === review.ReviewId}
+                            isSending={sendReviewReplyMutation.isPending && sendReviewReplyMutation.variables?.reviewId === review.ReviewId}
                             onIgnore={() => handleIgnoreClick(review.ReviewId, review.ReviewerDisplayName || "Anonymous")}
+                            onSend={(replyText) =>
+                              handleSendReviewReply({
+                                businessId,
+                                reviewId: review.ReviewId,
+                                replyText,
+                              })
+                            }
+                            onAutoSave={handleAutoSaveReviewResponse}
                           />
                         ))}
                       </InfiniteScroll>
@@ -370,4 +415,3 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
     </div>
   )
 }
-

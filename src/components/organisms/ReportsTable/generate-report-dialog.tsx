@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { X, Loader2 } from "lucide-react";
+import { format as formatDate } from "date-fns";
+import type { DateRange } from "react-day-picker";
+import { X, Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -20,14 +22,32 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TIME_PERIODS } from "@/hooks/use-gsc-analytics";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import { useGenerateReport } from "@/hooks/use-report-runs";
+import { useGenerateReportV2 } from "@/hooks/use-report-runs";
+import { getAnalyticsPeriodBounds, resolveTimePeriodRange, type TimePeriodValue } from "@/utils/analytics-period";
 
 interface GenerateReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   businessId: string;
+}
+
+const CUSTOM_RANGE_VALUE = "__custom__";
+
+function formatRangeLabel(range: DateRange | undefined): string {
+  if (!range?.from && !range?.to) return "Select date range";
+  if (range?.from && !range?.to) return formatDate(range.from, "MMM d, yyyy");
+  if (!range?.from || !range?.to) return "Select date range";
+  return `${formatDate(range.from, "MMM d, yyyy")} - ${formatDate(range.to, "MMM d, yyyy")}`;
+}
+
+function buildInitialCustomRange(period: TimePeriodValue): DateRange | undefined {
+  const resolved = resolveTimePeriodRange(period);
+  return resolved ? { from: resolved.from, to: resolved.to } : undefined;
 }
 
 export function GenerateReportDialog({
@@ -36,11 +56,17 @@ export function GenerateReportDialog({
   businessId,
 }: GenerateReportDialogProps) {
   const router = useRouter();
-  const [period, setPeriod] = React.useState("3 months");
+  const [period, setPeriod] = React.useState<TimePeriodValue>("3 months");
+  const [selectedRangeMode, setSelectedRangeMode] = React.useState<string>("preset");
+  const [customRange, setCustomRange] = React.useState<DateRange | undefined>(() =>
+    buildInitialCustomRange("3 months")
+  );
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [customInstructions, setCustomInstructions] = React.useState("");
+  const { minSelectableDate, presetAnchorDate } = React.useMemo(() => getAnalyticsPeriodBounds(), []);
 
   const { data: jobData, isLoading: isJobLoading } = useJobByBusinessId(businessId);
-  const generateReport = useGenerateReport();
+  const generateReport = useGenerateReportV2();
 
   const workflowStatus = jobData?.workflow_status?.status;
   const canGenerate = workflowStatus === "success";
@@ -65,8 +91,16 @@ export function GenerateReportDialog({
   React.useEffect(() => {
     if (!open) {
       setCustomInstructions("");
+      setCalendarOpen(false);
     }
   }, [open]);
+
+  const resolvedPresetRange = React.useMemo(() => resolveTimePeriodRange(period), [period]);
+  const effectiveRange = selectedRangeMode === CUSTOM_RANGE_VALUE
+    ? customRange
+    : resolvedPresetRange
+      ? { from: resolvedPresetRange.from, to: resolvedPresetRange.to }
+      : undefined;
 
   const handleCancel = () => {
     onOpenChange(false);
@@ -75,10 +109,16 @@ export function GenerateReportDialog({
   const handleGenerate = async () => {
     if (!canGenerate || !businessId) return;
 
+    if (!effectiveRange?.from || !effectiveRange?.to) {
+      toast.error("Please select a complete date range");
+      return;
+    }
+
     try {
       const result = await generateReport.mutateAsync({
         businessId,
-        period,
+        startDate: formatDate(effectiveRange.from, "yyyy-MM-dd"),
+        endDate: formatDate(effectiveRange.to, "yyyy-MM-dd"),
         custom_instructions: customInstructions.trim(),
       });
 
@@ -124,16 +164,29 @@ export function GenerateReportDialog({
 
         {/* Content */}
         <div className="pt-4 px-4 pb-0">
-          <div className="bg-general-primary-foreground rounded-lg p-2 flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="period"
-                className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
+            <div className="bg-general-primary-foreground rounded-lg p-2 flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="period"
+                  className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
               >
                 Select Time Period
               </label>
             </div>
-            <Select value={period} onValueChange={setPeriod} disabled={!canGenerate || isGenerating}>
+            <Select
+              value={selectedRangeMode === CUSTOM_RANGE_VALUE ? CUSTOM_RANGE_VALUE : period}
+              onValueChange={(value) => {
+                if (value === CUSTOM_RANGE_VALUE) {
+                  setSelectedRangeMode(CUSTOM_RANGE_VALUE);
+                  setCustomRange((current) => current ?? buildInitialCustomRange(period));
+                  return;
+                }
+
+                setSelectedRangeMode("preset");
+                setPeriod(value as TimePeriodValue);
+              }}
+              disabled={!canGenerate || isGenerating}
+            >
               <SelectTrigger
                 id="period"
                 className="w-full h-10 min-h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pl-3 pr-2 py-[7.5px] gap-2 border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground"
@@ -147,8 +200,64 @@ export function GenerateReportDialog({
                     {timePeriod.label}
                   </SelectItem>
                 ))}
+                <SelectItem value={CUSTOM_RANGE_VALUE}>Custom range</SelectItem>
               </SelectContent>
             </Select>
+
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="custom-range"
+                className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
+              >
+                Date Range
+              </label>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="custom-range"
+                    type="button"
+                    variant="outline"
+                    disabled={!canGenerate || isGenerating}
+                    className="justify-start bg-white rounded-lg border-general-border text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-foreground"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                    {selectedRangeMode === CUSTOM_RANGE_VALUE
+                      ? formatRangeLabel(customRange)
+                      : effectiveRange?.from && effectiveRange?.to
+                        ? `${formatDate(effectiveRange.from, "MMM d, yyyy")} - ${formatDate(effectiveRange.to, "MMM d, yyyy")}`
+                        : "Select date range"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-auto p-0">
+                  <div className="border-b px-4 py-3">
+                    <p className="text-sm font-semibold">Select custom range</p>
+                    <p className="text-xs text-muted-foreground">
+                      Reports compare this range against the immediately prior period.
+                    </p>
+                  </div>
+                  <Calendar
+                    mode="range"
+                    selected={customRange}
+                    onSelect={(range) => {
+                      setCustomRange(range);
+                      setSelectedRangeMode(CUSTOM_RANGE_VALUE);
+                      if (range?.from && range?.to) {
+                        setCalendarOpen(false);
+                      }
+                    }}
+                    numberOfMonths={2}
+                    disabled={(date) => date < minSelectableDate || date > presetAnchorDate}
+                    defaultMonth={customRange?.from}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              <p className="text-xs text-muted-foreground">
+                {effectiveRange?.from && effectiveRange?.to
+                  ? `Using ${formatDate(effectiveRange.from, "MMM d, yyyy")} to ${formatDate(effectiveRange.to, "MMM d, yyyy")}`
+                  : "Choose a preset or custom range."}
+              </p>
+            </div>
 
             <div className="flex flex-col gap-1.5">
               <label

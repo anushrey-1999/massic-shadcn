@@ -10,12 +10,6 @@ import {
   ArrowDown,
   ArrowDownFromLine,
   ArrowLeft,
-  ChevronDown,
-  Copy,
-  ExternalLink,
-  Globe,
-  Loader2,
-  Monitor,
   ArrowUp,
   ArrowUpFromLine,
   Bold,
@@ -30,17 +24,23 @@ import {
   MoveVertical,
   PanelLeft,
   PanelRight,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Globe,
+  Loader2,
+  Monitor,
   Plus,
   Redo2,
   RotateCcw,
   Save,
-  Smartphone,
-  Tablet,
   SquarePlus,
   Strikethrough,
   Trash2,
   Underline,
   Unlink,
+  Smartphone,
+  Tablet,
   Undo2,
   X,
 } from "lucide-react";
@@ -308,56 +308,6 @@ function areSpacingValuesEqual(left: Partial<EditableSpacingValue> | null | unde
   );
 }
 
-const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
-  primary: "Primary",
-  secondary: "Secondary",
-  accent: "Accent",
-  link: "Link",
-  text: "Text",
-  mutedText: "Muted Text",
-  background: "Background",
-  surface: "Surface",
-  buttonBg: "Button Background",
-  buttonText: "Button Text",
-};
-const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "primary",
-  "secondary",
-  "accent",
-  "link",
-  "buttonBg",
-  "buttonText",
-];
-const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "text",
-  "mutedText",
-  "background",
-  "surface",
-];
-const STYLE_TYPOGRAPHY_OPTION_LABELS: Partial<Record<MassicStyleTypographyKey, string>> = {
-  baseFontSize: "Base Text Size",
-  baseLineHeight: "Base Line Height",
-  h1Size: "H1 Size",
-  h2Size: "H2 Size",
-  h3Size: "H3 Size",
-};
-const VISIBLE_STYLE_TYPOGRAPHY_KEYS: MassicStyleTypographyKey[] = [
-  "baseFontSize",
-  "baseLineHeight",
-  "h1Size",
-  "h2Size",
-  "h3Size",
-];
-const LINE_HEIGHT_PRESETS = ["1.3", "1.4", "1.5", "1.6", "1.8", "2"];
-const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
-  bodyFontFamily: [],
-  headingFontFamily: [],
-  baseFontSize: ["14px", "16px", "18px", "20px", "22px", "24px"],
-  baseLineHeight: LINE_HEIGHT_PRESETS,
-  h1Size: ["28px", "32px", "36px", "40px", "42px", "48px"],
-  h2Size: ["22px", "24px", "28px", "32px", "36px"],
-  h3Size: ["18px", "20px", "22px", "26px", "30px"],
-};
 const SPACING_STEP = 8;
 const SPACING_PIXEL_BASE: Record<string, number> = {
   none: 0,
@@ -461,6 +411,56 @@ function detectInlineFormatsAtNode(node: Node | null, container: HTMLElement): {
   return result;
 }
 
+const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
+  primary: "Primary",
+  secondary: "Secondary",
+  accent: "Accent",
+  link: "Link",
+  text: "Text",
+  mutedText: "Muted Text",
+  background: "Background",
+  surface: "Surface",
+  buttonBg: "Button Background",
+  buttonText: "Button Text",
+};
+const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "primary",
+  "secondary",
+  "accent",
+  "link",
+  "buttonBg",
+  "buttonText",
+];
+const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "text",
+  "mutedText",
+  "background",
+  "surface",
+];
+const STYLE_TYPOGRAPHY_OPTION_LABELS: Partial<Record<MassicStyleTypographyKey, string>> = {
+  baseFontSize: "Base Text Size",
+  baseLineHeight: "Base Line Height",
+  h1Size: "H1 Size",
+  h2Size: "H2 Size",
+  h3Size: "H3 Size",
+};
+const VISIBLE_STYLE_TYPOGRAPHY_KEYS: MassicStyleTypographyKey[] = [
+  "baseFontSize",
+  "baseLineHeight",
+  "h1Size",
+  "h2Size",
+  "h3Size",
+];
+const LINE_HEIGHT_PRESETS = ["1.3", "1.4", "1.5", "1.6", "1.8", "2"];
+const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
+  bodyFontFamily: [],
+  headingFontFamily: [],
+  baseFontSize: ["14px", "16px", "18px", "20px", "22px", "24px"],
+  baseLineHeight: LINE_HEIGHT_PRESETS,
+  h1Size: ["28px", "32px", "36px", "40px", "42px", "48px"],
+  h2Size: ["22px", "24px", "28px", "32px", "36px"],
+  h3Size: ["18px", "20px", "22px", "26px", "30px"],
+};
 
 type HtmlContentType = "page" | "blog";
 
@@ -3972,7 +3972,6 @@ export function WebPageHtmlView({
               <Plus className="h-4 w-4" />
               Insert
             </Button>
-
             <div className="h-5 w-px bg-border" />
             <div className="inline-flex items-center gap-0.5">
               <Tooltip><TooltipTrigger asChild>

@@ -58,6 +58,7 @@ import {
   StakeholderRow,
   LocationRow,
   CompetitorRow,
+  CalendarEventRow,
 } from "@/store/business-store";
 
 interface ProfileAutofillResponse {
@@ -185,6 +186,7 @@ const ProfileTemplate = ({
         stakeholders: [],
         locations: [],
         competitors: [],
+        calendarEvents: [],
         brandToneSocial: [],
         brandToneWeb: [],
       };
@@ -257,6 +259,14 @@ const ProfileTemplate = ({
     const competitorsList = parseArrayField(profileData.Competitors).map(
       (comp: any): CompetitorRow => ({
         url: cleanWebsiteUrl(comp.website || comp.Website),
+      })
+    );
+
+    const calendarEventsList = parseArrayField((profileData as any).CalendarEvents).map(
+      (event: any): CalendarEventRow => ({
+        eventName: event.eventName || "",
+        startDate: event.startDate || null,
+        endDate: event.endDate || null,
       })
     );
 
@@ -376,6 +386,7 @@ const ProfileTemplate = ({
       stakeholders: stakeholdersList,
       locations: locationsList,
       competitors: competitorsList,
+      calendarEvents: calendarEventsList,
       brandToneSocial: brandToneSocial,
       brandToneWeb: brandToneWeb,
       // ONLY offerings come from job API (if job exists)
@@ -508,6 +519,17 @@ const ProfileTemplate = ({
           Competitors: (value.competitors || [])?.map((comp: any) => ({
             website: cleanWebsiteUrl(comp.url),
           })),
+          CalendarEvents: (value.calendarEvents || [])
+            ?.filter((event: any) => {
+              const hasEventName = event.eventName && String(event.eventName).trim().length > 0;
+              const hasStartDate = event.startDate && String(event.startDate).trim().length > 0;
+              return hasEventName || hasStartDate;
+            })
+            ?.map((event: any) => ({
+              eventName: String(event.eventName || "").trim(),
+              startDate: event.startDate ? String(event.startDate).trim() : null,
+              endDate: event.endDate ? String(event.endDate).trim() : null,
+            })) || null,
           WebBrandVoice:
             value.brandToneWeb && value.brandToneWeb.length > 0
               ? value.brandToneWeb.map((v: string) => {
@@ -1359,99 +1381,116 @@ const ProfileTemplate = ({
               >
                   {profileStep === 0 && (
                     <ProfileStepCard
-                      title="Basic Details"
-                      description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
+                      title={isAutofillGateActive ? "Let's set up your profile" : "Basic Details"}
+                      description={
+                        isAutofillGateActive
+                          ? "Enter your website URL and primary location, then click Autofill Profile — we'll take care of the rest."
+                          : "Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
+                      }
                       className="flex-1"
                       scrollableContent
                       rightAction={
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-block">
-                              <Button
-                                type="button"
-                                className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                                disabled={!canAdvanceFromStep0}
-                                onClick={() =>
-                                  setProfileStep((s) => Math.min(2, s + 1))
-                                }
-                              >
-                                Next
-                                <ChevronRight className="size-4 shrink-0" />
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          {!canAdvanceFromStep0 && isAutofillGateActive ? (
-                            <TooltipContent sideOffset={8}>
-                              Autofill Profile using the button below to proceed
-                            </TooltipContent>
-                          ) : null}
-                        </Tooltip>
+                        !isAutofillGateActive ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-block">
+                                <Button
+                                  type="button"
+                                  className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                                  disabled={!canAdvanceFromStep0}
+                                  onClick={() =>
+                                    setProfileStep((s) => Math.min(2, s + 1))
+                                  }
+                                >
+                                  Next
+                                  <ChevronRight className="size-4 shrink-0" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                          </Tooltip>
+                        ) : undefined
                       }
                     >
                       <BusinessInfoForm
                         form={form}
                         embedded
-                        embeddedVariant="full"
-                        disabledFields={
-                          isAutofillGateActive
-                            ? {
-                                businessName: true,
-                                serviceType: true,
-                                lifetimeValue: true,
-                              }
-                            : undefined
-                        }
+                        embeddedVariant={isAutofillGateActive ? "autofillGate" : "full"}
+                        disableWebsiteLock={isAutofillGateActive}
                         primaryLocationAction={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="default"
-                            onClick={handleAutofillProfile}
-                            disabled={
-                              isAutofillLoading ||
-                              offeringsExtractor.isExtracting ||
-                              !(formValues?.website ?? "").toString().trim()
-                            }
-                            className="gap-2 border-general-border-three text-general-foreground"
-                          >
-                            {isAutofillLoading ? (
-                              <>
-                                <Loader2 className="size-4 animate-spin" />
-                                Autofilling...
-                              </>
-                            ) : (
-                              "Autofill Profile"
-                            )}
-                          </Button>
+                          isAutofillGateActive ? (
+                            <Button
+                              type="button"
+                              onClick={handleAutofillProfile}
+                              disabled={
+                                isAutofillLoading ||
+                                offeringsExtractor.isExtracting ||
+                                !(formValues?.website ?? "").toString().trim()
+                              }
+                              className="w-full gap-2"
+                            >
+                              {isAutofillLoading ? (
+                                <>
+                                  <Loader2 className="size-4 animate-spin" />
+                                  Autofilling...
+                                </>
+                              ) : (
+                                "Autofill Profile"
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="default"
+                              onClick={handleAutofillProfile}
+                              disabled={
+                                isAutofillLoading ||
+                                offeringsExtractor.isExtracting ||
+                                !(formValues?.website ?? "").toString().trim()
+                              }
+                              className="gap-2 border-general-border-three text-general-foreground"
+                            >
+                              {isAutofillLoading ? (
+                                <>
+                                  <Loader2 className="size-4 animate-spin" />
+                                  Autofilling...
+                                </>
+                              ) : (
+                                "Autofill Profile"
+                              )}
+                            </Button>
+                          )
                         }
                       />
-                      <OfferingsForm
-                        form={form}
-                        businessId={businessId}
-                        embedded
-                        disabled={isAutofillGateActive}
-                        hideFetchOfferingsFromWebsite
+                      {!isAutofillGateActive && (
+                        <>
+                          <OfferingsForm
+                            form={form}
+                            businessId={businessId}
+                            embedded
+                            hideFetchOfferingsFromWebsite
                             extractionController={offeringsExtractor}
-                      />
-                      <div className="w-1/2">
-                        <GenericInput<BusinessInfoFormData>
-                          form={form as any}
-                          fieldName="businessDescription"
-                          type="textarea"
-                          disabled={isAutofillGateActive}
-                          className="min-h-[160px]"
-                          label={
-                            <>
-                              Anything else we should know about your business?{" "}
-                              <span className="text-general-muted-foreground font-normal">
-                                (optional)
-                              </span>
-                            </>
-                          }
-                          placeholder="Provide any additional info"
-                          rows={6}
-                        />
-                      </div>
+                          />
+                          <div className="w-1/2">
+                            <GenericInput<BusinessInfoFormData>
+                              form={form as any}
+                              fieldName="businessDescription"
+                              type="textarea"
+                              className="min-h-[160px]"
+                              label={
+                                <>
+                                  Anything else we should know about your business?{" "}
+                                  <span className="text-general-muted-foreground font-normal">
+                                    (optional)
+                                  </span>
+                                </>
+                              }
+                              placeholder="Provide any additional info"
+                              rows={6}
+                            />
+                          </div>
+                        </>
+                      )}
                     </ProfileStepCard>
                   )}
                   {profileStep === 1 && (

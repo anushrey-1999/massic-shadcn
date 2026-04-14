@@ -16,6 +16,8 @@ import {
   List,
   ListOrdered,
   Link2,
+  Pencil,
+  Check,
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 
@@ -39,7 +41,10 @@ import {
 import {
   parsePerformanceReport,
   performanceReportToPlainText,
+  getPerformanceReportV2EditedFields,
+  type PerformanceReportV2EditedFields,
 } from "@/utils/performance-report-v2";
+import type { PerformanceReportV2TemplateContext } from "@/utils/performance-report-v2-template";
 import {
   generatePdfFromMarkdown,
   generatePdfFromPerformanceReportV2,
@@ -58,6 +63,8 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
 
   const [localContent, setLocalContent] = React.useState<string>("");
   const [isEditorFocused, setIsEditorFocused] = React.useState(false);
+  const [isV2EditMode, setIsV2EditMode] = React.useState(false);
+  const [v2ResetVersion, setV2ResetVersion] = React.useState(0);
   const lastSavedRef = React.useRef<string>("");
   const isInitialLoadRef = React.useRef(true);
   const lastStatusRef = React.useRef<string>("");
@@ -89,6 +96,11 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const isV2Report = parsedReport.kind === "v2";
   const performanceReport = parsedReport.kind === "markdown" ? parsedReport.markdown : "";
   const performanceReportV2 = parsedReport.kind === "v2" ? parsedReport.document : null;
+  const performanceReportV2Raw = parsedReport.kind === "v2" ? parsedReport.raw : null;
+  const v2EditedFieldsCount = React.useMemo(() => {
+    if (!performanceReportV2Raw) return 0;
+    return Object.keys(getPerformanceReportV2EditedFields(performanceReportV2Raw)).length;
+  }, [performanceReportV2Raw]);
   const hasReportContent =
     parsedReport.kind === "v2" || (parsedReport.kind === "markdown" && !!parsedReport.markdown.trim());
   const period = reportData?.period || "3-month";
@@ -96,6 +108,24 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const periodEnd = reportData?.period_end;
   const periodRange = formatPeriodRange(periodStart, periodEnd);
   const reportTitle = `${businessName} ${period}${periodRange ? ` (${periodRange})` : ""} Performance Report`;
+  const reportTemplateContext = React.useMemo<PerformanceReportV2TemplateContext | undefined>(() => {
+    if (!reportData) return undefined;
+    return {
+      businessName,
+      period: reportData.period,
+      periodStart: reportData.period_start,
+      periodEnd: reportData.period_end,
+      createdAt: reportData.created_at,
+      processedMeta:
+        reportData.processed_data && typeof reportData.processed_data === "object"
+          ? (reportData.processed_data as Record<string, unknown>).meta as Record<string, unknown> | null
+          : null,
+      llmOutputs:
+        reportData.narrative_text && typeof reportData.narrative_text === "object"
+          ? (reportData.narrative_text as Record<string, unknown>).llm_outputs as Record<string, unknown> | null
+          : null,
+    };
+  }, [businessName, reportData]);
 
   const canonicalize = React.useCallback((value: string) => {
     return (value || "").replace(/\r\n/g, "\n").replace(/\u00A0/g, " ").trimEnd();
@@ -158,6 +188,12 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
     }
   }, [reportData, status, reportEditor, isV2Report]);
 
+  React.useEffect(() => {
+    if (!isV2Report && !isV2EditMode) {
+      setIsV2EditMode(false);
+    }
+  }, [isV2Report, reportRunId, isV2EditMode]);
+
   const handleBack = () => {
     router.push(`/business/${businessId}/reports`);
   };
@@ -205,6 +241,30 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
       }
     }
   }, [canonicalize, reportRunId, updateMutation]);
+
+  const handleSaveV2EditedFields = React.useCallback(
+    async (editedFields: PerformanceReportV2EditedFields) => {
+      await updateMutation.mutateAsync({
+        reportRunId,
+        edited_field_updates: editedFields,
+      });
+    },
+    [reportRunId, updateMutation]
+  );
+
+  const handleDiscardAllV2Edits = React.useCallback(async () => {
+    try {
+      await updateMutation.mutateAsync({
+        reportRunId,
+        discard_all_edits: true,
+      });
+      setV2ResetVersion((current) => current + 1);
+      setIsV2EditMode(false);
+      toast.success("Reverted to original report text");
+    } catch {
+      toast.error("Failed to discard edited prose");
+    }
+  }, [reportRunId, updateMutation]);
 
   const handleContentChange = React.useCallback((markdown: string) => {
     if (isInitialLoadRef.current) return;
@@ -275,13 +335,13 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const handleDownloadPdf = React.useCallback(
     async (filename: string) => {
       if (parsedReport.kind === "v2") {
-        await generatePdfFromPerformanceReportV2(parsedReport.raw, filename);
+        await generatePdfFromPerformanceReportV2(parsedReport.raw, filename, reportTemplateContext);
         return;
       }
 
       await generatePdfFromMarkdown(performanceReport, filename);
     },
-    [parsedReport, performanceReport]
+    [parsedReport, performanceReport, reportTemplateContext]
   );
 
   return (
@@ -328,6 +388,30 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
             </div>
 
             <div className="flex items-center gap-2">
+              {isSuccess && isV2Report && (
+                <>
+                  <Button
+                    variant={isV2EditMode ? "default" : "outline"}
+                    size="icon"
+                    onClick={() => setIsV2EditMode((current) => !current)}
+                    disabled={updateMutation.isPending}
+                    title={isV2EditMode ? "Done editing" : "Edit report"}
+                    className="h-9 w-9"
+                  >
+                    {isV2EditMode ? <Check className="h-5 w-5" /> : <Pencil className="h-5 w-5" />}
+                  </Button>
+                  {isV2EditMode && (
+                    <Button
+                      variant="outline"
+                      onClick={handleDiscardAllV2Edits}
+                      disabled={updateMutation.isPending || v2EditedFieldsCount === 0}
+                      className="h-9 px-4 py-[7.5px] text-sm font-medium"
+                    >
+                      Discard Changes
+                    </Button>
+                  )}
+                </>
+              )}
               <Button
                 variant="outline"
                 size="icon"
@@ -398,11 +482,17 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
               </div>
             )}
 
-            {isSuccess && isV2Report && performanceReportV2 && (
-              <Card className="p-4 space-y-3 border-0">
-                <PerformanceReportV2View document={performanceReportV2} />
+            {(isSuccess && isV2Report && performanceReportV2) || isV2EditMode ? (
+              <Card className="p-4 space-y-3 border-0 bg-transparent shadow-none">
+                <PerformanceReportV2View
+                  performanceReport={performanceReportV2Raw}
+                  context={reportTemplateContext}
+                  isEditing={isV2EditMode}
+                  resetVersion={v2ResetVersion}
+                  onSaveEditedFields={handleSaveV2EditedFields}
+                />
               </Card>
-            )}
+            ) : null}
 
             {isSuccess && !isV2Report && performanceReport && (
               <Card className="p-4 space-y-3 border-0">

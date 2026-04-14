@@ -276,7 +276,7 @@ export function ReviewsCard({
             </div>
 
             {!hasReply ? (
-              <div className="w-24 self-stretch flex flex-col justify-between gap-2">
+              <div className="w-24 self-end flex flex-col gap-2">
                 <Button
                   variant="outline"
                   className="w-full justify-center gap-2 border-[#d4d4d4] bg-white hover:bg-white"
@@ -302,7 +302,7 @@ export function ReviewsCard({
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      Send
+                      Respond
                       <SendHorizontal className="h-4 w-4" />
                     </>
                   )}

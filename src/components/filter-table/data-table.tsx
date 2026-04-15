@@ -34,6 +34,7 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   hideRowsPerPage?: boolean;
   disableHorizontalScroll?: boolean;
   paginationAlign?: "left" | "right" | "between";
+  toolbarPosition?: "beforeTable" | "belowHeader";
 }
 
 export function DataTable<TData>({
@@ -51,6 +52,7 @@ export function DataTable<TData>({
   hideRowsPerPage = false,
   disableHorizontalScroll = false,
   paginationAlign = "between",
+  toolbarPosition = "beforeTable",
   highlightSelectedRow = true,
   ...props
 }: DataTableProps<TData>) {
@@ -64,7 +66,7 @@ export function DataTable<TData>({
       {...props}
     >
       {/* Filters/Toolbar - Always visible, no scroll */}
-      {children && (
+      {children && toolbarPosition === "beforeTable" && (
         <div className="shrink-0">
           {children}
         </div>
@@ -151,6 +153,17 @@ export function DataTable<TData>({
               ))}
             </TableHeader>
             <TableBody>
+              {children && toolbarPosition === "belowHeader" && (
+                <TableRow data-toolbar-row="true">
+                  <TableCell
+                    colSpan={table.getVisibleLeafColumns().length}
+                    data-toolbar-cell="true"
+                    className="p-0"
+                  >
+                    {children}
+                  </TableCell>
+                </TableRow>
+              )}
               {showLoading ? (
                 <TableRow>
                   <TableCell

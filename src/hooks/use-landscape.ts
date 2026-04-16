@@ -31,17 +31,12 @@ export function useLandscape(businessId: string) {
         method: "GET",
       });
 
-      // Try different possible paths for landscapes data
       let landscapes: LandscapeItem[] = [];
-      
-      if (response?.output_data?.landscapes) {
+
+      if (Array.isArray(response?.output_data?.items)) {
+        landscapes = response.output_data.items as LandscapeItem[];
+      } else if (Array.isArray(response?.output_data?.landscapes)) {
         landscapes = response.output_data.landscapes;
-      } else if (response?.output_data?.items) {
-        // If landscapes is nested in items, try to find it
-        const items = response.output_data.items;
-        if (Array.isArray(items) && items.length > 0 && items[0]?.landscapes) {
-          landscapes = items[0].landscapes;
-        }
       }
 
       const flatRows = transformToTableRows(landscapes);

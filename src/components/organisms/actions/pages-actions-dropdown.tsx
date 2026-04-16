@@ -1093,9 +1093,11 @@ export function PagesActionsDropdown({
                 changedKeywordsSet.has(item.keyword)
               const showMarked = showAdded || showChanged
               const statusForCell = String(item.planItemStatus || "").trim().toLowerCase()
+              const pageLabel = (item.keyword || item.title || "").trim() || "N/A"
               const webRow = {
                 id: item.id,
-                keyword: (item.keyword || item.title || "").trim() || "N/A",
+                cluster_name: pageLabel,
+                keyword: pageLabel,
                 page_type: (item.pageType || "").trim() || "page",
                 search_volume: 0,
                 business_relevance_score: 0,

@@ -90,7 +90,7 @@ export function StrategyBubbleChart({
       name: "Topics",
       type: "root",
       children: data.map((topic) => ({
-        name: topic.topic,
+        name: topic.topic || "",
         type: "topic" as const,
         data: {
           relevanceScore: topic.business_relevance_score,
@@ -102,7 +102,7 @@ export function StrategyBubbleChart({
           keywordsCount: topic.total_keywords,
         },
         children: topic.clusters.map((cluster) => ({
-          name: cluster.cluster_name || cluster.cluster,
+          name: cluster.cluster_name || cluster.cluster || "",
           type: "cluster" as const,
           data: {
             searchVolume: cluster.total_search_volume,

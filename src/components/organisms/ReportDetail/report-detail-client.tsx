@@ -18,6 +18,7 @@ import {
   Link2,
   Pencil,
   Check,
+  X,
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 
@@ -345,7 +346,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   );
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-4 bg-white px-40 py-8">
+    <div className="flex-1 min-h-0 flex flex-col gap-4 bg-white p-8">
       {/* Back Button Section */}
       <div>
         <Button
@@ -403,42 +404,48 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
                   {isV2EditMode && (
                     <Button
                       variant="outline"
+                      size="icon"
                       onClick={handleDiscardAllV2Edits}
                       disabled={updateMutation.isPending || v2EditedFieldsCount === 0}
-                      className="h-9 px-4 py-[7.5px] text-sm font-medium"
+                      title="Discard changes"
+                      className="h-9 w-9"
                     >
-                      Discard Changes
+                      <X className="h-5 w-5" />
                     </Button>
                   )}
                 </>
               )}
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleCopyReport}
-                disabled={isProcessing || !hasReportContent}
-                title="Copy Report"
-                className="h-9 w-9"
-              >
-                <Copy className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleDownload}
-                disabled={isProcessing || !hasReportContent}
-                title="Download Report"
-                className="h-9 w-9"
-              >
-                <Download className="h-5 w-5" />
-              </Button>
-              <Button
-                onClick={handleShare}
-                className="gap-2 h-9 px-4 py-[7.5px] text-primary-foreground"
-              >
-                <Mail className="h-[13.25px] w-[13.25px]" />
-                <span className="text-sm font-medium">Share</span>
-              </Button>
+              {!isV2EditMode && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyReport}
+                    disabled={isProcessing || !hasReportContent}
+                    title="Copy Report"
+                    className="h-9 w-9"
+                  >
+                    <Copy className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleDownload}
+                    disabled={isProcessing || !hasReportContent}
+                    title="Download Report"
+                    className="h-9 w-9"
+                  >
+                    <Download className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    onClick={handleShare}
+                    className="gap-2 h-9 px-4 py-[7.5px] text-primary-foreground"
+                  >
+                    <Mail className="h-[13.25px] w-[13.25px]" />
+                    <span className="text-sm font-medium">Share</span>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -497,7 +504,7 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
             {isSuccess && !isV2Report && performanceReport && (
               <Card className="p-4 space-y-3 border-0">
                 {isEditorFocused && (
-                  <div className="sticky top-0 z-10 bg-white flex items-center gap-2 border rounded-md px-2 py-1 mb-3">
+                  <div className="sticky top-0 z-10 mb-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-2 py-1">
                     {[Bold, Italic, Underline, Strikethrough, Quote, List, ListOrdered, Link2].map((Icon, idx) => (
                       <Button
                         key={idx}
@@ -549,8 +556,8 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
 
                 <InlineTipTapEditor
                   content={localContent}
-                  className="prose prose-sm max-w-none border-0"
-                  editorClassName="border-0"
+                  className="prose prose-sm max-w-none rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/50 p-3"
+                  editorClassName="min-h-80 border-0 bg-transparent px-2 py-1 focus-visible:ring-0 focus-visible:ring-offset-0"
                   isEditable={true}
                   onEditorReady={setReportEditor}
                   onSave={handleSaveReport}

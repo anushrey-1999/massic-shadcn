@@ -324,15 +324,20 @@ const EDIT_CSS = `
     position: relative;
     border-radius: 8px;
     padding: 6px 8px;
-    margin: -6px -8px;
-    transition: background-color 200ms ease;
-    background: rgba(45, 106, 86, 0.10);
+    margin: 0;
+    box-sizing: border-box;
+    border: 1.5px dashed rgba(46, 106, 86, 0.85);
+    transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+    background: #ffffff;
   }
   .pr-v2-edit-surface.pr-v2-editing [data-edit-owner]:hover {
-    background: rgba(45, 106, 86, 0.16);
+    border-color: rgba(46, 106, 86, 0.85);
+    background: #ffffff;
   }
   .pr-v2-edit-surface.pr-v2-editing [data-edit-owner][data-edit-active] {
-    background: rgba(45, 106, 86, 0.22);
+    border-color: rgba(46, 106, 86, 0.85);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(45, 106, 86, 0.08);
   }
   .pr-v2-edit-surface.pr-v2-editing [data-edit-field] {
     cursor: text;
@@ -685,11 +690,17 @@ export function PerformanceReportV2View({
   }, [serverSig, saveState]);
 
   return (
-    <div className={cn("rounded-xl border border-general-border bg-background shadow-sm", !isEditing && "overflow-hidden")}>
+    <div
+      className={cn(
+        "rounded-xl border bg-background shadow-sm",
+        isEditing ? "border-emerald-200 bg-background" : "border-general-border",
+        !isEditing && "overflow-hidden"
+      )}
+    >
       <style>{PERFORMANCE_REPORT_V2_SCOPED_CSS}</style>
       {isEditing && <style>{EDIT_CSS}</style>}
       {isEditing && (
-        <div className="border-b border-general-border bg-[#F8FBFA] px-4 py-3">
+        <div className="border-b border-emerald-200 bg-emerald-50/70 px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="text-[11px] font-medium text-muted-foreground">
               {saveState === "saving"

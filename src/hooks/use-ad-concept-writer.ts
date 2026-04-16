@@ -45,7 +45,7 @@ export function useAdConceptWriterContentQuery(params: {
     queryKey: [AD_CONCEPT_WRITER_QUERY_KEY, businessId, adConceptId],
     enabled: enabled && !!businessId && !!adConceptId,
     queryFn: async () => {
-      const endpoint = `/client/ad-concept-writer?business_id=${encodeURIComponent(
+      const endpoint = `/content/ads?business_id=${encodeURIComponent(
         businessId
       )}&ad_concept_id=${encodeURIComponent(adConceptId)}`;
 
@@ -69,7 +69,7 @@ export function useAdConceptWriterActions() {
   const queryClient = useQueryClient();
 
   const getContent = async (businessId: string, adConceptId: string) => {
-    const endpoint = `/client/ad-concept-writer?business_id=${encodeURIComponent(
+    const endpoint = `/content/ads?business_id=${encodeURIComponent(
       businessId
     )}&ad_concept_id=${encodeURIComponent(adConceptId)}`;
 
@@ -77,7 +77,7 @@ export function useAdConceptWriterActions() {
   };
 
   const startGeneration = async (businessId: string, adConceptId: string) => {
-    const endpoint = `/client/ad-concept-writer?business_id=${encodeURIComponent(
+    const endpoint = `/content/ads?business_id=${encodeURIComponent(
       businessId
     )}&ad_concept_id=${encodeURIComponent(adConceptId)}`;
 

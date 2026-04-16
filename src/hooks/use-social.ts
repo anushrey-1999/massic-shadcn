@@ -63,11 +63,13 @@ export function useSocial(businessId: string) {
       tactics: item.tactics || [],
       offerings: item.offerings || [],
       total_clusters:
-        typeof item.total_clusters === "number"
-          ? item.total_clusters
-          : Array.isArray(item.tactics)
-            ? item.tactics.length
-            : 0,
+        typeof item.cluster_count === "number"
+          ? item.cluster_count
+          : typeof item.total_clusters === "number"
+            ? item.total_clusters
+            : Array.isArray(item.tactics)
+              ? item.tactics.length
+              : 0,
       ...item,
     }));
   }, []);
@@ -153,7 +155,7 @@ export function useSocial(businessId: string) {
         queryParams.append("channel_name", params.channel_name);
       }
 
-      const endpoint = `/client/channel-analyzer?${queryParams.toString()}`;
+      const endpoint = `/strategies/social-channels?${queryParams.toString()}`;
 
       try {
         const response = await socialApi.execute(endpoint, {
@@ -195,7 +197,7 @@ export function useSocial(businessId: string) {
 
   const fetchSocialCounts = useCallback(async () => {
     try {
-      const endpoint = `/client/channel-analyzer?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=1000`;
       const response = await socialApi.execute(endpoint, {
         method: "GET",
       });
@@ -224,7 +226,7 @@ export function useSocial(businessId: string) {
 
   const fetchChannels = useCallback(async () => {
     try {
-      const endpoint = `/client/channel-analyzer?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=1000`;
       const response = await socialApi.execute(endpoint, {
         method: "GET",
       });
@@ -243,7 +245,7 @@ export function useSocial(businessId: string) {
 
   const fetchChannelAnalyzerDownloadUrl = useCallback(
     async (businessId: string) => {
-      const endpoint = `/client/channel-analyzer?business_id=${businessId}&page=1&page_size=100`;
+      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=100`;
       const response = await socialApi.execute(endpoint, { method: "GET" });
       return (response?.output_data as any)?.download_url as string | undefined;
     },
@@ -359,7 +361,7 @@ export function useSocial(businessId: string) {
         queryParams.append("campaign_name", params.campaign_name);
       }
 
-      const endpoint = `/client/channel-analyzer?${queryParams.toString()}`;
+      const endpoint = `/strategies/social-channels?${queryParams.toString()}`;
 
       try {
         const response = await tacticsApi.execute(endpoint, {

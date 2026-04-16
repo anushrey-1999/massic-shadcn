@@ -42,8 +42,8 @@ export function useWebActionContentQuery(params: {
     queryFn: async () => {
       const endpoint =
         type === "blog"
-          ? `/client/create-ai-blog-writer?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`
-          : `/client/create-page-builder?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+          ? `/content/blogs?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`
+          : `/content/pages?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
 
       try {
         return (await api.execute(endpoint, { method: "GET" })) as WebActionResponse;
@@ -88,8 +88,8 @@ export function useWebPageActions() {
   const getContent = async (type: WebActionType, businessId: string, pageId: string) => {
     const endpoint =
       type === "blog"
-        ? `/client/create-ai-blog-writer?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`
-        : `/client/create-page-builder?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+        ? `/content/blogs?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`
+        : `/content/pages?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
 
     return api.execute(endpoint, { method: "GET" }) as Promise<WebActionResponse>;
   };
@@ -97,8 +97,8 @@ export function useWebPageActions() {
   const startOutline = async (type: WebActionType, businessId: string, pageId: string) => {
     const endpoint =
       type === "blog"
-        ? `/client/create-ai-blog-writer?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}&flow=outline_only`
-        : `/client/create-page-builder?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}&flow=outline_only`;
+        ? `/content/blogs?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}&flow=outline_only`
+        : `/content/pages?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}&flow=outline_only`;
 
     return api.execute(endpoint, { method: "POST" }) as Promise<WebActionResponse>;
   };
@@ -106,8 +106,8 @@ export function useWebPageActions() {
   const startFinal = async (type: WebActionType, businessId: string, pageId: string) => {
     const endpoint =
       type === "blog"
-        ? `/client/create-ai-blog-writer?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}&flow=final_only`
-        : `/client/create-page-builder?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}&flow=final_only`;
+        ? `/content/blogs?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}&flow=final_only`
+        : `/content/pages?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}&flow=final_only`;
 
     return api.execute(endpoint, { method: "POST" }) as Promise<WebActionResponse>;
   };
@@ -115,8 +115,8 @@ export function useWebPageActions() {
   const updateOutline = async (type: WebActionType, businessId: string, pageId: string, outline: string) => {
     const endpoint =
       type === "blog"
-        ? `/client/update-ai-blog-writer-outline?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`
-        : `/client/update-page-builder-outline?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+        ? `/content/blogs/outline?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`
+        : `/content/pages/outline?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
 
     const requestBody = `{"outline": ${JSON.stringify(outline)}}`;
 
@@ -139,7 +139,7 @@ export function useWebPageActions() {
       meta_description: string;
     }
   ) => {
-    const endpoint = `/client/update-ai-blog-writer-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+    const endpoint = `/content/blogs/content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
 
     return api.execute(endpoint, {
       method: "POST",
@@ -152,7 +152,7 @@ export function useWebPageActions() {
   };
 
   const updatePageContent = async (businessId: string, pageId: string, content: string) => {
-    const endpoint = `/client/update-page-builder-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+    const endpoint = `/content/pages/content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
 
     return api.execute(endpoint, {
       method: "POST",

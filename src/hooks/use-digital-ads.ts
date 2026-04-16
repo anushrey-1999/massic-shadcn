@@ -18,9 +18,9 @@ export function useDigitalAds(businessId: string) {
 
   const transformToTableRows = useCallback((items: any[]): DigitalAdsRow[] => {
     return items.map((item, index) => ({
-      id: `${item.cluster}-${index}`,
-      cluster: item.cluster || "",
-      intent_cluster_opportunity_score: item.intent_cluster_opportunity_score || 0,
+      id: `${item.cluster_name || item.cluster}-${index}`,
+      cluster: item.cluster_name || item.cluster || "",
+      intent_cluster_opportunity_score: item.opportunity_score ?? item.intent_cluster_opportunity_score ?? 0,
       total_search_volume: item.total_search_volume || 0,
       avg_cpc: item.avg_cpc || 0,
       comp_sum: item.comp_sum || 0,
@@ -76,7 +76,7 @@ export function useDigitalAds(businessId: string) {
         queryParams.append("joinOperator", params.joinOperator);
       }
 
-      const endpoint = `/client/digital-ads-opportunity-scorer?${queryParams.toString()}`;
+      const endpoint = `/strategies/digital-ads-opportunities?${queryParams.toString()}`;
 
       try {
         const response = await digitalAdsApi.execute(endpoint, {

@@ -24,7 +24,8 @@ export function useBlogPagePlan(businessId: string) {
 
   const transformToTableRows = useCallback((items: WebPageItem[]): WebPageRow[] => {
     return items.map((item, index) => ({
-      id: item.page_id || item.keyword || `web-page-${index}`,
+      id: item.page_id || item.cluster_name || item.keyword || `web-page-${index}`,
+      cluster_name: item.cluster_name || item.keyword || "",
       sub_topics_count: Array.isArray(item.supporting_keywords)
         ? item.supporting_keywords.length
         : 0,
@@ -51,7 +52,7 @@ export function useBlogPagePlan(businessId: string) {
           .map(sortItem => {
             let field = sortItem.field;
             if (field === 'sub_topics_count') {
-              field = 'total_supporting_keywords_count';
+              field = 'supporting_keyword_count';
             }
             return { ...sortItem, field };
           });
@@ -83,7 +84,7 @@ export function useBlogPagePlan(businessId: string) {
         }
       }
 
-      const endpoint = `/client/create-blog-page-plan?${queryParams.toString()}`;
+      const endpoint = `/strategies/webpages?${queryParams.toString()}`;
 
       try {
         const response = await webPageApi.execute(endpoint, {
@@ -116,9 +117,11 @@ export function useBlogPagePlan(businessId: string) {
                 ? metricsFirst.total_pages
                 : 0,
             total_supporting_keywords:
-              typeof metricsFirst?.total_supporting_keywords === "number"
-                ? metricsFirst.total_supporting_keywords
-                : 0,
+              typeof metricsFirst?.total_keywords === "number"
+                ? metricsFirst.total_keywords
+                : typeof metricsFirst?.total_supporting_keywords === "number"
+                  ? metricsFirst.total_supporting_keywords
+                  : 0,
           }
           : null;
 
@@ -145,7 +148,7 @@ export function useBlogPagePlan(businessId: string) {
 
   const fetchWebPageCounts = useCallback(async () => {
     try {
-      const endpoint = `/client/create-blog-page-plan?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `/strategies/webpages?business_id=${businessId}&page=1&page_size=1000`;
       const response = await webPageApi.execute(endpoint, {
         method: "GET",
       });

@@ -94,7 +94,7 @@ export function StrategyBubbleChart({
         type: "topic" as const,
         data: {
           relevanceScore: topic.business_relevance_score,
-          coverage: topic.topic_cluster_topic_coverage,
+          coverage: (topic as any).topic_coverage ?? topic.topic_cluster_topic_coverage,
           searchVolume:
             typeof topic.total_cluster_search_volume === "number"
               ? topic.total_cluster_search_volume
@@ -102,11 +102,11 @@ export function StrategyBubbleChart({
           keywordsCount: topic.total_keywords,
         },
         children: topic.clusters.map((cluster) => ({
-          name: cluster.cluster,
+          name: cluster.cluster_name || cluster.cluster,
           type: "cluster" as const,
           data: {
             searchVolume: cluster.total_search_volume,
-            coverage: cluster.intent_cluster_topic_coverage,
+            coverage: cluster.topic_coverage ?? cluster.intent_cluster_topic_coverage,
             keywordsCount: cluster.keywords.length,
           },
           children: cluster.keywords.map((keyword) => ({
@@ -114,7 +114,7 @@ export function StrategyBubbleChart({
             type: "keyword" as const,
             value: 1,
             data: {
-              coverage: cluster.intent_cluster_topic_coverage,
+              coverage: cluster.topic_coverage ?? cluster.intent_cluster_topic_coverage,
               keywordsCount: 1,
             },
           })),

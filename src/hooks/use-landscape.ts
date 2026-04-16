@@ -24,7 +24,7 @@ export function useLandscape(businessId: string) {
   }, []);
 
   const fetchLandscape = useCallback(async () => {
-    const endpoint = `/client/channel-analyzer?business_id=${businessId}&page=1&page_size=10`;
+    const endpoint = `/strategies/social-channels/landscape?business_id=${businessId}`;
 
     try {
       const response = await landscapeApi.execute(endpoint, {

@@ -60,15 +60,15 @@ export function useStrategy(businessId: string) {
 
       // Create comma-separated cluster names
       const clusterNames = clusters
-        .map((cluster: any) => cluster.cluster)
+        .map((cluster: any) => cluster.cluster_name || cluster.cluster)
         .filter(Boolean)
         .join(", ");
 
       rows.push({
-        id: topic.topic,
-        topic: topic.topic,
+        id: topic.topic_name || topic.topic,
+        topic: topic.topic_name || topic.topic,
         business_relevance_score: topic.business_relevance_score || 0,
-        topic_cluster_topic_coverage: topic.topic_cluster_topic_coverage || 0,
+        topic_cluster_topic_coverage: topic.topic_coverage ?? topic.topic_cluster_topic_coverage ?? 0,
         offerings: topic.offerings || [],
         clusters: clusters,
         cluster_names: clusterNames,
@@ -108,9 +108,9 @@ export function useStrategy(businessId: string) {
         const mappedSort = params.sort.map(sortItem => {
           let field = sortItem.field;
           if (field === 'sub_topics_count') {
-            field = 'total_cluster_count';
+            field = 'cluster_count';
           } else if (field === 'total_keywords') {
-            field = 'total_cluster_keyword_count';
+            field = 'keyword_count';
           }
           return { ...sortItem, field };
         });
@@ -127,7 +127,7 @@ export function useStrategy(businessId: string) {
         queryParams.append("joinOperator", params.joinOperator);
       }
 
-      const endpoint = `/client/topic-strategy-builder?${queryParams.toString()}`;
+      const endpoint = `/strategies/topics?${queryParams.toString()}`;
 
       try {
         const response = await strategyApi.execute(endpoint, {
@@ -206,7 +206,7 @@ export function useStrategy(businessId: string) {
     try {
       // Placeholder: Fetch all data to calculate counts client-side
       // In production, backend should provide this
-      const endpoint = `/client/topic-strategy-builder?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `/strategies/topics?business_id=${businessId}&page=1&page_size=1000`;
       const response = await strategyApi.execute(endpoint, {
         method: "GET",
       });
@@ -235,9 +235,10 @@ export function useStrategy(businessId: string) {
           minRelevance = Math.min(minRelevance, item.business_relevance_score);
           maxRelevance = Math.max(maxRelevance, item.business_relevance_score);
         }
-        if (item.topic_cluster_topic_coverage !== undefined) {
-          minCoverage = Math.min(minCoverage, item.topic_cluster_topic_coverage);
-          maxCoverage = Math.max(maxCoverage, item.topic_cluster_topic_coverage);
+        const coverage = item.topic_coverage ?? item.topic_cluster_topic_coverage;
+        if (coverage !== undefined) {
+          minCoverage = Math.min(minCoverage, coverage);
+          maxCoverage = Math.max(maxCoverage, coverage);
         }
         if (item.clusters && Array.isArray(item.clusters)) {
           item.clusters.forEach((cluster: any) => {
@@ -283,7 +284,7 @@ export function useStrategy(businessId: string) {
     async (businessId: string) => {
       try {
         // First, fetch the initial response to get the download_url
-        const endpoint = `/client/topic-strategy-builder?business_id=${businessId}&page=1&page_size=100`;
+        const endpoint = `/strategies/topics?business_id=${businessId}&page=1&page_size=100`;
         const response = await strategyApi.execute(endpoint, {
           method: "GET",
         });

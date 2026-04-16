@@ -55,7 +55,7 @@ export function useSocialActionContentQuery(params: {
     queryKey: [SOCIAL_ACTION_CONTENT_QUERY_KEY, businessId, campaignClusterId],
     enabled: enabled && !!businessId && !!campaignClusterId,
     queryFn: async () => {
-      const endpoint = `/client/create-social-content-generator?business_id=${encodeURIComponent(
+      const endpoint = `/content/social?business_id=${encodeURIComponent(
         businessId
       )}&campaign_cluster_id=${encodeURIComponent(campaignClusterId)}`;
 
@@ -79,7 +79,7 @@ export function useSocialActions() {
   const queryClient = useQueryClient();
 
   const getContent = async (businessId: string, campaignClusterId: string) => {
-    const endpoint = `/client/create-social-content-generator?business_id=${encodeURIComponent(
+    const endpoint = `/content/social?business_id=${encodeURIComponent(
       businessId
     )}&campaign_cluster_id=${encodeURIComponent(campaignClusterId)}`;
 
@@ -87,7 +87,7 @@ export function useSocialActions() {
   };
 
   const startGeneration = async (businessId: string, campaignClusterId: string) => {
-    const endpoint = `/client/create-social-content-generator?business_id=${encodeURIComponent(
+    const endpoint = `/content/social?business_id=${encodeURIComponent(
       businessId
     )}&campaign_cluster_id=${encodeURIComponent(campaignClusterId)}`;
 

@@ -48,7 +48,7 @@ export function useAudience(businessId: string) {
         // Create a unique ID by combining persona_name with use_case_name, ars, and a counter
         const persona = (item.persona_name || "").replace(/\s+/g, "_").substring(0, 50);
         const useCasesStr = useCaseNames.sort().join("|").replace(/\s+/g, "_").substring(0, 100);
-        const ars = item.ars ?? 0;
+        const ars = item.audience_relevance_score ?? item.ars ?? 0;
 
         // Use counter instead of index for better stability across sorts
         const uniqueCounter = counter++;
@@ -67,7 +67,7 @@ export function useAudience(businessId: string) {
       return {
         id: uniqueId,
         persona_name: item.persona_name || "",
-        ars: item.ars ?? 0,
+        ars: item.audience_relevance_score ?? item.ars ?? 0,
         use_case_name: useCaseNames,
         ...item,
       };
@@ -94,9 +94,9 @@ export function useAudience(businessId: string) {
         const mappedSort = params.sort.map(sortItem => {
           let field = sortItem.field;
           if (field === 'use_cases') {
-            field = 'total_use_case_count';
+            field = 'use_case_count';
           } else if (field === 'keywords') {
-            field = 'total_supporting_keywords_count';
+            field = 'supporting_keyword_count';
           }
           return { ...sortItem, field };
         });
@@ -111,7 +111,7 @@ export function useAudience(businessId: string) {
         queryParams.append("joinOperator", params.joinOperator);
       }
 
-      const endpoint = `/client/audience?${queryParams.toString()}`;
+      const endpoint = `/strategies/audiences?${queryParams.toString()}`;
 
       try {
         const response = await audienceApi.execute(endpoint, {
@@ -177,7 +177,7 @@ export function useAudience(businessId: string) {
 
   const fetchAudienceCounts = useCallback(async () => {
     try {
-      const endpoint = `/client/audience?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `/strategies/audiences?business_id=${businessId}&page=1&page_size=1000`;
       const response = await audienceApi.execute(endpoint, {
         method: "GET",
       });
@@ -212,9 +212,10 @@ export function useAudience(businessId: string) {
           });
         }
 
-        if (item.ars !== undefined && item.ars !== null) {
-          minArs = Math.min(minArs, item.ars);
-          maxArs = Math.max(maxArs, item.ars);
+        const arsValue = item.audience_relevance_score ?? item.ars;
+        if (arsValue !== undefined && arsValue !== null) {
+          minArs = Math.min(minArs, arsValue);
+          maxArs = Math.max(maxArs, arsValue);
         }
       });
 

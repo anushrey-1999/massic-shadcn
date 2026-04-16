@@ -74,12 +74,13 @@ function extractUnifiedPages(response: any): any[] {
 export function useUnifiedWebOptimization() {
   const platform: ApiPlatform = "node";
   const api = useApi<any>({ platform });
+  const { execute } = api;
 
   const fetchUnifiedPagesFromSnapshot = useCallback(
     async (businessId: string): Promise<UnifiedPageRow[]> => {
       const snapshotEndpoint = `/analytics/web-optimization/unified/snapshot?businessId=${encodeURIComponent(businessId)}`;
       try {
-        const snapshotResponse = await api.execute(snapshotEndpoint, { method: "GET" });
+        const snapshotResponse = await execute(snapshotEndpoint, { method: "GET" });
 
         const topLevelErr = (snapshotResponse as any)?.err === true;
         const nestedErr = (snapshotResponse as any)?.data?.err === true;
@@ -98,7 +99,7 @@ export function useUnifiedWebOptimization() {
 
         // Snapshot returns metadata only; fetch the actual list from the unified endpoint (live).
         const unifiedEndpoint = `/analytics/web-optimization/unified?businessId=${encodeURIComponent(businessId)}`;
-        const unifiedResponse = await api.execute(unifiedEndpoint, { method: "GET" });
+        const unifiedResponse = await execute(unifiedEndpoint, { method: "GET" });
         const unifiedErr = (unifiedResponse as any)?.err === true;
         if (unifiedErr) {
           const message =
@@ -136,13 +137,13 @@ export function useUnifiedWebOptimization() {
         throw err;
       }
     },
-    [api]
+    [execute]
   );
 
   const triggerGenerate = useCallback(
     async (businessId: string): Promise<{ unified_pages: any[] }> => {
       const endpoint = `/analytics/web-optimization/unified/generate`;
-      const response = await api.execute(endpoint, {
+      const response = await execute(endpoint, {
         method: "POST",
         data: { businessId },
       });
@@ -160,7 +161,7 @@ export function useUnifiedWebOptimization() {
       const pages = Array.isArray(data?.unified_pages) ? data.unified_pages : [];
       return { unified_pages: pages };
     },
-    [api]
+    [execute]
   );
 
   const fetchUnifiedPages = useCallback(

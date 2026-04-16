@@ -67,7 +67,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
     }
 
     const pageType = row.page_type ?? (row as any).pageType ?? "";
-    const keyword = row.keyword || "";
+    const keyword = row.cluster_name || row.keyword || "";
 
     const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : "";
     router.push(
@@ -250,8 +250,8 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
           <div className="h-px bg-border" />
 
           <div className="px-4 pt-4 pb-0 flex items-center justify-center">
-            {row.keyword ? (
-              <p className="text-base font-medium leading-normal text-foreground text-center">{row.keyword}</p>
+            {(row.cluster_name || row.keyword) ? (
+              <p className="text-base font-medium leading-normal text-foreground text-center">{row.cluster_name || row.keyword}</p>
             ) : null}
           </div>
 

@@ -99,8 +99,12 @@ export default function BusinessWebPage({ params }: PageProps) {
   const { fetchUnifiedPages } = useUnifiedWebOptimization()
   React.useEffect(() => {
     if (!businessId) return
+    const queryKey = ['unified-web-optimization', businessId]
+    const existing = queryClient.getQueryState(queryKey)
+    // Skip prefetch if we already know data doesn't exist (NO_SNAPSHOT 404)
+    if ((existing?.error as any)?.code === 'NO_SNAPSHOT') return
     queryClient.prefetchQuery({
-      queryKey: ['unified-web-optimization', businessId],
+      queryKey,
       queryFn: () => fetchUnifiedPages(businessId),
       staleTime: 1000 * 60,
     })

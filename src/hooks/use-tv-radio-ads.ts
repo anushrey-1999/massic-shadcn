@@ -23,15 +23,16 @@ function getAvgCpc(item: TvRadioAdsApiItem): number {
 }
 
 function getOppScore(item: TvRadioAdsApiItem): number {
-  const score =
-    item.channel === "Radio"
-      ? item.scores?.rcas
-      : item.scores?.tcas;
+  // New API fields (item-level)
+  if (typeof item.cas_score === "number" && Number.isFinite(item.cas_score)) return item.cas_score;
+  if (typeof item.avg_channel_affinity === "number" && Number.isFinite(item.avg_channel_affinity)) return item.avg_channel_affinity;
 
-  if (typeof score === "number" && Number.isFinite(score)) return score;
+  // Legacy fallback
+  const legacyScore = item.channel === "Radio" ? item.scores?.rcas : item.scores?.tcas;
+  if (typeof legacyScore === "number" && Number.isFinite(legacyScore)) return legacyScore;
 
-  const fallback = item.channel === "Radio" ? item.scores?.avg_radio_affinity : item.scores?.avg_tv_affinity;
-  if (typeof fallback === "number" && Number.isFinite(fallback)) return fallback;
+  const legacyFallback = item.channel === "Radio" ? item.scores?.avg_radio_affinity : item.scores?.avg_tv_affinity;
+  if (typeof legacyFallback === "number" && Number.isFinite(legacyFallback)) return legacyFallback;
 
   return 0;
 }
@@ -143,7 +144,7 @@ export function useTvRadioAds(_businessId: string) {
         queryParams.append("joinOperator", params.joinOperator);
       }
 
-      const endpoint = `/client/ad-concept-generator?${queryParams.toString()}`;
+      const endpoint = `/strategies/ad-concepts?${queryParams.toString()}`;
 
       const response = await api.execute(endpoint, { method: "GET" });
 

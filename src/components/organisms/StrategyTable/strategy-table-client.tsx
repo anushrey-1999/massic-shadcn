@@ -356,7 +356,7 @@ export function StrategyTableClient({
     if (!Array.isArray(clusters) || clusters.length === 0) return [];
 
     return clusters.map((cluster: StrategyCluster, index: number) => {
-      const clusterName = cluster?.cluster || "";
+      const clusterName = cluster?.cluster_name || cluster?.cluster || "";
       const keywords = Array.isArray(cluster?.keywords)
         ? cluster.keywords.filter((k) => k && typeof k === "string")
         : [];

@@ -1003,7 +1003,7 @@ export function WebPageHtmlView({
   const updateHtmlContentRequest = React.useCallback(
     async (content: string, metaTitle: string, metaDescription: string) => {
       if (isBlogContent) {
-        const endpoint = `/client/update-ai-blog-writer-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+        const endpoint = `/content/blogs/content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
         await api.post(
           endpoint,
           "python",
@@ -1022,7 +1022,7 @@ export function WebPageHtmlView({
         return;
       }
 
-      const endpoint = `/client/update-page-builder-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+      const endpoint = `/content/pages/content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
       await api.post(
         endpoint,
         "python",
@@ -2485,7 +2485,7 @@ export function WebPageHtmlView({
           : instruction;
 
       const response = await api.post<AiTextTransformResponse>(
-        `/ai/text/transform?business_id=${encodeURIComponent(businessId)}`,
+        `/tools/transform-text?business_id=${encodeURIComponent(businessId)}`,
         "python",
         {
           selected_text: selectedText,

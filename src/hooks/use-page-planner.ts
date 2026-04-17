@@ -33,22 +33,22 @@ export function usePagePlanner() {
   }
 
   const listPlans = async (businessId: string) => {
-    const endpoint = `/page-planner/plans?${businessIdQuery(businessId)}`
+    const endpoint = `/actions/plans?${businessIdQuery(businessId)}`
     return api.get<PagePlannerPlansListResponse>(endpoint, "python")
   }
 
   const getPlanById = async (businessId: string, planId: number) => {
-    const endpoint = `/page-planner/plans/${encodeURIComponent(String(planId))}?${businessIdQuery(businessId)}`
+    const endpoint = `/actions/plans/${encodeURIComponent(String(planId))}?${businessIdQuery(businessId)}`
     return api.get<PagePlannerPlanDetailResponse>(endpoint, "python")
   }
 
   const generatePlan = async (businessId: string, body: PagePlannerGeneratePlanRequest) => {
-    const endpoint = `/page-planner/generate-plan?${businessIdQuery(businessId)}`
+    const endpoint = `/actions/plans/generate?${businessIdQuery(businessId)}`
     return api.post<PagePlannerGeneratePlanResponse>(endpoint, "python", withPlannerDefaults(body))
   }
 
   const setActivePlan = async (businessId: string, planId: number) => {
-    const endpoint = `/page-planner/set-active-plan?${businessIdQuery(businessId)}`
+    const endpoint = `/actions/plans/activate?${businessIdQuery(businessId)}`
     const body: PagePlannerSetActivePlanRequest = { plan_id: planId }
     const response = await api.post<unknown>(endpoint, "python", body)
     const verdict = isPlannerFailureResponse(response)
@@ -59,7 +59,7 @@ export function usePagePlanner() {
   }
 
   const refinePlan = async (businessId: string, body: PagePlannerRefinePlanRequest) => {
-    const endpoint = `/page-planner/refine-plan?${businessIdQuery(businessId)}`
+    const endpoint = `/actions/plans/refine?${businessIdQuery(businessId)}`
     return api.post<PagePlannerRefinePlanResponse>(endpoint, "python", withPlannerDefaults(body))
   }
 

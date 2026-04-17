@@ -287,7 +287,7 @@ export function HomeTemplate() {
         onboardingCandidateIds.map(async (businessId) => {
           try {
             const job = await api.get<JobDetails>(
-              `/job/${businessId}`,
+              `/jobs/${businessId}`,
               "python"
             );
             return [businessId, job || null] as const;

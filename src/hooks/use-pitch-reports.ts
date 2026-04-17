@@ -293,7 +293,7 @@ export function useStartQuickyReport() {
         throw new Error("Business ID is required");
       }
 
-      return api.post<ReportStatusResponse>("/client/quicky", "python", undefined, {
+      return api.post<ReportStatusResponse>("/reports/snapshot", "python", undefined, {
         params: { business_id: businessId },
       });
     },
@@ -330,7 +330,7 @@ export function useQuickyReportStatus(params: {
     queryFn: async () => {
       if (!businessId) return null;
       try {
-        return await api.get<ReportStatusResponse>("/client/quicky", "python", {
+        return await api.get<ReportStatusResponse>("/reports/snapshot", "python", {
           params: { business_id: businessId },
         });
       } catch (error: any) {
@@ -383,7 +383,7 @@ export function useGenerateQuickyReport() {
         throw new Error("Business ID is required");
       }
 
-      const response = await api.post("/client/quicky", "python", undefined, {
+      const response = await api.post("/reports/snapshot", "python", undefined, {
         params: { business_id: businessId },
       });
       return cleanEscapedContent(extractReportText(response));
@@ -417,7 +417,7 @@ export function useGenerateDetailedPitch() {
         throw new Error("Business ID is required");
       }
 
-      const response = await api.post("/client/pitches", "python", undefined, {
+      const response = await api.post("/actions/pitches", "python", undefined, {
         params: { business_id: businessId },
       });
       return cleanEscapedContent(extractReportText(response));
@@ -451,7 +451,7 @@ export function usePitchSummary(
       if (!businessId) return null;
 
       try {
-        const response = await api.get<ReportStatusResponse>("/client/quicky", "python", {
+        const response = await api.get<ReportStatusResponse>("/reports/snapshot", "python", {
           params: { business_id: businessId },
         });
 

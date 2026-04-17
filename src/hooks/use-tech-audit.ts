@@ -543,7 +543,7 @@ export function useTechAudit(params: {
 
   const createMutation = useMutation<TechAuditPostResponse, Error, { domain: string }>({
     mutationFn: async ({ domain }) => {
-      const response = await api.post<TechAuditPostResponse>("/tech-audit", "python", {
+      const response = await api.post<TechAuditPostResponse>("/tools/tech-audit", "python", {
         domain,
       });
       return response;
@@ -570,7 +570,7 @@ export function useTechAudit(params: {
       if (!domain) return null;
       try {
         const response = await api.get<TechAuditGetResponse>(
-          `/tech-audit?domain=${encodeURIComponent(domain)}`,
+          `/tools/tech-audit?domain=${encodeURIComponent(domain)}`,
           "python"
         );
         return response ?? null;

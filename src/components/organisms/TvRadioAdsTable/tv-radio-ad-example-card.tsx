@@ -27,7 +27,7 @@ type WriterSuccessContent = {
 };
 
 function extractWriterSuccessContent(data: AdConceptWriterResponse | undefined): WriterSuccessContent | null {
-  const writer = (data?.output_data as any)?.ad_concept_writer_content;
+  const writer = (data?.output_data as any)?.ad_content ?? (data?.output_data as any)?.ad_concept_writer_content;
   if (!writer || typeof writer !== "object") return null;
 
   const title = typeof writer.title === "string" ? writer.title : "";

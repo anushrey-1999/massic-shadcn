@@ -8,7 +8,7 @@ function normalizeBusinessUrl(value: string): string {
 }
 
 async function postQuickEvaluation(businessUrl: string): Promise<unknown> {
-  return api.post("/quick-evaluation", "python", { business_url: businessUrl });
+  return api.post("/tools/quick-evaluation", "python", { business_url: businessUrl });
 }
 
 export function useQuickEvaluation() {

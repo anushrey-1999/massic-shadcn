@@ -15,8 +15,7 @@ interface ApiResponse<T> {
 }
 
 function getNodeBaseUrl(): string {
-  // return process.env.NEXT_PUBLIC_NODE_API_URL 
-  return "http://localhost:4922/api/1";
+  return process.env.NEXT_PUBLIC_NODE_API_URL || "http://localhost:4922/api/1";
 }
 
 const publicApi = axios.create({

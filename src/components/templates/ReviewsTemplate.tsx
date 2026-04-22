@@ -120,7 +120,12 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
     search: debouncedSearch,
   })
 
-  const ignoreReviewMutation = useIgnoreReview(selectedLocationId, sortBy, debouncedSearch)
+  const ignoreReviewMutation = useIgnoreReview(
+    selectedLocationId,
+    sortBy,
+    replyStatus,
+    debouncedSearch
+  )
   const sendReviewReplyMutation = useSendReviewReply()
   const { mutateAsync: saveReviewResponse } = useUpdateReviewResponse()
   const handleAutoSaveReviewResponse = React.useCallback(

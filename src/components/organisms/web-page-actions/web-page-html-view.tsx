@@ -3990,17 +3990,21 @@ export function WebPageHtmlView({
                 <Save className="h-4 w-4" />
               </Button>
             </TooltipTrigger><TooltipContent>{isSaving ? "Saving..." : isDirty ? "Save" : "Saved"}</TooltipContent></Tooltip>
-            <div className="h-5 w-px bg-border" />
-            <Tooltip><TooltipTrigger asChild>
-              <Button variant="outline" size="icon" className="h-[34px] w-[34px]" onClick={handleCopyHtml} disabled={isProcessing}>
-                <FileCode className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger><TooltipContent>Copy HTML</TooltipContent></Tooltip>
-            <Tooltip><TooltipTrigger asChild>
-              <Button variant="outline" size="icon" className="h-[34px] w-[34px]" onClick={handleCopyText} disabled={isProcessing}>
-                <FileText className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger><TooltipContent>Copy Text</TooltipContent></Tooltip>
+            {!isProcessing && (
+              <>
+                <div className="h-5 w-px bg-border" />
+                <Tooltip><TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-[34px] w-[34px]" onClick={handleCopyHtml}>
+                    <FileCode className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger><TooltipContent>Copy HTML</TooltipContent></Tooltip>
+                <Tooltip><TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-[34px] w-[34px]" onClick={handleCopyText}>
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger><TooltipContent>Copy Text</TooltipContent></Tooltip>
+              </>
+            )}
             {isBlogContent ? (
               <Button
                 className="gap-2"

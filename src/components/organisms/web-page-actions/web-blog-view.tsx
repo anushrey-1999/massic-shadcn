@@ -1136,23 +1136,23 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           </div>
 
           <div className="flex items-center gap-2">
-            {isHtmlContent ? (
+            {!isProcessing && (isHtmlContent ? (
               <>
-                <Button variant="outline" className="gap-2" onClick={handleCopyHtml} disabled={isProcessing}>
+                <Button variant="outline" className="gap-2" onClick={handleCopyHtml}>
                   <Copy className="h-4 w-4" />
                   Copy HTML
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={handleCopyText} disabled={isProcessing}>
+                <Button variant="outline" className="gap-2" onClick={handleCopyText}>
                   <Copy className="h-4 w-4" />
                   Copy Text
                 </Button>
               </>
             ) : (
-              <Button variant="outline" className="gap-2" onClick={handleCopyMarkdown} disabled={isProcessing}>
+              <Button variant="outline" className="gap-2" onClick={handleCopyMarkdown}>
                 <Copy className="h-4 w-4" />
                 Copy
               </Button>
-            )}
+            ))}
             <Button
               className="gap-2"
               type="button"

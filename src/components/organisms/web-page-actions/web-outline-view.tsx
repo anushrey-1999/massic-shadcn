@@ -226,10 +226,12 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleCopy}>
-              <Copy className="h-4 w-4" />
-              Copy
-            </Button>
+            {!isProcessing && (
+              <Button variant="outline" className="gap-2" onClick={handleCopy}>
+                <Copy className="h-4 w-4" />
+                Copy
+              </Button>
+            )}
             {hasFinalContent ? (
               <Button className="gap-2" variant="default" onClick={handleViewFinal}>
                 <Eye className="h-4 w-4" />

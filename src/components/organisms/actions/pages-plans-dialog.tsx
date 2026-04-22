@@ -35,7 +35,9 @@ function getIsActive(plan: PagePlannerPlanMeta): boolean {
   const status = (plan.status || "").toString().toLowerCase()
   // Server is source-of-truth: some "active" plans still have archived_at set.
   if (status === "active") return true
-  // Fallback when older records don't have status populated.
+  // If status is explicitly set to something non-active, trust the server.
+  if (status) return false
+  // Fallback only when older records don't have status populated at all.
   return Boolean(plan.activated_at) && !isArchived((plan as any).archived_at)
 }
 
@@ -166,23 +168,38 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
                 ? (p as any).id
                 : Number.parseInt(String((p as any).id ?? ""), 10)
             if (!Number.isFinite(pId)) return p
-            if (pId !== planId) return p
-            return {
-              ...p,
-              status: "active",
-              activated_at: (p as any).activated_at || nowIso,
-              archived_at: null,
-            } as any
+            if (pId === planId) {
+              return {
+                ...p,
+                status: "active",
+                activated_at: (p as any).activated_at || nowIso,
+                archived_at: null,
+              } as any
+            }
+            // Deactivate any previously active plan so activePlanId updates immediately.
+            if (getIsActive(p)) {
+              return { ...p, status: "inactive" } as any
+            }
+            return p
           })
         )
       }
 
       return { prev }
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, planId) => {
       toast.success("Plan activated", { id: "pages-plan-activate" })
+      // Refetch the plans list first so activePlanId updates to the new plan.
       await queryClient.refetchQueries({ queryKey: [PAGE_PLANS_QUERY_KEY, businessId] })
-      await queryClient.refetchQueries({ queryKey: ["page-planner-plan", businessId] })
+      // Refetch all cached plan detail queries and also explicitly prefetch the newly active
+      // plan's detail so the main table has fresh data without waiting for another round trip.
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["page-planner-plan", businessId] }),
+        queryClient.prefetchQuery({
+          queryKey: ["page-planner-plan", businessId, planId],
+          queryFn: () => pagePlanner.getPlanById(businessId, planId),
+        }),
+      ])
     },
     onError: (err: any, _planId, ctx) => {
       const msg =

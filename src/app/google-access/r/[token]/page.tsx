@@ -35,10 +35,7 @@ function GoogleIcon() {
 }
 
 function getApiBaseUrl(): string {
-  return (
-    "http://localhost:4922/api/1"
-    // process.env.NEXT_PUBLIC_NODE_API_URL ||
-  );
+  return process.env.NEXT_PUBLIC_NODE_API_URL || "http://localhost:4922/api/1";
 }
 
 export default function AccessRequestLandingPage() {

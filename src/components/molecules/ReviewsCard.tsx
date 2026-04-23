@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Star, X, SendHorizontal, Loader2 } from "lucide-react"
+import { Star, SendHorizontal, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -19,10 +19,7 @@ export interface ReviewsCardProps {
   editedResponse?: string | null
   existingReply?: string | null
   replySource?: string | null
-  isIgnored?: boolean
-  isIgnoring?: boolean
   isSending?: boolean
-  onIgnore?: () => void
   onSend?: (response: string) => Promise<unknown> | unknown
   onAutoSave?: (payload: { businessId: string; reviewId: string; updatedResponse: string }) => Promise<unknown>
 }
@@ -59,7 +56,7 @@ export function ReviewsCard({
   editedResponse,
   existingReply,
   replySource,
-  isIgnored = false, isIgnoring = false, isSending = false, onIgnore,
+  isSending = false,
   onSend,
   onAutoSave,
 }: ReviewsCardProps) {
@@ -111,7 +108,6 @@ export function ReviewsCard({
   })
 
   const hasReply = Boolean(existingReply && existingReply.trim())
-  const shouldShowResponseBox = hasReply || (!isIgnored && !hasReply)
 
   React.useEffect(() => {
     const isReviewChanged = previousReviewIdRef.current !== reviewId
@@ -172,7 +168,7 @@ export function ReviewsCard({
   }, [reviewerImageSrc, imageError])
 
   React.useEffect(() => {
-    if (!onAutoSave || hasReply || isIgnored) return
+    if (!onAutoSave || hasReply) return
     if (debouncedResponse === lastSavedResponse) return
 
     setShowSavedState(false)
@@ -180,7 +176,7 @@ export function ReviewsCard({
       // Keep local text intact; user can continue editing and debounce will retry on next change.
       setIsSaving(false)
     })
-  }, [debouncedResponse, hasReply, isIgnored, lastSavedResponse, onAutoSave])
+  }, [debouncedResponse, hasReply, lastSavedResponse, onAutoSave])
 
   const handleSendClick = React.useCallback(() => {
     if (!response.trim()) return
@@ -234,8 +230,7 @@ export function ReviewsCard({
           </p>
         </div>
 
-        {shouldShowResponseBox && (
-          <div className="flex items-start gap-3 w-full">
+        <div className="flex items-start gap-3 w-full">
             <div className="flex-1 bg-white rounded-lg p-2">
               <div className="text-xs text-general-muted-foreground pb-2">
                 {hasReply ? "Reply" : "Generated Response"}
@@ -276,22 +271,7 @@ export function ReviewsCard({
             </div>
 
             {!hasReply ? (
-              <div className="w-24 self-end flex flex-col gap-2">
-                <Button
-                  variant="outline"
-                  className="w-full justify-center gap-2 border-[#d4d4d4] bg-white hover:bg-white"
-                  onClick={onIgnore}
-                  disabled={isIgnoring || isSending}
-                  type="button"
-                >
-                  {isIgnoring ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <X className="h-4 w-4" />
-                  )}
-                  Ignore
-                </Button>
-
+              <div className="w-24 self-end shrink-0">
                 <Button
                   className="w-full justify-center gap-2"
                   onClick={handleSendClick}
@@ -309,8 +289,7 @@ export function ReviewsCard({
                 </Button>
               </div>
             ) : null}
-          </div>
-        )}
+        </div>
       </div>
 
       <SendReviewReplyDialog

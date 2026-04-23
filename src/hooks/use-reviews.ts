@@ -17,7 +17,6 @@ export interface Review {
   ReviewReplyComment?: string | null;
   ReviewReplyUpdateTime: string;
   ReviewerProfilePhotoUrl?: string | null;
-  IsIgnored?: boolean;
   numericRating?: number;
   SuggestedResponse?: string | null;
   EditedResponse?: string | null;
@@ -178,61 +177,6 @@ function updateSentReviewReplyInCache(
   };
 }
 
-function updateReviewIgnoredInCache(
-  cachedData: InfiniteData<ReviewsResponse> | undefined,
-  reviewId: string,
-  isIgnored: boolean
-) {
-  if (!cachedData) {
-    return cachedData;
-  }
-
-  let hasChanges = false;
-
-  const pages = cachedData.pages.map((page) => {
-    let pageChanged = false;
-
-    const reviews = page.data.reviews.map((review) => {
-      if (review.ReviewId !== reviewId) {
-        return review;
-      }
-
-      if (review.IsIgnored === isIgnored) {
-        return review;
-      }
-
-      pageChanged = true;
-      hasChanges = true;
-
-      return {
-        ...review,
-        IsIgnored: isIgnored,
-      };
-    });
-
-    if (!pageChanged) {
-      return page;
-    }
-
-    return {
-      ...page,
-      data: {
-        ...page.data,
-        reviews,
-      },
-    };
-  });
-
-  if (!hasChanges) {
-    return cachedData;
-  }
-
-  return {
-    ...cachedData,
-    pages,
-  };
-}
-
 interface UseReviewsParams {
   locationId: string | null;
   sortBy?: ReviewSortBy;
@@ -309,40 +253,6 @@ export function useReviews({
     error: query.error,
     refetch: query.refetch,
   };
-}
-
-export function useIgnoreReview(
-  locationId: string | null,
-  sortBy: ReviewSortBy,
-  replyStatus: ReviewReplyFilter,
-  search: string
-) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (reviewId: string) => {
-      const response = await api.post<{ err: boolean; message: string; data: Review }>(
-        "/reviews/ignore",
-        "node",
-        { reviewId }
-      );
-      return response;
-    },
-    onSuccess: async (_response, reviewId) => {
-      queryClient.setQueriesData<InfiniteData<ReviewsResponse>>(
-        { queryKey: ["reviews"] },
-        (cachedData) => updateReviewIgnoredInCache(cachedData, reviewId, true)
-      );
-      await queryClient.refetchQueries({
-        queryKey: ["reviews", locationId, sortBy, replyStatus, search],
-        type: "active",
-      });
-      toast.success("Review ignored successfully");
-    },
-    onError: (error: any) => {
-      toast.error(getApiErrorMessage(error, "Failed to ignore review"));
-    },
-  });
 }
 
 export function useUpdateReviewResponse() {

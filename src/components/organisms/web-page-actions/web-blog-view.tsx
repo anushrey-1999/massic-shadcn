@@ -318,6 +318,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const inferPage = data?.output_data?.page || {};
   const inferBlog = inferPage?.blog || {};
+  const blogGeneratedTitle = React.useMemo(
+    () => cleanEscapedContent(typeof inferBlog?.title === "string" ? inferBlog.title : ""),
+    [inferBlog?.title]
+  );
   const visiblePostTitle = inferPage?.title || keyword || "Untitled";
   const seoTitle = metaTitle.trim() || inferBlog?.meta_title || keyword || "Untitled";
   const publishContentId = inferPage?.page_id || pageId;
@@ -994,6 +998,12 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     else toast.error("Copy failed");
   };
 
+  const handleCopyBlogTitle = async () => {
+    const ok = await copyToClipboard(blogGeneratedTitle || "");
+    if (ok) toast.success("Copied");
+    else toast.error("Copy failed");
+  };
+
   const handleCopyMeta = async () => {
     const ok = await copyToClipboard(metaDescription || "");
     if (ok) toast.success("Copied");
@@ -1192,6 +1202,33 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
         {!isProcessing && status !== "error" ? (
           <>
+            {type === "blog" ? (
+              <Card className="border-border/50 px-2.5 py-1.5 shadow-none">
+                <div className="flex items-center gap-2">
+                  <Typography className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Title
+                  </Typography>
+                  <div className="min-w-0 flex-1 rounded-md bg-muted/30 px-1.5">
+                    <Input
+                      readOnly
+                      value={blogGeneratedTitle}
+                      placeholder="—"
+                      className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 text-muted-foreground"
+                    onClick={() => void handleCopyBlogTitle()}
+                    disabled={!blogGeneratedTitle}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </Card>
+            ) : null}
             <Card className="p-4 space-y-3">
               <div className="flex items-center gap-2 border rounded-md px-2 py-1">
                 {[Bold, Italic, Underline, Strikethrough, Quote, List, ListOrdered, Link2].map((Icon, idx) => (

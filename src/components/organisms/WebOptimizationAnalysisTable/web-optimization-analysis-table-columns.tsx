@@ -123,7 +123,7 @@ export function getWebOptimizationAnalysisTableColumns(): ColumnDef<WebOptimizat
         const score = cell.getValue<number>() || 0;
         return (
           <div className="flex items-center">
-            <RelevancePill score={score} />
+            <RelevancePill score={score / 100} />
           </div>
         );
       },

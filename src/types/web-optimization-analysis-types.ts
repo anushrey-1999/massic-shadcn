@@ -21,7 +21,15 @@ export interface WebOptimizationAnalysisItem {
   suggested_changes?: WebOptimizationSuggestion[];
   gsc?: WebOptimizationGscMetrics;
   ga4?: WebOptimizationGa4Metrics;
+  ups?: number | null;
+  score_final?: number | null;
   final_ops?: number | null;
+  raw?: {
+    ups?: number | null;
+    score_final?: number | null;
+    final_ops?: number | null;
+    [key: string]: unknown;
+  };
 }
 
 export interface WebOptimizationAnalysisRow {

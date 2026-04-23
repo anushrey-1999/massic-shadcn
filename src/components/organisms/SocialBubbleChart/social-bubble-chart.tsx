@@ -11,8 +11,7 @@ export type SocialBubbleDatum = {
 	channel_relevance?: number;
 	campaign_name: string;
 	campaign_relevance?: number;
-	cluster_name?: string;
-	cluster_relevance?: number;
+	campaign_offerings?: string[];
 };
 
 interface SocialBubbleChartProps {
@@ -25,7 +24,7 @@ interface HierarchyNode {
 	name: string;
 	children?: HierarchyNode[];
 	value?: number;
-	type: "root" | "channel" | "campaign" | "cluster";
+	type: "root" | "channel" | "tactic" | "keyword";
 	data?: {
 		relevanceScore?: number;
 	};
@@ -90,16 +89,17 @@ export function SocialBubbleChart({
 		};
 	}, []);
 
+	// Channel > Tactic > Keyword (from campaign_offerings)
 	const hierarchyData = useMemo(() => {
 		const byChannel = new Map<
 			string,
 			{
 				channel_relevance?: number;
-				campaigns: Map<
+				tactics: Map<
 					string,
 					{
-						campaign_relevance?: number;
-						clusters: Map<string, { cluster_relevance?: number }>;
+						tactic_relevance?: number;
+						keywords: Set<string>;
 					}
 				>;
 			}
@@ -107,60 +107,35 @@ export function SocialBubbleChart({
 
 		for (const row of data) {
 			const channel = (row.channel_name || "").trim();
-			const campaign = (row.campaign_name || "").trim();
-			const cluster = (row.cluster_name || "").trim();
-			if (!channel || !campaign) continue;
+			const tactic = (row.campaign_name || "").trim();
+			if (!channel || !tactic) continue;
 
-			const existing = byChannel.get(channel);
-			if (!existing) {
-				const campaignEntry = {
-					campaign_relevance: row.campaign_relevance,
-					clusters: new Map<string, { cluster_relevance?: number }>(),
-				};
-				if (cluster) {
-					campaignEntry.clusters.set(cluster, { cluster_relevance: row.cluster_relevance });
-				}
+			const keywords = Array.isArray(row.campaign_offerings)
+				? row.campaign_offerings.map((k) => String(k).trim()).filter(Boolean)
+				: [];
+
+			if (!byChannel.has(channel)) {
 				byChannel.set(channel, {
 					channel_relevance: row.channel_relevance,
-					campaigns: new Map([[campaign, campaignEntry]]),
+					tactics: new Map(),
 				});
-				continue;
 			}
 
-			if (existing.channel_relevance === undefined && row.channel_relevance !== undefined) {
-				existing.channel_relevance = row.channel_relevance;
+			const channelData = byChannel.get(channel)!;
+			if (channelData.channel_relevance === undefined && row.channel_relevance !== undefined) {
+				channelData.channel_relevance = row.channel_relevance;
 			}
 
-			const existingCampaign = existing.campaigns.get(campaign);
-			if (!existingCampaign) {
-				const campaignEntry = {
-					campaign_relevance: row.campaign_relevance,
-					clusters: new Map<string, { cluster_relevance?: number }>(),
-				};
-				if (cluster) {
-					campaignEntry.clusters.set(cluster, { cluster_relevance: row.cluster_relevance });
-				}
-				existing.campaigns.set(campaign, campaignEntry);
+			if (!channelData.tactics.has(tactic)) {
+				channelData.tactics.set(tactic, {
+					tactic_relevance: row.campaign_relevance,
+					keywords: new Set(keywords),
+				});
 			} else {
-				if (
-					existingCampaign.campaign_relevance === undefined &&
-					row.campaign_relevance !== undefined
-				) {
-					existingCampaign.campaign_relevance = row.campaign_relevance;
-				}
-
-				if (cluster) {
-					const existingCluster = existingCampaign.clusters.get(cluster);
-					if (!existingCluster) {
-						existingCampaign.clusters.set(cluster, {
-							cluster_relevance: row.cluster_relevance,
-						});
-					} else if (
-						existingCluster.cluster_relevance === undefined &&
-						row.cluster_relevance !== undefined
-					) {
-						existingCluster.cluster_relevance = row.cluster_relevance;
-					}
+				const tacticData = channelData.tactics.get(tactic)!;
+				keywords.forEach((k) => tacticData.keywords.add(k));
+				if (tacticData.tactic_relevance === undefined && row.campaign_relevance !== undefined) {
+					tacticData.tactic_relevance = row.campaign_relevance;
 				}
 			}
 		}
@@ -168,48 +143,40 @@ export function SocialBubbleChart({
 		const channels = Array.from(byChannel.entries())
 			.sort(([a], [b]) => a.localeCompare(b))
 			.map(([channelName, channelData]) => {
-				const campaigns = Array.from(channelData.campaigns.entries())
+				const tactics = Array.from(channelData.tactics.entries())
 					.sort(([a], [b]) => a.localeCompare(b))
-					.map(([campaignName, campaignData]) => {
-						const clusters = Array.from(campaignData.clusters.entries())
-							.sort(([a], [b]) => a.localeCompare(b))
-							.map(([clusterName, clusterData]) => ({
-								name: clusterName,
-								type: "cluster" as const,
+					.map(([tacticName, tacticData]) => {
+						const keywords = Array.from(tacticData.keywords)
+							.sort()
+							.map((keyword) => ({
+								name: keyword,
+								type: "keyword" as const,
 								value: 1,
-								data: {
-									relevanceScore: clusterData.cluster_relevance,
-								},
+								data: { relevanceScore: tacticData.tactic_relevance },
 							}));
 
-						if (!clusters.length) {
+						if (!keywords.length) {
 							return {
-								name: campaignName,
-								type: "campaign" as const,
+								name: tacticName,
+								type: "tactic" as const,
 								value: 1,
-								data: {
-									relevanceScore: campaignData.campaign_relevance,
-								},
+								data: { relevanceScore: tacticData.tactic_relevance },
 							};
 						}
 
 						return {
-							name: campaignName,
-							type: "campaign" as const,
-							data: {
-								relevanceScore: campaignData.campaign_relevance,
-							},
-							children: clusters,
+							name: tacticName,
+							type: "tactic" as const,
+							data: { relevanceScore: tacticData.tactic_relevance },
+							children: keywords,
 						};
 					});
 
 				return {
 					name: channelName,
 					type: "channel" as const,
-					data: {
-						relevanceScore: channelData.channel_relevance,
-					},
-					children: campaigns,
+					data: { relevanceScore: channelData.channel_relevance },
+					children: tactics,
 				};
 			});
 
@@ -217,7 +184,7 @@ export function SocialBubbleChart({
 			name: "Channels",
 			type: "root" as const,
 			children: channels,
-		}
+		};
 
 		return root;
 	}, [data]);
@@ -228,16 +195,15 @@ export function SocialBubbleChart({
 		const channelAncestor =
 			node.data.type === "channel"
 				? node
-				: node.ancestors().find((a): a is PackedNode => a.data.type === "channel") ??
-					null;
+				: node.ancestors().find((a): a is PackedNode => a.data.type === "channel") ?? null;
 
 		const scoreRaw =
 			node.data.type === "channel"
 				? node.data.data?.relevanceScore
-				: node.data.type === "campaign"
+				: node.data.type === "tactic"
 					? node.data.data?.relevanceScore ?? channelAncestor?.data.data?.relevanceScore
-					: node.data.type === "cluster"
-						? node.data.data?.relevanceScore
+					: node.data.type === "keyword"
+						? node.data.data?.relevanceScore ?? channelAncestor?.data.data?.relevanceScore
 						: channelAncestor?.data.data?.relevanceScore;
 
 		const score = normalizeScore(scoreRaw);
@@ -305,18 +271,17 @@ export function SocialBubbleChart({
 
 				const color = getColor(node);
 				let alpha = 0.7;
-				if (node.data.type === "campaign") alpha = 0.6;
-				if (node.data.type === "cluster") alpha = 0.5;
-				ctx.fillStyle =
-					color + Math.round(alpha * 255).toString(16).padStart(2, "0");
+				if (node.data.type === "tactic") alpha = 0.6;
+				if (node.data.type === "keyword") alpha = 0.5;
+				ctx.fillStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0");
 				ctx.fill();
 
 				ctx.strokeStyle = "#ffffff";
-				ctx.lineWidth = node.data.type === "channel" ? 2 : node.data.type === "campaign" ? 1.5 : 1;
+				ctx.lineWidth =
+					node.data.type === "channel" ? 2 : node.data.type === "tactic" ? 1.5 : 1;
 				ctx.stroke();
 			});
 
-			// Draw a subtle boundary for the root circle to visually wrap all channels.
 			{
 				const rootX = (packedData.x - view[0]) * k + centerX;
 				const rootY = (packedData.y - view[1]) * k + centerY;
@@ -432,14 +397,8 @@ export function SocialBubbleChart({
 			const tooltipWidth = 260;
 			const tooltipHeight = 100;
 
-			const left = Math.max(
-				0,
-				Math.min(x + offset, containerRect.width - tooltipWidth)
-			);
-			const top = Math.max(
-				0,
-				Math.min(y + offset, containerRect.height - tooltipHeight)
-			);
+			const left = Math.max(0, Math.min(x + offset, containerRect.width - tooltipWidth));
+			const top = Math.max(0, Math.min(y + offset, containerRect.height - tooltipHeight));
 
 			tooltipEl.style.transform = `translate3d(${left}px, ${top}px, 0)`;
 		};
@@ -489,10 +448,10 @@ export function SocialBubbleChart({
 	const tooltipTypeLabel =
 		tooltipType === "channel"
 			? "Channel"
-			: tooltipType === "campaign"
-				? "Campaign"
-				: tooltipType === "cluster"
-					? "Sub Topic"
+			: tooltipType === "tactic"
+				? "Tactic"
+				: tooltipType === "keyword"
+					? "Keyword"
 					: null;
 	const tooltipRelevance = formatScorePercent(tooltipNode?.data.data?.relevanceScore);
 
@@ -514,10 +473,7 @@ export function SocialBubbleChart({
 					>
 						{tooltipTypeLabel ? (
 							<div className="mb-1">
-								<Badge
-									variant="outline"
-									className="border border-general-border"
-								>
+								<Badge variant="outline" className="border border-general-border">
 									{tooltipTypeLabel}
 								</Badge>
 							</div>
@@ -527,7 +483,8 @@ export function SocialBubbleChart({
 						</CardTitle>
 						<div className="mt-2 flex flex-col items-start flex-wrap gap-2">
 							<Badge variant="outline">
-								Relevance&nbsp;<span className="text-general-foreground">{tooltipRelevance}</span>
+								Relevance&nbsp;
+								<span className="text-general-foreground">{tooltipRelevance}</span>
 							</Badge>
 						</div>
 					</Card>

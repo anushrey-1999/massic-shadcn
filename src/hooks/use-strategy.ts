@@ -202,7 +202,7 @@ export function useStrategy(businessId: string) {
       if (params.filters && params.filters.length > 0) {
         const mappedFilters = params.filters.flatMap(filter => {
           const apiField = mapFieldToApiName(filter.field as string);
-          const withMappedField = { ...filter, field: apiField };
+          const withMappedField = { ...filter, field: apiField } as typeof params.filters[number];
           return percentageFields.has(apiField)
             ? normalizePercentageFilter(withMappedField)
             : [withMappedField];

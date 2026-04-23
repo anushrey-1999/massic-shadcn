@@ -50,41 +50,12 @@ function SocialEntitledContent({
   const [socialView, setSocialView] = React.useState<"list" | "bubble">("list")
   const [selectedOffering, setSelectedOffering] = React.useState<string>("all")
 
-  const [cachedDownloadUrl, setCachedDownloadUrl] = React.useState<string | null>(null)
+  const { fetchAllSocialPages } = useSocial(businessId)
 
-  React.useEffect(() => {
-    setCachedDownloadUrl(null)
-  }, [businessId])
-
-  const { fetchChannelAnalyzerDownloadUrl, fetchDownloadPayloadFromUrl } = useSocial(businessId)
-
-  const { data: downloadUrl, isFetching: downloadUrlFetching } = useQuery({
-    queryKey: ["social-download-url", businessId],
-    queryFn: async () => {
-      const url = await fetchChannelAnalyzerDownloadUrl(businessId)
-      return url || null
-    },
-    enabled: socialView === "bubble" && !!businessId && !cachedDownloadUrl,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    retry: false,
-  })
-
-  React.useEffect(() => {
-    if (!downloadUrl) return
-    if (cachedDownloadUrl) return
-    setCachedDownloadUrl(downloadUrl)
-  }, [downloadUrl, cachedDownloadUrl])
-
-  const effectiveDownloadUrl = cachedDownloadUrl || downloadUrl
-
-  const { data: bubbleData, isLoading: bubbleDataLoading, isFetching: bubbleDataFetching } = useQuery({
-    queryKey: ["social-download-data", businessId, effectiveDownloadUrl],
-    queryFn: () => fetchDownloadPayloadFromUrl(effectiveDownloadUrl as string),
-    enabled: socialView === "bubble" && !!businessId && !!effectiveDownloadUrl,
+  const { data: bubbleData, isLoading: bubbleDataLoading } = useQuery({
+    queryKey: ["social-all-pages", businessId],
+    queryFn: () => fetchAllSocialPages(businessId),
+    enabled: socialView === "bubble" && !!businessId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     refetchOnMount: false,
@@ -102,54 +73,30 @@ function SocialEntitledContent({
   }, [])
 
   const bubbleRows = React.useMemo((): SocialBubbleRow[] => {
-    const source = bubbleData?.data as unknown
-    if (!source) return []
+    const rows = bubbleData?.data
+    if (!rows?.length) return []
 
-    const itemsMaybe = (() => {
-      if (Array.isArray(source)) return source
-      if (typeof source === 'object' && source !== null) {
-        const s = source as Record<string, unknown>
-        if (Array.isArray(s.items)) return s.items
-
-        const outputData = s.output_data
-        if (typeof outputData === 'object' && outputData !== null) {
-          const od = outputData as Record<string, unknown>
-          if (Array.isArray(od.items)) return od.items
-        }
-      }
-      return null
-    })()
-
-    if (!itemsMaybe) return []
-
-    return itemsMaybe
+    return rows
       .map((row): SocialBubbleRow | null => {
-        if (typeof row !== 'object' || row === null) return null
-        const r = row as Record<string, unknown>
+        const channel_name = String(row.channel_name ?? '').trim()
+        const campaign_name = String(row.campaign_name ?? '').trim()
+        if (!channel_name || !campaign_name) return null
 
-        const channel_name = String(r.channel_name ?? '').trim()
-        const campaign_name = String(r.campaign_name ?? '').trim()
-        const cluster_name = String(r.cluster_name ?? '').trim()
-        const channel_relevance = typeof r.channel_relevance === 'number' ? r.channel_relevance : undefined
-        const campaign_relevance = typeof r.campaign_relevance === 'number' ? r.campaign_relevance : undefined
-        const cluster_relevance = typeof r.cluster_relevance === 'number' ? r.cluster_relevance : undefined
-        const offeringsRaw = (r.offerings ?? r.channel_offerings) as unknown
+        const channel_relevance = typeof row.channel_relevance === 'number' ? row.channel_relevance : undefined
+        const campaign_relevance = typeof row.campaign_relevance === 'number' ? row.campaign_relevance : undefined
+        const campaignOfferingsRaw = row.campaign_offerings
+        const campaign_offerings = Array.isArray(campaignOfferingsRaw)
+          ? campaignOfferingsRaw.filter((o): o is string => typeof o === 'string').map((o) => o.trim()).filter(Boolean)
+          : undefined
+        const offeringsRaw = row.offerings ?? row.channel_offerings
         const offerings = Array.isArray(offeringsRaw)
-          ? offeringsRaw
-            .filter((o): o is string => typeof o === "string")
-            .map((o) => o.trim())
-            .filter(Boolean)
+          ? offeringsRaw.filter((o): o is string => typeof o === 'string').map((o) => o.trim()).filter(Boolean)
           : undefined
 
-        if (!channel_name || !campaign_name) return null
-        const out: SocialBubbleRow = {
-          channel_name,
-          campaign_name,
-        }
+        const out: SocialBubbleRow = { channel_name, campaign_name }
         if (channel_relevance !== undefined) out.channel_relevance = channel_relevance
         if (campaign_relevance !== undefined) out.campaign_relevance = campaign_relevance
-        if (cluster_name) out.cluster_name = cluster_name
-        if (cluster_relevance !== undefined) out.cluster_relevance = cluster_relevance
+        if (campaign_offerings?.length) out.campaign_offerings = campaign_offerings
         if (offerings?.length) out.offerings = offerings
         return out
       })
@@ -249,7 +196,7 @@ function SocialEntitledContent({
                       ? ""
                       : ` (of ${bubbleRows.length})`
                     }`
-                    : downloadUrlFetching || bubbleDataLoading || bubbleDataFetching
+                    : bubbleDataLoading
                       ? "Loading.."
                       : "No data"}
                 </Typography>
@@ -273,17 +220,13 @@ function SocialEntitledContent({
             </div>
 
             <div className="flex-1 min-h-0">
-              {downloadUrlFetching && !effectiveDownloadUrl ? (
+              {bubbleDataLoading ? (
                 <div className="h-full min-h-[640px] flex items-center justify-center">
                   <div className="text-sm text-muted-foreground">Loading…</div>
                 </div>
               ) : filteredBubbleRows.length ? (
                 <div className="w-full h-full min-h-[640px]">
                   <SocialBubbleChart data={filteredBubbleRows} />
-                </div>
-              ) : bubbleDataLoading || bubbleDataFetching ? (
-                <div className="h-full min-h-[640px] flex items-center justify-center">
-                  <div className="text-sm text-muted-foreground">Loading…</div>
                 </div>
               ) : (
                 <div className="h-full min-h-[640px] flex items-center justify-center">

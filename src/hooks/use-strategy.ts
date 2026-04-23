@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useApi, type ApiPlatform } from "./use-api";
+import { useApi, api, type ApiPlatform } from "./use-api";
 import type {
   GetStrategySchema,
   StrategyApiResponse,
@@ -27,10 +27,6 @@ export function useStrategy(businessId: string) {
     platform,
   });
 
-  // Hook for fetching full data from download URL
-  const downloadApi = useApi<any>({
-    platform,
-  });
 
   /**
    * Transform nested API response to table rows
@@ -103,23 +99,115 @@ export function useStrategy(businessId: string) {
         queryParams.append("offerings", params.offerings);
       }
 
+      // Map frontend column IDs to backend API field names
+      const mapFieldToApiName = (field: string): string => {
+        const fieldMap: Record<string, string> = {
+          topic: "topic_name",
+          topic_cluster_topic_coverage: "topic_coverage",
+          total_cluster_search_volume: "total_search_volume",
+          sub_topics_count: "cluster_count",
+          total_keywords: "keyword_count",
+        };
+        return fieldMap[field] ?? field;
+      };
+
+      // Fields displayed as percentages (0–100) in the UI but stored as decimals (0–1) in the API.
+      const percentageFields = new Set(["business_relevance_score", "topic_coverage"]);
+
+      const clamp = (v: number) => Math.max(0, Math.min(1, v));
+      const toDecimal = (pct: string) => parseFloat(pct) / 100;
+
+      // Normalize a single filter object for percentage fields.
+      // The UI shows Math.round(v * 100), so to match all values that display as "89"
+      // we must query the range [0.885, 0.895] rather than the exact value 0.89.
+      const normalizePercentageFilter = (filter: typeof params.filters[number]) => {
+        const value = filter.value as string | string[];
+        const operator = filter.operator;
+
+        if (operator === "isBetween" && Array.isArray(value)) {
+          const [minValue, maxValue] = value;
+          const minNum = toDecimal(minValue);
+          const maxNum = toDecimal(maxValue);
+
+          if (Number.isNaN(minNum) || Number.isNaN(maxNum)) {
+            return [filter];
+          }
+
+          return [
+            {
+              ...filter,
+              operator: "gte" as const,
+              value: String(clamp(minNum - 0.005)),
+            },
+            {
+              ...filter,
+              operator: "lte" as const,
+              value: String(clamp(maxNum + 0.005)),
+            },
+          ];
+        }
+
+        if ((operator === "eq" || operator === "ne") && !Array.isArray(value)) {
+          const num = toDecimal(value as string);
+          if (Number.isNaN(num)) return [filter];
+
+          if (operator === "eq") {
+            return [
+              {
+                ...filter,
+                operator: "gte" as const,
+                value: String(clamp(num - 0.005)),
+              },
+              {
+                ...filter,
+                operator: "lte" as const,
+                value: String(clamp(num + 0.005)),
+              },
+            ];
+          }
+
+          return [{ ...filter, value: String(num) }];
+        }
+
+        if (operator === "gte" && !Array.isArray(value)) {
+          const num = toDecimal(value as string);
+          if (Number.isNaN(num)) return [filter];
+          return [{ ...filter, value: String(clamp(num - 0.005)) }];
+        }
+
+        if (operator === "lte" && !Array.isArray(value)) {
+          const num = toDecimal(value as string);
+          if (Number.isNaN(num)) return [filter];
+          return [{ ...filter, value: String(clamp(num + 0.005)) }];
+        }
+
+        if (!Array.isArray(value)) {
+          const num = toDecimal(value as string);
+          return Number.isNaN(num) ? [filter] : [{ ...filter, value: String(num) }];
+        }
+
+        return [filter];
+      };
+
       // Add sort parameters
       if (params.sort && params.sort.length > 0) {
-        const mappedSort = params.sort.map(sortItem => {
-          let field = sortItem.field;
-          if (field === 'sub_topics_count') {
-            field = 'cluster_count';
-          } else if (field === 'total_keywords') {
-            field = 'keyword_count';
-          }
-          return { ...sortItem, field };
-        });
+        const mappedSort = params.sort.map(sortItem => ({
+          ...sortItem,
+          field: mapFieldToApiName(sortItem.field),
+        }));
         queryParams.append("sort", JSON.stringify(mappedSort));
       }
 
       // Add filters if provided
       if (params.filters && params.filters.length > 0) {
-        queryParams.append("filters", JSON.stringify(params.filters));
+        const mappedFilters = params.filters.flatMap(filter => {
+          const apiField = mapFieldToApiName(filter.field as string);
+          const withMappedField = { ...filter, field: apiField };
+          return percentageFields.has(apiField)
+            ? normalizePercentageFilter(withMappedField)
+            : [withMappedField];
+        });
+        queryParams.append("filters", JSON.stringify(mappedFilters));
       }
 
       // Add join operator if filters exist
@@ -278,68 +366,66 @@ export function useStrategy(businessId: string) {
   }, [businessId, strategyApi]);
 
   /**
-   * Fetch full dataset from download URL
+   * Fetch all strategy pages (up to 100) for the bubble map view.
+   * Fetches page 1 first to determine total_pages, then fetches remaining
+   * pages in parallel batches of 10.
    */
-  const fetchFullDataFromDownloadUrl = useCallback(
+  const fetchAllStrategyPages = useCallback(
     async (businessId: string) => {
-      try {
-        // First, fetch the initial response to get the download_url
-        const endpoint = `/strategies/topics?business_id=${businessId}&page=1&page_size=100`;
-        const response = await strategyApi.execute(endpoint, {
-          method: "GET",
-        });
+      const PAGE_SIZE = 5000;
+      const MAX_PAGES = 100;
+      const BATCH_SIZE = 10;
 
-        const downloadUrl = (response?.output_data as any)?.download_url;
+      const firstEndpoint = `/strategies/topics?business_id=${businessId}&page=1&page_size=${PAGE_SIZE}`;
+      const firstResponse = await api.get<StrategyApiResponse>(firstEndpoint, "python");
 
-        if (!downloadUrl) {
-          console.error("No download_url found in response");
-          return null;
-        }
+      const firstItems = firstResponse?.output_data?.items || [];
+      const pagination = firstResponse?.output_data?.pagination;
+      const totalPages = Math.min(pagination?.total_pages || 1, MAX_PAGES);
 
-        // Fetch data from the download URL
-        const downloadResponse = await fetch(downloadUrl);
-
-        if (!downloadResponse.ok) {
-          throw new Error(`Failed to fetch from download URL: ${downloadResponse.statusText}`);
-        }
-
-        const fullData = await downloadResponse.json();
-
-        console.log('Downloaded full data structure:', fullData);
-
-        // Transform the full dataset to table rows
-        // The download URL returns data with 'topics' at root level, not nested
-        const items = fullData?.topics || fullData?.output_data?.items || fullData?.items || [];
-
-        console.log('Extracted items for transformation:', items.length, 'topics');
-
-        const transformedRows = transformToTableRows(items);
-
-        console.log('Transformed rows:', transformedRows.length);
-
+      if (totalPages <= 1) {
         return {
-          data: transformedRows,
-          rawData: fullData,
-          metadata: fullData?.metadata || response?.metadata,
+          data: transformToTableRows(firstItems),
+          metadata: firstResponse?.metadata,
         };
-      } catch (error) {
-        console.error("Error fetching full data from download URL:", error);
-        throw error;
       }
+
+      const remainingPageNumbers = Array.from(
+        { length: totalPages - 1 },
+        (_, i) => i + 2
+      );
+
+      const allItems: any[] = [...firstItems];
+
+      for (let i = 0; i < remainingPageNumbers.length; i += BATCH_SIZE) {
+        const batch = remainingPageNumbers.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (page) => {
+            const endpoint = `/strategies/topics?business_id=${businessId}&page=${page}&page_size=${PAGE_SIZE}`;
+            const response = await api.get<StrategyApiResponse>(endpoint, "python");
+            return response?.output_data?.items || [];
+          })
+        );
+        allItems.push(...batchResults.flat());
+      }
+
+      return {
+        data: transformToTableRows(allItems),
+        metadata: firstResponse?.metadata,
+      };
     },
-    [strategyApi, transformToTableRows]
+    [transformToTableRows]
   );
 
   return {
     fetchStrategy,
     fetchStrategyCounts,
-    fetchFullDataFromDownloadUrl,
-    loading: strategyApi.loading || countsApi.loading || downloadApi.loading,
-    error: strategyApi.error || countsApi.error || downloadApi.error,
+    fetchAllStrategyPages,
+    loading: strategyApi.loading || countsApi.loading,
+    error: strategyApi.error || countsApi.error,
     reset: () => {
       strategyApi.reset();
       countsApi.reset();
-      downloadApi.reset();
     },
   };
 }

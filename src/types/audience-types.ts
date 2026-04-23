@@ -1,7 +1,7 @@
 export interface AudienceRow {
   id: string;
   persona_name: string;
-  ars: number;
+  audience_relevance_score: number;
   use_case_name: string[];
   use_cases?: UseCase[];
   offerings?: string[];

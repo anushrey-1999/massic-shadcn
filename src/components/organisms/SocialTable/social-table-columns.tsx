@@ -112,7 +112,7 @@ export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableCol
       meta: {
         label: "Campaign Relevance",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

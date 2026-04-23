@@ -25,14 +25,17 @@ export interface DigitalAdsKeyword {
 
 export interface DigitalAdsRow {
   id: string;
-  cluster: string;
-  intent_cluster_opportunity_score: number;
+  cluster_name: string;
+  opportunity_score: number;
   total_search_volume: number;
   avg_cpc: number;
-  comp_sum: number;
+  avg_competition: number;
   business_relevance_score: number;
   keywords: DigitalAdsKeyword[];
   offerings?: string[];
+  cluster?: string;
+  intent_cluster_opportunity_score?: number;
+  comp_sum?: number;
 }
 
 export interface DigitalAdsApiResponse {
@@ -46,6 +49,7 @@ export interface DigitalAdsApiResponse {
       opportunity_score?: number;
       total_search_volume: number;
       avg_cpc: number;
+      avg_competition?: number;
       comp_sum?: number;
       business_relevance_score: number;
       keywords: DigitalAdsKeyword[];

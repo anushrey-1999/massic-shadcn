@@ -3,6 +3,8 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useQueryState } from "nuqs";
+import { parseAsStringEnum } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useUnifiedWebOptimization, type UnifiedPageRow, NO_SNAPSHOT_CODE } from "@/hooks/use-unified-web-optimization";
@@ -10,6 +12,15 @@ import { useGoogleAccounts } from "@/hooks/use-google-accounts";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { WebUnifiedPagesTable } from "./web-unified-pages-table";
 import { WebUnifiedPagesSplitView } from "./web-unified-pages-split-view";
+import { getFiltersStateParser } from "@/components/filter-table/parsers";
+import { getValidFilters, tableApplyAdvancedFilters } from "@/utils/data-table-utils";
+import { getWebUnifiedPagesTableColumns } from "./web-unified-pages-table-columns";
+import type { ExtendedColumnFilter } from "@/types/data-table-types";
+
+const WEB_UNIFIED_QUERY_KEYS = {
+  filters: "webUnifiedFilters",
+  joinOperator: "webUnifiedJoin",
+} as const;
 
 interface Props {
   businessId: string;
@@ -51,6 +62,53 @@ function applyLocalSearch(rows: UnifiedPageRow[], search: string): UnifiedPageRo
   });
 }
 
+function normalizeFrontendFilters(
+  filters: ExtendedColumnFilter<UnifiedPageRow>[]
+): ExtendedColumnFilter<UnifiedPageRow>[] {
+  return filters.flatMap((filter) => {
+    if (filter.field !== "ups") return [filter];
+
+    const clampPercent = (v: number) => Math.max(0, Math.min(100, v));
+
+    if (Array.isArray(filter.value)) {
+      const [min, max] = filter.value;
+      const minNum = min ? Number(min) : NaN;
+      const maxNum = max ? Number(max) : NaN;
+      return [{
+        ...filter,
+        value: [
+          String(!Number.isNaN(minNum) ? clampPercent(minNum - 0.5) : min),
+          String(!Number.isNaN(maxNum) ? clampPercent(maxNum + 0.5) : max),
+        ],
+      }];
+    }
+
+    const num = Number(filter.value);
+    if (Number.isNaN(num)) return [filter];
+
+    if (filter.operator === "eq") {
+      return [{
+        ...filter,
+        operator: "isBetween",
+        value: [
+          String(clampPercent(num - 0.5)),
+          String(clampPercent(num + 0.5)),
+        ],
+      }];
+    }
+
+    if (filter.operator === "gte") {
+      return [{ ...filter, value: String(clampPercent(num - 0.5)) }];
+    }
+
+    if (filter.operator === "lte") {
+      return [{ ...filter, value: String(clampPercent(num + 0.5)) }];
+    }
+
+    return [{ ...filter, value: String(num) }];
+  });
+}
+
 export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Props) {
   const [search, setSearch] = React.useState("");
   const [isSplitView, setIsSplitView] = React.useState(false);
@@ -59,6 +117,37 @@ export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Pr
   const [isGenerating, setIsGenerating] = React.useState(false);
   const { connectGoogleAccount } = useGoogleAccounts();
   const { fetchUnifiedPages, triggerGenerate } = useUnifiedWebOptimization();
+
+  const filterFieldMapper = React.useMemo(() => {
+    const columns = getWebUnifiedPagesTableColumns({ businessId });
+    const validQueryFields = columns
+      .map((c) => (c as { id?: string; accessorKey?: string }).id ?? (c as { accessorKey?: string }).accessorKey)
+      .filter(Boolean) as string[];
+
+    return {
+      validQueryFields,
+      toQueryField: (f: string) => f,
+      fromQueryField: (f: string) => f,
+    };
+  }, [businessId]);
+
+  const [urlFilters] = useQueryState(
+    WEB_UNIFIED_QUERY_KEYS.filters,
+    getFiltersStateParser<UnifiedPageRow>(
+      filterFieldMapper.validQueryFields,
+      {
+        toQueryField: filterFieldMapper.toQueryField,
+        fromQueryField: filterFieldMapper.fromQueryField,
+      }
+    )
+      .withDefault([])
+      .withOptions({ shallow: true })
+  );
+
+  const [joinOperator] = useQueryState(
+    WEB_UNIFIED_QUERY_KEYS.joinOperator,
+    parseAsStringEnum(["and", "or"]).withDefault("and").withOptions({ shallow: true })
+  );
 
   const queryClient = useQueryClient();
   const queryKey = React.useMemo(() => ["unified-web-optimization", businessId], [businessId]);
@@ -105,10 +194,14 @@ export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Pr
     }
   }, [businessId, triggerGenerate, queryClient, queryKey, isGenerating]);
 
-  const filteredRows = React.useMemo(
-    () => applyLocalSearch(allRows || [], search),
-    [allRows, search]
-  );
+  const filteredRows = React.useMemo(() => {
+    const searchFiltered = applyLocalSearch(allRows || [], search);
+    const validFilters = getValidFilters(urlFilters ?? []);
+    if (validFilters.length === 0) return searchFiltered;
+
+    const normalizedFilters = normalizeFrontendFilters(validFilters);
+    return tableApplyAdvancedFilters(searchFiltered, normalizedFilters, joinOperator ?? "and");
+  }, [allRows, search, urlFilters, joinOperator]);
 
   const handleRowClick = React.useCallback(
     (row: UnifiedPageRow) => {
@@ -189,7 +282,7 @@ export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Pr
   }
 
   if (isSplitView) {
-    const splitFilteredRows = applyLocalSearch(allRows || [], splitViewSearch);
+    const splitFilteredRows = applyLocalSearch(filteredRows || [], splitViewSearch);
 
     return (
       <div className="relative h-full flex flex-col">

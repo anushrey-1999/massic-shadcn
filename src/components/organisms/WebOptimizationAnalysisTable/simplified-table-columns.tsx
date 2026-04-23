@@ -56,14 +56,14 @@ export function getWebOptimizationAnalysisSimplifiedColumns(): ColumnDef<WebOpti
         const score = cell.getValue<number>() || 0;
         return (
           <div className="flex items-center">
-            <RelevancePill score={score} />
+            <RelevancePill score={score / 100} />
           </div>
         );
       },
       meta: {
-        label: "OPS",
+        label: "Priority",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
       },
       enableColumnFilter: true,
       enableSorting: true,

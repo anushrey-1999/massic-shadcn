@@ -103,7 +103,7 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
 
   const searchColumnIds = React.useMemo(
     () => ({
-      left: "cluster",
+      left: "cluster_name",
       right: "keyword",
     }),
     []
@@ -119,9 +119,7 @@ export const DigitalAdsSplitView = React.memo(function DigitalAdsSplitView({
   );
 
   const columnMapping = React.useMemo(
-    () => ({
-      intent_cluster_opportunity_score: "opportunity_score",
-    }),
+    () => ({}),
     []
   );
 

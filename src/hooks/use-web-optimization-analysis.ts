@@ -60,7 +60,10 @@ function normalizeRow(item: WebOptimizationAnalysisItem, index: number): WebOpti
   const ctr = safeNumber(item.gsc?.ctr);
   const sessions = safeNumber(item.ga4?.sessions);
   const goals = safeNumber(item.ga4?.conversions);
-  const ops = safeNumber(item.final_ops);
+  const ups = safeNumber(item.ups ?? item.raw?.ups);
+  const scoreFinal = safeNumber(item.score_final ?? item.raw?.score_final);
+  const finalOps = safeNumber(item.final_ops ?? item.raw?.final_ops);
+  const ops = ups > 0 ? ups : scoreFinal > 0 ? scoreFinal * 100 : finalOps * 100;
 
   return {
     id: `${pageUrl || "page"}-${opportunity || "opp"}-${index}`,

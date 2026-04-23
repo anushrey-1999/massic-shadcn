@@ -75,6 +75,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AIRefineToolbarDom } from "@/components/ui/ai-refine-toolbar";
 import { copyToClipboard } from "@/utils/clipboard";
+import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { resolveBlogFinalContent, resolveFormattedBlogHtml, resolvePageContent } from "@/utils/page-content-resolver";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import { ContentConverter } from "@/utils/content-converter";
@@ -555,6 +556,10 @@ export function WebPageHtmlView({
   const inferPage = data?.output_data?.page || {};
   const inferFormattedBlog = inferPage?.formatted_blog || {};
   const inferBlog = inferPage?.blog || {};
+  const blogGeneratedTitle = React.useMemo(
+    () => cleanEscapedContent(typeof inferBlog?.title === "string" ? inferBlog.title : ""),
+    [inferBlog?.title]
+  );
   const resolveBlogMetaFields = React.useCallback((responseData: any) => {
     const page = responseData?.output_data?.page || {};
     const formattedBlog = page?.formatted_blog || {};
@@ -1719,6 +1724,12 @@ export function WebPageHtmlView({
 
   const handleCopyMetaDescription = async () => {
     const ok = await copyToClipboard(blogMetaDescriptionDraft || "");
+    if (ok) toast.success("Copied");
+    else toast.error("Copy failed");
+  };
+
+  const handleCopyBlogTitle = async () => {
+    const ok = await copyToClipboard(blogGeneratedTitle || "");
     if (ok) toast.success("Copied");
     else toast.error("Copy failed");
   };
@@ -4542,7 +4553,35 @@ export function WebPageHtmlView({
         ) : null}
 
         {!isProcessing && status !== "error" ? (
-          <Card className="p-0">
+          <>
+            {isBlogContent ? (
+              <Card className="border-border/50 px-2.5 py-1.5 shadow-none">
+                <div className="flex items-center gap-2">
+                  <Typography className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Title
+                  </Typography>
+                  <div className="min-w-0 flex-1 rounded-md bg-muted/30 px-1.5">
+                    <Input
+                      readOnly
+                      value={blogGeneratedTitle}
+                      placeholder="—"
+                      className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 text-muted-foreground"
+                    onClick={() => void handleCopyBlogTitle()}
+                    disabled={!blogGeneratedTitle}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </Card>
+            ) : null}
+            <Card className="p-0">
             <div className="sticky top-0 z-30 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
               <div>
                 {previewEditMode === "text" ? (
@@ -5224,6 +5263,7 @@ export function WebPageHtmlView({
               }
             `}</style>
           </Card>
+          </>
         ) : null}
       </div>
     </div>

@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Typography } from "@/components/ui/typography"
 import { ReviewsCard } from "@/components/molecules/ReviewsCard"
 import { ReviewsCardSkeleton } from "@/components/molecules/ReviewsCardSkeleton"
-import { IgnoreReviewDialog } from "@/components/molecules/IgnoreReviewDialog"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { cn } from "@/lib/utils"
@@ -31,7 +30,6 @@ import { CampaignsTableClient } from "@/components/organisms/ReviewsCampaignTabl
 import { useBusinessProfileById } from "@/hooks/use-business-profiles"
 import {
   useReviews,
-  useIgnoreReview,
   useSendReviewReply,
   useUpdateReviewResponse,
   type ReviewReplyFilter,
@@ -54,9 +52,6 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
   const [sortOpen, setSortOpen] = React.useState(false)
   const [selectedLocation, setSelectedLocation] = React.useState<string>("")
   const [settingsOpen, setSettingsOpen] = React.useState(false)
-  const [ignoreDialogOpen, setIgnoreDialogOpen] = React.useState(false)
-  const [reviewToIgnore, setReviewToIgnore] = React.useState<{ id: string; name: string } | null>(null)
-  const [ignoringReviewId, setIgnoringReviewId] = React.useState<string | null>(null)
 
   const debouncedSearch = useDebounce(searchQuery, 500)
 
@@ -120,12 +115,6 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
     search: debouncedSearch,
   })
 
-  const ignoreReviewMutation = useIgnoreReview(
-    selectedLocationId,
-    sortBy,
-    replyStatus,
-    debouncedSearch
-  )
   const sendReviewReplyMutation = useSendReviewReply()
   const { mutateAsync: saveReviewResponse } = useUpdateReviewResponse()
   const handleAutoSaveReviewResponse = React.useCallback(
@@ -138,23 +127,6 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
       sendReviewReplyMutation.mutateAsync(payload),
     [sendReviewReplyMutation]
   )
-
-  const handleIgnoreClick = React.useCallback((reviewId: string, reviewerName: string) => {
-    setReviewToIgnore({ id: reviewId, name: reviewerName })
-    setIgnoreDialogOpen(true)
-  }, [])
-
-  const handleIgnoreConfirm = React.useCallback(async () => {
-    if (reviewToIgnore) {
-      setIgnoringReviewId(reviewToIgnore.id)
-      try {
-        await ignoreReviewMutation.mutateAsync(reviewToIgnore.id)
-      } finally {
-        setIgnoringReviewId(null)
-        setReviewToIgnore(null)
-      }
-    }
-  }, [reviewToIgnore, ignoreReviewMutation])
 
   const breadcrumbs = React.useMemo(
     () => [
@@ -367,10 +339,7 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                             editedResponse={review.EditedResponse}
                             existingReply={review.ReviewReplyComment}
                             replySource={review.ReplySource}
-                            isIgnored={review.IsIgnored}
-                            isIgnoring={ignoringReviewId === review.ReviewId}
                             isSending={sendReviewReplyMutation.isPending && sendReviewReplyMutation.variables?.reviewId === review.ReviewId}
-                            onIgnore={() => handleIgnoreClick(review.ReviewId, review.ReviewerDisplayName || "Anonymous")}
                             onSend={(replyText) =>
                               handleSendReviewReply({
                                 businessId,
@@ -402,13 +371,6 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
           </Tabs>
         </div>
       </EntitlementsGuard>
-
-      <IgnoreReviewDialog
-        open={ignoreDialogOpen}
-        onOpenChange={setIgnoreDialogOpen}
-        onConfirm={handleIgnoreConfirm}
-        reviewerName={reviewToIgnore?.name || ""}
-      />
 
       <ResponderSettingsModal
         open={settingsOpen}

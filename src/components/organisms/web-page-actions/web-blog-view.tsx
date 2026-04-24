@@ -132,6 +132,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
 
   const [mainContent, setMainContent] = React.useState("");
+  const [blogTitle, setBlogTitle] = React.useState("");
   const [metaTitle, setMetaTitle] = React.useState("");
   const [metaDescription, setMetaDescription] = React.useState("");
   const [citations, setCitations] = React.useState<string[]>([]);
@@ -170,8 +171,11 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [isAutoResolvingSlug, setIsAutoResolvingSlug] = React.useState(false);
 
   const lastSavedMainRef = React.useRef<string>("");
+  const lastSavedBlogTitleRef = React.useRef<string>("");
   const lastSavedMetaTitleRef = React.useRef<string>("");
   const lastSavedMetaDescriptionRef = React.useRef<string>("");
+  const blogMetaSaveTimerRef = React.useRef<number | null>(null);
+  const BLOG_META_DEBOUNCE_MS = 2800;
 
   const canonicalize = React.useCallback((value: string) => {
     return (value || "").replace(/\r\n/g, "\n").replace(/\u00A0/g, " ").trimEnd();
@@ -257,23 +261,31 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         typeof blogData === "object" && blogData !== null && Array.isArray(blogData?.citations)
           ? blogData.citations
           : [];
+      const rawBlogTitle =
+        typeof blogData === "object" && blogData !== null && typeof blogData?.title === "string"
+          ? blogData.title
+          : "";
 
       setMainContent(cleanEscapedContent(rawBlog));
+      setBlogTitle(cleanEscapedContent(rawBlogTitle));
       setMetaTitle(cleanEscapedContent(rawMetaTitle));
       setMetaDescription(cleanEscapedContent(rawMeta));
       setCitations(Array.isArray(rawCitations) ? rawCitations : []);
 
       lastSavedMainRef.current = canonicalize(cleanEscapedContent(rawBlog));
+      lastSavedBlogTitleRef.current = canonicalize(cleanEscapedContent(rawBlogTitle));
       lastSavedMetaTitleRef.current = canonicalize(cleanEscapedContent(rawMetaTitle));
       lastSavedMetaDescriptionRef.current = canonicalize(cleanEscapedContent(rawMeta));
     } else {
       const rawPage = resolvePageContent(data);
       setMainContent(rawPage);
+      setBlogTitle("");
       setMetaTitle("");
       setMetaDescription("");
       setCitations([]);
 
       lastSavedMainRef.current = canonicalize(rawPage);
+      lastSavedBlogTitleRef.current = "";
       lastSavedMetaTitleRef.current = "";
       lastSavedMetaDescriptionRef.current = "";
     }
@@ -318,11 +330,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const inferPage = data?.output_data?.page || {};
   const inferBlog = inferPage?.blog || {};
-  const blogGeneratedTitle = React.useMemo(
-    () => cleanEscapedContent(typeof inferBlog?.title === "string" ? inferBlog.title : ""),
-    [inferBlog?.title]
-  );
-  const visiblePostTitle = inferPage?.title || keyword || "Untitled";
+  const visiblePostTitle =
+    type === "blog"
+      ? blogTitle.trim() || inferPage?.title || keyword || "Untitled"
+      : inferPage?.title || keyword || "Untitled";
   const seoTitle = metaTitle.trim() || inferBlog?.meta_title || keyword || "Untitled";
   const publishContentId = inferPage?.page_id || pageId;
   const inferSlug = React.useMemo(
@@ -999,7 +1010,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   };
 
   const handleCopyBlogTitle = async () => {
-    const ok = await copyToClipboard(blogGeneratedTitle || "");
+    const ok = await copyToClipboard(blogTitle || "");
     if (ok) toast.success("Copied");
     else toast.error("Copy failed");
   };
@@ -1024,8 +1035,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
     try {
       if (type === "blog") {
+        if (blogMetaSaveTimerRef.current) {
+          window.clearTimeout(blogMetaSaveTimerRef.current);
+          blogMetaSaveTimerRef.current = null;
+        }
         await updateBlogContent(businessId, pageId, {
           html: ContentConverter.markdownToHtml(next),
+          title: blogTitle,
           meta_title: metaTitle,
           meta_description: metaDescription,
         });
@@ -1033,6 +1049,11 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         await updatePageContent(businessId, pageId, next);
       }
       lastSavedMainRef.current = next;
+      if (type === "blog") {
+        lastSavedBlogTitleRef.current = canonicalize(blogTitle);
+        lastSavedMetaTitleRef.current = canonicalize(metaTitle);
+        lastSavedMetaDescriptionRef.current = canonicalize(metaDescription);
+      }
       setMainContent(next);
       toast.success("Changes Saved");
     } catch {
@@ -1040,29 +1061,71 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
   };
 
-  const handleMetaBlur = async () => {
+  const flushBlogMetaToApi = React.useCallback(async () => {
     if (isInitialLoad) return;
     if (type !== "blog") return;
 
     const nextMetaTitle = canonicalize(metaTitle);
     const nextMeta = canonicalize(metaDescription);
-    const titleUnchanged = nextMetaTitle === canonicalize(lastSavedMetaTitleRef.current);
+    const nextBlogTitle = canonicalize(blogTitle);
+    const metaTitleUnchanged = nextMetaTitle === canonicalize(lastSavedMetaTitleRef.current);
     const descriptionUnchanged = nextMeta === canonicalize(lastSavedMetaDescriptionRef.current);
-    if (titleUnchanged && descriptionUnchanged) return;
+    const blogTitleUnchanged = nextBlogTitle === canonicalize(lastSavedBlogTitleRef.current);
+    if (metaTitleUnchanged && descriptionUnchanged && blogTitleUnchanged) return;
 
     try {
       await updateBlogContent(businessId, pageId, {
         html: ContentConverter.markdownToHtml(mainContent),
+        title: nextBlogTitle,
         meta_title: nextMetaTitle,
         meta_description: nextMeta,
       });
+      lastSavedBlogTitleRef.current = nextBlogTitle;
       lastSavedMetaTitleRef.current = nextMetaTitle;
       lastSavedMetaDescriptionRef.current = nextMeta;
       toast.success("Changes Saved");
     } catch {
       toast.error("Failed to save changes to server");
     }
-  };
+  }, [
+    blogTitle,
+    businessId,
+    canonicalize,
+    isInitialLoad,
+    mainContent,
+    metaDescription,
+    metaTitle,
+    pageId,
+    type,
+    updateBlogContent,
+  ]);
+
+  const scheduleBlogMetaSave = React.useCallback(() => {
+    if (blogMetaSaveTimerRef.current) {
+      window.clearTimeout(blogMetaSaveTimerRef.current);
+    }
+    blogMetaSaveTimerRef.current = window.setTimeout(() => {
+      blogMetaSaveTimerRef.current = null;
+      void flushBlogMetaToApi();
+    }, BLOG_META_DEBOUNCE_MS);
+  }, [flushBlogMetaToApi]);
+
+  const handleBlogMetaBlur = React.useCallback(() => {
+    if (blogMetaSaveTimerRef.current) {
+      window.clearTimeout(blogMetaSaveTimerRef.current);
+      blogMetaSaveTimerRef.current = null;
+    }
+    void flushBlogMetaToApi();
+  }, [flushBlogMetaToApi]);
+
+  React.useEffect(() => {
+    return () => {
+      if (blogMetaSaveTimerRef.current) {
+        window.clearTimeout(blogMetaSaveTimerRef.current);
+        blogMetaSaveTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const confirmAndRunPublishAction = React.useCallback(async () => {
     const action = confirmPublishAction;
@@ -1210,9 +1273,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                   </Typography>
                   <div className="min-w-0 flex-1 rounded-md bg-muted/30 px-1.5">
                     <Input
-                      readOnly
-                      value={blogGeneratedTitle}
-                      placeholder="—"
+                      value={blogTitle}
+                      onChange={(e) => {
+                        setBlogTitle(e.target.value);
+                        scheduleBlogMetaSave();
+                      }}
+                      onBlur={handleBlogMetaBlur}
+                      placeholder="Write your post title here..."
                       className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
                   </div>
@@ -1222,7 +1289,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     size="icon"
                     className="h-7 w-7 shrink-0 text-muted-foreground"
                     onClick={() => void handleCopyBlogTitle()}
-                    disabled={!blogGeneratedTitle}
+                    disabled={!blogTitle}
                   >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
@@ -1298,8 +1365,11 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                   </div>
                   <Input
                     value={metaTitle}
-                    onChange={(e) => setMetaTitle(e.target.value)}
-                    onBlur={handleMetaBlur}
+                    onChange={(e) => {
+                      setMetaTitle(e.target.value);
+                      scheduleBlogMetaSave();
+                    }}
+                    onBlur={handleBlogMetaBlur}
                     placeholder="Write your meta title here..."
                   />
                 </Card>
@@ -1313,8 +1383,11 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                   </div>
                   <Textarea
                     value={metaDescription}
-                    onChange={(e) => setMetaDescription(e.target.value)}
-                    onBlur={handleMetaBlur}
+                    onChange={(e) => {
+                      setMetaDescription(e.target.value);
+                      scheduleBlogMetaSave();
+                    }}
+                    onBlur={handleBlogMetaBlur}
                     placeholder="Write your meta description here..."
                     className="min-h-[120px]"
                   />

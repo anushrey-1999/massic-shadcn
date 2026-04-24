@@ -135,6 +135,7 @@ export function useWebPageActions() {
     pageId: string,
     params: {
       html: string;
+      title?: string;
       meta_title?: string;
       meta_description: string;
     }

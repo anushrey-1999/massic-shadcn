@@ -45,16 +45,15 @@ export function useAudience(businessId: string) {
 
       // If no ID or ID is already used, generate a new one
       if (!uniqueId || usedIds.has(uniqueId)) {
-        // Create a unique ID by combining persona_name with use_case_name, ars, and a counter
+        // Create a unique ID by combining persona_name with use_case_name, score, and a counter
         const persona = (item.persona_name || "").replace(/\s+/g, "_").substring(0, 50);
         const useCasesStr = useCaseNames.sort().join("|").replace(/\s+/g, "_").substring(0, 100);
-        const ars = item.audience_relevance_score ?? item.ars ?? 0;
+        const score = item.audience_relevance_score ?? item.ars ?? 0;
 
         // Use counter instead of index for better stability across sorts
         const uniqueCounter = counter++;
 
-        // Combine persona, use cases, ars, and counter to ensure uniqueness
-        uniqueId = `${persona}_${useCasesStr}_${ars}_${uniqueCounter}`;
+        uniqueId = `${persona}_${useCasesStr}_${score}_${uniqueCounter}`;
 
         // If still duplicate (shouldn't happen with counter), append more uniqueness
         if (usedIds.has(uniqueId)) {
@@ -67,7 +66,7 @@ export function useAudience(businessId: string) {
       return {
         id: uniqueId,
         persona_name: item.persona_name || "",
-        ars: item.audience_relevance_score ?? item.ars ?? 0,
+        audience_relevance_score: item.audience_relevance_score ?? item.ars ?? 0,
         use_case_name: useCaseNames,
         ...item,
       };
@@ -90,21 +89,110 @@ export function useAudience(businessId: string) {
         queryParams.append("offerings", params.offerings);
       }
 
-      if (params.sort && params.sort.length > 0) {
-        const mappedSort = params.sort.map(sortItem => {
-          let field = sortItem.field;
-          if (field === 'use_cases') {
-            field = 'use_case_count';
-          } else if (field === 'keywords') {
-            field = 'supporting_keyword_count';
+      // Map frontend column IDs to backend API field names
+      const mapFieldToApiName = (field: string): string => {
+        const fieldMap: Record<string, string> = {
+          use_cases: "use_case_count",
+          keywords: "supporting_keyword_count",
+        };
+        return fieldMap[field] ?? field;
+      };
+
+      // Fields displayed as percentages (0–100) in the UI but stored as decimals (0–1) in the API.
+      const percentageFields = new Set(["audience_relevance_score"]);
+
+      const clamp = (v: number) => Math.max(0, Math.min(1, v));
+      const toDecimal = (pct: string) => parseFloat(pct) / 100;
+
+      // Normalize a single filter object for percentage fields.
+      // The UI shows Math.round(v * 100), so to match all values that display as "89"
+      // we must query the range [0.885, 0.895] rather than the exact value 0.89.
+      const normalizePercentageFilter = (filter: typeof params.filters[number]) => {
+        const value = filter.value as string | string[];
+        const operator = filter.operator;
+
+        if (operator === "isBetween" && Array.isArray(value)) {
+          const [minValue, maxValue] = value;
+          const minNum = toDecimal(minValue);
+          const maxNum = toDecimal(maxValue);
+
+          if (Number.isNaN(minNum) || Number.isNaN(maxNum)) {
+            return [filter];
           }
-          return { ...sortItem, field };
-        });
+
+          return [
+            {
+              ...filter,
+              operator: "gte" as const,
+              value: String(clamp(minNum - 0.005)),
+            },
+            {
+              ...filter,
+              operator: "lte" as const,
+              value: String(clamp(maxNum + 0.005)),
+            },
+          ];
+        }
+
+        if ((operator === "eq" || operator === "ne") && !Array.isArray(value)) {
+          const num = toDecimal(value as string);
+          if (Number.isNaN(num)) return [filter];
+
+          if (operator === "eq") {
+            return [
+              {
+                ...filter,
+                operator: "gte" as const,
+                value: String(clamp(num - 0.005)),
+              },
+              {
+                ...filter,
+                operator: "lte" as const,
+                value: String(clamp(num + 0.005)),
+              },
+            ];
+          }
+
+          return [{ ...filter, value: String(num) }];
+        }
+
+        if (operator === "gte" && !Array.isArray(value)) {
+          const num = toDecimal(value as string);
+          if (Number.isNaN(num)) return [filter];
+          return [{ ...filter, value: String(clamp(num - 0.005)) }];
+        }
+
+        if (operator === "lte" && !Array.isArray(value)) {
+          const num = toDecimal(value as string);
+          if (Number.isNaN(num)) return [filter];
+          return [{ ...filter, value: String(clamp(num + 0.005)) }];
+        }
+
+        if (!Array.isArray(value)) {
+          const num = toDecimal(value as string);
+          return Number.isNaN(num) ? [filter] : [{ ...filter, value: String(num) }];
+        }
+
+        return [filter];
+      };
+
+      if (params.sort && params.sort.length > 0) {
+        const mappedSort = params.sort.map(sortItem => ({
+          ...sortItem,
+          field: mapFieldToApiName(sortItem.field),
+        }));
         queryParams.append("sort", JSON.stringify(mappedSort));
       }
 
       if (params.filters && params.filters.length > 0) {
-        queryParams.append("filters", JSON.stringify(params.filters));
+        const mappedFilters = params.filters.flatMap(filter => {
+          const apiField = mapFieldToApiName(filter.field as string);
+          const withMappedField = { ...filter, field: apiField };
+          return percentageFields.has(apiField)
+            ? normalizePercentageFilter(withMappedField)
+            : [withMappedField];
+        });
+        queryParams.append("filters", JSON.stringify(mappedFilters));
       }
 
       if (params.joinOperator) {

@@ -59,19 +59,19 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const isAudienceReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "audience");
   const isLandscapeReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "channel_analyzer");
 
-  const { fetchFullDataFromDownloadUrl } = useStrategy(businessId);
+  const { fetchAllStrategyPages } = useStrategy(businessId);
   const [strategyMetrics, setStrategyMetrics] = React.useState<StrategyMetrics | null>(null);
   const [audienceMetrics, setAudienceMetrics] = React.useState<AudienceMetrics | null>(null);
 
-  // Fetch full data for bubble chart when bubble view is active
+  // Fetch all strategy pages upfront so bubble map data is ready immediately
   const {
     data: fullData,
     isLoading: isLoadingFullData,
     error: fullDataError,
   } = useQuery({
     queryKey: ["strategy-full-data", businessId],
-    queryFn: () => fetchFullDataFromDownloadUrl(businessId),
-    enabled: strategyView === "bubble" && !!businessId,
+    queryFn: () => fetchAllStrategyPages(businessId),
+    enabled: strategyView === "bubble" && isStrategyReady && !!businessId,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 

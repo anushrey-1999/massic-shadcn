@@ -96,10 +96,11 @@ function applyLocalSearch(rows: WebOptimizationAnalysisRow[], search: string): W
 function normalizePercentFilters(
   filters: ExtendedColumnFilter<WebOptimizationAnalysisRow>[]
 ): ExtendedColumnFilter<WebOptimizationAnalysisRow>[] {
-  const opsToDecimal = (v: number) => (v > 1 ? v / 100 : v);
   const ctrToDecimal = (v: number) => v / 100;
   return filters.map((filter) => {
     if (filter.field === "ops") {
+      const clampPercent = (v: number) => Math.max(0, Math.min(100, v));
+
       if (Array.isArray(filter.value)) {
         const [min, max] = filter.value;
         const minNum = min ? Number(min) : NaN;
@@ -107,13 +108,35 @@ function normalizePercentFilters(
         return {
           ...filter,
           value: [
-            String(!Number.isNaN(minNum) ? opsToDecimal(minNum) : min),
-            String(!Number.isNaN(maxNum) ? opsToDecimal(maxNum) : max),
+            String(!Number.isNaN(minNum) ? clampPercent(minNum - 0.5) : min),
+            String(!Number.isNaN(maxNum) ? clampPercent(maxNum + 0.5) : max),
           ],
         };
       }
+
       const num = Number(filter.value);
-      return !Number.isNaN(num) ? { ...filter, value: String(opsToDecimal(num)) } : filter;
+      if (Number.isNaN(num)) return filter;
+
+      if (filter.operator === "eq") {
+        return {
+          ...filter,
+          operator: "isBetween",
+          value: [
+            String(clampPercent(num - 0.5)),
+            String(clampPercent(num + 0.5)),
+          ],
+        };
+      }
+
+      if (filter.operator === "gte") {
+        return { ...filter, value: String(clampPercent(num - 0.5)) };
+      }
+
+      if (filter.operator === "lte") {
+        return { ...filter, value: String(clampPercent(num + 0.5)) };
+      }
+
+      return { ...filter, value: String(num) };
     }
     if (filter.field === "ctr") {
       if (Array.isArray(filter.value)) {

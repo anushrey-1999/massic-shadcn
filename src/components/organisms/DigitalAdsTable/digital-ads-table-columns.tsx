@@ -15,14 +15,14 @@ interface GetDigitalAdsTableColumnsProps {
 export function getDigitalAdsTableColumns({ offeringCounts = {} }: GetDigitalAdsTableColumnsProps = {}): ColumnDef<DigitalAdsRow>[] {
   return [
     {
-      id: "cluster",
-      accessorKey: "cluster",
+      id: "cluster_name",
+      accessorKey: "cluster_name",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Ad Topics" />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
-          {row.getValue("cluster")}
+          {row.getValue("cluster_name")}
         </Typography>
       ),
       meta: {
@@ -37,8 +37,8 @@ export function getDigitalAdsTableColumns({ offeringCounts = {} }: GetDigitalAds
       maxSize: 350,
     },
     {
-      id: "intent_cluster_opportunity_score",
-      accessorKey: "intent_cluster_opportunity_score",
+      id: "opportunity_score",
+      accessorKey: "opportunity_score",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Priority" />
       ),
@@ -53,7 +53,7 @@ export function getDigitalAdsTableColumns({ offeringCounts = {} }: GetDigitalAds
       meta: {
         label: "Priority",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -78,7 +78,7 @@ export function getDigitalAdsTableColumns({ offeringCounts = {} }: GetDigitalAds
       meta: {
         label: "Relevance",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -138,13 +138,13 @@ export function getDigitalAdsTableColumns({ offeringCounts = {} }: GetDigitalAds
       maxSize: 160,
     },
     {
-      id: "comp_sum",
-      accessorKey: "comp_sum",
+      id: "avg_competition",
+      accessorKey: "avg_competition",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Competition" />
       ),
       cell: ({ cell }) => {
-        const comp = cell.getValue<number>();
+        const comp = cell.getValue<number>() ?? 0;
         return (
           <Typography variant="p">{comp.toLocaleString()}</Typography>
         );
@@ -152,7 +152,7 @@ export function getDigitalAdsTableColumns({ offeringCounts = {} }: GetDigitalAds
       meta: {
         label: "Competition",
         variant: "range",
-        range: [0, 1000],
+        range: [0, 1],
       },
       enableColumnFilter: true,
       enableSorting: true,

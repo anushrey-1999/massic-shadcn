@@ -133,7 +133,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       meta: {
         label: "Business Relevance",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

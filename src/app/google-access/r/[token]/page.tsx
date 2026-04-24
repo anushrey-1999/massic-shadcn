@@ -163,7 +163,7 @@ export default function AccessRequestLandingPage() {
                         {config?.label || product}
                       </span>
                     </div>
-                    {!config?.automated && (
+                    {!config?.automated && config?.showManualBadge !== false && (
                       <Badge
                         variant="outline"
                         className="text-[10px] border-orange-200 text-orange-600 bg-orange-50"

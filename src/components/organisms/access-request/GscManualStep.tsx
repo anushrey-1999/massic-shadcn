@@ -357,7 +357,11 @@ export function GscManualStep({ token, step, agencyEmail, onStepCompleted }: Gsc
                   onClick={() => toggleAsset(assetId)}
                 >
                   <div className="flex items-center gap-3">
-                    <Checkbox checked={isSelected} />
+                    <Checkbox
+                      checked={isSelected}
+                      onClick={(e) => e.stopPropagation()}
+                      onCheckedChange={() => toggleAsset(assetId)}
+                    />
                     <p className="text-sm font-medium text-gray-900 truncate">
                       {getAssetLabel(asset)}
                     </p>

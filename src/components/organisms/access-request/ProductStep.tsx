@@ -405,7 +405,12 @@ export function ProductStep({ token, step, onStepCompleted }: ProductStepProps) 
                   title={disabledReason || undefined}
                 >
                   <div className="flex items-center gap-3">
-                    <Checkbox checked={isSelected} disabled={disabled} />
+                    <Checkbox
+                      checked={isSelected}
+                      disabled={disabled}
+                      onClick={(e) => e.stopPropagation()}
+                      onCheckedChange={() => toggleAsset(assetId, disabled)}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-gray-900 truncate">

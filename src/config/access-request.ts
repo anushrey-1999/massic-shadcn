@@ -7,6 +7,8 @@ export const PRODUCT_CONFIG: Record<
     shortLabel: string;
     description: string;
     automated: boolean;
+    /** When false, do not show a "Manual" badge (e.g. GSC still uses a guided step). */
+    showManualBadge?: boolean;
     roles: { value: string; label: string }[];
     defaultRole: string;
   }
@@ -17,43 +19,33 @@ export const PRODUCT_CONFIG: Record<
     description: "Access to Analytics accounts and properties",
     automated: true,
     roles: [
-      { value: "viewer", label: "Viewer" },
-      { value: "analyst", label: "Analyst" },
       { value: "editor", label: "Editor" },
       { value: "admin", label: "Admin" },
     ],
-    defaultRole: "viewer",
+    defaultRole: "editor",
   },
   gtm: {
     label: "Google Tag Manager",
     shortLabel: "GTM",
     description: "Access to Tag Manager accounts and containers",
     automated: true,
-    roles: [
-      { value: "read", label: "Read" },
-      { value: "edit", label: "Edit" },
-      { value: "approve", label: "Approve" },
-      { value: "publish", label: "Publish" },
-    ],
-    defaultRole: "read",
+    roles: [{ value: "publish", label: "Publish" }],
+    defaultRole: "publish",
   },
   gbp: {
     label: "Google Business Profile",
     shortLabel: "GBP",
     description: "Access to Business Profile accounts",
     automated: true,
-    roles: [
-      { value: "owner", label: "Owner" },
-      { value: "manager", label: "Manager" },
-      { value: "site_manager", label: "Site Manager" },
-    ],
+    roles: [{ value: "manager", label: "Manager" }],
     defaultRole: "manager",
   },
   gsc: {
     label: "Google Search Console",
     shortLabel: "GSC",
-    description: "Access to Search Console properties (requires manual steps)",
+    description: "Access to Search Console properties",
     automated: false,
+    showManualBadge: false,
     roles: [{ value: "full", label: "Full" }],
     defaultRole: "full",
   },

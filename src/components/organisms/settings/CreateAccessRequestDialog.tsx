@@ -46,7 +46,7 @@ export function CreateAccessRequestDialog({
   const [selectedEmail, setSelectedEmail] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
   const [roles, setRoles] = useState<Partial<Record<Product, string>>>({});
-  const [expiresInDays, setExpiresInDays] = useState(7);
+  const [expiresInDays, setExpiresInDays] = useState(30);
   const [createdRequest, setCreatedRequest] = useState<AccessRequest | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -82,7 +82,7 @@ export function CreateAccessRequestDialog({
     setSelectedEmail("");
     setSelectedProducts([]);
     setRoles({});
-    setExpiresInDays(7);
+    setExpiresInDays(30);
     setCreatedRequest(null);
     setLinkCopied(false);
   }
@@ -263,14 +263,16 @@ export function CreateAccessRequestDialog({
                   >
                     <div className="flex items-center gap-2.5">
                       <Checkbox
+                        className="cursor-pointer"
                         checked={isSelected}
+                        onClick={(e) => e.stopPropagation()}
                         onCheckedChange={() => toggleProduct(product)}
                       />
                       <ProductIcon product={product} size={18} />
                       <span className="text-sm font-medium flex-1 min-w-0 truncate">
                         {config.label}
                       </span>
-                      {!config.automated && (
+                      {!config.automated && config.showManualBadge !== false && (
                         <Badge
                           variant="outline"
                           className="text-[10px] border-orange-200 text-orange-600 bg-orange-50 shrink-0"
@@ -278,32 +280,30 @@ export function CreateAccessRequestDialog({
                           Manual
                         </Badge>
                       )}
-                      {config.roles.length > 1 && (
-                        <Select
-                          value={roles[product] || config.defaultRole}
-                          onValueChange={(val) =>
-                            setRoles((r) => ({ ...r, [product]: val }))
-                          }
-                          disabled={!isSelected}
+                      <Select
+                        value={roles[product] || config.defaultRole}
+                        onValueChange={(val) =>
+                          setRoles((r) => ({ ...r, [product]: val }))
+                        }
+                        disabled={!isSelected}
+                      >
+                        <SelectTrigger
+                          className={`min-w-[104px] w-[120px] shrink-0 ${
+                            !isSelected ? "opacity-40" : ""
+                          }`}
+                          size="sm"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <SelectTrigger
-                            className={`w-[100px] shrink-0 ${
-                              !isSelected ? "opacity-40" : ""
-                            }`}
-                            size="sm"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {config.roles.map((role) => (
-                              <SelectItem key={role.value} value={role.value}>
-                                {role.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
+                          <SelectValue placeholder="Access level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {config.roles.map((role) => (
+                            <SelectItem key={role.value} value={role.value}>
+                              {role.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 );
@@ -320,7 +320,7 @@ export function CreateAccessRequestDialog({
               max={30}
               value={expiresInDays}
               onChange={(e) =>
-                setExpiresInDays(Math.max(1, parseInt(e.target.value) || 7))
+                setExpiresInDays(Math.max(1, parseInt(e.target.value, 10) || 30))
               }
               className="w-24"
             />

@@ -43,17 +43,36 @@ export function RatingCard({
               <span className="text-2xl font-semibold">{rating}</span>
               {rating !== undefined && (
                 <div className="flex items-center gap-0.5">
-                  {Array.from({ length: maxRating }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={cn(
-                        "h-5 w-5",
-                        i < rating
-                          ? "fill-amber-500 text-amber-500"
-                          : "fill-muted text-muted"
-                      )}
-                    />
-                  ))}
+                  {Array.from({ length: maxRating }).map((_, i) => {
+                    const fillFraction = Math.min(1, Math.max(0, rating - i));
+                    if (fillFraction >= 1) {
+                      return (
+                        <Star
+                          key={i}
+                          className="h-5 w-5 fill-amber-500 text-amber-500"
+                        />
+                      );
+                    }
+                    if (fillFraction <= 0) {
+                      return (
+                        <Star
+                          key={i}
+                          className="h-5 w-5 fill-muted text-muted"
+                        />
+                      );
+                    }
+                    return (
+                      <div key={i} className="relative h-5 w-5">
+                        <Star className="absolute h-5 w-5 fill-muted text-muted" />
+                        <div
+                          className="absolute overflow-hidden"
+                          style={{ width: `${fillFraction * 100}%` }}
+                        >
+                          <Star className="h-5 w-5 fill-amber-500 text-amber-500" />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

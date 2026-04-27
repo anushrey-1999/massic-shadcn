@@ -5,7 +5,6 @@ import InfiniteScroll from "react-infinite-scroll-component"
 import { PageHeader } from "@/components/molecules/PageHeader"
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Typography } from "@/components/ui/typography"
 import { ReviewsCard } from "@/components/molecules/ReviewsCard"
 import { ReviewsCardSkeleton } from "@/components/molecules/ReviewsCardSkeleton"
 import { Button } from "@/components/ui/button"
@@ -15,6 +14,7 @@ import {
   ArrowDownUp,
   Check,
   Search,
+  Sparkles,
   Star,
   MessageSquareText,
   Users,
@@ -38,6 +38,7 @@ import {
 import { useDebounce } from "@/hooks/use-debounce"
 import { useAuthStore } from "@/store/auth-store"
 import { useBusinessProfileSettings } from "@/hooks/use-review-responder-settings"
+import { reviewsPageCampaignsAndCustomersEnabled } from "@/config/reviews-page-features"
 
 interface ReviewsTemplateProps {
   businessId: string
@@ -136,6 +137,8 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
     ],
     [businessName, businessId]
   )
+
+  const reviewsExtrasEnabled = reviewsPageCampaignsAndCustomersEnabled
 
   return (
     <div className="flex flex-col h-screen">
@@ -358,14 +361,34 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
             </TabsContent>
 
             <TabsContent value="campaign" className={cn("flex-1 min-h-0 overflow-hidden", "mt-4")}>
-              <div className="bg-white rounded-lg p-4 h-full min-h-0">
-                <CampaignsTableClient businessId={businessId} />
+              <div className="bg-white rounded-lg p-4 h-full min-h-0 flex flex-col min-h-[240px]">
+                {reviewsExtrasEnabled ? (
+                  <CampaignsTableClient businessId={businessId} />
+                ) : (
+                  <EmptyState
+                    icon={<Sparkles className="h-10 w-10 text-general-muted-foreground" />}
+                    title="Campaigns — coming soon"
+                    description="Review campaigns are under development. Check back later."
+                    showCard={false}
+                    className="py-12"
+                  />
+                )}
               </div>
             </TabsContent>
 
             <TabsContent value="customers" className={cn("flex-1 min-h-0 overflow-hidden", "mt-4")}>
-              <div className="bg-white rounded-lg p-4 h-full min-h-0">
-                <CustomersTableClient />
+              <div className="bg-white rounded-lg p-4 h-full min-h-0 flex flex-col min-h-[240px]">
+                {reviewsExtrasEnabled ? (
+                  <CustomersTableClient />
+                ) : (
+                  <EmptyState
+                    icon={<Sparkles className="h-10 w-10 text-general-muted-foreground" />}
+                    title="Customers — coming soon"
+                    description="The customers view is under development. Check back later."
+                    showCard={false}
+                    className="py-12"
+                  />
+                )}
               </div>
             </TabsContent>
           </Tabs>

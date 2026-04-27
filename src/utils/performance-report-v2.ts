@@ -1,5 +1,21 @@
 export type JsonObject = Record<string, unknown>;
 
+export type PerformanceReportV2EditedFields = Record<string, string>;
+
+const PERFORMANCE_REPORT_V2_EDITABLE_FIELD_RULES: Array<{
+  pattern: RegExp;
+}> = [
+  { pattern: /^plain_english_paragraph$/ },
+  { pattern: /^plain_english_paragraph\.title$/ },
+  { pattern: /^plain_english_paragraph\.body$/ },
+  { pattern: /^channel_notes\.[^.]+$/ },
+  { pattern: /^organic_page_note$/ },
+  { pattern: /^ranking_narrative$/ },
+  { pattern: /^review_areas\.\d+\.title$/ },
+  { pattern: /^review_areas\.\d+\.body$/ },
+  { pattern: /^confidence_note$/ },
+];
+
 export interface PerformanceReportMetric {
   label: string;
   value: string;
@@ -47,6 +63,110 @@ export type ParsedPerformanceReport =
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function cloneJsonObject<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function setValueAtPath(target: JsonObject, path: string, value: string): void {
+  const segments = path.split(".");
+  let cursor: unknown = target;
+
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    const isLast = index === segments.length - 1;
+    const nextSegment = segments[index + 1];
+    const nextIsIndex = /^\d+$/.test(nextSegment || "");
+
+    if (Array.isArray(cursor)) {
+      const itemIndex = Number(segment);
+      if (!Number.isInteger(itemIndex)) return;
+
+      if (isLast) {
+        cursor[itemIndex] = value;
+        return;
+      }
+
+      if (
+        cursor[itemIndex] === undefined ||
+        cursor[itemIndex] === null ||
+        (typeof cursor[itemIndex] !== "object" && !Array.isArray(cursor[itemIndex]))
+      ) {
+        cursor[itemIndex] = nextIsIndex ? [] : {};
+      }
+
+      cursor = cursor[itemIndex];
+      continue;
+    }
+
+    if (!isObject(cursor)) return;
+
+    if (isLast) {
+      cursor[segment] = value;
+      return;
+    }
+
+    const currentValue = cursor[segment];
+    if (
+      currentValue === undefined ||
+      currentValue === null ||
+      (typeof currentValue !== "object" && !Array.isArray(currentValue))
+    ) {
+      cursor[segment] = nextIsIndex ? [] : {};
+    }
+
+    cursor = cursor[segment];
+  }
+}
+
+export function isPerformanceReportV2EditableFieldPath(path: string): boolean {
+  return PERFORMANCE_REPORT_V2_EDITABLE_FIELD_RULES.some(({ pattern }) => pattern.test(path));
+}
+
+export function getPerformanceReportV2EditableFieldMaxLength(_path: string): number | null {
+  return null;
+}
+
+export function getPerformanceReportV2EditedFields(payload: unknown): PerformanceReportV2EditedFields {
+  if (!isObject(payload) || !isObject(payload.edited_fields)) {
+    return {};
+  }
+
+  return Object.entries(payload.edited_fields).reduce<PerformanceReportV2EditedFields>((acc, [path, value]) => {
+    if (typeof value === "string" && isPerformanceReportV2EditableFieldPath(path)) {
+      acc[path] = value;
+    }
+    return acc;
+  }, {});
+}
+
+export function stripPerformanceReportV2EditedFields<T>(payload: T): T {
+  if (!isObject(payload)) return payload;
+
+  const nextPayload = cloneJsonObject(payload);
+  if (isObject(nextPayload) && "edited_fields" in nextPayload) {
+    delete (nextPayload as JsonObject).edited_fields;
+  }
+  return nextPayload;
+}
+
+export function applyPerformanceReportV2EditedFields<T>(payload: T): T {
+  if (!isObject(payload)) return payload;
+
+  const editedFields = getPerformanceReportV2EditedFields(payload);
+  const nextPayload = stripPerformanceReportV2EditedFields(payload);
+
+  if (!isObject(nextPayload)) {
+    return nextPayload;
+  }
+
+  for (const [path, value] of Object.entries(editedFields)) {
+    setValueAtPath(nextPayload, path, value);
+  }
+
+  (nextPayload as JsonObject).edited_fields = cloneJsonObject(editedFields);
+  return nextPayload as T;
 }
 
 function toDisplayString(value: unknown): string {
@@ -171,7 +291,10 @@ export function parsePerformanceReport(payload: unknown): ParsedPerformanceRepor
   }
 
   if (isObject(payload)) {
-    const document = normalizePerformanceReportDocument(payload);
+    const resolvedPayload = applyPerformanceReportV2EditedFields(payload);
+    const document = normalizePerformanceReportDocument(
+      isObject(resolvedPayload) ? resolvedPayload : payload
+    );
     return { kind: "v2", document, raw: payload };
   }
 
@@ -183,7 +306,10 @@ export function parsePerformanceReport(payload: unknown): ParsedPerformanceRepor
       try {
         const parsed = JSON.parse(trimmed) as unknown;
         if (isObject(parsed)) {
-          const document = normalizePerformanceReportDocument(parsed);
+          const resolvedPayload = applyPerformanceReportV2EditedFields(parsed);
+          const document = normalizePerformanceReportDocument(
+            isObject(resolvedPayload) ? resolvedPayload : parsed
+          );
           return { kind: "v2", document, raw: parsed };
         }
       } catch {

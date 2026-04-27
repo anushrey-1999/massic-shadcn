@@ -219,7 +219,7 @@ export function CreatePitchTemplate() {
     void offeringsExtractor.startExtraction(website).catch(() => {});
     try {
       const res = await api.post<ProfileAutofillResponse>(
-        "/profile-autofill",
+        "/tools/autofill-profile",
         "python",
         { business_url: website },
         { timeout: 120000 }

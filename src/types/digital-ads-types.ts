@@ -9,15 +9,15 @@ export interface DigitalAdsKeyword {
   search_intent: string;
   serp_item_types: string[];
   business_relevance: number;
-  cpc_log: number;
-  volume_log: number;
-  cpc_norm: number;
-  volume_norm: number;
-  ideal_cpc_flag: number;
-  ideal_volume_flag: number;
-  cpc_factor: number;
-  volume_weight: number;
-  intent_weight: number;
+  cpc_log?: number;
+  volume_log?: number;
+  cpc_norm?: number;
+  volume_norm?: number;
+  ideal_cpc_flag?: number;
+  ideal_volume_flag?: number;
+  cpc_factor?: number;
+  volume_weight?: number;
+  intent_weight?: number;
   market_ease: number;
   opportunity_score: number;
   offerings: string[];
@@ -25,14 +25,17 @@ export interface DigitalAdsKeyword {
 
 export interface DigitalAdsRow {
   id: string;
-  cluster: string;
-  intent_cluster_opportunity_score: number;
+  cluster_name: string;
+  opportunity_score: number;
   total_search_volume: number;
   avg_cpc: number;
-  comp_sum: number;
+  avg_competition: number;
   business_relevance_score: number;
   keywords: DigitalAdsKeyword[];
   offerings?: string[];
+  cluster?: string;
+  intent_cluster_opportunity_score?: number;
+  comp_sum?: number;
 }
 
 export interface DigitalAdsApiResponse {
@@ -40,11 +43,14 @@ export interface DigitalAdsApiResponse {
   metadata?: Record<string, any>;
   output_data: {
     items: Array<{
-      cluster: string;
-      intent_cluster_opportunity_score: number;
+      cluster?: string;
+      cluster_name?: string;
+      intent_cluster_opportunity_score?: number;
+      opportunity_score?: number;
       total_search_volume: number;
       avg_cpc: number;
-      comp_sum: number;
+      avg_competition?: number;
+      comp_sum?: number;
       business_relevance_score: number;
       keywords: DigitalAdsKeyword[];
       [key: string]: any;

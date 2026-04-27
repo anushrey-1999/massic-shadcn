@@ -47,6 +47,9 @@ export interface TvRadioAdsApiItem {
   ad_concept_id: string;
   channel: TvRadioChannel;
   status?: string;
+  cas_score?: number | null;
+  avg_channel_affinity?: number | null;
+  cohesion_score?: number | null;
   scores?: {
     tcas?: number | null;
     rcas?: number | null;

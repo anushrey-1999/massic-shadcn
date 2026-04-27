@@ -42,7 +42,7 @@ export function usePitches() {
         }
 
         const response = await api.post<{ pitches?: PitchItem[] }>(
-          "/pitches",
+          "/actions/pitches/bulk",
           "python",
           { business_ids: pitchBusinessIds }
         );

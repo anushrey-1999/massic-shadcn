@@ -9,14 +9,14 @@ import { Typography } from "@/components/ui/typography";
 export function getSimplifiedTableColumns(): ColumnDef<DigitalAdsRow>[] {
   return [
     {
-      id: "cluster",
-      accessorKey: "cluster",
+      id: "cluster_name",
+      accessorKey: "cluster_name",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Subtopic" />
       ),
       cell: ({ row }) => (
-        <Typography variant="p" className="truncate max-w-[200px]" title={row.getValue("cluster") as string}>
-          {row.getValue("cluster")}
+        <Typography variant="p" className="truncate max-w-[200px]" title={row.getValue("cluster_name") as string}>
+          {row.getValue("cluster_name")}
         </Typography>
       ),
       meta: {
@@ -31,8 +31,8 @@ export function getSimplifiedTableColumns(): ColumnDef<DigitalAdsRow>[] {
       maxSize: 220,
     },
     {
-      id: "intent_cluster_opportunity_score",
-      accessorKey: "intent_cluster_opportunity_score",
+      id: "opportunity_score",
+      accessorKey: "opportunity_score",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Opp Score" />
       ),
@@ -47,7 +47,7 @@ export function getSimplifiedTableColumns(): ColumnDef<DigitalAdsRow>[] {
       meta: {
         label: "Opp Score",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
       },
       enableColumnFilter: true,
       enableSorting: true,

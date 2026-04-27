@@ -110,7 +110,7 @@ async function fetchGapAnalysis(
 ): Promise<GapAnalysisApiResponse> {
   try {
     return await api.get<GapAnalysisApiResponse>(
-      `/business-analytics?business_id=${businessId}`,
+      `/reports/analytics?business_id=${businessId}`,
       "python"
     )
   } catch (error) {

@@ -231,7 +231,7 @@ export function PitchProfileTemplate() {
     setIsAutofillLoading(true);
     try {
       const res = await api.post<ProfileAutofillResponse>(
-        "/profile-autofill",
+        "/tools/autofill-profile",
         "python",
         { business_url: website },
         { timeout: 120000 }

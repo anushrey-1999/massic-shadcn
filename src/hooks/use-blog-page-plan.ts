@@ -24,7 +24,8 @@ export function useBlogPagePlan(businessId: string) {
 
   const transformToTableRows = useCallback((items: WebPageItem[]): WebPageRow[] => {
     return items.map((item, index) => ({
-      id: item.page_id || item.keyword || `web-page-${index}`,
+      id: item.page_id || item.cluster_name || item.keyword || `web-page-${index}`,
+      cluster_name: item.cluster_name || item.keyword || "",
       sub_topics_count: Array.isArray(item.supporting_keywords)
         ? item.supporting_keywords.length
         : 0,
@@ -45,23 +46,131 @@ export function useBlogPagePlan(businessId: string) {
         queryParams.append("search", params.search);
       }
 
+      const getField = (filter: GetWebPageSchema["filters"][number]) => {
+        if ("field" in filter && typeof (filter as { field?: string }).field === "string") {
+          return (filter as { field?: string }).field;
+        }
+        if (typeof filter.id === "string" && filter.id.length > 0) {
+          return filter.id;
+        }
+        if (typeof filter.filterId === "string" && filter.filterId.length > 0) {
+          return filter.filterId;
+        }
+        return undefined;
+      };
+
+      const mapFieldToApiName = (field: string): string => {
+        const fieldMap: Record<string, string> = {
+          sub_topics_count: "supporting_keyword_count",
+        };
+        return fieldMap[field] ?? field;
+      };
+
+      const percentageFields = new Set(["business_relevance_score", "page_opportunity_score"]);
+      const clamp = (v: number) => Math.max(0, Math.min(1, v));
+      const toDecimal = (pct: string) => parseFloat(pct) / 100;
+
+      const normalizePercentageFilter = (filter: { field: string; value: string | string[]; operator: string }) => {
+        const value = filter.value;
+        const operator = filter.operator;
+
+        if (operator === "isBetween" && Array.isArray(value)) {
+          const [minValue, maxValue] = value;
+          const minNum = toDecimal(minValue);
+          const maxNum = toDecimal(maxValue);
+
+          if (Number.isNaN(minNum) || Number.isNaN(maxNum)) {
+            return [filter];
+          }
+
+          return [
+            {
+              ...filter,
+              operator: "gte",
+              value: String(clamp(minNum - 0.005)),
+            },
+            {
+              ...filter,
+              operator: "lte",
+              value: String(clamp(maxNum + 0.005)),
+            },
+          ];
+        }
+
+        if ((operator === "eq" || operator === "ne") && !Array.isArray(value)) {
+          const num = toDecimal(value);
+          if (Number.isNaN(num)) return [filter];
+
+          if (operator === "eq") {
+            return [
+              {
+                ...filter,
+                operator: "gte",
+                value: String(clamp(num - 0.005)),
+              },
+              {
+                ...filter,
+                operator: "lte",
+                value: String(clamp(num + 0.005)),
+              },
+            ];
+          }
+
+          return [{ ...filter, value: String(num) }];
+        }
+
+        if (operator === "gte" && !Array.isArray(value)) {
+          const num = toDecimal(value);
+          if (Number.isNaN(num)) return [filter];
+          return [{ ...filter, value: String(clamp(num - 0.005)) }];
+        }
+
+        if (operator === "lte" && !Array.isArray(value)) {
+          const num = toDecimal(value);
+          if (Number.isNaN(num)) return [filter];
+          return [{ ...filter, value: String(clamp(num + 0.005)) }];
+        }
+
+        if (!Array.isArray(value)) {
+          const num = toDecimal(value);
+          return Number.isNaN(num) ? [filter] : [{ ...filter, value: String(num) }];
+        }
+
+        return [filter];
+      };
+
       if (params.sort && params.sort.length > 0) {
         const mappedSort = params.sort
           .filter(sortItem => sortItem.field !== 'actions') // Exclude actions from backend sort
-          .map(sortItem => {
-            let field = sortItem.field;
-            if (field === 'sub_topics_count') {
-              field = 'total_supporting_keywords_count';
-            }
-            return { ...sortItem, field };
-          });
+          .map(sortItem => ({
+            ...sortItem,
+            field: mapFieldToApiName(sortItem.field),
+          }));
         if (mappedSort.length > 0) {
           queryParams.append("sort", JSON.stringify(mappedSort));
         }
       }
 
       if (params.filters && params.filters.length > 0) {
-        queryParams.append("filters", JSON.stringify(params.filters));
+        const mappedFilters = params.filters
+          .flatMap((filter) => {
+            const field = getField(filter);
+            if (!field) return [];
+
+            const mappedFilter = {
+              field: mapFieldToApiName(field),
+              value: filter.value,
+              operator: filter.operator,
+            };
+
+            return percentageFields.has(mappedFilter.field)
+              ? normalizePercentageFilter(mappedFilter)
+              : [mappedFilter];
+          });
+
+        if (mappedFilters.length > 0) {
+          queryParams.append("filters", JSON.stringify(mappedFilters));
+        }
       }
 
       if (params.filters && params.filters.length > 0 && params.joinOperator) {
@@ -83,7 +192,7 @@ export function useBlogPagePlan(businessId: string) {
         }
       }
 
-      const endpoint = `/client/create-blog-page-plan?${queryParams.toString()}`;
+      const endpoint = `/strategies/webpages?${queryParams.toString()}`;
 
       try {
         const response = await webPageApi.execute(endpoint, {
@@ -116,9 +225,11 @@ export function useBlogPagePlan(businessId: string) {
                 ? metricsFirst.total_pages
                 : 0,
             total_supporting_keywords:
-              typeof metricsFirst?.total_supporting_keywords === "number"
-                ? metricsFirst.total_supporting_keywords
-                : 0,
+              typeof metricsFirst?.total_keywords === "number"
+                ? metricsFirst.total_keywords
+                : typeof metricsFirst?.total_supporting_keywords === "number"
+                  ? metricsFirst.total_supporting_keywords
+                  : 0,
           }
           : null;
 
@@ -145,7 +256,7 @@ export function useBlogPagePlan(businessId: string) {
 
   const fetchWebPageCounts = useCallback(async () => {
     try {
-      const endpoint = `/client/create-blog-page-plan?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `/strategies/webpages?business_id=${businessId}&page=1&page_size=1000`;
       const response = await webPageApi.execute(endpoint, {
         method: "GET",
       });

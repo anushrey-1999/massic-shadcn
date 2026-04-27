@@ -110,7 +110,9 @@ function isActivePlan(plan: PagePlannerPlanMeta): boolean {
   const status = (plan.status || "").toString().toLowerCase()
   // Server is source-of-truth: some "active" plans still have archived_at set.
   if (status === "active") return true
-  // Fallback when older records don't have status populated.
+  // If status is explicitly set to something non-active, trust the server.
+  if (status) return false
+  // Fallback only when older records don't have status populated at all.
   return Boolean(plan.activated_at) && !isArchived((plan as any).archived_at)
 }
 
@@ -1093,9 +1095,11 @@ export function PagesActionsDropdown({
                 changedKeywordsSet.has(item.keyword)
               const showMarked = showAdded || showChanged
               const statusForCell = String(item.planItemStatus || "").trim().toLowerCase()
+              const pageLabel = (item.keyword || item.title || "").trim() || "N/A"
               const webRow = {
                 id: item.id,
-                keyword: (item.keyword || item.title || "").trim() || "N/A",
+                cluster_name: pageLabel,
+                keyword: pageLabel,
                 page_type: (item.pageType || "").trim() || "page",
                 search_volume: 0,
                 business_relevance_score: 0,

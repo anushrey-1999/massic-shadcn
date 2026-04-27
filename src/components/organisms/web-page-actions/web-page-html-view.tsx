@@ -75,6 +75,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AIRefineToolbarDom } from "@/components/ui/ai-refine-toolbar";
 import { copyToClipboard } from "@/utils/clipboard";
+import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { resolveBlogFinalContent, resolveFormattedBlogHtml, resolvePageContent } from "@/utils/page-content-resolver";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import { ContentConverter } from "@/utils/content-converter";
@@ -547,14 +548,13 @@ export function WebPageHtmlView({
   const [styleTypographyOverridesDraft, setStyleTypographyOverridesDraft] = React.useState<
     Partial<Record<MassicStyleTypographyKey, string>>
   >({});
+  const [blogPostTitleDraft, setBlogPostTitleDraft] = React.useState("");
   const [blogMetaTitleDraft, setBlogMetaTitleDraft] = React.useState("");
   const [blogMetaDescriptionDraft, setBlogMetaDescriptionDraft] = React.useState("");
   const canonicalizeMetaValue = React.useCallback((value: string) => {
     return (value || "").replace(/\r\n/g, "\n").trim();
   }, []);
   const inferPage = data?.output_data?.page || {};
-  const inferFormattedBlog = inferPage?.formatted_blog || {};
-  const inferBlog = inferPage?.blog || {};
   const resolveBlogMetaFields = React.useCallback((responseData: any) => {
     const page = responseData?.output_data?.page || {};
     const formattedBlog = page?.formatted_blog || {};
@@ -574,11 +574,19 @@ export function WebPageHtmlView({
           ? blog.meta_description
           : "";
 
-    return { metaTitle, metaDescription };
+    const postTitle =
+      typeof blog?.title === "string"
+        ? cleanEscapedContent(blog.title)
+        : "";
+
+    return { metaTitle, metaDescription, postTitle };
   }, []);
   const publishTitle = isBlogContent
-    ? canonicalizeMetaValue(blogMetaTitleDraft) || keyword || "Untitled"
+    ? canonicalizeMetaValue(blogPostTitleDraft) || inferPage?.title || keyword || "Untitled"
     : inferPage?.meta_title || inferPage?.title || keyword || "Untitled";
+  const publishSeoTitle = isBlogContent
+    ? canonicalizeMetaValue(blogMetaTitleDraft) || publishTitle
+    : publishTitle;
   const publishDescription = isBlogContent
     ? canonicalizeMetaValue(blogMetaDescriptionDraft)
     : "";
@@ -596,8 +604,11 @@ export function WebPageHtmlView({
     [persistedContent?.slug]
   );
   const generatedSlugFallback = React.useMemo(
-    () => normalizeWordpressSlugPath(publishTitle || keyword || ""),
-    [keyword, publishTitle]
+    () =>
+      normalizeWordpressSlugPath(
+        (isBlogContent ? publishSeoTitle || publishTitle : publishTitle) || keyword || ""
+      ),
+    [isBlogContent, keyword, publishTitle, publishSeoTitle]
   );
   const generatedSlug = React.useMemo(
     () => normalizeWordpressBlogEditableSlug(generatedSlugFallback),
@@ -958,6 +969,7 @@ export function WebPageHtmlView({
   const isSavingRef = React.useRef(false);
   const queuedSaveRef = React.useRef(false);
   const flushSaveRef = React.useRef<((reason: SaveReason) => Promise<void>) | null>(null);
+  const blogPostTitleDraftRef = React.useRef("");
   const blogMetaTitleDraftRef = React.useRef("");
   const blogMetaDescriptionDraftRef = React.useRef("");
   const previewContainerRef = React.useRef<HTMLDivElement | null>(null);
@@ -965,6 +977,7 @@ export function WebPageHtmlView({
   const isEditorFocusedRef = React.useRef(false);
   const isInitialLoadRef = React.useRef(true);
   const lastSavedHtmlRef = React.useRef("");
+  const lastSavedBlogPostTitleRef = React.useRef("");
   const lastSavedMetaTitleRef = React.useRef("");
   const lastSavedMetaDescriptionRef = React.useRef("");
   const lastStatusRef = React.useRef<string>("");
@@ -1001,14 +1014,15 @@ export function WebPageHtmlView({
   }, [normalizeEditorHtml]);
 
   const updateHtmlContentRequest = React.useCallback(
-    async (content: string, metaTitle: string, metaDescription: string) => {
+    async (content: string, metaTitle: string, metaDescription: string, blogPostTitle = "") => {
       if (isBlogContent) {
-        const endpoint = `/client/update-ai-blog-writer-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+        const endpoint = `/content/blogs/content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
         await api.post(
           endpoint,
           "python",
           {
             html: content,
+            title: blogPostTitle || undefined,
             meta_title: metaTitle || undefined,
             meta_description: metaDescription,
           },
@@ -1022,7 +1036,7 @@ export function WebPageHtmlView({
         return;
       }
 
-      const endpoint = `/client/update-page-builder-content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
+      const endpoint = `/content/pages/content?business_id=${encodeURIComponent(businessId)}&page_id=${encodeURIComponent(pageId)}`;
       await api.post(
         endpoint,
         "python",
@@ -1039,9 +1053,10 @@ export function WebPageHtmlView({
   );
 
   React.useEffect(() => {
+    blogPostTitleDraftRef.current = blogPostTitleDraft;
     blogMetaTitleDraftRef.current = blogMetaTitleDraft;
     blogMetaDescriptionDraftRef.current = blogMetaDescriptionDraft;
-  }, [blogMetaDescriptionDraft, blogMetaTitleDraft]);
+  }, [blogMetaDescriptionDraft, blogMetaTitleDraft, blogPostTitleDraft]);
 
   const runBackgroundRefetch = React.useCallback(
     async (attempt = 0) => {
@@ -1054,7 +1069,8 @@ export function WebPageHtmlView({
       const latestBlogMeta = isBlogContent ? resolveBlogMetaFields(latestData) : null;
       const serverMetaMatchesLocal = !isBlogContent || (
         canonicalizeMetaValue(latestBlogMeta?.metaTitle || "") === lastSavedMetaTitleRef.current &&
-        canonicalizeMetaValue(latestBlogMeta?.metaDescription || "") === lastSavedMetaDescriptionRef.current
+        canonicalizeMetaValue(latestBlogMeta?.metaDescription || "") === lastSavedMetaDescriptionRef.current &&
+        canonicalizeMetaValue(latestBlogMeta?.postTitle || "") === lastSavedBlogPostTitleRef.current
       );
       if (!committedCanonical) return;
 
@@ -1083,7 +1099,12 @@ export function WebPageHtmlView({
     [canonicalizeMetaValue, contentQuery, isBlogContent, normalizeEditorHtml, resolveBlogMetaFields, resolveHtmlContent]
   );
 
-  const scheduleDebouncedSave = React.useCallback(() => {
+  /** Preview / layout HTML commits */
+  const HTML_SAVE_DEBOUNCE_MS = 1200;
+  /** Blog post title + SEO fields — longer quiet period to cut API noise */
+  const BLOG_META_FIELD_DEBOUNCE_MS = 2800;
+
+  const scheduleDebouncedSave = React.useCallback((debounceMs: number = HTML_SAVE_DEBOUNCE_MS) => {
     if (saveTimerRef.current) {
       window.clearTimeout(saveTimerRef.current);
     }
@@ -1091,7 +1112,15 @@ export function WebPageHtmlView({
     saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null;
       void flushSaveRef.current?.("debounce");
-    }, 1000);
+    }, debounceMs);
+  }, []);
+
+  const flushPendingDebouncedSave = React.useCallback(() => {
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    void flushSaveRef.current?.("blur");
   }, []);
 
   const flushSave = React.useCallback(
@@ -1100,6 +1129,7 @@ export function WebPageHtmlView({
       if (!nextHtml) return;
       const nextMetaTitle = canonicalizeMetaValue(blogMetaTitleDraftRef.current);
       const nextMetaDescription = canonicalizeMetaValue(blogMetaDescriptionDraftRef.current);
+      const nextBlogPostTitle = canonicalizeMetaValue(blogPostTitleDraftRef.current);
       const validation = validateEditorHtml(nextHtml);
       if (!validation.isValid) {
         toast.error(validation.errors[0] || "Layout is invalid and could not be saved.");
@@ -1108,7 +1138,8 @@ export function WebPageHtmlView({
       const hasHtmlChanges = canonicalizeHtml(nextHtml) !== canonicalizeHtml(lastSavedHtmlRef.current);
       const hasMetaChanges = isBlogContent && (
         nextMetaTitle !== lastSavedMetaTitleRef.current ||
-        nextMetaDescription !== lastSavedMetaDescriptionRef.current
+        nextMetaDescription !== lastSavedMetaDescriptionRef.current ||
+        nextBlogPostTitle !== lastSavedBlogPostTitleRef.current
       );
       if (!hasHtmlChanges && !hasMetaChanges) return;
       hasLocalEditsRef.current = true;
@@ -1125,10 +1156,18 @@ export function WebPageHtmlView({
       const submittedLinkLabelEdits = { ...linkLabelEditsRef.current };
       const submittedSpacingEdits = { ...spacingEditsRef.current };
       try {
-        await updateHtmlContentRequest(nextHtml, nextMetaTitle, nextMetaDescription);
+        await updateHtmlContentRequest(
+          nextHtml,
+          nextMetaTitle,
+          nextMetaDescription,
+          isBlogContent ? nextBlogPostTitle : ""
+        );
         sourceHtmlRef.current = nextHtml;
         lastSavedHtmlRef.current = canonicalizeHtml(nextHtml);
         lastCommittedHtmlRef.current = canonicalizeHtml(nextHtml);
+        if (isBlogContent) {
+          lastSavedBlogPostTitleRef.current = nextBlogPostTitle;
+        }
         lastSavedMetaTitleRef.current = nextMetaTitle;
         lastSavedMetaDescriptionRef.current = nextMetaDescription;
         // Keep newer edits typed while this save was in-flight.
@@ -1178,8 +1217,13 @@ export function WebPageHtmlView({
           setPreviewHtml(committedModel.previewHtml);
         }
 
+        const metaOnlyBlogSave = isBlogContent && hasMetaChanges && !hasHtmlChanges;
+
         if (isEditorFocusedRef.current && reason === "debounce") {
           pendingBackgroundRefetchRef.current = true;
+        } else if (metaOnlyBlogSave) {
+          pendingBackgroundRefetchRef.current = false;
+          // HTML unchanged — refetch would churn the editor without new document body
         } else {
           pendingBackgroundRefetchRef.current = false;
           window.setTimeout(() => {
@@ -1216,7 +1260,9 @@ export function WebPageHtmlView({
     const transitionedFromPollingToTerminal = wasPolling && !isPolling;
     const rawPage = resolveHtmlContent(data);
     const sanitized = normalizeEditorHtml(rawPage);
-    const nextBlogMeta = isBlogContent ? resolveBlogMetaFields(data) : { metaTitle: "", metaDescription: "" };
+    const nextBlogMeta = isBlogContent
+      ? resolveBlogMetaFields(data)
+      : { metaTitle: "", metaDescription: "", postTitle: "" };
     const serverCanonical = canonicalizeHtml(sanitized);
     const localCanonical = canonicalizeHtml(lastSavedHtmlRef.current);
     const hasPendingEdits =
@@ -1225,13 +1271,15 @@ export function WebPageHtmlView({
       Object.keys(linkLabelEditsRef.current).length > 0 ||
       Object.keys(spacingEditsRef.current).length > 0;
     const hasPendingMetaEdits = isBlogContent && (
+      canonicalizeMetaValue(blogPostTitleDraftRef.current) !== lastSavedBlogPostTitleRef.current ||
       canonicalizeMetaValue(blogMetaTitleDraftRef.current) !== lastSavedMetaTitleRef.current ||
       canonicalizeMetaValue(blogMetaDescriptionDraftRef.current) !== lastSavedMetaDescriptionRef.current
     );
     const localChangeInProgress = hasLocalEditsRef.current || hasPendingEdits || hasPendingMetaEdits || isSavingRef.current;
     const serverMetaMatchesLocal = !isBlogContent || (
       canonicalizeMetaValue(nextBlogMeta.metaTitle) === lastSavedMetaTitleRef.current &&
-      canonicalizeMetaValue(nextBlogMeta.metaDescription) === lastSavedMetaDescriptionRef.current
+      canonicalizeMetaValue(nextBlogMeta.metaDescription) === lastSavedMetaDescriptionRef.current &&
+      canonicalizeMetaValue(nextBlogMeta.postTitle) === lastSavedBlogPostTitleRef.current
     );
     const serverMatchesLocal = localCanonical.length > 0 && serverCanonical === localCanonical && serverMetaMatchesLocal;
 
@@ -1275,9 +1323,11 @@ export function WebPageHtmlView({
     linkLabelEditsRef.current = {};
     spacingEditsRef.current = {};
     lastSavedHtmlRef.current = canonicalizeHtml(sanitized);
+    lastSavedBlogPostTitleRef.current = canonicalizeMetaValue(nextBlogMeta.postTitle);
     lastSavedMetaTitleRef.current = canonicalizeMetaValue(nextBlogMeta.metaTitle);
     lastSavedMetaDescriptionRef.current = canonicalizeMetaValue(nextBlogMeta.metaDescription);
     if (isBlogContent) {
+      setBlogPostTitleDraft(nextBlogMeta.postTitle);
       setBlogMetaTitleDraft(nextBlogMeta.metaTitle);
       setBlogMetaDescriptionDraft(nextBlogMeta.metaDescription);
     }
@@ -1359,14 +1409,14 @@ export function WebPageHtmlView({
         head: isBlogContent
           ? {
             title: String(publishTitle),
-            seoTitle: String(publishTitle),
+            seoTitle: String(publishSeoTitle),
             metaDescription: publishDescription || undefined,
-            ogTitle: String(publishTitle),
+            ogTitle: String(publishSeoTitle),
             ogDescription: publishDescription || undefined,
-            twitterTitle: String(publishTitle),
+            twitterTitle: String(publishSeoTitle),
             twitterDescription: publishDescription || undefined,
             metaKeys: {
-              _massic_meta_title: String(publishTitle),
+              _massic_meta_title: String(publishSeoTitle),
               _massic_meta_description: publishDescription || undefined,
             },
             meta: { description: publishDescription || undefined },
@@ -1374,7 +1424,18 @@ export function WebPageHtmlView({
           : { title: String(publishTitle), meta: { description: publishDescription || undefined } },
       };
     },
-    [composeCurrentHtml, data, isBlogContent, publishContentId, publishDescription, publishTitle, publishType, normalizedSlugForPublish, wpConnection?.connectionId]
+    [
+      composeCurrentHtml,
+      data,
+      isBlogContent,
+      publishContentId,
+      publishDescription,
+      publishSeoTitle,
+      publishTitle,
+      publishType,
+      normalizedSlugForPublish,
+      wpConnection?.connectionId,
+    ]
   );
 
   const runSlugCheck = React.useCallback(
@@ -1719,6 +1780,12 @@ export function WebPageHtmlView({
 
   const handleCopyMetaDescription = async () => {
     const ok = await copyToClipboard(blogMetaDescriptionDraft || "");
+    if (ok) toast.success("Copied");
+    else toast.error("Copy failed");
+  };
+
+  const handleCopyBlogTitle = async () => {
+    const ok = await copyToClipboard(blogPostTitleDraft || "");
     if (ok) toast.success("Copied");
     else toast.error("Copy failed");
   };
@@ -2485,7 +2552,7 @@ export function WebPageHtmlView({
           : instruction;
 
       const response = await api.post<AiTextTransformResponse>(
-        `/ai/text/transform?business_id=${encodeURIComponent(businessId)}`,
+        `/tools/transform-text?business_id=${encodeURIComponent(businessId)}`,
         "python",
         {
           selected_text: selectedText,
@@ -3388,17 +3455,35 @@ export function WebPageHtmlView({
     if (!nextHtml) return;
     const nextMetaTitle = canonicalizeMetaValue(blogMetaTitleDraftRef.current);
     const nextMetaDescription = canonicalizeMetaValue(blogMetaDescriptionDraftRef.current);
+    const nextBlogPostTitle = canonicalizeMetaValue(blogPostTitleDraftRef.current);
     const validation = validateEditorHtml(nextHtml);
     if (!validation.isValid) {
       toast.error(validation.errors[0] || "Layout is invalid and could not be saved.");
       return;
     }
+    const prevSavedHtmlCanon = canonicalizeHtml(lastSavedHtmlRef.current);
+    const hadHtmlChanges = canonicalizeHtml(nextHtml) !== prevSavedHtmlCanon;
+    const hadMetaChanges =
+      isBlogContent &&
+      (nextMetaTitle !== lastSavedMetaTitleRef.current ||
+        nextMetaDescription !== lastSavedMetaDescriptionRef.current ||
+        nextBlogPostTitle !== lastSavedBlogPostTitleRef.current);
+    const metaOnlyBlogSave = isBlogContent && hadMetaChanges && !hadHtmlChanges;
+
     setIsSaving(true);
     try {
-      await updateHtmlContentRequest(nextHtml, nextMetaTitle, nextMetaDescription);
+      await updateHtmlContentRequest(
+        nextHtml,
+        nextMetaTitle,
+        nextMetaDescription,
+        isBlogContent ? nextBlogPostTitle : ""
+      );
       sourceHtmlRef.current = nextHtml;
       lastSavedHtmlRef.current = canonicalizeHtml(nextHtml);
       lastCommittedHtmlRef.current = canonicalizeHtml(nextHtml);
+      if (isBlogContent) {
+        lastSavedBlogPostTitleRef.current = nextBlogPostTitle;
+      }
       lastSavedMetaTitleRef.current = nextMetaTitle;
       lastSavedMetaDescriptionRef.current = nextMetaDescription;
       editsRef.current = {};
@@ -3426,13 +3511,17 @@ export function WebPageHtmlView({
       setLinkHrefError(null);
 
       toast.success("Changes saved");
-      window.setTimeout(() => { void runBackgroundRefetch(); }, 500);
+      if (!metaOnlyBlogSave) {
+        window.setTimeout(() => {
+          void runBackgroundRefetch();
+        }, 500);
+      }
     } catch {
       toast.error("Failed to save changes");
     } finally {
       setIsSaving(false);
     }
-  }, [canonicalizeMetaValue, composeCurrentHtml, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml]);
+  }, [canonicalizeMetaValue, composeCurrentHtml, isBlogContent, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml]);
 
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -3991,17 +4080,21 @@ export function WebPageHtmlView({
                 <Save className="h-4 w-4" />
               </Button>
             </TooltipTrigger><TooltipContent>{isSaving ? "Saving..." : isDirty ? "Save" : "Saved"}</TooltipContent></Tooltip>
-            <div className="h-5 w-px bg-border" />
-            <Tooltip><TooltipTrigger asChild>
-              <Button variant="outline" size="icon" className="h-[34px] w-[34px]" onClick={handleCopyHtml} disabled={isProcessing}>
-                <FileCode className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger><TooltipContent>Copy HTML</TooltipContent></Tooltip>
-            <Tooltip><TooltipTrigger asChild>
-              <Button variant="outline" size="icon" className="h-[34px] w-[34px]" onClick={handleCopyText} disabled={isProcessing}>
-                <FileText className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger><TooltipContent>Copy Text</TooltipContent></Tooltip>
+            {!isProcessing && (
+              <>
+                <div className="h-5 w-px bg-border" />
+                <Tooltip><TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-[34px] w-[34px]" onClick={handleCopyHtml}>
+                    <FileCode className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger><TooltipContent>Copy HTML</TooltipContent></Tooltip>
+                <Tooltip><TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-[34px] w-[34px]" onClick={handleCopyText}>
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger><TooltipContent>Copy Text</TooltipContent></Tooltip>
+              </>
+            )}
             {isBlogContent ? (
               <Button
                 className="gap-2"
@@ -4037,7 +4130,20 @@ export function WebPageHtmlView({
                 </Typography>
               </div>
               <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
-              <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
+              {isBlogContent ? (
+                <div className="space-y-2 pt-1">
+                  <div>
+                    <Typography className="text-xs text-muted-foreground">Post title</Typography>
+                    <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
+                  </div>
+                  <div>
+                    <Typography className="text-xs text-muted-foreground">SEO title</Typography>
+                    <Typography className="text-sm line-clamp-2">{publishSeoTitle}</Typography>
+                  </div>
+                </div>
+              ) : (
+                <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
+              )}
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
                 <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>
@@ -4538,7 +4644,42 @@ export function WebPageHtmlView({
         ) : null}
 
         {!isProcessing && status !== "error" ? (
-          <Card className="p-0">
+          <>
+            {isBlogContent ? (
+              <Card className="border-border/50 px-2.5 py-1.5 shadow-none">
+                <div className="flex items-center gap-2">
+                  <Typography className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Title
+                  </Typography>
+                  <div className="min-w-0 flex-1 rounded-md bg-muted/30 px-1.5">
+                    <Input
+                      value={blogPostTitleDraft}
+                      onChange={(event) => {
+                        setBlogPostTitleDraft(event.target.value);
+                        hasLocalEditsRef.current = true;
+                        isEditingSessionRef.current = true;
+                        setIsDirty(true);
+                        scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
+                      }}
+                      onBlur={flushPendingDebouncedSave}
+                      placeholder="Enter post title"
+                      className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 text-muted-foreground"
+                    onClick={() => void handleCopyBlogTitle()}
+                    disabled={!blogPostTitleDraft}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </Card>
+            ) : null}
+            <Card className="p-0">
             <div className="sticky top-0 z-30 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
               <div>
                 {previewEditMode === "text" ? (
@@ -4916,8 +5057,9 @@ export function WebPageHtmlView({
                         hasLocalEditsRef.current = true;
                         isEditingSessionRef.current = true;
                         setIsDirty(true);
-                        scheduleDebouncedSave();
+                        scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
                       }}
+                      onBlur={flushPendingDebouncedSave}
                       placeholder="Enter blog meta title"
                     />
                   </div>
@@ -4935,8 +5077,9 @@ export function WebPageHtmlView({
                         hasLocalEditsRef.current = true;
                         isEditingSessionRef.current = true;
                         setIsDirty(true);
-                        scheduleDebouncedSave();
+                        scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
                       }}
+                      onBlur={flushPendingDebouncedSave}
                       placeholder="Enter blog meta description"
                       className="min-h-[120px]"
                     />
@@ -5220,6 +5363,7 @@ export function WebPageHtmlView({
               }
             `}</style>
           </Card>
+          </>
         ) : null}
       </div>
     </div>

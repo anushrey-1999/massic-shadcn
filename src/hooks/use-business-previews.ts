@@ -60,7 +60,7 @@ export function useBusinessPreviews(period: string = "3 months") {
         dimensions: [{ name: "date" }],
       }
 
-      const response = await api.post<any>("/fetch-business-previews", "node", payload)
+      const response = await api.post<any>("/business/previews/db", "node", payload)
       return normalizePreviewResponse(response)
     },
     enabled: isAuthenticated && !!userUniqueId,

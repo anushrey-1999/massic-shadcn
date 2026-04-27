@@ -56,7 +56,7 @@ function getBaseURLByPlatform(platform: ApiPlatform): string {
     // return 'http://localhost:4922/api/1'
 
     case "python":
-      return process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v1";
+      return process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v2";
 
     case "dotnet":
       return process.env.NEXT_PUBLIC_DOTNET_API_URL || "https://seedcore.seedinternaldev.xyz/api";

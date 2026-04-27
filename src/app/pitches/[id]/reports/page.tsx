@@ -107,7 +107,7 @@ export default function PitchReportsPage() {
     queryFn: async () => {
       if (!businessId) return null;
       try {
-        return await api.get("/client/quicky", "python", {
+        return await api.get("/reports/snapshot", "python", {
           params: { business_id: businessId },
         });
       } catch (error: any) {
@@ -131,7 +131,7 @@ export default function PitchReportsPage() {
     queryFn: async () => {
       if (!businessId) return [];
       const res = await api.post<{ pitches?: any[] }>(
-        "/pitches",
+        "/actions/pitches/bulk",
         "python",
         { business_ids: [businessId] }
       );
@@ -394,7 +394,7 @@ export default function PitchReportsPage() {
     queryFn: async () => {
       if (!businessId) return null;
       try {
-        return await api.get("/client/pitches", "python", {
+        return await api.get("/actions/pitches", "python", {
           params: { business_id: businessId },
         });
       } catch (error: any) {
@@ -423,7 +423,7 @@ export default function PitchReportsPage() {
     queryFn: async () => {
       if (!businessId) return null;
       try {
-        return await api.get("/client/pitches", "python", {
+        return await api.get("/actions/pitches", "python", {
           params: { business_id: businessId },
         });
       } catch (error: any) {

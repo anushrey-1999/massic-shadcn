@@ -23,15 +23,16 @@ function getAvgCpc(item: TvRadioAdsApiItem): number {
 }
 
 function getOppScore(item: TvRadioAdsApiItem): number {
-  const score =
-    item.channel === "Radio"
-      ? item.scores?.rcas
-      : item.scores?.tcas;
+  // New API fields (item-level)
+  if (typeof item.cas_score === "number" && Number.isFinite(item.cas_score)) return item.cas_score;
+  if (typeof item.avg_channel_affinity === "number" && Number.isFinite(item.avg_channel_affinity)) return item.avg_channel_affinity;
 
-  if (typeof score === "number" && Number.isFinite(score)) return score;
+  // Legacy fallback
+  const legacyScore = item.channel === "Radio" ? item.scores?.rcas : item.scores?.tcas;
+  if (typeof legacyScore === "number" && Number.isFinite(legacyScore)) return legacyScore;
 
-  const fallback = item.channel === "Radio" ? item.scores?.avg_radio_affinity : item.scores?.avg_tv_affinity;
-  if (typeof fallback === "number" && Number.isFinite(fallback)) return fallback;
+  const legacyFallback = item.channel === "Radio" ? item.scores?.avg_radio_affinity : item.scores?.avg_tv_affinity;
+  if (typeof legacyFallback === "number" && Number.isFinite(legacyFallback)) return legacyFallback;
 
   return 0;
 }
@@ -43,8 +44,8 @@ function toArray(value: unknown): string[] {
 
 function normalizeTvRadioType(value: string): string {
   const normalized = value.trim().toLowerCase();
-  if (normalized === "tv") return "tv";
-  if (normalized === "radio") return "radio";
+  if (normalized === "tv") return "TV";
+  if (normalized === "radio") return "Radio";
   return value;
 }
 
@@ -56,8 +57,12 @@ function mapTvRadioApiField(field: string): string {
       return "channel";
     case "relevance":
       return "avg_business_relevance";
+    case "opp_score":
+      return "cas_score";
     case "volume":
-      return "total_search_volume";
+      return "supporting_data.totals.total_search_volume";
+    case "total_search_volume":
+      return "supporting_data.totals.total_search_volume";
     default:
       return field;
   }
@@ -113,6 +118,85 @@ export function useTvRadioAds(_businessId: string) {
 
       if (params.search) queryParams.append("search", params.search);
 
+      const percentageFields = new Set([
+        "avg_business_relevance",
+        "cas_score",
+      ]);
+      const clamp = (v: number) => Math.max(0, Math.min(1, v));
+      const toDecimal = (pct: string) => parseFloat(pct) / 100;
+
+      const normalizePercentageFilter = (filter: {
+        field: string;
+        value: string | string[];
+        operator: string;
+      }) => {
+        const { value, operator } = filter;
+
+        if (operator === "isBetween" && Array.isArray(value)) {
+          const [minValue, maxValue] = value;
+          const minNum = toDecimal(minValue);
+          const maxNum = toDecimal(maxValue);
+
+          if (Number.isNaN(minNum) || Number.isNaN(maxNum)) {
+            return [filter];
+          }
+
+          return [
+            {
+              ...filter,
+              operator: "gte",
+              value: String(clamp(minNum - 0.005)),
+            },
+            {
+              ...filter,
+              operator: "lte",
+              value: String(clamp(maxNum + 0.005)),
+            },
+          ];
+        }
+
+        if ((operator === "eq" || operator === "ne") && !Array.isArray(value)) {
+          const num = toDecimal(value);
+          if (Number.isNaN(num)) return [filter];
+
+          if (operator === "eq") {
+            return [
+              {
+                ...filter,
+                operator: "gte",
+                value: String(clamp(num - 0.005)),
+              },
+              {
+                ...filter,
+                operator: "lte",
+                value: String(clamp(num + 0.005)),
+              },
+            ];
+          }
+
+          return [{ ...filter, value: String(num) }];
+        }
+
+        if (operator === "gte" && !Array.isArray(value)) {
+          const num = toDecimal(value);
+          if (Number.isNaN(num)) return [filter];
+          return [{ ...filter, value: String(clamp(num - 0.005)) }];
+        }
+
+        if (operator === "lte" && !Array.isArray(value)) {
+          const num = toDecimal(value);
+          if (Number.isNaN(num)) return [filter];
+          return [{ ...filter, value: String(clamp(num + 0.005)) }];
+        }
+
+        if (!Array.isArray(value)) {
+          const num = toDecimal(value);
+          return Number.isNaN(num) ? [filter] : [{ ...filter, value: String(num) }];
+        }
+
+        return [filter];
+      };
+
       if (params.sort && params.sort.length > 0) {
         const modifiedSort = params.sort.map((item) => ({
           ...item,
@@ -123,16 +207,23 @@ export function useTvRadioAds(_businessId: string) {
       }
 
       if (params.filters && params.filters.length > 0) {
-        const modifiedFilters = params.filters.map((filter) => ({
-          field: mapTvRadioApiField(filter.field),
-          value:
-            mapTvRadioApiField(filter.field) === "channel"
-              ? Array.isArray(filter.value)
-                ? filter.value.map(normalizeTvRadioType)
-                : normalizeTvRadioType(String(filter.value))
-              : filter.value,
-          operator: filter.operator,
-        }));
+        const modifiedFilters = params.filters.flatMap((filter) => {
+          const apiField = mapTvRadioApiField(filter.field);
+          const mappedFilter = {
+            field: apiField,
+            value:
+              apiField === "channel"
+                ? Array.isArray(filter.value)
+                  ? filter.value.map(normalizeTvRadioType)
+                  : normalizeTvRadioType(String(filter.value))
+                : filter.value,
+            operator: filter.operator,
+          };
+
+          return percentageFields.has(apiField)
+            ? normalizePercentageFilter(mappedFilter)
+            : [mappedFilter];
+        });
 
         if (modifiedFilters.length > 0) {
           queryParams.append("filters", JSON.stringify(modifiedFilters));
@@ -143,14 +234,13 @@ export function useTvRadioAds(_businessId: string) {
         queryParams.append("joinOperator", params.joinOperator);
       }
 
-      const endpoint = `/client/ad-concept-generator?${queryParams.toString()}`;
+      const endpoint = `/strategies/ad-concepts?${queryParams.toString()}`;
 
       const response = await api.execute(endpoint, { method: "GET" });
 
       const items = response?.output_data?.items || [];
       const rows = transformToTableRows(items);
       const pagination = response?.output_data?.pagination;
-
       const pageCount = Number(pagination?.total_pages || 0);
 
       const metricsMaybe =

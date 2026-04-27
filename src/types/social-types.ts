@@ -6,6 +6,7 @@ export interface SocialItem {
   campaign_relevance?: number;
   tactics?: string[];
   total_clusters?: number;
+  cluster_count?: number;
   id?: string;
   [key: string]: any;
 }

@@ -12,6 +12,11 @@ import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import type { UnifiedPageRow } from "@/hooks/use-unified-web-optimization";
 import { getWebUnifiedPagesTableColumns } from "./web-unified-pages-table-columns";
 
+const WEB_UNIFIED_QUERY_KEYS = {
+  filters: "webUnifiedFilters",
+  joinOperator: "webUnifiedJoin",
+} as const;
+
 interface WebUnifiedPagesTableProps {
   data: UnifiedPageRow[];
   businessId: string;
@@ -58,6 +63,15 @@ export function WebUnifiedPagesTable({
       },
     },
     getRowId: (row: UnifiedPageRow) => row.id,
+    meta: {
+      queryKeys: {
+        filters: WEB_UNIFIED_QUERY_KEYS.filters,
+        joinOperator: WEB_UNIFIED_QUERY_KEYS.joinOperator,
+        page: "page",
+        perPage: "perPage",
+        sort: "sort",
+      },
+    },
   });
 
   return (

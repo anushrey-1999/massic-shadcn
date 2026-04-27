@@ -61,8 +61,12 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
       cell: ({ cell }) => <TypeCell value={cell.getValue<TvRadioChannel>()} />,
       meta: {
         label: "Type",
-        variant: "text",
-        placeholder: "TV or Radio...",
+        variant: "select",
+        placeholder: "Select type...",
+        options: [
+          { label: "TV", value: "TV" },
+          { label: "Radio", value: "Radio" },
+        ],
         apiField: "channel",
       },
       enableColumnFilter: true,
@@ -85,7 +89,7 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
       meta: {
         label: "Relevance",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
         apiField: "avg_business_relevance",
       },
       enableColumnFilter: true,
@@ -108,7 +112,8 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
       meta: {
         label: "Priority",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
+        apiField: "cas_score",
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -129,7 +134,7 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
         label: "Volume",
         variant: "range",
         range: [0, 10000000],
-        apiField: "total_search_volume",
+        apiField: "supporting_data.totals.total_search_volume",
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -174,8 +179,12 @@ export function getTvRadioAdsSplitViewColumns(): ColumnDef<TvRadioAdConceptRow>[
       cell: ({ cell }) => <TypeCell value={cell.getValue<TvRadioChannel>()} />,
       meta: {
         label: "Type",
-        variant: "text",
-        placeholder: "TV or Radio...",
+        variant: "select",
+        placeholder: "Select type...",
+        options: [
+          { label: "TV", value: "TV" },
+          { label: "Radio", value: "Radio" },
+        ],
         apiField: "channel",
       },
       enableColumnFilter: true,
@@ -198,7 +207,8 @@ export function getTvRadioAdsSplitViewColumns(): ColumnDef<TvRadioAdConceptRow>[
       meta: {
         label: "Priority",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
+        apiField: "cas_score",
       },
       enableColumnFilter: true,
       enableSorting: true,

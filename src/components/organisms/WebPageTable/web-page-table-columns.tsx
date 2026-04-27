@@ -21,14 +21,14 @@ interface GetWebPageTableColumnsProps {
 export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange, hideActions = false }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
   const columns: ColumnDef<WebPageRow>[] = [
     {
-      id: "keyword",
-      accessorKey: "keyword",
+      id: "cluster_name",
+      accessorKey: "cluster_name",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Page" />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
-          {row.getValue("keyword") || "N/A"}
+          {row.getValue("cluster_name") || "N/A"}
         </Typography>
       ),
       meta: {
@@ -133,7 +133,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       meta: {
         label: "Business Relevance",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

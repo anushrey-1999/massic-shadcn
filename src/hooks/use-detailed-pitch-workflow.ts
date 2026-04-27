@@ -72,7 +72,7 @@ export function useTriggerWorkflow() {
       }
 
       const response = await api.post<WorkflowStatusResponse>(
-        "/trigger-workflow",
+        "/jobs/run",
         "python",
         { business_id: businessId }
       );
@@ -105,7 +105,7 @@ export function usePollWorkflowStatus(businessId: string | null, enabled: boolea
       if (!businessId) return null;
 
       const response = await api.post<WorkflowStatusResponse>(
-        "/trigger-workflow",
+        "/jobs/run",
         "python",
         { business_id: businessId }
       );
@@ -137,7 +137,7 @@ export function useGetDetailedReport(
       if (!businessId) return null;
 
       try {
-        const response = await api.get<DetailedReportResponse>("/client/pitches", "python", {
+        const response = await api.get<DetailedReportResponse>("/actions/pitches", "python", {
           params: { business_id: businessId },
         });
         return response;
@@ -167,7 +167,7 @@ export function useGenerateDetailedReport() {
         throw new Error("Business ID is required");
       }
 
-      const response = await api.post<DetailedReportResponse>("/client/pitches", "python", undefined, {
+      const response = await api.post<DetailedReportResponse>("/actions/pitches", "python", undefined, {
         params: { business_id: businessId },
       });
       return response;

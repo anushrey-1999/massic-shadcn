@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, Plus } from "lucide-react";
+import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 
 import {
@@ -42,6 +43,12 @@ export function AutoScheduleDialog({
   const [requiresApproval, setRequiresApproval] = React.useState<boolean>(true);
   const [watermarkReport, setWatermarkReport] = React.useState<boolean>(true);
   const [isActive, setIsActive] = React.useState<boolean>(true);
+  const [recipients, setRecipients] = React.useState<string[]>([]);
+  const [newEmail, setNewEmail] = React.useState("");
+  const [emailError, setEmailError] = React.useState("");
+
+  const user = useAuthStore((s) => s.user);
+  const userEmail = user?.email || "";
 
   const createAutoSchedule = useCreateAutoSchedule();
   const updateAutoSchedule = useUpdateAutoSchedule();
@@ -50,18 +57,22 @@ export function AutoScheduleDialog({
 
   React.useEffect(() => {
     if (isOpen) {
+      setNewEmail("");
+      setEmailError("");
       if (existingSchedule) {
         setPeriod(existingSchedule.period || "3 months");
         setFrequency(existingSchedule.frequency);
         setRequiresApproval(existingSchedule.requiresApproval);
         setWatermarkReport(existingSchedule.watermarkReport);
         setIsActive(existingSchedule.isActive);
+        setRecipients(existingSchedule.recipients?.length ? existingSchedule.recipients : []);
       } else {
         setPeriod("3 months");
         setFrequency("weekly");
         setRequiresApproval(true);
         setWatermarkReport(true);
         setIsActive(true);
+        setRecipients([]);
       }
     }
   }, [isOpen, existingSchedule]);
@@ -85,6 +96,45 @@ export function AutoScheduleDialog({
     }
   };
 
+  const allRecipients = React.useMemo(() => {
+    if (!userEmail) return recipients;
+    const lower = userEmail.toLowerCase();
+    if (recipients.some((r) => r.toLowerCase() === lower)) return recipients;
+    return [userEmail, ...recipients];
+  }, [userEmail, recipients]);
+
+  const handleAddEmail = () => {
+    const trimmed = newEmail.trim().toLowerCase();
+    if (!trimmed) return;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+
+    if (allRecipients.some((r) => r.toLowerCase() === trimmed)) {
+      setEmailError("This email is already added");
+      return;
+    }
+
+    setRecipients((prev) => [...prev, trimmed]);
+    setNewEmail("");
+    setEmailError("");
+  };
+
+  const handleRemoveEmail = (email: string) => {
+    if (email.toLowerCase() === userEmail.toLowerCase()) return;
+    setRecipients((prev) => prev.filter((r) => r.toLowerCase() !== email.toLowerCase()));
+  };
+
+  const handleEmailKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddEmail();
+    }
+  };
+
   const handleSave = async () => {
     if (!businessId) return;
 
@@ -98,6 +148,7 @@ export function AutoScheduleDialog({
             requiresApproval,
             watermarkReport,
             isActive,
+            recipients: allRecipients,
           },
           businessId,
         });
@@ -110,6 +161,7 @@ export function AutoScheduleDialog({
           period,
           requiresApproval,
           watermarkReport,
+          recipients: allRecipients,
         });
 
         toast.success("Auto-schedule created successfully", {
@@ -331,6 +383,65 @@ export function AutoScheduleDialog({
                 alt="Powered by Massic"
                 className="w-full h-full"
               />
+            </div>
+          </div>
+          {/* Recipients Card */}
+          <div className="bg-[#FAFAFA] flex flex-col gap-[6px] items-start p-2 rounded-[8px] w-full">
+            <p className="font-medium text-[14px] leading-[1.5] tracking-[0.07px] text-[#0A0A0A]">
+              Recipients
+            </p>
+            <div className="flex flex-wrap gap-2 w-full">
+              {allRecipients.map((email) => {
+                const isOwner = email.toLowerCase() === userEmail.toLowerCase();
+                return (
+                  <span
+                    key={email}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-white rounded-md shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] text-[12px] leading-[1.5] tracking-[0.18px] text-[#404040]"
+                  >
+                    {email}
+                    {isOwner && (
+                      <span className="text-[10px] text-[#737373] ml-0.5">(you)</span>
+                    )}
+                    {!isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEmail(email)}
+                        disabled={isLoading}
+                        className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity disabled:opacity-30"
+                      >
+                        <X className="h-3 w-3 text-[#525252]" strokeWidth={2} />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 items-start w-full">
+              <div className="flex-1 flex flex-col">
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => {
+                    setNewEmail(e.target.value);
+                    if (emailError) setEmailError("");
+                  }}
+                  onKeyDown={handleEmailKeyDown}
+                  placeholder="Add recipient email"
+                  disabled={isLoading}
+                  className="w-full h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] px-3 py-[7.5px] border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-[#0A0A0A] placeholder:text-[#A3A3A3] outline-none disabled:opacity-50"
+                />
+                {emailError && (
+                  <p className="text-[11px] text-red-500 mt-1 ml-1">{emailError}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleAddEmail}
+                disabled={isLoading || !newEmail.trim()}
+                className="flex items-center justify-center h-9 w-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] hover:bg-[rgba(0,0,0,0.03)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              >
+                <Plus className="h-4 w-4 text-[#525252]" strokeWidth={1.5} />
+              </button>
             </div>
           </div>
         </div>

@@ -182,6 +182,45 @@ export const BusinessInfoForm = React.memo(({
         </div>
   );
 
+  if (embedded && embeddedVariant === "autofillGate") {
+    return (
+      <div id="business-info" className="flex flex-col gap-5 w-[480px] max-w-full">
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
+          fieldName="website"
+          type="url"
+          label="Website"
+          required={true}
+          placeholder="Provide the official url of your business website"
+          disabled={isWebsiteLocked || disabledFields?.website}
+        />
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
+          fieldName="primaryLocation"
+          type="location-select"
+          label="Primary Location"
+          required={true}
+          placeholder={
+            locationsLoading
+              ? "Loading locations..."
+              : "Where are your customers primarily located?"
+          }
+          options={locationOptions}
+          disabled={locationsLoading || disabledFields?.primaryLocation}
+          loading={locationsLoading}
+        />
+        {primaryLocationAction && (
+          <div className="flex flex-col gap-2 pt-1">
+            {primaryLocationAction}
+            <p className="text-xs text-general-muted-foreground">
+              We'll auto-fill your business name, service type, brand tone, competitors, and more from your website.
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const embeddedContent = (
     <div id="business-info" className="flex flex-col gap-7">
       <div className="flex items-end gap-4 w-full">

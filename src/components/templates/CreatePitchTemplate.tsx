@@ -27,11 +27,6 @@ import { cleanWebsiteUrl } from "@/utils/utils";
 import { getAutofillErrorMessage } from "@/utils/profile-autofill";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { TagsInput } from "@/components/ui/tags-input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 interface ProfileAutofillResponse {
   business_url?: string;
@@ -419,109 +414,121 @@ export function CreatePitchTemplate() {
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
                 <ProfileStepCard
-                  title="Create Pitch"
-                  description="Add basic details so we can generate a pitch and tailored recommendations."
+                  title={!hasAutofilledProfile ? "Let's set up your pitch" : "Create Pitch"}
+                  description={
+                    !hasAutofilledProfile
+                      ? "Enter your website URL and primary location, then click Autofill Profile — we'll automatically populate your business details."
+                      : "Add basic details so we can generate a pitch and tailored recommendations."
+                  }
                   className="flex-1"
                   scrollableContent
                   contentClassName="pb-6"
                   rightAction={
-                    <Button
-                      type="button"
-                      className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                      onClick={handleConfirmAndProceed}
-                      disabled={!canConfirmAndProceed || isSubmitting || isLoading}
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Proceeding...
-                        </>
-                      ) : (
-                        "Confirm and Proceed"
-                      )}
-                    </Button>
+                    hasAutofilledProfile ? (
+                      <Button
+                        type="button"
+                        className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                        onClick={handleConfirmAndProceed}
+                        disabled={!canConfirmAndProceed || isSubmitting || isLoading}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Proceeding...
+                          </>
+                        ) : (
+                          "Confirm and Proceed"
+                        )}
+                      </Button>
+                    ) : undefined
                   }
                 >
                   <BusinessInfoForm
                     form={form}
                     embedded
-                    embeddedVariant="full"
+                    embeddedVariant={hasAutofilledProfile ? "full" : "autofillGate"}
                     disableWebsiteLock
-                    disabledFields={
-                      hasAutofilledProfile
-                        ? undefined
-                        : {
-                            businessName: true,
-                            serviceType: true,
-                            lifetimeValue: true,
-                          }
-                    }
                     primaryLocationAction={
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-block">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="default"
-                              onClick={handleAutofillProfile}
-                              disabled={
-                                isAutofillLoading ||
-                                offeringsExtractor.isExtracting ||
-                                !(formValues?.website ?? "").toString().trim()
-                              }
-                              className="gap-2 border-general-border-three text-general-foreground"
-                            >
-                              {isAutofillLoading ? (
-                                <>
-                                  <Loader2 className="size-4 animate-spin" />
-                                  Autofilling...
-                                </>
-                              ) : (
-                                "Autofill Profile"
-                              )}
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        {!(formValues?.website ?? "").toString().trim() ? (
-                          <TooltipContent>Enter Website URL to proceed</TooltipContent>
-                        ) : null}
-                      </Tooltip>
+                      !hasAutofilledProfile ? (
+                        <Button
+                          type="button"
+                          onClick={handleAutofillProfile}
+                          disabled={
+                            isAutofillLoading ||
+                            offeringsExtractor.isExtracting ||
+                            !(formValues?.website ?? "").toString().trim()
+                          }
+                          className="w-full gap-2"
+                        >
+                          {isAutofillLoading ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Autofilling...
+                            </>
+                          ) : (
+                            "Autofill Profile"
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="default"
+                          onClick={handleAutofillProfile}
+                          disabled={
+                            isAutofillLoading ||
+                            offeringsExtractor.isExtracting ||
+                            !(formValues?.website ?? "").toString().trim()
+                          }
+                          className="gap-2 border-general-border-three text-general-foreground"
+                        >
+                          {isAutofillLoading ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Autofilling...
+                            </>
+                          ) : (
+                            "Autofill Profile"
+                          )}
+                        </Button>
+                      )
                     }
                   />
 
-                  <OfferingsForm
-                    form={form}
-                    businessId="create-pitch"
-                    embedded
-                    hideFetchOfferingsFromWebsite
-                    extractionController={offeringsExtractor}
-                    disabled={!hasAutofilledProfile}
-                  />
-
-                  <div className="w-full md:w-3/4">
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-foreground">
-                        Brand terms that best describe your business
-                      </div>
-                      <form.Field
-                        name="brandTerms"
-                        children={(field: any) => {
-                          const currentValue = Array.isArray(field.state.value)
-                            ? field.state.value
-                            : [];
-                          return (
-                            <TagsInput
-                              value={currentValue}
-                              onChange={(next) => field.handleChange(next)}
-                              placeholder="Type a term and press Enter"
-                              disabled={!hasAutofilledProfile}
-                            />
-                          );
-                        }}
+                  {hasAutofilledProfile && (
+                    <>
+                      <OfferingsForm
+                        form={form}
+                        businessId="create-pitch"
+                        embedded
+                        hideFetchOfferingsFromWebsite
+                        extractionController={offeringsExtractor}
                       />
-                    </div>
-                  </div>
+
+                      <div className="w-full md:w-3/4">
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-foreground">
+                            Brand terms that best describe your business
+                          </div>
+                          <form.Field
+                            name="brandTerms"
+                            children={(field: any) => {
+                              const currentValue = Array.isArray(field.state.value)
+                                ? field.state.value
+                                : [];
+                              return (
+                                <TagsInput
+                                  value={currentValue}
+                                  onChange={(next) => field.handleChange(next)}
+                                  placeholder="Type a term and press Enter"
+                                />
+                              );
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </ProfileStepCard>
               </form>
             </div>

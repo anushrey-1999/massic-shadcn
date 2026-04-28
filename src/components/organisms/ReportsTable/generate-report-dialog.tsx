@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format as formatDate } from "date-fns";
+import { differenceInCalendarDays, isAfter, isBefore, startOfDay, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { X, Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -37,6 +38,8 @@ interface GenerateReportDialogProps {
 }
 
 const CUSTOM_RANGE_VALUE = "__custom__";
+const V2_LATEST_END_OFFSET_DAYS = 4;
+const DEFAULT_PRESET_OFFSET_DAYS = 2;
 
 function formatRangeLabel(range: DateRange | undefined): string {
   if (!range?.from && !range?.to) return "Select date range";
@@ -45,8 +48,8 @@ function formatRangeLabel(range: DateRange | undefined): string {
   return `${formatDate(range.from, "MMM d, yyyy")} - ${formatDate(range.to, "MMM d, yyyy")}`;
 }
 
-function buildInitialCustomRange(period: TimePeriodValue): DateRange | undefined {
-  const resolved = resolveTimePeriodRange(period);
+function buildInitialCustomRange(period: TimePeriodValue, referenceDate: Date): DateRange | undefined {
+  const resolved = resolveTimePeriodRange(period, referenceDate);
   return resolved ? { from: resolved.from, to: resolved.to } : undefined;
 }
 
@@ -56,14 +59,25 @@ export function GenerateReportDialog({
   businessId,
 }: GenerateReportDialogProps) {
   const router = useRouter();
+  const periodReferenceDate = React.useMemo(
+    () => subDays(startOfDay(new Date()), V2_LATEST_END_OFFSET_DAYS - DEFAULT_PRESET_OFFSET_DAYS),
+    []
+  );
+  const maxSelectableDate = React.useMemo(
+    () => startOfDay(subDays(new Date(), V2_LATEST_END_OFFSET_DAYS)),
+    []
+  );
   const [period, setPeriod] = React.useState<TimePeriodValue>("3 months");
   const [selectedRangeMode, setSelectedRangeMode] = React.useState<string>("preset");
   const [customRange, setCustomRange] = React.useState<DateRange | undefined>(() =>
-    buildInitialCustomRange("3 months")
+    buildInitialCustomRange("3 months", periodReferenceDate)
   );
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [customInstructions, setCustomInstructions] = React.useState("");
-  const { minSelectableDate, presetAnchorDate } = React.useMemo(() => getAnalyticsPeriodBounds(), []);
+  const { minSelectableDate } = React.useMemo(
+    () => getAnalyticsPeriodBounds(periodReferenceDate),
+    [periodReferenceDate]
+  );
 
   const { data: jobData, isLoading: isJobLoading } = useJobByBusinessId(businessId);
   const generateReport = useGenerateReportV2();
@@ -95,7 +109,50 @@ export function GenerateReportDialog({
     }
   }, [open]);
 
-  const resolvedPresetRange = React.useMemo(() => resolveTimePeriodRange(period), [period]);
+  const clampCustomRange = React.useCallback(
+    (range: DateRange | undefined): DateRange | undefined => {
+      if (!range) return range;
+
+      let from = range.from ? startOfDay(range.from) : undefined;
+      let to = range.to ? startOfDay(range.to) : undefined;
+
+      if (from && isBefore(from, minSelectableDate)) from = minSelectableDate;
+      if (to && isAfter(to, maxSelectableDate)) to = maxSelectableDate;
+      if (from && isAfter(from, maxSelectableDate)) from = maxSelectableDate;
+      if (to && isBefore(to, minSelectableDate)) to = minSelectableDate;
+
+      if (from && to && isAfter(from, to)) {
+        from = to;
+      }
+
+      return { from, to };
+    },
+    [maxSelectableDate, minSelectableDate]
+  );
+
+  React.useEffect(() => {
+    setCustomRange((current) => {
+      if (!current?.to || !isAfter(current.to, maxSelectableDate)) {
+        return current;
+      }
+
+      const currentFrom = current.from ? startOfDay(current.from) : maxSelectableDate;
+      const currentTo = startOfDay(current.to);
+      const windowDays = Math.max(0, differenceInCalendarDays(currentTo, currentFrom));
+      const adjustedTo = maxSelectableDate;
+      let adjustedFrom = subDays(adjustedTo, windowDays);
+      if (isBefore(adjustedFrom, minSelectableDate)) {
+        adjustedFrom = minSelectableDate;
+      }
+
+      return { from: adjustedFrom, to: adjustedTo };
+    });
+  }, [maxSelectableDate, minSelectableDate]);
+
+  const resolvedPresetRange = React.useMemo(
+    () => resolveTimePeriodRange(period, periodReferenceDate),
+    [period, periodReferenceDate]
+  );
   const effectiveRange = selectedRangeMode === CUSTOM_RANGE_VALUE
     ? customRange
     : resolvedPresetRange
@@ -178,7 +235,7 @@ export function GenerateReportDialog({
               onValueChange={(value) => {
                 if (value === CUSTOM_RANGE_VALUE) {
                   setSelectedRangeMode(CUSTOM_RANGE_VALUE);
-                  setCustomRange((current) => current ?? buildInitialCustomRange(period));
+                  setCustomRange((current) => current ?? buildInitialCustomRange(period, periodReferenceDate));
                   return;
                 }
 
@@ -239,14 +296,14 @@ export function GenerateReportDialog({
                     mode="range"
                     selected={customRange}
                     onSelect={(range) => {
-                      setCustomRange(range);
+                      setCustomRange(clampCustomRange(range));
                       setSelectedRangeMode(CUSTOM_RANGE_VALUE);
                       if (range?.from && range?.to) {
                         setCalendarOpen(false);
                       }
                     }}
                     numberOfMonths={2}
-                    disabled={(date) => date < minSelectableDate || date > presetAnchorDate}
+                    disabled={(date) => date < minSelectableDate || date > maxSelectableDate}
                     defaultMonth={customRange?.from}
                     initialFocus
                   />
@@ -255,7 +312,8 @@ export function GenerateReportDialog({
               <p className="text-xs text-muted-foreground">
                 {effectiveRange?.from && effectiveRange?.to
                   ? `Using ${formatDate(effectiveRange.from, "MMM d, yyyy")} to ${formatDate(effectiveRange.to, "MMM d, yyyy")}`
-                  : "Choose a preset or custom range."}
+                  : "Choose a preset or custom range."} Latest selectable date is{" "}
+                {formatDate(maxSelectableDate, "MMM d, yyyy")} due to Search Console latency.
               </p>
             </div>
 

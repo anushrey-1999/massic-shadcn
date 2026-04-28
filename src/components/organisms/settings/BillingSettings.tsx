@@ -50,7 +50,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useBusinessStore, BusinessProfile } from "@/store/business-store";
 import { useSubscription } from "@/hooks/use-subscription";
-import { ChartLine, ChevronRight, Loader2, Puzzle, RefreshCw, X, Zap } from "lucide-react";
+import { ChartLine, ChevronRight, Loader2, Puzzle, Zap } from "lucide-react";
 import { Typography } from "@/components/ui/typography";
 import { useMassicOpportunitiesStatus, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
 import { MassicOpportunitiesModal } from "@/components/molecules/MassicOpportunitiesModal";
@@ -65,12 +65,6 @@ import { cn } from "@/lib/utils";
 const toTitleCasePlan = (planType?: string) => {
   if (!planType) return "";
   return planType.charAt(0).toUpperCase() + planType.slice(1).toLowerCase();
-};
-
-const formatTrialLabel = (remainingTrialDays?: number) => {
-  if (!remainingTrialDays || remainingTrialDays <= 0) return null;
-  const dayLabel = remainingTrialDays === 1 ? "day" : "days";
-  return `Trial: ${remainingTrialDays} ${dayLabel} remaining`;
 };
 
 const formatDate = (value?: string | number | Date | null) => {
@@ -142,13 +136,13 @@ const getBusinessStatus = (profile: BusinessProfile, isAgencyWhitelisted: boolea
     planType.length > 0 &&
     subscriptionStatus !== "cancelled";
 
-  if (!hasSubscription && profile.isTrialActive && profile.remainingTrialDays) {
+  if ((subscriptionStatus === "trialing" || profile.isTrialActive) && profile.remainingTrialDays) {
     const dayLabel = profile.remainingTrialDays === 1 ? "day" : "days";
     return {
-      label: `${profile.remainingTrialDays} ${dayLabel} left`,
+      label: `Trial · ${profile.remainingTrialDays} ${dayLabel} left`,
       className:
-        "h-6 rounded-md border-sky-200 bg-sky-50 px-2.5 text-[11px] font-semibold leading-none text-sky-700",
-      tooltip: "Trial access is currently active.",
+        "h-6 rounded-full border border-[#FFD7D7] bg-[#FFF0F0] px-2.5 text-[11px] font-medium leading-none text-[#F04438]",
+      tooltip: null,
     };
   }
 
@@ -163,10 +157,10 @@ const getBusinessStatus = (profile: BusinessProfile, isAgencyWhitelisted: boolea
 
   if (subscription?.cancel_at_period_end && subscription?.cancelled_date) {
     return {
-      label: `Cancels ${formatShortDate(subscription.cancelled_date)}`,
+      label: "Cancelling",
       className:
         "h-6 rounded-full border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-medium leading-none text-amber-700",
-      tooltip: `Access continues until ${formatDate(subscription.cancelled_date)}.`,
+      tooltip: null,
     };
   }
 
@@ -191,42 +185,60 @@ const getBusinessStatus = (profile: BusinessProfile, isAgencyWhitelisted: boolea
   };
 };
 
-const getBusinessCycle = (profile: BusinessProfile, isAgencyWhitelisted: boolean) => {
-  if (isAgencyWhitelisted) {
-    return {
-      primary: "Unlimited access",
-      secondary: "Agency-level billing",
-    };
-  }
+const getBusinessStatusDetail = (
+  profile: BusinessProfile,
+  isAgencyWhitelisted: boolean
+) => {
+  if (isAgencyWhitelisted) return null;
 
   const subscription = profile.SubscriptionItems;
-  const hasSubscription =
-    Boolean(subscription?.plan_type) && subscription?.status !== "cancelled";
 
-  if (subscription?.current_period_start && subscription?.current_period_end) {
+  if (subscription?.cancel_at_period_end && subscription?.cancelled_date) {
+    return `Access until ${formatShortDate(subscription.cancelled_date)}`;
+  }
+
+  if (subscription?.status === "trialing" || profile.isTrialActive) {
+    return null;
+  }
+
+  const hasActivePlan =
+    Boolean(subscription?.plan_type) &&
+    subscription?.status !== "cancelled" &&
+    !subscription?.cancel_at_period_end;
+
+  if (hasActivePlan && subscription?.current_period_end) {
+    return `Renews ${formatShortDate(subscription.current_period_end)}`;
+  }
+
+  return null;
+};
+
+const getBusinessBillingAction = (
+  profile: BusinessProfile,
+  isAgencyWhitelisted: boolean
+) => {
+  if (isAgencyWhitelisted) return null;
+
+  const subscription = profile.SubscriptionItems;
+  const hasPlan = Boolean(subscription?.plan_type) && subscription?.status !== "cancelled";
+
+  if (!hasPlan) {
     return {
-      primary: `${formatDate(subscription.current_period_start).replace(/, \d{4}$/, "")} - ${formatShortDate(subscription.current_period_end)}`,
-      secondary: subscription.cancel_at_period_end && subscription.cancelled_date
-        ? `Cancel date ${formatDate(subscription.cancelled_date)}`
-        : `Renews ${formatDate(subscription.current_period_end)}`,
+      label: "Start Plan",
+      type: "start" as const,
     };
   }
 
-  if (!hasSubscription && profile.isTrialActive) {
-    const hasTrialRange = profile.TrialStartDate && profile.TrialEndDate;
+  if (subscription?.cancel_at_period_end) {
     return {
-      primary: hasTrialRange
-        ? `${formatDate(profile.TrialStartDate).replace(/, \d{4}$/, "")} - ${formatShortDate(profile.TrialEndDate)}`
-        : "Trial period",
-      secondary: profile.TrialEndDate
-        ? `Trial ends ${formatDate(profile.TrialEndDate)}`
-        : formatTrialLabel(profile.remainingTrialDays) || "-",
+      label: "Reactivate",
+      type: "reactivate" as const,
     };
   }
 
   return {
-    primary: "-",
-    secondary: "No billing cycle",
+    label: "Cancel",
+    type: "cancel" as const,
   };
 };
 
@@ -375,6 +387,8 @@ export function BillingSettings() {
   const billingReconciliation = useBillingReconciliation();
   const headerClassName =
     "h-11 justify-start gap-1.5 bg-transparent px-0 text-[14px] font-medium text-[#181D27] hover:bg-transparent focus-visible:ring-0 [&_svg]:size-3.5 [&_svg]:text-[#98A2B3] [&>span:last-child]:opacity-100";
+  const actionButtonClassName =
+    "h-8 rounded-lg border-[#D0D5DD] bg-[#F9FAFB] px-3 text-[13px] font-medium text-[#667085] shadow-none hover:bg-[#F2F4F7] hover:text-[#475467]";
 
   const loading = subscriptionLoading || creditsLoading;
   const settingsReturnUrl = useMemo(() => {
@@ -651,16 +665,6 @@ export function BillingSettings() {
         cell: ({ row }) => {
           const planName = getBusinessPlanName(row.original, isAgencyWhitelisted);
           const PlanIcon = getBusinessPlanIcon(planName);
-          const subscription = row.original.SubscriptionItems;
-          const hasSubscription =
-            subscription?.plan_type &&
-            subscription?.status &&
-            subscription?.status !== "cancelled";
-          const cancelAtPeriodEnd = subscription?.cancel_at_period_end;
-          const isProcessing =
-            actionLoading &&
-            subscriptionAction?.business.UniqueId === row.original.UniqueId;
-
           return (
             <div className="flex items-center gap-2">
               <button
@@ -677,35 +681,6 @@ export function BillingSettings() {
                 </Typography>
                 <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-[#B8BDC7] group-hover:text-[#98A2B3]" />
               </button>
-
-              {!isAgencyWhitelisted && hasSubscription && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className={cn(
-                    "h-9 w-9 rounded-xl border p-0",
-                    cancelAtPeriodEnd
-                      ? "border-[#D0D5DD] bg-white text-[#667085] hover:bg-[#F9FAFB] hover:text-[#475467]"
-                      : "border-[#FECACA] bg-white text-[#F04438] hover:bg-[#FEF2F2] hover:text-[#D92D20]"
-                  )}
-                  disabled={loading || actionLoading}
-                  aria-label={cancelAtPeriodEnd ? "Reactivate subscription" : "Cancel subscription"}
-                  onClick={() =>
-                    openSubscriptionAction(
-                      row.original,
-                      cancelAtPeriodEnd ? "reactivate" : "cancel"
-                    )
-                  }
-                >
-                  {isProcessing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : cancelAtPeriodEnd ? (
-                    <RefreshCw className="h-4 w-4" />
-                  ) : (
-                    <X className="h-4 w-4" />
-                  )}
-                </Button>
-              )}
             </div>
           );
         },
@@ -722,9 +697,10 @@ export function BillingSettings() {
         maxSize: 120,
         cell: ({ row }) => {
           const status = getBusinessStatus(row.original, isAgencyWhitelisted);
+          const statusDetail = getBusinessStatusDetail(row.original, isAgencyWhitelisted);
 
           return (
-            <div className="flex items-center">
+            <div className="flex min-w-0 flex-col items-start gap-1">
               {status.tooltip ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -739,35 +715,72 @@ export function BillingSettings() {
                   {status.label}
                 </Badge>
               )}
-            </div>
-          );
-        },
-      },
-      {
-        id: "cycle",
-        accessorFn: (row) => getBusinessCycle(row, isAgencyWhitelisted).primary,
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} label="Cycle" disableHide className={headerClassName} />
-        ),
-        enableSorting: true,
-        size: 52,
-        minSize: 52,
-        maxSize: 180,
-        cell: ({ row }) => {
-          const cycle = getBusinessCycle(row.original, isAgencyWhitelisted);
-
-          return (
-            <div className="min-w-0">
-              <p className="truncate text-[14px] font-normal text-[#7A7F87]">{cycle.primary}</p>
-              {cycle.secondary && cycle.secondary !== "-" && (
-                <p className="truncate text-[12px] font-normal text-[#98A2B3]">{cycle.secondary}</p>
+              {statusDetail && (
+                <p className="truncate text-[11px] font-normal text-[#98A2B3]">
+                  {statusDetail}
+                </p>
               )}
             </div>
           );
         },
       },
+      {
+        id: "actions",
+        accessorFn: (row) =>
+          getBusinessBillingAction(row, isAgencyWhitelisted)?.label || "",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Actions" disableHide className={headerClassName} />
+        ),
+        enableSorting: false,
+        size: 48,
+        minSize: 48,
+        maxSize: 140,
+        cell: ({ row }) => {
+          const billingAction = getBusinessBillingAction(row.original, isAgencyWhitelisted);
+          const isProcessing =
+            actionLoading &&
+            subscriptionAction?.business.UniqueId === row.original.UniqueId;
+
+          if (!billingAction) {
+            return <span className="text-[13px] text-[#98A2B3]">-</span>;
+          }
+
+          if (billingAction.type === "start") {
+            return (
+              <Button
+                size="sm"
+                variant="outline"
+                className={actionButtonClassName}
+                disabled={loading || actionLoading}
+                onClick={() => handleManagePlan(row.original.UniqueId)}
+              >
+                {billingAction.label}
+              </Button>
+            );
+          }
+
+          return (
+            <Button
+              size="sm"
+              variant="outline"
+              className={actionButtonClassName}
+              disabled={loading || actionLoading}
+              onClick={() => openSubscriptionAction(row.original, billingAction.type)}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Processing
+                </>
+              ) : (
+                billingAction.label
+              )}
+            </Button>
+          );
+        },
+      },
     ],
-    [isAgencyWhitelisted, handleManagePlan, loading, actionLoading, subscriptionAction, openSubscriptionAction]
+    [isAgencyWhitelisted, handleManagePlan, loading, actionLoading, subscriptionAction, openSubscriptionAction, actionButtonClassName]
   );
 
   const table = useReactTable({
@@ -833,17 +846,16 @@ export function BillingSettings() {
     subscriptionAction?.type === "cancel" ? "Keep Plan" : "Close";
 
   return (
-    <div className="flex gap-6 bg-white p-6 rounded-xl border border-muted/40 shadow-sm h-[calc(100vh-12rem)]">
+    <div className="flex gap-6 h-[calc(100vh-12rem)]">
       {/* Left Section - Payment & Billing */}
-      <div className="flex-[1.2] min-w-0 h-full overflow-hidden">
-        <Card className="flex h-full flex-col border-none py-0 shadow-none">
+      <div className="flex-[1.2] min-w-0 h-full overflow-hidden rounded-xl border border-muted/40 bg-white p-6 shadow-sm">
+        <Card className="flex h-full flex-col gap-2 border-none py-0 shadow-none">
           <CardHeader className="px-0 pb-0">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <CardTitle className="font-mono text-base font-normal">Business Billing</CardTitle>
               </div>
               <Button
-                variant="outline"
                 size="sm"
                 onClick={() => setReconciliationSheetOpen(true)}
               >
@@ -1037,7 +1049,7 @@ export function BillingSettings() {
       />
 
       <Sheet open={reconciliationSheetOpen} onOpenChange={setReconciliationSheetOpen}>
-        <SheetContent side="right" className="w-[100vw] gap-0 p-0 sm:max-w-[1080px]">
+        <SheetContent side="right" className="w-screen gap-0 p-0 sm:max-w-[1080px]">
           <SheetHeader className="border-b border-border/60 pr-12">
             <SheetTitle>Billing reconciliation report</SheetTitle>
             <SheetDescription>

@@ -45,7 +45,7 @@ export function PlanCard({
     <Card
       className={cn(
         "shadow-none p-4 flex flex-col gap-2",
-        isAddOn ? "bg-foreground-light" : "bg-white",
+        "bg-white",
         hasBorder ? "border border-[#2E6A56]" : "border-none",
         isAddOn && !hasBorder && "border border-[#0000000F]"
       )}

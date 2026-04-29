@@ -16,6 +16,7 @@ import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import { useBusinessStore } from "@/store/business-store";
 import {
+  ALL_GOALS_CONVERSION_EVENT,
   useConversionEvents,
   useConversionOverview,
   type ConversionOverviewCloser,
@@ -243,8 +244,14 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
       return;
     }
 
-    if (!selectedEvent || !eventOptions.some((event) => event.eventName === selectedEvent)) {
-      setSelectedEvent(eventOptions[0].eventName);
+    if (
+      !selectedEvent ||
+      (
+        selectedEvent !== ALL_GOALS_CONVERSION_EVENT &&
+        !eventOptions.some((event) => event.eventName === selectedEvent)
+      )
+    ) {
+      setSelectedEvent(ALL_GOALS_CONVERSION_EVENT);
     }
   }, [eventOptions, selectedEvent]);
 
@@ -293,6 +300,9 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
                 <SelectValue placeholder="Select event" />
               </SelectTrigger>
               <SelectContent align="start">
+                <SelectItem value={ALL_GOALS_CONVERSION_EVENT}>
+                  All goals
+                </SelectItem>
                 {eventOptions.map((event) => (
                   <SelectItem key={event.eventName} value={event.eventName}>
                     {event.eventName}

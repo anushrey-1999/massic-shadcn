@@ -102,6 +102,7 @@ export function SocialActionCell({
   const [starting, setStarting] = React.useState(false);
   const [justGenerated, setJustGenerated] = React.useState(false);
   const [shouldPoll, setShouldPoll] = React.useState(false);
+  const ignoreNextCloseRef = React.useRef(false);
 
   const contentQuery = useSocialActionContentQuery({
     businessId,
@@ -142,6 +143,11 @@ export function SocialActionCell({
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
+      if (!nextOpen && ignoreNextCloseRef.current) {
+        ignoreNextCloseRef.current = false;
+        return;
+      }
+
       setOpen(nextOpen);
 
       if (nextOpen) return;
@@ -184,6 +190,14 @@ export function SocialActionCell({
     },
     [businessId, campaignClusterId, contentQuery.data?.status, queryClient, tacticsQueryKey]
   );
+
+  const handleModalInteraction = React.useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    ignoreNextCloseRef.current = true;
+    window.setTimeout(() => {
+      ignoreNextCloseRef.current = false;
+    }, 0);
+  }, []);
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -253,12 +267,20 @@ export function SocialActionCell({
   const primaryLabel = primaryAction === "view" ? "View" : "Generate";
   const handlePrimaryClick = primaryAction === "view" ? handleOpen : handleGenerate;
   const buttonVariant = primaryAction === "generate" ? "default" : "outline";
+  const stopRowClick = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  };
 
   const isReddit = resolvedChannel === "reddit";
 
   return (
     <>
-      <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex items-center justify-center gap-2"
+        onClick={stopRowClick}
+        onMouseDown={stopRowClick}
+        onPointerDown={stopRowClick}
+      >
         {!isReddit && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -267,6 +289,8 @@ export function SocialActionCell({
                 variant={buttonVariant}
                 className="size-6 rounded-sm"
                 onClick={handlePrimaryClick}
+                onMouseDown={stopRowClick}
+                onPointerDown={stopRowClick}
                 aria-label={primaryLabel}
                 disabled={primaryAction === "generate" ? starting : false}
               >
@@ -284,6 +308,21 @@ export function SocialActionCell({
         <DialogContent
           showCloseButton={false}
           className="w-fit max-w-[90vw] border-0 bg-transparent p-2 shadow-none max-h-[95vh] overflow-auto"
+          onClick={handleModalInteraction}
+          onMouseDown={handleModalInteraction}
+          onPointerDown={handleModalInteraction}
+          onPointerDownOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest?.("[data-slot=dialog-overlay]")) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest?.("[data-slot=dialog-overlay]")) {
+              e.preventDefault();
+            }
+          }}
         >
           <DialogTitle className="sr-only">{title}</DialogTitle>
           <div className="relative flex w-full justify-center p-2">
@@ -293,6 +332,11 @@ export function SocialActionCell({
                 size="icon"
                 type="button"
                 className="absolute right-2 top-2 h-8 w-8 rounded-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  ignoreNextCloseRef.current = false;
+                  setOpen(false);
+                }}
               >
                 <X className="h-4 w-4" />
               </Button>

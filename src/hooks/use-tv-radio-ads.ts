@@ -246,12 +246,18 @@ export function useTvRadioAds(_businessId: string) {
       const metricsMaybe =
         (response as any)?.output_data?.metrics ?? (response as any)?.metrics;
       const metricsFirst = Array.isArray(metricsMaybe) ? metricsMaybe[0] : metricsMaybe;
-      const metrics: TvRadioAdsMetrics | null = metricsFirst
-        ? {
-            total_ads:
-              typeof metricsFirst?.total_ads === "number" ? metricsFirst.total_ads : 0,
-          }
-        : null;
+      const metricsTotalAds = (() => {
+        if (typeof metricsFirst?.total_concepts === "number") return metricsFirst.total_concepts;
+        if (typeof pagination?.total_count === "number") return pagination.total_count;
+        if (typeof metricsFirst?.total_ads === "number" && metricsFirst.total_ads > 0) {
+          return metricsFirst.total_ads;
+        }
+        return rows.length;
+      })();
+      const metrics: TvRadioAdsMetrics = {
+        total_ads: metricsTotalAds,
+        total_concepts: metricsTotalAds,
+      };
 
       return {
         data: rows,

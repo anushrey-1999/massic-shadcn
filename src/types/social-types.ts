@@ -73,6 +73,8 @@ export interface TacticItem {
   title?: string;
   description?: string;
   campaign_relevance?: number;
+  cluster_relevance?: number;
+  cluster_relevance_level?: string;
   related_keywords?: string[];
   status?: string;
   url?: string;
@@ -88,6 +90,8 @@ export interface TacticRow {
   title: string;
   description: string;
   campaign_relevance: number;
+  cluster_relevance?: number;
+  cluster_relevance_level?: string;
   related_keywords: string[];
   status: string;
   url?: string;

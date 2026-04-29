@@ -75,18 +75,23 @@ export function useSocial(businessId: string) {
   }, []);
 
   const transformToTacticRows = useCallback((items: TacticItem[]): TacticRow[] => {
-    return items.map((item, index) => ({
-      id: item.id || `tactic-${index}`,
-      tactic: item.tactic || "",
-      cluster_name: item.cluster_name || "",
-      title: item.title || "",
-      description: item.description || "",
-      campaign_relevance: item.campaign_relevance || 0,
-      related_keywords: item.related_keywords || [],
-      status: item.status || "",
-      url: item.url || "",
-      ...item,
-    }));
+    return items.map((item, index) => {
+      const relevance = item.cluster_relevance ?? item.campaign_relevance ?? 0;
+
+      return {
+        id: item.id || `tactic-${index}`,
+        tactic: item.tactic || "",
+        cluster_name: item.cluster_name || "",
+        title: item.title || "",
+        description: item.description || "",
+        related_keywords: item.related_keywords || [],
+        status: item.status || "",
+        url: item.url || "",
+        ...item,
+        campaign_relevance: relevance,
+        cluster_relevance: item.cluster_relevance ?? relevance,
+      };
+    });
   }, []);
 
   const mapFilterField = useCallback((field: string) => {

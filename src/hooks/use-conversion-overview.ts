@@ -4,6 +4,8 @@ import type { TimePeriodValue } from "@/utils/analytics-period"
 
 export type { TimePeriodValue }
 
+export const ALL_GOALS_CONVERSION_EVENT = "__all_goals__"
+
 export interface ConversionEventOption {
   eventName: string
   totalConversions: number

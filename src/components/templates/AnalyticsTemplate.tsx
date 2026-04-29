@@ -21,6 +21,7 @@ import DiscoveryPerformanceSection from "@/components/organisms/analytics/Discov
 import { LocalSearchSection } from "@/components/organisms/analytics/LocalSearchSection";
 import SourcesSection from "@/components/organisms/analytics/SourcesSection";
 import ConversionSection from "@/components/organisms/analytics/ConversionSection";
+import ConversionOverviewSection from "@/components/organisms/analytics/ConversionOverviewSection";
 import { Button } from "@/components/ui/button";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
@@ -470,6 +471,9 @@ export function AnalyticsTemplate() {
               hideChannelsChart={selectedTab === "organic"}
               ga4TrafficScope={selectedTab}
             />
+            {selectedTab === "all" ? (
+              <ConversionOverviewSection period={selectedPeriod} />
+            ) : null}
             <ConversionSection
               period={selectedPeriod}
               ga4TrafficScope={selectedTab}

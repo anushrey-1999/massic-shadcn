@@ -16,13 +16,12 @@ export interface ConversionOverviewRow {
   pct: number
 }
 
-export interface ConversionOverviewOpener extends ConversionOverviewRow {
-  users: number
-}
-
-export interface ConversionOverviewCloser extends ConversionOverviewRow {
+export interface ConversionOverviewTouchRow extends ConversionOverviewRow {
   conversions: number
 }
+
+export type ConversionOverviewOpener = ConversionOverviewTouchRow
+export type ConversionOverviewCloser = ConversionOverviewTouchRow
 
 export interface ConversionOverviewPayload {
   source: "timescale" | "ga4"

@@ -104,6 +104,7 @@ export interface TvRadioAdsApiResponse {
 
 export interface TvRadioAdsMetrics {
   total_ads: number;
+  total_concepts?: number;
 }
 
 export interface TvRadioApiFilter {

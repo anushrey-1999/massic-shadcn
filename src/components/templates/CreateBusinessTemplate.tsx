@@ -33,6 +33,7 @@ interface CreateBusinessTemplateProps {
   isAutofillLoading: boolean;
   hasAutofilledProfile: boolean;
   onAutofillProfile: () => void;
+  onSubmitCreate: () => void;
   onCancel: () => void;
 }
 
@@ -45,6 +46,7 @@ export function CreateBusinessTemplate({
   isAutofillLoading,
   hasAutofilledProfile,
   onAutofillProfile,
+  onSubmitCreate,
   onCancel,
 }: CreateBusinessTemplateProps) {
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: "Create Business" }];
@@ -105,7 +107,7 @@ export function CreateBusinessTemplate({
                 id="create-business-form"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  form.handleSubmit();
+                  onSubmitCreate();
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >

@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
+import { ContentConverter } from "@/utils/content-converter";
 import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 
@@ -117,6 +118,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const hasFinalContent = !!finalContent && finalContent.trim().length > 0;
   const hasOutline = !!outline && outline.trim().length > 0;
   const isGeneratingFinal = hasOutline && !hasFinalContent;
+  const renderedOutline = React.useMemo(() => ContentConverter.markdownToHtml(outline), [outline]);
 
   const handleCopy = async () => {
     if (outlineEditor) {
@@ -288,7 +290,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
         {!isProcessing && status !== "error" ? (
           <Card className="p-4">
             <InlineTipTapEditor
-              content={outline}
+              content={renderedOutline}
               onEditorReady={setOutlineEditor}
               onSave={handleSaveOutline}
               autoSaveDelayMs={1000}

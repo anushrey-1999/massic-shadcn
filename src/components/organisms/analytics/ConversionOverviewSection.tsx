@@ -172,7 +172,6 @@ function TouchCard({
 
       <div className="py-1.5">
         {rows.length > 0 ? rows.map((row) => {
-          const value = "users" in row ? row.users : row.conversions;
           const color = channelColor(row.channel);
           return (
             <div
@@ -192,7 +191,7 @@ function TouchCard({
                 />
               </div>
               <div className="text-right font-mono text-[13px] font-normal text-[#737373]">
-                {formatNumber(value)}
+                {formatNumber(row.conversions)}
               </div>
               <div className="text-right font-mono text-[13.5px] font-medium text-[#171717]">
                 {formatPct(row.pct)}
@@ -335,7 +334,7 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
             <TouchCard
               variant="opener"
               title="Who brings new customers in"
-              subtitle={`% of ${formatNumber(overview.totalConversions)} users by the channel they arrived through first`}
+              subtitle={`% of ${formatNumber(overview.totalConversions)} conversions by the channel they arrived through first`}
               rows={overview.openers}
               totalConversions={overview.totalConversions}
             />

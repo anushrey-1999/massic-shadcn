@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import InfiniteScroll from "react-infinite-scroll-component"
 import { PageHeader } from "@/components/molecules/PageHeader"
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
@@ -46,6 +47,9 @@ interface ReviewsTemplateProps {
 }
 
 export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplateProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
   const [activeTab, setActiveTab] = React.useState<"reviews" | "campaign" | "customers">("reviews")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortBy, setSortBy] = React.useState<ReviewSortBy>("recent")
@@ -63,6 +67,23 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
 
   // Fetch business profile settings for review responder
   useBusinessProfileSettings(businessId, userUniqueId)
+
+  // Initialize tab from URL query parameter
+  React.useEffect(() => {
+    const tabParam = searchParams.get("tab")
+    if (tabParam === "reviews" || tabParam === "campaign" || tabParam === "customers") {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
+
+  // Update URL when tab changes
+  const handleTabChange = React.useCallback((value: string) => {
+    const newTab = value as "reviews" | "campaign" | "customers"
+    setActiveTab(newTab)
+    const params = new URLSearchParams(searchParams)
+    params.set("tab", newTab)
+    router.push(`?${params.toString()}`, { scroll: false })
+  }, [router, searchParams])
 
   const locations = React.useMemo(() => {
     if (!profileData?.Locations || profileData.Locations.length === 0) {
@@ -147,7 +168,7 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
         <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
           <Tabs
             value={activeTab}
-            onValueChange={(value) => setActiveTab(value as typeof activeTab)}
+            onValueChange={handleTabChange}
             className="flex flex-col flex-1 min-h-0"
           >
             <div className="shrink-0 flex items-center justify-between gap-4">
@@ -192,6 +213,22 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                   >
                     <Settings className="h-4 w-4" />
                   </Button>
+                </div>
+              ) : activeTab === "campaign" || activeTab === "customers" ? (
+                <div className="flex items-center gap-3">
+                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                    <SelectTrigger className="bg-transparent shadow-xs min-w-40 text-general-foreground gap-1">
+                      <MapPin className="h-4 w-4 text-general-foreground" />
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {locations.map((loc) => (
+                        <SelectItem key={loc.value} value={loc.value}>
+                          {loc.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               ) : null}
             </div>
@@ -361,34 +398,21 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
             </TabsContent>
 
             <TabsContent value="campaign" className={cn("flex-1 min-h-0 overflow-hidden", "mt-4")}>
-              <div className="bg-white rounded-lg p-4 h-full min-h-0 flex flex-col min-h-[240px]">
-                {reviewsExtrasEnabled ? (
-                  <CampaignsTableClient businessId={businessId} />
-                ) : (
-                  <EmptyState
-                    icon={<Sparkles className="h-10 w-10 text-general-muted-foreground" />}
-                    title="Campaigns — coming soon"
-                    description="Review campaigns are under development. Check back later."
-                    showCard={false}
-                    className="py-12"
-                  />
-                )}
+              <div className="bg-white rounded-lg p-4 h-full min-h-0">
+                <CampaignsTableClient
+                  businessId={businessId}
+                  currentTab={activeTab}
+                  selectedLocationIdForApi={selectedLocationIdForApi}
+                />
               </div>
             </TabsContent>
 
             <TabsContent value="customers" className={cn("flex-1 min-h-0 overflow-hidden", "mt-4")}>
-              <div className="bg-white rounded-lg p-4 h-full min-h-0 flex flex-col min-h-[240px]">
-                {reviewsExtrasEnabled ? (
-                  <CustomersTableClient />
-                ) : (
-                  <EmptyState
-                    icon={<Sparkles className="h-10 w-10 text-general-muted-foreground" />}
-                    title="Customers — coming soon"
-                    description="The customers view is under development. Check back later."
-                    showCard={false}
-                    className="py-12"
-                  />
-                )}
+              <div className="bg-white rounded-lg p-4 h-full min-h-0">
+                <CustomersTableClient
+                  businessId={businessId}
+                  selectedLocationIdForApi={selectedLocationIdForApi}
+                />
               </div>
             </TabsContent>
           </Tabs>

@@ -177,11 +177,12 @@ export function DataTable<TData>({
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row, index) => {
+                table.getRowModel().rows.map((row) => {
                   const isSelected = selectedRowId != null && row.id === selectedRowId;
+                  const rowKey = (row.original as { id?: string | number } | undefined)?.id ?? row.id;
                   return (
                     <TableRow
-                      key={`${row.id}-${index}`}
+                      key={String(rowKey)}
                       data-selected-row={isSelected ? row.id : undefined}
                       className={cn(
                         "group",
@@ -192,7 +193,10 @@ export function DataTable<TData>({
                         // Prevent row click if a button or inside a button is clicked
                         if (
                           e.target instanceof HTMLElement &&
-                          (e.target.closest('button') || e.target.tagName === 'BUTTON')
+                          (e.target.closest('button') ||
+                            e.target.closest('input') ||
+                            e.target.closest('[role="combobox"]') ||
+                            e.target.tagName === 'BUTTON')
                         ) {
                           return;
                         }

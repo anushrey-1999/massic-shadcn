@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import type {
   ColumnFiltersState,
   SortingState,
@@ -9,78 +10,65 @@ import type {
 } from "@tanstack/react-table"
 import {
   getCoreRowModel,
-  getFilteredRowModel,
   getPaginationRowModel,
-  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
 
-import { Download, Plus } from "lucide-react"
-import Link from "next/link"
+import { Plus } from "lucide-react"
 
 import { DataTable } from "@/components/filter-table"
 import { DataTableAdvancedToolbar } from "@/components/filter-table/data-table-advanced-toolbar"
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list"
 import { DataTableSearch } from "@/components/filter-table/data-table-search"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import {
   getCampaignsTableColumns,
   type ReviewCampaignRow,
 } from "./campaigns-table-columns"
+import { useReviewCampaignsList, type ReviewCampaignsSort } from "@/hooks/use-review-campaigns"
+import { useDebounce } from "@/hooks/use-debounce"
 
-const demoCampaigns: ReviewCampaignRow[] = [
-  {
-    id: "camp_1",
-    name: "Google Reviews",
-    platform: "google",
-    isDefault: true,
-    createdAt: new Date(2026, 0, 15),
-    totalClicks: 2450,
-    steps: 5,
-  },
-  {
-    id: "camp_2",
-    name: "Yelp",
-    platform: "yelp",
-    isDefault: false,
-    createdAt: new Date(2026, 0, 10),
-    totalClicks: 1875,
-    steps: 4,
-  },
-  {
-    id: "camp_3",
-    name: "Google Reviews",
-    platform: "google",
-    isDefault: false,
-    createdAt: new Date(2026, 0, 5),
-    totalClicks: 3200,
-    steps: 6,
-  },
-  {
-    id: "camp_4",
-    name: "Yelp",
-    platform: "yelp",
-    isDefault: false,
-    createdAt: new Date(2025, 11, 28),
-    totalClicks: 1520,
-    steps: 3,
-  },
-  {
-    id: "camp_5",
-    name: "Google Reviews",
-    platform: "google",
-    isDefault: false,
-    createdAt: new Date(2025, 11, 20),
-    totalClicks: 2890,
-    steps: 5,
-  },
-]
-
-export function CampaignsTableClient({ businessId }: { businessId: string }) {
-  const [campaigns, setCampaigns] = React.useState<ReviewCampaignRow[]>(demoCampaigns)
-
-  const columns = React.useMemo(() => getCampaignsTableColumns(businessId), [businessId])
+export function CampaignsTableClient({
+  businessId,
+  currentTab = "campaign",
+  selectedLocationIdForApi,
+}: {
+  businessId: string;
+  currentTab?: string;
+  selectedLocationIdForApi?: string | null;
+}) {
+  const router = useRouter()
+  const [confirmNavigation, setConfirmNavigation] = React.useState<{
+    href: string
+    title: string
+    description: string
+    confirmLabel: string
+  } | null>(null)
+  const columns = React.useMemo(
+    () => getCampaignsTableColumns(
+      businessId,
+      currentTab,
+      selectedLocationIdForApi,
+      (href) => setConfirmNavigation({
+        href,
+        title: "Edit campaign?",
+        description: "Editing a campaign publishes a new active version for future customers. Existing started customer journeys stay on their original version.",
+        confirmLabel: "Continue",
+      })
+    ),
+    [businessId, currentTab, selectedLocationIdForApi]
+  )
 
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "createdAt", desc: true },
@@ -88,10 +76,45 @@ export function CampaignsTableClient({ businessId }: { businessId: string }) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [globalFilter, setGlobalFilter] = React.useState("")
+  const debouncedSearch = useDebounce(globalFilter, 400)
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
   })
+
+  const apiSort = React.useMemo<ReviewCampaignsSort>(() => {
+    const current = sorting[0]
+    if (!current?.id) return {}
+    return {
+      sortBy: current.id as ReviewCampaignsSort["sortBy"],
+      sortDir: current.desc ? "desc" : "asc",
+    }
+  }, [sorting])
+
+  const { data: campaignsResponse, isLoading, isFetching } = useReviewCampaignsList(
+    businessId,
+    selectedLocationIdForApi,
+    apiSort,
+    debouncedSearch,
+    pagination
+  )
+  const campaigns = React.useMemo<ReviewCampaignRow[]>(() => {
+    const items = campaignsResponse?.data || []
+    return items.map((item) => {
+      const reviewUrl = item.reviewDestinationUrl || ""
+      const platform = reviewUrl.toLowerCase().includes("yelp") ? "yelp" : "google"
+      return {
+        id: String(item.id),
+        name: item.name,
+        platform,
+        isDefault: Boolean(item.isDefault),
+        createdAt: new Date(item.createdAt),
+        totalClicks: Number(item.totalClicks || 0),
+        steps: Number(item.steps || 0),
+        metrics: item.metrics,
+      }
+    })
+  }, [campaignsResponse?.data])
 
   const table = useReactTable({
     data: campaigns,
@@ -109,10 +132,12 @@ export function CampaignsTableClient({ businessId }: { businessId: string }) {
     onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     enableSortingRemoval: false,
+    manualSorting: true,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: campaignsResponse?.meta?.totalPages ?? -1,
     globalFilterFn: "includesString",
   })
 
@@ -122,6 +147,8 @@ export function CampaignsTableClient({ businessId }: { businessId: string }) {
         table={table}
         emptyMessage="No campaigns found."
         pageSizeOptions={[10, 20, 30, 50]}
+        isLoading={isLoading}
+        isFetching={isFetching}
       >
         <DataTableAdvancedToolbar table={table} className="flex-wrap gap-2">
           <DataTableSearch
@@ -130,18 +157,41 @@ export function CampaignsTableClient({ businessId }: { businessId: string }) {
             placeholder="Search campaigns..."
           />
           <DataTableSortList table={table} align="start" />
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" type="button" aria-label="Download">
-            <Download className="h-4 w-4" />
-          </Button>
           <div className="min-w-0 flex-1" />
-          <Button asChild className="gap-2 shrink-0">
-            <Link href={`/business/${businessId}/reviews/campaigns/new`}>
-              <Plus className="h-4 w-4" />
-              Add
-            </Link>
+          <Button
+            type="button"
+            className="gap-2 shrink-0"
+            onClick={() => {
+              router.push(`/business/${businessId}/reviews/campaigns/new?tab=${currentTab}${selectedLocationIdForApi ? `&locationId=${encodeURIComponent(selectedLocationIdForApi)}` : ""}`)
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Add
           </Button>
         </DataTableAdvancedToolbar>
       </DataTable>
+      <AlertDialog open={!!confirmNavigation} onOpenChange={(open) => !open && setConfirmNavigation(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmNavigation?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmNavigation?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!confirmNavigation) return
+                router.push(confirmNavigation.href)
+                setConfirmNavigation(null)
+              }}
+            >
+              {confirmNavigation?.confirmLabel || "Continue"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

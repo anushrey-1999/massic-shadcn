@@ -265,7 +265,7 @@ export default function BusinessSocialPage({
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
   const showMainContent =
     coreStatus === "success" &&
-    isWorkflowSuccess(jobDetails, "channel_analyzer")
+    isWorkflowSuccess(jobDetails, "social_channels")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
@@ -313,7 +313,7 @@ export default function BusinessSocialPage({
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
       <WorkflowStatusBanner
         businessId={businessId}
-        workflowKey="channel_analyzer"
+        workflowKey="social_channels"
         emptyStateHeight="min-h-[calc(100vh-12rem)]"
       />
     </div>

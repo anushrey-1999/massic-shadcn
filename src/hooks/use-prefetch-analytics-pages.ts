@@ -54,7 +54,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
     ];
 
     const strategyCached = queryClient.getQueryData(strategyQueryKey);
-    if (!strategyCached && isWorkflowSuccess(jobDetails, "topic_strategy_builder")) {
+    if (!strategyCached && isWorkflowSuccess(jobDetails, "topics")) {
       batch1Promises.push(
         queryClient.prefetchQuery({
           queryKey: strategyQueryKey,
@@ -82,7 +82,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
     ];
 
     const webPageCached = queryClient.getQueryData(webPageQueryKey);
-    if (!webPageCached && jobExists && isWorkflowSuccess(jobDetails, "blogs_and_pages_planner")) {
+    if (!webPageCached && jobExists && isWorkflowSuccess(jobDetails, "webpages")) {
       batch1Promises.push(
         queryClient.prefetchQuery({
           queryKey: webPageQueryKey,
@@ -110,7 +110,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
     ];
 
     const audienceCached = queryClient.getQueryData(audienceQueryKey);
-    if (!audienceCached && jobExists && isWorkflowSuccess(jobDetails, "audience")) {
+    if (!audienceCached && jobExists && isWorkflowSuccess(jobDetails, "audiences")) {
       batch1Promises.push(
         queryClient.prefetchQuery({
           queryKey: audienceQueryKey,
@@ -147,7 +147,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       ];
 
       const socialCached = queryClient.getQueryData(socialQueryKey);
-      if (!socialCached && isWorkflowSuccess(jobDetails, "channel_analyzer")) {
+      if (!socialCached && isWorkflowSuccess(jobDetails, "social_channels")) {
         batch2Promises.push(
           queryClient.prefetchQuery({
             queryKey: socialQueryKey,
@@ -179,8 +179,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       if (
         !digitalAdsCached &&
         jobExists &&
-        isWorkflowSuccess(jobDetails, "digital_ads_opportunity_scorer") &&
-        isWorkflowSuccess(jobDetails, "ad_concept_generator")
+        isWorkflowSuccess(jobDetails, "digital_ads_opportunities")
       ) {
         batch2Promises.push(
           queryClient.prefetchQuery({

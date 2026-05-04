@@ -309,7 +309,7 @@ export async function getConversationList(
 ): Promise<ConversationListResponse> {
   const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL;
   const response = await fetch(
-    `${baseUrl}/chatbot/conversation-history?business_id=${encodeURIComponent(businessId)}`,
+    `${baseUrl}/chatbot/conversation/history?business_id=${encodeURIComponent(businessId)}`,
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
@@ -333,7 +333,7 @@ export async function getPlannerConversationList(
 ): Promise<ConversationListResponse> {
   const baseUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL;
   const response = await fetch(
-    `${baseUrl}/chatbot/planner-history?business_id=${encodeURIComponent(businessId)}`,
+    `${baseUrl}/chatbot/planner/history?business_id=${encodeURIComponent(businessId)}`,
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
@@ -364,7 +364,7 @@ export async function getChatHistory(
   });
 
   const response = await fetch(
-    `${baseUrl}/chatbot/conversation-history?${params.toString()}`,
+    `${baseUrl}/chatbot/conversation/history?${params.toString()}`,
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },
@@ -396,7 +396,7 @@ export async function getPlannerHistory(
   });
 
   const response = await fetch(
-    `${baseUrl}/chatbot/planner-history?${params.toString()}`,
+    `${baseUrl}/chatbot/planner/history?${params.toString()}`,
     {
       method: "GET",
       headers: { "Content-Type": "application/json" },

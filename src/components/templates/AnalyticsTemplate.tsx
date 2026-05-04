@@ -21,6 +21,7 @@ import DiscoveryPerformanceSection from "@/components/organisms/analytics/Discov
 import { LocalSearchSection } from "@/components/organisms/analytics/LocalSearchSection";
 import SourcesSection from "@/components/organisms/analytics/SourcesSection";
 import ConversionSection from "@/components/organisms/analytics/ConversionSection";
+import ConversionOverviewSection from "@/components/organisms/analytics/ConversionOverviewSection";
 import { Button } from "@/components/ui/button";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
@@ -174,10 +175,23 @@ export function AnalyticsTemplate() {
 
   const localSearchLocations = useMemo(() => {
     const locs = (profileData as any)?.Locations ?? businessProfile?.Locations ?? [];
-    return (locs as { Name?: string; DisplayName?: string }[]).map((loc) => ({
-      value: loc.Name ?? "",
-      label: loc.DisplayName || loc.Name || "",
-    }));
+    const seen = new Set<string>();
+    return (locs as { Name?: string; DisplayName?: string; Url?: string }[])
+      .filter((loc) => {
+        const key = loc.Name ?? "";
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((loc) => {
+        const name = loc.Name ?? "";
+        const locationId = name.includes("/") ? name.split("/").pop()! : name;
+        const displayName = loc.DisplayName || "";
+        const label = displayName && locationId
+          ? `${displayName} (${locationId})`
+          : displayName || locationId || name;
+        return { value: name, label };
+      });
   }, [profileData, businessProfile]);
   const brandTerms = useMemo(
     () =>
@@ -457,6 +471,9 @@ export function AnalyticsTemplate() {
               hideChannelsChart={selectedTab === "organic"}
               ga4TrafficScope={selectedTab}
             />
+            {selectedTab === "all" ? (
+              <ConversionOverviewSection period={selectedPeriod} />
+            ) : null}
             <ConversionSection
               period={selectedPeriod}
               ga4TrafficScope={selectedTab}

@@ -50,7 +50,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useBusinessStore, BusinessProfile } from "@/store/business-store";
 import { useSubscription } from "@/hooks/use-subscription";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChartLine, ChevronRight, Loader2, Puzzle, Zap } from "lucide-react";
 import { Typography } from "@/components/ui/typography";
 import { useMassicOpportunitiesStatus, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
 import { MassicOpportunitiesModal } from "@/components/molecules/MassicOpportunitiesModal";
@@ -60,16 +60,11 @@ import { useBillingReconciliation } from "@/hooks/use-billing-reconciliation";
 import { BillingReconciliationReport as BillingReconciliationReportView } from "@/components/organisms/settings/BillingReconciliationReport";
 import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
 import { generatePdfFromBillingReconciliation } from "@/utils/pdf-generator";
+import { cn } from "@/lib/utils";
 
 const toTitleCasePlan = (planType?: string) => {
   if (!planType) return "";
   return planType.charAt(0).toUpperCase() + planType.slice(1).toLowerCase();
-};
-
-const formatTrialLabel = (remainingTrialDays?: number) => {
-  if (!remainingTrialDays || remainingTrialDays <= 0) return null;
-  const dayLabel = remainingTrialDays === 1 ? "day" : "days";
-  return `Trial: ${remainingTrialDays} ${dayLabel} remaining`;
 };
 
 const formatDate = (value?: string | number | Date | null) => {
@@ -84,6 +79,245 @@ const formatShortDate = (value?: string | number | Date | null) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
+const getBusinessPlanName = (profile: BusinessProfile, isAgencyWhitelisted: boolean) => {
+  if (isAgencyWhitelisted) return "Whitelisted";
+
+  const subscription = profile.SubscriptionItems;
+  if (subscription?.plan_type && subscription?.status !== "cancelled") {
+    return toTitleCasePlan(subscription.plan_type);
+  }
+
+  return "No Plan";
+};
+
+const getBusinessPlanIcon = (planName: string) => {
+  switch (planName) {
+    case "Starter":
+      return ChartLine;
+    case "Core":
+      return Puzzle;
+    case "Growth":
+      return Zap;
+    default:
+      return ChartLine;
+  }
+};
+
+const getBusinessPlanClassName = (planName: string) => {
+  switch (planName) {
+    case "Growth":
+      return "text-[#2E9B6F]";
+    case "Starter":
+      return "text-[#60646C]";
+    case "Core":
+      return "text-[#44474F]";
+    default:
+      return "text-[#8A8F98]";
+  }
+};
+
+const BILLING_STATUS_FILTERS = [
+  {
+    value: "all",
+    label: "All",
+    dotClassName: "",
+    activeClassName:
+      "border border-[#9CC3B0] bg-[#3E6F61] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.55)_inset]",
+    inactiveClassName: "border border-transparent bg-[#EEF3F1] text-[#3E6F61]",
+    countClassName: "text-white/85",
+  },
+  {
+    value: "active",
+    label: "Active",
+    dotClassName: "bg-[#639922]",
+    activeClassName: "border border-[#D7E8BF] bg-[#EEF6E4] text-[#639922]",
+    inactiveClassName: "border border-transparent bg-[#EEF6E4] text-[#639922]",
+    countClassName: "text-[#639922]/80",
+  },
+  {
+    value: "trial",
+    label: "Trial",
+    dotClassName: "bg-[#D88A10]",
+    activeClassName: "border border-[#F7D496] bg-[#FFF3D8] text-[#D88A10]",
+    inactiveClassName: "border border-transparent bg-[#FFF3D8] text-[#D88A10]",
+    countClassName: "text-[#D88A10]/80",
+  },
+  {
+    value: "cancelling",
+    label: "Cancelling",
+    dotClassName: "bg-[#708091]",
+    activeClassName: "border border-[#DBDEE3] bg-[#ECEFF2] text-[#708091]",
+    inactiveClassName: "border border-transparent bg-[#ECEFF2] text-[#708091]",
+    countClassName: "text-[#708091]/80",
+  },
+  {
+    value: "inactive",
+    label: "Inactive",
+    dotClassName: "bg-[#E24B4A]",
+    activeClassName: "border border-[#F4B8B8] bg-[#FDECEC] text-[#E24B4A]",
+    inactiveClassName: "border border-transparent bg-[#FDECEC] text-[#E24B4A]",
+    countClassName: "text-[#E24B4A]/80",
+  },
+] as const;
+
+type BillingStatusFilterValue = (typeof BILLING_STATUS_FILTERS)[number]["value"];
+
+const getBillingStatusFilterValue = (
+  profile: BusinessProfile,
+  isAgencyWhitelisted: boolean
+): Exclude<BillingStatusFilterValue, "all"> | null => {
+  if (isAgencyWhitelisted) return "active";
+
+  const subscription = profile.SubscriptionItems;
+  const subscriptionStatus = subscription?.status;
+  const hasSubscription =
+    typeof subscription?.plan_type === "string" &&
+    subscription.plan_type.length > 0 &&
+    subscriptionStatus !== "cancelled";
+
+  if (subscription?.cancel_at_period_end && subscription?.cancelled_date) {
+    return "cancelling";
+  }
+
+  if (subscriptionStatus === "trialing" || profile.isTrialActive) {
+    return "trial";
+  }
+
+  if (!hasSubscription) {
+    return "inactive";
+  }
+
+  if (subscriptionStatus === "active") {
+    return "active";
+  }
+
+  return "inactive";
+};
+
+const getBusinessStatus = (profile: BusinessProfile, isAgencyWhitelisted: boolean) => {
+  if (isAgencyWhitelisted) {
+    return {
+      label: "Whitelisted",
+      className:
+        "h-6 rounded-md border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-semibold leading-none text-emerald-700",
+      tooltip: null as string | null,
+    };
+  }
+
+  const subscription = profile.SubscriptionItems;
+  const subscriptionStatus = subscription?.status;
+  const planType = subscription?.plan_type;
+  const hasSubscription =
+    typeof planType === "string" &&
+    planType.length > 0 &&
+    subscriptionStatus !== "cancelled";
+
+  if ((subscriptionStatus === "trialing" || profile.isTrialActive) && profile.remainingTrialDays) {
+    const dayLabel = profile.remainingTrialDays === 1 ? "day" : "days";
+    return {
+      label: `Trial · ${profile.remainingTrialDays} ${dayLabel} left`,
+      className:
+        "h-6 rounded-full border border-[#FFD7D7] bg-[#FFF0F0] px-2.5 text-[11px] font-medium leading-none text-[#F04438]",
+      tooltip: null,
+    };
+  }
+
+  if (!hasSubscription) {
+    return {
+      label: "Inactive",
+      className:
+        "h-6 rounded-full border border-[#FFD7D7] bg-[#FFF0F0] px-2.5 text-[11px] font-medium leading-none text-[#F04438]",
+      tooltip: null,
+    };
+  }
+
+  if (subscription?.cancel_at_period_end && subscription?.cancelled_date) {
+    return {
+      label: "Cancelling",
+      className:
+        "h-6 rounded-full border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-medium leading-none text-amber-700",
+      tooltip: null,
+    };
+  }
+
+  if (subscriptionStatus === "active") {
+    return {
+      label: "Active",
+      className:
+        "h-6 rounded-full border border-[#CDEFD9] bg-[#E8F9EE] px-2.5 text-[11px] font-medium leading-none text-[#16A34A]",
+      tooltip: null,
+    };
+  }
+
+  const normalizedStatus = subscriptionStatus
+    ? subscriptionStatus.replace(/_/g, " ")
+    : "Inactive";
+
+  return {
+    label: normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1),
+    className:
+      "h-6 rounded-full border border-muted-foreground/20 px-2.5 text-[11px] font-medium leading-none text-muted-foreground",
+    tooltip: null,
+  };
+};
+
+const getBusinessStatusDetail = (
+  profile: BusinessProfile,
+  isAgencyWhitelisted: boolean
+) => {
+  if (isAgencyWhitelisted) return null;
+
+  const subscription = profile.SubscriptionItems;
+
+  if (subscription?.cancel_at_period_end && subscription?.cancelled_date) {
+    return `Access until ${formatShortDate(subscription.cancelled_date)}`;
+  }
+
+  if (subscription?.status === "trialing" || profile.isTrialActive) {
+    return null;
+  }
+
+  const hasActivePlan =
+    Boolean(subscription?.plan_type) &&
+    subscription?.status !== "cancelled" &&
+    !subscription?.cancel_at_period_end;
+
+  if (hasActivePlan && subscription?.current_period_end) {
+    return `Renews ${formatShortDate(subscription.current_period_end)}`;
+  }
+
+  return null;
+};
+
+const getBusinessBillingAction = (
+  profile: BusinessProfile,
+  isAgencyWhitelisted: boolean
+) => {
+  if (isAgencyWhitelisted) return null;
+
+  const subscription = profile.SubscriptionItems;
+  const hasPlan = Boolean(subscription?.plan_type) && subscription?.status !== "cancelled";
+
+  if (!hasPlan) {
+    return {
+      label: "Start Plan",
+      type: "start" as const,
+    };
+  }
+
+  if (subscription?.cancel_at_period_end) {
+    return {
+      label: "Reactivate",
+      type: "reactivate" as const,
+    };
+  }
+
+  return {
+    label: "Cancel",
+    type: "cancel" as const,
+  };
 };
 
 const getCurrentMonthValue = () => {
@@ -198,6 +432,8 @@ export function BillingSettings() {
   const [selectedReportMonth, setSelectedReportMonth] = useState(getCurrentMonthValue);
   const [reconciliationReport, setReconciliationReport] = useState<BillingReconciliationReport | null>(null);
   const [reconciliationPdfLoading, setReconciliationPdfLoading] = useState(false);
+  const [billingStatusFilter, setBillingStatusFilter] =
+    useState<BillingStatusFilterValue>("all");
   const [planChangeConfirm, setPlanChangeConfirm] = useState<{
     planName: string;
     action: "UPGRADE" | "DOWNGRADE";
@@ -229,6 +465,10 @@ export function BillingSettings() {
   const reactivateMassicOpportunities = useReactivateMassicOpportunities();
   const queryClient = useQueryClient();
   const billingReconciliation = useBillingReconciliation();
+  const headerClassName =
+    "h-11 justify-start gap-1.5 bg-transparent px-0 text-[14px] font-medium text-[#181D27] hover:bg-transparent focus-visible:ring-0 [&_svg]:size-3.5 [&_svg]:text-[#98A2B3] [&>span:last-child]:opacity-100";
+  const actionButtonClassName =
+    "h-8 rounded-lg border-[#D0D5DD] bg-[#F9FAFB] px-3 text-[13px] font-medium text-[#667085] shadow-none hover:bg-[#F2F4F7] hover:text-[#475467]";
 
   const loading = subscriptionLoading || creditsLoading;
   const settingsReturnUrl = useMemo(() => {
@@ -482,210 +722,203 @@ export function BillingSettings() {
       {
         accessorKey: "Name",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} label="Business Name" disableHide />
+          <DataTableColumnHeader column={column} label="Business Name" disableHide className={headerClassName} />
         ),
         enableSorting: true,
-        size: 70,
-        minSize: 70,
+        size: 52,
+        minSize: 52,
+        maxSize: 190,
         cell: ({ row }) => {
-          return <div className="text-left truncate" title={row.original.Name}>{row.original.Name}</div>;
+          return <div className="truncate text-[15px] font-medium text-[#181D27]" title={row.original.Name}>{row.original.Name}</div>;
         },
       },
       {
         id: "plan",
-        accessorFn: (row) => {
-          if (isAgencyWhitelisted) return "Whitelisted";
-          const subscription = row.SubscriptionItems;
-          if (subscription?.plan_type && subscription?.status !== "cancelled") {
-            return toTitleCasePlan(subscription.plan_type);
-          }
-          return "No Plan";
-        },
+        accessorFn: (row) => getBusinessPlanName(row, isAgencyWhitelisted),
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} label="Plan" disableHide />
+          <DataTableColumnHeader column={column} label="Plan" disableHide className={headerClassName} />
         ),
         enableSorting: true,
-        size: 70,
-        minSize: 70,
+        size: 64,
+        minSize: 64,
+        maxSize: 220,
         cell: ({ row }) => {
-          if (isAgencyWhitelisted) {
-            return (
-              <div className="border border-general-border rounded-lg px-2 py-[5.5px] flex items-center justify-between">
-                <Typography variant="p" className="leading-none text-green-600">
-                  Whitelisted
+          const planName = getBusinessPlanName(row.original, isAgencyWhitelisted);
+          const PlanIcon = getBusinessPlanIcon(planName);
+          return (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleManagePlan(row.original.UniqueId)}
+                className="group flex h-9 w-full max-w-[132px] items-center gap-2 rounded-xl border border-[#E5E7EB] bg-white px-2.5 text-left transition hover:border-[#D0D5DD] hover:bg-[#FAFAFA]"
+              >
+                <PlanIcon className={cn("h-4 w-4 shrink-0", getBusinessPlanClassName(planName))} />
+                <Typography
+                  variant="p"
+                  className={cn("text-[13px] font-medium leading-none whitespace-nowrap", getBusinessPlanClassName(planName))}
+                >
+                  {planName}
                 </Typography>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </div>
-            );
-          }
-
-          const subscription = row.original.SubscriptionItems;
-          const subscriptionStatus = subscription?.status;
-          const subscriptionPlanType = subscription?.plan_type;
-          const hasSubscription =
-            subscriptionPlanType &&
-            typeof subscriptionPlanType === "string" &&
-            subscriptionPlanType.length > 0 &&
-            subscriptionStatus !== "cancelled";
-
-          const planName = hasSubscription ? toTitleCasePlan(subscriptionPlanType) : "No Plan";
-
-          const cancelAtPeriodEnd = subscription?.cancel_at_period_end;
-          const cancelAtDate = subscription?.cancelled_date;
-
-          const statusLabel = cancelAtPeriodEnd && cancelAtDate
-            ? `Cancels ${formatShortDate(cancelAtDate)}`
-            : subscriptionStatus && subscriptionStatus !== "active"
-              ? subscriptionStatus.replace("_", " ")
-              : hasSubscription
-                ? "Active"
-                : null;
-          const showStatusPill = Boolean(
-            (cancelAtPeriodEnd && cancelAtDate) ||
-            (subscriptionStatus && subscriptionStatus !== "cancelled") ||
-            hasSubscription
+                <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-[#B8BDC7] group-hover:text-[#98A2B3]" />
+              </button>
+            </div>
           );
-          const trialPill =
-            planName === "No Plan" && row.original.isTrialActive && row.original.remainingTrialDays
-              ? `Trial ${row.original.remainingTrialDays}d`
-              : null;
-
-          const cycleStart = row.original.SubscriptionItems?.current_period_start;
-          const cycleEnd = row.original.SubscriptionItems?.current_period_end;
-          const cycleLabel = cycleStart && cycleEnd
-            ? `Cycle ${formatShortDate(cycleStart)} – ${formatShortDate(cycleEnd)}`
-            : null;
+        },
+      },
+      {
+        id: "status",
+        accessorFn: (row) => getBusinessStatus(row, isAgencyWhitelisted).label,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Status" disableHide className={headerClassName} />
+        ),
+        enableSorting: true,
+        size: 42,
+        minSize: 42,
+        maxSize: 120,
+        cell: ({ row }) => {
+          const status = getBusinessStatus(row.original, isAgencyWhitelisted);
+          const statusDetail = getBusinessStatusDetail(row.original, isAgencyWhitelisted);
 
           return (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <div
-                  onClick={() => handleManagePlan(row.original.UniqueId)}
-                  className="group flex w-[110px] items-center gap-2 rounded-lg border border-general-border px-3 py-1.5 hover:border-general-primary/40 hover:bg-muted/30 transition"
-                >
-                  <Typography
-                    variant="p"
-                    className={`text-sm leading-5 font-semibold ${planName === "Growth" ? "text-green-600" : ""}`}
-                  >
-                    {planName}
-                  </Typography>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
-                </div>
-                {showStatusPill && statusLabel && (
-                  cancelAtPeriodEnd && cancelAtDate ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Badge
-                          variant="outline"
-                          className="h-6 rounded-md border-amber-200 bg-amber-50 px-2.5 text-[11px] font-semibold leading-none text-amber-700"
-                        >
-                          {statusLabel}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Access continues until {formatDate(cancelAtDate)}.
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className={statusLabel === "Active"
-                        ? "h-6 rounded-md border-emerald-200 bg-emerald-50 px-2.5 text-[11px] font-semibold leading-none text-emerald-700"
-                        : "h-6 rounded-md border-muted-foreground/20 px-2.5 text-[11px] font-semibold leading-none text-muted-foreground"}
-                    >
-                      {statusLabel}
+            <div className="flex min-w-0 flex-col items-start gap-1">
+              {status.tooltip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className={status.className}>
+                      {status.label}
                     </Badge>
-                  )
-                )}
-                {trialPill && (
-                  <Badge
-                    variant="outline"
-                    className="h-6 rounded-md border-sky-200 bg-sky-50 px-2.5 text-[11px] font-semibold leading-none text-sky-700"
-                  >
-                    {trialPill}
-                  </Badge>
-                )}
-              </div>
-              {cycleLabel && (
-                <Badge
-                  variant="outline"
-                  className="w-fit h-6 rounded-md border-muted-foreground/20 px-2.5 text-[11px] font-semibold leading-none text-muted-foreground"
-                >
-                  {cycleLabel}
+                  </TooltipTrigger>
+                  <TooltipContent>{status.tooltip}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Badge variant="outline" className={status.className}>
+                  {status.label}
                 </Badge>
+              )}
+              {statusDetail && (
+                <p className="truncate text-[11px] font-normal text-[#98A2B3]">
+                  {statusDetail}
+                </p>
               )}
             </div>
           );
         },
       },
       {
-        id: "action",
-        header: () => (
-          <div className="text-left text-sm font-medium text-muted-foreground">
-            Action
-          </div>
+        id: "actions",
+        accessorFn: (row) =>
+          getBusinessBillingAction(row, isAgencyWhitelisted)?.label || "",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Actions" disableHide className={headerClassName} />
         ),
-        enableSorting: false,
-        size: 50,
-        minSize: 50,
+        enableSorting: true,
+        size: 48,
+        minSize: 48,
+        maxSize: 140,
         cell: ({ row }) => {
-          const subscription = row.original.SubscriptionItems;
-          const hasSubscription =
-            subscription?.plan_type &&
-            subscription?.status &&
-            subscription?.status !== "cancelled";
-
-          if (isAgencyWhitelisted || !hasSubscription) {
-            return <span className="text-muted-foreground">-</span>;
-          }
-
-          const cancelAtPeriodEnd = subscription?.cancel_at_period_end;
+          const billingAction = getBusinessBillingAction(row.original, isAgencyWhitelisted);
           const isProcessing =
             actionLoading &&
             subscriptionAction?.business.UniqueId === row.original.UniqueId;
 
+          if (!billingAction) {
+            return (
+              <div className="flex justify-start">
+                <span className="text-[13px] text-[#98A2B3]">-</span>
+              </div>
+            );
+          }
+
+          if (billingAction.type === "start") {
+            return (
+              <div className="flex justify-start">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={actionButtonClassName}
+                  disabled={loading || actionLoading}
+                  onClick={() => handleManagePlan(row.original.UniqueId)}
+                >
+                  {billingAction.label}
+                </Button>
+              </div>
+            );
+          }
+
           return (
-            <Button
-              size="sm"
-              variant={cancelAtPeriodEnd ? "secondary" : "destructive"}
-              disabled={loading || actionLoading}
-              onClick={() =>
-                openSubscriptionAction(
-                  row.original,
-                  cancelAtPeriodEnd ? "reactivate" : "cancel"
-                )
-              }
-            >
-              {isProcessing ? "Processing..." : cancelAtPeriodEnd ? "Reactivate" : "Cancel"}
-            </Button>
+            <div className="flex justify-start">
+              <Button
+                size="sm"
+                variant="outline"
+                className={actionButtonClassName}
+                disabled={loading || actionLoading}
+                onClick={() => openSubscriptionAction(row.original, billingAction.type)}
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Processing
+                  </>
+                ) : (
+                  billingAction.label
+                )}
+              </Button>
+            </div>
           );
         },
       },
     ],
-    [isAgencyWhitelisted, handleManagePlan, loading, actionLoading, subscriptionAction, openSubscriptionAction]
+    [isAgencyWhitelisted, handleManagePlan, loading, actionLoading, subscriptionAction, openSubscriptionAction, actionButtonClassName]
   );
 
+  const sortedBillingProfiles = useMemo(() => {
+    const getHasPlan = (profile: BusinessProfile) => {
+      if (isAgencyWhitelisted) return true;
+      const subscription = profile.SubscriptionItems;
+      if (!subscription) return false;
+      if (subscription.status === "cancelled") return false;
+      return Boolean(subscription.plan_type);
+    };
+
+    return [...profiles].sort((a, b) => {
+      const aHasPlan = getHasPlan(a);
+      const bHasPlan = getHasPlan(b);
+      if (aHasPlan !== bHasPlan) return aHasPlan ? -1 : 1;
+      const aName = (a.Name || "").toLowerCase();
+      const bName = (b.Name || "").toLowerCase();
+      return aName.localeCompare(bName);
+    });
+  }, [profiles, isAgencyWhitelisted]);
+
+  const billingStatusFilterCounts = useMemo(() => {
+    const counts: Record<BillingStatusFilterValue, number> = {
+      all: sortedBillingProfiles.length,
+      active: 0,
+      trial: 0,
+      cancelling: 0,
+      inactive: 0,
+    };
+
+    sortedBillingProfiles.forEach((profile) => {
+      const status = getBillingStatusFilterValue(profile, isAgencyWhitelisted);
+      if (status) counts[status] += 1;
+    });
+
+    return counts;
+  }, [sortedBillingProfiles, isAgencyWhitelisted]);
+
+  const filteredBillingProfiles = useMemo(() => {
+    if (billingStatusFilter === "all") return sortedBillingProfiles;
+
+    return sortedBillingProfiles.filter(
+      (profile) =>
+        getBillingStatusFilterValue(profile, isAgencyWhitelisted) ===
+        billingStatusFilter
+    );
+  }, [billingStatusFilter, sortedBillingProfiles, isAgencyWhitelisted]);
+
   const table = useReactTable({
-    data: useMemo(() => {
-      const getHasPlan = (profile: BusinessProfile) => {
-        if (isAgencyWhitelisted) return true;
-        const subscription = profile.SubscriptionItems;
-        if (!subscription) return false;
-        if (subscription.status === "cancelled") return false;
-        return Boolean(subscription.plan_type);
-      };
-
-      const sorted = [...profiles].sort((a, b) => {
-        const aHasPlan = getHasPlan(a);
-        const bHasPlan = getHasPlan(b);
-        if (aHasPlan !== bHasPlan) return aHasPlan ? -1 : 1;
-        const aName = (a.Name || "").toLowerCase();
-        const bName = (b.Name || "").toLowerCase();
-        return aName.localeCompare(bName);
-      });
-
-      return sorted;
-    }, [profiles, isAgencyWhitelisted]),
+    data: filteredBillingProfiles,
     columns,
     state: {
       sorting,
@@ -702,9 +935,7 @@ export function BillingSettings() {
     globalFilterFn: (row, columnId, filterValue) => {
       const search = filterValue.toLowerCase();
       const name = row.original.Name?.toLowerCase() || "";
-      const planType =
-        row.original.SubscriptionItems?.plan_type?.toLowerCase() || "";
-      return name.includes(search) || planType.includes(search);
+      return name.includes(search);
     },
     initialState: {
       pagination: {
@@ -730,54 +961,92 @@ export function BillingSettings() {
     subscriptionAction?.type === "cancel" ? "Keep Plan" : "Close";
 
   return (
-    <div className="flex gap-6 bg-white p-6 rounded-xl border border-muted/40 shadow-sm h-[calc(100vh-12rem)]">
+    <div className="flex gap-6 h-[calc(100vh-12rem)]">
       {/* Left Section - Payment & Billing */}
-      <div className="flex-[1.2] min-w-0 h-full overflow-hidden">
-        <Card className="border-none shadow-none py-0">
-          <CardHeader className="px-0 pb-2">
+      <div className="flex-[1.2] min-w-0 h-full overflow-hidden rounded-xl border border-muted/40 bg-white p-6 shadow-sm">
+        <Card className="flex h-full flex-col gap-2 border-none py-0 shadow-none">
+          <CardHeader className="px-0 pb-0">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <CardTitle className="text-base">Business Billing</CardTitle>
-                <CardDescription>
-                  Manage subscriptions, renewals, and billing periods per business.
-                </CardDescription>
+                <CardTitle className="font-mono text-base font-normal">Business Billing</CardTitle>
               </div>
               <Button
-                variant="outline"
                 size="sm"
                 onClick={() => setReconciliationSheetOpen(true)}
               >
-                Reconciliation report
+                Generate Reconciliation Report
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6 p-0">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-0">
             {loading && profiles.length === 0 ? (
               <div className="flex justify-center p-8">
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
             ) : (
-              <DataTable
-                table={table}
-                isLoading={loading}
-                emptyMessage="No businesses found."
-                disableHorizontalScroll={true}
-                className="h-[calc(100vh-16rem)]"
-              >
-                <div
-                  role="toolbar"
-                  aria-orientation="horizontal"
-                  className="flex w-full items-start justify-between gap-2 p-1"
-                >
-                  <div className="flex flex-1 flex-wrap items-center gap-2">
-                    <DataTableSearch
-                      value={globalFilter}
-                      onChange={setGlobalFilter}
-                      placeholder="Search businesses, plans..."
-                    />
-                  </div>
+              <>
+                <DataTableSearch
+                  value={globalFilter}
+                  onChange={setGlobalFilter}
+                  placeholder="Search business name..."
+                  className="max-w-none"
+                  inputClassName="shadow-none focus-visible:ring-1 focus-visible:ring-ring/40"
+                />
+                <div className="flex items-center gap-2 overflow-x-auto rounded-full p-1">
+                  {BILLING_STATUS_FILTERS.map((option) => {
+                    const isActive = billingStatusFilter === option.value;
+                    const count = billingStatusFilterCounts[option.value];
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setBillingStatusFilter(option.value)}
+                        className={cn(
+                          "inline-flex h-8 cursor-pointer items-center gap-1 rounded-full px-3 text-[13px] font-medium whitespace-nowrap transition-colors",
+                          isActive ? option.activeClassName : option.inactiveClassName
+                        )}
+                      >
+                        {option.value !== "all" ? (
+                          <span
+                            className={cn("h-2 w-2 shrink-0 rounded-full", option.dotClassName)}
+                          />
+                        ) : null}
+                        <span>{option.label}</span>
+                        {option.value !== "all" ? (
+                          <span
+                            className={cn(
+                              "text-[13px] font-medium",
+                              option.countClassName
+                            )}
+                          >
+                            {count}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
-              </DataTable>
+                <DataTable
+                  table={table}
+                  isLoading={loading}
+                  emptyMessage="No businesses found."
+                  disableHorizontalScroll={true}
+                  showPagination={false}
+                  toolbarPosition="belowHeader"
+                  className="min-h-0 flex-1 gap-0 [&_table]:border-separate [&_table]:border-spacing-0 [&_thead]:bg-white [&_thead_th]:h-11 [&_thead_th]:border-b [&_thead_th]:border-[#E6E8EC] [&_thead_th]:bg-white [&_thead_th]:px-3 [&_thead_th]:py-0 [&_tbody_td]:border-b [&_tbody_td]:border-[#EAECF0] [&_tbody_td]:px-3 [&_tbody_td]:py-3 [&_tbody_tr]:bg-white **:data-[toolbar-row='true']:border-0 **:data-[toolbar-row='true']:bg-transparent **:data-[toolbar-cell='true']:border-0 **:data-[toolbar-cell='true']:bg-transparent **:data-[toolbar-cell='true']:px-0 **:data-[toolbar-cell='true']:py-0"
+                >
+                  <div
+                    role="toolbar"
+                    aria-orientation="horizontal"
+                    className="flex h-8 w-full items-center justify-between bg-[#F7F7F8]"
+                  >
+                    <p className="px-3 text-xs font-normal text-[#8A8F98]">
+                      {table.getFilteredRowModel().rows.length} businesses linked
+                    </p>
+                  </div>
+                </DataTable>
+              </>
             )}
           </CardContent>
         </Card>
@@ -785,25 +1054,15 @@ export function BillingSettings() {
 
       {/* Right Section - Plans */}
       <div className="w-[440px] shrink-0 overflow-auto">
-        <Card className="border border-muted/40 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Plans</CardTitle>
-            <CardDescription>
-              Add new plans or manage add-ons like execution credits.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4">
-            <PlansWrapper
-              plansData={plansStats}
-              modalPlansData={defaultPlansData}
-              currentCreditBalance={creditsBalance?.current_balance || 0}
-              onPurchaseCredits={handlePurchaseCredits}
-              onCreditsRefresh={refetchCredits}
-              onMassicOpportunitiesClick={() => setMassicOpportunitiesModalOpen(true)}
-              onMassicOpportunitiesDeactivate={() => cancelMassicOpportunities.mutate()}
-            />
-          </CardContent>
-        </Card>
+        <PlansWrapper
+          plansData={plansStats}
+          modalPlansData={defaultPlansData}
+          currentCreditBalance={creditsBalance?.current_balance || 0}
+          onPurchaseCredits={handlePurchaseCredits}
+          onCreditsRefresh={refetchCredits}
+          onMassicOpportunitiesClick={() => setMassicOpportunitiesModalOpen(true)}
+          onMassicOpportunitiesDeactivate={() => cancelMassicOpportunities.mutate()}
+        />
       </div>
 
       <PlanModal
@@ -940,49 +1199,53 @@ export function BillingSettings() {
       />
 
       <Sheet open={reconciliationSheetOpen} onOpenChange={setReconciliationSheetOpen}>
-        <SheetContent side="right" className="w-[100vw] gap-0 p-0 sm:max-w-[1080px]">
-          <SheetHeader className="border-b border-border/60 pr-12">
-            <SheetTitle>Billing reconciliation report</SheetTitle>
-            <SheetDescription>
-              Review the selected month, export CSV, or download the PDF without leaving the billing screen.
-            </SheetDescription>
+        <SheetContent side="right" className="w-screen gap-0 p-0 sm:max-w-[920px]">
+          {reconciliationReport ? (
+            <BillingReconciliationReportView
+              report={reconciliationReport}
+              onDownloadCsv={handleDownloadReconciliationCsv}
+              onDownloadPdf={handleDownloadReconciliationPdf}
+              onGenerateReport={handleGenerateReconciliationReport}
+              isDownloadingPdf={reconciliationPdfLoading}
+              isGeneratingReport={billingReconciliation.isPending}
+            />
+          ) : (
+            <>
+              <SheetHeader className="border-b border-border/60 pr-12">
+                <SheetTitle>Billing reconciliation report</SheetTitle>
+                <SheetDescription>
+                  Review the selected month, export CSV, or download the PDF without leaving the billing screen.
+                </SheetDescription>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1">
-                <Input
-                  id="reconciliation-month-sheet"
-                  type="month"
-                  value={selectedReportMonth}
-                  onChange={(event) => setSelectedReportMonth(event.target.value)}
-                  max={getCurrentMonthValue()}
-                  aria-label="Select reconciliation month"
-                  className="max-w-[220px]"
-                />
-              </div>
-              <Button
-                onClick={handleGenerateReconciliationReport}
-                disabled={!selectedReportMonth || billingReconciliation.isPending}
-                className="sm:self-end"
-              >
-                {billingReconciliation.isPending ? "Loading..." : "Load report"}
-              </Button>
-            </div>
-          </SheetHeader>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      id="reconciliation-month-sheet"
+                      type="month"
+                      value={selectedReportMonth}
+                      onChange={(event) => setSelectedReportMonth(event.target.value)}
+                      max={getCurrentMonthValue()}
+                      aria-label="Select reconciliation month"
+                      className="max-w-[220px]"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleGenerateReconciliationReport}
+                    disabled={!selectedReportMonth || billingReconciliation.isPending}
+                    className="sm:self-end"
+                  >
+                    {billingReconciliation.isPending ? "Loading..." : "Load report"}
+                  </Button>
+                </div>
+              </SheetHeader>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-6">
-            {reconciliationReport ? (
-              <BillingReconciliationReportView
-                report={reconciliationReport}
-                onDownloadCsv={handleDownloadReconciliationCsv}
-                onDownloadPdf={handleDownloadReconciliationPdf}
-                isDownloadingPdf={reconciliationPdfLoading}
-              />
-            ) : (
-              <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground">
-                Generate a reconciliation report to view it here.
+              <div className="min-h-0 flex-1 overflow-y-auto p-6">
+                <div className="flex h-full min-h-[240px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/20 text-sm text-muted-foreground">
+                  Generate a reconciliation report to view it here.
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
         </SheetContent>
       </Sheet>
     </div>

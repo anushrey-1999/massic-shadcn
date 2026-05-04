@@ -13,6 +13,7 @@ interface DataTableSearchProps {
   placeholder?: string;
   debounceMs?: number;
   className?: string;
+  inputClassName?: string;
 }
 
 export function DataTableSearch({
@@ -21,6 +22,7 @@ export function DataTableSearch({
   placeholder = "Search all columns...",
   debounceMs = 400,
   className,
+  inputClassName,
 }: DataTableSearchProps) {
   const [localValue, setLocalValue] = React.useState(value);
   const isFocusedRef = React.useRef(false);
@@ -62,7 +64,7 @@ export function DataTableSearch({
           setLocalValue(value);
         }}
         placeholder={placeholder}
-        className="h-9 pl-9 pr-10"
+        className={cn("h-9 pl-9 pr-10", inputClassName)}
       />
       {localValue && (
         <Button

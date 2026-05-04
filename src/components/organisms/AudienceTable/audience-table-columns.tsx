@@ -82,8 +82,8 @@ export function getAudienceTableColumns({
       maxSize: 250,
     },
     {
-      id: "ars",
-      accessorKey: "ars",
+      id: "audience_relevance_score",
+      accessorKey: "audience_relevance_score",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Relevance" />
       ),
@@ -98,7 +98,10 @@ export function getAudienceTableColumns({
       meta: {
         label: "Relevance",
         variant: "range",
-        range: [arsRange.min, arsRange.max],
+        range: [
+          Math.round(arsRange.min * 100),
+          Math.round(arsRange.max * 100),
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

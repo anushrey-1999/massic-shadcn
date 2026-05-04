@@ -34,14 +34,14 @@ export function ShareReportDialog({
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const shareReportMutation = useMutation({
-    mutationFn: async ({ emails, includeWatermark }: { emails: string[]; includeWatermark: boolean }) => {
+    mutationFn: async ({ emails }: { emails: string[] }) => {
       // Use longer timeout for share report API as it may take time to process
       return await api.post(
         `/analytics/report-runs/${encodeURIComponent(reportRunId)}/share`,
         "node",
         {
           emails,
-          includeWatermark,
+          includeWatermark: false,
         },
         {
           timeout: 300000, // 5 minutes timeout
@@ -62,12 +62,10 @@ export function ShareReportDialog({
   const form = useForm({
     defaultValues: {
       emails: [] as string[],
-      includeWatermark: true,
     },
-    onSubmit: async ({ value }) => {
+    onSubmit: async () => {
       shareReportMutation.mutate({
         emails: emailChips,
-        includeWatermark: value.includeWatermark,
       });
     },
   });
@@ -220,61 +218,7 @@ export function ShareReportDialog({
             </div>
           </div>
 
-          {/* Include Watermark Card */}
-          <form.Field name="includeWatermark">
-            {(field) => (
-              <div className="flex items-center justify-between pl-2 pr-6 py-2 bg-[#FAFAFA] rounded-[8px] w-full">
-                <div className="flex flex-col gap-[6px] items-start">
-                  <p className="font-medium text-[14px] leading-[1.5] tracking-[0.07px] text-[#0A0A0A]">
-                    Include Watermark
-                  </p>
-                  <div className="flex flex-col gap-2 h-10 items-start justify-center">
-                    <div className="flex gap-8 items-start w-full">
-                      <label className="flex gap-2 h-[21px] items-center cursor-pointer">
-                        <div className="relative flex items-center justify-center h-4 w-4">
-                          <input
-                            type="radio"
-                            checked={field.state.value === true}
-                            onChange={() => field.handleChange(true)}
-                            disabled={shareReportMutation.isPending}
-                            className="peer absolute h-[15px] w-[15px] cursor-pointer appearance-none rounded-full border border-[#D4D4D4] bg-white checked:border-[#D4D4D4] disabled:cursor-not-allowed disabled:opacity-50"
-                          />
-                          <div className="pointer-events-none absolute h-2 w-2 rounded-full bg-[#0A0A0A] opacity-0 peer-checked:opacity-100" />
-                        </div>
-                        <span className="text-[14px] leading-[1.5] tracking-[0.07px] text-[#404040]">
-                          Yes
-                        </span>
-                      </label>
-                      <label className="flex gap-2 h-[21px] items-center cursor-pointer">
-                        <div className="relative flex items-center justify-center h-4 w-4">
-                          <input
-                            type="radio"
-                            checked={field.state.value === false}
-                            onChange={() => field.handleChange(false)}
-                            disabled={shareReportMutation.isPending}
-                            className="peer absolute h-[15px] w-[15px] cursor-pointer appearance-none rounded-full border border-[#D4D4D4] bg-white checked:border-[#D4D4D4] disabled:cursor-not-allowed disabled:opacity-50"
-                          />
-                          <div className="pointer-events-none absolute h-2 w-2 rounded-full bg-[#0A0A0A] opacity-0 peer-checked:opacity-100" />
-                        </div>
-                        <span className="text-[14px] leading-[1.5] tracking-[0.07px] text-[#404040]">
-                          No
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Watermark Logo */}
-                <div className="h-[47px] w-[135px] flex items-center justify-center">
-                  <img
-                    src="/powered-by-massic.svg"
-                    alt="Powered by Massic"
-                    className="w-full h-full"
-                  />
-                </div>
-              </div>
-            )}
-          </form.Field>
+          {/* Include Watermark option hidden. Shared reports default to no watermark. */}
         </div>
 
         {/* Dialog Footer */}

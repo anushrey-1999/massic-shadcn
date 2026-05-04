@@ -74,7 +74,10 @@ export function getStrategyTableColumns({
       meta: {
         label: "Business Relevance",
         variant: "range",
-        range: [businessRelevanceRange.min, businessRelevanceRange.max],
+        range: [
+          Math.round(businessRelevanceRange.min * 100),
+          Math.round(businessRelevanceRange.max * 100),
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -98,7 +101,10 @@ export function getStrategyTableColumns({
       meta: {
         label: "Topic Coverage",
         variant: "range",
-        range: [topicCoverageRange.min, topicCoverageRange.max],
+        range: [
+          Math.round(topicCoverageRange.min * 100),
+          Math.round(topicCoverageRange.max * 100),
+        ],
         icon: CalendarIcon,
       },
       enableColumnFilter: true,

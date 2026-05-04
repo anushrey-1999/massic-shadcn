@@ -3,9 +3,11 @@ import type { ExtendedColumnFilter } from "./data-table-types";
 // Strategy data types based on Backend API Specification
 
 export interface StrategyTopic {
-  topic: string;
+  topic?: string;
+  topic_name?: string;
   business_relevance_score: number;
-  topic_cluster_topic_coverage: number;
+  topic_cluster_topic_coverage?: number;
+  topic_coverage?: number;
   total_cluster_search_volume?: number;
   total_search_volume?: number;
   offerings: string[];
@@ -13,10 +15,12 @@ export interface StrategyTopic {
 }
 
 export interface StrategyCluster {
-  cluster: string;
+  cluster?: string;
+  cluster_name?: string;
   keywords: string[];
   total_search_volume: number;
-  intent_cluster_topic_coverage: number;
+  intent_cluster_topic_coverage?: number;
+  topic_coverage?: number;
 }
 
 // Row structure for table display

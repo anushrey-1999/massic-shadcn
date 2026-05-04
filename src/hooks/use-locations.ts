@@ -43,7 +43,7 @@ export function useLocations(country: string = "us") {
 
       try {
         const response = await api.get<LocationsResponse>(
-          `/locations?country=${country}`,
+          `/tools/locations?country=${country}`,
           "python"
         );
 

@@ -10,59 +10,202 @@ export const BILLING_RECONCILIATION_CSS = `
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: #ffffff;
-    color: #171717;
-    padding: 14px;
+    color: #0a0a0a;
+    padding: 0;
   }
 
   .page {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 24px;
+    padding: 36px 24px 24px;
+  }
+
+  .reportHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+
+  .headerTitleWrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .headerTitleGroup {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .receiptIcon {
+    width: 29px;
+    height: 29px;
+    border: 1.8px solid #0a0a0a;
+    border-radius: 2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #0a0a0a;
+    font-size: 14px;
+    line-height: 1;
+    flex: 0 0 auto;
   }
 
   .headerTitle {
     font-size: 24px;
     line-height: 1.2;
-    font-weight: 700;
+    font-weight: 600;
+    letter-spacing: -0.48px;
+    color: #0a0a0a;
+    white-space: nowrap;
   }
 
-  .headerSubtitle {
-    margin-top: 6px;
-    font-size: 14px;
-    color: #737373;
-  }
-
-  .monthPill {
-    border: 1px solid #e7e5e4;
-    border-radius: 12px;
-    background: #ffffff;
-    padding: 12px 14px;
-    font-size: 15px;
+  .agencyBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: #f5f5f5;
+    color: #171717;
+    font-size: 12px;
+    line-height: 1.5;
     font-weight: 500;
+    letter-spacing: 0.18px;
+    white-space: nowrap;
+  }
+
+  .summaryGrid {
+    display: grid;
+    grid-template-columns: 294px 1fr;
+    gap: 10px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .summaryCard {
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    background: rgba(65, 135, 112, 0.05);
+    padding: 12px 16px;
+    min-height: 107px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .summaryLabel {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #737373;
+    text-transform: uppercase;
+  }
+
+  .summaryValue {
+    margin-top: 8px;
+    font-size: 24px;
+    line-height: 1.2;
+    color: #0a0a0a;
+    font-weight: 600;
+    letter-spacing: -0.48px;
+    overflow-wrap: anywhere;
+  }
+
+  .summarySubtext {
+    margin-top: 8px;
+    font-size: 10px;
+    line-height: 1.5;
+    color: #171717;
+    font-weight: 500;
+    letter-spacing: 0.15px;
+    overflow-wrap: anywhere;
+  }
+
+  .planGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .planMetric {
+    min-width: 0;
+  }
+
+  .planMetricTop {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .planCount {
+    font-size: 24px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.48px;
+    color: #0a0a0a;
+  }
+
+  .planAmount {
+    padding-bottom: 2px;
+    font-size: 10px;
+    line-height: 1.5;
+    font-weight: 400;
+    letter-spacing: 0.15px;
+    color: #a3a3a3;
+    white-space: nowrap;
+  }
+
+  .planPill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 4px;
+    min-height: 24px;
+    width: 100%;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: rgba(65, 135, 112, 0.1);
+    color: #737373;
+    font-size: 10px;
+    line-height: 1.5;
+    font-weight: 500;
+    letter-spacing: 0.15px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .tableWrap {
-    border: 1px solid #e7e5e4;
-    border-radius: 16px;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
     overflow: hidden;
+    width: 100%;
+    max-width: 100%;
   }
 
   .sectionTitle {
-    font-size: 14px;
-    font-weight: 700;
-    color: #171717;
-  }
-
-  .sectionSubtitle {
-    margin-top: 4px;
-    font-size: 12px;
-    color: #737373;
+    margin-bottom: 10px;
+    font-size: 16px;
+    line-height: 1.5;
+    font-weight: 500;
+    color: #0a0a0a;
   }
 
   table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed;
+    table-layout: auto;
+    max-width: 100%;
   }
 
   thead {
@@ -70,7 +213,7 @@ export const BILLING_RECONCILIATION_CSS = `
   }
 
   thead tr {
-    background: #f7f3eb;
+    background: #ffffff;
   }
 
   tr {
@@ -80,85 +223,99 @@ export const BILLING_RECONCILIATION_CSS = `
 
   th {
     text-align: left;
-    padding: 14px 8px;
+    padding: 7.5px 4px;
+    border-bottom: 1px solid #e5e5e5;
     font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #737373;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: 0.15px;
+    color: #a3a3a3;
   }
 
   td {
-    padding: 14px 8px;
-    border-top: 1px solid #f0eeea;
-    vertical-align: top;
-    font-size: 12px;
-    color: #57534e;
+    padding: 6px 4px;
+    border-bottom: 1px solid #e5e5e5;
+    vertical-align: middle;
+    font-size: 10px;
+    line-height: 1.4;
+    letter-spacing: 0.15px;
+    color: #737373;
+    word-wrap: break-word;
     overflow-wrap: break-word;
     word-break: normal;
+    max-width: 0;
   }
 
-  .colBusiness { width: 140px; }
-  .colPlan { width: 88px; }
-  .colPeriod { width: 122px; }
-  .colLastBilled { width: 78px; }
-  .colNextBilling { width: 78px; }
-  .colInvoice { width: 104px; }
-  .colAmount { width: 68px; }
-  .colAgencyItem { width: 160px; }
-  .colAgencyDetail { width: 204px; }
-  .colAgencyLastBilled { width: 88px; }
-  .colAgencyReference { width: 122px; }
-  .colAgencyAmount { width: 74px; }
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .colBusiness { width: 18%; }
+  .colPlan { width: 15%; }
+  .colPeriod { width: 16%; }
+  .colLastBilled { width: 12%; }
+  .colNextBilling { width: 12%; }
+  .colInvoice { width: 15%; }
+  .colAmount { width: 12%; }
+  .colAgencyItem { width: 21%; }
+  .colAgencyDetail { width: 28%; }
+  .colAgencyLastBilled { width: 21%; }
+  .colAgencyReference { width: 21%; }
+  .colAgencyAmount { width: 9%; }
 
   .business {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 10px;
+    line-height: 1.4;
+    letter-spacing: 0.15px;
+    font-weight: 500;
     color: #171717;
-    overflow-wrap: anywhere;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   .badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-top: 8px;
     max-width: 100%;
-    min-width: 72px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    border: 1px solid #e7e5e4;
-    background: #f7f3eb;
-    font-size: 10px;
-    line-height: 1.25;
-    color: #171717;
-    font-weight: 600;
+    min-height: 20px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: #f5f5f5;
+    font-size: 9px;
+    line-height: 1.3;
+    color: #737373;
+    font-weight: 500;
+    letter-spacing: 0.12px;
     text-align: center;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .badgeWarning {
-    border-color: #fde68a;
+    margin-top: 4px;
     background: #fffbeb;
     color: #92400e;
   }
 
   .invoice {
-    display: inline-block;
-    color: #171717;
-    font-weight: 600;
-    font-size: 11px;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    color: #2563eb;
+    font-weight: 400;
+    font-size: 10px;
+    line-height: 1.4;
+    letter-spacing: 0.15px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   .amount {
     text-align: right;
     color: #171717;
-    font-weight: 700;
-    font-size: 12px;
+    font-weight: 500;
+    font-size: 10px;
+    line-height: 1.4;
+    letter-spacing: 0.15px;
     white-space: nowrap;
   }
 
@@ -167,64 +324,6 @@ export const BILLING_RECONCILIATION_CSS = `
     text-align: center;
     color: #737373;
     font-size: 14px;
-  }
-
-  .summarySection {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .summaryTable {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 16px 0;
-    table-layout: fixed;
-  }
-
-  .summaryTable tr,
-  .summaryTable td {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .summaryTable td {
-    width: 50%;
-    padding: 0;
-    border-top: 0;
-    vertical-align: top;
-  }
-
-  .summaryCard {
-    border: 1px solid #e7e5e4;
-    border-radius: 16px;
-    background: #f7f3eb;
-    padding: 20px;
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .summaryLabel {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #737373;
-  }
-
-  .summaryValue {
-    margin-top: 10px;
-    font-size: 28px;
-    line-height: 1.08;
-    color: #171717;
-    font-weight: 700;
-    overflow-wrap: anywhere;
-  }
-
-  .summarySubtext {
-    margin-top: 8px;
-    font-size: 13px;
-    color: #737373;
-    overflow-wrap: anywhere;
   }
 `;
 
@@ -243,7 +342,7 @@ function buildDocumentHtml(label?: string | null, url?: string | null) {
     return safeLabel;
   }
 
-  return `<a href="${escapeHtml(url)}" style="color:#171717;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;">${safeLabel}</a>`;
+  return `<a href="${escapeHtml(url)}" style="color:#2563eb;text-decoration:none;">${safeLabel}</a>`;
 }
 
 function getBillingDocumentDisplay(row: BillingReconciliationReport["rows"][number]) {
@@ -290,8 +389,18 @@ function formatDate(value?: string | null) {
   });
 }
 
+function formatShortDate(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function formatBillingPeriod(start?: string | null, end?: string | null) {
-  const formattedStart = formatDate(start);
+  const formattedStart = formatShortDate(start);
   const formattedEnd = formatDate(end);
   if (formattedStart === "-" && formattedEnd === "-") return "-";
   return `${formattedStart} - ${formattedEnd}`;
@@ -305,10 +414,40 @@ function formatAmount(amount: number, currency: string) {
   }).format(amount || 0);
 }
 
+function formatPlanAmount(amount: number, count: number, currency: string) {
+  const perChargeAmount = count > 1 ? amount / count : amount;
+  return `${formatAmount(perChargeAmount, currency)}${count > 1 ? " ea" : ""}`;
+}
+
+function buildPlanBadge(planName: string, tinted = false) {
+  return `
+    <span class="${tinted ? "planPill" : "badge"}">
+      ${escapeHtml(planName)}
+    </span>
+  `;
+}
+
+function buildPlanBreakdownHtml(report: BillingReconciliationReport, currency: string) {
+  if (report.summary.planBreakdown.length === 0) {
+    return `<div style="font-size:14px;color:#737373;">No charges</div>`;
+  }
+
+  return report.summary.planBreakdown.map((entry) => `
+    <div class="planMetric">
+      <div class="planMetricTop">
+        <span class="planCount">${escapeHtml(String(entry.count))}</span>
+        <span class="planAmount">${escapeHtml(formatPlanAmount(entry.amount, entry.count, currency))}</span>
+      </div>
+      ${buildPlanBadge(entry.planName, true)}
+    </div>
+  `).join("");
+}
+
 export function buildBillingReconciliationBodyHtml(report: BillingReconciliationReport) {
   const primaryCurrency = report.rows[0]?.currency || "USD";
-  const subscriptionRows = report.rows.filter((row) => row.rowType === "business" || row.rowType === "unmatched");
+  const subscriptionRows = report.rows.filter((row) => row.rowType === "business");
   const agencyRows = report.rows.filter((row) => row.rowType === "agency_plan" || row.rowType === "agency_add_on");
+  const planBreakdownHtml = buildPlanBreakdownHtml(report, primaryCurrency);
 
   const subscriptionRowsHtml = subscriptionRows.length === 0
     ? `<tr><td colspan="7" class="empty">No business subscription charges were found for ${escapeHtml(report.monthLabel)}.</td></tr>`
@@ -318,7 +457,7 @@ export function buildBillingReconciliationBodyHtml(report: BillingReconciliation
             <div class="business">${escapeHtml(row.businessName)}</div>
             ${row.matchStatus === "unmatched" ? '<span class="badge badgeWarning">Unmatched</span>' : ""}
           </td>
-          <td><span class="badge">${escapeHtml(row.planName)}</span></td>
+          <td>${buildPlanBadge(row.planName)}</td>
           <td>${escapeHtml(formatBillingPeriod(row.billingPeriodStart, row.billingPeriodEnd))}</td>
           <td>${escapeHtml(formatDate(row.lastBilledAt))}</td>
           <td>${escapeHtml(formatDate(row.nextBillingAt))}</td>
@@ -337,91 +476,73 @@ export function buildBillingReconciliationBodyHtml(report: BillingReconciliation
       </tr>
     `).join("");
 
-  const planBreakdownText = report.summary.planBreakdown.length > 0
-    ? report.summary.planBreakdown.map((entry) => `${entry.count} ${entry.planName}`).join(" · ")
-    : "No charges";
-
-  const planBreakdownAmounts = report.summary.planBreakdown.length > 0
-    ? report.summary.planBreakdown.map((entry) => `${formatAmount(entry.amount, primaryCurrency)} × ${entry.count}`).join(" · ")
-    : "No paid subscription charges in this month";
-
   return `
     <div class="page">
-      <div>
-        <div class="headerTitle">${escapeHtml(report.agencyName)} - ${escapeHtml(report.monthLabel)}</div>
-        <div class="headerSubtitle">Subscription billing reconciliation</div>
+      <div class="reportHeader">
+        <div class="headerTitleWrap">
+          <div class="headerTitleGroup">
+            <span class="receiptIcon">#</span>
+            <div class="headerTitle">${escapeHtml(report.monthLabel)} Billing Report</div>
+          </div>
+          <span class="agencyBadge">${escapeHtml(report.agencyName)}</span>
+        </div>
       </div>
 
-      <div class="monthPill">${escapeHtml(report.monthLabel)}</div>
+      <div class="summaryGrid">
+        <div class="summaryCard">
+          <div class="summaryLabel">Total billed</div>
+          <div class="summaryValue">${escapeHtml(formatAmount(report.summary.totalBilledAmount, primaryCurrency))}</div>
+          <div class="summarySubtext">${report.summary.totalRows} charge${report.summary.totalRows === 1 ? "" : "s"} included in this reconciliation</div>
+        </div>
+        <div class="summaryCard">
+          <div class="summaryLabel">Plans billed</div>
+          <div class="planGrid">${planBreakdownHtml}</div>
+        </div>
+      </div>
 
       <div>
         <div class="sectionTitle">Business subscriptions</div>
-        <div class="sectionSubtitle">Monthly subscription charges tied to individual businesses.</div>
-      </div>
-      <div class="tableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="colBusiness">Business</th>
-              <th class="colPlan">Plan</th>
-              <th class="colPeriod">Billing Period</th>
-              <th class="colLastBilled">Last Billed</th>
-              <th class="colNextBilling">Next Billing</th>
-              <th class="colInvoice">Invoice</th>
-              <th class="colAmount" style="text-align:right;">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${subscriptionRowsHtml}
-          </tbody>
-        </table>
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="colBusiness">Business Name</th>
+                <th class="colPlan">Plan</th>
+                <th class="colPeriod">Billing Period</th>
+                <th class="colLastBilled">Last Billed</th>
+                <th class="colNextBilling">Next Billing</th>
+                <th class="colInvoice">Invoice</th>
+                <th class="colAmount" style="text-align:right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${subscriptionRowsHtml}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       ${agencyRows.length > 0 ? `
         <div>
           <div class="sectionTitle">Agency-level billing</div>
-          <div class="sectionSubtitle">Add-ons and agency-wide charges like Massic Opportunities and Execution Credits.</div>
-        </div>
-        <div class="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th class="colAgencyItem">Item</th>
-                <th class="colAgencyDetail">Details</th>
-                <th class="colAgencyLastBilled">Last Billed</th>
-                <th class="colAgencyReference">Invoice/Receipt</th>
-                <th class="colAgencyAmount" style="text-align:right;">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${agencyRowsHtml}
-            </tbody>
-          </table>
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="colAgencyItem">Item</th>
+                  <th class="colAgencyDetail">Details</th>
+                  <th class="colAgencyLastBilled">Last Billed</th>
+                  <th class="colAgencyReference">Invoice/Receipt</th>
+                  <th class="colAgencyAmount" style="text-align:right;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${agencyRowsHtml}
+              </tbody>
+            </table>
+          </div>
         </div>
       ` : ""}
-
-      <div class="summarySection">
-        <table class="summaryTable" role="presentation">
-          <tbody>
-            <tr>
-              <td>
-                <div class="summaryCard">
-                  <div class="summaryLabel">Total billed - ${escapeHtml(report.summary.reportMonthLabel)}</div>
-                  <div class="summaryValue">${escapeHtml(formatAmount(report.summary.totalBilledAmount, primaryCurrency))}</div>
-                  <div class="summarySubtext">${report.summary.totalRows} charge${report.summary.totalRows === 1 ? "" : "s"} included in this reconciliation</div>
-                </div>
-              </td>
-              <td>
-                <div class="summaryCard">
-                  <div class="summaryLabel">Plans billed - ${escapeHtml(report.summary.reportMonthLabel)}</div>
-                  <div class="summaryValue">${escapeHtml(planBreakdownText)}</div>
-                  <div class="summarySubtext">${escapeHtml(planBreakdownAmounts)}</div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </div>
   `;
 }

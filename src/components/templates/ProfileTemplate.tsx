@@ -37,6 +37,7 @@ import { ChevronRight, Loader2 } from "lucide-react";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
+import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -127,7 +128,10 @@ const ProfileTemplate = ({
   const profiles = useBusinessStore((state) => state.profiles);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
+  const [isUnlinkBusinessConfirmOpen, setIsUnlinkBusinessConfirmOpen] =
+    useState(false);
   const offeringsExtractor = useOfferingsExtractor(businessId);
+  const toggleBusinessStatusMutation = useToggleBusinessStatus();
 
   // Derive whitelist status from profiles (agency-level check)
   const isAgencyWhitelisted = useMemo(() => {
@@ -578,7 +582,7 @@ const ProfileTemplate = ({
     void offeringsExtractor.startExtraction(website).catch(() => {});
     try {
       const res = await api.post<ProfileAutofillResponse>(
-        "/profile-autofill",
+        "/tools/autofill-profile",
         "python",
         { business_url: website },
         { timeout: 120000 }
@@ -975,7 +979,7 @@ const ProfileTemplate = ({
       const response = await api.post<{
         success?: boolean;
         [key: string]: any;
-      }>("/trigger-workflow", "python", {
+      }>("/jobs/run", "python", {
         business_id: businessId,
       });
 
@@ -1276,6 +1280,59 @@ const ProfileTemplate = ({
     [currentProfile, externalProfileData, handleSubscribeToPlan]
   );
 
+  const businessForUnlink = externalProfileData || currentProfile;
+  const canUnlinkBusiness =
+    Boolean(businessForUnlink?.Id) && businessForUnlink?.IsActive !== false;
+
+  const handleConfirmUnlinkBusiness = useCallback(async () => {
+    if (!businessForUnlink?.Id) {
+      toast.error("Unable to unlink business", {
+        description: "Business details are still loading. Please try again.",
+      });
+      return;
+    }
+
+    await toggleBusinessStatusMutation.mutateAsync({
+      business: {
+        siteUrl: businessForUnlink.Website || "",
+        displayName:
+          businessForUnlink.DisplayName || businessForUnlink.Name || "Business",
+        authId: businessForUnlink.LinkedAuthId || "",
+        businessProfile: {
+          Id: businessForUnlink.Id,
+          UniqueId: businessForUnlink.UniqueId || businessId,
+          IsActive: businessForUnlink.IsActive !== false,
+        },
+      },
+    });
+    setIsUnlinkBusinessConfirmOpen(false);
+    queryClient.invalidateQueries({
+      queryKey: ["businessProfiles", "detail", businessId],
+    });
+    router.push("/");
+  }, [
+    businessForUnlink,
+    businessId,
+    queryClient,
+    router,
+    toggleBusinessStatusMutation,
+  ]);
+
+  const unlinkBusinessFooter = canUnlinkBusiness ? (
+    <div className="flex justify-end">
+      <Button
+        type="button"
+        variant="destructive"
+        onClick={() => setIsUnlinkBusinessConfirmOpen(true)}
+        disabled={externalLoading || toggleBusinessStatusMutation.isPending}
+      >
+        {toggleBusinessStatusMutation.isPending
+          ? "Unlinking..."
+          : "Unlink Business"}
+      </Button>
+    </div>
+  ) : null;
+
   return (
     <div
       className={cn(
@@ -1297,7 +1354,14 @@ const ProfileTemplate = ({
         onSelectPlan={handlePlanSelect}
         loading={subscriptionLoading}
       />
-      <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
+      <LoaderOverlay
+        isLoading={isLoading || toggleBusinessStatusMutation.isPending}
+        message={
+          toggleBusinessStatusMutation.isPending
+            ? "Unlinking business..."
+            : loadingMessage
+        }
+      >
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           {/* Sticky Page Header */}
           <div className="sticky top-0 z-10 shrink-0 bg-background">
@@ -1359,99 +1423,117 @@ const ProfileTemplate = ({
               >
                   {profileStep === 0 && (
                     <ProfileStepCard
-                      title="Basic Details"
-                      description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
+                      title={isAutofillGateActive ? "Let's set up your profile" : "Basic Details"}
+                      description={
+                        isAutofillGateActive
+                          ? "Enter your website URL and primary location, then click Autofill Profile — we'll take care of the rest."
+                          : "Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
+                      }
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-block">
-                              <Button
-                                type="button"
-                                className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                                disabled={!canAdvanceFromStep0}
-                                onClick={() =>
-                                  setProfileStep((s) => Math.min(2, s + 1))
-                                }
-                              >
-                                Next
-                                <ChevronRight className="size-4 shrink-0" />
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          {!canAdvanceFromStep0 && isAutofillGateActive ? (
-                            <TooltipContent sideOffset={8}>
-                              Autofill Profile using the button below to proceed
-                            </TooltipContent>
-                          ) : null}
-                        </Tooltip>
+                        !isAutofillGateActive ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-block">
+                                <Button
+                                  type="button"
+                                  className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                                  disabled={!canAdvanceFromStep0}
+                                  onClick={() =>
+                                    setProfileStep((s) => Math.min(2, s + 1))
+                                  }
+                                >
+                                  Next
+                                  <ChevronRight className="size-4 shrink-0" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                          </Tooltip>
+                        ) : undefined
                       }
                     >
                       <BusinessInfoForm
                         form={form}
                         embedded
-                        embeddedVariant="full"
-                        disabledFields={
-                          isAutofillGateActive
-                            ? {
-                                businessName: true,
-                                serviceType: true,
-                                lifetimeValue: true,
-                              }
-                            : undefined
-                        }
+                        embeddedVariant={isAutofillGateActive ? "autofillGate" : "full"}
+                        disableWebsiteLock={isAutofillGateActive}
                         primaryLocationAction={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="default"
-                            onClick={handleAutofillProfile}
-                            disabled={
-                              isAutofillLoading ||
-                              offeringsExtractor.isExtracting ||
-                              !(formValues?.website ?? "").toString().trim()
-                            }
-                            className="gap-2 border-general-border-three text-general-foreground"
-                          >
-                            {isAutofillLoading ? (
-                              <>
-                                <Loader2 className="size-4 animate-spin" />
-                                Autofilling...
-                              </>
-                            ) : (
-                              "Autofill Profile"
-                            )}
-                          </Button>
+                          isAutofillGateActive ? (
+                            <Button
+                              type="button"
+                              onClick={handleAutofillProfile}
+                              disabled={
+                                isAutofillLoading ||
+                                offeringsExtractor.isExtracting ||
+                                !(formValues?.website ?? "").toString().trim()
+                              }
+                              className="w-full gap-2"
+                            >
+                              {isAutofillLoading ? (
+                                <>
+                                  <Loader2 className="size-4 animate-spin" />
+                                  Autofilling...
+                                </>
+                              ) : (
+                                "Autofill Profile"
+                              )}
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="default"
+                              onClick={handleAutofillProfile}
+                              disabled={
+                                isAutofillLoading ||
+                                offeringsExtractor.isExtracting ||
+                                !(formValues?.website ?? "").toString().trim()
+                              }
+                              className="gap-2 border-general-border-three text-general-foreground"
+                            >
+                              {isAutofillLoading ? (
+                                <>
+                                  <Loader2 className="size-4 animate-spin" />
+                                  Autofilling...
+                                </>
+                              ) : (
+                                "Autofill Profile"
+                              )}
+                            </Button>
+                          )
                         }
                       />
-                      <OfferingsForm
-                        form={form}
-                        businessId={businessId}
-                        embedded
-                        disabled={isAutofillGateActive}
-                        hideFetchOfferingsFromWebsite
+                      {!isAutofillGateActive && (
+                        <>
+                          <OfferingsForm
+                            form={form}
+                            businessId={businessId}
+                            embedded
+                            hideFetchOfferingsFromWebsite
                             extractionController={offeringsExtractor}
-                      />
-                      <div className="w-1/2">
-                        <GenericInput<BusinessInfoFormData>
-                          form={form as any}
-                          fieldName="businessDescription"
-                          type="textarea"
-                          disabled={isAutofillGateActive}
-                          className="min-h-[160px]"
-                          label={
-                            <>
-                              Anything else we should know about your business?{" "}
-                              <span className="text-general-muted-foreground font-normal">
-                                (optional)
-                              </span>
-                            </>
-                          }
-                          placeholder="Provide any additional info"
-                          rows={6}
-                        />
-                      </div>
+                          />
+                          <div className="w-1/2">
+                            <GenericInput<BusinessInfoFormData>
+                              form={form as any}
+                              fieldName="businessDescription"
+                              type="textarea"
+                              className="min-h-[160px]"
+                              label={
+                                <>
+                                  Anything else we should know about your business?{" "}
+                                  <span className="text-general-muted-foreground font-normal">
+                                    (optional)
+                                  </span>
+                                </>
+                              }
+                              placeholder="Provide any additional info"
+                              rows={6}
+                            />
+                          </div>
+                        </>
+                      )}
                     </ProfileStepCard>
                   )}
                   {profileStep === 1 && (
@@ -1460,6 +1542,7 @@ const ProfileTemplate = ({
                       description="Guides tone, messaging, and calls-to-action so content sounds like you and converts better."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1484,6 +1567,7 @@ const ProfileTemplate = ({
                       description="Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1533,6 +1617,7 @@ const ProfileTemplate = ({
                       description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1611,6 +1696,7 @@ const ProfileTemplate = ({
                       description="Guides tone, messaging, and calls-to-action so content sounds like you and converts better."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1638,6 +1724,7 @@ const ProfileTemplate = ({
                       description="Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1698,6 +1785,41 @@ const ProfileTemplate = ({
                   }
                 >
                   Confirm
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={isUnlinkBusinessConfirmOpen}
+          onOpenChange={setIsUnlinkBusinessConfirmOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unlink Business</AlertDialogTitle>
+              <AlertDialogDescription>
+                Unlinking this business will deactivate it, cancel any associated
+                subscription, and remove it from your profile along with all linked
+                accounts (GSC, GA4, GBP). This impacts your strategy and execution.
+                Only do this if your business goals have significantly changed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                disabled={toggleBusinessStatusMutation.isPending}
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmUnlinkBusiness}
+                  disabled={toggleBusinessStatusMutation.isPending}
+                >
+                  {toggleBusinessStatusMutation.isPending
+                    ? "Please wait..."
+                    : "Unlink"}
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>

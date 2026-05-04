@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useApi, type ApiPlatform } from "./use-api";
+import { useApi, api, type ApiPlatform } from "./use-api";
 import type {
   GetSocialSchema,
   SocialApiResponse,
@@ -63,29 +63,118 @@ export function useSocial(businessId: string) {
       tactics: item.tactics || [],
       offerings: item.offerings || [],
       total_clusters:
-        typeof item.total_clusters === "number"
-          ? item.total_clusters
-          : Array.isArray(item.tactics)
-            ? item.tactics.length
-            : 0,
+        typeof item.cluster_count === "number"
+          ? item.cluster_count
+          : typeof item.total_clusters === "number"
+            ? item.total_clusters
+            : Array.isArray(item.tactics)
+              ? item.tactics.length
+              : 0,
       ...item,
     }));
   }, []);
 
   const transformToTacticRows = useCallback((items: TacticItem[]): TacticRow[] => {
-    return items.map((item, index) => ({
-      id: item.id || `tactic-${index}`,
-      tactic: item.tactic || "",
-      cluster_name: item.cluster_name || "",
-      title: item.title || "",
-      description: item.description || "",
-      campaign_relevance: item.campaign_relevance || 0,
-      related_keywords: item.related_keywords || [],
-      status: item.status || "",
-      url: item.url || "",
-      ...item,
-    }));
+    return items.map((item, index) => {
+      const relevance = item.cluster_relevance ?? item.campaign_relevance ?? 0;
+
+      return {
+        id: item.id || `tactic-${index}`,
+        tactic: item.tactic || "",
+        cluster_name: item.cluster_name || "",
+        title: item.title || "",
+        description: item.description || "",
+        related_keywords: item.related_keywords || [],
+        status: item.status || "",
+        url: item.url || "",
+        ...item,
+        campaign_relevance: relevance,
+        cluster_relevance: item.cluster_relevance ?? relevance,
+      };
+    });
   }, []);
+
+  const mapFilterField = useCallback((field: string) => {
+    if (field === "offerings" || field === "channel_offerings") {
+      return "channel_offerings";
+    }
+    return field;
+  }, []);
+
+  const normalizeCampaignRelevanceFilter = useCallback(
+    (filter: { field: string; value: string | string[]; operator: string }) => {
+      if (filter.field !== "campaign_relevance") return [filter];
+
+      const clamp = (v: number) => Math.max(0, Math.min(1, v));
+      const toDecimal = (pct: string) => parseFloat(pct) / 100;
+      const { value, operator } = filter;
+
+      if (operator === "isBetween" && Array.isArray(value)) {
+        const [minValue, maxValue] = value;
+        const minNum = toDecimal(minValue);
+        const maxNum = toDecimal(maxValue);
+
+        if (Number.isNaN(minNum) || Number.isNaN(maxNum)) {
+          return [filter];
+        }
+
+        return [
+          {
+            ...filter,
+            operator: "gte",
+            value: String(clamp(minNum - 0.005)),
+          },
+          {
+            ...filter,
+            operator: "lte",
+            value: String(clamp(maxNum + 0.005)),
+          },
+        ];
+      }
+
+      if ((operator === "eq" || operator === "ne") && !Array.isArray(value)) {
+        const num = toDecimal(value);
+        if (Number.isNaN(num)) return [filter];
+
+        if (operator === "eq") {
+          return [
+            {
+              ...filter,
+              operator: "gte",
+              value: String(clamp(num - 0.005)),
+            },
+            {
+              ...filter,
+              operator: "lte",
+              value: String(clamp(num + 0.005)),
+            },
+          ];
+        }
+
+        return [{ ...filter, value: String(num) }];
+      }
+
+      if (operator === "gte" && !Array.isArray(value)) {
+        const num = toDecimal(value);
+        if (Number.isNaN(num)) return [filter];
+        return [{ ...filter, value: String(clamp(num - 0.005)) }];
+      }
+
+      if (operator === "lte" && !Array.isArray(value)) {
+        const num = toDecimal(value);
+        if (Number.isNaN(num)) return [filter];
+        return [{ ...filter, value: String(clamp(num + 0.005)) }];
+      }
+
+      if (!Array.isArray(value)) {
+        const num = toDecimal(value);
+        return Number.isNaN(num) ? [filter] : [{ ...filter, value: String(num) }];
+      }
+
+      return [filter];
+    },
+    []
+  );
 
   const fetchSocial = useCallback(
     async (params: GetSocialSchema) => {
@@ -112,7 +201,7 @@ export function useSocial(businessId: string) {
 
       if (params.filters && params.filters.length > 0) {
         const modifiedFilters = params.filters
-          .map((filter) => {
+          .flatMap((filter) => {
             const field = getField(filter);
             const isOfferingFilter =
               filter.id === "offerings" ||
@@ -122,21 +211,23 @@ export function useSocial(businessId: string) {
               field === "channel_offerings";
 
             if (isOfferingFilter) {
-              return {
-                field: "channel_offerings",
+              return [{
+                field: mapFilterField("channel_offerings"),
                 value: filter.value,
                 operator: filter.operator,
-              };
+              }];
             }
 
             const fallbackField = field ?? filter.id ?? filter.filterId ?? "";
-            if (!fallbackField) return null;
+            if (!fallbackField) return [];
 
-            return {
-              field: fallbackField,
+            const mappedFilter = {
+              field: mapFilterField(fallbackField),
               value: filter.value,
               operator: filter.operator,
             };
+
+            return normalizeCampaignRelevanceFilter(mappedFilter);
           })
           .filter((filter): filter is { field: string; value: typeof params.filters[number]["value"]; operator: typeof params.filters[number]["operator"] } => Boolean(filter));
 
@@ -153,7 +244,7 @@ export function useSocial(businessId: string) {
         queryParams.append("channel_name", params.channel_name);
       }
 
-      const endpoint = `/client/channel-analyzer?${queryParams.toString()}`;
+      const endpoint = `/strategies/social-channels?${queryParams.toString()}`;
 
       try {
         const response = await socialApi.execute(endpoint, {
@@ -190,12 +281,12 @@ export function useSocial(businessId: string) {
         throw error;
       }
     },
-    [socialApi, transformToTableRows]
+    [socialApi, transformToTableRows, mapFilterField, normalizeCampaignRelevanceFilter]
   );
 
   const fetchSocialCounts = useCallback(async () => {
     try {
-      const endpoint = `/client/channel-analyzer?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=1000`;
       const response = await socialApi.execute(endpoint, {
         method: "GET",
       });
@@ -224,7 +315,7 @@ export function useSocial(businessId: string) {
 
   const fetchChannels = useCallback(async () => {
     try {
-      const endpoint = `/client/channel-analyzer?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=1000`;
       const response = await socialApi.execute(endpoint, {
         method: "GET",
       });
@@ -243,7 +334,7 @@ export function useSocial(businessId: string) {
 
   const fetchChannelAnalyzerDownloadUrl = useCallback(
     async (businessId: string) => {
-      const endpoint = `/client/channel-analyzer?business_id=${businessId}&page=1&page_size=100`;
+      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=100`;
       const response = await socialApi.execute(endpoint, { method: "GET" });
       return (response?.output_data as any)?.download_url as string | undefined;
     },
@@ -289,6 +380,53 @@ export function useSocial(businessId: string) {
     [fetchChannelAnalyzerDownloadUrl, fetchDownloadPayloadFromUrl]
   );
 
+  const fetchAllSocialPages = useCallback(
+    async (businessId: string) => {
+      const PAGE_SIZE = 5000;
+      const MAX_PAGES = 100;
+      const BATCH_SIZE = 10;
+
+      const firstEndpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=${PAGE_SIZE}&channel_name=all`;
+      const firstResponse = await api.get<SocialApiResponse>(firstEndpoint, "python");
+
+      const firstItems = firstResponse?.output_data?.items || [];
+      const pagination = firstResponse?.output_data?.pagination;
+      const totalPages = Math.min(pagination?.total_pages || 1, MAX_PAGES);
+
+      if (totalPages <= 1) {
+        return {
+          data: transformToTableRows(firstItems),
+          metadata: firstResponse?.metadata,
+        };
+      }
+
+      const remainingPageNumbers = Array.from(
+        { length: totalPages - 1 },
+        (_, i) => i + 2
+      );
+
+      const allItems: SocialItem[] = [...firstItems];
+
+      for (let i = 0; i < remainingPageNumbers.length; i += BATCH_SIZE) {
+        const batch = remainingPageNumbers.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (page) => {
+            const endpoint = `/strategies/social-channels?business_id=${businessId}&page=${page}&page_size=${PAGE_SIZE}&channel_name=all`;
+            const response = await api.get<SocialApiResponse>(endpoint, "python");
+            return response?.output_data?.items || [];
+          })
+        );
+        allItems.push(...batchResults.flat());
+      }
+
+      return {
+        data: transformToTableRows(allItems),
+        metadata: firstResponse?.metadata,
+      };
+    },
+    [transformToTableRows]
+  );
+
   const fetchTactics = useCallback(
     async (params: GetTacticsSchema) => {
       const getField = (filter: GetTacticsSchema["filters"][number]) => {
@@ -314,7 +452,7 @@ export function useSocial(businessId: string) {
 
       if (params.filters && params.filters.length > 0) {
         const modifiedFilters = params.filters
-          .map((filter) => {
+          .flatMap((filter) => {
             const field = getField(filter);
             const isOfferingFilter =
               filter.id === "offerings" ||
@@ -324,21 +462,23 @@ export function useSocial(businessId: string) {
               field === "channel_offerings";
 
             if (isOfferingFilter) {
-              return {
-                field: "channel_offerings",
+              return [{
+                field: mapFilterField("channel_offerings"),
                 value: filter.value,
                 operator: filter.operator,
-              };
+              }];
             }
 
             const fallbackField = field ?? filter.id ?? filter.filterId ?? "";
-            if (!fallbackField) return null;
+            if (!fallbackField) return [];
 
-            return {
-              field: fallbackField,
+            const mappedFilter = {
+              field: mapFilterField(fallbackField),
               value: filter.value,
               operator: filter.operator,
             };
+
+            return normalizeCampaignRelevanceFilter(mappedFilter);
           })
           .filter((filter): filter is { field: string; value: typeof params.filters[number]["value"]; operator: typeof params.filters[number]["operator"] } => Boolean(filter));
 
@@ -359,7 +499,7 @@ export function useSocial(businessId: string) {
         queryParams.append("campaign_name", params.campaign_name);
       }
 
-      const endpoint = `/client/channel-analyzer?${queryParams.toString()}`;
+      const endpoint = `/strategies/social-channels?${queryParams.toString()}`;
 
       try {
         const response = await tacticsApi.execute(endpoint, {
@@ -396,7 +536,7 @@ export function useSocial(businessId: string) {
         throw error;
       }
     },
-    [tacticsApi, transformToTacticRows]
+    [tacticsApi, transformToTacticRows, mapFilterField, normalizeCampaignRelevanceFilter]
   );
 
   return {
@@ -407,6 +547,7 @@ export function useSocial(businessId: string) {
     fetchChannelAnalyzerDownloadUrl,
     fetchDownloadPayloadFromUrl,
     fetchFullDataFromDownloadUrl,
+    fetchAllSocialPages,
     loading:
       socialApi.loading ||
       countsApi.loading ||

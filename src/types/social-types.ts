@@ -6,6 +6,7 @@ export interface SocialItem {
   campaign_relevance?: number;
   tactics?: string[];
   total_clusters?: number;
+  cluster_count?: number;
   id?: string;
   [key: string]: any;
 }
@@ -72,6 +73,8 @@ export interface TacticItem {
   title?: string;
   description?: string;
   campaign_relevance?: number;
+  cluster_relevance?: number;
+  cluster_relevance_level?: string;
   related_keywords?: string[];
   status?: string;
   url?: string;
@@ -87,6 +90,8 @@ export interface TacticRow {
   title: string;
   description: string;
   campaign_relevance: number;
+  cluster_relevance?: number;
+  cluster_relevance_level?: string;
   related_keywords: string[];
   status: string;
   url?: string;

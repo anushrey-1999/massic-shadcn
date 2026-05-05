@@ -37,6 +37,7 @@ import { ChevronRight, Loader2 } from "lucide-react";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
+import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -127,7 +128,10 @@ const ProfileTemplate = ({
   const profiles = useBusinessStore((state) => state.profiles);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
+  const [isUnlinkBusinessConfirmOpen, setIsUnlinkBusinessConfirmOpen] =
+    useState(false);
   const offeringsExtractor = useOfferingsExtractor(businessId);
+  const toggleBusinessStatusMutation = useToggleBusinessStatus();
 
   // Derive whitelist status from profiles (agency-level check)
   const isAgencyWhitelisted = useMemo(() => {
@@ -1276,6 +1280,59 @@ const ProfileTemplate = ({
     [currentProfile, externalProfileData, handleSubscribeToPlan]
   );
 
+  const businessForUnlink = externalProfileData || currentProfile;
+  const canUnlinkBusiness =
+    Boolean(businessForUnlink?.Id) && businessForUnlink?.IsActive !== false;
+
+  const handleConfirmUnlinkBusiness = useCallback(async () => {
+    if (!businessForUnlink?.Id) {
+      toast.error("Unable to unlink business", {
+        description: "Business details are still loading. Please try again.",
+      });
+      return;
+    }
+
+    await toggleBusinessStatusMutation.mutateAsync({
+      business: {
+        siteUrl: businessForUnlink.Website || "",
+        displayName:
+          businessForUnlink.DisplayName || businessForUnlink.Name || "Business",
+        authId: businessForUnlink.LinkedAuthId || "",
+        businessProfile: {
+          Id: businessForUnlink.Id,
+          UniqueId: businessForUnlink.UniqueId || businessId,
+          IsActive: businessForUnlink.IsActive !== false,
+        },
+      },
+    });
+    setIsUnlinkBusinessConfirmOpen(false);
+    queryClient.invalidateQueries({
+      queryKey: ["businessProfiles", "detail", businessId],
+    });
+    router.push("/");
+  }, [
+    businessForUnlink,
+    businessId,
+    queryClient,
+    router,
+    toggleBusinessStatusMutation,
+  ]);
+
+  const unlinkBusinessFooter = canUnlinkBusiness ? (
+    <div className="flex justify-end">
+      <Button
+        type="button"
+        variant="destructive"
+        onClick={() => setIsUnlinkBusinessConfirmOpen(true)}
+        disabled={externalLoading || toggleBusinessStatusMutation.isPending}
+      >
+        {toggleBusinessStatusMutation.isPending
+          ? "Unlinking..."
+          : "Unlink Business"}
+      </Button>
+    </div>
+  ) : null;
+
   return (
     <div
       className={cn(
@@ -1297,7 +1354,14 @@ const ProfileTemplate = ({
         onSelectPlan={handlePlanSelect}
         loading={subscriptionLoading}
       />
-      <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
+      <LoaderOverlay
+        isLoading={isLoading || toggleBusinessStatusMutation.isPending}
+        message={
+          toggleBusinessStatusMutation.isPending
+            ? "Unlinking business..."
+            : loadingMessage
+        }
+      >
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           {/* Sticky Page Header */}
           <div className="sticky top-0 z-10 shrink-0 bg-background">
@@ -1367,6 +1431,7 @@ const ProfileTemplate = ({
                       }
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         !isAutofillGateActive ? (
                           <Tooltip>
@@ -1477,6 +1542,7 @@ const ProfileTemplate = ({
                       description="Guides tone, messaging, and calls-to-action so content sounds like you and converts better."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1501,6 +1567,7 @@ const ProfileTemplate = ({
                       description="Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1550,6 +1617,7 @@ const ProfileTemplate = ({
                       description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1628,6 +1696,7 @@ const ProfileTemplate = ({
                       description="Guides tone, messaging, and calls-to-action so content sounds like you and converts better."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1655,6 +1724,7 @@ const ProfileTemplate = ({
                       description="Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities."
                       className="flex-1"
                       scrollableContent
+                      footer={unlinkBusinessFooter}
                       rightAction={
                         <Button
                           type="button"
@@ -1715,6 +1785,41 @@ const ProfileTemplate = ({
                   }
                 >
                   Confirm
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={isUnlinkBusinessConfirmOpen}
+          onOpenChange={setIsUnlinkBusinessConfirmOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Unlink Business</AlertDialogTitle>
+              <AlertDialogDescription>
+                Unlinking this business will deactivate it, cancel any associated
+                subscription, and remove it from your profile along with all linked
+                accounts (GSC, GA4, GBP). This impacts your strategy and execution.
+                Only do this if your business goals have significantly changed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel
+                disabled={toggleBusinessStatusMutation.isPending}
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmUnlinkBusiness}
+                  disabled={toggleBusinessStatusMutation.isPending}
+                >
+                  {toggleBusinessStatusMutation.isPending
+                    ? "Please wait..."
+                    : "Unlink"}
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>

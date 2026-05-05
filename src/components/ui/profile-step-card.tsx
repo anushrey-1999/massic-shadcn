@@ -9,6 +9,7 @@ interface ProfileStepCardProps {
   description: string;
   children: React.ReactNode;
   rightAction?: React.ReactNode;
+  footer?: React.ReactNode;
   className?: string;
   scrollableContent?: boolean;
   contentClassName?: string;
@@ -19,6 +20,7 @@ export function ProfileStepCard({
   description,
   children,
   rightAction,
+  footer,
   className,
   scrollableContent = false,
   contentClassName,
@@ -49,6 +51,7 @@ export function ProfileStepCard({
         )}
       >
         {children}
+        {footer ? <div className="mt-auto shrink-0">{footer}</div> : null}
       </CardContent>
     </Card>
   );

@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { routePrefixesWithoutSidebar, routesWithoutSidebar } from '@/lib/layout-config'
+import { routesWithoutSidebar, routePrefixesWithoutSidebar } from '@/lib/layout-config'
 import Layout from './layout'
 import EmptyLayout from './empty-layout'
 
@@ -13,7 +13,7 @@ export default function LayoutWrapper({
   const pathname = usePathname()
   const shouldUseEmptyLayout =
     routesWithoutSidebar.includes(pathname) ||
-    routePrefixesWithoutSidebar.some((routePrefix) => pathname.startsWith(routePrefix))
+    routePrefixesWithoutSidebar.some((prefix) => pathname.startsWith(prefix))
 
   if (shouldUseEmptyLayout) {
     return <EmptyLayout>{children}</EmptyLayout>

@@ -364,6 +364,11 @@ export function CustomersTableClient({
 
   const nextDraftId = React.useRef(1)
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null)
+  const existingRowsRef = React.useRef<ReviewCustomerRow[]>([])
+
+  React.useEffect(() => {
+    existingRowsRef.current = existingRows
+  }, [existingRows])
 
   React.useEffect(() => {
     if (!defaultCampaignOption) return
@@ -610,10 +615,10 @@ export function CustomersTableClient({
         return
       }
 
-      const target = existingRows.find((row) => row.id === rowId)
+      const target = existingRowsRef.current.find((row) => row.id === rowId)
       if (target) setDeleteTarget(target)
     },
-    [existingRows]
+    []
   )
 
   const handleStartEdit = React.useCallback((rowId: string, field: EditableField) => {

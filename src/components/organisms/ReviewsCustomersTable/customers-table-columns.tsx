@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import type { ReactElement, ReactNode } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { CheckCircle2, Eye, Trash2, X } from "lucide-react"
@@ -146,6 +147,71 @@ function WithTooltip({
   )
 }
 
+function EditableTextInput({
+  value,
+  type,
+  inputMode,
+  placeholder,
+  className,
+  ariaInvalid,
+  autoFocus,
+  onValueChange,
+}: {
+  value: string
+  type: "text" | "tel" | "email"
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]
+  placeholder: string
+  className?: string
+  ariaInvalid?: boolean
+  autoFocus?: boolean
+  onValueChange: (value: string) => void
+}) {
+  const [draftValue, setDraftValue] = React.useState(value)
+  const isFocusedRef = React.useRef(false)
+  const committedValueRef = React.useRef(value)
+
+  React.useEffect(() => {
+    committedValueRef.current = value
+    if (!isFocusedRef.current) {
+      setDraftValue(value)
+    }
+  }, [value])
+
+  const commitValue = React.useCallback(
+    (nextValue: string) => {
+      if (nextValue === committedValueRef.current) return
+      committedValueRef.current = nextValue
+      onValueChange(nextValue)
+    },
+    [onValueChange]
+  )
+
+  React.useEffect(() => {
+    const timeoutId = window.setTimeout(() => commitValue(draftValue), 150)
+    return () => window.clearTimeout(timeoutId)
+  }, [commitValue, draftValue])
+
+  return (
+    <Input
+      type={type}
+      inputMode={inputMode}
+      value={draftValue}
+      onChange={(e) => setDraftValue(e.target.value)}
+      onFocus={() => {
+        isFocusedRef.current = true
+      }}
+      onBlur={() => {
+        isFocusedRef.current = false
+        commitValue(draftValue)
+      }}
+      placeholder={placeholder}
+      className={className}
+      aria-invalid={ariaInvalid}
+      autoFocus={autoFocus}
+    />
+  )
+}
+
 export function getCustomersTableColumns(
   options: CustomersTableColumnOptions
 ): ColumnDef<ReviewCustomerRow>[] {
@@ -209,17 +275,15 @@ export function getCustomersTableColumns(
         if (showInput) {
           const error = getRowErrors(row.original.id)?.name
           return (
-            <WithTooltip content={error}>
-              <Input
-                type="text"
-                value={value}
-                onChange={(e) => onValueChange(row.original.id, "name", e.target.value)}
-                placeholder="type name here"
-                className={cn("h-8 text-sm", errorClass(row.original.id, "name"))}
-                aria-invalid={!!error}
-                autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "name")}
-              />
-            </WithTooltip>
+            <EditableTextInput
+              type="text"
+              value={value}
+              onValueChange={(nextValue) => onValueChange(row.original.id, "name", nextValue)}
+              placeholder={error || "type name here"}
+              className={cn("h-8 text-sm", errorClass(row.original.id, "name"))}
+              ariaInvalid={!!error}
+              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "name")}
+            />
           )
         }
         return (
@@ -247,18 +311,16 @@ export function getCustomersTableColumns(
         if (showInput) {
           const error = getRowErrors(row.original.id)?.phone
           return (
-            <WithTooltip content={error}>
-              <Input
-                type="tel"
-                inputMode="tel"
-                value={value}
-                onChange={(e) => onValueChange(row.original.id, "phone", e.target.value)}
-                placeholder="+1 555 123 4567"
-                className={cn("h-8 text-sm", errorClass(row.original.id, "phone"))}
-                aria-invalid={!!error}
-                autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "phone")}
-              />
-            </WithTooltip>
+            <EditableTextInput
+              type="tel"
+              inputMode="tel"
+              value={value}
+              onValueChange={(nextValue) => onValueChange(row.original.id, "phone", nextValue)}
+              placeholder={error || "+1 555 123 4567"}
+              className={cn("h-8 text-sm", errorClass(row.original.id, "phone"))}
+              ariaInvalid={!!error}
+              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "phone")}
+            />
           )
         }
         return (
@@ -286,17 +348,15 @@ export function getCustomersTableColumns(
         if (showInput) {
           const error = getRowErrors(row.original.id)?.email
           return (
-            <WithTooltip content={error}>
-              <Input
-                type="email"
-                value={value}
-                onChange={(e) => onValueChange(row.original.id, "email", e.target.value)}
-                placeholder="type name here"
-                className={cn("h-8 text-sm", errorClass(row.original.id, "email"))}
-                aria-invalid={!!error}
-                autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "email")}
-              />
-            </WithTooltip>
+            <EditableTextInput
+              type="email"
+              value={value}
+              onValueChange={(nextValue) => onValueChange(row.original.id, "email", nextValue)}
+              placeholder={error || "type email here"}
+              className={cn("h-8 text-sm", errorClass(row.original.id, "email"))}
+              ariaInvalid={!!error}
+              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "email")}
+            />
           )
         }
         return (

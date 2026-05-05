@@ -2,22 +2,57 @@
 
 import type { ColumnDef } from "@tanstack/react-table"
 import { Edit2 } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  getReviewPlatformIconUrl,
+  type ReviewPlatformId,
+} from "@/utils/review-platforms"
 
 export interface ReviewCampaignRow {
   id: string
   name: string
-  platform: "google" | "yelp"
+  platform: ReviewPlatformId
   isDefault: boolean
   createdAt: Date
   totalClicks: number
   steps: number
+  metrics?: {
+    total: number
+    waitingForApproval: number
+    inProgress: number
+    completed: number
+    failed: number
+  }
 }
 
-export function getCampaignsTableColumns(businessId: string): ColumnDef<ReviewCampaignRow>[] {
+function getOrdinalSuffix(day: number): string {
+  if (day >= 11 && day <= 13) return "th"
+  const mod = day % 10
+  if (mod === 1) return "st"
+  if (mod === 2) return "nd"
+  if (mod === 3) return "rd"
+  return "th"
+}
+
+function formatCreatedOn(dateInput: Date): string {
+  const date = new Date(dateInput)
+  if (Number.isNaN(date.getTime())) {
+    return "-"
+  }
+  const day = date.getDate()
+  const month = date.toLocaleString("en-US", { month: "long" })
+  const year = date.getFullYear()
+  return `${day}${getOrdinalSuffix(day)} ${month} ${year}`
+}
+
+export function getCampaignsTableColumns(
+  businessId: string,
+  currentTab?: string,
+  locationId?: string | null,
+  onEditCampaign?: (href: string) => void
+): ColumnDef<ReviewCampaignRow>[] {
   return [
     {
       id: "name",
@@ -29,11 +64,11 @@ export function getCampaignsTableColumns(businessId: string): ColumnDef<ReviewCa
         const name = row.getValue("name") as string
         const platform = row.original.platform
         const isDefault = row.original.isDefault
-        const faviconDomain = platform === "yelp" ? "yelp.com" : "google.com"
+        const iconUrl = getReviewPlatformIconUrl(platform)
         return (
           <div className="flex items-center gap-3">
             <img
-              src={`https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=32`}
+              src={iconUrl}
               alt=""
               width={20}
               height={20}
@@ -60,12 +95,7 @@ export function getCampaignsTableColumns(businessId: string): ColumnDef<ReviewCa
       ),
       cell: ({ row }) => {
         const date = row.getValue("createdAt") as Date
-        const formatted = new Date(date).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-        return <span className="text-sm">{formatted}</span>
+        return <span className="text-sm">{formatCreatedOn(date)}</span>
       },
       size: 150,
       minSize: 100,
@@ -86,6 +116,28 @@ export function getCampaignsTableColumns(businessId: string): ColumnDef<ReviewCa
       maxSize: 180,
     },
     {
+      id: "customers",
+      accessorFn: (row) => row.metrics?.total ?? 0,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Customers" />
+      ),
+      cell: ({ row }) => {
+        const metrics = row.original.metrics
+        if (!metrics) return <span className="text-sm">0</span>
+        return (
+          <div className="text-sm">
+            <span>{metrics.total}</span>
+            <span className="ml-2 text-xs text-muted-foreground">
+              {metrics.completed} done, {metrics.waitingForApproval} waiting
+            </span>
+          </div>
+        )
+      },
+      size: 180,
+      minSize: 140,
+      maxSize: 240,
+    },
+    {
       id: "steps",
       accessorKey: "steps",
       header: ({ column }) => (
@@ -103,9 +155,11 @@ export function getCampaignsTableColumns(businessId: string): ColumnDef<ReviewCa
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
-        const router = useRouter()
         const campaignId = row.original.id
-        
+        const tabParam = currentTab ? `&tab=${currentTab}` : ""
+        const locationParam = locationId ? `&locationId=${encodeURIComponent(locationId)}` : ""
+        const editHref = `/business/${businessId}/reviews/campaigns/new?campaignId=${campaignId}${tabParam}${locationParam}`
+
         return (
           <div className="flex items-center justify-end gap-2">
             <Button
@@ -115,7 +169,7 @@ export function getCampaignsTableColumns(businessId: string): ColumnDef<ReviewCa
               type="button"
               aria-label="Edit campaign"
               onClick={() => {
-                router.push(`/business/${businessId}/reviews/campaigns/new?campaignId=${campaignId}`)
+                onEditCampaign?.(editHref)
               }}
             >
               <Edit2 className="h-2 w-2 text-gray-600" />

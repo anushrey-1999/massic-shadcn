@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactElement, ReactNode } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { CheckCircle2, Eye, Trash2, X } from "lucide-react"
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header"
@@ -13,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { getReviewPlatformIconUrl, type ReviewPlatformId } from "@/utils/review-platforms"
 
@@ -30,6 +32,7 @@ export interface CampaignOption {
   id: string
   name: string
   platform: CampaignPlatform
+  isDefault?: boolean
 }
 
 export interface ReviewCustomerRow {
@@ -51,6 +54,7 @@ export type RowValidationErrors = Partial<Record<EditableField, string>>
 
 export interface CustomersTableColumnOptions {
   campaignOptions: CampaignOption[]
+  hasDefaultCampaign: boolean
   editingRow: { rowId: string; field: EditableField } | null
   onStartEdit: (rowId: string, field: EditableField) => void
   onValueChange: (rowId: string, field: EditableField, value: string) => void
@@ -125,11 +129,29 @@ function getStatusLabel(status: CustomerStatus) {
   }
 }
 
+function WithTooltip({
+  content,
+  children,
+}: {
+  content?: ReactNode
+  children: ReactElement
+}) {
+  if (!content) return children
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent sideOffset={4}>{content}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 export function getCustomersTableColumns(
   options: CustomersTableColumnOptions
 ): ColumnDef<ReviewCustomerRow>[] {
   const {
     campaignOptions,
+    hasDefaultCampaign,
     editingRow,
     onStartEdit,
     onValueChange,
@@ -185,27 +207,30 @@ export function getCustomersTableColumns(
         const value = row.original.name
         const showInput = row.original.isNew || isEditing(row.original.id, "name")
         if (showInput) {
+          const error = getRowErrors(row.original.id)?.name
           return (
-            <Input
-              type="text"
-              value={value}
-              onChange={(e) => onValueChange(row.original.id, "name", e.target.value)}
-              placeholder="type name here"
-              className={cn("h-8 text-sm", errorClass(row.original.id, "name"))}
-              aria-invalid={!!getRowErrors(row.original.id)?.name}
-              title={getRowErrors(row.original.id)?.name}
-              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "name")}
-            />
+            <WithTooltip content={error}>
+              <Input
+                type="text"
+                value={value}
+                onChange={(e) => onValueChange(row.original.id, "name", e.target.value)}
+                placeholder="type name here"
+                className={cn("h-8 text-sm", errorClass(row.original.id, "name"))}
+                aria-invalid={!!error}
+                autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "name")}
+              />
+            </WithTooltip>
           )
         }
         return (
-          <div
-            className="truncate font-medium cursor-pointer"
-            title={value || "-"}
-            onClick={() => onStartEdit(row.original.id, "name")}
-          >
-            {value || "-"}
-          </div>
+          <WithTooltip content={value || "-"}>
+            <div
+              className="truncate font-medium cursor-pointer"
+              onClick={() => onStartEdit(row.original.id, "name")}
+            >
+              {value || "-"}
+            </div>
+          </WithTooltip>
         )
       },
       size: 150,
@@ -220,28 +245,31 @@ export function getCustomersTableColumns(
         const value = row.original.phone
         const showInput = row.original.isNew || isEditing(row.original.id, "phone")
         if (showInput) {
+          const error = getRowErrors(row.original.id)?.phone
           return (
-            <Input
-              type="tel"
-              inputMode="tel"
-              value={value}
-              onChange={(e) => onValueChange(row.original.id, "phone", e.target.value)}
-              placeholder="+1 555 123 4567"
-              className={cn("h-8 text-sm", errorClass(row.original.id, "phone"))}
-              aria-invalid={!!getRowErrors(row.original.id)?.phone}
-              title={getRowErrors(row.original.id)?.phone}
-              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "phone")}
-            />
+            <WithTooltip content={error}>
+              <Input
+                type="tel"
+                inputMode="tel"
+                value={value}
+                onChange={(e) => onValueChange(row.original.id, "phone", e.target.value)}
+                placeholder="+1 555 123 4567"
+                className={cn("h-8 text-sm", errorClass(row.original.id, "phone"))}
+                aria-invalid={!!error}
+                autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "phone")}
+              />
+            </WithTooltip>
           )
         }
         return (
-          <div
-            className="truncate cursor-text"
-            title={value || "-"}
-            onClick={() => onStartEdit(row.original.id, "phone")}
-          >
-            {value || "-"}
-          </div>
+          <WithTooltip content={value || "-"}>
+            <div
+              className="truncate cursor-text"
+              onClick={() => onStartEdit(row.original.id, "phone")}
+            >
+              {value || "-"}
+            </div>
+          </WithTooltip>
         )
       },
       size: 120,
@@ -256,27 +284,30 @@ export function getCustomersTableColumns(
         const value = row.original.email
         const showInput = row.original.isNew || isEditing(row.original.id, "email")
         if (showInput) {
+          const error = getRowErrors(row.original.id)?.email
           return (
-            <Input
-              type="email"
-              value={value}
-              onChange={(e) => onValueChange(row.original.id, "email", e.target.value)}
-              placeholder="type name here"
-              className={cn("h-8 text-sm", errorClass(row.original.id, "email"))}
-              aria-invalid={!!getRowErrors(row.original.id)?.email}
-              title={getRowErrors(row.original.id)?.email}
-              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "email")}
-            />
+            <WithTooltip content={error}>
+              <Input
+                type="email"
+                value={value}
+                onChange={(e) => onValueChange(row.original.id, "email", e.target.value)}
+                placeholder="type name here"
+                className={cn("h-8 text-sm", errorClass(row.original.id, "email"))}
+                aria-invalid={!!error}
+                autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "email")}
+              />
+            </WithTooltip>
           )
         }
         return (
-          <div
-            className="truncate cursor-text"
-            title={value || "-"}
-            onClick={() => onStartEdit(row.original.id, "email")}
-          >
-            {value || "-"}
-          </div>
+          <WithTooltip content={value || "-"}>
+            <div
+              className="truncate cursor-text"
+              onClick={() => onStartEdit(row.original.id, "email")}
+            >
+              {value || "-"}
+            </div>
+          </WithTooltip>
         )
       },
       size: 190,
@@ -308,22 +339,29 @@ export function getCustomersTableColumns(
       ),
       cell: ({ row }) => {
         const showInput = row.original.isNew || isEditing(row.original.id, "campaignId")
+        const lockCampaign = Boolean(row.original.isNew && hasDefaultCampaign)
         if (showInput) {
+          const error = getRowErrors(row.original.id)?.campaignId
+          const tooltipText = lockCampaign
+            ? "Default campaign is selected automatically"
+            : error
           return (
             <Select
               value={row.original.campaignId || undefined}
               onValueChange={(v) => onValueChange(row.original.id, "campaignId", v)}
+              disabled={lockCampaign}
             >
-              <SelectTrigger
-                className={cn(
-                  "h-8 w-full text-sm",
-                  errorClass(row.original.id, "campaignId")
-                )}
-                aria-invalid={!!getRowErrors(row.original.id)?.campaignId}
-                title={getRowErrors(row.original.id)?.campaignId}
-              >
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
+              <WithTooltip content={tooltipText}>
+                <SelectTrigger
+                  className={cn(
+                    "h-8 w-full text-sm",
+                    errorClass(row.original.id, "campaignId")
+                  )}
+                  aria-invalid={!!error}
+                >
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+              </WithTooltip>
               <SelectContent>
                 {campaignOptions.map((opt) => (
                   <SelectItem key={opt.id} value={opt.id}>
@@ -345,16 +383,17 @@ export function getCustomersTableColumns(
           )
         }
         return (
-          <div
-            className="min-w-0 cursor-text"
-            title={row.original.campaignName}
-            onClick={() => onStartEdit(row.original.id, "campaignId")}
-          >
-            <CampaignChip
-              label={row.original.campaignName}
-              platform={row.original.campaignPlatform}
-            />
-          </div>
+          <WithTooltip content={row.original.campaignName}>
+            <div
+              className="min-w-0 cursor-text"
+              onClick={() => onStartEdit(row.original.id, "campaignId")}
+            >
+              <CampaignChip
+                label={row.original.campaignName}
+                platform={row.original.campaignPlatform}
+              />
+            </div>
+          </WithTooltip>
         )
       },
       size: 155,
@@ -368,16 +407,17 @@ export function getCustomersTableColumns(
       cell: ({ row }) => {
         const statusLabel = getStatusLabel(row.original.status)
         return (
-          <Badge
-            variant="outline"
-            className={cn(
-              "max-w-full truncate border",
-              statusStyles[row.original.status]
-            )}
-            title={statusLabel}
-          >
-            {statusLabel}
-          </Badge>
+          <WithTooltip content={statusLabel}>
+            <Badge
+              variant="outline"
+              className={cn(
+                "max-w-full truncate border",
+                statusStyles[row.original.status]
+              )}
+            >
+              {statusLabel}
+            </Badge>
+          </WithTooltip>
         )
       },
       size: 120,
@@ -392,42 +432,45 @@ export function getCustomersTableColumns(
         return (
           <div className="flex items-center justify-end gap-1">
             {!isNew ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                type="button"
-                aria-label="View customer details"
-                title="View customer details"
-                onClick={() => onViewRow(row.original)}
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
+              <WithTooltip content="View customer details">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  type="button"
+                  aria-label="View customer details"
+                  onClick={() => onViewRow(row.original)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </WithTooltip>
             ) : null}
             {!isNew && row.original.status === "waiting-approval" ? (
+              <WithTooltip content="Approve customer">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-emerald-700"
+                  type="button"
+                  aria-label="Approve customer"
+                  onClick={() => onApproveRow(row.original)}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                </Button>
+              </WithTooltip>
+            ) : null}
+            <WithTooltip content={isNew ? "Remove row" : "Delete customer"}>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-emerald-700"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 type="button"
-                aria-label="Approve customer"
-                title="Approve customer"
-                onClick={() => onApproveRow(row.original)}
+                aria-label={isNew ? "Remove row" : "Delete customer"}
+                onClick={() => onDeleteRow(row.original.id, row.original.isNew)}
               >
-                <CheckCircle2 className="h-4 w-4" />
+                {isNew ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
               </Button>
-            ) : null}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-              type="button"
-              aria-label={isNew ? "Remove row" : "Delete customer"}
-              title={isNew ? "Remove row" : "Delete customer"}
-              onClick={() => onDeleteRow(row.original.id, row.original.isNew)}
-            >
-              {isNew ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
-            </Button>
+            </WithTooltip>
           </div>
         )
       },

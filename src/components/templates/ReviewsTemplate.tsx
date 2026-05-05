@@ -427,20 +427,40 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
 
             <TabsContent value="campaign" className={cn("flex-1 min-h-0 overflow-hidden", "mt-4")}>
               <div className="bg-white rounded-lg p-4 h-full min-h-0">
-                <CampaignsTableClient
-                  businessId={businessId}
-                  currentTab={activeTab}
-                  selectedLocationIdForApi={selectedLocationIdForApi}
-                />
+                {!selectedLocationIdForApi ? (
+                  <div className="flex items-center justify-center h-full">
+                    <EmptyState
+                      title="No location selected"
+                      description="Please select a location to view reviews"
+                      showCard={false}
+                    />
+                  </div>
+                ) : (
+                  <CampaignsTableClient
+                    businessId={businessId}
+                    currentTab={activeTab}
+                    selectedLocationIdForApi={selectedLocationIdForApi}
+                  />
+                )}
               </div>
             </TabsContent>
 
             <TabsContent value="customers" className={cn("flex-1 min-h-0 overflow-hidden", "mt-4")}>
               <div className="bg-white rounded-lg p-4 h-full min-h-0">
-                <CustomersTableClient
-                  businessId={businessId}
-                  selectedLocationIdForApi={selectedLocationIdForApi}
-                />
+                {!selectedLocationIdForApi ? (
+                  <div className="flex items-center justify-center h-full">
+                    <EmptyState
+                      title="No location selected"
+                      description="Please select a location to view reviews"
+                      showCard={false}
+                    />
+                  </div>
+                ) : (
+                  <CustomersTableClient
+                    businessId={businessId}
+                    selectedLocationIdForApi={selectedLocationIdForApi}
+                  />
+                )}
               </div>
             </TabsContent>
           </Tabs>

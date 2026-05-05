@@ -56,6 +56,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDebounce } from "@/hooks/use-debounce"
 import { useApproveReviewCustomers, useReviewCampaignsList } from "@/hooks/use-review-campaigns"
 import {
@@ -114,16 +115,16 @@ function isValidPhone(value: string) {
   return isValidUsPhone(value)
 }
 
-function createDraftRow(id: string): ReviewCustomerRow {
+function createDraftRow(id: string, defaultCampaign?: CampaignOption | null): ReviewCustomerRow {
   return {
     id,
     name: "",
     phone: "",
     email: "",
     createdAt: null,
-    campaignId: "",
-    campaignName: "",
-    campaignPlatform: "google",
+    campaignId: defaultCampaign?.id || "",
+    campaignName: defaultCampaign?.name || "",
+    campaignPlatform: defaultCampaign?.platform || "google",
     status: "draft",
     isNew: true,
   }
@@ -247,15 +248,23 @@ function DetailItem({
   label: string
   value?: React.ReactNode
 }) {
+  const tooltipValue = typeof value === "string" ? value : undefined
   return (
     <div className="rounded-lg border bg-card p-3">
       <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div className="min-w-0 truncate text-sm font-medium text-foreground" title={typeof value === "string" ? value : undefined}>
-        {value || "-"}
-      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="min-w-0 truncate text-sm font-medium text-foreground">
+            {value || "-"}
+          </div>
+        </TooltipTrigger>
+        {tooltipValue ? (
+          <TooltipContent sideOffset={4}>{tooltipValue}</TooltipContent>
+        ) : null}
+      </Tooltip>
     </div>
   )
 }
@@ -344,10 +353,63 @@ export function CustomersTableClient({
       id: String(item.id),
       name: item.name,
       platform: getReviewPlatformIdFromUrl(item.reviewDestinationUrl || ""),
+      isDefault: Boolean(item.isDefault),
     }))
   }, [campaignsResponse?.data])
 
+  const defaultCampaignOption = React.useMemo(
+    () => campaignOptions.find((option) => option.isDefault) || null,
+    [campaignOptions]
+  )
+
   const nextDraftId = React.useRef(1)
+  const tableContainerRef = React.useRef<HTMLDivElement | null>(null)
+
+  React.useEffect(() => {
+    if (!defaultCampaignOption) return
+
+    setDraftRows((prev) =>
+      prev.map((row) => {
+        if (!row.isNew || row.campaignId === defaultCampaignOption.id) return row
+        return {
+          ...row,
+          campaignId: defaultCampaignOption.id,
+          campaignName: defaultCampaignOption.name,
+          campaignPlatform: defaultCampaignOption.platform,
+        }
+      })
+    )
+  }, [defaultCampaignOption])
+
+  React.useEffect(() => {
+    if (!editingRow) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+
+      if (
+        target instanceof HTMLElement &&
+        (target.closest("[role='dialog']") ||
+          target.closest("[role='listbox']") ||
+          target.closest("[data-radix-popper-content-wrapper]"))
+      ) {
+        return
+      }
+
+      if (
+        target instanceof HTMLElement &&
+        target.closest(`[data-row-id="${CSS.escape(editingRow.rowId)}"]`)
+      ) {
+        return
+      }
+
+      setEditingRow(null)
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [editingRow])
 
   React.useEffect(() => {
     const items = customersResponse?.data
@@ -582,6 +644,7 @@ export function CustomersTableClient({
     () =>
       getCustomersTableColumns({
         campaignOptions,
+        hasDefaultCampaign: Boolean(defaultCampaignOption),
         editingRow,
         onStartEdit: handleStartEdit,
         onValueChange: handleValueChange,
@@ -592,6 +655,7 @@ export function CustomersTableClient({
       }),
     [
       campaignOptions,
+      defaultCampaignOption,
       editingRow,
       handleStartEdit,
       handleValueChange,
@@ -745,90 +809,92 @@ export function CustomersTableClient({
 
   return (
     <>
-      <DataTable
-        table={table}
-        emptyMessage="No customers found."
-        pageSizeOptions={[10, 24, 30, 50, 100]}
-        isLoading={isLoading}
-        disableHorizontalScroll
-        onRowClick={(row) => {
-          if (!row.isNew) handleStartEdit(row.id, "name")
-        }}
-        selectedRowId={selectedCustomer?.id || null}
-      >
-        <DataTableAdvancedToolbar table={table} className="flex-wrap gap-2">
-          <DataTableSearch
-            value={globalFilter}
-            onChange={(value) => setGlobalFilter(value)}
-            placeholder="Search..."
-          />
-          <DataTableSortList table={table} align="start" />
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => {
-              setStatusFilter(value as ReviewCustomerStatus | "all")
-              setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-            }}
-          >
-            <SelectTrigger className="h-9 w-[190px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="WAITING_FOR_APPROVAL">Waiting for approval</SelectItem>
-              <SelectItem value="PENDING">Pending</SelectItem>
-              <SelectItem value="IN_PROGRESS">In progress</SelectItem>
-              <SelectItem value="COMPLETED">Completed</SelectItem>
-              <SelectItem value="FAILED">Failed</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="min-w-0 flex-1" />
-          {selectedWaitingRows.length > 0 && (
+      <div ref={tableContainerRef}>
+        <DataTable
+          table={table}
+          emptyMessage="No customers found."
+          pageSizeOptions={[10, 24, 30, 50, 100]}
+          isLoading={isLoading}
+          disableHorizontalScroll
+          onRowClick={(row) => {
+            if (!row.isNew) handleStartEdit(row.id, "name")
+          }}
+          selectedRowId={selectedCustomer?.id || null}
+        >
+          <DataTableAdvancedToolbar table={table} className="flex-wrap gap-2">
+            <DataTableSearch
+              value={globalFilter}
+              onChange={(value) => setGlobalFilter(value)}
+              placeholder="Search..."
+            />
+            <DataTableSortList table={table} align="start" />
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value as ReviewCustomerStatus | "all")
+                setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+              }}
+            >
+              <SelectTrigger className="h-9 w-[190px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="WAITING_FOR_APPROVAL">Waiting for approval</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="IN_PROGRESS">In progress</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+                <SelectItem value="FAILED">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="min-w-0 flex-1" />
+            {selectedWaitingRows.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 shrink-0"
+                onClick={approveSelected}
+                disabled={approveCustomers.isPending}
+              >
+                Approve selected
+              </Button>
+            )}
+            {tableData.some((row) => row.status === "waiting-approval") && (
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2 shrink-0"
+                onClick={approveAllWaitingForVisibleCampaigns}
+                disabled={approveCustomers.isPending}
+              >
+                Approve all waiting
+              </Button>
+            )}
+            {hasPendingChanges && (
+              <Button
+                type="button"
+                className="gap-2 shrink-0"
+                onClick={handleSaveEdits}
+                disabled={hasValidationErrors || saveCustomers.isPending}
+              >
+                <Check className="h-4 w-4" />
+                Save Edits
+              </Button>
+            )}
             <Button
               type="button"
-              variant="outline"
               className="gap-2 shrink-0"
-              onClick={approveSelected}
-              disabled={approveCustomers.isPending}
+              onClick={() => {
+                const nextId = `new-${nextDraftId.current++}`
+                setDraftRows((prev) => [...prev, createDraftRow(nextId, defaultCampaignOption)])
+              }}
             >
-              Approve selected
+              <Plus className="h-4 w-4" />
+              Add
             </Button>
-          )}
-          {tableData.some((row) => row.status === "waiting-approval") && (
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2 shrink-0"
-              onClick={approveAllWaitingForVisibleCampaigns}
-              disabled={approveCustomers.isPending}
-            >
-              Approve all waiting
-            </Button>
-          )}
-          {hasPendingChanges && (
-            <Button
-              type="button"
-              className="gap-2 shrink-0"
-              onClick={handleSaveEdits}
-              disabled={hasValidationErrors || saveCustomers.isPending}
-            >
-              <Check className="h-4 w-4" />
-              Save Edits
-            </Button>
-          )}
-          <Button
-            type="button"
-            className="gap-2 shrink-0"
-            onClick={() => {
-              const nextId = `new-${nextDraftId.current++}`
-              setDraftRows((prev) => [...prev, createDraftRow(nextId)])
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Add
-          </Button>
-        </DataTableAdvancedToolbar>
-      </DataTable>
+          </DataTableAdvancedToolbar>
+        </DataTable>
+      </div>
 
       <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <AlertDialogContent>
@@ -1085,9 +1151,14 @@ export function CustomersTableClient({
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium" title={event.label}>
-                                    {event.label}
-                                  </p>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <p className="truncate text-sm font-medium">
+                                        {event.label}
+                                      </p>
+                                    </TooltipTrigger>
+                                    <TooltipContent sideOffset={4}>{event.label}</TooltipContent>
+                                  </Tooltip>
                                   <p className="text-xs text-muted-foreground">
                                     {formatDateTime(event.occurredAt)}
                                   </p>

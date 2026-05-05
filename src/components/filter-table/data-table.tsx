@@ -183,6 +183,7 @@ export function DataTable<TData>({
                   return (
                     <TableRow
                       key={String(rowKey)}
+                      data-row-id={String(rowKey)}
                       data-selected-row={isSelected ? row.id : undefined}
                       className={cn(
                         "group",

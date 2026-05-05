@@ -19,12 +19,18 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
@@ -125,6 +131,116 @@ interface BusinessData {
 const removeScDomainPrefix = (url: string) => {
   return url.replace(/^sc-domain:/, "");
 };
+
+interface Ga4SearchableSelectProps {
+  options: GA4Property[];
+  selectedPropertyId?: string;
+  selectedGa4?: GA4Property | null;
+  onChange: (propertyId: string | null) => void;
+}
+
+function Ga4SearchableSelect({
+  options,
+  selectedPropertyId,
+  selectedGa4,
+  onChange,
+}: Ga4SearchableSelectProps) {
+  const [open, setOpen] = useState(false);
+  const showClearButton = !!selectedGa4;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full max-w-[300px] min-h-10 h-auto whitespace-normal items-center justify-between px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 font-normal"
+        >
+          {selectedGa4 ? (
+            <div className="flex items-center justify-between w-full gap-1 overflow-hidden">
+              <TextWithPill
+                displayName={selectedGa4.displayName || selectedGa4.propertyDisplayName || ""}
+                propertyId={selectedGa4.propertyId}
+                accountName={selectedGa4.accountName}
+                accountId={selectedGa4.accountId}
+              />
+              <div className="flex items-center gap-1 shrink-0">
+                {showClearButton && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center cursor-pointer pointer-events-auto"
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onChange(null);
+                      setOpen(false);
+                    }}
+                  >
+                    <X className="h-3 w-3 text-muted-foreground pointer-events-none" />
+                  </span>
+                )}
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between w-full">
+              <span className="text-muted-foreground font-normal text-xs">Select GA4</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            </div>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search GA4 property..." />
+          <CommandList className="max-h-[320px]">
+            <CommandEmpty>No GA4 properties found.</CommandEmpty>
+            <CommandGroup>
+              {options.map((ga4) => {
+                const isSelected = selectedPropertyId === ga4.propertyId;
+                const searchValue = [
+                  ga4.displayName,
+                  ga4.propertyDisplayName,
+                  ga4.propertyId,
+                  ga4.accountName,
+                  ga4.accountId,
+                ].filter(Boolean).join(" ");
+
+                return (
+                  <CommandItem
+                    key={ga4.propertyId}
+                    value={searchValue}
+                    className="cursor-pointer"
+                    onSelect={() => {
+                      onChange(ga4.propertyId);
+                      setOpen(false);
+                    }}
+                  >
+                    <div className="flex w-full items-center justify-between gap-2 py-1.5">
+                      <TextWithPill
+                        displayName={ga4.displayName || ga4.propertyDisplayName || ""}
+                        propertyId={ga4.propertyId}
+                        accountName={ga4.accountName}
+                        accountId={ga4.accountId}
+                      />
+                      {isSelected && <Check className="h-4 w-4 shrink-0" />}
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function LinkedBusinessTable() {
   const [search, setSearch] = useState("");
@@ -247,6 +363,7 @@ export default function LinkedBusinessTable() {
   }, [businessesData]);
 
   const allGBP = businessesData?.allGBP || [];
+  const allGA4 = businessesData?.allGA4 || [];
   const unmatchedGa4 = businessesData?.unmatchedGa4 || [];
 
   // Filter logic
@@ -281,6 +398,7 @@ export default function LinkedBusinessTable() {
             b.matchedGa4Multiple?.find((ga4) => ga4.propertyId === propertyId) ||
             (b.matchedGa4?.propertyId === propertyId ? b.matchedGa4 : undefined) ||
             unmatchedGa4.find((ga4) => ga4.propertyId === propertyId) ||
+            allGA4.find((ga4) => ga4.propertyId === propertyId) ||
             (linkedGa4PropertyId === propertyId
               ? {
                 displayName: b.linkedPropertyId!.displayName,
@@ -423,20 +541,25 @@ export default function LinkedBusinessTable() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Helper function to get GA4s that are selected by other businesses
-  const getSelectedUnmatchedGa4IdsForOthers = (currentBusinessKey: string) => {
+  // Hide GA4 properties that are already saved or currently selected on other rows.
+  const getUnavailableGa4IdsForOthers = (currentBusinessKey: string) => {
     const selectedIds = new Set<string>();
     localBusinesses.forEach((business) => {
       const businessKey = business.siteUrl || business.id;
-      // Skip current business and only track selectedGa4 (UI selections)
-      if (businessKey !== currentBusinessKey && business.selectedGa4) {
-        // Only track if the selection came from unmatchedGa4 list
-        const isFromUnmatched = unmatchedGa4.some(
-          (ga4) => ga4.propertyId === business.selectedGa4?.propertyId
-        );
-        if (isFromUnmatched) {
-          selectedIds.add(business.selectedGa4.propertyId);
-        }
+      if (businessKey === currentBusinessKey) return;
+
+      if (business.selectedGa4?.propertyId) {
+        selectedIds.add(String(business.selectedGa4.propertyId));
+        return;
+      }
+
+      const linkedPropertyId =
+        business.linkedPropertyId?.PropertyId ||
+        business.linkedPropertyId?.propertyId ||
+        (business.linkedPropertyId as any)?.GoogleAnalyticsPropertyId;
+
+      if (!business.ga4Cleared && linkedPropertyId) {
+        selectedIds.add(String(linkedPropertyId));
       }
     });
     return selectedIds;
@@ -573,108 +696,48 @@ export default function LinkedBusinessTable() {
             );
           }
           const rowData = row.original;
-          const hasUnmatchedData = unmatchedGa4.length > 0;
+          const hasGa4Options = allGA4.length > 0 || unmatchedGa4.length > 0;
           const isAlreadyLinked = !!rowData.businessProfile?.Id;
           const hasLinkedProperty = !!rowData.linkedPropertyId;
           const hasSuggestedMatches =
             !!rowData.matchedGa4 || (rowData.matchedGa4Multiple?.length ?? 0) > 0;
           const hasLinkedData = hasLinkedProperty || hasSuggestedMatches;
 
-          // Helper functions
-          const getDisplayName = () =>
-            rowData.selectedGa4?.displayName ??
-            rowData.linkedPropertyId?.displayName ??
-            rowData.matchedGa4?.displayName;
           const getPropertyId = () =>
             rowData.selectedGa4?.propertyId ??
             rowData.linkedPropertyId?.PropertyId ??
             rowData.matchedGa4?.propertyId;
-          const getAccountName = () =>
-            rowData.selectedGa4?.accountName ??
-            rowData.linkedPropertyId?.accountName ??
-            rowData.matchedGa4?.accountName;
-          const getAccountId = () =>
-            rowData.selectedGa4?.accountId ??
-            rowData.linkedPropertyId?.accountId ??
-            rowData.matchedGa4?.accountId;
 
           // Case 1: No linked data but unmatched GA4 available - show dropdown to select
-          if (!hasLinkedData && hasUnmatchedData) {
+          if (!hasLinkedData && hasGa4Options) {
             const businessKey = rowData.siteUrl || rowData.id || "";
-            const selectedByOthers = getSelectedUnmatchedGa4IdsForOthers(businessKey);
+            const unavailableGa4Ids = getUnavailableGa4IdsForOthers(businessKey);
             const selectedPropertyId = rowData.selectedGa4?.propertyId || "";
-            const selectedGa4 = rowData.selectedGa4 || unmatchedGa4.find(ga4 => ga4.propertyId === selectedPropertyId);
+            const ga4OptionMap = new Map<string, GA4Property>();
+            [...allGA4, ...unmatchedGa4].forEach((ga4) => {
+              const isCurrentSelection = ga4.propertyId === selectedPropertyId;
+              if (!unavailableGa4Ids.has(ga4.propertyId) || isCurrentSelection) {
+                ga4OptionMap.set(ga4.propertyId, ga4);
+              }
+            });
 
-            // Filter out GA4s selected by other rows, but always include current selection
-            const availableUnmatchedGa4 = unmatchedGa4.filter(
-              (ga4) => !selectedByOthers.has(ga4.propertyId) || ga4.propertyId === selectedPropertyId
-            );
+            const ga4Options = Array.from(ga4OptionMap.values());
+            const selectedGa4 = rowData.selectedGa4 || ga4OptionMap.get(selectedPropertyId);
 
             return (
-              <Select
-                value={selectedPropertyId || undefined}
-                onValueChange={(value) =>
-                  handleGa4Change(rowData.siteUrl || "", value)
-                }
-              >
-                <SelectTrigger className="w-full max-w-[300px] min-h-10 h-auto! whitespace-normal! items-center! px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
-                  {selectedGa4 ? (
-                    <div className="flex items-center justify-between w-full gap-2">
-                      <TextWithPill
-                        displayName={selectedGa4.displayName || selectedGa4.propertyDisplayName || ""}
-                        propertyId={selectedGa4.propertyId}
-                        accountName={selectedGa4.accountName}
-                        accountId={selectedGa4.accountId}
-                      />
-                      <div className="flex items-center gap-1 shrink-0">
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center cursor-pointer pointer-events-auto"
-                          onPointerDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleGa4Change(rowData.siteUrl || "", null);
-                          }}
-                        >
-                          <X className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                        </div>
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-muted-foreground font-normal text-xs">Select GA4</span>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
-                  )}
-                </SelectTrigger>
-                <SelectContent className="max-h-[500px]">
-                  {availableUnmatchedGa4.map((ga4, i) => (
-                    <SelectItem key={i} value={ga4.propertyId} className="cursor-pointer">
-                      <div className="flex flex-col gap-1 py-1.5">
-                        <TextWithPill
-                          displayName={ga4.displayName || ga4.propertyDisplayName || ""}
-                          propertyId={ga4.propertyId}
-                          accountName={ga4.accountName}
-                          accountId={ga4.accountId}
-                        />
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Ga4SearchableSelect
+                options={ga4Options}
+                selectedPropertyId={selectedPropertyId}
+                selectedGa4={selectedGa4 || null}
+                onChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
+              />
             );
           }
 
           // Case 2: Has linked/matched data
           if (hasLinkedData) {
             const businessKey = rowData.siteUrl || rowData.id || "";
-            const selectedByOthers = getSelectedUnmatchedGa4IdsForOthers(businessKey);
+            const unavailableGa4Ids = getUnavailableGa4IdsForOthers(businessKey);
             const isCleared = rowData.ga4Cleared === true;
             const linkedGa4PropertyId =
               rowData.linkedPropertyId?.PropertyId ||
@@ -687,7 +750,8 @@ export default function LinkedBusinessTable() {
               if (rowData.matchedGa4?.propertyId === normalized) return rowData.matchedGa4;
               const fromMultiple = (rowData.matchedGa4Multiple || []).find((g) => String(g.propertyId) === normalized);
               if (fromMultiple) return fromMultiple;
-              return unmatchedGa4.find((g) => String(g.propertyId) === normalized);
+              return allGA4.find((g) => String(g.propertyId) === normalized) ||
+                unmatchedGa4.find((g) => String(g.propertyId) === normalized);
             };
 
             const optionMap = new Map<string, GA4Property>();
@@ -700,21 +764,22 @@ export default function LinkedBusinessTable() {
                 accountId: enriched?.accountId || rowData.linkedPropertyId.accountId,
               });
             }
-            if (rowData.matchedGa4) {
+            if (rowData.matchedGa4 && !unavailableGa4Ids.has(rowData.matchedGa4.propertyId)) {
               optionMap.set(rowData.matchedGa4.propertyId, rowData.matchedGa4);
             }
             (rowData.matchedGa4Multiple || []).forEach((ga4) => {
-              optionMap.set(ga4.propertyId, ga4);
+              if (!unavailableGa4Ids.has(ga4.propertyId)) {
+                optionMap.set(ga4.propertyId, ga4);
+              }
             });
 
-            // Include unmatchedGa4 that are not selected by other rows
-            // Always include the current row's selection even if it would be filtered
-            (unmatchedGa4 || []).forEach((ga4) => {
+            // Include all GA4 properties so users can correct fuzzy matches manually.
+            [...(allGA4 || []), ...(unmatchedGa4 || [])].forEach((ga4) => {
               if (!optionMap.has(ga4.propertyId)) {
-                const isSelectedByOthers = selectedByOthers.has(ga4.propertyId);
                 const isCurrentSelection = rowData.selectedGa4?.propertyId === ga4.propertyId;
+                const isSavedSelection = linkedGa4PropertyId && String(linkedGa4PropertyId) === ga4.propertyId;
                 // Only add if not selected by others, OR if it's this row's current selection
-                if (!isSelectedByOthers || isCurrentSelection) {
+                if (!unavailableGa4Ids.has(ga4.propertyId) || isCurrentSelection || isSavedSelection) {
                   optionMap.set(ga4.propertyId, ga4);
                 }
               }
@@ -738,68 +803,13 @@ export default function LinkedBusinessTable() {
               return null;
             })();
 
-            const showClearButton = !isCleared && !!displayGa4;
-
             return (
-              <Select
-                value={selectedPropertyId || undefined}
-                onValueChange={(value) =>
-                  handleGa4Change(rowData.siteUrl || "", value)
-                }
-              >
-                <SelectTrigger className="w-full max-w-[300px] min-h-10 h-auto! whitespace-normal! items-center! px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 [&>svg]:hidden">
-                  {displayGa4 ? (
-                    <div className="flex items-center justify-between w-full gap-1">
-                      <TextWithPill
-                        displayName={displayGa4.displayName || displayGa4.propertyDisplayName || ""}
-                        propertyId={displayGa4.propertyId}
-                        accountName={displayGa4.accountName}
-                        accountId={displayGa4.accountId}
-                      />
-                      <div className="flex items-center gap-1 shrink-0">
-                        {showClearButton && (
-                          <div
-                            role="button"
-                            tabIndex={0}
-                            className="h-4 w-4 rounded-full hover:bg-muted flex items-center justify-center cursor-pointer pointer-events-auto"
-                            onPointerDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleGa4Change(rowData.siteUrl || "", null);
-                            }}
-                          >
-                            <X className="h-3 w-3 text-muted-foreground pointer-events-none" />
-                          </div>
-                        )}
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-muted-foreground font-normal text-xs">Select GA4</span>
-                      <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
-                  )}
-                </SelectTrigger>
-                <SelectContent className="max-h-[500px]">
-                  {ga4Options.map((ga4) => (
-                    <SelectItem key={ga4.propertyId} value={ga4.propertyId} className="cursor-pointer">
-                      <div className="flex flex-col gap-1 py-1.5 ">
-                        <TextWithPill
-                          displayName={ga4.displayName || ga4.propertyDisplayName || ""}
-                          propertyId={ga4.propertyId}
-                          accountName={ga4.accountName}
-                          accountId={ga4.accountId}
-                        />
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Ga4SearchableSelect
+                options={ga4Options}
+                selectedPropertyId={selectedPropertyId}
+                selectedGa4={displayGa4}
+                onChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
+              />
             );
           }
 
@@ -1002,7 +1012,7 @@ export default function LinkedBusinessTable() {
         },
       },
     ],
-    [allGBP, localBusinesses, unmatchedGa4, loadingRowId]
+    [allGBP, allGA4, localBusinesses, unmatchedGa4, loadingRowId]
   );
 
   // Create summary row data

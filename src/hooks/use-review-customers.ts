@@ -68,6 +68,20 @@ type ReviewCustomerDeleteResponse = {
   message?: string;
 };
 
+type ReviewCustomerSendNowResponse = {
+  err: boolean;
+  data?: {
+    status?: "SENT" | "SKIPPED" | "FAILED" | null;
+    message?: string;
+    activity?: {
+      id: string;
+      type: "EMAIL" | "SMS";
+      orderIndex: number;
+    } | null;
+  };
+  message?: string;
+};
+
 export type ReviewCustomerListSort = {
   sortBy?: "name" | "createdAt" | "status" | "campaignName";
   sortDir?: "asc" | "desc";
@@ -267,6 +281,37 @@ export function useDeleteReviewCustomer() {
     },
     onError: (error) => {
       toast.error(error.message || "Failed to delete customer");
+    },
+  });
+}
+
+export function useSendReviewCustomerNow() {
+  const queryClient = useQueryClient();
+
+  return useMutation<ReviewCustomerSendNowResponse, Error, { id: string; businessId: string }>({
+    mutationFn: async ({ id, businessId }) => {
+      const params = new URLSearchParams({ businessId });
+      const response = await api.post<ReviewCustomerSendNowResponse>(
+        `/customers/${encodeURIComponent(id)}/send-now?${params.toString()}`,
+        "node",
+        {}
+      );
+
+      if (response.err) {
+        throw new Error(response.message || "Failed to send campaign step");
+      }
+
+      return response;
+    },
+    onSuccess: (response, variables) => {
+      toast.success(response.data?.message || "Campaign step sent");
+      queryClient.invalidateQueries({ queryKey: ["review-customers"] });
+      queryClient.invalidateQueries({
+        queryKey: ["review-customer-timeline", variables.businessId, variables.id],
+      });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to send campaign step");
     },
   });
 }

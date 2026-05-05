@@ -10,3 +10,7 @@ export const routesWithoutSidebar: string[] = [
   '/team-signup',
   '/wordpress/connect',
 ]
+
+export const routePrefixesWithoutSidebar: string[] = [
+  '/r/',
+]

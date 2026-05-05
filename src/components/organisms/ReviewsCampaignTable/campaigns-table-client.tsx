@@ -21,16 +21,6 @@ import { DataTableAdvancedToolbar } from "@/components/filter-table/data-table-a
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list"
 import { DataTableSearch } from "@/components/filter-table/data-table-search"
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 
 import {
   getCampaignsTableColumns,
@@ -49,25 +39,14 @@ export function CampaignsTableClient({
   selectedLocationIdForApi?: string | null;
 }) {
   const router = useRouter()
-  const [confirmNavigation, setConfirmNavigation] = React.useState<{
-    href: string
-    title: string
-    description: string
-    confirmLabel: string
-  } | null>(null)
   const columns = React.useMemo(
     () => getCampaignsTableColumns(
       businessId,
       currentTab,
       selectedLocationIdForApi,
-      (href) => setConfirmNavigation({
-        href,
-        title: "Edit campaign?",
-        description: "Editing a campaign publishes a new active version for future customers. Existing started customer journeys stay on their original version.",
-        confirmLabel: "Continue",
-      })
+      (href) => router.push(href)
     ),
-    [businessId, currentTab, selectedLocationIdForApi]
+    [businessId, currentTab, router, selectedLocationIdForApi]
   )
 
   const [sorting, setSorting] = React.useState<SortingState>([
@@ -91,7 +70,7 @@ export function CampaignsTableClient({
     }
   }, [sorting])
 
-  const { data: campaignsResponse, isLoading, isFetching } = useReviewCampaignsList(
+  const { data: campaignsResponse, isLoading } = useReviewCampaignsList(
     businessId,
     selectedLocationIdForApi,
     apiSort,
@@ -148,7 +127,6 @@ export function CampaignsTableClient({
         emptyMessage="No campaigns found."
         pageSizeOptions={[10, 20, 30, 50]}
         isLoading={isLoading}
-        isFetching={isFetching}
       >
         <DataTableAdvancedToolbar table={table} className="flex-wrap gap-2">
           <DataTableSearch
@@ -170,28 +148,6 @@ export function CampaignsTableClient({
           </Button>
         </DataTableAdvancedToolbar>
       </DataTable>
-      <AlertDialog open={!!confirmNavigation} onOpenChange={(open) => !open && setConfirmNavigation(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmNavigation?.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmNavigation?.description}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!confirmNavigation) return
-                router.push(confirmNavigation.href)
-                setConfirmNavigation(null)
-              }}
-            >
-              {confirmNavigation?.confirmLabel || "Continue"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }

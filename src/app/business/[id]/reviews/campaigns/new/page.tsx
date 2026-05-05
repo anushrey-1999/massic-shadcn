@@ -22,6 +22,8 @@ import {
   useReviewCampaignById,
   useReviewLinkByLocation,
   useUpdateReviewCampaign,
+  type CreateCampaignPayload,
+  type DefaultCampaignConflictError,
 } from "@/hooks/use-review-campaigns";
 import {
   AlertDialog,
@@ -165,6 +167,9 @@ Thank you for your time and support.
   );
 
   const [showUnsavedDialog, setShowUnsavedDialog] = React.useState(false);
+  const [showDefaultCampaignDialog, setShowDefaultCampaignDialog] = React.useState(false);
+  const [pendingDefaultPayload, setPendingDefaultPayload] = React.useState<CreateCampaignPayload | null>(null);
+  const [defaultConflictCampaignName, setDefaultConflictCampaignName] = React.useState<string | null>(null);
   const pendingNavigationRef = React.useRef<string | null>(null);
   const initialSnapshotRef = React.useRef<string | null>(null);
 
@@ -540,6 +545,40 @@ Thank you for your time and support.
   const isSaving = createCampaignMutation.isPending || updateCampaignMutation.isPending;
   const isSaveDisabled = isSaving || (isEditMode ? !hasUnsavedChanges : false);
 
+  const saveCampaignPayload = React.useCallback(
+    async (payload: CreateCampaignPayload) => {
+      if (isEditMode && campaignId) {
+        await updateCampaignMutation.mutateAsync({ id: campaignId, payload });
+      } else {
+        await createCampaignMutation.mutateAsync(payload);
+      }
+      initialSnapshotRef.current = computeSnapshot();
+      router.push(`/business/${businessId}/reviews?tab=campaign`);
+    },
+    [
+      businessId,
+      campaignId,
+      computeSnapshot,
+      createCampaignMutation,
+      isEditMode,
+      router,
+      updateCampaignMutation,
+    ]
+  );
+
+  const handleCampaignSaveError = React.useCallback(
+    (error: unknown, payload: CreateCampaignPayload) => {
+      const campaignError = error as DefaultCampaignConflictError;
+      if (campaignError.code !== "DEFAULT_CAMPAIGN_EXISTS") return false;
+
+      setPendingDefaultPayload(payload);
+      setDefaultConflictCampaignName(campaignError.existingCampaign?.name || null);
+      setShowDefaultCampaignDialog(true);
+      return true;
+    },
+    []
+  );
+
   return (
     <div className="flex flex-col h-screen bg-[#FAFAFA]">
       <PageHeader breadcrumbs={breadcrumbs} />
@@ -673,15 +712,9 @@ Thank you for your time and support.
               };
 
               try {
-                if (isEditMode && campaignId) {
-                  await updateCampaignMutation.mutateAsync({ id: campaignId, payload });
-                } else {
-                  await createCampaignMutation.mutateAsync(payload);
-                }
-                initialSnapshotRef.current = computeSnapshot();
-                router.push(`/business/${businessId}/reviews?tab=campaign`);
+                await saveCampaignPayload(payload);
               } catch (error) {
-                // Errors are handled by the mutation onError
+                handleCampaignSaveError(error, payload);
               }
             }}
           >
@@ -838,6 +871,60 @@ Thank you for your time and support.
               }}
             >
               Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showDefaultCampaignDialog}
+        onOpenChange={(open) => {
+          setShowDefaultCampaignDialog(open);
+          if (!open) {
+            setPendingDefaultPayload(null);
+            setDefaultConflictCampaignName(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace default campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {defaultConflictCampaignName
+                ? `"${defaultConflictCampaignName}" is already set as the default campaign for this business location. Do you want to make this campaign the default instead?`
+                : "There is already a default campaign for this business location. Do you want to make this campaign the default instead?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isSaving}
+              onClick={async () => {
+                if (!pendingDefaultPayload) return;
+                try {
+                  await saveCampaignPayload({
+                    ...pendingDefaultPayload,
+                    replaceDefault: true,
+                  });
+                  setShowDefaultCampaignDialog(false);
+                  setPendingDefaultPayload(null);
+                  setDefaultConflictCampaignName(null);
+                } catch (error) {
+                  handleCampaignSaveError(error, {
+                    ...pendingDefaultPayload,
+                    replaceDefault: true,
+                  });
+                }
+              }}
+            >
+              {isSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Replacing...
+                </span>
+              ) : (
+                "Make default"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

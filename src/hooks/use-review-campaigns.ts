@@ -23,6 +23,12 @@ export type CreateCampaignPayload = {
   isActive: boolean;
   timezone: string;
   activities: CampaignActivityPayload[];
+  replaceDefault?: boolean;
+};
+
+export type DefaultCampaignConflictError = Error & {
+  code?: "DEFAULT_CAMPAIGN_EXISTS";
+  existingCampaign?: { id: string; name: string } | null;
 };
 
 type CreateCampaignResponse = {
@@ -141,6 +147,16 @@ type UpdateCampaignResponse = {
   data?: any;
   message?: string;
 };
+
+function toCampaignMutationError(error: any, fallbackMessage: string): DefaultCampaignConflictError {
+  const data = error?.response?.data;
+  const mutationError = new Error(data?.message || error?.message || fallbackMessage) as DefaultCampaignConflictError;
+  if (data?.code === "DEFAULT_CAMPAIGN_EXISTS") {
+    mutationError.code = "DEFAULT_CAMPAIGN_EXISTS";
+    mutationError.existingCampaign = data.existingCampaign || null;
+  }
+  return mutationError;
+}
 
 export type ReviewCampaignsSort = {
   sortBy?: "name" | "createdAt" | "totalClicks" | "steps";
@@ -264,11 +280,16 @@ export function useUpdateReviewCampaign() {
   const queryClient = useQueryClient();
   return useMutation<UpdateCampaignResponse, Error, { id: string; payload: CreateCampaignPayload }>({
     mutationFn: async ({ id, payload }) => {
-      const response = await api.put<UpdateCampaignResponse>(
-        `/campaigns/${encodeURIComponent(id)}`,
-        "node",
-        payload
-      );
+      let response: UpdateCampaignResponse;
+      try {
+        response = await api.put<UpdateCampaignResponse>(
+          `/campaigns/${encodeURIComponent(id)}`,
+          "node",
+          payload
+        );
+      } catch (error) {
+        throw toCampaignMutationError(error, "Failed to update campaign");
+      }
 
       if (response.err) {
         throw new Error(response.message || "Failed to update campaign");
@@ -282,6 +303,7 @@ export function useUpdateReviewCampaign() {
       queryClient.invalidateQueries({ queryKey: ["review-campaigns"] });
     },
     onError: (error) => {
+      if ((error as DefaultCampaignConflictError).code === "DEFAULT_CAMPAIGN_EXISTS") return;
       toast.error(error.message || "Failed to update campaign");
     },
   });
@@ -290,11 +312,16 @@ export function useCreateReviewCampaign() {
   const queryClient = useQueryClient();
   return useMutation<CreateCampaignResponse, Error, CreateCampaignPayload>({
     mutationFn: async (payload) => {
-      const response = await api.post<CreateCampaignResponse>(
-        "/campaigns",
-        "node",
-        payload
-      );
+      let response: CreateCampaignResponse;
+      try {
+        response = await api.post<CreateCampaignResponse>(
+          "/campaigns",
+          "node",
+          payload
+        );
+      } catch (error) {
+        throw toCampaignMutationError(error, "Failed to create campaign");
+      }
 
       if (response.err) {
         throw new Error(response.message || "Failed to create campaign");
@@ -307,6 +334,7 @@ export function useCreateReviewCampaign() {
       queryClient.invalidateQueries({ queryKey: ["review-campaigns"] });
     },
     onError: (error) => {
+      if ((error as DefaultCampaignConflictError).code === "DEFAULT_CAMPAIGN_EXISTS") return;
       toast.error(error.message || "Failed to create campaign");
     },
   });

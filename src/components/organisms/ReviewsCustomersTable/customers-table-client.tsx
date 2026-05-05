@@ -20,7 +20,7 @@ import {
   Check,
   CheckCircle2,
   Clock,
-  Download,
+  Loader2,
   Mail,
   MessageSquare,
   MousePointerClick,
@@ -63,10 +63,12 @@ import {
   useReviewCustomerTimeline,
   useReviewCustomers,
   useSaveReviewCustomers,
+  useSendReviewCustomerNow,
   type ReviewCustomerListItem,
   type ReviewCustomerListSort,
   type ReviewCustomerStatus,
 } from "@/hooks/use-review-customers"
+import { isValidUsPhone, normalizeUsPhoneToE164 } from "@/utils/phone"
 import { getReviewPlatformIdFromUrl } from "@/utils/review-platforms"
 
 import {
@@ -76,9 +78,6 @@ import {
   type ReviewCustomerRow,
   type RowValidationErrors,
 } from "./customers-table-columns"
-
-const PHONE_DIGITS_MIN = 7
-const PHONE_DIGITS_MAX = 15
 
 function normalizeDisplayValue(value: string | null | undefined) {
   if (!value || value === "-") return ""
@@ -112,9 +111,7 @@ function isValidEmail(value: string) {
 }
 
 function isValidPhone(value: string) {
-  if (!value) return true
-  const digits = value.replace(/\D/g, "")
-  return digits.length >= PHONE_DIGITS_MIN && digits.length <= PHONE_DIGITS_MAX
+  return isValidUsPhone(value)
 }
 
 function createDraftRow(id: string): ReviewCustomerRow {
@@ -136,7 +133,13 @@ function formatDateTime(value?: string | null) {
   if (!value) return "-"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "-"
-  return date.toLocaleString()
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date)
 }
 
 function getTimelineEventConfig(type: string) {
@@ -267,7 +270,7 @@ export function CustomersTableClient({
   const [draftRows, setDraftRows] = React.useState<ReviewCustomerRow[]>([])
   const [existingRows, setExistingRows] = React.useState<ReviewCustomerRow[]>([])
   const [originalRows, setOriginalRows] = React.useState<ReviewCustomerRow[]>([])
-  const [editingCell, setEditingCell] = React.useState<{
+  const [editingRow, setEditingRow] = React.useState<{
     rowId: string
     field: EditableField
   } | null>(null)
@@ -305,7 +308,7 @@ export function CustomersTableClient({
     }
   }, [sorting])
 
-  const { data: customersResponse, isLoading, isFetching } = useReviewCustomers(
+  const { data: customersResponse, isLoading } = useReviewCustomers(
     businessId,
     selectedLocationIdForApi || null,
     debouncedSearch,
@@ -325,7 +328,15 @@ export function CustomersTableClient({
   const saveCustomers = useSaveReviewCustomers()
   const deleteCustomer = useDeleteReviewCustomer()
   const approveCustomers = useApproveReviewCustomers()
+  const sendCustomerNow = useSendReviewCustomerNow()
   const timelineQuery = useReviewCustomerTimeline(businessId, selectedCustomer?.id || null)
+  const timeline = timelineQuery.data?.data
+  const canSendNow = Boolean(
+    timeline?.nextStep &&
+    timeline.status !== "WAITING_FOR_APPROVAL" &&
+    timeline.status !== "COMPLETED" &&
+    timeline.status !== "FAILED"
+  )
 
   const campaignOptions = React.useMemo<CampaignOption[]>(() => {
     const items = campaignsResponse?.data || []
@@ -361,7 +372,7 @@ export function CustomersTableClient({
     setExistingRows(mapped)
     setOriginalRows(mapped)
     setDraftRows([])
-    setEditingCell(null)
+    setEditingRow(null)
   }, [customersResponse?.data])
 
   const sortedExistingRows = React.useMemo(() => {
@@ -451,7 +462,7 @@ export function CustomersTableClient({
         rowError.email = "Invalid email"
       }
       if (row.phone.trim() && !isValidPhone(row.phone)) {
-        rowError.phone = "Invalid phone"
+        rowError.phone = "Enter a valid US phone number"
       }
       if (Object.keys(rowError).length > 0) {
         errors[row.id] = rowError
@@ -544,11 +555,11 @@ export function CustomersTableClient({
   )
 
   const handleStartEdit = React.useCallback((rowId: string, field: EditableField) => {
-    setEditingCell({ rowId, field })
+    setEditingRow({ rowId, field })
   }, [])
 
-  const handleStopEdit = React.useCallback(() => {
-    setEditingCell(null)
+  const handleViewRow = React.useCallback((row: ReviewCustomerRow) => {
+    if (!row.isNew) setSelectedCustomer(row)
   }, [])
 
   const handleApproveRow = React.useCallback(
@@ -571,22 +582,22 @@ export function CustomersTableClient({
     () =>
       getCustomersTableColumns({
         campaignOptions,
-        editingCell,
+        editingRow,
         onStartEdit: handleStartEdit,
         onValueChange: handleValueChange,
-        onStopEdit: handleStopEdit,
         onDeleteRow: handleDeleteRow,
         onApproveRow: handleApproveRow,
+        onViewRow: handleViewRow,
         getRowErrors: (rowId) => rowErrorsRef.current[rowId],
       }),
     [
       campaignOptions,
-      editingCell,
+      editingRow,
       handleStartEdit,
       handleValueChange,
-      handleStopEdit,
       handleDeleteRow,
       handleApproveRow,
+      handleViewRow,
     ]
   )
 
@@ -635,14 +646,14 @@ export function CustomersTableClient({
           customers: [
             ...newRowsToSave.map((row) => ({
               name: row.name.trim(),
-              phone: row.phone.trim() || null,
+              phone: normalizeUsPhoneToE164(row.phone) || null,
               email: row.email.trim() || null,
               campaignId: row.campaignId,
             })),
             ...updatedRowsToSave.map((row) => ({
               id: row.id,
               name: row.name.trim(),
-              phone: row.phone.trim() || null,
+              phone: normalizeUsPhoneToE164(row.phone) || null,
               email: row.email.trim() || null,
               campaignId: row.campaignId,
             })),
@@ -716,6 +727,22 @@ export function CustomersTableClient({
     })
   }, [approveCustomers, tableData])
 
+  const handleSendNow = React.useCallback(() => {
+    if (!selectedCustomer || !canSendNow) return
+    const nextStep = timeline?.nextStep
+    setConfirmAction({
+      title: "Send campaign step now?",
+      description: nextStep
+        ? `This will send ${nextStep.type} step ${nextStep.orderIndex} now. Future steps will still follow the existing campaign schedule.`
+        : "This will send the next campaign step now.",
+      confirmLabel: "Send now",
+      onConfirm: () => sendCustomerNow.mutate({
+        id: selectedCustomer.id,
+        businessId,
+      }),
+    })
+  }, [businessId, canSendNow, selectedCustomer, sendCustomerNow, timeline?.nextStep])
+
   return (
     <>
       <DataTable
@@ -723,10 +750,9 @@ export function CustomersTableClient({
         emptyMessage="No customers found."
         pageSizeOptions={[10, 24, 30, 50, 100]}
         isLoading={isLoading}
-        isFetching={isFetching}
         disableHorizontalScroll
         onRowClick={(row) => {
-          if (!row.isNew) setSelectedCustomer(row)
+          if (!row.isNew) handleStartEdit(row.id, "name")
         }}
         selectedRowId={selectedCustomer?.id || null}
       >
@@ -756,15 +782,6 @@ export function CustomersTableClient({
               <SelectItem value="FAILED">Failed</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            type="button"
-            aria-label="Download"
-          >
-            <Download className="h-4 w-4" />
-          </Button>
           <div className="min-w-0 flex-1" />
           {selectedWaitingRows.length > 0 && (
             <Button
@@ -921,9 +938,25 @@ export function CustomersTableClient({
                 </div>
 
                 <div className="rounded-xl border bg-card p-4 shadow-xs">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-semibold">Next Scheduled Step</p>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold">Next Scheduled Step</p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-2"
+                      onClick={handleSendNow}
+                      disabled={!canSendNow || sendCustomerNow.isPending}
+                    >
+                      {sendCustomerNow.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Send className="h-3.5 w-3.5" />
+                      )}
+                      {sendCustomerNow.isPending ? "Sending..." : "Send now"}
+                    </Button>
                   </div>
                   {timelineQuery.data.data.nextStep ? (
                     <div className="grid grid-cols-2 gap-3">

@@ -1,7 +1,7 @@
 "use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
-import { CheckCircle2, Trash2, X } from "lucide-react"
+import { CheckCircle2, Eye, Trash2, X } from "lucide-react"
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -51,12 +51,12 @@ export type RowValidationErrors = Partial<Record<EditableField, string>>
 
 export interface CustomersTableColumnOptions {
   campaignOptions: CampaignOption[]
-  editingCell: { rowId: string; field: EditableField } | null
+  editingRow: { rowId: string; field: EditableField } | null
   onStartEdit: (rowId: string, field: EditableField) => void
   onValueChange: (rowId: string, field: EditableField, value: string) => void
-  onStopEdit: () => void
   onDeleteRow: (rowId: string, isNew?: boolean) => void
   onApproveRow: (row: ReviewCustomerRow) => void
+  onViewRow: (row: ReviewCustomerRow) => void
   getRowErrors: (rowId: string) => RowValidationErrors | undefined
 }
 
@@ -130,17 +130,20 @@ export function getCustomersTableColumns(
 ): ColumnDef<ReviewCustomerRow>[] {
   const {
     campaignOptions,
-    editingCell,
+    editingRow,
     onStartEdit,
     onValueChange,
-    onStopEdit,
     onDeleteRow,
     onApproveRow,
+    onViewRow,
     getRowErrors,
   } = options
 
-  const isEditing = (rowId: string, field: EditableField) =>
-    editingCell?.rowId === rowId && editingCell.field === field
+  const isEditing = (rowId: string, _field: EditableField) =>
+    editingRow?.rowId === rowId
+
+  const shouldAutoFocus = (rowId: string, field: EditableField) =>
+    editingRow?.rowId === rowId && editingRow.field === field
 
   const errorClass = (rowId: string, field: EditableField) =>
     getRowErrors(rowId)?.[field] ? "border-destructive" : ""
@@ -191,8 +194,7 @@ export function getCustomersTableColumns(
               className={cn("h-8 text-sm", errorClass(row.original.id, "name"))}
               aria-invalid={!!getRowErrors(row.original.id)?.name}
               title={getRowErrors(row.original.id)?.name}
-              onBlur={() => !row.original.isNew && onStopEdit()}
-              autoFocus={!row.original.isNew && isEditing(row.original.id, "name")}
+              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "name")}
             />
           )
         }
@@ -221,15 +223,14 @@ export function getCustomersTableColumns(
           return (
             <Input
               type="tel"
-              inputMode="numeric"
+              inputMode="tel"
               value={value}
               onChange={(e) => onValueChange(row.original.id, "phone", e.target.value)}
-              placeholder="type name here"
+              placeholder="+1 555 123 4567"
               className={cn("h-8 text-sm", errorClass(row.original.id, "phone"))}
               aria-invalid={!!getRowErrors(row.original.id)?.phone}
               title={getRowErrors(row.original.id)?.phone}
-              onBlur={() => !row.original.isNew && onStopEdit()}
-              autoFocus={!row.original.isNew && isEditing(row.original.id, "phone")}
+              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "phone")}
             />
           )
         }
@@ -264,8 +265,7 @@ export function getCustomersTableColumns(
               className={cn("h-8 text-sm", errorClass(row.original.id, "email"))}
               aria-invalid={!!getRowErrors(row.original.id)?.email}
               title={getRowErrors(row.original.id)?.email}
-              onBlur={() => !row.original.isNew && onStopEdit()}
-              autoFocus={!row.original.isNew && isEditing(row.original.id, "email")}
+              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "email")}
             />
           )
         }
@@ -391,6 +391,19 @@ export function getCustomersTableColumns(
         const isNew = row.original.isNew
         return (
           <div className="flex items-center justify-end gap-1">
+            {!isNew ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                type="button"
+                aria-label="View customer details"
+                title="View customer details"
+                onClick={() => onViewRow(row.original)}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            ) : null}
             {!isNew && row.original.status === "waiting-approval" ? (
               <Button
                 variant="ghost"
@@ -419,9 +432,9 @@ export function getCustomersTableColumns(
         )
       },
       enableSorting: false,
-      size: 80,
-      minSize: 72,
-      maxSize: 90,
+      size: 104,
+      minSize: 96,
+      maxSize: 116,
     },
   ]
 }

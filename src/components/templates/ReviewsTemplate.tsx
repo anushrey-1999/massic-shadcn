@@ -2,6 +2,7 @@
 
 import React from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import InfiniteScroll from "react-infinite-scroll-component"
 import { PageHeader } from "@/components/molecules/PageHeader"
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
@@ -49,8 +50,10 @@ interface ReviewsTemplateProps {
 export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplateProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const queryClient = useQueryClient()
 
   const [activeTab, setActiveTab] = React.useState<"reviews" | "campaign" | "customers">("reviews")
+  const hasMountedRef = React.useRef(false)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortBy, setSortBy] = React.useState<ReviewSortBy>("recent")
   const [replyStatus, setReplyStatus] = React.useState<ReviewReplyFilter>("all")
@@ -122,6 +125,31 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
     const match = locations.find((loc) => loc.value === selectedLocation)
     return match?.locationId || null
   }, [locations, selectedLocation])
+
+  React.useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true
+      return
+    }
+
+    if (activeTab === "reviews" && selectedLocationId) {
+      queryClient.refetchQueries({ queryKey: ["reviews", selectedLocationId] })
+      return
+    }
+
+    if (activeTab === "campaign" && selectedLocationIdForApi) {
+      queryClient.refetchQueries({
+        queryKey: ["review-campaigns", businessId, selectedLocationIdForApi],
+      })
+      return
+    }
+
+    if (activeTab === "customers" && selectedLocationIdForApi) {
+      queryClient.refetchQueries({
+        queryKey: ["review-customers", businessId, selectedLocationIdForApi],
+      })
+    }
+  }, [activeTab, businessId, queryClient, selectedLocationId, selectedLocationIdForApi])
 
   const {
     reviews,

@@ -52,6 +52,7 @@ export interface LinkedBusiness {
 export interface FetchBusinessesResponse {
   businesses: LinkedBusiness[];
   allGBP: GBPLocation[];
+  allGA4: GA4Property[];
   unmatchedGa4: GA4Property[];
 }
 
@@ -136,7 +137,7 @@ export function useFetchBusinesses() {
     queryKey: [LINKED_BUSINESSES_KEY, userUniqueId],
     queryFn: async () => {
       if (!userUniqueId) {
-        return { businesses: [], allGBP: [], unmatchedGa4: [] };
+        return { businesses: [], allGBP: [], allGA4: [], unmatchedGa4: [] };
       }
 
       const response = await api.get<{ err?: boolean; data?: FetchBusinessesResponse; message?: string }>(
@@ -148,7 +149,7 @@ export function useFetchBusinesses() {
         throw new Error(response.message || "Failed to fetch businesses");
       }
 
-      const data = response.data || { businesses: [], allGBP: [], unmatchedGa4: [] };
+      const data = response.data || { businesses: [], allGBP: [], allGA4: [], unmatchedGa4: [] };
 
       const findGa4ByPropertyId = (propertyId: string | null | undefined, business: LinkedBusiness): GA4Property | undefined => {
         if (!propertyId) return undefined;

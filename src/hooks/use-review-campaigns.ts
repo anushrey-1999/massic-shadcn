@@ -27,7 +27,7 @@ export type CreateCampaignPayload = {
 };
 
 export type DefaultCampaignConflictError = Error & {
-  code?: "DEFAULT_CAMPAIGN_EXISTS";
+  code?: "DEFAULT_CAMPAIGN_EXISTS" | "CAMPAIGN_NAME_EXISTS";
   existingCampaign?: { id: string; name: string } | null;
 };
 
@@ -142,6 +142,27 @@ type ReviewCampaignDetailResponse = {
   message?: string;
 };
 
+export type ReviewCampaignVersion = {
+  id: string;
+  campaignId: string;
+  campaignName: string;
+  versionNumber: number;
+  isActive: boolean;
+  reviewDestinationUrl: string;
+  triggerType: "MANUAL" | "AUTO";
+  timezone: string;
+  createdAt?: string;
+  updatedAt?: string;
+  steps: number;
+  activities: ReviewCampaignDetail["activities"];
+};
+
+type ReviewCampaignVersionsResponse = {
+  err: boolean;
+  data?: ReviewCampaignVersion[];
+  message?: string;
+};
+
 type UpdateCampaignResponse = {
   err: boolean;
   data?: any;
@@ -151,8 +172,8 @@ type UpdateCampaignResponse = {
 function toCampaignMutationError(error: any, fallbackMessage: string): DefaultCampaignConflictError {
   const data = error?.response?.data;
   const mutationError = new Error(data?.message || error?.message || fallbackMessage) as DefaultCampaignConflictError;
-  if (data?.code === "DEFAULT_CAMPAIGN_EXISTS") {
-    mutationError.code = "DEFAULT_CAMPAIGN_EXISTS";
+  if (data?.code === "DEFAULT_CAMPAIGN_EXISTS" || data?.code === "CAMPAIGN_NAME_EXISTS") {
+    mutationError.code = data.code;
     mutationError.existingCampaign = data.existingCampaign || null;
   }
   return mutationError;
@@ -276,6 +297,31 @@ export function useReviewCampaignById(campaignId: string | null) {
   });
 }
 
+export function useReviewCampaignVersions(campaignId: string | null) {
+  return useQuery<ReviewCampaignVersionsResponse, Error>({
+    queryKey: ["review-campaign-versions", campaignId],
+    queryFn: async () => {
+      if (!campaignId) {
+        throw new Error("campaignId is required");
+      }
+
+      const response = await api.get<ReviewCampaignVersionsResponse>(
+        `/campaigns/${encodeURIComponent(campaignId)}/versions`,
+        "node"
+      );
+
+      if (response.err) {
+        throw new Error(response.message || "Failed to fetch campaign versions");
+      }
+
+      return response;
+    },
+    enabled: !!campaignId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+}
+
 export function useUpdateReviewCampaign() {
   const queryClient = useQueryClient();
   return useMutation<UpdateCampaignResponse, Error, { id: string; payload: CreateCampaignPayload }>({
@@ -301,6 +347,7 @@ export function useUpdateReviewCampaign() {
       toast.success("Campaign updated");
       queryClient.invalidateQueries({ queryKey: ["review-campaign"] });
       queryClient.invalidateQueries({ queryKey: ["review-campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["review-campaign-versions"] });
     },
     onError: (error) => {
       if ((error as DefaultCampaignConflictError).code === "DEFAULT_CAMPAIGN_EXISTS") return;

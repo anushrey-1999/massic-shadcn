@@ -1,7 +1,7 @@
 "use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
-import { Edit2 } from "lucide-react"
+import { Edit2, History } from "lucide-react"
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -51,7 +51,8 @@ export function getCampaignsTableColumns(
   businessId: string,
   currentTab?: string,
   locationId?: string | null,
-  onEditCampaign?: (href: string) => void
+  onEditCampaign?: (href: string) => void,
+  onViewHistory?: (campaign: ReviewCampaignRow) => void
 ): ColumnDef<ReviewCampaignRow>[] {
   return [
     {
@@ -167,6 +168,18 @@ export function getCampaignsTableColumns(
               size="icon"
               className="h-6 w-6 bg-gray-100 hover:bg-gray-200"
               type="button"
+              aria-label="View campaign version history"
+              onClick={() => {
+                onViewHistory?.(row.original)
+              }}
+            >
+              <History className="h-2.5 w-2.5 text-gray-600" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 bg-gray-100 hover:bg-gray-200"
+              type="button"
               aria-label="Edit campaign"
               onClick={() => {
                 onEditCampaign?.(editHref)
@@ -177,9 +190,9 @@ export function getCampaignsTableColumns(
           </div>
         )
       },
-      size: 60,
-      minSize: 48,
-      maxSize: 72,
+      size: 88,
+      minSize: 80,
+      maxSize: 110,
     },
   ]
 }

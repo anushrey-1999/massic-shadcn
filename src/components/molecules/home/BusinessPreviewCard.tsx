@@ -361,6 +361,7 @@ export function BusinessPreviewCard({
 	impressions,
 	clicks,
 	goals,
+	isGa4Connected,
 	period,
 	healthStatus,
 	onConnectGoogle,
@@ -372,12 +373,13 @@ export function BusinessPreviewCard({
 	impressions?: PreviewStats;
 	clicks?: PreviewStats;
 	goals?: PreviewStats;
+	isGa4Connected?: boolean;
 	period?: HomeTimePeriodValue;
 	healthStatus?: HealthStatusRow;
 	onConnectGoogle?: () => void;
 	onClick?: () => void;
 }) {
-	const showConnectAnalytics = Object.keys(goals || {}).length === 0;
+	const showConnectAnalytics = isGa4Connected !== true;
 	const showConnectGoogle =
 		Object.keys(clicks || {}).length === 0 ||
 		Object.keys(impressions || {}).length === 0;

@@ -683,6 +683,7 @@ export function HomeTemplate() {
                               impressions={mainStats?.Impressions}
                               clicks={mainStats?.Clicks}
                               goals={mainStats?.goals}
+                              isGa4Connected={preview.isGa4Connected}
                               period={period}
                               healthStatus={uniqueId ? statusMap[uniqueId] : undefined}
                               onConnectGoogle={connectGoogleAccount}
@@ -836,6 +837,7 @@ export function HomeTemplate() {
                               impressions={mainStats?.Impressions}
                               clicks={mainStats?.Clicks}
                               goals={mainStats?.goals}
+                              isGa4Connected={preview.isGa4Connected}
                               period={period}
                               healthStatus={uniqueId ? statusMap[uniqueId] : undefined}
                               onConnectGoogle={connectGoogleAccount}

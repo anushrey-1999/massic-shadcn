@@ -5,8 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/organisms/settings/ProfileSettings";
 import { BillingSettings } from "@/components/organisms/settings/BillingSettings";
 import { TeamSettings } from "@/components/organisms/settings/TeamSettings";
+import { AccessRequestSettings } from "@/components/organisms/settings/AccessRequestSettings";
 import { PageHeader } from "@/components/molecules/PageHeader";
-import { ReceiptText, Settings, Users } from "lucide-react";
+import { ReceiptText, Settings, Users, Share2 } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -41,6 +42,9 @@ const SettingsTemplate = () => {
     if (shouldShowBilling) {
       setActiveTab("billing");
       router.replace(pathname, { scroll: false });
+    } else if (normalizedTab === "access-requests") {
+      setActiveTab("access-requests");
+      router.replace(pathname, { scroll: false });
     }
   }, [pathname, router, searchParams]);
 
@@ -70,6 +74,13 @@ const SettingsTemplate = () => {
               >
                 <Users /> Team
               </TabsTrigger>
+              <TabsTrigger
+                value="access-requests"
+                disabled={isTeamMember}
+                className={isTeamMember ? "hidden" : undefined}
+              >
+                <Share2 /> Access Requests
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="mt-6">
@@ -85,6 +96,13 @@ const SettingsTemplate = () => {
               className={isTeamMember ? "hidden" : "mt-6"}
             >
               <TeamSettings />
+            </TabsContent>
+
+            <TabsContent
+              value="access-requests"
+              className={isTeamMember ? "hidden" : "mt-6"}
+            >
+              <AccessRequestSettings />
             </TabsContent>
           </Tabs>
         </div>

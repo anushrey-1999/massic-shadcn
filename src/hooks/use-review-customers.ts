@@ -56,10 +56,19 @@ export type ReviewCustomerUpsertPayload = {
   customers: ReviewCustomerUpsertRow[];
 };
 
+export type ReviewCustomerFieldErrors = Partial<Record<"name" | "phone" | "email" | "campaignId", string>>;
+
+export type ReviewCustomerMutationError = Error & {
+  code?: "CUSTOMER_DUPLICATE" | "CUSTOMER_PREVIOUSLY_MESSAGED";
+  fieldErrors?: ReviewCustomerFieldErrors;
+};
+
 type ReviewCustomerUpsertResponse = {
   err: boolean;
   data?: { created: number; updated: number; total: number };
   message?: string;
+  code?: "CUSTOMER_DUPLICATE" | "CUSTOMER_PREVIOUSLY_MESSAGED";
+  fieldErrors?: ReviewCustomerFieldErrors;
 };
 
 type ReviewCustomerDeleteResponse = {
@@ -123,6 +132,8 @@ export type ReviewCustomerTimeline = {
     contentPreview?: string | null;
     buttonText?: string | null;
     scheduledAt?: string | null;
+    executedAt?: string | null;
+    sentManually?: boolean;
     status: "PLANNED" | "NEXT" | "SENT" | "SKIPPED" | "FAILED" | "CLICKED" | "PROCESSED";
     skipReason?: string | null;
     errorMessage?: string | null;
@@ -234,16 +245,34 @@ export function useReviewCustomerTimeline(
 export function useSaveReviewCustomers() {
   const queryClient = useQueryClient();
 
-  return useMutation<ReviewCustomerUpsertResponse, Error, ReviewCustomerUpsertPayload>({
+  return useMutation<ReviewCustomerUpsertResponse, ReviewCustomerMutationError, ReviewCustomerUpsertPayload>({
     mutationFn: async (payload) => {
-      const response = await api.post<ReviewCustomerUpsertResponse>(
-        "/customers/bulk",
-        "node",
-        payload
-      );
+      let response: ReviewCustomerUpsertResponse;
+      try {
+        response = await api.post<ReviewCustomerUpsertResponse>(
+          "/customers/bulk",
+          "node",
+          payload
+        );
+      } catch (error: any) {
+        const data = error?.response?.data;
+        const mutationError = new Error(
+          data?.message || error?.message || "Failed to save customers"
+        ) as ReviewCustomerMutationError;
+        if (data?.code === "CUSTOMER_DUPLICATE" || data?.code === "CUSTOMER_PREVIOUSLY_MESSAGED") {
+          mutationError.code = data.code;
+          mutationError.fieldErrors = data.fieldErrors || {};
+        }
+        throw mutationError;
+      }
 
       if (response.err) {
-        throw new Error(response.message || "Failed to save customers");
+        const mutationError = new Error(response.message || "Failed to save customers") as ReviewCustomerMutationError;
+        if (response.code === "CUSTOMER_DUPLICATE" || response.code === "CUSTOMER_PREVIOUSLY_MESSAGED") {
+          mutationError.code = response.code;
+          mutationError.fieldErrors = response.fieldErrors || {};
+        }
+        throw mutationError;
       }
 
       return response;
@@ -253,6 +282,7 @@ export function useSaveReviewCustomers() {
       queryClient.invalidateQueries({ queryKey: ["review-customers"] });
     },
     onError: (error) => {
+      if (error.code === "CUSTOMER_DUPLICATE" || error.code === "CUSTOMER_PREVIOUSLY_MESSAGED") return;
       toast.error(error.message || "Failed to save customers");
     },
   });

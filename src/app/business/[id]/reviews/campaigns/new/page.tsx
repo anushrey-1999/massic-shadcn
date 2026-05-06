@@ -19,6 +19,7 @@ import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import {
   useCreateReviewCampaign,
   useDefaultCampaignTemplates,
+  useReviewCampaignsList,
   useReviewCampaignById,
   useReviewLinkByLocation,
   useUpdateReviewCampaign,
@@ -51,9 +52,20 @@ interface PageProps {
 }
 
 type CampaignFormData = {
+  campaignName: string;
   reviewLink: string;
   autoTrigger: "manual" | "default";
 };
+
+const normalizeCampaignName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+const REVIEW_LINK_PLACEHOLDER = "{{Review Link}}";
+
+function ensureSmsReviewLink(content: string) {
+  if (/\{\{\s*Review Link\s*\}\}/i.test(content)) {
+    return content;
+  }
+  return `${content.trim()}\n${REVIEW_LINK_PLACEHOLDER}`.trim();
+}
 
 export default function CreateReviewCampaignPage({
   params,
@@ -87,12 +99,20 @@ export default function CreateReviewCampaignPage({
 
   const form = useForm({
     defaultValues: {
+      campaignName: "",
       reviewLink: "",
       autoTrigger: "manual",
     },
   });
+  const campaignNameValue = useStore(form.store, (state: any) => state.values?.campaignName || "");
   const reviewLinkValue = useStore(form.store, (state: any) => state.values?.reviewLink || "");
+  const autoTriggerValue = useStore(form.store, (state: any) => state.values?.autoTrigger || "manual");
   const hasAttemptedAutoFill = React.useRef(false);
+  const generatedCampaignNameRef = React.useRef("");
+  const hasUserEditedCampaignName = React.useRef(false);
+  const hasUserSelectedTimezone = React.useRef(false);
+  const initialAutoTriggerRef = React.useRef<"manual" | "default">("manual");
+  const hasShownDefaultAssociationToastRef = React.useRef(false);
 
   const getFallbackSequences = React.useCallback((): SequenceItem[] => [
     {
@@ -161,10 +181,28 @@ Thank you for your time and support.
 
   const selectedLocationIdForApi = locationIdFromQuery || null;
 
+  const campaignsListQuery = useReviewCampaignsList(
+    businessId || null,
+    selectedLocationIdForApi,
+    undefined,
+    undefined,
+    { pageIndex: 0, pageSize: 100 }
+  );
+
   const reviewLinkQuery = useReviewLinkByLocation(
     businessId || null,
     selectedLocationIdForApi
   );
+
+  const selectedLocationTimezone = React.useMemo(() => {
+    if (!selectedLocationIdForApi) return "";
+    const locations = profileData?.Locations || [];
+    const selectedLocation = locations.find((location: any) => {
+      const locationId = location?.Name || location?.name;
+      return locationId === selectedLocationIdForApi;
+    }) as any;
+    return selectedLocation?.TimeZone || selectedLocation?.timezone || "";
+  }, [profileData?.Locations, selectedLocationIdForApi]);
 
   const [showUnsavedDialog, setShowUnsavedDialog] = React.useState(false);
   const [showDefaultCampaignDialog, setShowDefaultCampaignDialog] = React.useState(false);
@@ -187,6 +225,29 @@ Thank you for your time and support.
     form.setFieldValue("reviewLink", fetchedUrl);
     hasAttemptedAutoFill.current = true;
   }, [form, reviewLinkQuery.data]);
+
+  React.useEffect(() => {
+    if (isEditMode) return;
+    const campaignName = campaignNameValue.trim();
+    if (
+      (generatedCampaignNameRef.current && campaignName !== generatedCampaignNameRef.current) ||
+      (!generatedCampaignNameRef.current && campaignName)
+    ) {
+      hasUserEditedCampaignName.current = true;
+      return;
+    }
+    if (hasUserEditedCampaignName.current) return;
+    const reviewLink = reviewLinkValue.trim();
+    if (!reviewLink) return;
+
+    try {
+      const nextCampaignName = deriveCampaignNameFromUrl(reviewLink);
+      form.setFieldValue("campaignName", nextCampaignName);
+      generatedCampaignNameRef.current = nextCampaignName;
+    } catch {
+      // Keep the field editable if the review link is not parseable yet.
+    }
+  }, [campaignNameValue, form, isEditMode, reviewLinkValue]);
 
   const normalizeSequenceNames = React.useCallback((items: SequenceItem[]) => {
     let emailCount = 0;
@@ -224,6 +285,15 @@ Thank you for your time and support.
   }, []);
 
   React.useEffect(() => {
+    if (isEditMode) return;
+    if (hasUserSelectedTimezone.current) return;
+    if (!selectedLocationTimezone) return;
+    const hasLocationTz = timezoneOptions.some((opt) => opt.value === selectedLocationTimezone);
+    if (!hasLocationTz) return;
+    setTimezone(selectedLocationTimezone);
+  }, [isEditMode, selectedLocationTimezone, timezoneOptions]);
+
+  React.useEffect(() => {
     if (timezone) return;
     const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const hasBrowserTz = timezoneOptions.some((opt) => opt.value === browserTz);
@@ -237,7 +307,6 @@ Thank you for your time and support.
       subject: seq.subject || "",
       content: seq.content || "",
       buttonText: seq.buttonText || "",
-      isSkipped: Boolean(seq.isSkipped),
     }));
 
     const normalizedSequences = rawSequences
@@ -250,12 +319,13 @@ Thank you for your time and support.
       });
 
     return JSON.stringify({
-      reviewLink: form.state.values?.reviewLink || "",
-      autoTrigger: form.state.values?.autoTrigger || "manual",
+      campaignName: campaignNameValue,
+      reviewLink: reviewLinkValue,
+      autoTrigger: autoTriggerValue,
       timezone: timezone || "",
       sequences: normalizedSequences,
     });
-  }, [form.state.values?.autoTrigger, form.state.values?.reviewLink, sequences, timezone]);
+  }, [autoTriggerValue, campaignNameValue, reviewLinkValue, sequences, timezone]);
 
   const hasUnsavedChanges = React.useMemo(() => {
     const snapshot = computeSnapshot();
@@ -291,10 +361,15 @@ Thank you for your time and support.
     if (hasUserEditedSequences) return;
 
     const campaign = campaignQuery.data.data;
+    form.setFieldValue("campaignName", campaign.name || "");
     form.setFieldValue("reviewLink", campaign.reviewDestinationUrl || "");
-    const triggerValue = campaign.triggerType === "AUTO" ? "default" : "manual";
+    const triggerValue = campaign.isDefault ? "default" : "manual";
     form.setFieldValue("autoTrigger", triggerValue);
+    initialAutoTriggerRef.current = triggerValue;
+    hasShownDefaultAssociationToastRef.current = false;
     setTimezone(campaign.timezone || "UTC");
+    generatedCampaignNameRef.current = campaign.name || "";
+    hasUserEditedCampaignName.current = false;
 
     const sortedActivities = (campaign.activities || [])
       .slice()
@@ -366,9 +441,12 @@ Thank you for your time and support.
   const handleUpdateSequence = (id: string, data: Partial<SequenceItem>) => {
     setHasUserEditedSequences(true);
     setSequences((prev) => {
+      const changedIndex = prev.findIndex((seq) => seq.id === id);
+
       if (data.sequenceDay !== undefined) {
-        const index = prev.findIndex((seq) => seq.id === id);
-        const prevDay = index > 0 ? prev[index - 1]?.sequenceDay : 0;
+        if (changedIndex === -1) return prev;
+
+        const prevDay = changedIndex > 0 ? prev[changedIndex - 1]?.sequenceDay : 0;
         const nextDay = data.sequenceDay;
 
         if (Number.isNaN(nextDay) || nextDay <= prevDay) {
@@ -393,25 +471,54 @@ Thank you for your time and support.
           const defaults = getTypeDefaults(data.type as SequenceItem["type"]);
           updated = {
             ...updated,
-            subject:
-              data.type === "email"
-                ? updated.subject || defaults.subject || ""
-                : undefined,
-            content:
-              updated.content && updated.content.trim()
-                ? updated.content
-                : defaults.content || "",
-            buttonText:
-              data.type === "email"
-                ? updated.buttonText || defaults.buttonText || ""
-                : undefined,
+            templateId: undefined,
+            subject: data.type === "email" ? defaults.subject || "" : undefined,
+            content: defaults.content || "",
+            buttonText: data.type === "email" ? defaults.buttonText || "" : undefined,
           };
         }
 
         return updated;
       });
 
-      return normalizeSequenceNames(next);
+      if (data.sequenceDay === undefined || changedIndex === -1) {
+        return normalizeSequenceNames(next);
+      }
+
+      const cascaded = next.map((seq, index) => {
+        if (index < changedIndex) return seq;
+
+        const previousDay = index > 0 ? next[index - 1].sequenceDay : 0;
+        const sequenceDay =
+          index === changedIndex
+            ? seq.sequenceDay
+            : Math.max(seq.sequenceDay, previousDay + 1);
+
+        if (sequenceDay > MAX_SEQUENCE_DAY) {
+          return null;
+        }
+
+        if (sequenceDay === seq.sequenceDay) {
+          return {
+            ...seq,
+            dayUnit: seq.sequenceDay === 1 ? "day later" : "days later",
+          };
+        }
+
+        next[index] = { ...seq, sequenceDay };
+        return {
+          ...seq,
+          sequenceDay,
+          dayUnit: sequenceDay === 1 ? "day later" : "days later",
+        };
+      });
+
+      if (cascaded.some((seq) => seq === null)) {
+        toast.error(`Sequence day changes cannot push later steps past ${MAX_SEQUENCE_DAY}`);
+        return prev;
+      }
+
+      return normalizeSequenceNames(cascaded as SequenceItem[]);
     });
   };
 
@@ -545,6 +652,43 @@ Thank you for your time and support.
   const isSaving = createCampaignMutation.isPending || updateCampaignMutation.isPending;
   const isSaveDisabled = isSaving || (isEditMode ? !hasUnsavedChanges : false);
 
+  const campaignsForLocation = campaignsListQuery.data?.data || [];
+  const existingDefaultCampaign = React.useMemo(
+    () =>
+      campaignsForLocation.find(
+        (campaign) => campaign.isDefault && String(campaign.id) !== String(campaignId || "")
+      ) || null,
+    [campaignId, campaignsForLocation]
+  );
+
+  const hasDuplicateCampaignName = React.useCallback(
+    (name: string) => {
+      const normalizedName = normalizeCampaignName(name);
+      if (!normalizedName) return false;
+      return campaignsForLocation.some((campaign) => {
+        if (String(campaign.id) === String(campaignId || "")) return false;
+        return normalizeCampaignName(campaign.name || "") === normalizedName;
+      });
+    },
+    [campaignId, campaignsForLocation]
+  );
+
+  React.useEffect(() => {
+    if (autoTriggerValue === "manual") {
+      hasShownDefaultAssociationToastRef.current = false;
+    }
+    if (
+      isEditMode &&
+      initialAutoTriggerRef.current === "manual" &&
+      autoTriggerValue === "default" &&
+      existingDefaultCampaign &&
+      !hasShownDefaultAssociationToastRef.current
+    ) {
+      hasShownDefaultAssociationToastRef.current = true;
+      toast.info("All new customers created will be associated to this campaign going forward.");
+    }
+  }, [autoTriggerValue, existingDefaultCampaign, isEditMode]);
+
   const saveCampaignPayload = React.useCallback(
     async (payload: CreateCampaignPayload) => {
       if (isEditMode && campaignId) {
@@ -553,7 +697,10 @@ Thank you for your time and support.
         await createCampaignMutation.mutateAsync(payload);
       }
       initialSnapshotRef.current = computeSnapshot();
-      router.push(`/business/${businessId}/reviews?tab=campaign`);
+      const locationParam = selectedLocationIdForApi
+        ? `&locationId=${encodeURIComponent(selectedLocationIdForApi)}`
+        : "";
+      router.push(`/business/${businessId}/reviews?tab=campaign${locationParam}`);
     },
     [
       businessId,
@@ -562,6 +709,7 @@ Thank you for your time and support.
       createCampaignMutation,
       isEditMode,
       router,
+      selectedLocationIdForApi,
       updateCampaignMutation,
     ]
   );
@@ -598,7 +746,10 @@ Thank you for your time and support.
               variant="ghost"
               size="icon"
               onClick={() => {
-                const nextHref = `/business/${businessId}/reviews?tab=${returnTab}`;
+                const locationParam = selectedLocationIdForApi
+                  ? `&locationId=${encodeURIComponent(selectedLocationIdForApi)}`
+                  : "";
+                const nextHref = `/business/${businessId}/reviews?tab=${returnTab}${locationParam}`;
                 if (hasUnsavedChanges) {
                   pendingNavigationRef.current = nextHref;
                   setShowUnsavedDialog(true);
@@ -619,17 +770,27 @@ Thank you for your time and support.
             className="shrink-0 "
             disabled={isSaveDisabled}
             onClick={async () => {
+              const campaignName = form.state.values?.campaignName?.trim();
               const reviewLink = form.state.values?.reviewLink?.trim();
               const autoTrigger = (form.state.values?.autoTrigger || "manual") as "manual" | "default";
+
+              if (!campaignName) {
+                toast.error("Campaign name is required");
+                return;
+              }
+
+              if (hasDuplicateCampaignName(campaignName)) {
+                toast.error("A campaign with this name already exists for this location");
+                return;
+              }
 
               if (!reviewLink) {
                 toast.error("Review link is required");
                 return;
               }
 
-              let parsedUrl: URL | null = null;
               try {
-                parsedUrl = new URL(reviewLink);
+                new URL(reviewLink);
               } catch {
                 toast.error("Please enter a valid review URL");
                 return;
@@ -646,7 +807,6 @@ Thank you for your time and support.
               }
 
               const activeSequences = sequences
-                .filter((seq) => !seq.isSkipped)
                 .slice()
                 .sort((a, b) => a.sequenceDay - b.sequenceDay);
 
@@ -695,14 +855,14 @@ Thank you for your time and support.
                 SequenceDays: seq.sequenceDay,
                 OrderIndex: index + 1,
                 Subject: seq.type === "email" ? seq.subject || null : null,
-                Content: seq.content || "",
+                Content: seq.type === "sms" ? ensureSmsReviewLink(seq.content || "") : seq.content || "",
                 ButtonText: seq.type === "email" ? seq.buttonText || null : null,
               }));
 
               const payload = {
                 businessId,
                 locationId: selectedLocationIdForApi,
-                name: deriveCampaignNameFromUrl(parsedUrl.toString()),
+                name: campaignName,
                 reviewDestinationUrl: reviewLink,
                 triggerType: (autoTrigger === "default" ? "AUTO" : "MANUAL") as "AUTO" | "MANUAL",
                 isDefault: autoTrigger === "default",
@@ -736,6 +896,20 @@ Thank you for your time and support.
                 <CardContent>
                   <GenericInput<CampaignFormData>
                     form={form as any}
+                    fieldName="campaignName"
+                    type="input"
+                    inputVariant="noBorder"
+                    label="Campaign name"
+                    required
+                    placeholder="Enter campaign name"
+                  />
+                </CardContent>
+              </Card>
+
+              <Card variant="profileCard">
+                <CardContent>
+                  <GenericInput<CampaignFormData>
+                    form={form as any}
                     fieldName="reviewLink"
                     type="url"
                     inputVariant="noBorder"
@@ -754,7 +928,7 @@ Thank you for your time and support.
                       fieldName="autoTrigger"
                       type="radio-group"
                       inputVariant="noBorder"
-                      label="Auto Trigger"
+                      label="Trigger"
                       required
                       options={[
                         { value: "manual", label: "Manually" },
@@ -781,7 +955,10 @@ Thank you for your time and support.
                   </Typography>
                   <LocationSelect
                     value={timezone}
-                    onChange={setTimezone}
+                    onChange={(nextTimezone) => {
+                      hasUserSelectedTimezone.current = true;
+                      setTimezone(nextTimezone);
+                    }}
                     options={timezoneOptions}
                     placeholder="Select timezone"
                   />
@@ -824,7 +1001,7 @@ Thank you for your time and support.
                           type="sms"
                           smsProps={{
                             content:
-                              currentSeq.content || "SMS message content...",
+                              ensureSmsReviewLink(currentSeq.content || "SMS message content..."),
                           }}
                         />
                       );
@@ -891,8 +1068,8 @@ Thank you for your time and support.
             <AlertDialogTitle>Replace default campaign?</AlertDialogTitle>
             <AlertDialogDescription>
               {defaultConflictCampaignName
-                ? `"${defaultConflictCampaignName}" is already set as the default campaign for this business location. Do you want to make this campaign the default instead?`
-                : "There is already a default campaign for this business location. Do you want to make this campaign the default instead?"}
+                ? `"${defaultConflictCampaignName}" is already set as the default campaign for this business location. All new customers created will be associated to this campaign going forward. Do you want to make this campaign the default instead?`
+                : "There is already a default campaign for this business location. All new customers created will be associated to this campaign going forward. Do you want to make this campaign the default instead?"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

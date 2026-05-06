@@ -17,13 +17,11 @@ import {
 import {
   AlertCircle,
   CalendarDays,
-  Check,
   CheckCircle2,
   Clock,
   Loader2,
   Mail,
   MessageSquare,
-  MousePointerClick,
   Plus,
   Route,
   Send,
@@ -35,7 +33,18 @@ import { DataTable } from "@/components/filter-table"
 import { DataTableAdvancedToolbar } from "@/components/filter-table/data-table-advanced-toolbar"
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list"
 import { DataTableSearch } from "@/components/filter-table/data-table-search"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Sheet,
@@ -45,7 +54,6 @@ import {
 } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,7 +66,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDebounce } from "@/hooks/use-debounce"
-import { useApproveReviewCustomers, useReviewCampaignsList } from "@/hooks/use-review-campaigns"
+import {
+  useApproveReviewCustomers,
+  useReviewCampaignById,
+  useReviewCampaignsList,
+} from "@/hooks/use-review-campaigns"
 import {
   useDeleteReviewCustomer,
   useReviewCustomerTimeline,
@@ -75,10 +87,49 @@ import { getReviewPlatformIdFromUrl } from "@/utils/review-platforms"
 import {
   getCustomersTableColumns,
   type CampaignOption,
-  type EditableField,
   type ReviewCustomerRow,
-  type RowValidationErrors,
 } from "./customers-table-columns"
+
+type CustomerFormState = {
+  name: string
+  phone: string
+  email: string
+  campaignId: string
+}
+
+type CustomerFormErrors = Partial<Record<keyof CustomerFormState, string>>
+
+type CustomerDialogState =
+  | { mode: "add"; row?: null }
+  | { mode: "edit"; row: ReviewCustomerRow }
+  | null
+
+type JourneyTimelineItem = {
+  key: string
+  type: "event" | "activity"
+  title: string
+  subtitle?: string
+  occurredAt?: string | null
+  sortTime?: number
+  order: number
+  statusLabel: string
+  statusClassName: string
+  marker: "complete" | "pending" | "warning" | "failed"
+  icon: React.ComponentType<{ className?: string }>
+  subject?: string | null
+  content?: string | null
+  buttonText?: string | null
+  manuallySent?: boolean
+  skipReason?: string | null
+  errorMessage?: string | null
+}
+
+const EMPTY_CUSTOMER_FORM: CustomerFormState = {
+  name: "",
+  phone: "",
+  email: "",
+  campaignId: "",
+}
 
 function normalizeDisplayValue(value: string | null | undefined) {
   if (!value || value === "-") return ""
@@ -102,10 +153,6 @@ function normalizeStatus(status: string) {
   }
 }
 
-function isRowEmpty(row: ReviewCustomerRow) {
-  return !row.name.trim() && !row.phone.trim() && !row.email.trim() && !row.campaignId
-}
-
 function isValidEmail(value: string) {
   if (!value) return true
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
@@ -113,21 +160,6 @@ function isValidEmail(value: string) {
 
 function isValidPhone(value: string) {
   return isValidUsPhone(value)
-}
-
-function createDraftRow(id: string, defaultCampaign?: CampaignOption | null): ReviewCustomerRow {
-  return {
-    id,
-    name: "",
-    phone: "",
-    email: "",
-    createdAt: null,
-    campaignId: defaultCampaign?.id || "",
-    campaignName: defaultCampaign?.name || "",
-    campaignPlatform: defaultCampaign?.platform || "google",
-    status: "draft",
-    isNew: true,
-  }
 }
 
 function formatDateTime(value?: string | null) {
@@ -141,54 +173,6 @@ function formatDateTime(value?: string | null) {
     hour: "numeric",
     minute: "2-digit",
   }).format(date)
-}
-
-function getTimelineEventConfig(type: string) {
-  switch (type) {
-    case "SENT":
-      return {
-        icon: Send,
-        badge: "bg-blue-50 text-blue-700 border-blue-200",
-        dot: "bg-blue-500",
-      }
-    case "SKIPPED":
-      return {
-        icon: Route,
-        badge: "bg-amber-50 text-amber-700 border-amber-200",
-        dot: "bg-amber-500",
-      }
-    case "FAILED":
-      return {
-        icon: XCircle,
-        badge: "bg-red-50 text-red-700 border-red-200",
-        dot: "bg-red-500",
-      }
-    case "CLICKED":
-      return {
-        icon: MousePointerClick,
-        badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        dot: "bg-emerald-500",
-      }
-    case "COMPLETED":
-      return {
-        icon: CheckCircle2,
-        badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        dot: "bg-emerald-500",
-      }
-    case "STARTED":
-      return {
-        icon: Clock,
-        badge: "bg-violet-50 text-violet-700 border-violet-200",
-        dot: "bg-violet-500",
-      }
-    case "CREATED":
-    default:
-      return {
-        icon: User,
-        badge: "bg-muted text-muted-foreground border-border",
-        dot: "bg-muted-foreground",
-      }
-  }
 }
 
 function getActivityStatusConfig(status: string) {
@@ -239,34 +223,82 @@ function getActivityStatusConfig(status: string) {
   }
 }
 
-function DetailItem({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value?: React.ReactNode
-}) {
-  const tooltipValue = typeof value === "string" ? value : undefined
-  return (
-    <div className="rounded-lg border bg-card p-3">
-      <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="min-w-0 truncate text-sm font-medium text-foreground">
-            {value || "-"}
-          </div>
-        </TooltipTrigger>
-        {tooltipValue ? (
-          <TooltipContent sideOffset={4}>{tooltipValue}</TooltipContent>
-        ) : null}
-      </Tooltip>
-    </div>
-  )
+function getLifecycleEventTitle(type: string) {
+  switch (type) {
+    case "CREATED":
+      return "Customer created and assigned to campaign"
+    case "STARTED":
+      return "Campaign started"
+    case "COMPLETED":
+      return "Campaign completed"
+    case "FAILED":
+      return "Campaign failed"
+    default:
+      return type.replaceAll("_", " ")
+  }
+}
+
+function getLifecycleEventIcon(type: string) {
+  switch (type) {
+    case "STARTED":
+      return Route
+    case "COMPLETED":
+      return CheckCircle2
+    case "FAILED":
+      return XCircle
+    case "CREATED":
+    default:
+      return User
+  }
+}
+
+function getLifecycleEventMarker(type: string): JourneyTimelineItem["marker"] {
+  return type === "FAILED" ? "failed" : "complete"
+}
+
+function getActivityMarker(status: string): JourneyTimelineItem["marker"] {
+  switch (status) {
+    case "SENT":
+    case "CLICKED":
+    case "PROCESSED":
+      return "complete"
+    case "SKIPPED":
+      return "warning"
+    case "FAILED":
+      return "failed"
+    case "NEXT":
+    case "PLANNED":
+    default:
+      return "pending"
+  }
+}
+
+function getJourneyMarkerClassName(marker: JourneyTimelineItem["marker"]) {
+  switch (marker) {
+    case "complete":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700"
+    case "warning":
+      return "border-amber-200 bg-amber-50 text-amber-700"
+    case "failed":
+      return "border-red-200 bg-red-50 text-red-700"
+    case "pending":
+    default:
+      return "border-border bg-background text-muted-foreground"
+  }
+}
+
+function getJourneyMarkerIcon(marker: JourneyTimelineItem["marker"]) {
+  switch (marker) {
+    case "complete":
+      return CheckCircle2
+    case "failed":
+      return XCircle
+    case "warning":
+      return AlertCircle
+    case "pending":
+    default:
+      return Clock
+  }
 }
 
 export function CustomersTableClient({
@@ -276,15 +308,14 @@ export function CustomersTableClient({
   businessId: string
   selectedLocationIdForApi?: string | null
 }) {
-  const [draftRows, setDraftRows] = React.useState<ReviewCustomerRow[]>([])
   const [existingRows, setExistingRows] = React.useState<ReviewCustomerRow[]>([])
-  const [originalRows, setOriginalRows] = React.useState<ReviewCustomerRow[]>([])
-  const [editingRow, setEditingRow] = React.useState<{
-    rowId: string
-    field: EditableField
-  } | null>(null)
+  const [customerDialog, setCustomerDialog] = React.useState<CustomerDialogState>(null)
+  const [customerForm, setCustomerForm] = React.useState<CustomerFormState>(EMPTY_CUSTOMER_FORM)
+  const [customerFormErrors, setCustomerFormErrors] = React.useState<CustomerFormErrors>({})
+  const [customerServerError, setCustomerServerError] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<ReviewCustomerRow | null>(null)
   const [selectedCustomer, setSelectedCustomer] = React.useState<ReviewCustomerRow | null>(null)
+  const [hoveredCampaignId, setHoveredCampaignId] = React.useState<string | null>(null)
   const [statusFilter, setStatusFilter] = React.useState<ReviewCustomerStatus | "all">("all")
   const [confirmAction, setConfirmAction] = React.useState<{
     title: string
@@ -338,6 +369,7 @@ export function CustomersTableClient({
   const deleteCustomer = useDeleteReviewCustomer()
   const approveCustomers = useApproveReviewCustomers()
   const sendCustomerNow = useSendReviewCustomerNow()
+  const hoveredCampaignQuery = useReviewCampaignById(hoveredCampaignId)
   const timelineQuery = useReviewCustomerTimeline(businessId, selectedCustomer?.id || null)
   const timeline = timelineQuery.data?.data
   const canSendNow = Boolean(
@@ -346,6 +378,86 @@ export function CustomersTableClient({
     timeline.status !== "COMPLETED" &&
     timeline.status !== "FAILED"
   )
+  const journeyTimelineItems = React.useMemo<JourneyTimelineItem[]>(() => {
+    if (!timeline) return []
+
+    const campaignName = timeline.campaign?.name || selectedCustomer?.campaignName || ""
+    const lifecycleItems = timeline.events
+      .filter((event) => ["CREATED", "COMPLETED", "FAILED"].includes(event.type))
+      .map((event, index) => {
+        const eventTime = new Date(event.occurredAt).getTime()
+        const marker = getLifecycleEventMarker(event.type)
+        const lifecycleOrder =
+          event.type === "CREATED"
+            ? 0
+            : event.type === "COMPLETED"
+                ? 900
+                : event.type === "FAILED"
+                  ? 901
+                  : index
+        return {
+          key: `event-${event.type}-${event.occurredAt}-${index}`,
+          type: "event" as const,
+          title: getLifecycleEventTitle(event.type),
+          subtitle: event.type === "CREATED"
+            ? campaignName || undefined
+            : undefined,
+          occurredAt: event.occurredAt,
+          sortTime: event.type === "COMPLETED"
+            ? Number.MAX_SAFE_INTEGER - 1
+            : Number.isNaN(eventTime)
+              ? undefined
+              : eventTime,
+          order: lifecycleOrder,
+          statusLabel: event.type === "FAILED" ? "Failed" : "Complete",
+          statusClassName: event.type === "FAILED"
+            ? "bg-red-50 text-red-700 border-red-200"
+            : "bg-emerald-50 text-emerald-700 border-emerald-200",
+          marker,
+          icon: getLifecycleEventIcon(event.type),
+          errorMessage: event.errorMessage,
+        }
+      })
+
+    const activityItems = timeline.plannedActivities.map((activity, index) => {
+      const displayStatus = activity.status === "CLICKED" ? "SENT" : activity.status
+      const config = getActivityStatusConfig(displayStatus)
+      const marker = getActivityMarker(activity.status)
+      const activityTime = activity.executedAt || activity.scheduledAt
+      const sortTime = activityTime ? new Date(activityTime).getTime() : undefined
+      const statusLabel = config.label
+      return {
+        key: `activity-${activity.type}-${activity.orderIndex}`,
+        type: "activity" as const,
+        title: `Step ${activity.orderIndex}: ${activity.type === "EMAIL" ? "Email" : "SMS"}`,
+        subtitle: activity.sentManually && activity.executedAt
+          ? `Sent manually on ${formatDateTime(activity.executedAt)}`
+          : activity.scheduledAt
+          ? `Scheduled for ${formatDateTime(activity.scheduledAt)}`
+          : `Runs ${activity.sequenceDays === 0 ? "on start day" : `${activity.sequenceDays} day${activity.sequenceDays === 1 ? "" : "s"} after start`}`,
+        occurredAt: activityTime,
+        sortTime: sortTime && !Number.isNaN(sortTime) ? sortTime : undefined,
+        order: 100 + index,
+        statusLabel,
+        statusClassName: config.badge,
+        marker,
+        icon: activity.type === "EMAIL" ? Mail : MessageSquare,
+        subject: activity.subject,
+        content: activity.content || activity.contentPreview,
+        buttonText: activity.buttonText,
+        manuallySent: Boolean(activity.sentManually),
+        skipReason: activity.skipReason,
+        errorMessage: activity.errorMessage,
+      }
+    })
+
+    return [...lifecycleItems, ...activityItems].sort((a, b) => {
+      const aTime = a.sortTime ?? Number.MAX_SAFE_INTEGER
+      const bTime = b.sortTime ?? Number.MAX_SAFE_INTEGER
+      if (aTime !== bTime) return aTime - bTime
+      return a.order - b.order
+    })
+  }, [selectedCustomer?.campaignName, timeline])
 
   const campaignOptions = React.useMemo<CampaignOption[]>(() => {
     const items = campaignsResponse?.data || []
@@ -362,59 +474,12 @@ export function CustomersTableClient({
     [campaignOptions]
   )
 
-  const nextDraftId = React.useRef(1)
   const tableContainerRef = React.useRef<HTMLDivElement | null>(null)
   const existingRowsRef = React.useRef<ReviewCustomerRow[]>([])
 
   React.useEffect(() => {
     existingRowsRef.current = existingRows
   }, [existingRows])
-
-  React.useEffect(() => {
-    if (!defaultCampaignOption) return
-
-    setDraftRows((prev) =>
-      prev.map((row) => {
-        if (!row.isNew || row.campaignId === defaultCampaignOption.id) return row
-        return {
-          ...row,
-          campaignId: defaultCampaignOption.id,
-          campaignName: defaultCampaignOption.name,
-          campaignPlatform: defaultCampaignOption.platform,
-        }
-      })
-    )
-  }, [defaultCampaignOption])
-
-  React.useEffect(() => {
-    if (!editingRow) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target
-      if (!(target instanceof Node)) return
-
-      if (
-        target instanceof HTMLElement &&
-        (target.closest("[role='dialog']") ||
-          target.closest("[role='listbox']") ||
-          target.closest("[data-radix-popper-content-wrapper]"))
-      ) {
-        return
-      }
-
-      if (
-        target instanceof HTMLElement &&
-        target.closest(`[data-row-id="${CSS.escape(editingRow.rowId)}"]`)
-      ) {
-        return
-      }
-
-      setEditingRow(null)
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown)
-    return () => document.removeEventListener("pointerdown", handlePointerDown)
-  }, [editingRow])
 
   React.useEffect(() => {
     const items = customersResponse?.data
@@ -437,9 +502,6 @@ export function CustomersTableClient({
     })
 
     setExistingRows(mapped)
-    setOriginalRows(mapped)
-    setDraftRows([])
-    setEditingRow(null)
   }, [customersResponse?.data])
 
   const sortedExistingRows = React.useMemo(() => {
@@ -475,158 +537,89 @@ export function CustomersTableClient({
   }, [existingRows, sorting])
 
   const tableData = React.useMemo(
-    () => [...draftRows, ...sortedExistingRows],
-    [draftRows, sortedExistingRows]
+    () => sortedExistingRows,
+    [sortedExistingRows]
   )
 
-  const originalMap = React.useMemo(() => {
-    const map = new Map<string, ReviewCustomerRow>()
-    originalRows.forEach((row) => map.set(row.id, row))
-    return map
-  }, [originalRows])
-
-  const newRowsToSave = React.useMemo(
-    () => draftRows.filter((row) => !isRowEmpty(row)),
-    [draftRows]
+  const setCustomerFormField = React.useCallback(
+    (field: keyof CustomerFormState, value: string) => {
+      setCustomerForm((prev) => ({ ...prev, [field]: value }))
+      setCustomerFormErrors((prev) => ({ ...prev, [field]: undefined }))
+      setCustomerServerError(null)
+    },
+    []
   )
 
-  const updatedRowsToSave = React.useMemo(() => {
-    return existingRows.filter((row) => {
-      const original = originalMap.get(row.id)
-      if (!original) return false
-      return (
-        row.name.trim() !== original.name.trim() ||
-        row.phone.trim() !== original.phone.trim() ||
-        row.email.trim() !== original.email.trim() ||
-        row.campaignId !== original.campaignId
-      )
+  const openAddCustomerDialog = React.useCallback(() => {
+    setCustomerDialog({ mode: "add" })
+    setCustomerForm({
+      ...EMPTY_CUSTOMER_FORM,
+      campaignId: defaultCampaignOption?.id || "",
     })
-  }, [existingRows, originalMap])
+    setCustomerFormErrors({})
+    setCustomerServerError(null)
+  }, [defaultCampaignOption])
 
-  const rowsToValidate = React.useMemo(() => {
-    const ids = new Set<string>()
-    newRowsToSave.forEach((row) => ids.add(row.id))
-    updatedRowsToSave.forEach((row) => ids.add(row.id))
-    return ids
-  }, [newRowsToSave, updatedRowsToSave])
-
-  const rowErrors = React.useMemo(() => {
-    const errors: Record<string, RowValidationErrors> = {}
-    tableData.forEach((row) => {
-      if (!rowsToValidate.has(row.id)) return
-      const rowError: RowValidationErrors = {}
-      if (!row.name.trim()) {
-        rowError.name = "Name is required"
-      }
-      if (!row.campaignId) {
-        rowError.campaignId = "Campaign is required"
-      }
-      if (!row.email.trim() && !row.phone.trim()) {
-        rowError.email = "Email or phone is required"
-        rowError.phone = "Email or phone is required"
-      }
-      if (row.email.trim() && !isValidEmail(row.email)) {
-        rowError.email = "Invalid email"
-      }
-      if (row.phone.trim() && !isValidPhone(row.phone)) {
-        rowError.phone = "Enter a valid US phone number"
-      }
-      if (Object.keys(rowError).length > 0) {
-        errors[row.id] = rowError
-      }
+  const openEditCustomerDialog = React.useCallback((row: ReviewCustomerRow) => {
+    setCustomerDialog({ mode: "edit", row })
+    setCustomerForm({
+      name: row.name,
+      phone: row.phone,
+      email: row.email,
+      campaignId: row.campaignId,
     })
+    setCustomerFormErrors({})
+    setCustomerServerError(null)
+  }, [])
+
+  const validateCustomerForm = React.useCallback(() => {
+    const errors: CustomerFormErrors = {}
+    const name = customerForm.name.trim()
+    const email = customerForm.email.trim()
+    const phone = customerForm.phone.trim()
+    const normalizedPhone = normalizeUsPhoneToE164(phone)
+    const editingId = customerDialog?.mode === "edit" ? customerDialog.row.id : null
+
+    if (!name) errors.name = "Name is required"
+    if (!customerForm.campaignId) errors.campaignId = "Campaign is required"
+    if (!email && !phone) {
+      errors.email = "Email or phone is required"
+      errors.phone = "Email or phone is required"
+    }
+    if (email && !isValidEmail(email)) errors.email = "Invalid email"
+    if (phone && !isValidPhone(phone)) errors.phone = "Enter a valid US phone number"
+
+    const duplicateEmail = email
+      ? existingRows.some(
+          (row) =>
+            row.id !== editingId &&
+            row.email.trim().toLowerCase() === email.toLowerCase()
+        )
+      : false
+    const duplicatePhone = normalizedPhone
+      ? existingRows.some(
+          (row) =>
+            row.id !== editingId &&
+            normalizeUsPhoneToE164(row.phone) === normalizedPhone
+        )
+      : false
+
+    if (duplicateEmail) errors.email = "Email already exists in this location"
+    if (duplicatePhone) errors.phone = "Phone already exists in this location"
+
     return errors
-  }, [rowsToValidate, tableData])
-
-  const hasValidationErrors = Object.keys(rowErrors).length > 0
-  const hasPendingChanges = newRowsToSave.length > 0 || updatedRowsToSave.length > 0
-
-  const rowErrorsRef = React.useRef<Record<string, RowValidationErrors>>({})
-  React.useEffect(() => {
-    rowErrorsRef.current = rowErrors
-  }, [rowErrors])
-
-  const handleDraftChange = React.useCallback(
-    (rowId: string, field: EditableField, value: string) => {
-      setDraftRows((prev) => {
-        const nextRows = prev.map((row) => {
-          if (row.id !== rowId) return row
-          if (field === "campaignId") {
-            const campaign = campaignOptions.find((opt) => opt.id === value)
-            return {
-              ...row,
-              campaignId: value,
-              campaignName: campaign?.name || "",
-              campaignPlatform: campaign?.platform || "google",
-            }
-          }
-          return { ...row, [field]: value }
-        })
-
-        return nextRows
-      })
-    },
-    [campaignOptions]
-  )
-
-  const handleExistingChange = React.useCallback(
-    (rowId: string, field: EditableField, value: string) => {
-      setExistingRows((prev) =>
-        prev.map((row) => {
-          if (row.id !== rowId) return row
-          if (field === "campaignId") {
-            const campaign = campaignOptions.find((opt) => opt.id === value)
-            return {
-              ...row,
-              campaignId: value,
-              campaignName: campaign?.name || "",
-              campaignPlatform: campaign?.platform || "google",
-            }
-          }
-          return { ...row, [field]: value }
-        })
-      )
-    },
-    [campaignOptions]
-  )
-
-  const handleValueChange = React.useCallback(
-    (rowId: string, field: EditableField, value: string) => {
-      if (rowId.startsWith("new-")) {
-        handleDraftChange(rowId, field, value)
-      } else {
-        handleExistingChange(rowId, field, value)
-      }
-    },
-    [handleDraftChange, handleExistingChange]
-  )
+  }, [customerDialog, customerForm, existingRows])
 
   const handleDeleteRow = React.useCallback(
     (rowId: string, isNew?: boolean) => {
-      if (isNew || rowId.startsWith("new-")) {
-        setConfirmAction({
-          title: "Remove draft row?",
-          description: "This will remove the unsaved customer row from the table.",
-          confirmLabel: "Remove",
-          onConfirm: () => {
-            setDraftRows((prev) => prev.filter((row) => row.id !== rowId))
-          },
-        })
-        return
-      }
-
       const target = existingRowsRef.current.find((row) => row.id === rowId)
       if (target) setDeleteTarget(target)
     },
     []
   )
 
-  const handleStartEdit = React.useCallback((rowId: string, field: EditableField) => {
-    setEditingRow({ rowId, field })
-  }, [])
-
   const handleViewRow = React.useCallback((row: ReviewCustomerRow) => {
-    if (!row.isNew) setSelectedCustomer(row)
+    setSelectedCustomer(row)
   }, [])
 
   const handleApproveRow = React.useCallback(
@@ -645,28 +638,87 @@ export function CustomersTableClient({
     [approveCustomers.mutate]
   )
 
+  const getCampaignActivityContent = React.useCallback(
+    (campaignId: string) => {
+      if (hoveredCampaignId !== campaignId) {
+        return "Hover to load campaign activity"
+      }
+      if (hoveredCampaignQuery.isLoading) {
+        return "Loading campaign activity..."
+      }
+      const activities = hoveredCampaignQuery.data?.data?.activities || []
+      if (activities.length === 0) {
+        return "No campaign activities found"
+      }
+
+      return (
+        <div className="w-80 overflow-hidden rounded-xl bg-popover">
+          <div className="border-b px-3 py-2">
+            <p className="text-sm font-semibold text-foreground">Campaign Activity</p>
+            <p className="text-xs text-muted-foreground">
+              {activities.length} scheduled step{activities.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div className="space-y-1.5 p-2">
+            {activities.slice(0, 4).map((activity) => {
+              const Icon = activity.Type === "EMAIL" ? Mail : MessageSquare
+              const preview = activity.Subject || activity.Content || "No content"
+              return (
+                <div key={activity.Id} className="rounded-lg border bg-muted/30 p-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground">
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-foreground">
+                          Step {activity.OrderIndex}: {activity.Type === "EMAIL" ? "Email" : "SMS"}
+                        </p>
+                        <p className="truncate text-[11px] leading-4 text-muted-foreground">
+                          {preview}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      Day {activity.SequenceDays}
+                    </span>
+                  </div>
+                  {activity.ButtonText ? (
+                    <p className="mt-2 truncate rounded-md bg-background px-2 py-1 text-[11px] font-medium text-foreground">
+                      Button: {activity.ButtonText}
+                    </p>
+                  ) : null}
+                </div>
+              )
+            })}
+            {activities.length > 4 ? (
+              <p className="px-1 pb-1 text-[11px] text-muted-foreground">
+                +{activities.length - 4} more step{activities.length - 4 === 1 ? "" : "s"}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      )
+    },
+    [hoveredCampaignId, hoveredCampaignQuery.data?.data?.activities, hoveredCampaignQuery.isLoading]
+  )
+
   const columns = React.useMemo(
     () =>
       getCustomersTableColumns({
-        campaignOptions,
-        hasDefaultCampaign: Boolean(defaultCampaignOption),
-        editingRow,
-        onStartEdit: handleStartEdit,
-        onValueChange: handleValueChange,
+        onEditRow: openEditCustomerDialog,
         onDeleteRow: handleDeleteRow,
         onApproveRow: handleApproveRow,
         onViewRow: handleViewRow,
-        getRowErrors: (rowId) => rowErrorsRef.current[rowId],
+        onCampaignHover: setHoveredCampaignId,
+        getCampaignActivityContent,
       }),
     [
-      campaignOptions,
-      defaultCampaignOption,
-      editingRow,
-      handleStartEdit,
-      handleValueChange,
+      openEditCustomerDialog,
       handleDeleteRow,
       handleApproveRow,
       handleViewRow,
+      getCampaignActivityContent,
     ]
   )
 
@@ -700,45 +752,49 @@ export function CustomersTableClient({
     autoResetPageIndex: false,
   })
 
-  const handleSaveEdits = React.useCallback(async () => {
-    if (!hasPendingChanges || hasValidationErrors) return
+  const handleSubmitCustomer = React.useCallback(async () => {
     if (!selectedLocationIdForApi) return
 
-    setConfirmAction({
-      title: "Save customer changes?",
-      description: "This will save the customer rows you added or edited.",
-      confirmLabel: "Save",
-      onConfirm: async () => {
-        const payload = {
-          businessId,
-          locationId: selectedLocationIdForApi,
-          customers: [
-            ...newRowsToSave.map((row) => ({
-              name: row.name.trim(),
-              phone: normalizeUsPhoneToE164(row.phone) || null,
-              email: row.email.trim() || null,
-              campaignId: row.campaignId,
-            })),
-            ...updatedRowsToSave.map((row) => ({
-              id: row.id,
-              name: row.name.trim(),
-              phone: normalizeUsPhoneToE164(row.phone) || null,
-              email: row.email.trim() || null,
-              campaignId: row.campaignId,
-            })),
-          ],
-        }
+    const errors = validateCustomerForm()
+    setCustomerFormErrors(errors)
+    if (Object.keys(errors).length > 0) return
 
-        await saveCustomers.mutateAsync(payload)
-      },
-    })
+    const row = customerDialog?.mode === "edit" ? customerDialog.row : null
+    const payload = {
+      businessId,
+      locationId: selectedLocationIdForApi,
+      customers: [
+        {
+          ...(row ? { id: row.id } : {}),
+          name: customerForm.name.trim(),
+          phone: normalizeUsPhoneToE164(customerForm.phone) || null,
+          email: customerForm.email.trim() || null,
+          campaignId: customerForm.campaignId,
+        },
+      ],
+    }
+
+    try {
+      await saveCustomers.mutateAsync(payload)
+      setCustomerDialog(null)
+      setCustomerForm(EMPTY_CUSTOMER_FORM)
+      setCustomerFormErrors({})
+      setCustomerServerError(null)
+    } catch (error) {
+      const mutationError = error as Error & {
+        fieldErrors?: CustomerFormErrors
+      }
+      if (mutationError.fieldErrors) {
+        setCustomerFormErrors(mutationError.fieldErrors)
+      }
+      setCustomerServerError(mutationError.message || "Failed to save customer")
+    }
   }, [
     businessId,
     selectedLocationIdForApi,
-    hasPendingChanges,
-    hasValidationErrors,
-    newRowsToSave,
-    updatedRowsToSave,
+    customerDialog,
+    customerForm,
+    validateCustomerForm,
     saveCustomers,
   ])
 
@@ -815,6 +871,25 @@ export function CustomersTableClient({
   return (
     <>
       <div ref={tableContainerRef}>
+        {defaultCampaignOption ? (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-3 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                <AlertCircle className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-blue-950">
+                  Default campaign active
+                </p>
+                <p className="mt-0.5 text-sm leading-5 text-blue-800">
+                  New customers will be assigned to{" "}
+                  <span className="font-medium">{defaultCampaignOption.name}</span>{" "}
+                  automatically.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <DataTable
           table={table}
           emptyMessage="No customers found."
@@ -822,7 +897,7 @@ export function CustomersTableClient({
           isLoading={isLoading}
           disableHorizontalScroll
           onRowClick={(row) => {
-            if (!row.isNew) handleStartEdit(row.id, "name")
+            handleViewRow(row)
           }}
           selectedRowId={selectedCustomer?.id || null}
         >
@@ -875,24 +950,11 @@ export function CustomersTableClient({
                 Approve all waiting
               </Button>
             )}
-            {hasPendingChanges && (
-              <Button
-                type="button"
-                className="gap-2 shrink-0"
-                onClick={handleSaveEdits}
-                disabled={hasValidationErrors || saveCustomers.isPending}
-              >
-                <Check className="h-4 w-4" />
-                Save Edits
-              </Button>
-            )}
             <Button
               type="button"
               className="gap-2 shrink-0"
-              onClick={() => {
-                const nextId = `new-${nextDraftId.current++}`
-                setDraftRows((prev) => [...prev, createDraftRow(nextId, defaultCampaignOption)])
-              }}
+              onClick={openAddCustomerDialog}
+              disabled={!selectedLocationIdForApi || saveCustomers.isPending}
             >
               <Plus className="h-4 w-4" />
               Add
@@ -900,6 +962,134 @@ export function CustomersTableClient({
           </DataTableAdvancedToolbar>
         </DataTable>
       </div>
+
+      <Dialog
+        open={!!customerDialog}
+        onOpenChange={(open) => {
+          if (open) return
+          setCustomerDialog(null)
+          setCustomerForm(EMPTY_CUSTOMER_FORM)
+          setCustomerFormErrors({})
+          setCustomerServerError(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {customerDialog?.mode === "edit" ? "Edit customer" : "Add customer"}
+            </DialogTitle>
+            <DialogDescription>
+              {customerDialog?.mode === "edit"
+                ? "Update this customer's contact details and linked campaign."
+                : "Add one customer to this location and assign a review campaign."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {customerServerError ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{customerServerError}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <div className="space-y-2">
+              <Label htmlFor="customer-name">Name</Label>
+              <Input
+                id="customer-name"
+                value={customerForm.name}
+                onChange={(event) => setCustomerFormField("name", event.target.value)}
+                placeholder="Customer name"
+                aria-invalid={!!customerFormErrors.name}
+              />
+              {customerFormErrors.name ? (
+                <p className="text-xs text-destructive">{customerFormErrors.name}</p>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="customer-phone">Phone</Label>
+                <Input
+                  id="customer-phone"
+                  type="tel"
+                  inputMode="tel"
+                  value={customerForm.phone}
+                  onChange={(event) => setCustomerFormField("phone", event.target.value)}
+                  placeholder="+1 555 123 4567"
+                  aria-invalid={!!customerFormErrors.phone}
+                />
+                {customerFormErrors.phone ? (
+                  <p className="text-xs text-destructive">{customerFormErrors.phone}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="customer-email">Email</Label>
+                <Input
+                  id="customer-email"
+                  type="email"
+                  value={customerForm.email}
+                  onChange={(event) => setCustomerFormField("email", event.target.value)}
+                  placeholder="customer@example.com"
+                  aria-invalid={!!customerFormErrors.email}
+                />
+                {customerFormErrors.email ? (
+                  <p className="text-xs text-destructive">{customerFormErrors.email}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="customer-campaign">Campaign</Label>
+              <Select
+                value={customerForm.campaignId || undefined}
+                onValueChange={(value) => setCustomerFormField("campaignId", value)}
+                disabled={customerDialog?.mode === "add" && Boolean(defaultCampaignOption)}
+              >
+                <SelectTrigger id="customer-campaign" aria-invalid={!!customerFormErrors.campaignId}>
+                  <SelectValue placeholder="Select campaign" />
+                </SelectTrigger>
+                <SelectContent>
+                  {campaignOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {customerFormErrors.campaignId ? (
+                <p className="text-xs text-destructive">{customerFormErrors.campaignId}</p>
+              ) : defaultCampaignOption && customerDialog?.mode === "add" ? (
+                <p className="text-xs text-muted-foreground">
+                  Default campaign is selected automatically.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCustomerDialog(null)}
+              disabled={saveCustomers.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSubmitCustomer}
+              disabled={!selectedLocationIdForApi || saveCustomers.isPending}
+            >
+              {saveCustomers.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {customerDialog?.mode === "edit" ? "Save customer" : "Add customer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <AlertDialogContent>
@@ -965,8 +1155,8 @@ export function CustomersTableClient({
               <div className="p-5 text-sm text-muted-foreground">Loading timeline...</div>
             ) : timelineQuery.data?.data ? (
               <div className="space-y-5 p-5">
-                <div className="rounded-xl border bg-card p-4 shadow-xs">
-                  <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="rounded-xl border bg-card p-3 shadow-xs">
+                  <div className="mb-2 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold">Customer Overview</p>
                       <p className="text-xs text-muted-foreground">
@@ -984,32 +1174,42 @@ export function CustomersTableClient({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <DetailItem
-                      icon={User}
-                      label="Customer"
-                      value={timelineQuery.data.data.name}
-                    />
-                    <DetailItem
-                      icon={Route}
-                      label="Campaign"
-                      value={timelineQuery.data.data.campaign?.name || selectedCustomer?.campaignName}
-                    />
-                    <DetailItem
-                      icon={Mail}
-                      label="Email"
-                      value={timelineQuery.data.data.email || "No email"}
-                    />
-                    <DetailItem
-                      icon={MessageSquare}
-                      label="Phone"
-                      value={timelineQuery.data.data.phone || "No phone"}
-                    />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                      <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Customer</p>
+                        <p className="truncate text-sm font-medium">{timelineQuery.data.data.name}</p>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                      <Route className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Campaign</p>
+                        <p className="truncate text-sm font-medium">
+                          {timelineQuery.data.data.campaign?.name || selectedCustomer?.campaignName || "-"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                      <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Email</p>
+                        <p className="truncate text-sm font-medium">{timelineQuery.data.data.email || "No email"}</p>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                      <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Phone</p>
+                        <p className="truncate text-sm font-medium">{timelineQuery.data.data.phone || "No phone"}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="rounded-xl border bg-card p-4 shadow-xs">
-                  <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="rounded-xl border bg-card p-3 shadow-xs">
+                  <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-primary" />
                       <p className="text-sm font-semibold">Next Scheduled Step</p>
@@ -1017,7 +1217,7 @@ export function CustomersTableClient({
                     <Button
                       type="button"
                       size="sm"
-                      className="gap-2"
+                      className="h-8 gap-2"
                       onClick={handleSendNow}
                       disabled={!canSendNow || sendCustomerNow.isPending}
                     >
@@ -1030,25 +1230,42 @@ export function CustomersTableClient({
                     </Button>
                   </div>
                   {timelineQuery.data.data.nextStep ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      <DetailItem
-                        icon={timelineQuery.data.data.nextStep.type === "EMAIL" ? Mail : MessageSquare}
-                        label="Activity"
-                        value={`${timelineQuery.data.data.nextStep.type} step ${timelineQuery.data.data.nextStep.orderIndex}`}
-                      />
-                      <DetailItem
-                        icon={CalendarDays}
-                        label="Scheduled"
-                        value={formatDateTime(timelineQuery.data.data.nextStep.scheduledAt)}
-                      />
-                      <DetailItem
-                        icon={Clock}
-                        label="Timezone"
-                        value={timelineQuery.data.data.nextStep.timezone}
-                      />
+                    <div className="grid gap-2 rounded-lg bg-muted/30 p-2 sm:grid-cols-[1fr_1.2fr_1fr]">
+                      <div className="flex min-w-0 items-center gap-2 px-1 py-1">
+                        {timelineQuery.data.data.nextStep.type === "EMAIL" ? (
+                          <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Activity</p>
+                          <p className="truncate text-sm font-medium">
+                            {timelineQuery.data.data.nextStep.type === "EMAIL" ? "Email" : "SMS"} step{" "}
+                            {timelineQuery.data.data.nextStep.orderIndex}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-2 px-1 py-1">
+                        <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Scheduled</p>
+                          <p className="truncate text-sm font-medium">
+                            {formatDateTime(timelineQuery.data.data.nextStep.scheduledAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-2 px-1 py-1">
+                        <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Timezone</p>
+                          <p className="truncate text-sm font-medium">
+                            {timelineQuery.data.data.nextStep.timezone}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   ) : (
-                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
                       No upcoming step. The customer may be waiting for approval, completed, failed, or at the end of the campaign.
                     </div>
                   )}
@@ -1058,160 +1275,97 @@ export function CustomersTableClient({
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Route className="h-4 w-4 text-primary" />
-                      <p className="text-sm font-semibold">Campaign Activity Plan</p>
+                      <p className="text-sm font-semibold">Customer Journey Timeline</p>
                     </div>
                     <Badge variant="secondary" className="text-xs">
-                      {timelineQuery.data.data.plannedActivities.length} steps
+                      {journeyTimelineItems.length} items
                     </Badge>
                   </div>
 
-                  <div className="relative space-y-0 pl-4">
-                    <div className="absolute left-[27px] top-2 bottom-2 w-px bg-border" />
-                    {timelineQuery.data.data.plannedActivities.map((activity) => {
-                      const config = getActivityStatusConfig(activity.status)
-                      const Icon = activity.type === "EMAIL" ? Mail : MessageSquare
-                      const messageContent = activity.content || activity.contentPreview
-                      return (
-                        <div key={`${activity.type}-${activity.orderIndex}`} className="relative pb-4 last:pb-0">
-                          <div className="absolute left-0 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border bg-background">
-                            <span className={`h-2.5 w-2.5 rounded-full ${config.dot}`} />
-                          </div>
-                          <div className="ml-10 rounded-lg border bg-card p-3 shadow-xs">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <Icon className="h-4 w-4 text-muted-foreground" />
-                                  <p className="text-sm font-semibold">
-                                    Step {activity.orderIndex}: {activity.type === "EMAIL" ? "Email" : "SMS"}
-                                  </p>
-                                </div>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {activity.scheduledAt
-                                    ? `Scheduled for ${formatDateTime(activity.scheduledAt)}`
-                                    : `Runs ${activity.sequenceDays === 0 ? "on start day" : `${activity.sequenceDays} day${activity.sequenceDays === 1 ? "" : "s"} after start`}`}
-                                </p>
+                  {journeyTimelineItems.length > 0 ? (
+                    <div className="relative pl-4">
+                      <div className="absolute left-[27px] top-3 bottom-3 w-px bg-border" />
+                      <div className="space-y-4">
+                        {journeyTimelineItems.map((item) => {
+                          const MarkerIcon = getJourneyMarkerIcon(item.marker)
+                          const ItemIcon = item.icon
+                          return (
+                            <div key={item.key} className="relative">
+                              <div
+                                className={`absolute left-0 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border ${getJourneyMarkerClassName(item.marker)}`}
+                              >
+                                <MarkerIcon className="h-3.5 w-3.5" />
                               </div>
-                              <Badge variant="outline" className={config.badge}>
-                                {config.label}
-                              </Badge>
-                            </div>
-
-                            {activity.subject ? (
-                              <p className="mt-3 whitespace-pre-wrap break-words text-xs font-medium">
-                                {activity.subject}
-                              </p>
-                            ) : null}
-                            {messageContent ? (
-                              <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">
-                                {messageContent}
-                              </p>
-                            ) : null}
-                            {activity.buttonText ? (
-                              <p className="mt-2 inline-flex max-w-full rounded-full bg-secondary px-2 py-1 text-[10px] font-medium text-secondary-foreground">
-                                <span className="shrink-0">Button:&nbsp;</span>
-                                <span className="break-words">{activity.buttonText}</span>
-                              </p>
-                            ) : null}
-                            {activity.skipReason ? (
-                              <p className="mt-2 text-xs font-medium text-amber-700">
-                                Skipped: {activity.skipReason}
-                              </p>
-                            ) : null}
-                            {activity.errorMessage ? (
-                              <p className="mt-2 text-xs font-medium text-red-700">
-                                Error: {activity.errorMessage}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-primary" />
-                      <p className="text-sm font-semibold">What Happened</p>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {timelineQuery.data.data.events.length} events
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-3">
-                    {timelineQuery.data.data.events.map((event, index) => {
-                      const config = getTimelineEventConfig(event.type)
-                      const Icon = config.icon
-                      return (
-                        <div
-                          key={`${event.type}-${event.occurredAt}-${index}`}
-                          className="relative rounded-lg border bg-card p-3 shadow-xs"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-                              <Icon className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <p className="truncate text-sm font-medium">
-                                        {event.label}
+                              <div className="ml-10 rounded-lg border bg-card p-3 shadow-xs">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <ItemIcon className="h-4 w-4 text-muted-foreground" />
+                                      <p className="truncate text-sm font-semibold">
+                                        {item.title}
                                       </p>
-                                    </TooltipTrigger>
-                                    <TooltipContent sideOffset={4}>{event.label}</TooltipContent>
-                                  </Tooltip>
-                                  <p className="text-xs text-muted-foreground">
-                                    {formatDateTime(event.occurredAt)}
-                                  </p>
-                                </div>
-                                <Badge variant="outline" className={config.badge}>
-                                  {event.type}
-                                </Badge>
-                              </div>
-
-                              {(event.activity || event.skipReason || event.errorMessage) ? (
-                                <>
-                                  <Separator className="my-3" />
-                                  <div className="grid grid-cols-2 gap-2 text-xs">
-                                    {event.activity ? (
-                                      <>
-                                        <div>
-                                          <p className="text-muted-foreground">Activity</p>
-                                          <p className="font-medium">
-                                            {event.activity.type} step {event.activity.orderIndex}
-                                          </p>
-                                        </div>
-                                        <div>
-                                          <p className="text-muted-foreground">Sequence Day</p>
-                                          <p className="font-medium">{event.activity.sequenceDays}</p>
-                                        </div>
-                                      </>
+                                    </div>
+                                    {item.subtitle ? (
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {item.subtitle}
+                                      </p>
                                     ) : null}
-                                    {event.skipReason ? (
-                                      <div className="col-span-2">
-                                        <p className="text-muted-foreground">Skip Reason</p>
-                                        <p className="font-medium text-amber-700">{event.skipReason}</p>
-                                      </div>
-                                    ) : null}
-                                    {event.errorMessage ? (
-                                      <div className="col-span-2">
-                                        <p className="text-muted-foreground">Error</p>
-                                        <p className="font-medium text-red-700">{event.errorMessage}</p>
-                                      </div>
+                                    {item.occurredAt && item.type === "event" ? (
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {formatDateTime(item.occurredAt)}
+                                      </p>
                                     ) : null}
                                   </div>
-                                </>
-                              ) : null}
+                                  <Badge variant="outline" className={item.statusClassName}>
+                                    {item.statusLabel}
+                                  </Badge>
+                                </div>
+
+                                {item.subject ? (
+                                  <p className="mt-3 whitespace-pre-wrap break-words text-xs font-medium text-foreground">
+                                    Subject: {item.subject}
+                                  </p>
+                                ) : null}
+                                {item.content ? (
+                                  <p className={item.subject
+                                    ? "mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground"
+                                    : "mt-3 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground"}
+                                  >
+                                    {item.content}
+                                  </p>
+                                ) : null}
+                                {item.buttonText ? (
+                                  <p className="mt-2 inline-flex max-w-full rounded-full bg-secondary px-2 py-1 text-[10px] font-medium text-secondary-foreground">
+                                    <span className="shrink-0">Button:&nbsp;</span>
+                                    <span className="break-words">{item.buttonText}</span>
+                                  </p>
+                                ) : null}
+                                {item.manuallySent ? (
+                                  <p className="mt-2 inline-flex max-w-full rounded-full bg-blue-50 px-2 py-1 text-[10px] font-medium text-blue-700">
+                                    Sent manually
+                                  </p>
+                                ) : null}
+                                {item.skipReason ? (
+                                  <p className="mt-2 text-xs font-medium text-amber-700">
+                                    Skipped: {item.skipReason}
+                                  </p>
+                                ) : null}
+                                {item.errorMessage ? (
+                                  <p className="mt-2 text-xs font-medium text-red-700">
+                                    Error: {item.errorMessage}
+                                  </p>
+                                ) : null}
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      No customer journey activity is available yet.
+                    </div>
+                  )}
                 </div>
 
                 {timelineQuery.data.data.plannedActivities.length === 0 ? (

@@ -1,9 +1,9 @@
 const REVIEW_PLATFORMS: Record<string, string> = {
   "yelp.com": "Yelp",
-  "google.com": "Google Reviews",
-  "g.page": "Google Reviews",
-  "maps.app.goo.gl": "Google Reviews",
-  "googleusercontent.com": "Google Reviews",
+  "google.com": "Google",
+  "g.page": "Google",
+  "maps.app.goo.gl": "Google",
+  "googleusercontent.com": "Google",
   "facebook.com": "Facebook",
   "instagram.com": "Instagram",
   "trustpilot.com": "Trustpilot",
@@ -19,7 +19,7 @@ const REVIEW_PLATFORMS: Record<string, string> = {
   "linkedin.com": "LinkedIn",
 };
 
-export function deriveCampaignNameFromUrl(reviewUrl: string): string {
+export function deriveCampaignPlatformFromUrl(reviewUrl: string): string {
   try {
     const url = new URL(reviewUrl);
     const host = url.hostname.toLowerCase();
@@ -51,4 +51,16 @@ export function deriveCampaignNameFromUrl(reviewUrl: string): string {
   } catch (error) {
     return "Review Campaign";
   }
+}
+
+function formatCampaignDate(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${month} ${day} ${year}`;
+}
+
+export function deriveCampaignNameFromUrl(reviewUrl: string, date = new Date()): string {
+  return `${deriveCampaignPlatformFromUrl(reviewUrl)} ${formatCampaignDate(date)}`;
 }

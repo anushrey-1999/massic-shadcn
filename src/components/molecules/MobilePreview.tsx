@@ -16,12 +16,12 @@ export const MobilePreview: React.FC<MobilePreviewProps> = ({
   smsProps,
 }) => {
   return (
-    <div className="w-[236px] h-[477px] border-[10px] border-black rounded-[36px] shadow-2xl bg-white relative overflow-hidden">
+    <div className="w-[236px] min-h-[477px] border-[10px] border-black rounded-[36px] shadow-2xl bg-white relative overflow-hidden">
       {/* Notch */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-b-2xl z-10"></div>
 
       {/* Content area */}
-      <div className="h-full bg-gray-50 overflow-y-auto pt-6">
+      <div className="min-h-[457px] bg-gray-50 pt-6 pb-8">
         {type === "email" && emailProps ? (
           <EmailTemplate {...emailProps} />
         ) : type === "sms" && smsProps ? (

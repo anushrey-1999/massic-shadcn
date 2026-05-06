@@ -3,18 +3,10 @@
 import * as React from "react"
 import type { ReactElement, ReactNode } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { CheckCircle2, Eye, Trash2, X } from "lucide-react"
+import { CheckCircle2, Eye, Pencil, Trash2 } from "lucide-react"
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { getReviewPlatformIconUrl, type ReviewPlatformId } from "@/utils/review-platforms"
@@ -49,20 +41,13 @@ export interface ReviewCustomerRow {
   isNew?: boolean
 }
 
-export type EditableField = "name" | "phone" | "email" | "campaignId"
-
-export type RowValidationErrors = Partial<Record<EditableField, string>>
-
 export interface CustomersTableColumnOptions {
-  campaignOptions: CampaignOption[]
-  hasDefaultCampaign: boolean
-  editingRow: { rowId: string; field: EditableField } | null
-  onStartEdit: (rowId: string, field: EditableField) => void
-  onValueChange: (rowId: string, field: EditableField, value: string) => void
+  onEditRow: (row: ReviewCustomerRow) => void
   onDeleteRow: (rowId: string, isNew?: boolean) => void
   onApproveRow: (row: ReviewCustomerRow) => void
   onViewRow: (row: ReviewCustomerRow) => void
-  getRowErrors: (rowId: string) => RowValidationErrors | undefined
+  onCampaignHover?: (campaignId: string) => void
+  getCampaignActivityContent?: (campaignId: string) => ReactNode
 }
 
 function CampaignChip({ label, platform }: { label: string; platform: CampaignPlatform }) {
@@ -133,82 +118,30 @@ function getStatusLabel(status: CustomerStatus) {
 function WithTooltip({
   content,
   children,
+  contentClassName,
+  hideArrow,
+  arrowClassName,
 }: {
   content?: ReactNode
   children: ReactElement
+  contentClassName?: string
+  hideArrow?: boolean
+  arrowClassName?: string
 }) {
   if (!content) return children
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent sideOffset={4}>{content}</TooltipContent>
+      <TooltipContent
+        sideOffset={6}
+        className={contentClassName}
+        hideArrow={hideArrow}
+        arrowClassName={arrowClassName}
+      >
+        {content}
+      </TooltipContent>
     </Tooltip>
-  )
-}
-
-function EditableTextInput({
-  value,
-  type,
-  inputMode,
-  placeholder,
-  className,
-  ariaInvalid,
-  autoFocus,
-  onValueChange,
-}: {
-  value: string
-  type: "text" | "tel" | "email"
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]
-  placeholder: string
-  className?: string
-  ariaInvalid?: boolean
-  autoFocus?: boolean
-  onValueChange: (value: string) => void
-}) {
-  const [draftValue, setDraftValue] = React.useState(value)
-  const isFocusedRef = React.useRef(false)
-  const committedValueRef = React.useRef(value)
-
-  React.useEffect(() => {
-    committedValueRef.current = value
-    if (!isFocusedRef.current) {
-      setDraftValue(value)
-    }
-  }, [value])
-
-  const commitValue = React.useCallback(
-    (nextValue: string) => {
-      if (nextValue === committedValueRef.current) return
-      committedValueRef.current = nextValue
-      onValueChange(nextValue)
-    },
-    [onValueChange]
-  )
-
-  React.useEffect(() => {
-    const timeoutId = window.setTimeout(() => commitValue(draftValue), 150)
-    return () => window.clearTimeout(timeoutId)
-  }, [commitValue, draftValue])
-
-  return (
-    <Input
-      type={type}
-      inputMode={inputMode}
-      value={draftValue}
-      onChange={(e) => setDraftValue(e.target.value)}
-      onFocus={() => {
-        isFocusedRef.current = true
-      }}
-      onBlur={() => {
-        isFocusedRef.current = false
-        commitValue(draftValue)
-      }}
-      placeholder={placeholder}
-      className={className}
-      aria-invalid={ariaInvalid}
-      autoFocus={autoFocus}
-    />
   )
 }
 
@@ -216,25 +149,13 @@ export function getCustomersTableColumns(
   options: CustomersTableColumnOptions
 ): ColumnDef<ReviewCustomerRow>[] {
   const {
-    campaignOptions,
-    hasDefaultCampaign,
-    editingRow,
-    onStartEdit,
-    onValueChange,
+    onEditRow,
     onDeleteRow,
     onApproveRow,
     onViewRow,
-    getRowErrors,
+    onCampaignHover,
+    getCampaignActivityContent,
   } = options
-
-  const isEditing = (rowId: string, _field: EditableField) =>
-    editingRow?.rowId === rowId
-
-  const shouldAutoFocus = (rowId: string, field: EditableField) =>
-    editingRow?.rowId === rowId && editingRow.field === field
-
-  const errorClass = (rowId: string, field: EditableField) =>
-    getRowErrors(rowId)?.[field] ? "border-destructive" : ""
 
   return [
     {
@@ -253,7 +174,7 @@ export function getCustomersTableColumns(
           type="checkbox"
           className="h-4 w-4"
           checked={row.getIsSelected()}
-          disabled={!row.getCanSelect() || row.original.isNew}
+          disabled={!row.getCanSelect()}
           onChange={(event) => row.toggleSelected(event.target.checked)}
           aria-label="Select customer"
         />
@@ -271,27 +192,9 @@ export function getCustomersTableColumns(
       ),
       cell: ({ row }) => {
         const value = row.original.name
-        const showInput = row.original.isNew || isEditing(row.original.id, "name")
-        if (showInput) {
-          const error = getRowErrors(row.original.id)?.name
-          return (
-            <EditableTextInput
-              type="text"
-              value={value}
-              onValueChange={(nextValue) => onValueChange(row.original.id, "name", nextValue)}
-              placeholder={error || "type name here"}
-              className={cn("h-8 text-sm", errorClass(row.original.id, "name"))}
-              ariaInvalid={!!error}
-              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "name")}
-            />
-          )
-        }
         return (
           <WithTooltip content={value || "-"}>
-            <div
-              className="truncate font-medium cursor-pointer"
-              onClick={() => onStartEdit(row.original.id, "name")}
-            >
+            <div className="truncate font-medium">
               {value || "-"}
             </div>
           </WithTooltip>
@@ -307,28 +210,9 @@ export function getCustomersTableColumns(
       header: ({ column }) => <DataTableColumnHeader column={column} label="Phone" />,
       cell: ({ row }) => {
         const value = row.original.phone
-        const showInput = row.original.isNew || isEditing(row.original.id, "phone")
-        if (showInput) {
-          const error = getRowErrors(row.original.id)?.phone
-          return (
-            <EditableTextInput
-              type="tel"
-              inputMode="tel"
-              value={value}
-              onValueChange={(nextValue) => onValueChange(row.original.id, "phone", nextValue)}
-              placeholder={error || "+1 555 123 4567"}
-              className={cn("h-8 text-sm", errorClass(row.original.id, "phone"))}
-              ariaInvalid={!!error}
-              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "phone")}
-            />
-          )
-        }
         return (
           <WithTooltip content={value || "-"}>
-            <div
-              className="truncate cursor-text"
-              onClick={() => onStartEdit(row.original.id, "phone")}
-            >
+            <div className="truncate">
               {value || "-"}
             </div>
           </WithTooltip>
@@ -344,27 +228,9 @@ export function getCustomersTableColumns(
       header: ({ column }) => <DataTableColumnHeader column={column} label="Email" />,
       cell: ({ row }) => {
         const value = row.original.email
-        const showInput = row.original.isNew || isEditing(row.original.id, "email")
-        if (showInput) {
-          const error = getRowErrors(row.original.id)?.email
-          return (
-            <EditableTextInput
-              type="email"
-              value={value}
-              onValueChange={(nextValue) => onValueChange(row.original.id, "email", nextValue)}
-              placeholder={error || "type email here"}
-              className={cn("h-8 text-sm", errorClass(row.original.id, "email"))}
-              ariaInvalid={!!error}
-              autoFocus={!row.original.isNew && shouldAutoFocus(row.original.id, "email")}
-            />
-          )
-        }
         return (
           <WithTooltip content={value || "-"}>
-            <div
-              className="truncate cursor-text"
-              onClick={() => onStartEdit(row.original.id, "email")}
-            >
+            <div className="truncate">
               {value || "-"}
             </div>
           </WithTooltip>
@@ -398,55 +264,25 @@ export function getCustomersTableColumns(
         <DataTableColumnHeader column={column} label="Campaign Linked" />
       ),
       cell: ({ row }) => {
-        const showInput = row.original.isNew || isEditing(row.original.id, "campaignId")
-        const lockCampaign = Boolean(row.original.isNew && hasDefaultCampaign)
-        if (showInput) {
-          const error = getRowErrors(row.original.id)?.campaignId
-          const tooltipText = lockCampaign
-            ? "Default campaign is selected automatically"
-            : error
-          return (
-            <Select
-              value={row.original.campaignId || undefined}
-              onValueChange={(v) => onValueChange(row.original.id, "campaignId", v)}
-              disabled={lockCampaign}
-            >
-              <WithTooltip content={tooltipText}>
-                <SelectTrigger
-                  className={cn(
-                    "h-8 w-full text-sm",
-                    errorClass(row.original.id, "campaignId")
-                  )}
-                  aria-invalid={!!error}
-                >
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-              </WithTooltip>
-              <SelectContent>
-                {campaignOptions.map((opt) => (
-                  <SelectItem key={opt.id} value={opt.id}>
-                    {opt.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )
-        }
         if (!row.original.campaignName) {
           return (
-            <span
-              className="text-muted-foreground cursor-text"
-              onClick={() => onStartEdit(row.original.id, "campaignId")}
-            >
+            <span className="text-muted-foreground">
               -
             </span>
           )
         }
+        const tooltipContent =
+          getCampaignActivityContent?.(row.original.campaignId) || row.original.campaignName
         return (
-          <WithTooltip content={row.original.campaignName}>
+          <WithTooltip
+            content={tooltipContent}
+            contentClassName="max-w-none rounded-xl border bg-popover p-0 text-popover-foreground shadow-lg"
+            arrowClassName="fill-popover"
+          >
             <div
-              className="min-w-0 cursor-text"
-              onClick={() => onStartEdit(row.original.id, "campaignId")}
+              className="min-w-0"
+              onMouseEnter={() => onCampaignHover?.(row.original.campaignId)}
+              onFocus={() => onCampaignHover?.(row.original.campaignId)}
             >
               <CampaignChip
                 label={row.original.campaignName}
@@ -488,24 +324,39 @@ export function getCustomersTableColumns(
       id: "actions",
       header: "Actions",
       cell: ({ row }) => {
-        const isNew = row.original.isNew
         return (
           <div className="flex items-center justify-end gap-1">
-            {!isNew ? (
-              <WithTooltip content="View customer details">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  type="button"
-                  aria-label="View customer details"
-                  onClick={() => onViewRow(row.original)}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </WithTooltip>
-            ) : null}
-            {!isNew && row.original.status === "waiting-approval" ? (
+            <WithTooltip content="View customer details">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                type="button"
+                aria-label="View customer details"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onViewRow(row.original)
+                }}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            </WithTooltip>
+            <WithTooltip content="Edit customer">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                type="button"
+                aria-label="Edit customer"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onEditRow(row.original)
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </WithTooltip>
+            {row.original.status === "waiting-approval" ? (
               <WithTooltip content="Approve customer">
                 <Button
                   variant="ghost"
@@ -513,22 +364,28 @@ export function getCustomersTableColumns(
                   className="h-7 w-7 text-muted-foreground hover:text-emerald-700"
                   type="button"
                   aria-label="Approve customer"
-                  onClick={() => onApproveRow(row.original)}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onApproveRow(row.original)
+                  }}
                 >
                   <CheckCircle2 className="h-4 w-4" />
                 </Button>
               </WithTooltip>
             ) : null}
-            <WithTooltip content={isNew ? "Remove row" : "Delete customer"}>
+            <WithTooltip content="Delete customer">
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 type="button"
-                aria-label={isNew ? "Remove row" : "Delete customer"}
-                onClick={() => onDeleteRow(row.original.id, row.original.isNew)}
+                aria-label="Delete customer"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDeleteRow(row.original.id, row.original.isNew)
+                }}
               >
-                {isNew ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                <Trash2 className="h-4 w-4" />
               </Button>
             </WithTooltip>
           </div>

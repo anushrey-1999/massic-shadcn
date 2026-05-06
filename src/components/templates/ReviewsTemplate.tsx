@@ -101,17 +101,38 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
     }))
   }, [profileData])
 
+  const handleLocationChange = React.useCallback((value: string) => {
+    setSelectedLocation(value)
+    const match = locations.find((loc) => loc.value === value)
+    const params = new URLSearchParams(searchParams)
+    if (match?.locationId) {
+      params.set("locationId", match.locationId)
+    } else {
+      params.delete("locationId")
+    }
+    router.push(`?${params.toString()}`, { scroll: false })
+  }, [locations, router, searchParams])
+
   React.useEffect(() => {
     if (locations.length === 0) {
       if (selectedLocation) setSelectedLocation("")
       return
     }
 
+    const locationIdParam = searchParams.get("locationId")
+    if (locationIdParam) {
+      const match = locations.find((loc) => loc.locationId === locationIdParam)
+      if (match && selectedLocation !== match.value) {
+        setSelectedLocation(match.value)
+        return
+      }
+    }
+
     const exists = locations.some((loc) => loc.value === selectedLocation)
     if (!exists) {
       setSelectedLocation(locations[0].value)
     }
-  }, [locations, selectedLocation])
+  }, [locations, searchParams, selectedLocation])
 
   const selectedLocationId = React.useMemo(() => {
     if (!selectedLocation) return null
@@ -217,7 +238,7 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
 
               {activeTab === "reviews" ? (
                 <div className="flex items-center gap-3">
-                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                  <Select value={selectedLocation} onValueChange={handleLocationChange}>
                     <SelectTrigger className="bg-transparent shadow-xs min-w-40 text-general-foreground gap-1">
                       <MapPin className="h-4 w-4 text-general-foreground" />
                       <SelectValue placeholder="Select location" />
@@ -244,7 +265,7 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                 </div>
               ) : activeTab === "campaign" || activeTab === "customers" ? (
                 <div className="flex items-center gap-3">
-                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                  <Select value={selectedLocation} onValueChange={handleLocationChange}>
                     <SelectTrigger className="bg-transparent shadow-xs min-w-40 text-general-foreground gap-1">
                       <MapPin className="h-4 w-4 text-general-foreground" />
                       <SelectValue placeholder="Select location" />

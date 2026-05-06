@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Eye, EyeClosed, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface SequenceItem {
@@ -19,7 +19,6 @@ export interface SequenceItem {
   subject?: string
   content?: string
   buttonText?: string
-  isSkipped?: boolean
 }
 
 export interface ColumnConfig {
@@ -59,12 +58,7 @@ const defaultColumns: ColumnConfig[] = [
     label: "Activity",
     width: "w-[200px]",
     render: (seq, _, __) => (
-      <p
-        className={cn(
-          "text-sm text-general-foreground",
-          seq.isSkipped && "text-general-foreground/60"
-        )}
-      >
+      <p className="text-sm text-general-foreground">
         {seq.name}
       </p>
     ),
@@ -139,13 +133,6 @@ export const AutomationSequenceTable = React.forwardRef<
       onUpdateSequence?.(id, { [field]: value })
     }
 
-    const toggleSkip = (id: string) => {
-      const sequence = sequences.find(seq => seq.id === id)
-      if (sequence) {
-        onUpdateSequence?.(id, { isSkipped: !sequence.isSkipped })
-      }
-    }
-
     const renderSequenceColumn = (seq: SequenceItem, isExpanded: boolean) => {
       const index = sequences.findIndex((item) => item.id === seq.id)
       const prevSequenceDay =
@@ -164,7 +151,6 @@ export const AutomationSequenceTable = React.forwardRef<
               min={minSequenceDay}
               max={maxSequenceDay}
               className="w-20 h-8 text-sm"
-              disabled={seq.isSkipped}
             />
             <span className="text-sm text-general-foreground">
               {seq.dayUnit || "day later"}
@@ -173,10 +159,7 @@ export const AutomationSequenceTable = React.forwardRef<
         )
       }
       return (
-        <p className={cn(
-          "text-sm text-general-foreground",
-          seq.isSkipped && "text-general-foreground/60"
-        )}>
+        <p className="text-sm text-general-foreground">
           {seq.sequenceDay} {seq.dayUnit || "day later"}
         </p>
       )
@@ -184,7 +167,6 @@ export const AutomationSequenceTable = React.forwardRef<
 
     const renderField = (field: ExpandedFieldConfig, seq: SequenceItem) => {
       const commonProps = {
-        disabled: seq.isSkipped,
         placeholder: field.placeholder,
       }
 
@@ -238,8 +220,7 @@ export const AutomationSequenceTable = React.forwardRef<
                 key={seq.id}
                 className={cn(
                   "bg-white border-l border-r border-b border-general-border",
-                  isExpanded && "",
-                  seq.isSkipped && "opacity-50"
+                  isExpanded && ""
                 )}
               >
                 {/* Row header */}
@@ -247,8 +228,7 @@ export const AutomationSequenceTable = React.forwardRef<
                   data-row-header="true"
                   className={cn(
                     "flex items-center cursor-pointer hover:bg-general-background/50",
-                    isExpanded ? "min-h-14" : "min-h-10",
-                    seq.isSkipped && "bg-general-secondary/30"
+                    isExpanded ? "min-h-14" : "min-h-10"
                   )}
                   onClick={() => toggleExpand(seq.id)}
                 >
@@ -264,24 +244,6 @@ export const AutomationSequenceTable = React.forwardRef<
                     </div>
                   ))}
                   <div className="w-20 px-2 py-0.5 flex items-center justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={cn(
-                        "h-8 w-8 p-0",
-                        seq.isSkipped && "text-general-foreground/40"
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleSkip(seq.id)
-                      }}
-                    >
-                      {seq.isSkipped ? (
-                        <EyeClosed className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -309,7 +271,6 @@ export const AutomationSequenceTable = React.forwardRef<
                           onValueChange={(value) =>
                             handleFieldChange(seq.id, "type", value as SequenceItem["type"])
                           }
-                          disabled={seq.isSkipped}
                         >
                           <SelectTrigger className="h-9 text-sm">
                             <SelectValue placeholder="Select type" />

@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, XCircle, AlertTriangle } from "lucide-react";
 import { PRODUCT_CONFIG, STATUS_CONFIG } from "@/config/access-request";
@@ -11,12 +10,11 @@ import { cn } from "@/lib/utils";
 
 interface AccessRequestCompleteProps {
   steps: AccessRequestStep[];
+  agencyEmail: string;
 }
 
-export function AccessRequestComplete({ steps }: AccessRequestCompleteProps) {
+export function AccessRequestComplete({ steps, agencyEmail }: AccessRequestCompleteProps) {
   const completed = steps.filter((s) => s.status === "completed");
-  const failed = steps.filter((s) => s.status === "failed");
-  const manual = steps.filter((s) => s.status === "manual_required");
   const allDone = completed.length === steps.length;
 
   return (
@@ -39,35 +37,9 @@ export function AccessRequestComplete({ steps }: AccessRequestCompleteProps) {
         </h2>
         <p className="text-sm text-gray-500 max-w-sm mx-auto">
           {allDone
-            ? "All access has been granted successfully. You can now close this page."
+            ? `Access has been granted successfully to ${agencyEmail}. You can safely close this page.`
             : "Some steps require attention. Please review the details below."}
         </p>
-      </div>
-
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-green-700">{completed.length}</p>
-            <p className="text-xs text-green-600">Completed</p>
-          </CardContent>
-        </Card>
-        {failed.length > 0 && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="py-4 text-center">
-              <p className="text-2xl font-bold text-red-700">{failed.length}</p>
-              <p className="text-xs text-red-600">Failed</p>
-            </CardContent>
-          </Card>
-        )}
-        {manual.length > 0 && (
-          <Card className="border-orange-200 bg-orange-50">
-            <CardContent className="py-4 text-center">
-              <p className="text-2xl font-bold text-orange-700">{manual.length}</p>
-              <p className="text-xs text-orange-600">Manual</p>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Step details */}
@@ -112,10 +84,6 @@ export function AccessRequestComplete({ steps }: AccessRequestCompleteProps) {
           );
         })}
       </div>
-
-      <p className="text-center text-xs text-gray-400">
-        You can safely close this page now.
-      </p>
     </div>
   );
 }

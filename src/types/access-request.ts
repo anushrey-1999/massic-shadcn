@@ -57,6 +57,7 @@ export interface AccessRequestListResponse {
 export interface AccessRequestStatusResponse {
   request: {
     id: string;
+    agencyName?: string;
     agencyEmail: string;
     products: Product[];
     status: RequestStatus;
@@ -77,6 +78,7 @@ export interface AccessRequestStatusResponse {
 export interface AccessRequestStepsResponse {
   request: {
     id: string;
+    agencyName?: string;
     agencyEmail: string;
     status: RequestStatus;
     expiresAt: string;
@@ -87,6 +89,12 @@ export interface AccessRequestStepsResponse {
 export interface DiscoverAssetsResponse {
   product: Product;
   assets: Record<string, unknown> | Record<string, unknown>[];
+}
+
+export interface VerifyStepResponse {
+  verified: boolean;
+  step: AccessRequestStep;
+  message?: string;
 }
 
 export interface CreateAccessRequestPayload {

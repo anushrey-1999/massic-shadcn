@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2,
   Check,
+  Copy,
   ExternalLink,
   RefreshCw,
   AlertTriangle,
@@ -16,7 +17,7 @@ import {
 import {
   useDiscoverAssets,
   useSelectAssets,
-  useCompleteManualStep,
+  useVerifyStep,
 } from "@/hooks/use-access-request-flow";
 import { PRODUCT_CONFIG } from "@/config/access-request";
 import { ProductIcon } from "./ProductIcon";
@@ -26,6 +27,7 @@ interface GscManualStepProps {
   token: string;
   step: AccessRequestStep;
   agencyEmail: string;
+  agencyName: string;
   onStepCompleted: () => void;
 }
 
@@ -37,19 +39,30 @@ function getAssetId(asset: Record<string, unknown>): string {
   return (asset.siteUrl as string) || (asset.id as string) || JSON.stringify(asset);
 }
 
-export function GscManualStep({ token, step, agencyEmail, onStepCompleted }: GscManualStepProps) {
+export function GscManualStep({ token, step, agencyEmail, agencyName, onStepCompleted }: GscManualStepProps) {
   const config = PRODUCT_CONFIG.gsc;
   const { data: discoverData, isLoading: discovering, isError: discoverError, refetch } = useDiscoverAssets(
     token,
     step.status !== "completed" ? "gsc" : null
   );
   const selectMutation = useSelectAssets(token);
-  const completeMutation = useCompleteManualStep(token);
+  const { mutateAsync: verifyStep } = useVerifyStep(token);
 
-  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set());
+  const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(
+    () => new Set((step.selectedAssets || []).map(getAssetId))
+  );
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
+  const isPollingRef = React.useRef(false);
   const [phase, setPhase] = useState<
     "discover" | "select" | "instructions" | "verifying" | "done" | "failed"
-  >(step.status === "completed" ? "done" : "discover");
+  >(
+    step.status === "completed"
+      ? "done"
+      : step.selectedAssets?.length
+        ? "instructions"
+        : "discover"
+  );
 
   const assets = React.useMemo(() => {
     const raw = discoverData?.assets;
@@ -66,6 +79,11 @@ export function GscManualStep({ token, step, agencyEmail, onStepCompleted }: Gsc
     [assets, selectedAssetIds]
   );
 
+  const instructionAssets = React.useMemo(
+    () => (selectedAssets.length > 0 ? selectedAssets : step.selectedAssets || []),
+    [selectedAssets, step.selectedAssets]
+  );
+
   useEffect(() => {
     if (step.status === "completed") {
       setPhase("done");
@@ -76,9 +94,12 @@ export function GscManualStep({ token, step, agencyEmail, onStepCompleted }: Gsc
   useEffect(() => {
     if (prevStepId.current !== step.id) {
       prevStepId.current = step.id;
-      setSelectedAssetIds(new Set());
+      setSelectedAssetIds(new Set((step.selectedAssets || []).map(getAssetId)));
+      setVerificationMessage(null);
       if (step.status === "completed") {
         setPhase("done");
+      } else if (step.selectedAssets?.length) {
+        setPhase("instructions");
       } else {
         setPhase("discover");
       }
@@ -109,21 +130,69 @@ export function GscManualStep({ token, step, agencyEmail, onStepCompleted }: Gsc
         selectedAssets,
       });
       setPhase("instructions");
+      setVerificationMessage(null);
     } catch {
       setPhase("failed");
     }
   }
 
-  async function handleComplete() {
+  async function copyEmailToClipboard() {
     try {
-      setPhase("verifying");
-      await completeMutation.mutateAsync({ product: "gsc" });
-      setPhase("done");
-      onStepCompleted();
+      await navigator.clipboard.writeText(agencyEmail);
+      setCopiedEmail(true);
+      window.setTimeout(() => setCopiedEmail(false), 2000);
     } catch {
-      setPhase("instructions");
+      setCopiedEmail(false);
     }
   }
+
+  async function handleOpenGscSettings(siteUrl: string) {
+    await copyEmailToClipboard();
+    window.open(
+      `https://search.google.com/search-console/users?resource_id=${encodeURIComponent(siteUrl)}`,
+      "_blank"
+    );
+  }
+
+  useEffect(() => {
+    if (phase !== "instructions" || step.status === "completed") return;
+
+    let cancelled = false;
+
+    async function pollVerification() {
+      if (isPollingRef.current) return;
+
+      try {
+        isPollingRef.current = true;
+        setVerificationMessage("Checking for granted access...");
+        const result = await verifyStep({ product: "gsc" });
+
+        if (cancelled) return;
+
+        if (result.verified) {
+          setPhase("done");
+          setVerificationMessage(null);
+          onStepCompleted();
+        } else {
+          setVerificationMessage(result.message || "Waiting for Search Console access to be granted.");
+        }
+      } catch {
+        if (!cancelled) {
+          setVerificationMessage("Unable to verify yet. We will keep checking automatically.");
+        }
+      } finally {
+        isPollingRef.current = false;
+      }
+    }
+
+    pollVerification();
+    const intervalId = window.setInterval(pollVerification, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [phase, step.status, verifyStep, onStepCompleted]);
 
   if (phase === "done" || step.status === "completed") {
     return (
@@ -132,7 +201,7 @@ export function GscManualStep({ token, step, agencyEmail, onStepCompleted }: Gsc
           <ProductIcon product="gsc" size={28} />
           <div>
             <h3 className="text-lg font-semibold text-gray-900">{config.label}</h3>
-            <p className="text-sm text-gray-500">Manual step completed</p>
+            <p className="text-sm text-gray-500">Access has been granted</p>
           </div>
         </div>
         <Card className="border-green-200 bg-green-50">
@@ -184,8 +253,12 @@ export function GscManualStep({ token, step, agencyEmail, onStepCompleted }: Gsc
         <div className="flex items-center gap-3">
           <ProductIcon product="gsc" size={28} />
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">{config.label}</h3>
-            <p className="text-sm text-gray-500">Manual step required</p>
+            <h3 className="text-lg font-semibold text-gray-900">
+              {agencyName} is requesting access to your Google Assets
+            </h3>
+            <p className="text-sm text-gray-500">
+              To grant access to <span className="font-mono font-medium">{agencyEmail}</span> please follow the instructions
+            </p>
           </div>
         </div>
 
@@ -198,80 +271,68 @@ export function GscManualStep({ token, step, agencyEmail, onStepCompleted }: Gsc
                   Google Search Console requires manual setup
                 </p>
                 <p className="text-xs text-orange-700">
-                  Follow these steps to grant access:
+                  Complete these steps to grant access
                 </p>
               </div>
             </div>
 
-            <ol className="space-y-2 pl-6">
-              <li className="text-sm text-gray-700">
-                <span className="font-medium">1.</span> Open a property below in Search Console
-              </li>
-              <li className="text-sm text-gray-700">
-                <span className="font-medium">2.</span> Go to{" "}
-                <span className="font-medium">Settings → Users and permissions</span>
-              </li>
-              <li className="text-sm text-gray-700">
-                <span className="font-medium">3.</span> Click{" "}
-                <span className="font-medium">Add user</span>
-              </li>
-              <li className="text-sm text-gray-700">
-                <span className="font-medium">4.</span> Enter the email:{" "}
-                <code className="bg-white px-1.5 py-0.5 rounded text-xs font-mono border">
-                  {agencyEmail}
-                </code>
-              </li>
-              <li className="text-sm text-gray-700">
-                <span className="font-medium">5.</span> Set permission to{" "}
-                <span className="font-medium">Full</span> and click Add
-              </li>
-              <li className="text-sm text-gray-700">
-                <span className="font-medium">6.</span> Repeat for each property below
-              </li>
-            </ol>
-
-            <div className="space-y-2">
-              {selectedAssets.map((asset) => {
-                const siteUrl = asset.siteUrl as string;
-                const resourceId = encodeURIComponent(siteUrl);
-                return (
-                  <Button
-                    key={siteUrl}
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() =>
-                      window.open(
-                        `https://search.google.com/search-console/users?resource_id=${resourceId}`,
-                        "_blank"
-                      )
-                    }
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2 shrink-0" />
-                    <span className="truncate">{siteUrl}</span>
+            <div className="space-y-3">
+              <div className="rounded-lg border border-orange-100 bg-white p-3">
+                <p className="text-sm font-medium text-gray-900">
+                  Step 1: Copy your agency&apos;s email address
+                </p>
+                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <code className="flex-1 rounded border bg-gray-50 px-2 py-2 text-xs font-mono text-gray-700">
+                    {agencyEmail}
+                  </code>
+                  <Button variant="outline" size="sm" onClick={copyEmailToClipboard}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    {copiedEmail ? "Copied" : "Copy email"}
                   </Button>
-                );
-              })}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-orange-100 bg-white p-3">
+                <p className="text-sm font-medium text-gray-900">
+                  Step 2: Visit the following settings page
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Opening a property will copy the email and launch Google Search Console in a new tab.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {instructionAssets.map((asset) => {
+                    const siteUrl = getAssetId(asset);
+                    return (
+                      <Button
+                        key={siteUrl}
+                        variant="outline"
+                        className="w-full justify-start"
+                        onClick={() => handleOpenGscSettings(siteUrl)}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2 shrink-0" />
+                        <span className="truncate">{getAssetLabel(asset)}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-orange-100 bg-white p-3">
+                <p className="text-sm font-medium text-gray-900">
+                  Step 3: Click Add User and paste your agency&apos;s email address ({agencyEmail}).
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Make sure to select <span className="font-medium">Full</span> permission.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+              <span>{verificationMessage || "Checking every 10 seconds for granted access..."}</span>
             </div>
           </CardContent>
         </Card>
-
-        <Button
-          className="w-full"
-          onClick={handleComplete}
-          disabled={phase === "verifying"}
-        >
-          {phase === "verifying" ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Verifying...
-            </>
-          ) : (
-            <>
-              <Check className="h-4 w-4 mr-2" />
-              I&apos;ve Completed This
-            </>
-          )}
-        </Button>
       </div>
     );
   }

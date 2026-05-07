@@ -9,25 +9,22 @@ import { StepCard } from "@/components/organisms/access-request/StepCard";
 import { ProductStep } from "@/components/organisms/access-request/ProductStep";
 import { GscManualStep } from "@/components/organisms/access-request/GscManualStep";
 import { AccessRequestComplete } from "@/components/organisms/access-request/AccessRequestComplete";
-import type { AccessRequestStep } from "@/types/access-request";
 
 export default function AccessRequestStepsPage() {
   const params = useParams();
   const token = params.token as string;
   const { data, isLoading, isError, error, refetch } = useAccessRequestSteps(token);
 
-  // Track the active step by its stable `id` rather than by numeric index,
-  // so that a refetch that returns steps in a slightly different order (or
-  // any future reordering) doesn't yank the user off the step they're on.
-  const [activeStepId, setActiveStepId] = useState<string | null>(null);
-
   const steps = data?.steps || [];
   const request = data?.request;
+  const agencyEmail = request?.agencyEmail || "";
+  const agencyName = request?.agencyName || agencyEmail || "The agency";
+  const [activeStepId, setActiveStepId] = useState<string | null>(null);
 
-  const activeStepIndex = useMemo(() => {
-    if (!activeStepId) return -1;
-    return steps.findIndex((s) => s.id === activeStepId);
-  }, [steps, activeStepId]);
+  const activeStep = useMemo(
+    () => steps.find((s) => s.id === activeStepId),
+    [steps, activeStepId]
+  );
 
   const allTerminal = useMemo(
     () =>
@@ -35,8 +32,7 @@ export default function AccessRequestStepsPage() {
       steps.every(
         (s) =>
           s.status === "completed" ||
-          s.status === "failed" ||
-          s.status === "manual_required"
+          s.status === "failed"
       ),
     [steps]
   );
@@ -56,11 +52,8 @@ export default function AccessRequestStepsPage() {
     setActiveStepId(firstIncomplete?.id ?? steps[0].id);
   }, [steps]);
 
-  // If the pinned active step id disappears (shouldn't happen, but be safe),
-  // fall back to the first step so the UI never lands on "no active step".
   useEffect(() => {
-    if (steps.length === 0) return;
-    if (!activeStepId) return;
+    if (steps.length === 0 || !activeStepId) return;
     const stillExists = steps.some((s) => s.id === activeStepId);
     if (!stillExists) {
       setActiveStepId(steps[0].id);
@@ -110,7 +103,7 @@ export default function AccessRequestStepsPage() {
     );
   }
 
-  if (allCompleted || (allTerminal && !steps.some((s) => s.status === "manual_required" && activeStepIndex === steps.indexOf(s)))) {
+  if (allCompleted || allTerminal) {
     const showComplete =
       allCompleted ||
       steps.every((s) => s.status === "completed" || s.status === "failed");
@@ -120,7 +113,7 @@ export default function AccessRequestStepsPage() {
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4">
           <Card className="w-full max-w-lg shadow-lg border-0">
             <CardContent className="pt-8 pb-8">
-              <AccessRequestComplete steps={steps} />
+              <AccessRequestComplete steps={steps} agencyEmail={agencyEmail} />
             </CardContent>
           </Card>
         </div>
@@ -128,29 +121,26 @@ export default function AccessRequestStepsPage() {
     }
   }
 
-  const activeStep = steps[activeStepIndex];
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Grant Access</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {agencyName} is requesting access to your Google Assets
+          </h1>
           {request && (
             <p className="text-sm text-gray-500 mt-1">
-              Complete each step below to grant access to{" "}
-              <span className="font-mono font-medium">{request.agencyEmail}</span>
+              To grant access to{" "}
+              <span className="font-mono font-medium">{agencyEmail}</span>{" "}
+              please follow these steps
             </p>
           )}
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* Sidebar - Steps overview */}
           <div className="lg:w-72 shrink-0">
             <div className="sticky top-8 space-y-2">
-              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3 px-1">
-                Steps ({steps.filter((s) => s.status === "completed").length}/{steps.length})
-              </h3>
               {steps.map((step) => (
                 <StepCard
                   key={step.id}
@@ -162,29 +152,27 @@ export default function AccessRequestStepsPage() {
             </div>
           </div>
 
-          {/* Main content */}
           <div className="flex-1 min-w-0">
             <Card className="shadow-sm border-0">
               <CardContent className="p-6">
-                {activeStep ? (
-                  activeStep.product === "gsc" ? (
-                    <GscManualStep
-                      token={token}
-                      step={activeStep}
-                      agencyEmail={request?.agencyEmail || ""}
-                      onStepCompleted={handleStepCompleted}
-                    />
-                  ) : (
-                    <ProductStep
-                      token={token}
-                      step={activeStep}
-                      onStepCompleted={handleStepCompleted}
-                    />
-                  )
+                {activeStep?.product === "gsc" ? (
+                  <GscManualStep
+                    token={token}
+                    step={activeStep}
+                    agencyEmail={agencyEmail}
+                    agencyName={agencyName}
+                    onStepCompleted={handleStepCompleted}
+                  />
+                ) : activeStep ? (
+                  <ProductStep
+                    token={token}
+                    step={activeStep}
+                    onStepCompleted={handleStepCompleted}
+                  />
                 ) : (
                   <div className="text-center py-12">
                     <p className="text-sm text-gray-500">
-                      Select a step from the sidebar to continue.
+                      No access request steps are available.
                     </p>
                   </div>
                 )}

@@ -49,7 +49,7 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
     refetch: refetchThemes,
   } = useQuery({
     queryKey: ["themes", businessId],
-    queryFn: () => fetchThemes(1, 100),
+    queryFn: () => fetchThemes(1, 1000),
     staleTime: 1000 * 60 * 5,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
@@ -226,7 +226,7 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
     );
   }
 
-  const totalThemes = themesData?.metrics?.total_themes;
+  const totalThemes = allData.length;
 
   const handleOfferingToggle = (offering: string) => {
     setSelectedOfferings((prev) =>

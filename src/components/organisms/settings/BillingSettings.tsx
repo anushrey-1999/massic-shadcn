@@ -31,6 +31,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PlansWrapper } from "../../molecules/settings/PlansWrapper";
 import { DataTable } from "@/components/filter-table";
 import { DataTableSearch } from "@/components/filter-table/data-table-search";
@@ -58,7 +65,7 @@ import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
 import { useBillingReconciliation } from "@/hooks/use-billing-reconciliation";
 import { BillingReconciliationReport as BillingReconciliationReportView } from "@/components/organisms/settings/BillingReconciliationReport";
-import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
+import type { BillingReconciliationPeriod, BillingReconciliationReport } from "@/types/billing-reconciliation-types";
 import { generatePdfFromBillingReconciliation } from "@/utils/pdf-generator";
 import { cn } from "@/lib/utils";
 
@@ -327,6 +334,43 @@ const getCurrentMonthValue = () => {
   return `${year}-${month}`;
 };
 
+const RECONCILIATION_PERIOD_OPTIONS: Array<{
+  value: BillingReconciliationPeriod;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "month",
+    label: "Specific month",
+    description: "Choose one calendar month",
+  },
+  {
+    value: "last_quarter",
+    label: "Last quarter",
+    description: "Previous completed calendar quarter",
+  },
+  {
+    value: "this_quarter",
+    label: "This quarter",
+    description: "Current quarter through today",
+  },
+  {
+    value: "year_to_date",
+    label: "Year to date",
+    description: "Current year through today",
+  },
+  {
+    value: "all_time",
+    label: "All time",
+    description: "All paid Stripe history",
+  },
+];
+
+const getReconciliationReportSlug = (report: BillingReconciliationReport) => {
+  const rawSlug = report.period && report.period !== "month" ? report.period : report.month;
+  return String(rawSlug || "report").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+};
+
 const downloadTextFile = (filename: string, contents: string, mimeType: string) => {
   const blob = new Blob([contents], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -429,6 +473,7 @@ export function BillingSettings() {
   } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [reconciliationSheetOpen, setReconciliationSheetOpen] = useState(false);
+  const [selectedReportPeriod, setSelectedReportPeriod] = useState<BillingReconciliationPeriod>("month");
   const [selectedReportMonth, setSelectedReportMonth] = useState(getCurrentMonthValue);
   const [reconciliationReport, setReconciliationReport] = useState<BillingReconciliationReport | null>(null);
   const [reconciliationPdfLoading, setReconciliationPdfLoading] = useState(false);
@@ -481,9 +526,26 @@ export function BillingSettings() {
     return purchaseCredits({ ...params, returnUrl: settingsReturnUrl });
   }, [purchaseCredits, settingsReturnUrl]);
 
+  const handleReconciliationSheetOpenChange = useCallback((open: boolean) => {
+    setReconciliationSheetOpen(open);
+    if (!open) {
+      setReconciliationReport(null);
+      setReconciliationPdfLoading(false);
+    }
+  }, []);
+
+  const handleStartNewReconciliationReport = useCallback(() => {
+    setReconciliationReport(null);
+    setReconciliationPdfLoading(false);
+  }, []);
+
   const handleGenerateReconciliationReport = useCallback(async () => {
     try {
-      const report = await billingReconciliation.mutateAsync({ month: selectedReportMonth });
+      const report = await billingReconciliation.mutateAsync(
+        selectedReportPeriod === "month"
+          ? { month: selectedReportMonth }
+          : { period: selectedReportPeriod }
+      );
       setReconciliationReport(report);
       setReconciliationSheetOpen(true);
     } catch (error: any) {
@@ -493,7 +555,7 @@ export function BillingSettings() {
         "Failed to load billing reconciliation report"
       );
     }
-  }, [billingReconciliation, selectedReportMonth]);
+  }, [billingReconciliation, selectedReportMonth, selectedReportPeriod]);
 
   const handleDownloadReconciliationCsv = useCallback(() => {
     if (!reconciliationReport) return;
@@ -530,8 +592,9 @@ export function BillingSettings() {
       .map((line) => line.map((cell) => escapeCsvCell(cell)).join(","))
       .join("\n");
 
+    const reportSlug = getReconciliationReportSlug(reconciliationReport);
     downloadTextFile(
-      `billing-reconciliation-${reconciliationReport.month}.csv`,
+      `billing-reconciliation-${reportSlug}.csv`,
       csv,
       "text/csv;charset=utf-8"
     );
@@ -542,9 +605,10 @@ export function BillingSettings() {
 
     try {
       setReconciliationPdfLoading(true);
+      const reportSlug = getReconciliationReportSlug(reconciliationReport);
       await generatePdfFromBillingReconciliation(
         reconciliationReport,
-        `billing-reconciliation-${reconciliationReport.month}`
+        `billing-reconciliation-${reportSlug}`
       );
     } catch (error: any) {
       toast.error(error?.message || "Failed to generate reconciliation PDF");
@@ -1198,40 +1262,75 @@ export function BillingSettings() {
         }}
       />
 
-      <Sheet open={reconciliationSheetOpen} onOpenChange={setReconciliationSheetOpen}>
+      <Sheet open={reconciliationSheetOpen} onOpenChange={handleReconciliationSheetOpenChange}>
         <SheetContent side="right" className="w-screen gap-0 p-0 sm:max-w-[920px]">
           {reconciliationReport ? (
             <BillingReconciliationReportView
               report={reconciliationReport}
               onDownloadCsv={handleDownloadReconciliationCsv}
               onDownloadPdf={handleDownloadReconciliationPdf}
-              onGenerateReport={handleGenerateReconciliationReport}
+              onGenerateReport={handleStartNewReconciliationReport}
               isDownloadingPdf={reconciliationPdfLoading}
-              isGeneratingReport={billingReconciliation.isPending}
             />
           ) : (
             <>
               <SheetHeader className="border-b border-border/60 pr-12">
                 <SheetTitle>Billing reconciliation report</SheetTitle>
                 <SheetDescription>
-                  Review the selected month, export CSV, or download the PDF without leaving the billing screen.
+                  Review a selected month or period, export CSV, or download the PDF without leaving the billing screen.
                 </SheetDescription>
 
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="min-w-0 flex-1">
-                    <Input
-                      id="reconciliation-month-sheet"
-                      type="month"
-                      value={selectedReportMonth}
-                      onChange={(event) => setSelectedReportMonth(event.target.value)}
-                      max={getCurrentMonthValue()}
-                      aria-label="Select reconciliation month"
-                      className="max-w-[220px]"
-                    />
+                  <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-[minmax(220px,260px)_minmax(180px,220px)]">
+                    <div className="min-w-0">
+                      <label
+                        htmlFor="reconciliation-period-sheet"
+                        className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                      >
+                        Report period
+                      </label>
+                      <Select
+                        value={selectedReportPeriod}
+                        onValueChange={(value) => setSelectedReportPeriod(value as BillingReconciliationPeriod)}
+                      >
+                        <SelectTrigger id="reconciliation-period-sheet" className="w-full">
+                          <SelectValue placeholder="Select period" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RECONCILIATION_PERIOD_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <div className="flex flex-col">
+                                <span>{option.label}</span>
+                                <span className="text-xs text-muted-foreground">{option.description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {selectedReportPeriod === "month" ? (
+                      <div className="min-w-0">
+                        <label
+                          htmlFor="reconciliation-month-sheet"
+                          className="mb-1.5 block text-xs font-medium text-muted-foreground"
+                        >
+                          Month
+                        </label>
+                        <Input
+                          id="reconciliation-month-sheet"
+                          type="month"
+                          value={selectedReportMonth}
+                          onChange={(event) => setSelectedReportMonth(event.target.value)}
+                          max={getCurrentMonthValue()}
+                          aria-label="Select reconciliation month"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                   <Button
                     onClick={handleGenerateReconciliationReport}
-                    disabled={!selectedReportMonth || billingReconciliation.isPending}
+                    disabled={(selectedReportPeriod === "month" && !selectedReportMonth) || billingReconciliation.isPending}
                     className="sm:self-end"
                   >
                     {billingReconciliation.isPending ? "Loading..." : "Load report"}

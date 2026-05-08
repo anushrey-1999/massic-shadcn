@@ -10,6 +10,13 @@ export type BillingReconciliationMatchStatus =
   | "matched_agency_add_on"
   | "unmatched";
 
+export type BillingReconciliationPeriod =
+  | "month"
+  | "last_quarter"
+  | "this_quarter"
+  | "year_to_date"
+  | "all_time";
+
 export interface BillingReconciliationRow {
   rowType: BillingReconciliationRowType;
   businessName: string;
@@ -47,6 +54,10 @@ export interface BillingReconciliationReport {
   agencyName: string;
   month: string;
   monthLabel: string;
+  period?: BillingReconciliationPeriod;
+  periodLabel?: string;
+  startDate?: string | null;
+  endDate?: string | null;
   rows: BillingReconciliationRow[];
   summary: BillingReconciliationSummary;
 }

@@ -1,6 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
-import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
+import type {
+  BillingReconciliationPeriod,
+  BillingReconciliationReport,
+} from "@/types/billing-reconciliation-types";
 
 interface BillingReconciliationResponse {
   success: boolean;
@@ -8,15 +11,28 @@ interface BillingReconciliationResponse {
   message?: string;
 }
 
+type BillingReconciliationRequest = {
+  month?: string;
+  period?: Exclude<BillingReconciliationPeriod, "month">;
+  agencyId?: string;
+};
+
 export function useBillingReconciliation() {
-  return useMutation<BillingReconciliationReport, Error, { month: string; agencyId?: string }>({
-    mutationFn: async ({ month, agencyId = "self" }) => {
-      if (!month) {
-        throw new Error("Month is required");
+  return useMutation<BillingReconciliationReport, Error, BillingReconciliationRequest>({
+    mutationFn: async ({ month, period, agencyId = "self" }) => {
+      if (!month && !period) {
+        throw new Error("Month or period is required");
+      }
+
+      const params = new URLSearchParams();
+      if (period) {
+        params.set("period", period);
+      } else if (month) {
+        params.set("month", month);
       }
 
       const response = await api.get<BillingReconciliationResponse>(
-        `/billing/agencies/${agencyId}/reconciliation-report?month=${encodeURIComponent(month)}`,
+        `/billing/agencies/${agencyId}/reconciliation-report?${params.toString()}`,
         "node"
       );
 

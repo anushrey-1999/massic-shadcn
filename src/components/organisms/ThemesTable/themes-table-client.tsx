@@ -4,40 +4,110 @@ import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DataTable } from "@/components/filter-table/index";
 import { DataTableSearch } from "@/components/filter-table/data-table-search";
+import { DataTableFilterList } from "@/components/filter-table/data-table-filter-list";
 import { DataTableViewOptions } from "@/components/filter-table/data-table-view-options";
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list";
+import { getFiltersStateParser } from "@/components/filter-table/parsers";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Loader2, Sparkles, List, Network, Filter, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { AlertCircle, Loader2, Sparkles, List, Network } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
 import { getThemesTableColumns } from "./themes-table-columns";
 import { ThemesForceGraph } from "./themes-force-graph";
+import { ThemesSplitView } from "./themes-split-view";
 import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
+import type { ExtendedColumnFilter, JoinOperator } from "@/types/data-table-types";
+import { parseAsStringEnum, useQueryState } from "nuqs";
 
 interface ThemesTableClientProps {
   businessId: string;
+  onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
-export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
+function getFilterValues(row: ThemeRow, field: string): string[] {
+  if (field === "theme_name") return [row.theme_name || ""];
+  if (field === "offerings") return row.offerings || [];
+  if (field === "topics") return (row.topics || []).map((topic) => topic.topic_name);
+  return [];
+}
+
+function matchesAdvancedFilters(
+  row: ThemeRow,
+  filters: ExtendedColumnFilter<ThemeRow>[],
+  joinOperator: JoinOperator
+) {
+  const results = filters.map((filter) => {
+    const values = getFilterValues(row, filter.field);
+    const filterValue = Array.isArray(filter.value)
+      ? filter.value.join(" ")
+      : String(filter.value ?? "");
+    const normalizedFilterValue = filterValue.toLowerCase();
+    const normalizedValues = values.map((value) => value.toLowerCase());
+
+    if (filter.operator === "isEmpty") {
+      return values.length === 0 || values.every((value) => value.trim().length === 0);
+    }
+
+    if (filter.operator === "isNotEmpty") {
+      return values.some((value) => value.trim().length > 0);
+    }
+
+    if (filter.operator === "notILike") {
+      return normalizedValues.every((value) => !value.includes(normalizedFilterValue));
+    }
+
+    if (filter.operator === "eq") {
+      return normalizedValues.some((value) => value === normalizedFilterValue);
+    }
+
+    return normalizedValues.some((value) => value.includes(normalizedFilterValue));
+  });
+
+  return joinOperator === "or"
+    ? results.some(Boolean)
+    : results.every(Boolean);
+}
+
+export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTableClientProps) {
   const [view, setView] = React.useState<"table" | "graph">("table");
   const [search, setSearch] = React.useState("");
-  const [selectedOfferings, setSelectedOfferings] = React.useState<string[]>([]);
+  const [selectedOffering, setSelectedOffering] = React.useState("all");
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+  const [isSplitView, setIsSplitView] = React.useState(false);
+  const [selectedThemeId, setSelectedThemeId] = React.useState<string | null>(null);
+  const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [isPolling, setIsPolling] = React.useState(false);
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
+  const themeFilterFields = React.useMemo(
+    () => ["theme_name", "offerings", "topics"],
+    []
+  );
+  const [advancedFilters] = useQueryState(
+    "themesFilters",
+    getFiltersStateParser<ThemeRow>(themeFilterFields).withDefault([])
+  );
+  const [joinOperator] = useQueryState(
+    "themesJoinOperator",
+    parseAsStringEnum(["and", "or"]).withDefault("and")
+  );
+
   // Clear offerings filter when switching to table view
   React.useEffect(() => {
-    if (view === "table" && selectedOfferings.length > 0) {
-      setSelectedOfferings([]);
+    if (view === "table" && selectedOffering !== "all") {
+      setSelectedOffering("all");
     }
-  }, [view]);
+  }, [view, selectedOffering]);
 
   const { fetchThemes, triggerThemes } = useThemes(businessId);
 
@@ -108,24 +178,38 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
   const allOfferings = React.useMemo(() => {
     const offeringsSet = new Set<string>();
     allData.forEach((row) => {
-      if (row.origin_offering) offeringsSet.add(row.origin_offering);
-      row.offerings?.forEach((o) => offeringsSet.add(o));
+      const originOffering = row.origin_offering?.trim();
+      if (originOffering) offeringsSet.add(originOffering);
+      row.offerings?.forEach((offering) => {
+        const trimmed = offering.trim();
+        if (trimmed) offeringsSet.add(trimmed);
+      });
     });
     return Array.from(offeringsSet).sort();
   }, [allData]);
 
+  React.useEffect(() => {
+    if (selectedOffering === "all") return;
+    if (allOfferings.includes(selectedOffering)) return;
+    setSelectedOffering("all");
+  }, [allOfferings, selectedOffering]);
+
+  const formatOfferingLabel = React.useCallback((value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }, []);
+
   const filteredData = React.useMemo(() => {
     let data = allData;
 
-    // Filter by selected offerings
-    if (selectedOfferings.length > 0) {
-      data = data.filter((row) =>
-        selectedOfferings.some(
-          (offering) =>
-            row.origin_offering === offering ||
-            row.offerings?.includes(offering)
-        )
-      );
+    // Filter by selected offering
+    if (selectedOffering !== "all") {
+      data = data.filter((row) => {
+        const originOffering = row.origin_offering?.trim();
+        const offerings = row.offerings?.map((offering) => offering.trim()) ?? [];
+        return originOffering === selectedOffering || offerings.includes(selectedOffering);
+      });
     }
 
     // Filter by search text
@@ -140,17 +224,32 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
       );
     }
 
+    if (advancedFilters.length > 0) {
+      data = data.filter((row) =>
+        matchesAdvancedFilters(row, advancedFilters, joinOperator)
+      );
+    }
+
     return data;
-  }, [allData, search, selectedOfferings]);
+  }, [allData, search, selectedOffering, advancedFilters, joinOperator]);
 
   const { table } = useLocalDataTable({
     data: filteredData,
     columns,
     initialState: {
-      sorting: [{ id: "topic_count", desc: true }],
+      sorting: [{ id: "theme_name", desc: false }],
       pagination: { pageIndex: 0, pageSize: 50 },
     },
     getRowId: (row: ThemeRow) => row.id,
+    meta: {
+      queryKeys: {
+        filters: "themesFilters",
+        joinOperator: "themesJoinOperator",
+        page: "themesPage",
+        perPage: "themesPerPage",
+        sort: "themesSort",
+      },
+    },
   });
 
   if (themesError) {
@@ -197,6 +296,7 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
   }
 
   const showEmptyState = !isPolling && !themesLoading && themesData && !themesData.hasData;
+  const showGenerateAction = Boolean(themesData?.isNotFound);
 
   if (showEmptyState) {
     return (
@@ -204,20 +304,24 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
         <div className="flex flex-col items-center gap-2 text-center">
           <Sparkles className="h-8 w-8 text-muted-foreground" />
           <Typography variant="p" className="font-medium text-foreground">
-            No themes generated yet
+            {showGenerateAction ? "No themes generated yet" : "No themes found"}
           </Typography>
           <Typography variant="p" className="text-sm text-muted-foreground">
-            Click the button below to generate themes for this business.
+            {showGenerateAction
+              ? "Click the button below to generate themes for this business."
+              : "Themes have already been generated, but no results were found."}
           </Typography>
         </div>
-        <Button
-          onClick={() => triggerMutation.mutate()}
-          disabled={triggerMutation.isPending}
-        >
-          <Sparkles className="h-4 w-4 mr-2" />
-          Generate Themes
-        </Button>
-        {triggerMutation.isError && (
+        {showGenerateAction && (
+          <Button
+            onClick={() => triggerMutation.mutate()}
+            disabled={triggerMutation.isPending}
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Generate Themes
+          </Button>
+        )}
+        {showGenerateAction && triggerMutation.isError && (
           <p className="text-sm text-destructive">
             Generation failed. Please try again.
           </p>
@@ -227,66 +331,59 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
   }
 
   const totalThemes = allData.length;
+  const graphStats = (() => {
+    const offerings = new Set<string>();
+    let sharedThemes = 0;
 
-  const handleOfferingToggle = (offering: string) => {
-    setSelectedOfferings((prev) =>
-      prev.includes(offering)
-        ? prev.filter((o) => o !== offering)
-        : [...prev, offering]
-    );
+    filteredData.forEach((row) => {
+      const names = [
+        ...(Array.isArray(row.offerings) ? row.offerings : []),
+        row.origin_offering,
+      ]
+        .map((name) => String(name ?? "").trim())
+        .filter(Boolean);
+
+      names.forEach((name) => offerings.add(name));
+      if (new Set(names).size > 1) sharedThemes += 1;
+    });
+
+    return {
+      offerings: offerings.size,
+      themes: filteredData.length,
+      sharedThemes,
+    };
+  })();
+
+  const handleThemeRowClick = (row: ThemeRow) => {
+    setSelectedThemeId(row.id);
+    setSplitViewSearch("");
+    setIsSplitView(true);
+    onSplitViewChange?.(true);
+  };
+
+  const handleBackToMain = () => {
+    setIsSplitView(false);
+    setSelectedThemeId(null);
+    setSplitViewSearch("");
+    onSplitViewChange?.(false);
   };
 
   const offeringsFilter = (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" className="h-9 gap-2 font-normal">
-          <Filter className="h-4 w-4" />
-          Offerings
-          {selectedOfferings.length > 0 && (
-            <Badge variant="secondary" className="ml-1 rounded-sm px-1 font-normal">
-              {selectedOfferings.length}
-            </Badge>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64 p-0" align="start">
-        <div className="p-3 border-b">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Filter by Offerings</p>
-            {selectedOfferings.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedOfferings([])}
-                className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="max-h-64 overflow-y-auto p-2">
-          {allOfferings.length === 0 ? (
-            <p className="text-sm text-muted-foreground p-2">No offerings available</p>
-          ) : (
-            allOfferings.map((offering) => (
-              <div
-                key={offering}
-                className="flex items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent cursor-pointer"
-                onClick={() => handleOfferingToggle(offering)}
-              >
-                <Checkbox
-                  checked={selectedOfferings.includes(offering)}
-                  onCheckedChange={() => handleOfferingToggle(offering)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <span className="text-sm flex-1">{offering}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+    allOfferings.length > 0 ? (
+      <Select value={selectedOffering} onValueChange={setSelectedOffering}>
+        <SelectTrigger className="w-[240px] max-w-[45vw]">
+          <SelectValue placeholder="All offerings" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All offerings</SelectItem>
+          {allOfferings.map((offering) => (
+            <SelectItem key={offering} value={offering}>
+              {formatOfferingLabel(offering)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : null
   );
 
   const viewToggle = (
@@ -309,49 +406,24 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
       <div className="h-full flex flex-col gap-4">
         <div className="shrink-0 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               {offeringsFilter}
-              {totalThemes != null && (
-                <Typography variant="p" className="text-sm font-mono text-general-muted-foreground">
-                  {selectedOfferings.length > 0 || search.trim()
-                    ? `${filteredData.length} of ${totalThemes} Themes`
-                    : `${totalThemes} Themes`}
-                </Typography>
-              )}
+              <div className="flex items-center gap-4">
+                <div className="text-sm font-mono text-general-muted-foreground">
+                  <span className="text-general-primary">{graphStats.offerings}</span> Offerings
+                </div>
+                <div className="text-sm font-mono text-general-muted-foreground">
+                  <span className="text-general-primary">{graphStats.themes}</span> Themes
+                </div>
+                <div className="text-sm font-mono text-general-muted-foreground">
+                  <span className="text-general-primary">{graphStats.sharedThemes}</span> Shared
+                </div>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {viewToggle}
-              <Button
-                variant="outline"
-                onClick={() => { setIsPolling(false); triggerMutation.mutate(); }}
-                disabled={triggerMutation.isPending}
-                className="h-9 font-normal"
-              >
-                <Sparkles className="h-4 w-4" />
-                Generate Themes
-              </Button>
             </div>
           </div>
-          {selectedOfferings.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-muted-foreground">Filtered by:</span>
-              {selectedOfferings.map((offering) => (
-                <Badge
-                  key={offering}
-                  variant="secondary"
-                  className="gap-1 pl-2 pr-1.5 py-0.5"
-                >
-                  {offering}
-                  <button
-                    onClick={() => handleOfferingToggle(offering)}
-                    className="ml-0.5 rounded-sm hover:bg-muted"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
         </div>
         <div className="flex-1 min-h-0">
           <ThemesForceGraph data={filteredData} />
@@ -360,27 +432,36 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
     );
   }
 
+  if (isSplitView) {
+    return (
+      <div className="relative h-full flex flex-col">
+        <ThemesSplitView
+          themesData={allData}
+          selectedThemeId={selectedThemeId}
+          onThemeSelect={setSelectedThemeId}
+          search={splitViewSearch}
+          onSearchChange={setSplitViewSearch}
+          onBack={handleBackToMain}
+        />
+      </div>
+    );
+  }
+
   return (
     <div ref={tableContainerRef} className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden gap-4">
       <div className="shrink-0 flex items-center justify-between gap-4">
-        <DataTableSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search themes, offerings, topics..."
-        />
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <DataTableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search themes, offerings, topics..."
+          />
+          <DataTableFilterList table={table} align="start" />
+        </div>
         <div className="flex items-center gap-2">
           <DataTableSortList table={table} align="start" />
           <DataTableViewOptions table={table} align="end" />
           {viewToggle}
-          <Button
-            variant="outline"
-            onClick={() => { setIsPolling(false); triggerMutation.mutate(); }}
-            disabled={triggerMutation.isPending}
-            className="h-9 font-normal"
-          >
-            <Sparkles className="h-4 w-4" />
-            Generate Themes
-          </Button>
         </div>
       </div>
       {totalThemes != null && (
@@ -402,10 +483,7 @@ export function ThemesTableClient({ businessId }: ThemesTableClientProps) {
           showPagination={true}
           disableHorizontalScroll={false}
           className="h-full"
-          onRowClick={(row) => {
-            const rowId = (row as ThemeRow).id;
-            setExpandedRowId((prev) => (prev === rowId ? null : rowId));
-          }}
+          onRowClick={handleThemeRowClick}
           selectedRowId={expandedRowId}
           highlightSelectedRow={false}
         />

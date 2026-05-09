@@ -7,6 +7,12 @@ import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
 import { ExpandablePills } from "@/components/ui/expandable-pills";
 
+const textFilterOperators = [
+  { label: "Contains", value: "iLike" as const },
+  { label: "Is", value: "eq" as const },
+  { label: "Does not contain", value: "notILike" as const },
+];
+
 interface GetThemesTableColumnsProps {
   expandedRowId?: string | null;
   onExpandedRowChange?: (rowId: string | null) => void;
@@ -28,6 +34,12 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
           </Typography>
         );
       },
+      meta: {
+        label: "Theme",
+        placeholder: "Search themes...",
+        variant: "text",
+        operators: textFilterOperators,
+      },
       enableSorting: true,
       enableColumnFilter: true,
       size: 300,
@@ -37,22 +49,6 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
         if (!value) return true;
         return name?.toLowerCase().includes(String(value).toLowerCase());
       },
-    },
-    {
-      id: "topic_count",
-      accessorKey: "topic_count",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Topic Count" />
-      ),
-      cell: ({ row }) => {
-        const count = row.getValue("topic_count") as number;
-        return (
-          <Typography variant="p">{count?.toLocaleString() ?? "-"}</Typography>
-        );
-      },
-      enableSorting: true,
-      size: 130,
-      minSize: 100,
     },
     {
       id: "offerings",
@@ -76,6 +72,13 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
           </div>
         );
       },
+      meta: {
+        label: "Offerings",
+        placeholder: "Search offerings...",
+        variant: "text",
+        operators: textFilterOperators,
+      },
+      enableColumnFilter: true,
       enableSorting: false,
       size: 150,
       minSize: 120,
@@ -103,6 +106,13 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
           </div>
         );
       },
+      meta: {
+        label: "Topics",
+        placeholder: "Search topics...",
+        variant: "text",
+        operators: textFilterOperators,
+      },
+      enableColumnFilter: true,
       enableSorting: false,
       size: 200,
       minSize: 150,

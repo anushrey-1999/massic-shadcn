@@ -40,6 +40,11 @@ const OFFERING_PALETTE = [
   "#22c55e", "#14b8a6", "#0ea5e9", "#f43f5e", "#a855f7",
 ];
 
+const SHARED_THEME_PALETTE = [
+  "#334155", "#475569", "#64748b", "#78716c", "#57534e",
+  "#44403c", "#525252", "#3f3f46", "#404040", "#1f2937",
+];
+
 function hashIndex(str: string, len: number): number {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
@@ -50,7 +55,6 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
   const svgRef = React.useRef<SVGSVGElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const simulationRef = React.useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
-  const resetZoomRef = React.useRef<(() => void) | null>(null);
   const [tooltip, setTooltip] = React.useState<TooltipState | null>(null);
   const [size, setSize] = React.useState({ width: 800, height: 600 });
 
@@ -103,12 +107,15 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
     const themeNodes: GraphNode[] = data.map((d) => {
       const offerings = getOfferings(d);
       const primaryOffering = d.origin_offering || offerings[0] || "Other";
+      const color = offerings.length > 1
+        ? SHARED_THEME_PALETTE[hashIndex(d.id || d.theme_name, SHARED_THEME_PALETTE.length)]
+        : colorMap[primaryOffering] ?? "#94a3b8";
       return {
         id: d.id,
         label: d.theme_name,
         type: "theme",
         radius: 8 + Math.sqrt(Math.max(d.topic_count ?? 1, 1)) * 2.8,
-        color: colorMap[primaryOffering] ?? "#94a3b8",
+        color,
         origin_offering: primaryOffering,
         offerings,
         connectedOfferingsCount: offerings.length,
@@ -178,9 +185,12 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
 
     nodesCopy.forEach((node) => {
       const anchor = getNodeAnchor(node);
-      const jitter = (hashIndex(node.id, 100) - 50) / 50;
-      node.x = anchor.x + jitter * 32;
-      node.y = anchor.y - jitter * 32;
+      const angle = (hashIndex(`${node.id}:angle`, 360) / 360) * Math.PI * 2;
+      const distance = node.type === "offering"
+        ? 28
+        : 72 + hashIndex(`${node.id}:distance`, 68);
+      node.x = anchor.x + Math.cos(angle) * distance;
+      node.y = anchor.y + Math.sin(angle) * distance;
     });
 
     const simulation = d3
@@ -192,15 +202,15 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
           .id((d) => d.id)
           .distance((l) => {
             const target = l.target as GraphNode;
-            return (target.connectedOfferingsCount ?? 1) > 1 ? 220 : 165;
+            return (target.connectedOfferingsCount ?? 1) > 1 ? 270 : 205;
           })
-          .strength((l) => ((l.target as GraphNode).connectedOfferingsCount ?? 1) > 1 ? 0.5 : 0.35)
+          .strength((l) => ((l.target as GraphNode).connectedOfferingsCount ?? 1) > 1 ? 0.42 : 0.28)
       )
-      .force("charge", d3.forceManyBody<GraphNode>().strength((d) => (d.type === "offering" ? -1200 : -220)))
+      .force("charge", d3.forceManyBody<GraphNode>().strength((d) => (d.type === "offering" ? -1200 : -360)))
       .force("center", d3.forceCenter(centerX, centerY).strength(0.04))
-      .force("x", d3.forceX<GraphNode>((d) => getNodeAnchor(d).x).strength((d) => (d.type === "offering" ? 0.18 : 0.045)))
-      .force("y", d3.forceY<GraphNode>((d) => getNodeAnchor(d).y).strength((d) => (d.type === "offering" ? 0.18 : 0.045)))
-      .force("collide", d3.forceCollide<GraphNode>().radius((d) => d.radius + 18).strength(0.95));
+      .force("x", d3.forceX<GraphNode>((d) => getNodeAnchor(d).x).strength((d) => (d.type === "offering" ? 0.18 : 0.025)))
+      .force("y", d3.forceY<GraphNode>((d) => getNodeAnchor(d).y).strength((d) => (d.type === "offering" ? 0.18 : 0.025)))
+      .force("collide", d3.forceCollide<GraphNode>().radius((d) => d.radius + 24).strength(0.98));
 
     simulationRef.current = simulation;
 
@@ -216,12 +226,6 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
       });
 
     root.call(zoom);
-    resetZoomRef.current = () => {
-      root
-        .transition()
-        .duration(350)
-        .call(zoom.transform, d3.zoomIdentity);
-    };
 
     const linkSel = zoomG
       .append("g")
@@ -311,35 +315,71 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
           .text(line);
       });
 
-    nodeSel
-      .on("mouseenter", function (event, d) {
-        const connectedIds = new Set<string>();
-        connectedIds.add(d.id);
-        linksCopy.forEach((link) => {
+    let activeNodeId: string | null = null;
+
+    const getConnectedIds = (node: GraphNode) => {
+      const connectedIds = new Set<string>([node.id]);
+      linksCopy.forEach((link) => {
+        const source = link.source as GraphNode;
+        const target = link.target as GraphNode;
+        if (source.id === node.id || target.id === node.id) {
+          connectedIds.add(source.id);
+          connectedIds.add(target.id);
+        }
+      });
+      return connectedIds;
+    };
+
+    const getBaseLinkWidth = (link: GraphLink) =>
+      ((link.target as GraphNode).connectedOfferingsCount ?? 1) > 1 ? 2 : 1.3;
+
+    const resetHighlight = () => {
+      activeNodeId = null;
+      linkSel
+        .attr("stroke-opacity", 0.34)
+        .attr("stroke-width", getBaseLinkWidth);
+      nodeSel.attr("opacity", 1);
+      nodeSel
+        .select<SVGCircleElement>("circle")
+        .attr("fill-opacity", (node) => (node.type === "offering" ? 0.12 : 0.85))
+        .attr("stroke-width", (node) => (node.type === "offering" ? 2.5 : 1.5));
+    };
+
+    const applyHighlight = (node: GraphNode) => {
+      const connectedIds = getConnectedIds(node);
+      linkSel
+        .attr("stroke-opacity", (link) => {
           const source = link.source as GraphNode;
           const target = link.target as GraphNode;
-          if (source.id === d.id || target.id === d.id) {
-            connectedIds.add(source.id);
-            connectedIds.add(target.id);
-          }
+          return source.id === node.id || target.id === node.id ? 0.78 : 0.12;
+        })
+        .attr("stroke-width", (link) => {
+          const source = link.source as GraphNode;
+          const target = link.target as GraphNode;
+          const baseWidth = getBaseLinkWidth(link);
+          return source.id === node.id || target.id === node.id ? baseWidth + 1 : baseWidth;
         });
-        linkSel
-          .attr("stroke-opacity", (link) => {
-            const source = link.source as GraphNode;
-            const target = link.target as GraphNode;
-            return source.id === d.id || target.id === d.id ? 0.78 : 0.12;
-          })
-          .attr("stroke-width", (link) => {
-            const source = link.source as GraphNode;
-            const target = link.target as GraphNode;
-            const baseWidth = (target.connectedOfferingsCount ?? 1) > 1 ? 2 : 1.3;
-            return source.id === d.id || target.id === d.id ? baseWidth + 1 : baseWidth;
-          });
-        nodeSel.attr("opacity", (node) => (connectedIds.has(node.id) ? 1 : 0.28));
-        d3.select(this)
-          .select("circle")
-          .attr("fill-opacity", d.type === "offering" ? 0.28 : 1)
-          .attr("stroke-width", d.type === "offering" ? 3.5 : 2.5);
+      nodeSel.attr("opacity", (connectedNode) => (connectedIds.has(connectedNode.id) ? 1 : 0.28));
+      nodeSel
+        .select<SVGCircleElement>("circle")
+        .attr("fill-opacity", (connectedNode) => {
+          if (connectedNode.id !== node.id) return connectedNode.type === "offering" ? 0.12 : 0.85;
+          return connectedNode.type === "offering" ? 0.28 : 1;
+        })
+        .attr("stroke-width", (connectedNode) => {
+          if (connectedNode.id !== node.id) return connectedNode.type === "offering" ? 2.5 : 1.5;
+          return connectedNode.type === "offering" ? 3.5 : 2.5;
+        });
+    };
+
+    root.on("click", () => {
+      resetHighlight();
+      setTooltip(null);
+    });
+
+    nodeSel
+      .on("mouseenter", function (event, d) {
+        if (!activeNodeId) applyHighlight(d);
         const rect = svgRef.current!.getBoundingClientRect();
         setTooltip({ x: event.clientX - rect.left, y: event.clientY - rect.top, node: d });
       })
@@ -347,15 +387,13 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
         const rect = svgRef.current!.getBoundingClientRect();
         setTooltip((prev) => (prev ? { ...prev, x: event.clientX - rect.left, y: event.clientY - rect.top } : prev));
       })
+      .on("click", function (event, d) {
+        event.stopPropagation();
+        activeNodeId = d.id;
+        applyHighlight(d);
+      })
       .on("mouseleave", function (_, d) {
-        linkSel
-          .attr("stroke-opacity", 0.34)
-          .attr("stroke-width", (link) => ((link.target as GraphNode).connectedOfferingsCount ?? 1) > 1 ? 2 : 1.3);
-        nodeSel.attr("opacity", 1);
-        d3.select(this)
-          .select("circle")
-          .attr("fill-opacity", d.type === "offering" ? 0.12 : 0.85)
-          .attr("stroke-width", d.type === "offering" ? 2.5 : 1.5);
+        if (!activeNodeId) resetHighlight();
         setTooltip(null);
       });
 
@@ -371,7 +409,6 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
 
     return () => {
       simulation.stop();
-      resetZoomRef.current = null;
     };
   }, [nodes, links, size]);
 
@@ -392,25 +429,6 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
     ],
     [data]
   );
-
-  const graphStats = React.useMemo(() => {
-    const sharedThemes = data.filter((row) => {
-      const names = [
-        ...(Array.isArray(row.offerings) ? row.offerings : []),
-        row.origin_offering,
-      ]
-        .map((name) => String(name ?? "").trim())
-        .filter(Boolean);
-
-      return new Set(names).size > 1;
-    }).length;
-
-    return {
-      offerings: offeringNames.length,
-      themes: data.length,
-      sharedThemes,
-    };
-  }, [data, offeringNames.length]);
 
   return (
     <div className="relative w-full h-full flex">
@@ -473,23 +491,6 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
           </div>
         )}
 
-        <div className="absolute top-3 left-3 rounded-lg border border-border bg-white/90 p-3 shadow-sm">
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div>
-              <div className="text-base font-semibold text-foreground">{graphStats.offerings}</div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Offerings</div>
-            </div>
-            <div>
-              <div className="text-base font-semibold text-foreground">{graphStats.themes}</div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Themes</div>
-            </div>
-            <div>
-              <div className="text-base font-semibold text-foreground">{graphStats.sharedThemes}</div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Shared</div>
-            </div>
-          </div>
-        </div>
-
         <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 max-w-[560px] rounded-lg border border-border bg-white/85 p-2 shadow-sm">
           {offeringNames.map((name) => (
             <span key={name} className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -500,18 +501,6 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
               {name}
             </span>
           ))}
-        </div>
-
-        <div className="absolute top-3 right-3 text-xs text-muted-foreground bg-white/85 rounded-lg px-3 py-2 border border-border shadow-sm max-w-[320px]">
-          Offering hubs are spread around the canvas. Shared themes sit between hubs and use dashed rings.
-          <div className="mt-1">Scroll to zoom · Drag to pan · Click node for details</div>
-          <button
-            type="button"
-            onClick={() => resetZoomRef.current?.()}
-            className="mt-2 rounded border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
-          >
-            Reset view
-          </button>
         </div>
       </div>
     </div>

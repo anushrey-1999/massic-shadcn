@@ -4,6 +4,7 @@ import React from 'react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
+import { ContentSeriesTableClient } from '@/components/organisms/ContentSeriesTable'
 import { DigitalAdsTableClient } from '@/components/organisms/DigitalAdsTable'
 import { TvRadioAdsTableClient } from '@/components/organisms/TvRadioAdsTable'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
@@ -12,6 +13,7 @@ import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { usePathname, useRouter } from 'next/navigation'
 import { Typography } from '@/components/ui/typography'
 import { formatVolume } from '@/lib/format'
+import type { ContentSeriesMetrics } from '@/types/content-series-types'
 import type { DigitalAdsMetrics } from '@/types/digital-ads-types'
 import type { TvRadioAdsMetrics } from '@/types/tv-radio-ads-types'
 import { getWorkflowStatus, isWorkflowSuccess } from '@/lib/workflow-status'
@@ -25,13 +27,14 @@ interface PageProps {
 function AdsEntitledContent({ businessId }: { businessId: string }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [activeTab, setActiveTab] = React.useState<"digital" | "tv-radio">("digital")
+  const [activeTab, setActiveTab] = React.useState<"digital" | "tv-radio" | "content">("digital")
   const [digitalMetrics, setDigitalMetrics] = React.useState<DigitalAdsMetrics | null>(null)
   const [tvRadioMetrics, setTvRadioMetrics] = React.useState<TvRadioAdsMetrics | null>(null)
+  const [contentMetrics, setContentMetrics] = React.useState<ContentSeriesMetrics | null>(null)
 
   const handleTabChange = React.useCallback(
     (value: string) => {
-      setActiveTab(value as "digital" | "tv-radio")
+      setActiveTab(value as "digital" | "tv-radio" | "content")
       router.replace(pathname)
     },
     [router, pathname]
@@ -58,8 +61,13 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
       return `${formatVolume(tvRadioMetrics.total_ads)} Sub Topics`
     }
 
+    if (activeTab === "content") {
+      if (!contentMetrics) return null
+      return `${formatVolume(contentMetrics.total_cards)} Content Ideas`
+    }
+
     return null
-  }, [activeTab, digitalMetrics, tvRadioMetrics])
+  }, [activeTab, digitalMetrics, tvRadioMetrics, contentMetrics])
 
   const { data: jobDetails } = useJobByBusinessId(businessId || null)
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
@@ -74,6 +82,7 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
           <TabsList>
             <TabsTrigger value="digital">Digital</TabsTrigger>
             <TabsTrigger value="tv-radio">TV & Radio</TabsTrigger>
+            <TabsTrigger value="content">Content</TabsTrigger>
           </TabsList>
           {headerMetricsText && (
             <Typography
@@ -105,6 +114,9 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
               emptyStateHeight="min-h-[calc(100vh-12rem)]"
             />
           )}
+        </TabsContent>
+        <TabsContent value="content" className="flex-1 min-h-0 mt-4">
+          <ContentSeriesTableClient businessId={businessId} onMetricsChange={setContentMetrics} />
         </TabsContent>
       </Tabs>
     </div>

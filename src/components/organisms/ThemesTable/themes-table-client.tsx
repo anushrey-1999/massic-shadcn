@@ -33,6 +33,8 @@ interface ThemesTableClientProps {
   onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
+type ThemesView = "table" | "graph" | "umap";
+
 function getFilterValues(row: ThemeRow, field: string): string[] {
   if (field === "theme_name") return [row.theme_name || ""];
   if (field === "offerings") return row.offerings || [];
@@ -78,7 +80,7 @@ function matchesAdvancedFilters(
 }
 
 export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTableClientProps) {
-  const [view, setView] = React.useState<"table" | "graph">("table");
+  const [view, setView] = React.useState<ThemesView>("table");
   const [search, setSearch] = React.useState("");
   const [selectedOffering, setSelectedOffering] = React.useState("all");
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
@@ -387,7 +389,7 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
   );
 
   const viewToggle = (
-    <Tabs value={view} onValueChange={(v) => setView(v as "table" | "graph")} className="shrink-0">
+    <Tabs value={view} onValueChange={(v) => setView(v as ThemesView)} className="shrink-0">
       <TabsList>
         <TabsTrigger value="table">
           <List className="h-4 w-4" />
@@ -397,11 +399,15 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
           <Network className="h-4 w-4" />
           Graph
         </TabsTrigger>
+        <TabsTrigger value="umap">
+          <Network className="h-4 w-4" />
+          UMAP
+        </TabsTrigger>
       </TabsList>
     </Tabs>
   );
 
-  if (view === "graph") {
+  if (view === "graph" || view === "umap") {
     return (
       <div className="h-full flex flex-col gap-4">
         <div className="shrink-0 flex flex-col gap-3">
@@ -426,7 +432,7 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
           </div>
         </div>
         <div className="flex-1 min-h-0">
-          <ThemesForceGraph data={filteredData} />
+          <ThemesForceGraph data={filteredData} layout={view === "umap" ? "umap" : "force"} />
         </div>
       </div>
     );

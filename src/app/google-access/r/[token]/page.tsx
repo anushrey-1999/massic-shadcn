@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertTriangle, Clock } from "lucide-react";
 import { useAccessRequestStatus } from "@/hooks/use-access-request-flow";
+import { getBaseURLByPlatform } from "@/hooks/use-api";
 import { PRODUCT_CONFIG } from "@/config/access-request";
 import { ProductIcon } from "@/components/organisms/access-request/ProductIcon";
 import type { Product } from "@/types/access-request";
@@ -32,10 +33,6 @@ function GoogleIcon() {
       />
     </svg>
   );
-}
-
-function getApiBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_NODE_API_URL || "http://localhost:4922/api/1";
 }
 
 export default function AccessRequestLandingPage() {
@@ -108,7 +105,11 @@ export default function AccessRequestLandingPage() {
             </div>
             <h2 className="text-xl font-semibold text-gray-900">All Done!</h2>
             <p className="text-sm text-gray-500">
-              All access requests have been completed. You can close this page.
+              Access has been granted successfully to{" "}
+              <span className="font-mono font-medium">
+                {data.request.agencyEmail}
+              </span>
+              . You can safely close this page.
             </p>
           </CardContent>
         </Card>
@@ -118,10 +119,11 @@ export default function AccessRequestLandingPage() {
 
   const products = data?.request?.products || data?.steps?.map((s) => s.product as Product) || [];
   const agencyEmail = data?.request?.agencyEmail || "the agency";
+  const agencyName = data?.request?.agencyName || agencyEmail;
   const expiresAt = data?.request?.expiresAt;
 
   function handleContinue() {
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = getBaseURLByPlatform("node");
     window.location.href = `${baseUrl}/access-request/auth/google/start?token=${token}`;
   }
 
@@ -137,7 +139,9 @@ export default function AccessRequestLandingPage() {
                 <path d="M8 16l6 6L24 10" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Grant Access</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {agencyName} is requesting access to your Google Assets
+            </h1>
             <p className="text-sm text-gray-500 max-w-xs mx-auto">
               Sign in with Google to grant access to your accounts. This is a
               one-time process.

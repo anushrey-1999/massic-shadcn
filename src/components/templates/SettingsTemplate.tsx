@@ -102,7 +102,7 @@ const SettingsTemplate = () => {
               value="access-requests"
               className={isTeamMember ? "hidden" : "mt-6"}
             >
-              <AccessRequestSettings />
+              <AccessRequestSettings isActive={activeTab === "access-requests"} />
             </TabsContent>
           </Tabs>
         </div>

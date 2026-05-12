@@ -22,6 +22,10 @@ export function useAccessRequests(page = 1, limit = 20) {
       );
       return res.data;
     },
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
   });
 }
 

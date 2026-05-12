@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
+import { api } from "@/hooks/use-api";
 import type {
   AccessRequestStatusResponse,
   AccessRequestStepsResponse,
   AccessRequestStep,
   DiscoverAssetsResponse,
   Product,
+  VerifyStepResponse,
 } from "@/types/access-request";
 
 interface ApiResponse<T> {
@@ -14,23 +15,17 @@ interface ApiResponse<T> {
   message?: string;
 }
 
-function getNodeBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_NODE_API_URL || "http://localhost:4922/api/1";
-}
-
-const publicApi = axios.create({
-  timeout: 120000,
-  headers: { "Content-Type": "application/json" },
-});
+const publicRequestConfig = {
+  skipAuth: true,
+  suppressUnauthorizedSession: true,
+};
 
 async function publicGet<T>(path: string): Promise<T> {
-  const res = await publicApi.get<T>(`${getNodeBaseUrl()}${path}`);
-  return res.data;
+  return api.get<T>(path, "node", publicRequestConfig);
 }
 
 async function publicPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await publicApi.post<T>(`${getNodeBaseUrl()}${path}`, body);
-  return res.data;
+  return api.post<T>(path, "node", body, publicRequestConfig);
 }
 
 export function useAccessRequestStatus(token: string) {
@@ -128,9 +123,9 @@ export function useExecuteStep(token: string) {
 export function useVerifyStep(token: string) {
   const queryClient = useQueryClient();
 
-  return useMutation<Record<string, unknown>, Error, { product: Product }>({
+  return useMutation<VerifyStepResponse, Error, { product: Product }>({
     mutationFn: async ({ product }) => {
-      const res = await publicPost<ApiResponse<Record<string, unknown>>>(
+      const res = await publicPost<ApiResponse<VerifyStepResponse>>(
         `/access-request/${token}/steps/${product}/verify`
       );
       if (!res.success) throw new Error(res.message || "Failed to verify step");

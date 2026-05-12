@@ -10,16 +10,17 @@ import { AlertCircle } from "lucide-react";
 import { ChannelsSidebar } from "./channels-sidebar";
 import { useSocial } from "@/hooks/use-social";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import type { SocialRow } from "@/types/social-types";
+import type { SocialRow, SocialStrategyType } from "@/types/social-types";
 
 interface SocialTableClientProps {
   businessId: string;
   channelsSidebar?: React.ReactNode;
   toolbarRightPrefix?: React.ReactNode;
   isReadOnly?: boolean;
+  strategyType?: SocialStrategyType;
 }
 
-export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPrefix, isReadOnly = false }: SocialTableClientProps) {
+export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPrefix, isReadOnly = false, strategyType = "publish" }: SocialTableClientProps) {
   const [tacticsSearch, setTacticsSearch] = React.useState("");
   const [suppressTacticsFetching, setSuppressTacticsFetching] = React.useState(false);
   const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
@@ -103,7 +104,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
 
-  const { fetchSocial, fetchSocialCounts, fetchTactics } = useSocial(businessId);
+  const { fetchSocial, fetchSocialCounts, fetchTactics } = useSocial(businessId, strategyType);
   const queryClient = useQueryClient();
 
   React.useEffect(() => {
@@ -114,22 +115,24 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         const key = query.queryKey;
         if (!Array.isArray(key)) return false;
         if (key[0] !== "social") return false;
-        if (key[1] !== businessId) return false;
+        if (key[1] !== strategyType) return false;
+        if (key[2] !== businessId) return false;
 
-        const keyPage = typeof key[2] === "number" ? key[2] : Number(key[2]);
-        const keySearch = typeof key[4] === "string" ? key[4] : "";
-        const keyChannel = key[8] ?? null;
+        const keyPage = typeof key[3] === "number" ? key[3] : Number(key[3]);
+        const keySearch = typeof key[5] === "string" ? key[5] : "";
+        const keyChannel = key[9] ?? null;
 
         return keySearch === "" && keyChannel === null && Number.isFinite(keyPage) && keyPage > 1;
       },
     });
-  }, [hasActiveSearchOrFilters, businessId, queryClient]);
+  }, [hasActiveSearchOrFilters, strategyType, businessId, queryClient]);
 
   const effectiveChannelName = channelName || "all";
 
   const queryKey = React.useMemo(
     () => [
       "social",
+      strategyType,
       businessId,
       page,
       perPage,
@@ -139,7 +142,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
       joinOperator,
       effectiveChannelName,
     ],
-    [businessId, page, perPage, search, sort, filters, joinOperator, effectiveChannelName]
+    [strategyType, businessId, page, perPage, search, sort, filters, joinOperator, effectiveChannelName]
   );
 
   const {
@@ -173,7 +176,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   });
 
   const { data: channelsData } = useQuery({
-    queryKey: ["social-channels-list", businessId],
+    queryKey: ["social-channels-list", strategyType, businessId],
     queryFn: async () => {
       return fetchSocial({
         business_id: businessId,
@@ -216,6 +219,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
 
     const page1QueryKey = [
       "social",
+      strategyType,
       businessId,
       1,
       perPage,
@@ -232,6 +236,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         for (let nextPage = 2; nextPage <= Math.min(3, page1Data.pageCount); nextPage++) {
           const nextPageQueryKey = [
             "social",
+            strategyType,
             businessId,
             nextPage,
             perPage,
@@ -266,7 +271,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
       };
       prefetchNextPages();
     }
-  }, [businessId, jobExists, page, perPage, queryClient, fetchSocial, hasActiveSearchOrFilters]);
+  }, [businessId, strategyType, jobExists, page, perPage, queryClient, fetchSocial, hasActiveSearchOrFilters]);
 
   React.useEffect(() => {
     if (!jobExists || !socialData || !socialData.pageCount) return;
@@ -281,6 +286,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         const prevPage = page - 1;
         const prevQueryKey = [
           "social",
+          strategyType,
           businessId,
           prevPage,
           perPage,
@@ -321,6 +327,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
 
         const prefetchQueryKey = [
           "social",
+          strategyType,
           businessId,
           nextPage,
           perPage,
@@ -355,7 +362,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     };
 
     prefetchPages();
-  }, [socialData, page, perPage, search, sort, filters, joinOperator, effectiveChannelName, channelName, businessId, queryClient, fetchSocial, jobExists, hasActiveSearchOrFilters]);
+  }, [socialData, page, perPage, search, sort, filters, joinOperator, effectiveChannelName, channelName, businessId, strategyType, queryClient, fetchSocial, jobExists, hasActiveSearchOrFilters]);
 
   const {
     data: countsData,
@@ -363,7 +370,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     error: countsErrorData,
     refetch: refetchCounts,
   } = useQuery({
-    queryKey: ["social-counts", businessId],
+    queryKey: ["social-counts", strategyType, businessId],
     queryFn: async () => {
       return fetchSocialCounts();
     },
@@ -395,11 +402,12 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   const tacticsQueryKey = React.useMemo(
     () => [
       "tactics-all",
+      strategyType,
       businessId,
       tacticsChannel || null,
       campaignName || null,
     ],
-    [businessId, tacticsChannel, campaignName]
+    [strategyType, businessId, tacticsChannel, campaignName]
   );
 
   const {
@@ -558,6 +566,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
           onBack={handleBackToMain}
           channelName={tacticsChannel || undefined}
           hideActions={isReadOnly}
+          strategyType={strategyType}
         />
       </div>
     );

@@ -12,6 +12,7 @@ import type {
   TacticApiResponse,
   TacticRow,
   TacticItem,
+  SocialStrategyType,
 } from "@/types/social-types";
 
 function parseDownloadPayload(text: string): unknown {
@@ -35,8 +36,30 @@ function parseDownloadPayload(text: string): unknown {
   }
 
 }
-export function useSocial(businessId: string) {
+
+function getSocialStrategyEndpoint(strategyType: SocialStrategyType) {
+  return strategyType === "engage"
+    ? "/strategies/social-engage"
+    : "/strategies/social-channels";
+}
+
+function getOutputItems<T>(response: any): T[] {
+  const outputData = response?.output_data;
+  if (Array.isArray(outputData?.items)) return outputData.items;
+  if (Array.isArray(outputData?.channels)) return outputData.channels;
+  if (Array.isArray(outputData?.campaigns)) return outputData.campaigns;
+  if (Array.isArray(outputData?.clusters)) return outputData.clusters;
+  if (Array.isArray(outputData)) return outputData;
+  return [];
+}
+
+function isRedditChannel(item: Record<string, any>) {
+  return (item.channel_name || "").toString().trim().toLowerCase() === "reddit";
+}
+
+export function useSocial(businessId: string, strategyType: SocialStrategyType = "publish") {
   const platform: ApiPlatform = "python";
+  const strategyEndpoint = getSocialStrategyEndpoint(strategyType);
 
   const socialApi = useApi<SocialApiResponse>({
     platform,
@@ -53,6 +76,14 @@ export function useSocial(businessId: string) {
   const downloadApi = useApi<any>({
     platform,
   });
+
+  const filterItemsForStrategy = useCallback(
+    <T extends Record<string, any>>(items: T[]) => {
+      if (strategyType !== "publish") return items;
+      return items.filter((item) => !isRedditChannel(item));
+    },
+    [strategyType]
+  );
 
   const transformToTableRows = useCallback((items: SocialItem[]): SocialRow[] => {
     return items.map((item, index) => ({
@@ -185,11 +216,20 @@ export function useSocial(businessId: string) {
         return undefined;
       };
 
+      const isChannelListRequest =
+        !params.channel_name &&
+        !params.search &&
+        (!params.sort || params.sort.length === 0) &&
+        (!params.filters || params.filters.length === 0);
+
       const queryParams = new URLSearchParams({
         business_id: params.business_id,
-        page: params.page.toString(),
-        page_size: params.perPage.toString(),
       });
+
+      if (!isChannelListRequest) {
+        queryParams.append("page", params.page.toString());
+        queryParams.append("page_size", params.perPage.toString());
+      }
 
       if (params.search) {
         queryParams.append("search", params.search);
@@ -244,14 +284,14 @@ export function useSocial(businessId: string) {
         queryParams.append("channel_name", params.channel_name);
       }
 
-      const endpoint = `/strategies/social-channels?${queryParams.toString()}`;
+      const endpoint = `${strategyEndpoint}?${queryParams.toString()}`;
 
       try {
         const response = await socialApi.execute(endpoint, {
           method: "GET",
         });
 
-        const items = response?.output_data?.items || [];
+        const items = filterItemsForStrategy(getOutputItems<SocialItem>(response));
         const flatRows = transformToTableRows(items);
 
         const pagination = response?.output_data?.pagination;
@@ -281,17 +321,17 @@ export function useSocial(businessId: string) {
         throw error;
       }
     },
-    [socialApi, transformToTableRows, mapFilterField, normalizeCampaignRelevanceFilter]
+    [socialApi, strategyEndpoint, transformToTableRows, mapFilterField, normalizeCampaignRelevanceFilter, filterItemsForStrategy]
   );
 
   const fetchSocialCounts = useCallback(async () => {
     try {
-      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `${strategyEndpoint}?business_id=${businessId}&page=1&page_size=1000&channel_name=all`;
       const response = await socialApi.execute(endpoint, {
         method: "GET",
       });
 
-      const items = response?.output_data?.items || [];
+      const items = filterItemsForStrategy(getOutputItems<SocialItem>(response));
 
       const offeringCounts: Record<string, number> = {};
       items.forEach((item: any) => {
@@ -311,16 +351,16 @@ export function useSocial(businessId: string) {
         offeringCounts: {},
       };
     }
-  }, [businessId, socialApi]);
+  }, [businessId, socialApi, strategyEndpoint, filterItemsForStrategy]);
 
   const fetchChannels = useCallback(async () => {
     try {
-      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=1000`;
+      const endpoint = `${strategyEndpoint}?business_id=${businessId}`;
       const response = await socialApi.execute(endpoint, {
         method: "GET",
       });
 
-      const items = response?.output_data?.items || [];
+      const items = filterItemsForStrategy(getOutputItems<SocialItem>(response));
       const uniqueChannels = Array.from(
         new Set(items.map((item: SocialItem) => item.channel_name).filter(Boolean))
       ).sort() as string[];
@@ -329,16 +369,16 @@ export function useSocial(businessId: string) {
     } catch (error) {
       return [];
     }
-  }, [businessId, socialApi]);
+  }, [businessId, socialApi, strategyEndpoint, filterItemsForStrategy]);
 
 
   const fetchChannelAnalyzerDownloadUrl = useCallback(
     async (businessId: string) => {
-      const endpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=100`;
+      const endpoint = `${strategyEndpoint}?business_id=${businessId}&page=1&page_size=100`;
       const response = await socialApi.execute(endpoint, { method: "GET" });
       return (response?.output_data as any)?.download_url as string | undefined;
     },
-    [socialApi]
+    [socialApi, strategyEndpoint]
   );
 
   const fetchDownloadPayloadFromUrl = useCallback(async (downloadUrl: string) => {
@@ -386,10 +426,10 @@ export function useSocial(businessId: string) {
       const MAX_PAGES = 100;
       const BATCH_SIZE = 10;
 
-      const firstEndpoint = `/strategies/social-channels?business_id=${businessId}&page=1&page_size=${PAGE_SIZE}&channel_name=all`;
+      const firstEndpoint = `${strategyEndpoint}?business_id=${businessId}&page=1&page_size=${PAGE_SIZE}&channel_name=all`;
       const firstResponse = await api.get<SocialApiResponse>(firstEndpoint, "python");
 
-      const firstItems = firstResponse?.output_data?.items || [];
+      const firstItems = filterItemsForStrategy(getOutputItems<SocialItem>(firstResponse));
       const pagination = firstResponse?.output_data?.pagination;
       const totalPages = Math.min(pagination?.total_pages || 1, MAX_PAGES);
 
@@ -411,9 +451,9 @@ export function useSocial(businessId: string) {
         const batch = remainingPageNumbers.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.all(
           batch.map(async (page) => {
-            const endpoint = `/strategies/social-channels?business_id=${businessId}&page=${page}&page_size=${PAGE_SIZE}&channel_name=all`;
+            const endpoint = `${strategyEndpoint}?business_id=${businessId}&page=${page}&page_size=${PAGE_SIZE}&channel_name=all`;
             const response = await api.get<SocialApiResponse>(endpoint, "python");
-            return response?.output_data?.items || [];
+            return filterItemsForStrategy(getOutputItems<SocialItem>(response));
           })
         );
         allItems.push(...batchResults.flat());
@@ -424,7 +464,7 @@ export function useSocial(businessId: string) {
         metadata: firstResponse?.metadata,
       };
     },
-    [transformToTableRows]
+    [strategyEndpoint, transformToTableRows, filterItemsForStrategy]
   );
 
   const fetchTactics = useCallback(
@@ -499,14 +539,14 @@ export function useSocial(businessId: string) {
         queryParams.append("campaign_name", params.campaign_name);
       }
 
-      const endpoint = `/strategies/social-channels?${queryParams.toString()}`;
+      const endpoint = `${strategyEndpoint}?${queryParams.toString()}`;
 
       try {
         const response = await tacticsApi.execute(endpoint, {
           method: "GET",
         });
 
-        const items = response?.output_data?.items || [];
+        const items = filterItemsForStrategy(getOutputItems<TacticItem>(response));
         const flatRows = transformToTacticRows(items);
 
         const pagination = response?.output_data?.pagination;
@@ -536,7 +576,17 @@ export function useSocial(businessId: string) {
         throw error;
       }
     },
-    [tacticsApi, transformToTacticRows, mapFilterField, normalizeCampaignRelevanceFilter]
+    [tacticsApi, strategyEndpoint, transformToTacticRows, mapFilterField, normalizeCampaignRelevanceFilter, filterItemsForStrategy]
+  );
+
+  const startSocialStrategy = useCallback(
+    async (businessId: string) => {
+      const endpoint = `${strategyEndpoint}?business_id=${encodeURIComponent(businessId)}`;
+      return socialApi.execute(endpoint, {
+        method: "POST",
+      });
+    },
+    [socialApi, strategyEndpoint]
   );
 
   return {
@@ -548,6 +598,7 @@ export function useSocial(businessId: string) {
     fetchDownloadPayloadFromUrl,
     fetchFullDataFromDownloadUrl,
     fetchAllSocialPages,
+    startSocialStrategy,
     loading:
       socialApi.loading ||
       countsApi.loading ||

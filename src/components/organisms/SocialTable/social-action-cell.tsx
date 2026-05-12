@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Eye, Sparkles, X, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import type { TacticRow } from "@/types/social-types";
+import type { SocialStrategyType, TacticRow } from "@/types/social-types";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -54,6 +54,10 @@ function extractContent(data: SocialActionResponse | undefined): any {
   return data?.output_data?.social_content || null;
 }
 
+function extractEngageComment(data: SocialActionResponse | undefined): string {
+  return (data?.output_data?.social_engage_content?.comment || "").toString();
+}
+
 function normalizeChannel(channelName: string | undefined | null): string {
   const normalized = (channelName || "").toString().trim().toLowerCase();
   if (normalized === "x") return "twitter";
@@ -64,13 +68,15 @@ export function SocialActionCell({
   businessId,
   row,
   channelName,
+  strategyType = "publish",
 }: {
   businessId: string;
   row: TacticRow;
   channelName?: string;
+  strategyType?: SocialStrategyType;
 }) {
   const queryClient = useQueryClient();
-  const { startGeneration } = useSocialActions();
+  const { startGeneration } = useSocialActions(strategyType);
 
   const campaignClusterId = React.useMemo(() => getCampaignClusterId(row), [row]);
   const tacticsChannel = React.useMemo(
@@ -90,8 +96,8 @@ export function SocialActionCell({
   );
 
   const tacticsQueryKey = React.useMemo(
-    () => ["tactics-all", businessId, tacticsChannel || null, tacticsCampaign || null],
-    [businessId, tacticsChannel, tacticsCampaign]
+    () => ["tactics-all", strategyType, businessId, tacticsChannel || null, tacticsCampaign || null],
+    [strategyType, businessId, tacticsChannel, tacticsCampaign]
   );
 
   const [open, setOpen] = React.useState(false);
@@ -103,6 +109,7 @@ export function SocialActionCell({
   const contentQuery = useSocialActionContentQuery({
     businessId,
     campaignClusterId: campaignClusterId || "",
+    strategyType,
     enabled: (open || shouldPoll) && !!campaignClusterId,
     pollingIntervalMs: 3000,
   });
@@ -136,6 +143,7 @@ export function SocialActionCell({
     (contentQuery.error as any)?.response?.status === 400;
 
   const content = extractContent(contentQuery.data);
+  const engageComment = extractEngageComment(contentQuery.data);
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
@@ -168,7 +176,7 @@ export function SocialActionCell({
 
         // Refetch content in background without showing loading state
         queryClient.refetchQueries({
-          queryKey: ["social-action-content", businessId, campaignClusterId],
+          queryKey: ["social-action-content", strategyType, businessId, campaignClusterId],
           type: "inactive",
         });
       }
@@ -184,7 +192,7 @@ export function SocialActionCell({
         exact: true,
       });
     },
-    [businessId, campaignClusterId, contentQuery.data?.status, queryClient, tacticsQueryKey]
+    [businessId, campaignClusterId, contentQuery.data?.status, queryClient, strategyType, tacticsQueryKey]
   );
 
   const handleModalInteraction = React.useCallback((e: React.SyntheticEvent) => {
@@ -235,7 +243,7 @@ export function SocialActionCell({
         }
       );
 
-      toast.success("Social content generation started.");
+      toast.success(strategyType === "engage" ? "Social engage content generation started." : "Social content generation started.");
     } catch (error: any) {
       if (error?.response?.status === 403) {
         toast.error("You need more execution credits to generate social content.");
@@ -368,6 +376,17 @@ export function SocialActionCell({
                 <Button type="button" variant="outline" onClick={() => contentQuery.refetch()}>
                   Try again
                 </Button>
+              </div>
+            ) : strategyType === "engage" && status === "success" ? (
+              <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-8 flex flex-col justify-center gap-4">
+                <div>
+                  <Typography variant="p" className="text-sm font-medium text-muted-foreground">
+                    Generated Comment
+                  </Typography>
+                  <Typography variant="p" className="mt-2 whitespace-pre-wrap text-foreground">
+                    {engageComment || "No comment available."}
+                  </Typography>
+                </div>
               </div>
             ) : (contentQuery.isLoading || status === "success") ? (
               <SocialChannelPreview

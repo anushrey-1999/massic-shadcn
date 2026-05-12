@@ -4,6 +4,7 @@ import React from "react";
 import { StrategyTableClient } from "@/components/organisms/StrategyTable/strategy-table-client";
 import { AudienceTableClient } from "@/components/organisms/AudienceTable/audience-table-client";
 import { LandscapeTableClient } from "@/components/organisms/LandscapeTable/landscape-table-client";
+import { ThemesTableClient } from "@/components/organisms/ThemesTable/themes-table-client";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { WorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanner";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
@@ -41,10 +42,11 @@ interface PageProps {
 
 function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [primaryTab, setPrimaryTab] = React.useState<
-    "strategy" | "audience" | "landscape"
+    "strategy" | "audience" | "themes" | "landscape"
   >("strategy");
   const [isStrategySplitView, setIsStrategySplitView] = React.useState(false);
   const [isAudienceSplitView, setIsAudienceSplitView] = React.useState(false);
+  const [isThemesSplitView, setIsThemesSplitView] = React.useState(false);
   const [strategyView, setStrategyView] = React.useState<"list" | "bubble">(
     "list"
   );
@@ -55,9 +57,9 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const { data: jobDetails } = useJobByBusinessId(businessId || null);
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
   const isCoreSuccess = coreStatus === "success";
-  const isStrategyReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "topic_strategy_builder");
-  const isAudienceReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "audience");
-  const isLandscapeReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "channel_analyzer");
+  const isStrategyReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "topics");
+  const isAudienceReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "audiences");
+  const isLandscapeReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "social_channels");
 
   const { fetchAllStrategyPages } = useStrategy(businessId);
   const [strategyMetrics, setStrategyMetrics] = React.useState<StrategyMetrics | null>(null);
@@ -133,7 +135,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 
   const handlePrimaryTabChange = React.useCallback(
     (value: string) => {
-      setPrimaryTab(value as "strategy" | "audience" | "landscape");
+      setPrimaryTab(value as "strategy" | "audience" | "themes" | "landscape");
       router.replace(pathname);
     },
     [router, pathname]
@@ -158,6 +160,8 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     </Tabs>
   );
 
+  const isAnySplitView = isStrategySplitView || isAudienceSplitView || isThemesSplitView;
+
   return (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
       <Tabs
@@ -165,11 +169,12 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
         onValueChange={handlePrimaryTabChange}
         className="flex flex-col flex-1 min-h-0"
       >
-        {!(isStrategySplitView || isAudienceSplitView) && (
+        {!isAnySplitView && (
           <div className="shrink-0 flex items-center justify-between gap-4">
             <TabsList>
               <TabsTrigger value="strategy">Topics</TabsTrigger>
               <TabsTrigger value="audience">Audience</TabsTrigger>
+              <TabsTrigger value="themes">Themes</TabsTrigger>
               <TabsTrigger value="landscape">Landscape</TabsTrigger>
             </TabsList>
             <Typography
@@ -184,7 +189,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           value="strategy"
           className={cn(
             "flex-1 min-h-0 overflow-hidden flex flex-col",
-            !(isStrategySplitView || isAudienceSplitView) && "mt-4"
+            !isAnySplitView && "mt-4"
           )}
         >
           {isStrategyReady ? (
@@ -295,7 +300,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="topic_strategy_builder"
+              workflowKey="topics"
               emptyStateHeight="min-h-[calc(100vh-16rem)]"
             />
           )}
@@ -304,7 +309,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           value="audience"
           className={cn(
             "flex-1 min-h-0 overflow-hidden",
-            !(isStrategySplitView || isAudienceSplitView) && "mt-4"
+            !isAnySplitView && "mt-4"
           )}
         >
           {isAudienceReady ? (
@@ -316,16 +321,28 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="audience"
+              workflowKey="audiences"
               emptyStateHeight="min-h-[calc(100vh-16rem)]"
             />
           )}
         </TabsContent>
         <TabsContent
+          value="themes"
+          className={cn(
+            "flex-1 min-h-0 overflow-hidden",
+            !isAnySplitView && "mt-4"
+          )}
+        >
+          <ThemesTableClient
+            businessId={businessId}
+            onSplitViewChange={setIsThemesSplitView}
+          />
+        </TabsContent>
+        <TabsContent
           value="landscape"
           className={cn(
             "flex-1 min-h-0 overflow-hidden",
-            !(isStrategySplitView || isAudienceSplitView) && "mt-4"
+            !isAnySplitView && "mt-4"
           )}
         >
           {isLandscapeReady ? (
@@ -333,7 +350,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="channel_analyzer"
+              workflowKey="social_channels"
               emptyStateHeight="min-h-[calc(100vh-16rem)]"
             />
           )}

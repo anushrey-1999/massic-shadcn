@@ -6,6 +6,11 @@ import { useAuthStore } from "@/store/auth-store";
 import { useSessionStore } from "@/store/session-store";
 
 export type ApiPlatform = "node" | "python" | "dotnet";
+export interface AppAxiosRequestConfig extends AxiosRequestConfig {
+  skipAuth?: boolean;
+  suppressUnauthorizedSession?: boolean;
+}
+
 // Refresh only when close to expiry (standard SaaS behavior)
 const REFRESH_WINDOW_SECONDS = 60 * 10 * 60; // 10 minutes
 const REFRESH_COOLDOWN_MS = 60 * 1000; // at most once per minute
@@ -49,7 +54,7 @@ async function refreshNodeAccessToken(currentToken: string): Promise<string | nu
   }
 }
 
-function getBaseURLByPlatform(platform: ApiPlatform): string {
+export function getBaseURLByPlatform(platform: ApiPlatform): string {
   switch (platform) {
     case "node":
       return process.env.NEXT_PUBLIC_NODE_API_URL || "https://seedmain.seedinternaldev.xyz/api/1";
@@ -81,6 +86,10 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
 
   instance.interceptors.request.use(
     async (config) => {
+      if ((config as AppAxiosRequestConfig).skipAuth) {
+        return config;
+      }
+
       let token = Cookies.get("token");
 
       if (token && isTokenExpired(token)) {
@@ -155,7 +164,7 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
         const status = error.response.status;
 
         // Handle 401 Unauthorized - show session expired dialog (only for node API)
-        if (status === 401 && platform === "node") {
+        if (status === 401 && platform === "node" && !(error.config as AppAxiosRequestConfig)?.suppressUnauthorizedSession) {
           useSessionStore.getState().setShowSessionExpiredDialog(true);
           Cookies.remove("token");
           useAuthStore.getState().logout();
@@ -240,7 +249,7 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
 async function request<T>(
   url: string,
   platform: ApiPlatform,
-  options?: AxiosRequestConfig
+  options?: AppAxiosRequestConfig
 ): Promise<T> {
   const instance = createAxiosInstance(platform);
   const response = await instance.request<T>({
@@ -251,19 +260,19 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T = any>(url: string, platform: ApiPlatform, config?: AxiosRequestConfig) =>
+  get: <T = any>(url: string, platform: ApiPlatform, config?: AppAxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "GET" }),
 
-  post: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AxiosRequestConfig) =>
+  post: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AppAxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "POST", data: body }),
 
-  put: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AxiosRequestConfig) =>
+  put: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AppAxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "PUT", data: body }),
 
-  patch: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AxiosRequestConfig) =>
+  patch: <T = any>(url: string, platform: ApiPlatform, body?: any, config?: AppAxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "PATCH", data: body }),
 
-  delete: <T = any>(url: string, platform: ApiPlatform, config?: AxiosRequestConfig) =>
+  delete: <T = any>(url: string, platform: ApiPlatform, config?: AppAxiosRequestConfig) =>
     request<T>(url, platform, { ...config, method: "DELETE" }),
 };
 

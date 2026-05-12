@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -68,14 +68,24 @@ function copyRequestLink(request: AccessRequest) {
   toast.success("Link copied to clipboard");
 }
 
-export function AccessRequestSettings() {
+interface AccessRequestSettingsProps {
+  isActive?: boolean;
+}
+
+export function AccessRequestSettings({ isActive = true }: AccessRequestSettingsProps) {
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailRequest, setDetailRequest] = useState<AccessRequest | null>(null);
-  const { data, isLoading } = useAccessRequests(page, 20);
+  const { data, isLoading, refetch } = useAccessRequests(page, 20);
 
   const requests = data?.requests || [];
   const pagination = data?.pagination;
+
+  useEffect(() => {
+    if (isActive) {
+      refetch();
+    }
+  }, [isActive, refetch]);
 
   return (
     <div className="space-y-6">

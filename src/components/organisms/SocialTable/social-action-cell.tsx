@@ -22,6 +22,8 @@ import {
   useSocialActions,
   type SocialActionResponse,
 } from "@/hooks/use-social-actions";
+import { useExecutionCredits } from "@/hooks/use-execution-credits";
+import { CreditModal } from "@/components/molecules/settings/CreditModal";
 
 function getCampaignClusterId(row: TacticRow): string | null {
   const candidates = [
@@ -77,6 +79,7 @@ export function SocialActionCell({
 }) {
   const queryClient = useQueryClient();
   const { startGeneration } = useSocialActions(strategyType);
+  const { creditsBalance, purchaseCredits } = useExecutionCredits();
 
   const campaignClusterId = React.useMemo(() => getCampaignClusterId(row), [row]);
   const tacticsChannel = React.useMemo(
@@ -101,6 +104,7 @@ export function SocialActionCell({
   );
 
   const [open, setOpen] = React.useState(false);
+  const [showBuyCreditsModal, setShowBuyCreditsModal] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
   const [justGenerated, setJustGenerated] = React.useState(false);
   const [shouldPoll, setShouldPoll] = React.useState(false);
@@ -246,7 +250,7 @@ export function SocialActionCell({
       toast.success(strategyType === "engage" ? "Social engage content generation started." : "Social content generation started.");
     } catch (error: any) {
       if (error?.response?.status === 403) {
-        toast.error("You need more execution credits to generate social content.");
+        setShowBuyCreditsModal(true);
       } else {
         toast.error("Failed to start generation.");
       }
@@ -404,6 +408,16 @@ export function SocialActionCell({
           </div>
         </DialogContent>
       </Dialog>
+
+      <CreditModal
+        open={showBuyCreditsModal}
+        onClose={() => setShowBuyCreditsModal(false)}
+        currentBalance={creditsBalance?.current_balance ?? 0}
+        autoTopupEnabled={creditsBalance?.auto_topup_enabled ?? false}
+        autoTopupThreshold={creditsBalance?.auto_topup_threshold ?? 0}
+        onPurchaseCredits={purchaseCredits}
+        description="You need more execution credits to generate social content. Purchase credits to continue."
+      />
     </>
   );
 }

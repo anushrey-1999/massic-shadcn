@@ -1,0 +1,1161 @@
+/* ============================================================
+   MASSIC THEME — Complete Stylesheet
+   Includes: base, layout, typography, all page components
+   ============================================================ */
+
+
+/* ── VARIABLES ────────────────────────────────────────────── */
+
+:root {
+
+  /* CONTAINER */
+  --massic_container_max: 1200px;
+  --massic_container_padding: 24px;
+
+  /* SPACING */
+  --massic_space_sm: 12px;
+  --massic_space_md: 20px;
+  --massic_space_lg: 40px;
+  --massic_space_xl: 80px;
+
+  --massic_section_padding: var(--massic_space_xl);
+
+  /* COLORS */
+  --massic_color_bg: #ffffff;
+  --massic_color_text: #111827;
+  --massic_color_primary: #334155;
+  --massic_color_primary_hover: #1f2937;
+  --massic_color_secondary: #ffffff;
+  --massic_color_border: #e5e7eb;
+
+  /* TYPOGRAPHY */
+  --massic_heading: clamp(32px, 5vw, 48px);
+  --massic_text: 16px;
+
+  /* EFFECTS */
+  --massic_radius: 10px;
+  --massic_shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+
+/* ── RESET ────────────────────────────────────────────────── */
+
+.massic-content,
+.massic_page {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--massic_color_bg);
+  color: var(--massic_color_text);
+}
+
+.massic-content,
+.massic-content * {
+  box-sizing: border-box;
+}
+
+
+/* ── LAYOUT ───────────────────────────────────────────────── */
+
+/* Page wrapper */
+.massic_page {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Container */
+.massic_container {
+  max-width: var(--massic_container_max);
+  margin: auto;
+  padding: 0 var(--massic_container_padding);
+}
+
+/* Section */
+.massic_section {
+  padding: var(--massic_section_padding) 0;
+}
+
+/* Dark section */
+.massic_dark {
+  background: #0f172a;
+  color: white;
+}
+
+.massic_dark .massic_text {
+  color: #cbd5e1;
+}
+
+.massic_dark .massic_heading {
+  color: white;
+}
+
+.massic_dark .massic_stat_label {
+  color: #94a3b8;
+}
+
+/* Center alignment */
+.massic_center {
+  text-align: center;
+}
+
+
+/* ── GRID ─────────────────────────────────────────────────── */
+
+.massic_grid {
+  display: grid;
+  gap: var(--massic_space_lg);
+}
+
+.massic_grid_2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.massic_grid_3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.massic_grid_4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1024px) {
+  .massic_grid_3 { grid-template-columns: repeat(2, 1fr); }
+  .massic_grid_4 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .massic_grid_2 { grid-template-columns: 1fr; }
+  .massic_grid_3 { grid-template-columns: 1fr; }
+  .massic_grid_4 { grid-template-columns: 1fr; }
+}
+
+
+/* ── TYPOGRAPHY ───────────────────────────────────────────── */
+
+.massic_heading {
+  font-size: var(--massic_heading);
+  font-weight: 700;
+  margin-bottom: var(--massic_space_md);
+  line-height: 1.15;
+}
+
+.massic_text {
+  font-size: var(--massic_text);
+  color: #475569;
+  margin-bottom: var(--massic_space_md);
+  line-height: 1.7;
+}
+
+/* Badge */
+.massic_badge {
+  display: inline-block;
+  background: #f3f4f6;
+  color: var(--massic_color_primary);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: var(--massic_space_md);
+}
+
+
+/* ── BUTTONS ──────────────────────────────────────────────── */
+
+.massic_btn {
+  padding: 12px 22px;
+  border-radius: var(--massic_radius);
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-block;
+  transition: 0.3s ease;
+  cursor: pointer;
+  font-size: var(--massic_text);
+  box-sizing: border-box;
+}
+
+.massic_btn_primary,
+.massic_btn_white {
+  border: none;
+}
+
+.massic_btn_primary {
+  background: var(--massic_color_primary);
+  color: white;
+  box-shadow: var(--massic_shadow);
+}
+
+.massic_btn_primary:hover {
+  background: var(--massic_color_primary_hover);
+}
+
+.massic_btn_outline {
+  border: 1px solid var(--massic_color_border);
+  color: var(--massic_color_text);
+  background: transparent;
+}
+
+.massic_btn_outline:hover {
+  border-color: var(--massic_color_primary);
+  color: var(--massic_color_primary);
+}
+
+.massic_btn_white {
+  background: white;
+  color: var(--massic_color_primary);
+  font-weight: 700;
+}
+
+.massic_btn_white:hover {
+  background: #f3f4f6;
+}
+
+/* Actions — button row */
+.massic_actions {
+  display: flex;
+  gap: var(--massic_space_md);
+  margin-top: var(--massic_space_md);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.massic_center .massic_actions {
+  justify-content: center;
+}
+
+
+/* ── LIST ─────────────────────────────────────────────────── */
+
+.massic_list {
+  padding-left: 18px;
+  color: #475569;
+  line-height: 2;
+}
+
+
+/* ── HERO & INTRO ─────────────────────────────────────────── */
+
+/* 05 — Hero Banner */
+.massic_hero {
+  max-width: 700px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* 08 — Centered Hero */
+.massic_hero_center {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+
+/* ── CONTENT BLOCKS ───────────────────────────────────────── */
+
+/* 14 — Alternating Sections */
+.massic_alternating + .massic_alternating {
+  background: #f1f5f9;
+}
+
+/* 15 — Text Section */
+.massic_text_section {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* 16 — Highlight Section */
+.massic_highlight {
+  background: #f8fafc;
+  border-left: 4px solid #cbd5e1;
+  padding: var(--massic_space_lg);
+  border-radius: var(--massic_radius);
+}
+
+.massic_highlight .massic_heading {
+  font-size: clamp(22px, 3vw, 30px);
+}
+
+
+/* ── CARDS & LISTINGS ─────────────────────────────────────── */
+
+/* 17 — Card Grid */
+.massic_card_grid {
+  display: grid;
+  gap: var(--massic_space_lg);
+}
+
+/* Card item — shared base */
+.massic_card_item {
+  background: white;
+  padding: var(--massic_space_lg);
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+  border: 1px solid var(--massic_color_border);
+}
+
+.massic_card_icon {
+  font-size: 32px;
+  margin-bottom: var(--massic_space_md);
+  color: var(--massic_color_primary);
+}
+
+.massic_card_title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: var(--massic_space_sm);
+  color: var(--massic_color_text);
+}
+
+.massic_card_body {
+  padding: var(--massic_space_md);
+}
+
+/* Legacy card alias */
+.massic_card {
+  background: white;
+  padding: 30px;
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+}
+
+/* 21 — List View */
+.massic_list_view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--massic_space_md);
+}
+
+.massic_list_item {
+  display: flex;
+  align-items: center;
+  gap: var(--massic_space_md);
+  background: white;
+  padding: var(--massic_space_md);
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+  border: 1px solid var(--massic_color_border);
+}
+
+.massic_list_item_icon {
+  width: 44px;
+  height: 44px;
+  background: #f3f4f6;
+  border-radius: var(--massic_radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--massic_color_primary);
+  flex-shrink: 0;
+}
+
+.massic_list_item_meta {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+
+/* ── SOCIAL & TRUST ───────────────────────────────────────── */
+
+/* 24 — Testimonials */
+.massic_testimonial {
+  background: white;
+  padding: var(--massic_space_lg);
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+  border: 1px solid var(--massic_color_border);
+}
+
+.massic_testimonial_quote {
+  font-size: 15px;
+  color: #475569;
+  line-height: 1.7;
+  margin-bottom: var(--massic_space_md);
+  font-style: italic;
+}
+
+.massic_testimonial_quote::before {
+  content: '\201C';
+  font-size: 28px;
+  color: var(--massic_color_primary);
+  line-height: 0;
+  vertical-align: -10px;
+  margin-right: 4px;
+}
+
+.massic_testimonial_author {
+  display: flex;
+  align-items: center;
+  gap: var(--massic_space_sm);
+}
+
+.massic_testimonial_name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--massic_color_text);
+}
+
+.massic_testimonial_role {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.massic_stars {
+  color: #f59e0b;
+  font-size: 14px;
+  margin-bottom: var(--massic_space_sm);
+  letter-spacing: 1px;
+}
+
+/* 25 — Logo Strip */
+.massic_logo_strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--massic_space_lg);
+  margin-top: var(--massic_space_md);
+}
+
+.massic_logo_item {
+  font-size: 18px;
+  font-weight: 800;
+  color: #94a3b8;
+  letter-spacing: -0.5px;
+  transition: color 0.2s;
+  text-decoration: none;
+}
+
+.massic_logo_item:hover {
+  color: var(--massic_color_primary);
+}
+
+/* 26 — Stats / Counters */
+.massic_stat {
+  text-align: center;
+}
+
+.massic_stat_number {
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 800;
+  color: var(--massic_color_primary);
+  line-height: 1;
+  margin-bottom: var(--massic_space_sm);
+}
+
+.massic_dark .massic_stat_number {
+  color: white;
+}
+
+.massic_stat_label {
+  font-size: 15px;
+  color: #475569;
+}
+
+/* 27 — Case Highlights */
+.massic_case {
+  background: white;
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+  overflow: hidden;
+  border: 1px solid var(--massic_color_border);
+}
+
+.massic_case_header {
+  background: var(--massic_color_primary);
+  color: white;
+  padding: var(--massic_space_md);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.massic_case_body {
+  padding: var(--massic_space_md);
+}
+
+.massic_case_metric {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--massic_color_primary);
+  margin-bottom: var(--massic_space_sm);
+}
+
+
+/* ── DATA & INFO ──────────────────────────────────────────── */
+
+/* 28 — Table */
+.massic_table_wrap {
+  overflow-x: auto;
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+  border: 1px solid var(--massic_color_border);
+}
+
+.massic_table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.massic_table th {
+  background: #f8fafc;
+  padding: 14px 18px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  border-bottom: 2px solid var(--massic_color_border);
+}
+
+.massic_table td {
+  padding: 14px 18px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--massic_color_border);
+  color: #334155;
+}
+
+.massic_table tr:last-child td {
+  border-bottom: none;
+}
+
+.massic_table tr:hover td {
+  background: #f8fafc;
+}
+
+/* 29 — Comparison Table */
+.massic_compare_table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.massic_compare_table th {
+  padding: 16px 20px;
+  font-size: 15px;
+  font-weight: 700;
+  border-bottom: 2px solid var(--massic_color_border);
+  text-align: center;
+}
+
+.massic_compare_table th:first-child {
+  text-align: left;
+}
+
+.massic_compare_table td {
+  padding: 14px 20px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--massic_color_border);
+  text-align: center;
+  color: #334155;
+}
+
+.massic_compare_table td:first-child {
+  text-align: left;
+  font-weight: 600;
+}
+
+.massic_compare_table .massic_compare_highlight th {
+  background: var(--massic_color_primary);
+  color: white;
+}
+
+.massic_check {
+  color: #22c55e;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.massic_cross {
+  color: #ef4444;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* 30 — FAQ Accordion */
+.massic_faq_item {
+  border: 1px solid var(--massic_color_border);
+  border-radius: var(--massic_radius);
+  background: white;
+  overflow: visible;
+  margin-bottom: var(--massic_space_md);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.massic_faq_question {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: var(--massic_space_md) var(--massic_space_lg) var(--massic_space_sm);
+  text-align: left;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: default;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--massic_space_md);
+  color: var(--massic_color_text);
+  font-family: inherit;
+  transition: background 0.2s ease;
+}
+
+.massic_faq_question:hover {
+  background: transparent;
+}
+
+.massic_faq_icon {
+  display: none;
+  font-size: 20px;
+  transition: transform 0.3s ease;
+  color: var(--massic_color_primary);
+  flex-shrink: 0;
+}
+
+.massic_faq_answer {
+  max-height: none;
+  overflow: visible;
+  transition: none;
+  font-size: 15px;
+  color: #475569;
+  line-height: 1.7;
+  padding: 0 var(--massic_space_lg) var(--massic_space_md);
+}
+
+.massic_faq_item.open .massic_faq_answer {
+  max-height: none;
+  padding: 0 var(--massic_space_lg) var(--massic_space_md);
+}
+
+.massic_faq_item.open .massic_faq_icon {
+  transform: rotate(45deg);
+}
+
+/* 31 — Timeline */
+.massic_timeline {
+  position: relative;
+  padding-left: 32px;
+}
+
+.massic_timeline::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--massic_color_border);
+}
+
+.massic_timeline_item {
+  position: relative;
+  margin-bottom: var(--massic_space_lg);
+}
+
+.massic_timeline_item:last-child {
+  margin-bottom: 0;
+}
+
+.massic_timeline_item::before {
+  content: '';
+  position: absolute;
+  left: -27px;
+  top: 5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--massic_color_primary);
+  border: 2px solid white;
+  box-shadow: 0 0 0 2px var(--massic_color_primary);
+}
+
+.massic_timeline_date {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--massic_color_primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.massic_timeline_title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--massic_color_text);
+}
+
+
+/* ── CONVERSION & CTA ─────────────────────────────────────── */
+
+/* 36 — CTA Block */
+.massic_cta_block {
+  background: #111827;
+  border-radius: var(--massic_radius);
+  padding: var(--massic_space_xl);
+  color: white;
+  text-align: center;
+}
+
+.massic_cta_block .massic_heading {
+  color: white;
+  font-size: clamp(24px, 3vw, 36px);
+}
+
+.massic_cta_block .massic_text {
+  color: #d1d5db;
+}
+
+.massic_cta_block .massic_actions {
+  justify-content: center;
+}
+
+/* 37 — Banner CTA */
+.massic_section_banner {
+  background: #111827;
+  color: white;
+  padding: var(--massic_space_lg) 0;
+}
+
+.massic_banner_inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--massic_space_lg);
+  flex-wrap: wrap;
+}
+
+.massic_banner_text .massic_heading {
+  font-size: clamp(20px, 3vw, 28px);
+  margin-bottom: var(--massic_space_sm);
+  color: white;
+}
+
+.massic_banner_text .massic_text {
+  color: #d1d5db;
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .massic_banner_inner {
+      flex-direction: column;
+      text-align: center;
+  }
+}
+
+
+/* ── EXTRA FLEXIBLE PATTERNS ──────────────────────────────── */
+
+/* 43 — Sidebar Layout */
+.massic_sidebar_layout {
+  display: grid;
+  gap: var(--massic_space_lg);
+}
+
+.massic_sidebar_layout_left {
+  grid-template-columns: 280px 1fr;
+}
+
+.massic_sidebar_layout_right {
+  grid-template-columns: 1fr 280px;
+}
+
+@media (max-width: 900px) {
+  .massic_sidebar_layout_left,
+  .massic_sidebar_layout_right {
+      grid-template-columns: 1fr;
+  }
+}
+
+.massic_sidebar {
+  background: white;
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+  padding: var(--massic_space_md);
+  border: 1px solid var(--massic_color_border);
+  height: fit-content;
+  position: sticky;
+  top: var(--massic_space_lg);
+}
+
+.massic_sidebar_title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  margin-bottom: var(--massic_space_md);
+}
+
+.massic_sidebar_link {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  text-decoration: none;
+  color: #475569;
+  transition: 0.2s;
+  margin-bottom: 2px;
+}
+
+.massic_sidebar_link:hover,
+.massic_sidebar_link.active {
+  background: #f3f4f6;
+  color: var(--massic_color_primary);
+  font-weight: 600;
+}
+
+.massic_main_content {
+  background: white;
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+  padding: var(--massic_space_lg);
+  border: 1px solid var(--massic_color_border);
+}
+
+/* 44 — Tabs Section */
+.massic_tabs_nav {
+  display: flex;
+  border-bottom: 2px solid var(--massic_color_border);
+  margin-bottom: var(--massic_space_lg);
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.massic_tab_btn {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: 0.2s;
+  border-radius: 6px 6px 0 0;
+  font-family: inherit;
+}
+
+.massic_tab_btn:hover {
+  color: var(--massic_color_primary);
+  background: #f8fafc;
+}
+
+.massic_tab_btn.active {
+  color: var(--massic_color_primary);
+  border-bottom-color: var(--massic_color_primary);
+}
+
+.massic_tab_panel {
+  display: none;
+}
+
+.massic_tab_panel.active {
+  display: block;
+}
+
+
+/* ── IMAGE-ONLY COMPONENTS (not used in AI output) ────────── */
+/* Included for completeness — these require manual image insertion */
+
+/* 06/07 — Left/Right Image layouts */
+.massic_img {
+  width: 100%;
+  border-radius: var(--massic_radius);
+  box-shadow: var(--massic_shadow);
+}
+
+/* 09 — Background Image Section */
+.massic_section_bg {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  color: white;
+}
+
+.massic_section_bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.massic_section_bg .massic_container {
+  position: relative;
+  z-index: 1;
+}
+
+.massic_section_bg .massic_text {
+  color: #cbd5e1;
+}
+
+/* 10 — Parallax Section */
+.massic_section_parallax {
+  position: relative;
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
+  color: white;
+}
+
+.massic_section_parallax::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.72);
+}
+
+.massic_section_parallax .massic_container {
+  position: relative;
+  z-index: 1;
+}
+
+.massic_section_parallax .massic_text {
+  color: #e5e7eb;
+}
+
+/* 18 — Image Cards */
+.massic_card_image .massic_card_thumb {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: var(--massic_radius) var(--massic_radius) 0 0;
+}
+
+.massic_card_image {
+  padding: 0;
+  overflow: hidden;
+}
+
+.massic_card_image .massic_card_body {
+  padding: var(--massic_space_md);
+}
+
+/* 19 — Overlay Cards */
+.massic_card_overlay {
+  position: relative;
+  overflow: hidden;
+  min-height: 260px;
+  display: flex;
+  align-items: flex-end;
+  padding: 0;
+}
+
+.massic_card_overlay img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.massic_card_overlay_body {
+  position: relative;
+  z-index: 1;
+  padding: var(--massic_space_md);
+  background: linear-gradient(transparent, rgba(15, 23, 42, 0.85));
+  width: 100%;
+  color: white;
+}
+
+.massic_card_overlay .massic_card_title {
+  color: white;
+}
+
+.massic_card_overlay .massic_text {
+  color: #cbd5e1;
+  margin-bottom: 0;
+}
+
+/* 20 — Horizontal Cards */
+.massic_card_horizontal {
+  display: flex;
+  gap: var(--massic_space_md);
+  align-items: center;
+}
+
+.massic_card_horizontal img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: var(--massic_radius);
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .massic_card_horizontal { flex-direction: column; }
+  .massic_card_horizontal img { width: 100%; height: 180px; }
+}
+
+/* 23 — Carousel / Slider */
+.massic_carousel_wrap {
+  overflow: hidden;
+}
+
+.massic_carousel {
+  display: flex;
+  gap: var(--massic_space_md);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--massic_space_sm);
+  scrollbar-width: none;
+}
+
+.massic_carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.massic_carousel_slide {
+  flex: 0 0 300px;
+  scroll-snap-align: start;
+}
+
+.massic_carousel_nav {
+  display: flex;
+  gap: var(--massic_space_sm);
+  margin-top: var(--massic_space_md);
+  justify-content: center;
+}
+
+.massic_carousel_btn {
+  padding: 8px 16px;
+  border: 1px solid var(--massic_color_border);
+  border-radius: var(--massic_radius);
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: 0.2s ease;
+  font-family: inherit;
+}
+
+.massic_carousel_btn:hover {
+  background: var(--massic_color_primary);
+  color: white;
+  border-color: var(--massic_color_primary);
+}
+
+/* 38 — Split CTA */
+.massic_split_cta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-radius: var(--massic_radius);
+  overflow: hidden;
+  box-shadow: var(--massic_shadow);
+}
+
+.massic_split_cta_content {
+  background: white;
+  padding: var(--massic_space_xl);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.massic_split_cta_image {
+  position: relative;
+  min-height: 320px;
+}
+
+.massic_split_cta_image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .massic_split_cta { grid-template-columns: 1fr; }
+  .massic_split_cta_image { min-height: 200px; }
+}
+
+/* 45 — Modal / Popup */
+.massic_modal_backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  z-index: 999;
+  align-items: center;
+  justify-content: center;
+}
+
+.massic_modal_backdrop.open {
+  display: flex;
+}
+
+.massic_modal {
+  background: white;
+  border-radius: var(--massic_radius);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2);
+  max-width: 520px;
+  width: 90%;
+  padding: var(--massic_space_lg);
+  position: relative;
+  animation: massic_modal_in 0.25s ease;
+}
+
+@keyframes massic_modal_in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+.massic_modal_close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: #f1f5f9;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 18px;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.massic_modal_close:hover {
+  background: #e2e8f0;
+}
+
+.massic_modal_title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: var(--massic_space_md);
+  color: var(--massic_color_text);
+}
+
+/* 47 — Empty State */
+.massic_empty {
+  text-align: center;
+  padding: var(--massic_space_xl) var(--massic_space_lg);
+  color: #94a3b8;
+}
+
+.massic_empty_icon {
+  font-size: 48px;
+  margin-bottom: var(--massic_space_md);
+  opacity: 0.4;
+}
+
+.massic_empty_title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: var(--massic_space_sm);
+}
+
+.massic_empty_text {
+  font-size: 14px;
+  color: #94a3b8;
+  margin-bottom: var(--massic_space_lg);
+}

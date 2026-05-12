@@ -7,7 +7,7 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import { Typography } from "@/components/ui/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { TacticRow } from "@/types/social-types";
+import type { SocialStrategyType, TacticRow } from "@/types/social-types";
 import { Tag, FileText, TrendingUp, Hash, CheckCircle2, Sparkles, Eye } from "lucide-react";
 import { SocialActionCell } from "./social-action-cell";
 
@@ -17,6 +17,7 @@ interface GetTacticsTableColumnsProps {
   expandedRowId?: string | null;
   onExpandedRowChange?: (rowId: string | null) => void;
   hideActions?: boolean;
+  strategyType?: SocialStrategyType;
 }
 
 function extractRedditThreadPath(url: string): string {
@@ -37,7 +38,7 @@ function extractRedditThreadPath(url: string): string {
   }
 }
 
-export function getTacticsTableColumns({ channelName, businessId, expandedRowId, onExpandedRowChange, hideActions = false }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
+export function getTacticsTableColumns({ channelName, businessId, expandedRowId, onExpandedRowChange, hideActions = false, strategyType = "publish" }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
   const isReddit = channelName?.toLowerCase() === "reddit";
 
   let columns: ColumnDef<TacticRow>[] = [];
@@ -345,7 +346,7 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
             );
           }
 
-          return <SocialActionCell businessId={businessId} row={row.original} channelName={channelName} />;
+          return <SocialActionCell businessId={businessId} row={row.original} channelName={channelName} strategyType={strategyType} />;
         },
         enableColumnFilter: false,
         enableSorting: false,

@@ -1,7 +1,7 @@
 "use client"
 
 import React from 'react'
-import { useQueryState, parseAsString } from 'nuqs'
+import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import { SocialTableClient } from '@/components/organisms/SocialTable/social-table-client'
 import { SocialBubbleChart, type SocialBubbleDatum } from '@/components/organisms/SocialBubbleChart/social-bubble-chart'
 import { PageHeader } from '@/components/molecules/PageHeader'
@@ -16,6 +16,7 @@ import { useSocial } from "@/hooks/use-social"
 import { Typography } from '@/components/ui/typography'
 import { BUSINESS_RELEVANCE_PALETTE } from '@/components/organisms/StrategyBubbleChart/strategy-bubble-chart'
 import { getWorkflowStatus, isWorkflowSuccess } from '@/lib/workflow-status'
+import type { SocialStrategyType } from '@/types/social-types'
 import {
   Select,
   SelectContent,
@@ -37,23 +38,34 @@ type BusinessSocialPageProps = PageProps & {
 
 function SocialEntitledContent({
   businessId,
-  selectedChannel,
   onChannelSelect,
   isReadOnly,
 }: {
   businessId: string
-  selectedChannel: string | null
   onChannelSelect: (channel: string | null) => void
   isReadOnly?: boolean
 }) {
 
+  const [socialTab, setSocialTab] = useQueryState(
+    "social_tab",
+    parseAsString.withDefault("publish")
+  )
+  const [, setCampaignName] = useQueryState(
+    "campaign_name",
+    parseAsString
+  )
+  const [, setPage] = useQueryState(
+    "page",
+    parseAsInteger.withDefault(1)
+  )
   const [socialView, setSocialView] = React.useState<"list" | "bubble">("list")
   const [selectedOffering, setSelectedOffering] = React.useState<string>("all")
+  const activeSocialTab: SocialStrategyType = socialTab === "engage" ? "engage" : "publish"
 
-  const { fetchAllSocialPages } = useSocial(businessId)
+  const { fetchAllSocialPages } = useSocial(businessId, activeSocialTab)
 
   const { data: bubbleData, isLoading: bubbleDataLoading } = useQuery({
-    queryKey: ["social-all-pages", businessId],
+    queryKey: ["social-all-pages", activeSocialTab, businessId],
     queryFn: () => fetchAllSocialPages(businessId),
     enabled: socialView === "bubble" && !!businessId,
     staleTime: 5 * 60 * 1000,
@@ -63,6 +75,15 @@ function SocialEntitledContent({
     refetchOnReconnect: false,
     retry: false,
   })
+
+  const handleSocialTabChange = React.useCallback((value: string) => {
+    const nextTab: SocialStrategyType = value === "engage" ? "engage" : "publish"
+    setSocialTab(nextTab)
+    onChannelSelect(null)
+    setCampaignName(null)
+    setPage(1)
+    setSelectedOffering("all")
+  }, [onChannelSelect, setCampaignName, setPage, setSocialTab])
 
   type SocialBubbleRow = SocialBubbleDatum & { offerings?: string[] }
 
@@ -151,9 +172,25 @@ function SocialEntitledContent({
 
   return (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
+      <Tabs
+        value={activeSocialTab}
+        onValueChange={handleSocialTabChange}
+        className="shrink-0 mb-4"
+      >
+        <TabsList className="shrink-0">
+          <TabsTrigger value="publish">Publish</TabsTrigger>
+          <TabsTrigger value="engage">Engage</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="flex-1 min-h-0 overflow-hidden">
         {socialView === "list" ? (
-          <SocialTableClient businessId={businessId} toolbarRightPrefix={socialViewTabs} isReadOnly={isReadOnly} />
+          <SocialTableClient
+            businessId={businessId}
+            strategyType={activeSocialTab}
+            toolbarRightPrefix={socialViewTabs}
+            isReadOnly={isReadOnly}
+          />
         ) : (
           <div className="bg-white rounded-lg p-4 h-full flex flex-col gap-3">
             <div className="shrink-0 flex items-center justify-between gap-4">
@@ -247,7 +284,7 @@ export default function BusinessSocialPage({
   skipEntitlements,
 }: BusinessSocialPageProps) {
   const [businessId, setBusinessId] = React.useState<string>('')
-  const [selectedChannel, setSelectedChannel] = useQueryState(
+  const [, setSelectedChannel] = useQueryState(
     "channel_name",
     parseAsString
   )
@@ -305,7 +342,6 @@ export default function BusinessSocialPage({
   const content = !jobDetailsLoading && showMainContent ? (
     <SocialEntitledContent
       businessId={businessId}
-      selectedChannel={selectedChannel || null}
       onChannelSelect={(channel) => setSelectedChannel(channel)}
       isReadOnly={isReadOnly}
     />

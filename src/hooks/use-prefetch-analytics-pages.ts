@@ -136,6 +136,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
 
       const socialQueryKey = [
         "social",
+        "publish",
         businessId,
         defaultParams.page,
         defaultParams.perPage,

@@ -58,9 +58,9 @@ function ConversionOverviewSkeleton() {
     <div className="grid divide-y divide-[#e5e5e5] lg:grid-cols-2 lg:divide-x lg:divide-y-0">
       {[0, 1].map((item) => (
         <div key={item} className="pb-3">
-          <div className="flex h-[48px] items-center justify-between gap-4 bg-[#fafafa] px-3">
+          <div className="flex min-h-[64px] flex-col justify-center gap-2 bg-[#fafafa] px-3 py-3">
             <Skeleton className="h-5 w-48" />
-            <Skeleton className="h-3 w-48" />
+            <Skeleton className="h-3 w-56" />
           </div>
           <div className="pt-2">
             {Array.from({ length: 6 }).map((_, rowIndex) => (
@@ -93,11 +93,11 @@ function TouchPanel({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3 pb-3">
-      <div className="flex min-h-[48px] items-center gap-4 bg-[#fafafa] px-3 py-3 leading-normal text-[#737373]">
-        <h3 className="m-0 min-w-0 flex-1 text-[16px] font-medium">
+      <div className="flex min-h-[64px] flex-col justify-center gap-1 bg-[#fafafa] px-3 py-3 leading-normal text-[#737373]">
+        <h3 className="m-0 min-w-0 text-[16px] font-medium text-[#737373]">
           {title}
         </h3>
-        <p className="m-0 shrink-0 whitespace-nowrap text-right text-[10px] font-normal tracking-[0.15px]">
+        <p className="m-0 text-[10px] font-normal tracking-[0.15px]">
           {subtitle}
         </p>
       </div>
@@ -201,9 +201,10 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
   const overview = overviewQuery.data?.data;
   const isLoading = eventsQuery.isLoading || overviewQuery.isLoading;
   const hasError = eventsQuery.isError || overviewQuery.isError;
+  const tagline = overview?.story.tagline.trim();
 
   return (
-    <div className="flex flex-col px-7 pb-10">
+    <div className="flex flex-col gap-3 px-7 pb-10">
       <div className="overflow-hidden rounded-[8px] border border-[#e5e5e5] bg-white">
         <div className="flex min-h-10 items-center justify-between gap-4 border-b border-[#a3a3a3] bg-white px-2 py-[7.5px]">
           <h2 className="m-0 text-[16px] font-medium leading-normal text-[#0a0a0a]">
@@ -266,6 +267,12 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
           </Card>
         )}
       </div>
+
+      {tagline ? (
+        <Card className="rounded-[8px] border-[#e5e5e5] bg-white px-6 py-5 text-sm font-medium leading-normal text-[#0a0a0a] shadow-none">
+          {tagline}
+        </Card>
+      ) : null}
     </div>
   );
 };

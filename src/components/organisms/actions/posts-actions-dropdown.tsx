@@ -160,8 +160,11 @@ function getChannelIcon(channelName: string): string | null {
   const normalized = (channelName || "").toLowerCase().trim()
   const iconMap: Record<string, string> = {
     facebook: "/icons/facebook.png",
+    "facebook group": "/icons/facebook.png",
+    "facebook groups": "/icons/facebook.png",
     instagram: "/icons/instagram.png",
     linkedin: "/icons/linkedin.png",
+    quora: "/icons/quora.svg",
     x: "/icons/twitter.png",
     twitter: "/icons/twitter.png",
     youtube: "/icons/youtube.png",

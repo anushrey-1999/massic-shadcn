@@ -11,6 +11,8 @@ export interface SocialItem {
   [key: string]: any;
 }
 
+export type SocialStrategyType = "publish" | "engage";
+
 // Row structure for table display
 export interface SocialRow {
   id: string;

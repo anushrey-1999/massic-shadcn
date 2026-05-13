@@ -279,8 +279,6 @@ export function SocialActionCell({
     e.stopPropagation();
   };
 
-  const isReddit = resolvedChannel === "reddit";
-
   return (
     <>
       <div
@@ -289,27 +287,25 @@ export function SocialActionCell({
         onMouseDown={stopRowClick}
         onPointerDown={stopRowClick}
       >
-        {!isReddit && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant={buttonVariant}
-                className="size-6 rounded-sm"
-                onClick={handlePrimaryClick}
-                onMouseDown={stopRowClick}
-                onPointerDown={stopRowClick}
-                aria-label={primaryLabel}
-                disabled={primaryAction === "generate" ? starting : false}
-              >
-                <PrimaryIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={8}>
-              {primaryLabel}
-            </TooltipContent>
-          </Tooltip>
-        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant={buttonVariant}
+              className="size-6 rounded-sm"
+              onClick={handlePrimaryClick}
+              onMouseDown={stopRowClick}
+              onPointerDown={stopRowClick}
+              aria-label={primaryLabel}
+              disabled={primaryAction === "generate" ? starting : false}
+            >
+              <PrimaryIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>
+            {primaryLabel}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -354,7 +350,7 @@ export function SocialActionCell({
               <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-10 text-center flex flex-col items-center justify-center gap-3">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <Typography variant="p" className="text-muted-foreground">
-                  Generating content...
+                  {strategyType === "engage" ? "Generating comment..." : "Generating content..."}
                 </Typography>
               </div>
             ) : isNotGeneratedYet ? (

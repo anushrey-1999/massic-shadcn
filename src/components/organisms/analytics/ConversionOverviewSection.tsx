@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownRight, Check } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import {
@@ -12,8 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Typography } from "@/components/ui/typography";
-import { cn } from "@/lib/utils";
 import { useBusinessStore } from "@/store/business-store";
 import {
   ALL_GOALS_CONVERSION_EVENT,
@@ -29,11 +26,17 @@ interface ConversionOverviewSectionProps {
 }
 
 const CHANNEL_COLORS: Record<string, string> = {
-  "Organic Search": "#059669",
-  "Paid Search": "#2563eb",
-  "Paid Social": "#7c3aed",
-  Direct: "#64748b",
-  Referral: "#0891b2",
+  Direct: "#334155",
+  Email: "#9ca3af",
+  Referral: "#0369a1",
+  "Cross-network": "#9ca3af",
+  SMS: "#9ca3af",
+  "Organic Search": "#0f766e",
+  "Organic Social": "#c2410c",
+  "Paid Search": "#1d4ed8",
+  "Paid Social": "#7e22ce",
+  Unassigned: "#9ca3af",
+  Other: "#9ca3af",
 };
 
 function formatNumber(value: number): string {
@@ -47,159 +50,92 @@ function formatPct(value: number): string {
 }
 
 function channelColor(channel: string): string {
-  return CHANNEL_COLORS[channel] || "#737373";
-}
-
-function joinChannels(channels: string[]): string {
-  if (channels.length === 0) return "";
-  if (channels.length === 1) return channels[0];
-  return `${channels.slice(0, -1).join(", ")} and ${channels[channels.length - 1]}`;
-}
-
-function renderMarkedText(text: string, openers: string[], closers: string[]) {
-  const markers = [
-    ...openers.map((channel) => ({ channel, className: "text-[#1d4ed8] font-semibold" })),
-    ...closers.map((channel) => ({ channel, className: "text-[#047857] font-semibold" })),
-  ].sort((a, b) => b.channel.length - a.channel.length);
-
-  if (markers.length === 0) {
-    return <span className="text-[#1e4d3d] font-semibold">{text}</span>;
-  }
-
-  const parts: Array<{ text: string; className?: string }> = [];
-  let remaining = text;
-
-  while (remaining.length > 0) {
-    const matches = markers
-      .map((marker) => ({ ...marker, index: remaining.indexOf(marker.channel) }))
-      .filter((marker) => marker.index >= 0)
-      .sort((a, b) => a.index - b.index);
-
-    const match = matches[0];
-    if (!match) {
-      parts.push({ text: remaining, className: "text-[#1e4d3d] font-semibold" });
-      break;
-    }
-
-    if (match.index > 0) {
-      parts.push({
-        text: remaining.slice(0, match.index),
-        className: "text-[#1e4d3d] font-semibold",
-      });
-    }
-
-    parts.push({ text: match.channel, className: match.className });
-    remaining = remaining.slice(match.index + match.channel.length);
-  }
-
-  return parts.map((part, index) => (
-    <span key={`${part.text}-${index}`} className={part.className}>
-      {part.text}
-    </span>
-  ));
+  return CHANNEL_COLORS[channel] || "#9ca3af";
 }
 
 function ConversionOverviewSkeleton() {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid divide-y divide-[#e5e5e5] lg:grid-cols-2 lg:divide-x lg:divide-y-0">
       {[0, 1].map((item) => (
-        <Card key={item} className="gap-0 overflow-hidden rounded-[12px] border-[#e5e5e5] py-0 shadow-sm">
-          <div className="border-b border-[#e5e5e5] px-[22px] py-[18px]">
-            <Skeleton className="h-5 w-44" />
-            <Skeleton className="mt-3 h-4 w-64" />
+        <div key={item} className="pb-3">
+          <div className="flex min-h-[64px] flex-col justify-center gap-2 bg-[#fafafa] px-3 py-3">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-3 w-56" />
           </div>
-          <div className="space-y-4 p-[22px]">
-            {Array.from({ length: 5 }).map((_, rowIndex) => (
-              <Skeleton key={rowIndex} className="h-5 w-full" />
+          <div className="pt-2">
+            {Array.from({ length: 6 }).map((_, rowIndex) => (
+              <div
+                key={rowIndex}
+                className="flex items-center gap-6 border-b border-[#e5e5e5] py-2 pr-3"
+              >
+                <Skeleton className="h-4 w-[100px] shrink-0" />
+                <Skeleton className="h-2 flex-1 rounded-full" />
+                <Skeleton className="h-4 w-12 shrink-0" />
+              </div>
             ))}
           </div>
-        </Card>
+        </div>
       ))}
     </div>
   );
 }
 
-function TouchCard({
-  variant,
+function TouchPanel({
   title,
   subtitle,
   rows,
   totalConversions,
 }: {
-  variant: "opener" | "closer";
   title: string;
   subtitle: string;
   rows: Array<ConversionOverviewOpener | ConversionOverviewCloser>;
   totalConversions: number;
 }) {
-  const isOpener = variant === "opener";
-
   return (
-    <Card className="gap-0 overflow-hidden rounded-[12px] border-[#e5e5e5] py-0 shadow-sm">
-      <div
-        className={cn(
-          "flex items-start gap-3 border-b border-[#e5e5e5] px-[22px] py-[18px]",
-          isOpener
-            ? "bg-linear-to-b from-[#eff6ff] to-white"
-            : "bg-linear-to-b from-[#ecfdf5] to-white"
-        )}
-      >
-        <div
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-white",
-            isOpener ? "bg-[#1d4ed8]" : "bg-[#047857]"
-          )}
-        >
-          {isOpener ? <ArrowDownRight className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-        </div>
-        <div>
-          <div
-            className={cn(
-              "mb-1 text-[10.5px] font-semibold uppercase tracking-[0.12em]",
-              isOpener ? "text-[#1d4ed8]" : "text-[#047857]"
-            )}
-          >
-            {isOpener ? "First touch" : "Last touch"}
-          </div>
-          <h3 className="m-0 text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[#171717]">
-            {title}
-          </h3>
-          <p className="m-0 mt-1 text-[12.5px] text-[#737373]">
-            {subtitle}
-          </p>
-        </div>
+    <div className="flex min-w-0 flex-col gap-3 pb-3">
+      <div className="flex min-h-[64px] flex-col justify-center gap-1 bg-[#fafafa] px-3 py-3 leading-normal text-[#737373]">
+        <h3 className="m-0 min-w-0 text-[16px] font-medium text-[#737373]">
+          {title}
+        </h3>
+        <p className="m-0 text-[10px] font-normal tracking-[0.15px]">
+          {subtitle}
+        </p>
       </div>
 
-      <div className="py-1.5">
+      <div className="flex flex-col">
         {rows.length > 0 ? rows.map((row) => {
           const color = channelColor(row.channel);
+          const percentage = Math.max(0, Math.min(row.pct * 100, 100));
+
           return (
             <div
-              key={`${variant}-${row.channel}`}
-              className="grid grid-cols-[minmax(112px,130px)_1fr_52px_44px] items-center gap-x-3 border-t border-[#e5e5e5] px-[22px] py-3.5 first:border-t-0"
+              key={row.channel}
+              className="flex items-center gap-6 border-b border-[#e5e5e5] py-2 pr-3 last:border-b-0"
             >
-              <div className="flex min-w-0 items-center gap-2.5">
-                <div className="h-4 w-[3px] shrink-0 rounded-[2px]" style={{ background: color }} />
-                <div className="truncate text-[13.5px] font-medium text-[#171717]">
-                  {row.channel}
-                </div>
+              <div
+                className="w-[100px] shrink-0 truncate text-right text-[12px] font-medium leading-normal tracking-[0.18px]"
+                style={{ color }}
+              >
+                {row.channel}
               </div>
-              <div className="h-2 overflow-hidden rounded bg-[#f5f5f5]">
+              <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[#f3f4f6]">
                 <div
-                  className="h-full rounded"
-                  style={{ width: formatPct(row.pct), background: color }}
+                  className="h-full rounded-full"
+                  style={{ width: `${percentage}%`, background: color }}
                 />
               </div>
-              <div className="text-right font-mono text-[13px] font-normal text-[#737373]">
-                {formatNumber(row.conversions)}
-              </div>
-              <div className="text-right font-mono text-[13.5px] font-medium text-[#171717]">
-                {formatPct(row.pct)}
+              <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap leading-normal">
+                <span className="text-[12px] font-normal tracking-[0.18px] text-[#0a0a0a]">
+                  {formatPct(row.pct)}
+                </span>
+                <span className="text-[10px] font-medium tracking-[0.15px] text-[#737373]">
+                  {formatNumber(row.conversions)}
+                </span>
               </div>
             </div>
           );
         }) : (
-          <div className="px-[22px] py-8 text-sm text-[#737373]">
+          <div className="px-3 py-8 text-sm text-[#737373]">
             No channel data for this conversion event yet.
           </div>
         )}
@@ -208,7 +144,7 @@ function TouchCard({
       {totalConversions === 0 ? null : (
         <div className="sr-only">Percentages use {totalConversions} conversions as the denominator.</div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -265,27 +201,19 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
   const overview = overviewQuery.data?.data;
   const isLoading = eventsQuery.isLoading || overviewQuery.isLoading;
   const hasError = eventsQuery.isError || overviewQuery.isError;
-  const story = overview?.story;
-  const openerText = story?.topOpeners?.length
-    ? `${joinChannels(story.topOpeners)} bring new customers in.`
-    : "";
-  const closerText = story?.topClosers?.length
-    ? `${joinChannels(story.topClosers)} close the deal.`
-    : "";
+  const tagline = overview?.story.tagline.trim();
 
   return (
-    <div className="flex flex-col px-7 pb-10">
-      <div className="mb-4 rounded-[12px] border border-[#e5e5e5] bg-white px-[26px] py-[22px] shadow-sm">
-        <div className="mb-3.5 flex flex-wrap items-center gap-4">
-          <Typography variant="h2" className="text-[22px] leading-tight tracking-[-0.018em]">
+    <div className="flex flex-col gap-3 px-7 pb-10">
+      <div className="overflow-hidden rounded-[8px] border border-[#e5e5e5] bg-white">
+        <div className="flex min-h-10 items-center justify-between gap-4 border-b border-[#a3a3a3] bg-white px-2 py-[7.5px]">
+          <h2 className="m-0 text-[16px] font-medium leading-normal text-[#0a0a0a]">
             How your channels work together
-          </Typography>
-        </div>
+          </h2>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex h-9 items-center gap-2 rounded-[6px] border border-[#e5e5e5] bg-[#fafafa] px-2.5 text-xs text-[#737373]">
-            <span className="text-[9.5px] font-medium uppercase tracking-[0.08em] text-[#a3a3a3]">
-              Conversion
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="font-mono text-[12px] font-normal leading-normal text-[#737373]">
+              Total Conversions:<span className="text-[#0a0a0a]">{formatNumber(overview?.totalConversions ?? 0)}</span>
             </span>
             <Select
               value={selectedEvent || undefined}
@@ -294,7 +222,7 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
             >
               <SelectTrigger
                 size="sm"
-                className="h-auto min-h-0 border-0 bg-transparent p-0 font-mono text-xs text-[#171717] shadow-none [&>svg]:h-3 [&>svg]:w-3"
+                className="h-[30px] min-h-0 gap-2 rounded-[8px] border-[#d4d4d4] bg-white px-4 py-1 text-[14px] font-medium leading-normal tracking-[0.07px] text-[#0a0a0a] shadow-none [&>svg]:h-[13.25px] [&>svg]:w-[13.25px]"
               >
                 <SelectValue placeholder="Select event" />
               </SelectTrigger>
@@ -310,64 +238,41 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
               </SelectContent>
             </Select>
           </div>
-
-          <div className="inline-flex h-9 items-center gap-2 rounded-[6px] border border-[#e5e5e5] bg-[#fafafa] px-2.5 text-xs text-[#737373]">
-            <span className="text-[9.5px] font-medium uppercase tracking-[0.08em] text-[#a3a3a3]">
-              Conversions
-            </span>
-            <span className="font-mono text-xs text-[#171717]">
-              {formatNumber(overview?.totalConversions ?? 0)}
-            </span>
-          </div>
         </div>
-      </div>
 
-      {hasError ? (
-        <Card className="rounded-[12px] border-[#e5e5e5] px-6 py-5 text-sm text-[#737373] shadow-sm">
-          Unable to load conversion overview right now.
-        </Card>
-      ) : isLoading ? (
-        <ConversionOverviewSkeleton />
-      ) : overview ? (
-        <>
-          <div className="mb-4 grid gap-4 lg:grid-cols-2">
-            <TouchCard
-              variant="opener"
+        {hasError ? (
+          <Card className="m-3 rounded-[8px] border-[#e5e5e5] px-6 py-5 text-sm text-[#737373] shadow-sm">
+            Unable to load conversion overview right now.
+          </Card>
+        ) : isLoading ? (
+          <ConversionOverviewSkeleton />
+        ) : overview ? (
+          <div className="grid divide-y divide-[#e5e5e5] lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+            <TouchPanel
               title="Who brings new customers in"
-              subtitle={`% of ${formatNumber(overview.totalConversions)} conversions by the channel they arrived through first`}
+              subtitle="% conversions by channel they came through first"
               rows={overview.openers}
               totalConversions={overview.totalConversions}
             />
-            <TouchCard
-              variant="closer"
+            <TouchPanel
               title="Who closes the deal"
-              subtitle={`% of ${formatNumber(overview.totalConversions)} conversions by the channel they returned through`}
+              subtitle="% of users by the channel they returned through"
               rows={overview.closers}
               totalConversions={overview.totalConversions}
             />
           </div>
+        ) : (
+          <Card className="m-3 rounded-[8px] border-[#e5e5e5] px-6 py-5 text-sm text-[#737373] shadow-sm">
+            No conversion events found for this period.
+          </Card>
+        )}
+      </div>
 
-          <div className="rounded-[12px] border border-[#e5e5e5] bg-[#e8f1ed] px-[26px] py-[22px]">
-            <p className="m-0 text-base leading-[1.55] tracking-[-0.005em] text-[#171717]">
-              {openerText ? (
-                <>
-                  {renderMarkedText(openerText, story?.topOpeners ?? [], story?.topClosers ?? [])}{" "}
-                </>
-              ) : null}
-              {closerText ? (
-                <>
-                  {renderMarkedText(closerText, story?.topOpeners ?? [], story?.topClosers ?? [])}{" "}
-                </>
-              ) : null}
-              {renderMarkedText(story?.tagline ?? "", story?.topOpeners ?? [], story?.topClosers ?? [])}
-            </p>
-          </div>
-        </>
-      ) : (
-        <Card className="rounded-[12px] border-[#e5e5e5] px-6 py-5 text-sm text-[#737373] shadow-sm">
-          No conversion events found for this period.
+      {tagline ? (
+        <Card className="rounded-[8px] border-[#e5e5e5] bg-white px-6 py-5 text-sm font-medium leading-normal text-[#0a0a0a] shadow-none">
+          {tagline}
         </Card>
-      )}
+      ) : null}
     </div>
   );
 };

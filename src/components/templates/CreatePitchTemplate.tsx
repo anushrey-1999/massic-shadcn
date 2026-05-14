@@ -7,14 +7,19 @@ import { toast } from "sonner";
 
 import { useLocations } from "@/hooks/use-locations";
 import { useBusinessStore } from "@/store/business-store";
-import {
-  businessInfoSchema,
-  type BusinessInfoFormData,
-} from "@/schemas/ProfileFormSchema";
-import { useCreateBusiness, useBusinessProfiles, fetchPitchBusinessProfiles } from "@/hooks/use-business-profiles";
+import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
+import { useCreateBusiness, useBusinessProfiles, usePitchBusinesses, fetchPitchBusinessProfiles } from "@/hooks/use-business-profiles";
 import { useCreateJob, type Offering, type BusinessProfilePayload } from "@/hooks/use-jobs";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import PageHeader from "@/components/molecules/PageHeader";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
@@ -62,6 +67,7 @@ export function CreatePitchTemplate() {
   const createBusiness = useCreateBusiness();
   const createJobMutation = useCreateJob();
   const { refetchBusinessProfiles } = useBusinessProfiles();
+  const { pitchBusinesses } = usePitchBusinesses();
 
   const offeringsExtractor = useOfferingsExtractor("create-pitch");
 
@@ -70,6 +76,7 @@ export function CreatePitchTemplate() {
   const resetProfileForm = useBusinessStore((state) => state.resetProfileForm);
 
   const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
+  const [existingBusinessId, setExistingBusinessId] = useState<string | null>(null);
   React.useEffect(() => {
     resetProfileForm();
     return () => resetProfileForm();
@@ -94,10 +101,8 @@ export function CreatePitchTemplate() {
 
   const form = useForm({
     defaultValues,
-    validators: {
-      onChange: businessInfoSchema,
-    },
     onSubmit: async ({ value }) => {
+      console.log("[CreatePitch] onSubmit called with values:", value);
       const normalizedOfferType: "products" | "services" =
         value.offerings === "products" ? "products" : "services";
 
@@ -201,6 +206,9 @@ export function CreatePitchTemplate() {
 
   const [isAutofillLoading, setIsAutofillLoading] = useState(false);
 
+  const normalizeUrl = (url: string) =>
+    url.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "").trim();
+
   const handleAutofillProfile = useCallback(async () => {
     const values = form.state.values as BusinessInfoFormData;
     const website = cleanWebsiteUrl(values?.website || "").trim();
@@ -208,6 +216,17 @@ export function CreatePitchTemplate() {
       toast.error("Please enter a website URL first");
       return;
     }
+
+    const normalizedInput = normalizeUrl(website);
+    const match = pitchBusinesses.find((b) => {
+      const bWebsite = normalizeUrl(b.Website || "");
+      return bWebsite && (bWebsite === normalizedInput || bWebsite.includes(normalizedInput) || normalizedInput.includes(bWebsite));
+    });
+    if (match) {
+      setExistingBusinessId(match.UniqueId);
+      return;
+    }
+
     setIsAutofillLoading(true);
     // Start offerings extraction in parallel (same click as Profile Autofill)
     // Do not await here so Profile Autofill UX isn't blocked.
@@ -365,8 +384,15 @@ export function CreatePitchTemplate() {
     return offeringsMeta?.hasValidationErrors === true;
   });
 
-  const hasSchemaValidationErrors = React.useMemo(() => {
-    return !businessInfoSchema.safeParse(formValues).success;
+  const hasRequiredFieldErrors = React.useMemo(() => {
+    const { website, businessName, primaryLocation, serviceType, offerings } = formValues;
+    return (
+      !website?.trim() ||
+      !businessName?.trim() ||
+      !primaryLocation?.trim() ||
+      !["physical", "online", "both"].includes(serviceType) ||
+      !["products", "services", "both"].includes(offerings)
+    );
   }, [formValues]);
 
   const hasAtLeastOneOffering = React.useMemo(() => {
@@ -376,7 +402,7 @@ export function CreatePitchTemplate() {
 
   const canConfirmAndProceed =
     hasAutofilledProfile &&
-    !hasSchemaValidationErrors &&
+    !hasRequiredFieldErrors &&
     !hasOfferingsValidationErrors &&
     hasAtLeastOneOffering;
 
@@ -392,12 +418,67 @@ export function CreatePitchTemplate() {
     return undefined;
   }, [isAutofillLoading, isCreatingBusiness, isCreatingJob]);
 
+  React.useEffect(() => {
+    console.log("[CreatePitch] Button state:", {
+      isButtonDisabled: !canConfirmAndProceed || isSubmitting || isLoading,
+      canConfirmAndProceed,
+      hasAutofilledProfile,
+      hasRequiredFieldErrors,
+      hasOfferingsValidationErrors,
+      hasAtLeastOneOffering,
+      isSubmitting,
+      isLoading,
+      isCreatingBusiness,
+      isCreatingJob,
+      isAutofillLoading,
+    });
+    if (hasRequiredFieldErrors) {
+      const { website, businessName, primaryLocation, serviceType, offerings } = formValues;
+      console.log("[CreatePitch] Required field values:", {
+        website,
+        businessName,
+        primaryLocation,
+        serviceType,
+        offerings,
+      });
+    }
+    if (!hasAtLeastOneOffering) {
+      console.log("[CreatePitch] offeringsList:", formValues.offeringsList);
+    }
+  });
+
   const handleConfirmAndProceed = React.useCallback(async () => {
+    console.log("[CreatePitch] handleConfirmAndProceed fired");
+    console.log("[CreatePitch] form state before submit:", {
+      values: form.state.values,
+      errors: form.state.errors,
+      isSubmitting: form.state.isSubmitting,
+    });
     await form.handleSubmit();
+    console.log("[CreatePitch] handleSubmit completed");
   }, [form]);
 
   return (
     <div className="flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden">
+      <Dialog open={!!existingBusinessId} onOpenChange={(open) => { if (!open) setExistingBusinessId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Business Already Exists</DialogTitle>
+            <DialogDescription>
+              A pitch business with this website already exists. You can view and manage it from its profile page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExistingBusinessId(null)}>
+              Cancel
+            </Button>
+            <Button onClick={() => router.push(`/pitches/${existingBusinessId}/profile`)}>
+              Go to Profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="sticky top-0 z-10 shrink-0 bg-background">

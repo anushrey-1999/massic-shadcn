@@ -101,7 +101,7 @@ export function usePitchBusinesses() {
       return fetchBusinessProfiles(userUniqueId, true);
     },
     enabled: isAuthenticated && !!userUniqueId,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 0,
     gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
@@ -250,6 +250,9 @@ export function useCreateBusiness() {
       // Invalidate and refetch business profiles to get the newly created one
       await queryClient.invalidateQueries({
         queryKey: [BUSINESS_PROFILES_KEY, userUniqueId],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["pitchBusinesses", userUniqueId],
       });
 
       // Refetch using the same query function (reusing fetchBusinessProfiles)

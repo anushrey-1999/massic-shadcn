@@ -18,10 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, Loader2, Sparkles, List, Network } from "lucide-react";
+import { AlertCircle, Loader2, Sparkles, List, Layers } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
 import { getThemesTableColumns } from "./themes-table-columns";
-import { ThemesForceGraph } from "./themes-force-graph";
+import { ThemesBubbleChart } from "./themes-bubble-chart";
 import { ThemesSplitView } from "./themes-split-view";
 import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
@@ -33,7 +33,7 @@ interface ThemesTableClientProps {
   onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
-type ThemesView = "table" | "graph" | "umap";
+type ThemesView = "table" | "bubble";
 
 function getFilterValues(row: ThemeRow, field: string): string[] {
   if (field === "theme_name") return [row.theme_name || ""];
@@ -110,6 +110,7 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
       setSelectedOffering("all");
     }
   }, [view, selectedOffering]);
+
 
   const { fetchThemes, triggerThemes } = useThemes(businessId);
 
@@ -335,7 +336,6 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
   const totalThemes = allData.length;
   const graphStats = (() => {
     const offerings = new Set<string>();
-    let sharedThemes = 0;
 
     filteredData.forEach((row) => {
       const names = [
@@ -346,13 +346,11 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
         .filter(Boolean);
 
       names.forEach((name) => offerings.add(name));
-      if (new Set(names).size > 1) sharedThemes += 1;
     });
 
     return {
       offerings: offerings.size,
       themes: filteredData.length,
-      sharedThemes,
     };
   })();
 
@@ -395,19 +393,15 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
           <List className="h-4 w-4" />
           List
         </TabsTrigger>
-        <TabsTrigger value="graph">
-          <Network className="h-4 w-4" />
-          Graph
-        </TabsTrigger>
-        <TabsTrigger value="umap">
-          <Network className="h-4 w-4" />
-          UMAP
+        <TabsTrigger value="bubble">
+          <Layers className="h-4 w-4" />
+          Map
         </TabsTrigger>
       </TabsList>
     </Tabs>
   );
 
-  if (view === "graph" || view === "umap") {
+  if (view === "bubble") {
     return (
       <div className="h-full flex flex-col gap-4">
         <div className="shrink-0 flex flex-col gap-3">
@@ -421,9 +415,6 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
                 <div className="text-sm font-mono text-general-muted-foreground">
                   <span className="text-general-primary">{graphStats.themes}</span> Themes
                 </div>
-                <div className="text-sm font-mono text-general-muted-foreground">
-                  <span className="text-general-primary">{graphStats.sharedThemes}</span> Shared
-                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -432,7 +423,10 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
           </div>
         </div>
         <div className="flex-1 min-h-0">
-          <ThemesForceGraph data={filteredData} layout={view === "umap" ? "umap" : "force"} />
+          <ThemesBubbleChart
+            data={filteredData}
+            selectedOffering={selectedOffering === "all" ? undefined : selectedOffering}
+          />
         </div>
       </div>
     );

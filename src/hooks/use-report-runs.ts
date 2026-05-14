@@ -160,13 +160,17 @@ export interface GenerateReportV2Params {
   startDate: string;
   endDate: string;
   custom_instructions?: string;
+  report_options?: {
+    scope: "organic" | "all_channels";
+    perspective: "wins" | "full_picture";
+  };
 }
 
 export function useGenerateReportV2() {
   const queryClient = useQueryClient();
 
   return useMutation<GenerateReportResponse, Error, GenerateReportV2Params>({
-    mutationFn: async ({ businessId, startDate, endDate, custom_instructions }) => {
+    mutationFn: async ({ businessId, startDate, endDate, custom_instructions, report_options }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
@@ -178,7 +182,7 @@ export function useGenerateReportV2() {
       const response = await api.post<GenerateReportResponse>(
         `/analytics/generate-performance-report-v2`,
         "node",
-        { businessId, startDate, endDate, custom_instructions }
+        { businessId, startDate, endDate, custom_instructions, report_options }
       );
 
       return response;
@@ -195,6 +199,7 @@ export interface UpdatePerformanceReportParams {
   reportRunId: string;
   performance_report?: string;
   edited_field_updates?: PerformanceReportV2EditedFields;
+  email_summary?: string;
   discard_all_edits?: boolean;
 }
 
@@ -203,8 +208,10 @@ export interface UpdatePerformanceReportResponse {
   message: string;
   data: {
     id: string;
+    email_summary?: string | null;
     narrative_text: {
       performance_report?: PerformanceReportPayload;
+      email_summary?: string | null;
     };
   };
 }
@@ -213,7 +220,7 @@ export function useUpdatePerformanceReport() {
   const queryClient = useQueryClient();
 
   return useMutation<UpdatePerformanceReportResponse, Error, UpdatePerformanceReportParams>({
-    mutationFn: async ({ reportRunId, performance_report, edited_field_updates, discard_all_edits }) => {
+    mutationFn: async ({ reportRunId, performance_report, edited_field_updates, email_summary, discard_all_edits }) => {
       if (!reportRunId) {
         throw new Error("Report run ID is required");
       }
@@ -221,6 +228,7 @@ export function useUpdatePerformanceReport() {
       if (
         performance_report === undefined &&
         edited_field_updates === undefined &&
+        email_summary === undefined &&
         !discard_all_edits
       ) {
         throw new Error("A report update payload is required");
@@ -232,6 +240,7 @@ export function useUpdatePerformanceReport() {
         {
           ...(performance_report !== undefined ? { performance_report } : {}),
           ...(edited_field_updates !== undefined ? { edited_field_updates } : {}),
+          ...(email_summary !== undefined ? { email_summary } : {}),
           ...(discard_all_edits ? { discard_all_edits } : {}),
         }
       );
@@ -245,6 +254,7 @@ export function useUpdatePerformanceReport() {
           current
             ? {
                 ...current,
+                email_summary: data.data.email_summary ?? current.email_summary,
                 narrative_text: data.data.narrative_text,
                 updated_at: new Date().toISOString(),
               }

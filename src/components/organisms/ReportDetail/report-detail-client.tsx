@@ -30,6 +30,7 @@ import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useReportRunDetail, useUpdatePerformanceReport } from "@/hooks/use-report-runs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { toast } from "sonner";
 import { copyToClipboard } from "@/utils/clipboard";
@@ -56,6 +57,17 @@ interface ReportDetailClientProps {
   reportRunId: string;
 }
 
+const EMAIL_SUMMARY_SOFT_LIMIT = 600;
+
+function normalizeEmailSummaryValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+
+  const record = value as Record<string, unknown>;
+  const direct = record.email_summary ?? record.summary;
+  return typeof direct === "string" ? direct : "";
+}
+
 export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClientProps) {
   const router = useRouter();
   const [reportEditor, setReportEditor] = React.useState<Editor | null>(null);
@@ -66,6 +78,9 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const [isEditorFocused, setIsEditorFocused] = React.useState(false);
   const [isV2EditMode, setIsV2EditMode] = React.useState(false);
   const [v2ResetVersion, setV2ResetVersion] = React.useState(0);
+  const [emailSummaryDraft, setEmailSummaryDraft] = React.useState("");
+  const [isEmailSummaryFocused, setIsEmailSummaryFocused] = React.useState(false);
+  const [isEmailSummarySaving, setIsEmailSummarySaving] = React.useState(false);
   const lastSavedRef = React.useRef<string>("");
   const isInitialLoadRef = React.useRef(true);
   const lastStatusRef = React.useRef<string>("");
@@ -73,6 +88,12 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const periodicTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = React.useRef(false);
+  const emailSummaryDraftRef = React.useRef("");
+  const emailSummarySavedRef = React.useRef("");
+  const emailSummaryDirtyRef = React.useRef(false);
+  const emailSummaryDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const emailSummarySaveInFlightRef = React.useRef(false);
+  const pendingEmailSummarySaveRef = React.useRef<string | null>(null);
 
   const { profileData } = useBusinessProfileById(businessId);
   const businessName = profileData?.Name || profileData?.DisplayName || "Business";
@@ -102,6 +123,24 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
     if (!performanceReportV2Raw) return 0;
     return Object.keys(getPerformanceReportV2EditedFields(performanceReportV2Raw)).length;
   }, [performanceReportV2Raw]);
+  const emailSummary = React.useMemo(() => {
+    const direct = normalizeEmailSummaryValue(reportData?.email_summary);
+    if (direct.trim()) return direct;
+
+    const narrativeText = reportData?.narrative_text;
+    const nested = narrativeText && typeof narrativeText === "object"
+      ? normalizeEmailSummaryValue((narrativeText as Record<string, unknown>).email_summary)
+      : "";
+    if (nested.trim()) return nested;
+
+    const llmOutputs = narrativeText && typeof narrativeText === "object"
+      ? (narrativeText as Record<string, unknown>).llm_outputs
+      : null;
+    const llmEmailSummary = llmOutputs && typeof llmOutputs === "object"
+      ? normalizeEmailSummaryValue((llmOutputs as Record<string, unknown>).email_summary)
+      : "";
+    return llmEmailSummary;
+  }, [reportData?.email_summary, reportData?.narrative_text]);
   const hasReportContent =
     parsedReport.kind === "v2" || (parsedReport.kind === "markdown" && !!parsedReport.markdown.trim());
   const period = reportData?.period || "3-month";
@@ -153,6 +192,9 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
       if (periodicTimerRef.current) {
         clearInterval(periodicTimerRef.current);
       }
+      if (emailSummaryDebounceTimerRef.current) {
+        clearTimeout(emailSummaryDebounceTimerRef.current);
+      }
     };
   }, [isV2Report]);
 
@@ -188,6 +230,25 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
       isInitialLoadRef.current = false;
     }
   }, [reportData, status, reportEditor, isV2Report]);
+
+  React.useEffect(() => {
+    emailSummaryDirtyRef.current = false;
+    emailSummarySavedRef.current = emailSummary;
+    emailSummaryDraftRef.current = emailSummary;
+    setEmailSummaryDraft(emailSummary);
+    setIsEmailSummaryFocused(false);
+    if (emailSummaryDebounceTimerRef.current) {
+      clearTimeout(emailSummaryDebounceTimerRef.current);
+      emailSummaryDebounceTimerRef.current = null;
+    }
+  }, [reportRunId]);
+
+  React.useEffect(() => {
+    if (emailSummaryDirtyRef.current || isEmailSummaryFocused) return;
+    emailSummarySavedRef.current = emailSummary;
+    emailSummaryDraftRef.current = emailSummary;
+    setEmailSummaryDraft(emailSummary);
+  }, [emailSummary, isEmailSummaryFocused]);
 
   React.useEffect(() => {
     if (!isV2Report && !isV2EditMode) {
@@ -252,6 +313,68 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
     },
     [reportRunId, updateMutation]
   );
+
+  const saveEmailSummary = React.useCallback(async (nextValue: string, options?: { showToast?: boolean }) => {
+    if (!isV2Report) return;
+    const next = nextValue;
+    if (next === emailSummarySavedRef.current) {
+      emailSummaryDirtyRef.current = false;
+      return;
+    }
+
+    if (emailSummarySaveInFlightRef.current) {
+      pendingEmailSummarySaveRef.current = next;
+      return;
+    }
+
+    try {
+      emailSummarySaveInFlightRef.current = true;
+      setIsEmailSummarySaving(true);
+      await updateMutation.mutateAsync({
+        reportRunId,
+        email_summary: next,
+      });
+      emailSummarySavedRef.current = next;
+      emailSummaryDirtyRef.current = emailSummaryDraftRef.current !== next;
+      if (options?.showToast) toast.success("Email summary saved");
+    } catch {
+      toast.error("Failed to save email summary");
+    } finally {
+      emailSummarySaveInFlightRef.current = false;
+      setIsEmailSummarySaving(false);
+
+      const pending = pendingEmailSummarySaveRef.current;
+      pendingEmailSummarySaveRef.current = null;
+      if (pending !== null && pending !== emailSummarySavedRef.current) {
+        await saveEmailSummary(pending);
+      }
+    }
+  }, [isV2Report, reportRunId, updateMutation]);
+
+  const scheduleEmailSummarySave = React.useCallback(() => {
+    if (emailSummaryDebounceTimerRef.current) {
+      clearTimeout(emailSummaryDebounceTimerRef.current);
+    }
+
+    emailSummaryDebounceTimerRef.current = setTimeout(() => {
+      emailSummaryDebounceTimerRef.current = null;
+      saveEmailSummary(emailSummaryDraftRef.current);
+    }, 1500);
+  }, [saveEmailSummary]);
+
+  const handleEmailSummaryChange = React.useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const next = event.target.value;
+    emailSummaryDraftRef.current = next;
+    emailSummaryDirtyRef.current = next !== emailSummarySavedRef.current;
+    setEmailSummaryDraft(next);
+    scheduleEmailSummarySave();
+  }, [scheduleEmailSummarySave]);
+
+  const handleCopyEmailSummary = React.useCallback(async () => {
+    const ok = await copyToClipboard(emailSummaryDraft);
+    if (ok) toast.success("Email summary copied");
+    else toast.error("Copy failed");
+  }, [emailSummaryDraft]);
 
   const handleDiscardAllV2Edits = React.useCallback(async () => {
     try {
@@ -451,6 +574,43 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
 
           {/* Line Separator */}
           <div className="w-full h-px bg-border" />
+
+          {isSuccess && isV2Report && (
+            <Card className="rounded-xl border border-general-border bg-background p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-general-foreground">Email summary</p>
+                  <p className="text-xs text-muted-foreground">
+                    Separate from the report preview and PDF export.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyEmailSummary}
+                  disabled={!emailSummaryDraft.trim()}
+                  className="gap-2"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy
+                </Button>
+              </div>
+              <Textarea
+                value={emailSummaryDraft}
+                onChange={handleEmailSummaryChange}
+                onFocus={() => setIsEmailSummaryFocused(true)}
+                onBlur={() => setIsEmailSummaryFocused(false)}
+                className="min-h-[120px] resize-y bg-white text-sm"
+                placeholder="Email summary will appear here after generation."
+              />
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span>{isEmailSummarySaving ? "Saving changes..." : "Autosaves after you stop typing."}</span>
+                <span className={emailSummaryDraft.length > EMAIL_SUMMARY_SOFT_LIMIT ? "text-amber-600" : undefined}>
+                  {emailSummaryDraft.length}/{EMAIL_SUMMARY_SOFT_LIMIT}
+                </span>
+              </div>
+            </Card>
+          )}
 
           {/* Content Section */}
           <div className="flex-1 min-h-0 overflow-auto">

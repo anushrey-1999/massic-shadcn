@@ -4,12 +4,14 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Eye, EyeClosed, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export interface SequenceItem {
   id: string
+  templateId?: number
   type: "email" | "sms"
   name: string
   sequenceDay: number
@@ -17,7 +19,6 @@ export interface SequenceItem {
   subject?: string
   content?: string
   buttonText?: string
-  isSkipped?: boolean
 }
 
 export interface ColumnConfig {
@@ -43,6 +44,9 @@ export interface AutomationSequenceTableProps {
   onUpdateSequence?: (id: string, data: Partial<SequenceItem>) => void
   onDeleteSequence?: (id: string) => void
   onAddSequence?: () => void
+  onExpandedChange?: (id: string | null) => void
+  expandedId?: string | null
+  maxSequenceDay?: number
   className?: string
   columns?: ColumnConfig[]
   expandedFields?: ExpandedFieldConfig[]
@@ -54,12 +58,7 @@ const defaultColumns: ColumnConfig[] = [
     label: "Activity",
     width: "w-[200px]",
     render: (seq, _, __) => (
-      <p
-        className={cn(
-          "text-sm text-general-foreground",
-          seq.isSkipped && "text-general-foreground/60"
-        )}
-      >
+      <p className="text-sm text-general-foreground">
         {seq.name}
       </p>
     ),
@@ -109,32 +108,36 @@ export const AutomationSequenceTable = React.forwardRef<
       onUpdateSequence,
       onDeleteSequence,
       onAddSequence,
+      onExpandedChange,
+      expandedId: controlledExpandedId,
+      maxSequenceDay,
       className,
       columns = defaultColumns,
       expandedFields = defaultExpandedFields,
     },
     ref
   ) => {
-    const [expandedId, setExpandedId] = React.useState<string | null>(
+    const [internalExpandedId, setInternalExpandedId] = React.useState<string | null>(
       sequences.length > 0 ? sequences[0].id : null
     )
 
+    const expandedId = controlledExpandedId ?? internalExpandedId
+
     const toggleExpand = (id: string) => {
-      setExpandedId(expandedId === id ? null : id)
+      const nextId = expandedId === id ? null : id
+      setInternalExpandedId(nextId)
+      onExpandedChange?.(nextId)
     }
 
     const handleFieldChange = (id: string, field: keyof SequenceItem, value: any) => {
       onUpdateSequence?.(id, { [field]: value })
     }
 
-    const toggleSkip = (id: string) => {
-      const sequence = sequences.find(seq => seq.id === id)
-      if (sequence) {
-        onUpdateSequence?.(id, { isSkipped: !sequence.isSkipped })
-      }
-    }
-
     const renderSequenceColumn = (seq: SequenceItem, isExpanded: boolean) => {
+      const index = sequences.findIndex((item) => item.id === seq.id)
+      const prevSequenceDay =
+        index > 0 ? sequences[index - 1]?.sequenceDay : undefined
+      const minSequenceDay = typeof prevSequenceDay === "number" ? prevSequenceDay + 1 : 1
       if (isExpanded) {
         return (
           <>
@@ -145,8 +148,9 @@ export const AutomationSequenceTable = React.forwardRef<
                 handleFieldChange(seq.id, "sequenceDay", parseInt(e.target.value) || 0)
               }
               onClick={(e) => e.stopPropagation()}
+              min={minSequenceDay}
+              max={maxSequenceDay}
               className="w-20 h-8 text-sm"
-              disabled={seq.isSkipped}
             />
             <span className="text-sm text-general-foreground">
               {seq.dayUnit || "day later"}
@@ -155,10 +159,7 @@ export const AutomationSequenceTable = React.forwardRef<
         )
       }
       return (
-        <p className={cn(
-          "text-sm text-general-foreground",
-          seq.isSkipped && "text-general-foreground/60"
-        )}>
+        <p className="text-sm text-general-foreground">
           {seq.sequenceDay} {seq.dayUnit || "day later"}
         </p>
       )
@@ -166,7 +167,6 @@ export const AutomationSequenceTable = React.forwardRef<
 
     const renderField = (field: ExpandedFieldConfig, seq: SequenceItem) => {
       const commonProps = {
-        disabled: seq.isSkipped,
         placeholder: field.placeholder,
       }
 
@@ -192,19 +192,15 @@ export const AutomationSequenceTable = React.forwardRef<
     }
 
     return (
-      <div ref={ref} className={cn("w-full", className)}>
-        <div className="flex-1 flex flex-col">
+      <div ref={ref} className={cn("w-full min-w-0", className)}>
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
           <div className="bg-white border border-general-border rounded-t-lg overflow-hidden">
             <div className="flex items-center ">
               {columns.map((col, index) => (
                 <div
                   key={col.key}
-                  className={cn(
-                    "px-2 py-2 ",
-                    col.width,
-                    index < columns.length - 1 && ""
-                  )}
+                  className={cn("px-2 py-2 min-w-0", col.width)}
                 >
                   <p className="text-sm font-medium text-general-foreground">{col.label}</p>
                 </div>
@@ -224,8 +220,7 @@ export const AutomationSequenceTable = React.forwardRef<
                 key={seq.id}
                 className={cn(
                   "bg-white border-l border-r border-b border-general-border",
-                  isExpanded && "",
-                  seq.isSkipped && "opacity-50"
+                  isExpanded && ""
                 )}
               >
                 {/* Row header */}
@@ -233,13 +228,12 @@ export const AutomationSequenceTable = React.forwardRef<
                   data-row-header="true"
                   className={cn(
                     "flex items-center cursor-pointer hover:bg-general-background/50",
-                    isExpanded ? "min-h-14" : "min-h-10",
-                    seq.isSkipped && "bg-general-secondary/30"
+                    isExpanded ? "min-h-14" : "min-h-10"
                   )}
                   onClick={() => toggleExpand(seq.id)}
                 >
                   {columns.map((col) => (
-                    <div key={col.key} className={cn("px-2 py-2 shrink-0", col.width)}>
+                    <div key={col.key} className={cn("px-2 py-2 min-w-0", col.width)}>
                       {col.key === "sequence" ? (
                         <div className="flex items-center gap-2">
                           {renderSequenceColumn(seq, isExpanded)}
@@ -250,24 +244,6 @@ export const AutomationSequenceTable = React.forwardRef<
                     </div>
                   ))}
                   <div className="w-20 px-2 py-0.5 flex items-center justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={cn(
-                        "h-8 w-8 p-0",
-                        seq.isSkipped && "text-general-foreground/40"
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleSkip(seq.id)
-                      }}
-                    >
-                      {seq.isSkipped ? (
-                        <EyeClosed className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -285,7 +261,26 @@ export const AutomationSequenceTable = React.forwardRef<
                 {/* Expanded content */}
                 {isExpanded && (
                   <div className="p-3">
-                    <div className="bg-foreground-light rounded-lg p-2 space-y-4">
+                    <div className="bg-foreground-light rounded-lg p-2 space-y-4 min-w-0">
+                      <div className="space-y-1">
+                        <Label className="text-sm text-general-foreground">
+                          Type
+                        </Label>
+                        <Select
+                          value={seq.type}
+                          onValueChange={(value) =>
+                            handleFieldChange(seq.id, "type", value as SequenceItem["type"])
+                          }
+                        >
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="email">Email</SelectItem>
+                            <SelectItem value="sms">SMS</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="space-y-4">
                         {expandedFields.map((field, fieldIndex) => {
                           if (
@@ -295,40 +290,17 @@ export const AutomationSequenceTable = React.forwardRef<
                             return null
                           }
 
-                          const isButtonTextField = field.key === "buttonText"
-
                           return (
                             <div key={field.key}>
-                              {isButtonTextField ? (
-                                <div className="flex items-end gap-4 justify-between">
-                                  <div className={cn("space-y-1", field.width)}>
-                                    <Label className="text-sm  text-general-foreground">
-                                      {field.required && (
-                                        <span className="text-red-500">*</span>
-                                      )}
-                                      {field.label}
-                                    </Label>
-                                    {renderField(field, seq)}
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    className="text-sm text-general-primary"
-                                    disabled={seq.isSkipped}
-                                  >
-                                    Save Changes
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className={cn("space-y-1", field.width)}>
-                                  <Label className="text-sm  text-general-foreground">
-                                    {field.required && (
-                                      <span className="text-red-500">*</span>
-                                    )}
-                                    {field.label}
-                                  </Label>
-                                  {renderField(field, seq)}
-                                </div>
-                              )}
+                              <div className={cn("space-y-1", field.width)}>
+                                <Label className="text-sm  text-general-foreground">
+                                  {field.required && (
+                                    <span className="text-red-500">*</span>
+                                  )}
+                                  {field.label}
+                                </Label>
+                                {renderField(field, seq)}
+                              </div>
                             </div>
                           )
                         })}
@@ -341,7 +313,7 @@ export const AutomationSequenceTable = React.forwardRef<
           })}
 
           {/* Add button */}
-          <div className="bg-white border-l border-r border-b border-general-border rounded-b-lg p-2">
+          <div className="bg-white border-l border-r border-b border-general-border rounded-b-lg p-2 sticky bottom-0 z-10">
             <Button
               variant="ghost"
               size="sm"

@@ -2,10 +2,14 @@
 
 import * as React from "react";
 import * as d3 from "d3";
+import { UMAP } from "umap-js";
 import type { ThemeRow } from "@/types/themes-types";
+
+type GraphLayout = "force" | "umap";
 
 interface ThemesForceGraphProps {
   data: ThemeRow[];
+  layout?: GraphLayout;
 }
 
 interface GraphNode extends d3.SimulationNodeDatum {
@@ -27,6 +31,12 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   target: string | GraphNode;
   offering: string;
   color: string;
+}
+
+interface HullDatum {
+  offering: string;
+  color: string;
+  path: string;
 }
 
 interface TooltipState {
@@ -51,7 +61,79 @@ function hashIndex(str: string, len: number): number {
   return h % len;
 }
 
-export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
+function getThemeOfferings(d: ThemeRow) {
+  const names = [
+    ...(Array.isArray(d.offerings) ? d.offerings : []),
+    d.origin_offering,
+  ]
+    .map((name) => String(name ?? "").trim())
+    .filter(Boolean);
+
+  return [...new Set(names.length > 0 ? names : ["Other"])];
+}
+
+function seededRandom(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function tokenize(value: string) {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 2);
+}
+
+function buildThemeVectors(data: ThemeRow[]) {
+  const documents = data.map((row) => {
+    const offerings = getThemeOfferings(row).map((offering) => `offering:${offering.toLowerCase()}`);
+    const topics = (row.topics ?? []).flatMap((topic) => tokenize(topic.topic_name));
+    return [
+      ...tokenize(row.theme_name ?? ""),
+      ...topics,
+      ...offerings,
+    ];
+  });
+
+  const frequencies = new Map<string, number>();
+  documents.forEach((tokens) => {
+    new Set(tokens).forEach((token) => frequencies.set(token, (frequencies.get(token) ?? 0) + 1));
+  });
+
+  const vocabulary = [...frequencies.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 180)
+    .map(([token]) => token);
+
+  if (vocabulary.length === 0) {
+    return data.map((_, index) => [index / Math.max(data.length - 1, 1)]);
+  }
+
+  const indexByToken = new Map(vocabulary.map((token, index) => [token, index]));
+  return documents.map((tokens) => {
+    const vector = new Array(vocabulary.length).fill(0);
+    tokens.forEach((token) => {
+      const index = indexByToken.get(token);
+      if (index == null) return;
+      vector[index] += token.startsWith("offering:") ? 1.8 : 1;
+    });
+    const length = Math.hypot(...vector) || 1;
+    return vector.map((value) => value / length);
+  });
+}
+
+function getFallbackProjection(count: number) {
+  return Array.from({ length: count }, (_, index) => {
+    if (count === 1) return [0, 0];
+    const angle = -Math.PI / 2 + (index / count) * Math.PI * 2;
+    return [Math.cos(angle), Math.sin(angle)];
+  });
+}
+
+export function ThemesForceGraph({ data, layout = "force" }: ThemesForceGraphProps) {
   const svgRef = React.useRef<SVGSVGElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const simulationRef = React.useRef<d3.Simulation<GraphNode, GraphLink> | null>(null);
@@ -70,18 +152,7 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
   }, []);
 
   const { nodes, links, offeringColorMap } = React.useMemo(() => {
-    const getOfferings = (d: ThemeRow) => {
-      const names = [
-        ...(Array.isArray(d.offerings) ? d.offerings : []),
-        d.origin_offering,
-      ]
-        .map((name) => String(name ?? "").trim())
-        .filter(Boolean);
-
-      return [...new Set(names.length > 0 ? names : ["Other"])];
-    };
-
-    const offeringNames = [...new Set(data.flatMap(getOfferings))];
+    const offeringNames = [...new Set(data.flatMap(getThemeOfferings))];
 
     const colorMap: Record<string, string> = {};
     offeringNames.forEach((name) => {
@@ -90,7 +161,7 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
 
     const offeringThemeCounts = new Map<string, number>();
     data.forEach((row) => {
-      getOfferings(row).forEach((offering) => {
+      getThemeOfferings(row).forEach((offering) => {
         offeringThemeCounts.set(offering, (offeringThemeCounts.get(offering) ?? 0) + 1);
       });
     });
@@ -105,7 +176,7 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
     }));
 
     const themeNodes: GraphNode[] = data.map((d) => {
-      const offerings = getOfferings(d);
+      const offerings = getThemeOfferings(d);
       const primaryOffering = d.origin_offering || offerings[0] || "Other";
       const color = offerings.length > 1
         ? SHARED_THEME_PALETTE[hashIndex(d.id || d.theme_name, SHARED_THEME_PALETTE.length)]
@@ -125,7 +196,7 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
     });
 
     const links: GraphLink[] = data.flatMap((d) =>
-      getOfferings(d).map((offering) => ({
+      getThemeOfferings(d).map((offering) => ({
         source: `offering::${offering}`,
         target: d.id,
         offering,
@@ -155,6 +226,7 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
     const centerX = width / 2;
     const centerY = height / 2;
     const offeringNodes = nodesCopy.filter((node) => node.type === "offering");
+    const themeNodes = nodesCopy.filter((node) => node.type === "theme");
     const graphRadius = Math.max(240, Math.min(width, height) * 0.42);
     const offeringAnchors = new Map<string, { x: number; y: number }>();
 
@@ -183,15 +255,78 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
       };
     };
 
-    nodesCopy.forEach((node) => {
-      const anchor = getNodeAnchor(node);
-      const angle = (hashIndex(`${node.id}:angle`, 360) / 360) * Math.PI * 2;
-      const distance = node.type === "offering"
-        ? 28
-        : 72 + hashIndex(`${node.id}:distance`, 68);
-      node.x = anchor.x + Math.cos(angle) * distance;
-      node.y = anchor.y + Math.sin(angle) * distance;
-    });
+    const projectedAnchors = new Map<string, { x: number; y: number }>();
+
+    if (layout === "umap" && themeNodes.length > 0) {
+      let projection = getFallbackProjection(themeNodes.length);
+
+      if (themeNodes.length > 2) {
+        try {
+          const vectors = buildThemeVectors(data);
+          const umap = new UMAP({
+            nComponents: 2,
+            nNeighbors: Math.max(2, Math.min(15, themeNodes.length - 1)),
+            minDist: 0.24,
+            spread: 1.45,
+            nEpochs: Math.max(120, Math.min(280, themeNodes.length * 2)),
+            random: seededRandom(data.reduce((seed, row) => seed + hashIndex(row.id || row.theme_name, 100000), 17)),
+          });
+          projection = umap.fit(vectors);
+        } catch {
+          projection = getFallbackProjection(themeNodes.length);
+        }
+      }
+
+      const xs = projection.map((point) => point[0] ?? 0);
+      const ys = projection.map((point) => point[1] ?? 0);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const spanX = Math.max(maxX - minX, 0.0001);
+      const spanY = Math.max(maxY - minY, 0.0001);
+      const padding = 120;
+      const scale = Math.min(
+        Math.max(width - padding * 2, 120) / spanX,
+        Math.max(height - padding * 2, 120) / spanY
+      );
+
+      themeNodes.forEach((node, index) => {
+        const point = projection[index] ?? [0, 0];
+        const jitterAngle = (hashIndex(`${node.id}:umap-angle`, 360) / 360) * Math.PI * 2;
+        const jitter = hashIndex(`${node.id}:umap-jitter`, 8);
+        node.x = centerX + (point[0] - minX - spanX / 2) * scale + Math.cos(jitterAngle) * jitter;
+        node.y = centerY + (point[1] - minY - spanY / 2) * scale + Math.sin(jitterAngle) * jitter;
+        projectedAnchors.set(node.id, { x: node.x, y: node.y });
+      });
+
+      offeringNodes.forEach((node) => {
+        const connectedThemes = themeNodes.filter((theme) => theme.offerings?.includes(node.label));
+        if (connectedThemes.length === 0) {
+          node.x = centerX;
+          node.y = centerY;
+        } else {
+          node.x = connectedThemes.reduce((sum, theme) => sum + (theme.x ?? centerX), 0) / connectedThemes.length;
+          node.y = connectedThemes.reduce((sum, theme) => sum + (theme.y ?? centerY), 0) / connectedThemes.length;
+        }
+        projectedAnchors.set(node.id, { x: node.x, y: node.y });
+      });
+    } else {
+      nodesCopy.forEach((node) => {
+        const anchor = getNodeAnchor(node);
+        const angle = (hashIndex(`${node.id}:angle`, 360) / 360) * Math.PI * 2;
+        const distance = node.type === "offering"
+          ? 28
+          : 72 + hashIndex(`${node.id}:distance`, 68);
+        node.x = anchor.x + Math.cos(angle) * distance;
+        node.y = anchor.y + Math.sin(angle) * distance;
+      });
+    }
+
+    const getLayoutAnchor = (node: GraphNode) =>
+      layout === "umap"
+        ? projectedAnchors.get(node.id) ?? { x: node.x ?? centerX, y: node.y ?? centerY }
+        : getNodeAnchor(node);
 
     const simulation = d3
       .forceSimulation<GraphNode>(nodesCopy)
@@ -201,16 +336,29 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
           .forceLink<GraphNode, GraphLink>(linksCopy)
           .id((d) => d.id)
           .distance((l) => {
+            if (layout === "umap") return 120;
             const target = l.target as GraphNode;
             return (target.connectedOfferingsCount ?? 1) > 1 ? 270 : 205;
           })
-          .strength((l) => ((l.target as GraphNode).connectedOfferingsCount ?? 1) > 1 ? 0.42 : 0.28)
+          .strength((l) => {
+            if (layout === "umap") return 0;
+            return ((l.target as GraphNode).connectedOfferingsCount ?? 1) > 1 ? 0.42 : 0.28;
+          })
       )
-      .force("charge", d3.forceManyBody<GraphNode>().strength((d) => (d.type === "offering" ? -1200 : -360)))
-      .force("center", d3.forceCenter(centerX, centerY).strength(0.04))
-      .force("x", d3.forceX<GraphNode>((d) => getNodeAnchor(d).x).strength((d) => (d.type === "offering" ? 0.18 : 0.025)))
-      .force("y", d3.forceY<GraphNode>((d) => getNodeAnchor(d).y).strength((d) => (d.type === "offering" ? 0.18 : 0.025)))
-      .force("collide", d3.forceCollide<GraphNode>().radius((d) => d.radius + 24).strength(0.98));
+      .force("charge", d3.forceManyBody<GraphNode>().strength((d) => {
+        if (layout === "umap") return d.type === "offering" ? -180 : -70;
+        return d.type === "offering" ? -1200 : -360;
+      }))
+      .force("center", d3.forceCenter(centerX, centerY).strength(layout === "umap" ? 0.015 : 0.04))
+      .force("x", d3.forceX<GraphNode>((d) => getLayoutAnchor(d).x).strength((d) => {
+        if (layout === "umap") return d.type === "offering" ? 0.42 : 0.16;
+        return d.type === "offering" ? 0.18 : 0.025;
+      }))
+      .force("y", d3.forceY<GraphNode>((d) => getLayoutAnchor(d).y).strength((d) => {
+        if (layout === "umap") return d.type === "offering" ? 0.42 : 0.16;
+        return d.type === "offering" ? 0.18 : 0.025;
+      }))
+      .force("collide", d3.forceCollide<GraphNode>().radius((d) => d.radius + (layout === "umap" ? 14 : 24)).strength(0.98));
 
     simulationRef.current = simulation;
 
@@ -227,10 +375,57 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
 
     root.call(zoom);
 
+    const createHullData = (): HullDatum[] => {
+      if (layout !== "umap") return [];
+
+      return offeringNodes.flatMap((offering) => {
+        const points = themeNodes
+          .filter((theme) => theme.offerings?.includes(offering.label))
+          .map((theme) => ({ x: theme.x ?? centerX, y: theme.y ?? centerY }));
+
+        if (points.length < 3) return [];
+
+        const cx = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+        const cy = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+        const paddedPoints: [number, number][] = points.map((point) => {
+          const dx = point.x - cx;
+          const dy = point.y - cy;
+          const distance = Math.hypot(dx, dy) || 1;
+          const padding = 34;
+          return [
+            point.x + (dx / distance) * padding,
+            point.y + (dy / distance) * padding,
+          ];
+        });
+        const hull = d3.polygonHull(paddedPoints);
+        if (!hull) return [];
+
+        return [{
+          offering: offering.label,
+          color: offering.color,
+          path: `M${hull.map((point) => point.join(",")).join("L")}Z`,
+        }];
+      });
+    };
+
+    const hullSel = zoomG
+      .append("g")
+      .attr("class", "hulls")
+      .selectAll<SVGPathElement, HullDatum>("path")
+      .data(createHullData(), (d) => d.offering)
+      .join("path")
+      .attr("fill", (d) => d.color)
+      .attr("fill-opacity", 0.08)
+      .attr("stroke", (d) => d.color)
+      .attr("stroke-opacity", 0.3)
+      .attr("stroke-width", 1.5)
+      .attr("stroke-linejoin", "round")
+      .attr("d", (d) => d.path);
+
     const linkSel = zoomG
       .append("g")
       .selectAll<SVGLineElement, GraphLink>("line")
-      .data(linksCopy)
+      .data(layout === "umap" ? [] : linksCopy)
       .join("line")
       .attr("stroke", (d) => d.color)
       .attr("stroke-opacity", 0.34)
@@ -398,6 +593,9 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
       });
 
     simulation.on("tick", () => {
+      const hullsByOffering = new Map(createHullData().map((hull) => [hull.offering, hull.path]));
+      hullSel.attr("d", (d) => hullsByOffering.get(d.offering) ?? d.path);
+
       linkSel
         .attr("x1", (d) => (d.source as GraphNode).x ?? 0)
         .attr("y1", (d) => (d.source as GraphNode).y ?? 0)
@@ -410,21 +608,12 @@ export function ThemesForceGraph({ data }: ThemesForceGraphProps) {
     return () => {
       simulation.stop();
     };
-  }, [nodes, links, size]);
+  }, [nodes, links, size, layout, data]);
 
   const offeringNames = React.useMemo(
     () => [
       ...new Set(
-        data.flatMap((d) => {
-          const names = [
-            ...(Array.isArray(d.offerings) ? d.offerings : []),
-            d.origin_offering,
-          ]
-            .map((name) => String(name ?? "").trim())
-            .filter(Boolean);
-
-          return names.length > 0 ? names : ["Other"];
-        })
+        data.flatMap(getThemeOfferings)
       ),
     ],
     [data]

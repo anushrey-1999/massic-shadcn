@@ -72,6 +72,8 @@ export function GenerateReportDialog({
   const [customRange, setCustomRange] = React.useState<DateRange | undefined>(() =>
     buildInitialCustomRange("3 months", periodReferenceDate)
   );
+  const [reportScope, setReportScope] = React.useState<"organic" | "all_channels">("organic");
+  const [reportPerspective, setReportPerspective] = React.useState<"wins" | "full_picture">("full_picture");
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [customInstructions, setCustomInstructions] = React.useState("");
   const { minSelectableDate } = React.useMemo(
@@ -177,6 +179,10 @@ export function GenerateReportDialog({
         startDate: formatDate(effectiveRange.from, "yyyy-MM-dd"),
         endDate: formatDate(effectiveRange.to, "yyyy-MM-dd"),
         custom_instructions: customInstructions.trim(),
+        report_options: {
+          scope: reportScope,
+          perspective: reportPerspective,
+        },
       });
 
       if (result?.id) {
@@ -315,6 +321,60 @@ export function GenerateReportDialog({
                   : "Choose a preset or custom range."} Latest selectable date is{" "}
                 {formatDate(maxSelectableDate, "MMM d, yyyy")} due to Search Console latency.
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="report-scope"
+                  className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
+                >
+                  Scope
+                </label>
+                <Select
+                  value={reportScope}
+                  onValueChange={(value) => setReportScope(value as "organic" | "all_channels")}
+                  disabled={!canGenerate || isGenerating}
+                >
+                  <SelectTrigger
+                    id="report-scope"
+                    className="w-full h-10 min-h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pl-3 pr-2 py-[7.5px] gap-2 border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground"
+                    variant="noBorder"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="organic">Organic</SelectItem>
+                    <SelectItem value="all_channels">All channels</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="report-perspective"
+                  className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
+                >
+                  Perspective
+                </label>
+                <Select
+                  value={reportPerspective}
+                  onValueChange={(value) => setReportPerspective(value as "wins" | "full_picture")}
+                  disabled={!canGenerate || isGenerating}
+                >
+                  <SelectTrigger
+                    id="report-perspective"
+                    className="w-full h-10 min-h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pl-3 pr-2 py-[7.5px] gap-2 border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground"
+                    variant="noBorder"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="wins">Wins</SelectItem>
+                    <SelectItem value="full_picture">Full picture</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">

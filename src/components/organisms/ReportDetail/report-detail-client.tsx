@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/tooltip";
 import {
   parsePerformanceReport,
-  performanceReportToPlainText,
   getPerformanceReportV2EditedFields,
   type PerformanceReportV2EditedFields,
 } from "@/utils/performance-report-v2";
@@ -56,8 +55,6 @@ interface ReportDetailClientProps {
   businessId: string;
   reportRunId: string;
 }
-
-const EMAIL_SUMMARY_SOFT_LIMIT = 600;
 
 function normalizeEmailSummaryValue(value: unknown): string {
   if (typeof value === "string") return value;
@@ -414,48 +411,6 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
     }
   }, [handleSaveReport]);
 
-  const handleCopyReport = async () => {
-    if (isV2Report && performanceReportV2) {
-      const plainText = performanceReportToPlainText(performanceReportV2);
-      const ok = await copyToClipboard(plainText);
-      if (ok) toast.success("Copied");
-      else toast.error("Copy failed");
-      return;
-    }
-
-    if (reportEditor) {
-      const htmlContent = reportEditor.getHTML();
-      if (htmlContent && htmlContent.trim()) {
-        try {
-          if (typeof ClipboardItem !== "undefined") {
-            const clipboardItem = new ClipboardItem({
-              "text/html": new Blob([htmlContent], { type: "text/html" }),
-              "text/plain": new Blob([reportEditor.getText()], { type: "text/plain" }),
-            });
-            await navigator.clipboard.write([clipboardItem]);
-          } else {
-            await navigator.clipboard.writeText(reportEditor.getText());
-          }
-          toast.success("Copied");
-          return;
-        } catch {
-          try {
-            await navigator.clipboard.writeText(reportEditor.getText());
-            toast.success("Copied");
-            return;
-          } catch {
-            toast.error("Copy failed");
-            return;
-          }
-        }
-      }
-    }
-
-    const ok = await copyToClipboard(performanceReport);
-    if (ok) toast.success("Copied");
-    else toast.error("Copy failed");
-  };
-
   const handleDownloadPdf = React.useCallback(
     async (filename: string) => {
       if (parsedReport.kind === "v2") {
@@ -543,16 +498,6 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={handleCopyReport}
-                    disabled={isProcessing || !hasReportContent}
-                    title="Copy Report"
-                    className="h-9 w-9"
-                  >
-                    <Copy className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
                     onClick={handleDownload}
                     disabled={isProcessing || !hasReportContent}
                     title="Download Report"
@@ -575,45 +520,8 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
           {/* Line Separator */}
           <div className="w-full h-px bg-border" />
 
-          {isSuccess && isV2Report && (
-            <Card className="rounded-xl border border-general-border bg-background p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-general-foreground">Email summary</p>
-                  <p className="text-xs text-muted-foreground">
-                    Separate from the report preview and PDF export.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopyEmailSummary}
-                  disabled={!emailSummaryDraft.trim()}
-                  className="gap-2"
-                >
-                  <Copy className="h-4 w-4" />
-                  Copy
-                </Button>
-              </div>
-              <Textarea
-                value={emailSummaryDraft}
-                onChange={handleEmailSummaryChange}
-                onFocus={() => setIsEmailSummaryFocused(true)}
-                onBlur={() => setIsEmailSummaryFocused(false)}
-                className="min-h-[120px] resize-y bg-white text-sm"
-                placeholder="Email summary will appear here after generation."
-              />
-              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{isEmailSummarySaving ? "Saving changes..." : "Autosaves after you stop typing."}</span>
-                <span className={emailSummaryDraft.length > EMAIL_SUMMARY_SOFT_LIMIT ? "text-amber-600" : undefined}>
-                  {emailSummaryDraft.length}/{EMAIL_SUMMARY_SOFT_LIMIT}
-                </span>
-              </div>
-            </Card>
-          )}
-
-          {/* Content Section */}
-          <div className="flex-1 min-h-0 overflow-auto">
+          {/* Content Section — email summary scrolls with the report */}
+          <div className="flex-1 min-h-0 overflow-auto flex flex-col gap-4">
             {isProcessing && (
               <div className="flex items-center justify-center h-64">
                 <div className="flex flex-col items-center gap-4">
@@ -649,16 +557,44 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
               </div>
             )}
 
-            {(isSuccess && isV2Report && performanceReportV2) || isV2EditMode ? (
-              <Card className="p-4 space-y-3 border-0 bg-transparent shadow-none">
-                <PerformanceReportV2View
-                  performanceReport={performanceReportV2Raw}
-                  context={reportTemplateContext}
-                  isEditing={isV2EditMode}
-                  resetVersion={v2ResetVersion}
-                  onSaveEditedFields={handleSaveV2EditedFields}
-                />
-              </Card>
+            {isSuccess && isV2Report ? (
+              <div className="space-y-4 p-4">
+                <div className="flex w-full shrink-0 flex-col gap-1.5 rounded-lg border border-border bg-background p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-muted-foreground">Email summary</p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleCopyEmailSummary}
+                      disabled={!emailSummaryDraft.trim()}
+                      title="Copy email summary"
+                      className="h-7 w-7 shrink-0 text-muted-foreground"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={emailSummaryDraft}
+                    onChange={handleEmailSummaryChange}
+                    onFocus={() => setIsEmailSummaryFocused(true)}
+                    onBlur={() => setIsEmailSummaryFocused(false)}
+                    className="min-h-12 resize-y bg-white py-2 text-sm leading-snug field-sizing-content"
+                    placeholder="Short summary for the share email…"
+                  />
+                  {isEmailSummarySaving ? (
+                    <p className="text-[11px] text-muted-foreground">Saving…</p>
+                  ) : null}
+                </div>
+                {(performanceReportV2 || isV2EditMode) && (
+                  <PerformanceReportV2View
+                    performanceReport={performanceReportV2Raw}
+                    context={reportTemplateContext}
+                    isEditing={isV2EditMode}
+                    resetVersion={v2ResetVersion}
+                    onSaveEditedFields={handleSaveV2EditedFields}
+                  />
+                )}
+              </div>
             ) : null}
 
             {isSuccess && !isV2Report && performanceReport && (

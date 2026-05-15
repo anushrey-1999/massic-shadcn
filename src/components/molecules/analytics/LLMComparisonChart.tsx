@@ -79,9 +79,9 @@ export function LLMComparisonChart({
                   <StatsBadge value={item.change} className="min-w-[60px] justify-end" />
                 </div>
                 <div className="flex items-center gap-2 group relative">
-                  <div className="w-full h-[12px] bg-[#E5E5E5] rounded-full relative">
+                  <div className="w-full h-2 bg-[#E5E5E5] rounded-full relative">
                     <div
-                      className="h-[12px] rounded-full absolute top-0 left-0 cursor-pointer"
+                      className="h-2 rounded-full absolute top-0 left-0 cursor-pointer"
                       style={{
                         width: barWidth > 0 ? `${barWidth}%` : '4px',
                         backgroundColor: item.value > 0 ? item.color : '#E5E5E5',

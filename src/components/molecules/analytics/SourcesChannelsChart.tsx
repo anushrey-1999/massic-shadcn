@@ -43,7 +43,7 @@ export function SourcesChannelsChart({
   isLoading = false,
   hasData = true,
 }: SourcesChannelsChartProps) {
-  const BAR_SIZE = 12
+  const BAR_SIZE = 8
   const GAP_PX = 14
   const CHART_CHROME_HEIGHT = 60
   const Y_AXIS_WIDTH = 120

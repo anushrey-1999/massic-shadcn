@@ -36,6 +36,7 @@ import {
 import { api } from "@/hooks/use-api";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { PitchesHistoryTable } from "@/components/organisms/PitchesTable/pitches-history-table";
+import type { PitchHistoryRow } from "@/components/organisms/PitchesTable/pitches-table-columns";
 import { MassicOpportunitiesModal } from "@/components/molecules/MassicOpportunitiesModal";
 import { ApplyCreditsModal } from "@/components/molecules/ApplyCreditsModal";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
@@ -127,7 +128,7 @@ export default function PitchReportsPage() {
   });
 
   const businessPitchesQuery = useQuery({
-    queryKey: ["pitches", "business", businessId],
+    queryKey: ["pitches", "business", businessId, activeReport === null],
     queryFn: async () => {
       if (!businessId) return [];
       const res = await api.post<{ pitches?: any[] }>(
@@ -136,10 +137,9 @@ export default function PitchReportsPage() {
         { business_ids: [businessId] }
       );
       const rows = Array.isArray(res?.pitches) ? res.pitches : [];
-      // newest first
       return rows.slice().sort((a, b) => String(b?.created_at || "").localeCompare(String(a?.created_at || "")));
     },
-    enabled: !!businessId,
+    enabled: !!businessId && activeReport === null,
     staleTime: 0,
     retry: false,
     refetchInterval: (query) => {
@@ -181,7 +181,7 @@ export default function PitchReportsPage() {
     return fromList || fromProfile;
   }, [profiles, businessId, businessProfile]);
 
-  const businessPitchRows = React.useMemo(() => {
+  const businessPitchRows = React.useMemo<PitchHistoryRow[]>(() => {
     const rows = Array.isArray(businessPitchesQuery.data)
       ? businessPitchesQuery.data
       : [];

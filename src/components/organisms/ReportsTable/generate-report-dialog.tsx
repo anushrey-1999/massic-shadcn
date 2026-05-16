@@ -29,6 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TIME_PERIODS } from "@/hooks/use-gsc-analytics";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { useGenerateReportV2 } from "@/hooks/use-report-runs";
+import { getWorkflowStatus } from "@/lib/workflow-status";
 import { getAnalyticsPeriodBounds, resolveTimePeriodRange, type TimePeriodValue } from "@/utils/analytics-period";
 
 interface GenerateReportDialogProps {
@@ -84,9 +85,13 @@ export function GenerateReportDialog({
   const { data: jobData, isLoading: isJobLoading } = useJobByBusinessId(businessId);
   const generateReport = useGenerateReportV2();
 
-  const workflowStatus = jobData?.workflow_status?.status;
-  const canGenerate = workflowStatus === "success";
-  const isJobProcessing = workflowStatus === "processing" || workflowStatus === "pending";
+  const coreStatus = getWorkflowStatus(jobData, "core") ?? jobData?.workflow_status?.status;
+  const canGenerate = coreStatus === "success";
+  const isJobProcessing =
+    coreStatus === "processing" ||
+    coreStatus === "pending" ||
+    (Boolean(jobData) && jobData?.workflow_status?.status === null && coreStatus !== "success" && coreStatus !== "error");
+  const hasJobError = coreStatus === "error";
   const hasNoJob = !jobData && !isJobLoading;
 
   // Show toast when dialog opens based on job status
@@ -402,7 +407,9 @@ export function GenerateReportDialog({
                 ? "A job is required to generate reports."
                 : isJobProcessing
                   ? "Job is still processing. Please wait for it to complete."
-                  : "Unable to generate report at this time."}
+                  : hasJobError
+                    ? "Job workflow failed. Re-run workflows from the business profile, then try again."
+                    : "Unable to generate report at this time."}
             </p>
           )}
         </div>

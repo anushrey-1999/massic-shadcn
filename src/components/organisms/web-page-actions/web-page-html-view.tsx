@@ -156,6 +156,12 @@ import {
   useUpdateWordpressStyleOverrides,
 } from "@/hooks/use-wordpress-connector";
 import {
+  useClearCmsFeaturedImage,
+  useCmsFeaturedImage,
+  useFinalizeCmsFeaturedImage,
+  useUploadCmsFeaturedImage,
+} from "@/hooks/use-cms-featured-image";
+import {
   applyMassicStyleOverrides,
   buildMassicCssVariableOverrides,
   MASSIC_STYLE_COLOR_KEYS,
@@ -238,6 +244,23 @@ type InsertAnchor = {
 
 const TEXT_OWNER_SELECTOR = "p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details, a[data-massic-link-id]";
 const AI_SELECTION_ATTR = "data-massic-ai-selection";
+
+async function readImageDimensions(file: File): Promise<{ width: number | null; height: number | null }> {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const dimensions = await new Promise<{ width: number | null; height: number | null }>((resolve) => {
+      const img = new window.Image();
+      img.onload = () => resolve({ width: img.naturalWidth || null, height: img.naturalHeight || null });
+      img.onerror = () => resolve({ width: null, height: null });
+      img.src = objectUrl;
+    });
+
+    return dimensions;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 const AI_SELECTION_OWNER_ATTR = "data-massic-ai-selection-owner";
 
 function getEditableLinkElement(target: EventTarget | null): HTMLAnchorElement | null {
@@ -524,6 +547,10 @@ export function WebPageHtmlView({
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
   const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
+  const [featuredImageAltText, setFeaturedImageAltText] = React.useState("");
+  const [featuredImageUploadProgress, setFeaturedImageUploadProgress] = React.useState<number | null>(null);
+  const [isFeaturedImageDragActive, setIsFeaturedImageDragActive] = React.useState(false);
+  const featuredImageInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const lastAutoSlugCheckKeyRef = React.useRef("");
 
@@ -607,6 +634,15 @@ export function WebPageHtmlView({
   const publishDescription = canonicalizeMetaValue(blogMetaDescriptionDraft);
   const publishContentId = inferPage?.page_id || pageId;
   const publishType: "post" | "page" = isBlogContent ? "post" : "page";
+  const featuredImageContentId = isBlogContent && publishContentId ? String(publishContentId) : null;
+  const featuredImageQuery = useCmsFeaturedImage(
+    isBlogContent ? businessId : null,
+    featuredImageContentId,
+    Boolean(isPublishModalOpen && isBlogContent)
+  );
+  const uploadFeaturedImageMutation = useUploadCmsFeaturedImage();
+  const finalizeFeaturedImageMutation = useFinalizeCmsFeaturedImage();
+  const clearFeaturedImageMutation = useClearCmsFeaturedImage();
   const contentStatusQuery = useWordpressContentStatus(
     wpConnection?.connectionId || null,
     publishContentId ? String(publishContentId) : null
@@ -648,10 +684,16 @@ export function WebPageHtmlView({
   const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
   const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
   const slugConflictReason = slugCheckResult?.conflict?.reason || null;
+  const activeFeaturedImage = featuredImageQuery.data || null;
+  const featuredImageBusy =
+    uploadFeaturedImageMutation.isPending ||
+    finalizeFeaturedImageMutation.isPending ||
+    clearFeaturedImageMutation.isPending;
   const isPublishBusy =
     wpPublishMutation.isPending ||
     wpPreviewMutation.isPending ||
-    wpUnpublishMutation.isPending;
+    wpUnpublishMutation.isPending ||
+    featuredImageBusy;
   const publishStateLabel = isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
   const publishStateHint = isPersistedLive
     ? "This content is live on WordPress."
@@ -666,6 +708,10 @@ export function WebPageHtmlView({
     if (!siteUrl || !slugForPreview) return null;
     return `${siteUrl}/${slugForPreview}`;
   }, [normalizedSlugForPublish, slugCheckResult?.slug, wpConnection?.siteUrl]);
+  React.useEffect(() => {
+    if (!isPublishModalOpen || !isBlogContent) return;
+    setFeaturedImageAltText(activeFeaturedImage?.altText || "");
+  }, [activeFeaturedImage?.altText, activeFeaturedImage?.assetId, isBlogContent, isPublishModalOpen]);
   const liveUrl = React.useMemo(() => {
     if (persistedContent?.permalink) return persistedContent.permalink;
     if (lastPublishedData?.permalink) return lastPublishedData.permalink;
@@ -1407,6 +1453,7 @@ export function WebPageHtmlView({
   const buildPublishPayload = React.useCallback(
     (targetStatus: "draft" | "publish") => {
       const publishHtml = composeCurrentHtml();
+      const normalizedFeaturedImageAltText = featuredImageAltText.trim();
       return {
         connectionId: String(wpConnection?.connectionId || ""),
         status: targetStatus,
@@ -1421,6 +1468,18 @@ export function WebPageHtmlView({
           : extractPlainTextFromHtml(publishHtml),
         contentHtml: publishHtml,
         excerpt: publishDescription || null,
+        featuredImage: isBlogContent
+          ? activeFeaturedImage
+            ? {
+                assetId: activeFeaturedImage.assetId,
+                cdnUrl: activeFeaturedImage.cdnUrl,
+                altText: normalizedFeaturedImageAltText,
+                mimeType: activeFeaturedImage.mimeType,
+                width: activeFeaturedImage.width,
+                height: activeFeaturedImage.height,
+              }
+            : null
+          : undefined,
         head:
           {
             title: String(publishTitle),
@@ -1441,7 +1500,9 @@ export function WebPageHtmlView({
     [
       composeCurrentHtml,
       data,
+      featuredImageAltText,
       isBlogContent,
+      activeFeaturedImage,
       publishContentId,
       publishDescription,
       publishSeoTitle,
@@ -1562,10 +1623,83 @@ export function WebPageHtmlView({
     setIsPublishModalOpen(false);
   }, [businessId, router]);
 
+  const saveFeaturedImageAltText = React.useCallback(async () => {
+    if (!isBlogContent || !businessId || !featuredImageContentId || !activeFeaturedImage) return;
+
+    const nextAltText = featuredImageAltText.trim();
+    const currentAltText = (activeFeaturedImage.altText || "").trim();
+    if (nextAltText === currentAltText) return;
+
+    try {
+      await finalizeFeaturedImageMutation.mutateAsync({
+        businessId,
+        contentId: featuredImageContentId,
+        assetId: activeFeaturedImage.assetId,
+        altText: nextAltText,
+        width: activeFeaturedImage.width,
+        height: activeFeaturedImage.height,
+      });
+    } catch {
+      toast.error("Failed to save featured image alt text");
+      throw new Error("Failed to save featured image alt text");
+    }
+  }, [
+    activeFeaturedImage,
+    businessId,
+    featuredImageAltText,
+    featuredImageContentId,
+    finalizeFeaturedImageMutation,
+    isBlogContent,
+  ]);
+
+  const handleFeaturedImageFile = React.useCallback(
+    async (file: File | null) => {
+      if (!file || !businessId || !featuredImageContentId || !isBlogContent) return;
+
+      setFeaturedImageUploadProgress(0);
+      const dimensions = await readImageDimensions(file);
+      const initialAltText =
+        featuredImageAltText.trim() ||
+        file.name.replace(/\.[^.]+$/, "").trim();
+
+      try {
+        const uploadedAsset = await uploadFeaturedImageMutation.mutateAsync({
+          businessId,
+          contentId: featuredImageContentId,
+          file,
+          width: dimensions.width,
+          height: dimensions.height,
+          altText: initialAltText,
+          onProgress: setFeaturedImageUploadProgress,
+        });
+        setFeaturedImageAltText(uploadedAsset.altText || initialAltText);
+        toast.success("Featured image uploaded");
+      } finally {
+        setFeaturedImageUploadProgress(null);
+        if (featuredImageInputRef.current) {
+          featuredImageInputRef.current.value = "";
+        }
+      }
+    },
+    [businessId, featuredImageAltText, featuredImageContentId, isBlogContent, uploadFeaturedImageMutation]
+  );
+
+  const handleClearFeaturedImage = React.useCallback(async () => {
+    if (!businessId || !featuredImageContentId) return;
+
+    await clearFeaturedImageMutation.mutateAsync({
+      businessId,
+      contentId: featuredImageContentId,
+    });
+    setFeaturedImageAltText("");
+    toast.success("Featured image removed");
+  }, [businessId, clearFeaturedImageMutation, featuredImageContentId]);
+
   const handlePublishDraft = React.useCallback(async () => {
     if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
     let result;
     try {
+      await saveFeaturedImageAltText();
       result = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
     } catch (error) {
       const e = error as WordpressPublishError;
@@ -1610,7 +1744,7 @@ export function WebPageHtmlView({
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, wpConnection?.connectionId, openEmbeddedPreview, wpPreviewMutation, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
+  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, wpConnection?.connectionId, openEmbeddedPreview, saveFeaturedImageAltText, wpPreviewMutation, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
 
   const handlePublishLive = React.useCallback(async () => {
     if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
@@ -1620,6 +1754,7 @@ export function WebPageHtmlView({
     }
     let result;
     try {
+      await saveFeaturedImageAltText();
       result = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
     } catch (error) {
       const e = error as WordpressPublishError;
@@ -1655,7 +1790,7 @@ export function WebPageHtmlView({
     toast.success("Published live to WordPress");
     void contentStatusQuery.refetch();
     setIsPublishModalOpen(false);
-  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, isPersistedDraftLike, lastPublishedData?.wpId, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
+  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, isPersistedDraftLike, lastPublishedData?.wpId, saveFeaturedImageAltText, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
 
   const handleOpenPreview = React.useCallback(async () => {
     const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
@@ -1698,9 +1833,9 @@ export function WebPageHtmlView({
 
   const isSlugActionBusy = isPublishBusy || isSlugChecking || isAutoResolvingSlug;
 
-  const confirmAndRunPublishAction = React.useCallback(() => {
-    if (confirmPublishAction === "draft") handlePublishDraft();
-    else if (confirmPublishAction === "live") handlePublishLive();
+  const confirmAndRunPublishAction = React.useCallback(async () => {
+    if (confirmPublishAction === "draft") await handlePublishDraft();
+    else if (confirmPublishAction === "live") await handlePublishLive();
     setConfirmPublishAction(null);
   }, [confirmPublishAction, handlePublishDraft, handlePublishLive]);
 
@@ -4171,6 +4306,131 @@ export function WebPageHtmlView({
                 <Typography className="text-xs text-muted-foreground">Publish route</Typography>
                 <Typography className="text-sm font-mono break-all">{publishUrlPreview || "Unavailable"}</Typography>
               </div>
+              {isBlogContent ? (
+                <div className="space-y-3 pt-2 border-t border-border/60">
+                  <div className="flex items-center justify-between gap-2">
+                    <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
+                      Featured Image
+                    </Typography>
+                    {activeFeaturedImage ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => featuredImageInputRef.current?.click()}
+                        disabled={featuredImageBusy}
+                      >
+                        Replace
+                      </Button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={featuredImageInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] || null;
+                      void handleFeaturedImageFile(file);
+                    }}
+                  />
+                  {activeFeaturedImage ? (
+                    <div className="space-y-3 rounded-md border border-border/70 bg-background p-3">
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={activeFeaturedImage.cdnUrl}
+                          alt={featuredImageAltText || "Featured image preview"}
+                          className="h-20 w-20 rounded-md object-cover border border-border"
+                        />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <Typography className="text-sm font-medium truncate">{activeFeaturedImage.fileName}</Typography>
+                          <Typography className="text-xs text-muted-foreground">
+                            {activeFeaturedImage.width && activeFeaturedImage.height
+                              ? `${activeFeaturedImage.width} x ${activeFeaturedImage.height}`
+                              : "Dimensions unavailable"}
+                          </Typography>
+                          <Typography className="text-xs text-muted-foreground break-all">{activeFeaturedImage.cdnUrl}</Typography>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Typography className="text-xs text-muted-foreground">Alt text</Typography>
+                        <Input
+                          value={featuredImageAltText}
+                          onChange={(event) => setFeaturedImageAltText(event.target.value)}
+                          onBlur={() => void saveFeaturedImageAltText()}
+                          placeholder="Describe this featured image"
+                          disabled={featuredImageBusy}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Typography className="text-xs text-muted-foreground">
+                          This image will also be used as the default OG image.
+                        </Typography>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void handleClearFeaturedImage()}
+                          disabled={featuredImageBusy}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={cn(
+                        "w-full rounded-md border border-dashed p-4 text-left transition-colors",
+                        isFeaturedImageDragActive ? "border-primary bg-primary/5" : "border-border bg-background",
+                        featuredImageBusy ? "opacity-70" : "hover:border-primary/50"
+                      )}
+                      onClick={() => featuredImageInputRef.current?.click()}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setIsFeaturedImageDragActive(true);
+                      }}
+                      onDragLeave={(event) => {
+                        event.preventDefault();
+                        setIsFeaturedImageDragActive(false);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setIsFeaturedImageDragActive(false);
+                        const file = event.dataTransfer.files?.[0] || null;
+                        void handleFeaturedImageFile(file);
+                      }}
+                      disabled={featuredImageBusy}
+                    >
+                      <div className="space-y-1">
+                        <Typography className="text-sm font-medium">Upload a featured image</Typography>
+                        <Typography className="text-xs text-muted-foreground">
+                          Drag and drop a JPG, PNG, or WebP image here, or click to choose a file.
+                        </Typography>
+                      </div>
+                    </button>
+                  )}
+                  {featuredImageQuery.isLoading ? (
+                    <Typography className="text-xs text-muted-foreground">Loading featured image...</Typography>
+                  ) : null}
+                  {featuredImageUploadProgress !== null ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Uploading featured image...</span>
+                        <span>{featuredImageUploadProgress}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-[width]"
+                          style={{ width: `${featuredImageUploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {isSlugChecking ? <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography> : null}
               {slugCheckError ? <Typography className="text-xs text-destructive">{slugCheckError}</Typography> : null}
               {hasSlugConflict ? (
@@ -4489,9 +4749,9 @@ export function WebPageHtmlView({
                     </Button>
                     <Button
                       onClick={() => setConfirmPublishAction("live")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || wpPublishMutation.isPending}
                     >
-                      {wpPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+                      {wpPublishMutation.isPending || featuredImageBusy ? "Publishing..." : "Publish Live"}
                     </Button>
                   </>
                 ) : (
@@ -4502,6 +4762,7 @@ export function WebPageHtmlView({
                       !normalizedSlugForPublish ||
                       hasSlugConflict ||
                       isSlugChecking ||
+                      featuredImageBusy ||
                       contentStatusQuery.isLoading ||
                       wpPublishMutation.isPending ||
                       wpPreviewMutation.isPending
@@ -4529,7 +4790,7 @@ export function WebPageHtmlView({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
             <AlertDialogAction asChild>
-              <Button onClick={confirmAndRunPublishAction} disabled={isPublishBusy}>
+              <Button onClick={() => void confirmAndRunPublishAction()} disabled={isPublishBusy}>
                 {confirmPublishAction === "live" ? "Confirm Publish Live" : "Confirm Publish Draft"}
               </Button>
             </AlertDialogAction>

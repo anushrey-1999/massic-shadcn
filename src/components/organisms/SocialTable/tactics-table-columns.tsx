@@ -411,7 +411,7 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
     ];
   }
 
-  if (strategyType === "engage") {
+  if (strategyType === "publish") {
     columns = columns.filter((col) => col.id !== "url");
   }
 

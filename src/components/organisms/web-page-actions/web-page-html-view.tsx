@@ -137,18 +137,35 @@ import { buildStyledMassicHtml, getMassicBlogCssText, getMassicCssText } from "@
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 import {
   type WordpressSlugConflictInfo,
-  WordpressPublishError,
-  useWordpressContentStatus,
   useWordpressPreviewLink,
-  useWordpressPublish,
-  useWordpressSlugCheck,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 import {
-  useWordpressConnection,
   useWordpressStyleProfile,
   useUpdateWordpressStyleOverrides,
 } from "@/hooks/use-wordpress-connector";
+import {
+  CmsPublishError,
+  useCmsPublish,
+  useCmsPublishingChannel,
+  useCmsPublishingContentStatus,
+  useCmsSlugCheck,
+  useCmsWebflowStagingPreview,
+} from "@/hooks/use-cms-publishing";
+import {
+  WebflowPublishConfirmDescription,
+  WebflowPublishConfirmHint,
+  type WebflowPublishConfirmAction,
+} from "@/components/organisms/web-page-actions/webflow-publish-confirm-hints";
+import {
+  clearWebflowStagingPreviewSession,
+  openWebflowPreviewInNewTab,
+  persistWebflowStagingPreviewSession,
+  readWebflowStagingPreviewSession,
+  WEBFLOW_LIVE_VIEW_OPEN_DELAY_MS,
+  WEBFLOW_STAGING_PUBLISH_OPEN_DELAY_MS,
+  WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
+} from "@/components/organisms/web-page-actions/webflow-open-preview";
 import {
   applyMassicStyleOverrides,
   buildMassicCssVariableOverrides,
@@ -516,7 +533,13 @@ export function WebPageHtmlView({
   const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
   const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | null>(null);
+  const [confirmPublishAction, setConfirmPublishAction] = React.useState<
+    "draft" | "live" | "webflow-draft" | "webflow-live" | "webflow-staging-preview" | null
+  >(null);
+  const [webflowStagingPreview, setWebflowStagingPreview] = React.useState<{
+    contentId: string;
+    url: string;
+  } | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
 
   const lastAutoSlugCheckKeyRef = React.useRef("");
@@ -531,15 +554,26 @@ export function WebPageHtmlView({
   });
 
   const data = contentQuery.data;
-  const wpConnectionQuery = useWordpressConnection(businessId || null);
-  const wpConnection = wpConnectionQuery.data?.connection || null;
-  const wpPublishMutation = useWordpressPublish();
-  const { mutateAsync: slugCheckMutateAsync } = useWordpressSlugCheck();
+  const cmsChannelQuery = useCmsPublishingChannel(businessId || null);
+  const cmsChannel = cmsChannelQuery.data || null;
+  const activePlatform = cmsChannel?.platform || null;
+  const activeConnection = cmsChannel?.connection || null;
+  const activeTarget = cmsChannel?.target || null;
+  const isActiveWordpress = activePlatform === "wordpress" && Boolean(activeConnection);
+  const isActiveWebflow = activePlatform === "webflow" && Boolean(activeConnection);
+  const cmsPublishMutation = useCmsPublish();
+  const webflowStagingPreviewMutation = useCmsWebflowStagingPreview();
+  const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
-  const wpStyleProfileQuery = useWordpressStyleProfile(wpConnection?.connectionId || null);
+  const wpStyleProfileQuery = useWordpressStyleProfile(isActiveWordpress ? activeConnection?.connectionId || null : null);
   const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
-  const isWpConnected = Boolean(wpConnectionQuery.data?.connected && wpConnection);
+  const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
+  const webflowDomains = cmsChannel?.domains || [];
+  const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
+  const webflowCustomDomains = webflowDomains.filter((domain) => domain.type === "custom_domain");
+  const [publishToWebflowSubdomain, setPublishToWebflowSubdomain] = React.useState(true);
+  const [selectedWebflowCustomDomainIds, setSelectedWebflowCustomDomainIds] = React.useState<string[]>([]);
   const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
     Partial<Record<MassicStyleColorKey, string>>
   >({});
@@ -592,11 +626,31 @@ export function WebPageHtmlView({
     : "";
   const publishContentId = inferPage?.page_id || pageId;
   const publishType: "post" | "page" = isBlogContent ? "post" : "page";
-  const contentStatusQuery = useWordpressContentStatus(
-    wpConnection?.connectionId || null,
-    publishContentId ? String(publishContentId) : null
+  const contentStatusQuery = useCmsPublishingContentStatus(
+    businessId || null,
+    publishContentId && (isActiveWebflow || (isActiveWordpress && isPublishModalOpen))
+      ? String(publishContentId)
+      : null
   );
-  const persistedContent = contentStatusQuery.data?.content || null;
+  const persistedContent = activePlatform === "wordpress" ? contentStatusQuery.data?.content || null : null;
+  const webflowPersistedContent = activePlatform === "webflow" ? contentStatusQuery.data?.content || null : null;
+  const webflowPersistedStatus = (webflowPersistedContent?.status || "").toLowerCase();
+  const webflowPersistedSlug = React.useMemo(
+    () => normalizeWordpressBlogEditableSlug(webflowPersistedContent?.slug || ""),
+    [webflowPersistedContent?.slug]
+  );
+  const lastPublishedStatus = (lastPublishedData?.status || "").toLowerCase();
+  const isWebflowLive = webflowPersistedStatus === "published" || lastPublishedStatus === "published";
+  const isWebflowDraftLike = Boolean(
+    (webflowPersistedContent && webflowPersistedStatus === "draft") ||
+      (lastPublishedStatus === "draft" && lastPublishedData?.contentId)
+  );
+  const hasWebflowMapping = Boolean(webflowPersistedContent?.itemId || lastPublishedData?.contentId);
+  const webflowPublishState: "not_published" | "draft" | "live" = isWebflowLive
+    ? "live"
+    : isWebflowDraftLike || hasWebflowMapping
+      ? "draft"
+      : "not_published";
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
   const isPersistedTrashed = persistedStatus === "trash";
   const persistedSlug = React.useMemo(
@@ -616,10 +670,11 @@ export function WebPageHtmlView({
   );
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
+    if (!isPersistedTrashed && webflowPersistedSlug) return webflowPersistedSlug;
     if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
     if (generatedSlug) return generatedSlug;
     return generatedSlugFallback;
-  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug]);
+  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug, webflowPersistedSlug]);
   const normalizedEditableSlug = React.useMemo(() => normalizeWordpressBlogEditableSlug(editableSlug), [editableSlug]);
   const hasInvalidBlogSlug = React.useMemo(
     () => Boolean(normalizedEditableSlug && normalizedEditableSlug.includes("/")),
@@ -634,10 +689,13 @@ export function WebPageHtmlView({
   const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
   const slugConflictReason = slugCheckResult?.conflict?.reason || null;
   const isPublishBusy =
-    wpPublishMutation.isPending ||
+    cmsPublishMutation.isPending ||
+    webflowStagingPreviewMutation.isPending ||
     wpPreviewMutation.isPending ||
     wpUnpublishMutation.isPending;
-  const publishStateLabel = isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
+  const publishStateLabel = activePlatform === "webflow"
+    ? (webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published")
+    : isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
   const publishStateHint = isPersistedLive
     ? "This content is live on WordPress."
     : isPersistedDraftLike
@@ -646,19 +704,37 @@ export function WebPageHtmlView({
         ? "This content was moved to trash."
         : `No WordPress ${isBlogContent ? "post" : "page"} exists yet.`;
   const publishUrlPreview = React.useMemo(() => {
-    const siteUrl = String(wpConnection?.siteUrl || "").replace(/\/+$/, "");
+    const siteUrl = String(
+      activePlatform === "webflow"
+        ? (webflowStagingDomain?.url ? `https://${webflowStagingDomain.url}` : "")
+        : activeConnection?.siteUrl || ""
+    ).replace(/\/+$/, "");
     const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
     if (!siteUrl || !slugForPreview) return null;
     return `${siteUrl}/${slugForPreview}`;
-  }, [normalizedSlugForPublish, slugCheckResult?.slug, wpConnection?.siteUrl]);
+  }, [activeConnection?.siteUrl, activePlatform, normalizedSlugForPublish, slugCheckResult?.slug, webflowStagingDomain?.url]);
+  const webflowStagingPreviewUrl =
+    lastPublishedData?.previewUrl || webflowPersistedContent?.previewUrl || publishUrlPreview || null;
+  const webflowLiveUrl =
+    lastPublishedData?.permalink ||
+    webflowPersistedContent?.externalUrl ||
+    webflowPersistedContent?.permalink ||
+    null;
+  const webflowPreviewUrl = isWebflowLive ? webflowLiveUrl || webflowStagingPreviewUrl : webflowStagingPreviewUrl;
+  const hasWebflowStagingPreview = Boolean(
+    webflowStagingPreview?.contentId === String(publishContentId) && webflowStagingPreview?.url
+  );
+  const webflowStagingViewUrl = hasWebflowStagingPreview
+    ? webflowStagingPreview?.url
+    : webflowStagingPreviewUrl;
   const liveUrl = React.useMemo(() => {
     if (persistedContent?.permalink) return persistedContent.permalink;
     if (lastPublishedData?.permalink) return lastPublishedData.permalink;
-    if (isPersistedLive && persistedContent?.wpId && wpConnection?.siteUrl) {
-      return `${String(wpConnection.siteUrl).replace(/\/+$/, "")}/?p=${persistedContent.wpId}`;
+    if (isPersistedLive && persistedContent?.wpId && activeConnection?.siteUrl) {
+      return `${String(activeConnection.siteUrl).replace(/\/+$/, "")}/?p=${persistedContent.wpId}`;
     }
     return null;
-  }, [isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId, wpConnection?.siteUrl]);
+  }, [activeConnection?.siteUrl, isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId]);
 
   const normalizedStoredStyleColorOverrides = React.useMemo(
     () => normalizeMassicStyleColorOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).colors || {},
@@ -696,7 +772,7 @@ export function WebPageHtmlView({
   }, [normalizedStoredStyleTypographyOverrides, serializedStoredTypographyOverrides]);
 
   const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
-  const shouldApplyWpStyle = isWpConnected && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
+  const shouldApplyWpStyle = isActiveWordpress && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
   const styleProfileForPreview = React.useMemo(
     () =>
       shouldApplyWpStyle
@@ -892,9 +968,9 @@ export function WebPageHtmlView({
     });
   }, []);
   const handleSaveStyleColorOverrides = React.useCallback(async () => {
-    if (!wpConnection?.connectionId) return;
+    if (!isActiveWordpress || !activeConnection?.connectionId) return;
     const response = await wpStyleOverridesMutation.mutateAsync({
-      connectionId: wpConnection.connectionId,
+      connectionId: activeConnection.connectionId,
       overrides: {
         colors: normalizedDraftStyleColorOverrides,
         typography: normalizedStoredStyleTypographyOverrides,
@@ -905,17 +981,18 @@ export function WebPageHtmlView({
     setStyleColorOverridesDraft(savedColors);
     setStyleTypographyOverridesDraft(savedTypography);
   }, [
+    activeConnection?.connectionId,
+    isActiveWordpress,
     normalizedDraftStyleColorOverrides,
     normalizedStoredStyleTypographyOverrides,
-    wpConnection?.connectionId,
     wpStyleOverridesMutation,
   ]);
 
   const handleSaveStyleTypographyOverrides = React.useCallback(async () => {
-    if (!wpConnection?.connectionId) return;
+    if (!isActiveWordpress || !activeConnection?.connectionId) return;
     if (hasTypographyValidationErrors) return;
     const response = await wpStyleOverridesMutation.mutateAsync({
-      connectionId: wpConnection.connectionId,
+      connectionId: activeConnection.connectionId,
       overrides: {
         colors: normalizedStoredStyleColorOverrides,
         typography: normalizedDraftStyleTypographyOverrides,
@@ -926,10 +1003,11 @@ export function WebPageHtmlView({
     setStyleColorOverridesDraft(savedColors);
     setStyleTypographyOverridesDraft(savedTypography);
   }, [
+    activeConnection?.connectionId,
     hasTypographyValidationErrors,
+    isActiveWordpress,
     normalizedDraftStyleTypographyOverrides,
     normalizedStoredStyleColorOverrides,
-    wpConnection?.connectionId,
     wpStyleOverridesMutation,
   ]);
 
@@ -1389,11 +1467,36 @@ export function WebPageHtmlView({
     setIsEmbeddedPreviewOpen(true);
   }, []);
 
+  React.useEffect(() => {
+    if (!publishContentId || activePlatform !== "webflow") {
+      setWebflowStagingPreview(null);
+      return;
+    }
+    const contentId = String(publishContentId);
+    const storedUrl = readWebflowStagingPreviewSession(contentId);
+    if (storedUrl) {
+      setWebflowStagingPreview({ contentId, url: storedUrl });
+      return;
+    }
+    setWebflowStagingPreview((prev) => (prev?.contentId === contentId ? prev : null));
+  }, [activePlatform, publishContentId]);
+
+  const openWebflowPreview = React.useCallback((url?: string | null, options?: { delayMs?: number; subject?: string }) => {
+    if (!url) {
+      toast.error("Preview URL is not available yet");
+      return;
+    }
+    openWebflowPreviewInNewTab(url, {
+      delayMs: options?.delayMs,
+      subject: options?.subject ?? "published page",
+    });
+  }, []);
+
   const buildPublishPayload = React.useCallback(
     (targetStatus: "draft" | "publish") => {
       const publishHtml = composeCurrentHtml();
       return {
-        connectionId: String(wpConnection?.connectionId || ""),
+        businessId: String(businessId || ""),
         status: targetStatus,
         workflowSource: "infer_ai" as const,
         workflowPayload: data || {},
@@ -1434,13 +1537,13 @@ export function WebPageHtmlView({
       publishTitle,
       publishType,
       normalizedSlugForPublish,
-      wpConnection?.connectionId,
+      businessId,
     ]
   );
 
   const runSlugCheck = React.useCallback(
     async ({ force = false }: { force?: boolean } = {}) => {
-      if (!isWpConnected || !wpConnection?.connectionId || !publishContentId) return null;
+      if (!cmsChannel?.connected || !businessId || !publishContentId) return null;
       if (!normalizedEditableSlug) {
         setSlugCheckResult(null);
         setSlugCheckError("Slug is required.");
@@ -1453,14 +1556,14 @@ export function WebPageHtmlView({
         lastAutoSlugCheckKeyRef.current = "";
         return null;
       }
-      const checkKey = `${wpConnection.connectionId}:${String(publishContentId)}:${publishType}:${normalizedSlugForPublish}`;
+      const checkKey = `${activePlatform || "none"}:${String(publishContentId)}:${publishType}:${normalizedSlugForPublish}`;
       if (!force && lastAutoSlugCheckKeyRef.current === checkKey) return null;
       if (!force) lastAutoSlugCheckKeyRef.current = checkKey;
       setIsSlugChecking(true);
       setSlugCheckError(null);
       try {
         const response = await slugCheckMutateAsync({
-          connectionId: String(wpConnection.connectionId),
+          businessId: String(businessId),
           contentId: String(publishContentId),
           type: publishType,
           slug: normalizedSlugForPublish,
@@ -1469,7 +1572,7 @@ export function WebPageHtmlView({
         setSlugCheckResult(result);
         return result;
       } catch (err: unknown) {
-        const message = (err as { message?: string })?.message || "Failed to check slug in WordPress.";
+        const message = (err as { message?: string })?.message || `Failed to check slug in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}.`;
         setSlugCheckResult(null);
         setSlugCheckError(message);
         return null;
@@ -1478,15 +1581,16 @@ export function WebPageHtmlView({
       }
     },
     [
+      activePlatform,
+      businessId,
+      cmsChannel?.connected,
       hasInvalidBlogSlug,
-      isWpConnected,
       normalizedEditableSlug,
       normalizedSlugForPublish,
       publishContentId,
       publishType,
       slugCheckMutateAsync,
       contentLabel,
-      wpConnection?.connectionId,
     ]
   );
 
@@ -1505,11 +1609,6 @@ export function WebPageHtmlView({
   }, [isPublishModalOpen]);
 
   React.useEffect(() => {
-    if (!isPublishModalOpen || !isWpConnected || !wpConnection?.connectionId || !publishContentId) return;
-    void contentStatusQuery.refetch();
-  }, [isPublishModalOpen, isWpConnected, publishContentId, wpConnection?.connectionId]);
-
-  React.useEffect(() => {
     if (isPublishModalOpen) return;
     setIsSlugEdited(false);
     setSlugCheckResult(null);
@@ -1519,13 +1618,26 @@ export function WebPageHtmlView({
   }, [isPublishModalOpen]);
 
   React.useEffect(() => {
+    if (!isPublishModalOpen || activePlatform !== "webflow" || !webflowPersistedContent) return;
+    setLastPublishedData((prev) => ({
+      contentId: webflowPersistedContent.contentId,
+      wpId: prev?.wpId || 0,
+      permalink: webflowPersistedContent.externalUrl || prev?.permalink || null,
+      editUrl: null,
+      status: webflowPersistedContent.status || prev?.status || "draft",
+      slug: webflowPersistedContent.slug || prev?.slug || null,
+      previewUrl: webflowPersistedContent.previewUrl || prev?.previewUrl,
+    }));
+  }, [activePlatform, isPublishModalOpen, webflowPersistedContent]);
+
+  React.useEffect(() => {
     if (!isEmbeddedPreviewOpen || !isEmbeddedPreviewLoading) return;
     const t = window.setTimeout(() => setShowEmbedFallbackHint(true), 8000);
     return () => window.clearTimeout(t);
   }, [isEmbeddedPreviewLoading, isEmbeddedPreviewOpen]);
 
   React.useEffect(() => {
-    if (!isPublishModalOpen || !isWpConnected || !wpConnection?.connectionId || !publishContentId) return;
+    if (!isPublishModalOpen || !cmsChannel?.connected || !publishContentId) return;
     if (!normalizedEditableSlug) {
       setSlugCheckResult(null);
       setSlugCheckError(isSlugEdited ? "Slug is required." : null);
@@ -1541,7 +1653,7 @@ export function WebPageHtmlView({
     const delayMs = isSlugEdited ? 350 : 0;
     const timer = window.setTimeout(() => void runSlugCheck(), delayMs);
     return () => window.clearTimeout(timer);
-  }, [isPublishModalOpen, hasInvalidBlogSlug, isWpConnected, isSlugEdited, normalizedEditableSlug, publishContentId, runSlugCheck, wpConnection?.connectionId, contentLabel]);
+  }, [isPublishModalOpen, hasInvalidBlogSlug, cmsChannel?.connected, isSlugEdited, normalizedEditableSlug, publishContentId, runSlugCheck, contentLabel]);
 
   const handleRedirectToChannels = React.useCallback(() => {
     router.push(`/business/${businessId}/web?integrations=1`);
@@ -1549,12 +1661,26 @@ export function WebPageHtmlView({
   }, [businessId, router]);
 
   const handlePublishDraft = React.useCallback(async () => {
-    if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
+    if (!cmsChannel?.connected || !hasFinalContent) return;
+    const check = await runSlugCheck({ force: true });
+    if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
+      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use the suggested slug or edit manually.`);
+      toast.error("Slug conflict: choose a unique slug");
+      return;
+    }
     let result;
     try {
-      result = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
+      const payload = buildPublishPayload("draft");
+      if (activePlatform === "webflow") {
+        const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
+        payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
+          baseCss,
+          cssVarOverrides,
+        });
+      }
+      result = await cmsPublishMutation.mutateAsync(payload);
     } catch (error) {
-      const e = error as WordpressPublishError;
+      const e = error as CmsPublishError;
       if (e?.code === "slug_conflict") {
         const details = e?.details || {};
         const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
@@ -1577,38 +1703,90 @@ export function WebPageHtmlView({
     if (!published) return;
     setLastPublishedData({
       contentId: published.contentId,
-      wpId: published.wpId,
-      permalink: published.permalink || null,
+      wpId: Number(published.wpId || 0),
+      permalink: published.externalUrl || published.permalink || null,
       editUrl: published.editUrl || null,
       status: published.status || "draft",
       slug: published.slug || normalizedSlugForPublish || null,
+      previewUrl: published.previewUrl || undefined,
     });
-    toast.success("Draft pushed to WordPress");
-    const previewRes = await wpPreviewMutation.mutateAsync({
-      connectionId: wpConnection.connectionId,
-      contentId: published.contentId,
-      wpId: published.wpId,
-    });
-    const previewUrl = previewRes?.data?.previewUrl;
-    if (previewUrl) {
-      setLastPublishedData((prev) => (prev ? { ...prev, previewUrl } : prev));
+    toast.success(activePlatform === "webflow" ? "Webflow draft saved" : "Draft pushed to WordPress");
+    if (activePlatform === "webflow") {
+      setWebflowStagingPreview(null);
+      if (publishContentId) {
+        clearWebflowStagingPreviewSession(String(publishContentId));
+      }
+    }
+    const previewUrl = published.previewUrl || published.externalUrl;
+    if (previewUrl && activePlatform !== "webflow") {
       openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, wpConnection?.connectionId, openEmbeddedPreview, wpPreviewMutation, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck]);
+
+  const handlePreviewWebflowStaging = React.useCallback(async () => {
+    if (!isWebflowReady || !businessId || !publishContentId) return;
+    try {
+      const result = await webflowStagingPreviewMutation.mutateAsync({
+        businessId: String(businessId),
+        contentId: String(publishContentId),
+      });
+      const previewUrl = result.data?.previewUrl;
+      if (previewUrl) {
+        const contentId = String(publishContentId);
+        setWebflowStagingPreview({ contentId, url: previewUrl });
+        persistWebflowStagingPreviewSession(contentId, previewUrl);
+        openWebflowPreview(previewUrl, {
+          delayMs: WEBFLOW_STAGING_PUBLISH_OPEN_DELAY_MS,
+          subject: "staging preview",
+        });
+      }
+      toast.success("Published to staging. Opening preview shortly.");
+    } catch {
+      // toast handled in mutation
+    }
+  }, [businessId, isWebflowReady, openWebflowPreview, publishContentId, webflowStagingPreviewMutation]);
 
   const handlePublishLive = React.useCallback(async () => {
-    if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
-    if (!isPersistedDraftLike && !lastPublishedData?.wpId) {
+    if (!cmsChannel?.connected || !hasFinalContent) return;
+    if (activePlatform === "webflow" && !publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) {
+      toast.error("Select at least one Webflow domain");
+      return;
+    }
+    if (activePlatform === "wordpress" && !isPersistedDraftLike && !lastPublishedData?.wpId) {
       toast.error("Publish draft first to generate a preview");
+      return;
+    }
+    const check = await runSlugCheck({ force: true });
+    if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
+      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use the suggested slug or edit manually.`);
+      toast.error("Slug conflict: choose a unique slug");
       return;
     }
     let result;
     try {
-      result = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
+      const payload = {
+        ...buildPublishPayload("publish"),
+        ...(activePlatform === "webflow"
+          ? {
+            domainSelection: {
+              publishToWebflowSubdomain,
+              customDomainIds: selectedWebflowCustomDomainIds,
+            },
+          }
+          : {}),
+      };
+      if (activePlatform === "webflow") {
+        const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
+        payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
+          baseCss,
+          cssVarOverrides,
+        });
+      }
+      result = await cmsPublishMutation.mutateAsync(payload);
     } catch (error) {
-      const e = error as WordpressPublishError;
+      const e = error as CmsPublishError;
       if (e?.code === "slug_conflict") {
         const details = e?.details || {};
         const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
@@ -1632,25 +1810,27 @@ export function WebPageHtmlView({
     setLastPublishedData((prev) => ({
       ...prev,
       contentId: published.contentId,
-      wpId: published.wpId,
-      permalink: published.permalink || null,
+      wpId: Number(published.wpId || 0),
+      permalink: published.externalUrl || published.permalink || null,
       editUrl: published.editUrl || null,
-      status: published.status || "publish",
+      status: published.status || (activePlatform === "webflow" ? "published" : "publish"),
       slug: published.slug || normalizedSlugForPublish || null,
     }));
-    toast.success("Published live to WordPress");
+    toast.success(activePlatform === "webflow" ? "Published live to Webflow" : "Published live to WordPress");
     void contentStatusQuery.refetch();
-    setIsPublishModalOpen(false);
-  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, isPersistedDraftLike, lastPublishedData?.wpId, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
+    if (activePlatform !== "webflow") {
+      setIsPublishModalOpen(false);
+    }
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isPersistedDraftLike, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, selectedWebflowCustomDomainIds]);
 
   const handleOpenPreview = React.useCallback(async () => {
     const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
-    if (!wpConnection?.connectionId || !wpIdToUse) {
+    if (!activeConnection?.connectionId || !wpIdToUse) {
       toast.error("Draft not found for preview");
       return;
     }
     const res = await wpPreviewMutation.mutateAsync({
-      connectionId: wpConnection.connectionId,
+      connectionId: activeConnection.connectionId,
       contentId: String(publishContentId),
       wpId: Number(wpIdToUse),
     });
@@ -1660,13 +1840,13 @@ export function WebPageHtmlView({
       prev ? { ...prev, previewUrl: url } : { contentId: String(publishContentId), wpId: Number(wpIdToUse), permalink: persistedContent?.permalink || null, editUrl: null, status: persistedStatus || "draft", slug: persistedContent?.slug || normalizedSlugForPublish || null, previewUrl: url }
     );
     openEmbeddedPreview(url, "WordPress Draft Preview");
-  }, [lastPublishedData?.wpId, persistedContent?.permalink, persistedContent?.slug, persistedContent?.wpId, persistedStatus, publishContentId, wpConnection?.connectionId, openEmbeddedPreview, wpPreviewMutation, normalizedSlugForPublish]);
+  }, [activeConnection?.connectionId, lastPublishedData?.wpId, persistedContent?.permalink, persistedContent?.slug, persistedContent?.wpId, persistedStatus, publishContentId, openEmbeddedPreview, wpPreviewMutation, normalizedSlugForPublish]);
 
   const handleChangeWordpressStatus = React.useCallback(
     async (targetStatus: "draft" | "trash") => {
-      if (!isWpConnected || !wpConnection?.connectionId || !publishContentId) return;
+      if (!isActiveWordpress || !activeConnection?.connectionId || !publishContentId) return;
       const res = await wpUnpublishMutation.mutateAsync({
-        connectionId: String(wpConnection.connectionId),
+        connectionId: String(activeConnection.connectionId),
         contentId: String(publishContentId),
         targetStatus,
       });
@@ -1679,16 +1859,19 @@ export function WebPageHtmlView({
       await contentStatusQuery.refetch();
       if (targetStatus === "trash") setIsPublishModalOpen(false);
     },
-    [contentStatusQuery, isWpConnected, publishContentId, wpConnection?.connectionId, wpUnpublishMutation]
+    [activeConnection?.connectionId, contentStatusQuery, isActiveWordpress, publishContentId, wpUnpublishMutation]
   );
 
   const isSlugActionBusy = isPublishBusy || isSlugChecking || isAutoResolvingSlug;
 
   const confirmAndRunPublishAction = React.useCallback(() => {
-    if (confirmPublishAction === "draft") handlePublishDraft();
-    else if (confirmPublishAction === "live") handlePublishLive();
+    const action = confirmPublishAction;
     setConfirmPublishAction(null);
-  }, [confirmPublishAction, handlePublishDraft, handlePublishLive]);
+    if (action === "draft" || action === "webflow-draft") void handlePublishDraft();
+    else if (action === "webflow-live") void handlePublishLive();
+    else if (action === "webflow-staging-preview") void handlePreviewWebflowStaging();
+    else if (action === "live") void handlePublishLive();
+  }, [confirmPublishAction, handlePreviewWebflowStaging, handlePublishDraft, handlePublishLive]);
 
   const autoResolveSlug = React.useCallback(async () => {
     if (!slugCheckResult?.suggestedSlug || isSlugActionBusy) return;
@@ -4113,23 +4296,31 @@ export function WebPageHtmlView({
       <Dialog open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen}>
         <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Publish to WordPress</DialogTitle>
+            <DialogTitle>Publish to CMS</DialogTitle>
             <DialogDescription>{`Choose what to do with this ${contentLabelLower}.`}</DialogDescription>
           </DialogHeader>
-          {!isWpConnected ? (
+          {!cmsChannel?.connected ? (
             <div className="rounded-md border bg-background p-4 space-y-3">
-              <Typography className="text-sm">No WordPress channel connected.</Typography>
-              <Button onClick={handleRedirectToChannels}>Connect WordPress</Button>
+              <Typography className="text-sm">No publishing channel connected.</Typography>
+              <Button onClick={handleRedirectToChannels}>Connect a channel</Button>
             </div>
           ) : (
             <div className="rounded-md border bg-muted/20 p-4 space-y-2 min-w-0 overflow-hidden">
               <div className="flex items-center justify-between gap-3">
-                <Typography className="text-sm font-medium truncate min-w-0 flex-1">{wpConnection?.siteUrl}</Typography>
+                <Typography className="text-sm font-medium truncate min-w-0 flex-1">
+                  {activePlatform === "webflow"
+                    ? `Webflow: ${activeTarget?.name || "Configured collection"}`
+                    : activeConnection?.siteUrl}
+                </Typography>
                 <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap shrink-0">
                   {publishStateLabel}
                 </Typography>
               </div>
-              <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
+              {activePlatform !== "webflow" ? (
+                <Typography as="p" className="text-sm text-muted-foreground">
+                  {publishStateHint}
+                </Typography>
+              ) : null}
               {isBlogContent ? (
                 <div className="space-y-2 pt-1">
                   <div>
@@ -4161,8 +4352,12 @@ export function WebPageHtmlView({
                 />
               </div>
               <div className="space-y-1">
-                <Typography className="text-xs text-muted-foreground">Publish route</Typography>
-                <Typography className="text-sm font-mono break-all">{publishUrlPreview || "Unavailable"}</Typography>
+                <Typography className="text-xs text-muted-foreground">
+                  {activePlatform === "webflow" && webflowPublishState === "draft" ? "Staging page path" : "Publish route"}
+                </Typography>
+                <Typography className="text-sm font-mono break-all">
+                  {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl || "Unavailable"}
+                </Typography>
               </div>
               {isSlugChecking ? <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography> : null}
               {slugCheckError ? <Typography className="text-xs text-destructive">{slugCheckError}</Typography> : null}
@@ -4171,7 +4366,7 @@ export function WebPageHtmlView({
                   <div className="break-words">
                     {slugConflictReason === "parent_type_conflict"
                       ? "This nested page path is blocked. Change the parent path."
-                      : "This slug already exists in WordPress. Use a unique slug."}
+                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use a unique slug.`}
                   </div>
                   {slugCheckResult?.suggestedSlug ? (
                     <Button size="sm" variant="outline" className="h-auto w-full justify-start whitespace-normal break-all text-left" onClick={autoResolveSlug} disabled={isSlugActionBusy}>
@@ -4181,7 +4376,44 @@ export function WebPageHtmlView({
                 </div>
               ) : null}
 
-              {!isBlogContent ? (
+              {activePlatform === "webflow" ? (
+                <div className="space-y-2 pt-2 border-t border-border/60">
+                  <Typography className="text-xs text-muted-foreground uppercase tracking-wide">Live domains</Typography>
+                  {webflowStagingDomain ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={publishToWebflowSubdomain}
+                        onChange={(event) => setPublishToWebflowSubdomain(event.target.checked)}
+                        disabled={isPublishBusy}
+                      />
+                      <span className="break-all">{webflowStagingDomain.label}</span>
+                    </label>
+                  ) : null}
+                  {webflowCustomDomains.map((domain) => (
+                    <label key={domain.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedWebflowCustomDomainIds.includes(domain.id)}
+                        onChange={(event) => {
+                          setSelectedWebflowCustomDomainIds((prev) =>
+                            event.target.checked
+                              ? Array.from(new Set([...prev, domain.id]))
+                              : prev.filter((id) => id !== domain.id)
+                          );
+                        }}
+                        disabled={isPublishBusy}
+                      />
+                      <span className="break-all">{domain.label}</span>
+                    </label>
+                  ))}
+                  {!webflowDomains.length ? (
+                    <Typography className="text-xs text-muted-foreground">No publish domains returned by Webflow.</Typography>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {isActiveWordpress && !isBlogContent ? (
                 <>
                   <div className="space-y-2 pt-2 border-t border-border/60">
                     <div className="flex items-center justify-between gap-2">
@@ -4461,7 +4693,7 @@ export function WebPageHtmlView({
             <Button variant="outline" onClick={() => setIsPublishModalOpen(false)} disabled={isPublishBusy}>
               Cancel
             </Button>
-            {isWpConnected ? (
+            {isActiveWordpress ? (
               <>
                 {isPersistedLive ? (
                   <>
@@ -4482,9 +4714,9 @@ export function WebPageHtmlView({
                     </Button>
                     <Button
                       onClick={() => setConfirmPublishAction("live")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || cmsPublishMutation.isPending}
                     >
-                      {wpPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+                      {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
                     </Button>
                   </>
                 ) : (
@@ -4496,13 +4728,115 @@ export function WebPageHtmlView({
                       hasSlugConflict ||
                       isSlugChecking ||
                       contentStatusQuery.isLoading ||
-                      wpPublishMutation.isPending ||
+                      cmsPublishMutation.isPending ||
                       wpPreviewMutation.isPending
                     }
                   >
-                    {wpPublishMutation.isPending || wpPreviewMutation.isPending ? "Publishing..." : "Publish Draft"}
+                    {cmsPublishMutation.isPending || wpPreviewMutation.isPending ? "Publishing..." : "Publish Draft"}
                   </Button>
                 )}
+              </>
+            ) : null}
+            {isWebflowReady ? (
+              <>
+                {webflowPublishState === "not_published" ? (
+                  <Button
+                    onClick={() => setConfirmPublishAction("webflow-draft")}
+                    disabled={
+                      !hasFinalContent ||
+                      !normalizedSlugForPublish ||
+                      hasSlugConflict ||
+                      isSlugChecking ||
+                      cmsPublishMutation.isPending
+                    }
+                  >
+                    {cmsPublishMutation.isPending ? "Saving..." : "Publish Draft"}
+                  </Button>
+                ) : null}
+                {webflowPublishState === "draft" ? (
+                  <>
+                    {hasWebflowStagingPreview ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            openWebflowPreview(webflowStagingViewUrl, {
+                              delayMs: WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
+                              subject: "staging page",
+                            })
+                          }
+                          disabled={!webflowStagingViewUrl}
+                        >
+                          View on staging
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setConfirmPublishAction("webflow-staging-preview")}
+                          disabled={!hasWebflowMapping || webflowStagingPreviewMutation.isPending || isPublishBusy}
+                        >
+                          {webflowStagingPreviewMutation.isPending ? "Republishing..." : "Republish"}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => setConfirmPublishAction("webflow-staging-preview")}
+                        disabled={!hasWebflowMapping || webflowStagingPreviewMutation.isPending || isPublishBusy}
+                      >
+                        {webflowStagingPreviewMutation.isPending ? "Publishing..." : "Publish to staging"}
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => setConfirmPublishAction("webflow-live")}
+                      disabled={
+                        !hasFinalContent ||
+                        !normalizedSlugForPublish ||
+                        hasSlugConflict ||
+                        isSlugChecking ||
+                        (!publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) ||
+                        cmsPublishMutation.isPending
+                      }
+                    >
+                      {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+                    </Button>
+                  </>
+                ) : null}
+                {webflowPublishState === "live" ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        openWebflowPreview(webflowPreviewUrl, {
+                          delayMs: WEBFLOW_LIVE_VIEW_OPEN_DELAY_MS,
+                          subject: "live page",
+                        })
+                      }
+                      disabled={!webflowPreviewUrl}
+                    >
+                      View live page
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmPublishAction("webflow-draft")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || cmsPublishMutation.isPending}
+                    >
+                      {cmsPublishMutation.isPending ? "Saving..." : "Update Draft"}
+                    </Button>
+                    <Button
+                      onClick={() => setConfirmPublishAction("webflow-live")}
+                      disabled={
+                        !hasFinalContent ||
+                        !normalizedSlugForPublish ||
+                        hasSlugConflict ||
+                        isSlugChecking ||
+                        (!publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) ||
+                        cmsPublishMutation.isPending
+                      }
+                    >
+                      {cmsPublishMutation.isPending ? "Publishing..." : "Republish Live"}
+                    </Button>
+                  </>
+                ) : null}
               </>
             ) : null}
           </DialogFooter>
@@ -4512,18 +4846,71 @@ export function WebPageHtmlView({
       <AlertDialog open={confirmPublishAction !== null} onOpenChange={(open) => !open && setConfirmPublishAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmPublishAction === "live" ? "Publish Live to WordPress?" : "Publish Draft to WordPress?"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmPublishAction === "live"
-                ? `This will update the live WordPress content at ${publishUrlPreview || "the selected route"}.`
-                : `This will create or update the WordPress draft at ${publishUrlPreview || "the selected route"}.`}
+            <AlertDialogTitle>
+              {confirmPublishAction === "webflow-draft"
+                ? webflowPublishState === "live"
+                  ? "Update Webflow Draft?"
+                  : "Publish Webflow Draft?"
+                : confirmPublishAction === "webflow-live"
+                  ? webflowPublishState === "live"
+                    ? "Republish Live to Webflow?"
+                    : "Publish Live to Webflow?"
+                  : confirmPublishAction === "webflow-staging-preview"
+                    ? hasWebflowStagingPreview
+                      ? "Republish to staging?"
+                      : "Publish to staging?"
+                    : confirmPublishAction === "live"
+                      ? "Publish Live to WordPress?"
+                      : "Publish Draft to WordPress?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {confirmPublishAction === "webflow-draft" ||
+                  confirmPublishAction === "webflow-live" ||
+                  confirmPublishAction === "webflow-staging-preview" ? (
+                    <WebflowPublishConfirmDescription
+                      action={confirmPublishAction as WebflowPublishConfirmAction}
+                      isLiveItem={webflowPublishState === "live"}
+                      isStagingRefresh={
+                        confirmPublishAction === "webflow-staging-preview" && hasWebflowStagingPreview
+                      }
+                    />
+                  ) : confirmPublishAction === "live" ? (
+                    `This will update the live WordPress content at ${publishUrlPreview || "the selected route"}.`
+                  ) : (
+                    `This will create or update the WordPress draft at ${publishUrlPreview || "the selected route"}.`
+                  )}
+                </p>
+                <WebflowPublishConfirmHint
+                  action={
+                    confirmPublishAction === "webflow-draft" ||
+                    confirmPublishAction === "webflow-live" ||
+                    confirmPublishAction === "webflow-staging-preview"
+                      ? (confirmPublishAction as WebflowPublishConfirmAction)
+                      : null
+                  }
+                  collectionName={activeTarget?.name}
+                  stagingSiteHost={webflowStagingDomain?.url || null}
+                  isLiveItem={webflowPublishState === "live"}
+                  isStagingRefresh={
+                    confirmPublishAction === "webflow-staging-preview" && hasWebflowStagingPreview
+                  }
+                />
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
             <AlertDialogAction asChild>
               <Button onClick={confirmAndRunPublishAction} disabled={isPublishBusy}>
-                {confirmPublishAction === "live" ? "Confirm Publish Live" : "Confirm Publish Draft"}
+                {confirmPublishAction === "live" || confirmPublishAction === "webflow-live"
+                  ? "Confirm Publish Live"
+                  : confirmPublishAction === "webflow-staging-preview"
+                    ? hasWebflowStagingPreview
+                      ? "Confirm Republish"
+                      : "Confirm Publish to Staging"
+                    : "Confirm Publish Draft"}
               </Button>
             </AlertDialogAction>
           </AlertDialogFooter>

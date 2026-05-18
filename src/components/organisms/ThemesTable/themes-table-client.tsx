@@ -18,10 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, Loader2, Sparkles, List, Layers } from "lucide-react";
+import { AlertCircle, Loader2, Sparkles, List, Layers, Network } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
 import { getThemesTableColumns } from "./themes-table-columns";
 import { ThemesBubbleChart } from "./themes-bubble-chart";
+import { ThemesForceGraph } from "./themes-force-graph";
 import { ThemesSplitView } from "./themes-split-view";
 import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
@@ -33,7 +34,7 @@ interface ThemesTableClientProps {
   onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
-type ThemesView = "table" | "bubble";
+type ThemesView = "table" | "bubble" | "force";
 
 function getFilterValues(row: ThemeRow, field: string): string[] {
   if (field === "theme_name") return [row.theme_name || ""];
@@ -397,11 +398,15 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
           <Layers className="h-4 w-4" />
           Map
         </TabsTrigger>
+        <TabsTrigger value="force">
+          <Network className="h-4 w-4" />
+          Force
+        </TabsTrigger>
       </TabsList>
     </Tabs>
   );
 
-  if (view === "bubble") {
+  if (view === "bubble" || view === "force") {
     return (
       <div className="h-full flex flex-col gap-4">
         <div className="shrink-0 flex flex-col gap-3">
@@ -423,10 +428,17 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
           </div>
         </div>
         <div className="flex-1 min-h-0">
-          <ThemesBubbleChart
-            data={filteredData}
-            selectedOffering={selectedOffering === "all" ? undefined : selectedOffering}
-          />
+          {view === "bubble" ? (
+            <ThemesBubbleChart
+              data={filteredData}
+              selectedOffering={selectedOffering === "all" ? undefined : selectedOffering}
+            />
+          ) : (
+            <ThemesForceGraph
+              data={filteredData}
+              selectedOffering={selectedOffering === "all" ? undefined : selectedOffering}
+            />
+          )}
         </div>
       </div>
     );

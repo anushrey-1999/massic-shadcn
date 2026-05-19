@@ -335,7 +335,7 @@ const ProfileTemplate = ({
       serviceType: (() => {
         const objective = profileData.BusinessObjective?.toLowerCase();
         if (objective === "local") return "physical";
-        if (objective === "hybrid") return "both";
+        if (objective === "hybrid" || objective === "both") return "both";
         return "online";
       })() as "physical" | "online" | "both",
       lifetimeValue: (() => {

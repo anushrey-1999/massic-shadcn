@@ -35,3 +35,27 @@ export interface ThemeRow {
   offerings: string[];
   topics: ThemeTopic[];
 }
+
+export interface ThemeScatterPoint {
+  topic_id: number;
+  topic_name: string;
+  x: number;
+  y: number;
+  business_relevance_score: number;
+}
+
+export interface ThemeScatterMeta {
+  topics_run_id: number;
+  topics_run_updated_at: string;
+  cache_key: string;
+  model_name: string;
+  n_neighbors: number;
+  min_dist: number;
+  metric: string;
+  random_state: number;
+}
+
+export interface ThemeScatterApiResponse {
+  points: ThemeScatterPoint[];
+  meta: ThemeScatterMeta;
+}

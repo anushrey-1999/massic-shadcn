@@ -18,11 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, Loader2, Sparkles, List, Layers, Network } from "lucide-react";
+import { AlertCircle, ChartScatter, Loader2, Sparkles, List, Layers } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
 import { getThemesTableColumns } from "./themes-table-columns";
 import { ThemesBubbleChart } from "./themes-bubble-chart";
-import { ThemesForceGraph } from "./themes-force-graph";
+import { ThemesScatterPlot } from "./themes-scatter-plot";
 import { ThemesSplitView } from "./themes-split-view";
 import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
@@ -34,7 +34,7 @@ interface ThemesTableClientProps {
   onSplitViewChange?: (isSplitView: boolean) => void;
 }
 
-type ThemesView = "table" | "bubble" | "force";
+type ThemesView = "table" | "bubble" | "scatter";
 
 function getFilterValues(row: ThemeRow, field: string): string[] {
   if (field === "theme_name") return [row.theme_name || ""];
@@ -113,7 +113,7 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
   }, [view, selectedOffering]);
 
 
-  const { fetchThemes, triggerThemes } = useThemes(businessId);
+  const { fetchThemes, fetchScatterPlot, triggerThemes } = useThemes(businessId);
 
   const {
     data: themesData,
@@ -137,6 +137,21 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
       setIsPolling(true);
       queryClient.invalidateQueries({ queryKey: ["themes", businessId] });
     },
+  });
+
+  const {
+    data: scatterData,
+    isLoading: scatterLoading,
+    isError: scatterError,
+    error: scatterErrorData,
+    refetch: refetchScatter,
+  } = useQuery({
+    queryKey: ["themes-scatter-plot", businessId],
+    queryFn: fetchScatterPlot,
+    staleTime: 1000 * 60 * 5,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    enabled: !!businessId && view === "scatter",
   });
 
   React.useEffect(() => {
@@ -352,6 +367,7 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     return {
       offerings: offerings.size,
       themes: filteredData.length,
+      topics: scatterData?.points?.length ?? 0,
     };
   })();
 
@@ -398,28 +414,36 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
           <Layers className="h-4 w-4" />
           Map
         </TabsTrigger>
-        <TabsTrigger value="force">
-          <Network className="h-4 w-4" />
-          Force
+        <TabsTrigger value="scatter">
+          <ChartScatter className="h-4 w-4" />
+          Scatter
         </TabsTrigger>
       </TabsList>
     </Tabs>
   );
 
-  if (view === "bubble" || view === "force") {
+  if (view === "bubble" || view === "scatter") {
     return (
       <div className="h-full flex flex-col gap-4">
         <div className="shrink-0 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              {offeringsFilter}
+              {view === "bubble" ? offeringsFilter : null}
               <div className="flex items-center gap-4">
-                <div className="text-sm font-mono text-general-muted-foreground">
-                  <span className="text-general-primary">{graphStats.offerings}</span> Offerings
-                </div>
-                <div className="text-sm font-mono text-general-muted-foreground">
-                  <span className="text-general-primary">{graphStats.themes}</span> Themes
-                </div>
+                {view === "bubble" ? (
+                  <>
+                    <div className="text-sm font-mono text-general-muted-foreground">
+                      <span className="text-general-primary">{graphStats.offerings}</span> Offerings
+                    </div>
+                    <div className="text-sm font-mono text-general-muted-foreground">
+                      <span className="text-general-primary">{graphStats.themes}</span> Themes
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-sm font-mono text-general-muted-foreground">
+                    <span className="text-general-primary">{graphStats.topics}</span> Topics
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -433,11 +457,26 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
               data={filteredData}
               selectedOffering={selectedOffering === "all" ? undefined : selectedOffering}
             />
+          ) : scatterLoading ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border bg-white">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Typography variant="p" className="font-medium text-foreground">
+                Loading scatter plot…
+              </Typography>
+            </div>
+          ) : scatterError ? (
+            <div className="flex h-full flex-col items-center justify-center gap-4 rounded-xl border bg-white">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+              <p className="text-destructive font-medium">Failed to load scatter plot</p>
+              <p className="text-sm text-muted-foreground">
+                {scatterErrorData instanceof Error
+                  ? scatterErrorData.message
+                  : "An error occurred"}
+              </p>
+              <Button onClick={() => refetchScatter()}>Try Again</Button>
+            </div>
           ) : (
-            <ThemesForceGraph
-              data={filteredData}
-              selectedOffering={selectedOffering === "all" ? undefined : selectedOffering}
-            />
+            <ThemesScatterPlot points={scatterData?.points ?? []} />
           )}
         </div>
       </div>

@@ -28,8 +28,10 @@ interface ChannelsSidebarProps {
 
 const STATIC_CHANNELS = [
   { name: "Facebook", icon: "/icons/facebook.png", relevance: 0.85 },
+  { name: "Facebook Group", icon: "/icons/facebook.png", relevance: 0.85 },
   { name: "Instagram", icon: "/icons/instagram.png", relevance: 0.92 },
   { name: "LinkedIn", icon: "/icons/linkedin.png", relevance: 0.78 },
+  { name: "Quora", icon: "/icons/quora.svg", relevance: 0.78 },
   { name: "X", icon: "/icons/twitter.png", relevance: 0.75 },
   { name: "YouTube", icon: "/icons/youtube.png", relevance: 0.95 },
   { name: "TikTok", icon: "/icons/tiktok.png", relevance: 0.82 },
@@ -42,8 +44,11 @@ function getChannelIcon(channelName: string): string | null {
   const normalized = channelName.toLowerCase().trim();
   const iconMap: Record<string, string> = {
     facebook: "/icons/facebook.png",
+    "facebook group": "/icons/facebook.png",
+    "facebook groups": "/icons/facebook.png",
     instagram: "/icons/instagram.png",
     linkedin: "/icons/linkedin.png",
+    quora: "/icons/quora.svg",
     x: "/icons/twitter.png",
     youtube: "/icons/youtube.png",
     tiktok: "/icons/tiktok.png",

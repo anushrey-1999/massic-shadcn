@@ -13,11 +13,11 @@ interface GapAnalysisApiResponse {
   history?: Record<string, HistoryDataPoint>
   err?: boolean
   message?: string
-  detail?: string
+  detail?: unknown
 }
 
 interface ApiErrorResponse {
-  detail?: string
+  detail?: unknown
   message?: string
 }
 
@@ -116,14 +116,29 @@ async function fetchGapAnalysis(
   } catch (error) {
     const axiosError = error as AxiosError<ApiErrorResponse>
     if (axiosError.response?.status === 404) {
-      return { history: undefined, detail: axiosError.response.data?.detail || "Not found" }
+      return { history: undefined, detail: axiosError.response.data?.detail ?? "Not found" }
     }
     throw error
   }
 }
 
+function responseDetailToText(detail: unknown): string {
+  if (typeof detail === "string") return detail
+  if (detail == null) return ""
+
+  if (Array.isArray(detail)) {
+    return detail.map(responseDetailToText).filter(Boolean).join(" ")
+  }
+
+  if (typeof detail === "object") {
+    return Object.values(detail).map(responseDetailToText).filter(Boolean).join(" ")
+  }
+
+  return String(detail)
+}
+
 function isNotFoundResponse(data: GapAnalysisApiResponse | undefined): boolean {
-  return !!data?.detail?.toLowerCase().includes("not found")
+  return responseDetailToText(data?.detail).toLowerCase().includes("not found")
 }
 
 export function useGapAnalysis(businessId: string | null) {

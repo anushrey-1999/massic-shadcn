@@ -67,6 +67,10 @@ function formatPlanAmount(amount: number, count: number, currency: string) {
   return `${formatAmount(perChargeAmount, currency)}${count > 1 ? " ea" : ""}`;
 }
 
+function getReportLabel(report: BillingReconciliationReportData) {
+  return report.periodLabel || report.monthLabel;
+}
+
 function getPlanIcon(planName: string) {
   const normalizedPlanName = planName.toLowerCase();
 
@@ -172,6 +176,7 @@ export function BillingReconciliationReport({
   const primaryCurrency = report.rows[0]?.currency || "USD";
   const subscriptionRows = report.rows.filter((row) => row.rowType === "business");
   const agencyRows = report.rows.filter((row) => row.rowType === "agency_plan" || row.rowType === "agency_add_on");
+  const reportLabel = getReportLabel(report);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -180,7 +185,7 @@ export function BillingReconciliationReport({
           <div className="flex min-w-0 items-center gap-2">
             <ReceiptText className="size-[29px] shrink-0 text-foreground" />
             <h2 className="truncate text-2xl font-semibold leading-[1.2] tracking-[-0.48px] text-foreground">
-              {report.monthLabel} Billing Report
+              {reportLabel} Billing Report
             </h2>
           </div>
           <Badge
@@ -267,7 +272,7 @@ export function BillingReconciliationReport({
                   {subscriptionRows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-24 px-2 text-center text-sm text-muted-foreground">
-                        No business subscription charges were found for {report.monthLabel}.
+                        No business subscription charges were found for {reportLabel}.
                       </TableCell>
                     </TableRow>
                   ) : (

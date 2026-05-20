@@ -1,27 +1,31 @@
 "use client"
 
+import * as React from "react"
+import type { ReactElement, ReactNode } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { Check, Star, Trash2, X } from "lucide-react"
+import { CheckCircle2, Eye, Pencil, Trash2 } from "lucide-react"
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { getReviewPlatformIconUrl, type ReviewPlatformId } from "@/utils/review-platforms"
 
-export type CustomerStatus = "completed" | "failed" | "pending" | "in-progress"
+export type CustomerStatus =
+  | "waiting-approval"
+  | "pending"
+  | "in-progress"
+  | "completed"
+  | "failed"
+  | "draft"
 
-export type CampaignPlatform = "google" | "yelp"
+export type CampaignPlatform = ReviewPlatformId
 
-export interface CampaignLink {
+export interface CampaignOption {
+  id: string
+  name: string
   platform: CampaignPlatform
-  label: string
+  isDefault?: boolean
 }
 
 export interface ReviewCustomerRow {
@@ -29,42 +33,35 @@ export interface ReviewCustomerRow {
   name: string
   phone: string
   email: string
-  createdAt: Date
-  campaignsLinked: CampaignLink[]
+  createdAt: Date | null
+  campaignId: string
+  campaignName: string
+  campaignPlatform: CampaignPlatform
   status: CustomerStatus
+  isNew?: boolean
 }
 
-export interface NewRowDraft {
-  name: string
-  phone: string
-  email: string
-  dateCreatedText: string
-  campaign: "" | "Google Reviews" | "Yelp"
+export interface CustomersTableColumnOptions {
+  onEditRow: (row: ReviewCustomerRow) => void
+  onDeleteRow: (rowId: string, isNew?: boolean) => void
+  onApproveRow: (row: ReviewCustomerRow) => void
+  onViewRow: (row: ReviewCustomerRow) => void
+  onCampaignHover?: (campaignId: string) => void
+  getCampaignActivityContent?: (campaignId: string) => ReactNode
 }
 
-export interface AddRowColumnOptions {
-  newRowId: string
-  draft: NewRowDraft
-  onDraftChange: (field: keyof NewRowDraft, value: string) => void
-  onSaveNewRow: () => void
-  onCancelNewRow: () => void
-}
-
-function CampaignChip({ campaign }: { campaign: CampaignLink }) {
+function CampaignChip({ label, platform }: { label: string; platform: CampaignPlatform }) {
+  const iconUrl = getReviewPlatformIconUrl(platform)
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-foreground">
-      {campaign.platform === "google" ? (
-        <img
-          src="https://www.google.com/s2/favicons?domain=google.com&sz=32"
-          alt=""
-          width={14}
-          height={14}
-          className="h-3.5 w-3.5 shrink-0 rounded-[2px]"
-        />
-      ) : (
-        <Star className="h-3.5 w-3.5 shrink-0 fill-[#d32323] text-[#d32323]" />
-      )}
-      <span className="truncate">{campaign.label}</span>
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-foreground">
+      <img
+        src={iconUrl}
+        alt=""
+        width={14}
+        height={14}
+        className="h-3.5 w-3.5 shrink-0 rounded-[2px]"
+      />
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   )
 }
@@ -73,14 +70,19 @@ function getOrdinal(n: number) {
   const v = n % 100
   if (v >= 11 && v <= 13) return `${n}th`
   switch (v % 10) {
-    case 1: return `${n}st`
-    case 2: return `${n}nd`
-    case 3: return `${n}rd`
-    default: return `${n}th`
+    case 1:
+      return `${n}st`
+    case 2:
+      return `${n}nd`
+    case 3:
+      return `${n}rd`
+    default:
+      return `${n}th`
   }
 }
 
-function formatDate(date: Date) {
+function formatDate(date: Date | null) {
+  if (!date) return "-"
   try {
     const d = date.getDate()
     const month = new Intl.DateTimeFormat("en-US", { month: "short" }).format(date)
@@ -96,223 +98,303 @@ const statusStyles: Record<CustomerStatus, string> = {
   failed: "bg-red-100 text-red-800 border-red-200",
   pending: "bg-gray-100 text-gray-700 border-gray-200",
   "in-progress": "bg-sky-100 text-sky-800 border-sky-200",
+  "waiting-approval": "bg-amber-100 text-amber-800 border-amber-200",
+  draft: "bg-muted text-muted-foreground border-muted",
 }
 
-const CAMPAIGN_OPTIONS: { value: "Google Reviews" | "Yelp"; platform: CampaignPlatform }[] = [
-  { value: "Google Reviews", platform: "google" },
-  { value: "Yelp", platform: "yelp" },
-]
+function getStatusLabel(status: CustomerStatus) {
+  switch (status) {
+    case "waiting-approval":
+      return "Waiting Approval"
+    case "in-progress":
+      return "In-Progress"
+    case "draft":
+      return "Draft"
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1)
+  }
+}
+
+function WithTooltip({
+  content,
+  children,
+  contentClassName,
+  hideArrow,
+  arrowClassName,
+}: {
+  content?: ReactNode
+  children: ReactElement
+  contentClassName?: string
+  hideArrow?: boolean
+  arrowClassName?: string
+}) {
+  if (!content) return children
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        sideOffset={6}
+        className={contentClassName}
+        hideArrow={hideArrow}
+        arrowClassName={arrowClassName}
+      >
+        {content}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
 
 export function getCustomersTableColumns(
-  addRowOptions?: AddRowColumnOptions
+  options: CustomersTableColumnOptions
 ): ColumnDef<ReviewCustomerRow>[] {
-  const isNewRow = addRowOptions
-    ? (row: ReviewCustomerRow) => row.id === addRowOptions.newRowId
-    : () => false
+  const {
+    onEditRow,
+    onDeleteRow,
+    onApproveRow,
+    onViewRow,
+    onCampaignHover,
+    getCampaignActivityContent,
+  } = options
 
   return [
     {
+      id: "select",
+      header: ({ table }) => (
+        <input
+          type="checkbox"
+          className="h-4 w-4"
+          checked={table.getIsAllPageRowsSelected()}
+          onChange={(event) => table.toggleAllPageRowsSelected(event.target.checked)}
+          aria-label="Select all customers on page"
+        />
+      ),
+      cell: ({ row }) => (
+        <input
+          type="checkbox"
+          className="h-4 w-4"
+          checked={row.getIsSelected()}
+          disabled={!row.getCanSelect()}
+          onChange={(event) => row.toggleSelected(event.target.checked)}
+          aria-label="Select customer"
+        />
+      ),
+      enableSorting: false,
+      size: 48,
+      minSize: 40,
+      maxSize: 56,
+    },
+    {
       id: "name",
       accessorKey: "name",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Customer Name" />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Customer Name" />
+      ),
       cell: ({ row }) => {
-        if (addRowOptions && isNewRow(row.original))
-          return (
-            <Input
-              type="text"
-              value={addRowOptions.draft.name}
-              onChange={(e) => addRowOptions.onDraftChange("name", e.target.value)}
-              placeholder="Customer name"
-              className="h-8 text-sm"
-            />
-          )
-        const isEditable = row.original.status === "failed" || row.original.status === "pending"
+        const value = row.original.name
         return (
-          <div className={cn("truncate font-medium", !isEditable && "text-muted-foreground")}>
-            {row.original.name}
-          </div>
+          <WithTooltip content={value || "-"}>
+            <div className="truncate font-medium">
+              {value || "-"}
+            </div>
+          </WithTooltip>
         )
       },
-      size: 220,
-      minSize: 160,
-      maxSize: 320,
+      size: 150,
+      minSize: 110,
+      maxSize: 180,
     },
     {
       id: "phone",
       accessorKey: "phone",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Phone" />,
       cell: ({ row }) => {
-        if (addRowOptions && isNewRow(row.original))
-          return (
-            <Input
-              type="tel"
-              inputMode="numeric"
-              value={addRowOptions.draft.phone}
-              onChange={(e) => addRowOptions.onDraftChange("phone", e.target.value)}
-              placeholder="Phone"
-              className="h-8 text-sm"
-            />
-          )
-        const isEditable = row.original.status === "failed" || row.original.status === "pending"
+        const value = row.original.phone
         return (
-          <div className={cn("truncate", !isEditable && "text-muted-foreground")}>
-            {row.original.phone}
-          </div>
+          <WithTooltip content={value || "-"}>
+            <div className="truncate">
+              {value || "-"}
+            </div>
+          </WithTooltip>
         )
       },
-      size: 160,
-      minSize: 140,
-      maxSize: 200,
+      size: 120,
+      minSize: 100,
+      maxSize: 140,
     },
     {
       id: "email",
       accessorKey: "email",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Email" />,
       cell: ({ row }) => {
-        if (addRowOptions && isNewRow(row.original))
-          return (
-            <Input
-              type="email"
-              value={addRowOptions.draft.email}
-              onChange={(e) => addRowOptions.onDraftChange("email", e.target.value)}
-              placeholder="Email"
-              className="h-8 text-sm"
-            />
-          )
-        const isEditable = row.original.status === "failed" || row.original.status === "pending"
+        const value = row.original.email
         return (
-          <div className={cn("truncate", !isEditable && "text-muted-foreground")}>
-            {row.original.email}
-          </div>
+          <WithTooltip content={value || "-"}>
+            <div className="truncate">
+              {value || "-"}
+            </div>
+          </WithTooltip>
         )
       },
-      size: 260,
-      minSize: 200,
-      maxSize: 360,
+      size: 190,
+      minSize: 140,
+      maxSize: 220,
     },
     {
       id: "createdAt",
       accessorKey: "createdAt",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Date Created" />,
-      cell: ({ row }) => {
-        if (addRowOptions && isNewRow(row.original))
-          return (
-            <Input
-              type="text"
-              value={addRowOptions.draft.dateCreatedText}
-              onChange={(e) => addRowOptions.onDraftChange("dateCreatedText", e.target.value)}
-              placeholder="e.g. 8th Jan 2026"
-              className="h-8 text-sm"
-            />
-          )
-        const isEditable = row.original.status === "failed" || row.original.status === "pending"
-        return (
-          <div className={cn("truncate", !isEditable && "text-muted-foreground")}>
-            {formatDate(row.original.createdAt)}
-          </div>
-        )
-      },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Date Created" />
+      ),
+      cell: ({ row }) => (
+        <div className="truncate text-muted-foreground">
+          {formatDate(row.original.createdAt)}
+        </div>
+      ),
       sortingFn: "datetime",
-      size: 160,
-      minSize: 140,
-      maxSize: 200,
+      size: 125,
+      minSize: 100,
+      maxSize: 140,
     },
     {
-      id: "campaignsLinked",
-      accessorKey: "campaignsLinked",
-      accessorFn: (row) => row.campaignsLinked[0]?.label ?? "",
-      header: ({ column }) => <DataTableColumnHeader column={column} label="Campaigns Linked" />,
+      id: "campaignId",
+      accessorKey: "campaignId",
+      accessorFn: (row) => row.campaignName || "",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Campaign Linked" />
+      ),
       cell: ({ row }) => {
-        if (addRowOptions && isNewRow(row.original))
+        if (!row.original.campaignName) {
           return (
-            <Select
-              value={addRowOptions.draft.campaign || undefined}
-              onValueChange={(v) => addRowOptions.onDraftChange("campaign", v ?? "")}
-            >
-              <SelectTrigger className="h-8 w-full text-sm">
-                <SelectValue placeholder="Select campaign" />
-              </SelectTrigger>
-              <SelectContent>
-                {CAMPAIGN_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.platform} value={opt.value}>
-                    {opt.value}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <span className="text-muted-foreground">
+              -
+            </span>
           )
-        const campaign = row.original.campaignsLinked[0]
-        const isEditable = row.original.status === "failed" || row.original.status === "pending"
-        if (!campaign) return <span className="text-muted-foreground">-</span>
+        }
+        const tooltipContent =
+          getCampaignActivityContent?.(row.original.campaignId) || row.original.campaignName
         return (
-          <div className={cn(!isEditable && "opacity-50")}>
-            <CampaignChip campaign={campaign} />
-          </div>
+          <WithTooltip
+            content={tooltipContent}
+            contentClassName="max-w-none rounded-xl border bg-popover p-0 text-popover-foreground shadow-lg"
+            arrowClassName="fill-popover"
+          >
+            <div
+              className="min-w-0"
+              onMouseEnter={() => onCampaignHover?.(row.original.campaignId)}
+              onFocus={() => onCampaignHover?.(row.original.campaignId)}
+            >
+              <CampaignChip
+                label={row.original.campaignName}
+                platform={row.original.campaignPlatform}
+              />
+            </div>
+          </WithTooltip>
         )
       },
-      size: 200,
-      minSize: 160,
-      maxSize: 280,
+      size: 155,
+      minSize: 120,
+      maxSize: 180,
     },
     {
       id: "status",
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Status" />,
       cell: ({ row }) => {
-        if (addRowOptions && isNewRow(row.original))
-          return (
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                aria-label="Save"
-                onClick={addRowOptions.onSaveNewRow}
-              >
-                <Check className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                aria-label="Cancel"
-                onClick={addRowOptions.onCancelNewRow}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )
+        const statusLabel = getStatusLabel(row.original.status)
         return (
-          <div className="flex w-full items-center">
+          <WithTooltip content={statusLabel}>
             <Badge
               variant="outline"
               className={cn(
-                "w-fit shrink-0 capitalize border",
+                "max-w-full truncate border",
                 statusStyles[row.original.status]
               )}
             >
-              {row.original.status === "in-progress" ? "In-Progress" : row.original.status.charAt(0).toUpperCase() + row.original.status.slice(1)}
+              {statusLabel}
             </Badge>
-            <div className="ml-auto flex w-9 shrink-0 items-center justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+          </WithTooltip>
+        )
+      },
+      size: 120,
+      minSize: 100,
+      maxSize: 135,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <WithTooltip content="View customer details">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                type="button"
+                aria-label="View customer details"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onViewRow(row.original)
+                }}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            </WithTooltip>
+            <WithTooltip content="Edit customer">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                type="button"
+                aria-label="Edit customer"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onEditRow(row.original)
+                }}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </WithTooltip>
+            {row.original.status === "waiting-approval" ? (
+              <WithTooltip content="Approve customer">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-emerald-700"
+                  type="button"
+                  aria-label="Approve customer"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onApproveRow(row.original)
+                  }}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                </Button>
+              </WithTooltip>
+            ) : null}
+            <WithTooltip content="Delete customer">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 type="button"
                 aria-label="Delete customer"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDeleteRow(row.original.id, row.original.isNew)
+                }}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
-            </div>
+            </WithTooltip>
           </div>
         )
       },
-      size: 160,
-      minSize: 140,
-      maxSize: 200,
+      enableSorting: false,
+      size: 104,
+      minSize: 96,
+      maxSize: 116,
     },
   ]
 }
-

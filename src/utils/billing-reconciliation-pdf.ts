@@ -419,6 +419,10 @@ function formatPlanAmount(amount: number, count: number, currency: string) {
   return `${formatAmount(perChargeAmount, currency)}${count > 1 ? " ea" : ""}`;
 }
 
+function getReportLabel(report: BillingReconciliationReport) {
+  return report.periodLabel || report.monthLabel;
+}
+
 function buildPlanBadge(planName: string, tinted = false) {
   return `
     <span class="${tinted ? "planPill" : "badge"}">
@@ -448,9 +452,10 @@ export function buildBillingReconciliationBodyHtml(report: BillingReconciliation
   const subscriptionRows = report.rows.filter((row) => row.rowType === "business");
   const agencyRows = report.rows.filter((row) => row.rowType === "agency_plan" || row.rowType === "agency_add_on");
   const planBreakdownHtml = buildPlanBreakdownHtml(report, primaryCurrency);
+  const reportLabel = getReportLabel(report);
 
   const subscriptionRowsHtml = subscriptionRows.length === 0
-    ? `<tr><td colspan="7" class="empty">No business subscription charges were found for ${escapeHtml(report.monthLabel)}.</td></tr>`
+    ? `<tr><td colspan="7" class="empty">No business subscription charges were found for ${escapeHtml(reportLabel)}.</td></tr>`
     : subscriptionRows.map((row) => `
         <tr>
           <td>
@@ -482,7 +487,7 @@ export function buildBillingReconciliationBodyHtml(report: BillingReconciliation
         <div class="headerTitleWrap">
           <div class="headerTitleGroup">
             <span class="receiptIcon">#</span>
-            <div class="headerTitle">${escapeHtml(report.monthLabel)} Billing Report</div>
+            <div class="headerTitle">${escapeHtml(reportLabel)} Billing Report</div>
           </div>
           <span class="agencyBadge">${escapeHtml(report.agencyName)}</span>
         </div>

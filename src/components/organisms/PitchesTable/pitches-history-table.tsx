@@ -7,11 +7,11 @@ import { ArrowRight } from "lucide-react";
 
 import { DataTable } from "@/components/filter-table";
 import { Button } from "@/components/ui/button";
-import { getPitchesTableColumns, type PitchRow } from "./pitches-table-columns";
+import { getPitchHistoryTableColumns, type PitchHistoryRow } from "./pitches-table-columns";
 
 interface PitchesHistoryTableProps {
   businessId: string;
-  data: PitchRow[];
+  data: PitchHistoryRow[];
   isLoading?: boolean;
 }
 
@@ -21,7 +21,7 @@ export function PitchesHistoryTable({
   isLoading = false,
 }: PitchesHistoryTableProps) {
   const columns = React.useMemo(() => {
-    return getPitchesTableColumns().map((col) => {
+    return getPitchHistoryTableColumns().map((col) => {
       if (col.id !== "actions") return col;
 
       return {
@@ -65,7 +65,7 @@ export function PitchesHistoryTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getRowId: (row) => (row as any).id,
+    getRowId: (row) => row.id,
     enableSorting: false,
     enableFilters: false,
     enableColumnFilters: false,

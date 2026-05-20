@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import * as d3 from "d3";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { ChartHoverTooltip } from "@/components/ui/chart-hover-tooltip";
 import type { ThemeRow } from "@/types/themes-types";
 
 const OFFERING_COLORS = [
@@ -436,8 +435,6 @@ export function ThemesBubbleChart({
           ? "Topic"
           : null;
   const tooltipThemeData = tooltipNode?.data.themeData;
-  const tooltipColor =
-    offeringColorMap[tooltipNode?.data.offeringName ?? ""] ?? "#94a3b8";
 
   return (
     <div
@@ -451,76 +448,45 @@ export function ThemesBubbleChart({
         className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity duration-150"
       >
         {tooltipNode ? (
-          <Card
-            variant="profileCard"
-            className="w-[280px] p-3 bg-foreground-light border-none rounded-xl"
+          <ChartHoverTooltip
+            typeLabel={tooltipTypeLabel}
+            title={tooltipNode.data.name}
+            metrics={
+              tooltipType === "offering"
+                ? [
+                    { label: "Themes", value: tooltipNode.children?.length ?? 0 },
+                    { label: "Topics", value: tooltipNode.value ?? 0 },
+                  ]
+                : tooltipType === "theme" && tooltipThemeData
+                  ? [{ label: "Topics", value: tooltipThemeData.topic_count ?? 0 }]
+                  : []
+            }
           >
-            {tooltipTypeLabel ? (
-              <div className="mb-1.5">
-                <Badge
-                  variant="outline"
-                  className="border border-general-border"
-                  style={{ borderLeftColor: tooltipColor, borderLeftWidth: 3 }}
-                >
-                  {tooltipTypeLabel}
-                </Badge>
-              </div>
-            ) : null}
-            <CardTitle className="text-sm font-medium text-general-primary leading-snug">
-              {tooltipNode.data.name}
-            </CardTitle>
-
-            {tooltipType === "offering" && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <Badge variant="outline">
-                  Themes&nbsp;
-                  <span className="text-general-foreground">
-                    {tooltipNode.children?.length ?? 0}
-                  </span>
-                </Badge>
-                <Badge variant="outline">
-                  Topics&nbsp;
-                  <span className="text-general-foreground">{tooltipNode.value ?? 0}</span>
-                </Badge>
-              </div>
-            )}
-
-            {tooltipType === "theme" && tooltipThemeData && (
-              <>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge variant="outline">
-                    Topics&nbsp;
-                    <span className="text-general-foreground">
-                      {tooltipThemeData.topic_count ?? 0}
+            {tooltipType === "theme" &&
+              tooltipThemeData?.topics &&
+              tooltipThemeData.topics.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {tooltipThemeData.topics.slice(0, 5).map((t, i) => (
+                    <span
+                      key={i}
+                      className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground"
+                    >
+                      {t.topic_name}
                     </span>
-                  </Badge>
+                  ))}
+                  {tooltipThemeData.topics.length > 5 && (
+                    <span className="text-[10px] text-muted-foreground self-center">
+                      +{tooltipThemeData.topics.length - 5} more
+                    </span>
+                  )}
                 </div>
-                {tooltipThemeData.topics && tooltipThemeData.topics.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {tooltipThemeData.topics.slice(0, 5).map((t, i) => (
-                      <span
-                        key={i}
-                        className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground"
-                      >
-                        {t.topic_name}
-                      </span>
-                    ))}
-                    {tooltipThemeData.topics.length > 5 && (
-                      <span className="text-[10px] text-muted-foreground self-center">
-                        +{tooltipThemeData.topics.length - 5} more
-                      </span>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-
+              )}
             {tooltipType === "topic" && (
               <p className="mt-1 text-xs text-muted-foreground">
                 <span className="font-medium">Theme:</span> {tooltipNode.parent?.data.name}
               </p>
             )}
-          </Card>
+          </ChartHoverTooltip>
         ) : null}
       </div>
 

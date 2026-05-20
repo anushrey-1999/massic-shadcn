@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { ChartHoverTooltip } from "@/components/ui/chart-hover-tooltip";
 import { RelevancePill } from "@/components/ui/relevance-pill";
+import { BUSINESS_RELEVANCE_PALETTE } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import type { ThemeScatterPoint } from "@/types/themes-types";
 
 interface ThemesScatterPlotProps {
@@ -21,9 +21,9 @@ interface RenderedPoint extends ThemeScatterPoint {
 
 function getPointColor(score: number) {
   const normalized = Math.max(0, Math.min(1, score || 0));
-  if (normalized >= 0.75) return "#65a30d";
-  if (normalized >= 0.5) return "#d97706";
-  return "#dc2626";
+  if (normalized >= 0.75) return BUSINESS_RELEVANCE_PALETTE[BUSINESS_RELEVANCE_PALETTE.length - 1];
+  if (normalized >= 0.5) return BUSINESS_RELEVANCE_PALETTE[6];
+  return BUSINESS_RELEVANCE_PALETTE[0];
 }
 
 function getBounds(points: ThemeScatterPoint[]) {
@@ -40,10 +40,6 @@ function getBounds(points: ThemeScatterPoint[]) {
     minY,
     maxY: maxY === minY ? maxY + 1 : maxY,
   };
-}
-
-function formatAxisValue(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 export function ThemesScatterPlot({
@@ -97,10 +93,10 @@ export function ThemesScatterPlot({
 
     const dpr = window.devicePixelRatio || 1;
     const padding = {
-      top: 28,
-      right: 28,
-      bottom: 44,
-      left: 56,
+      top: 16,
+      right: 16,
+      bottom: 16,
+      left: 16,
     };
     const plotWidth = Math.max(1, actualWidth - padding.left - padding.right);
     const plotHeight = Math.max(1, actualHeight - padding.top - padding.bottom);
@@ -120,41 +116,22 @@ export function ThemesScatterPlot({
 
     ctx.strokeStyle = "#e5e7eb";
     ctx.lineWidth = 1;
-    ctx.font = "11px -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
-    ctx.fillStyle = "#64748b";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
 
     const gridSteps = 5;
     for (let i = 0; i <= gridSteps; i++) {
       const x = padding.left + (plotWidth / gridSteps) * i;
       const y = padding.top + (plotHeight / gridSteps) * i;
-      const xValue = bounds.minX + (xRange / gridSteps) * i;
-      const yValue = bounds.maxY - (yRange / gridSteps) * i;
 
       ctx.beginPath();
       ctx.moveTo(x, padding.top);
       ctx.lineTo(x, padding.top + plotHeight);
       ctx.stroke();
-      ctx.fillText(formatAxisValue(xValue), x, padding.top + plotHeight + 10);
 
       ctx.beginPath();
       ctx.moveTo(padding.left, y);
       ctx.lineTo(padding.left + plotWidth, y);
       ctx.stroke();
-      ctx.textAlign = "right";
-      ctx.textBaseline = "middle";
-      ctx.fillText(formatAxisValue(yValue), padding.left - 10, y);
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
     }
-
-    ctx.strokeStyle = "#94a3b8";
-    ctx.beginPath();
-    ctx.moveTo(padding.left, padding.top);
-    ctx.lineTo(padding.left, padding.top + plotHeight);
-    ctx.lineTo(padding.left + plotWidth, padding.top + plotHeight);
-    ctx.stroke();
 
     const renderedPoints = points.map((point) => {
       const score = Math.max(0, Math.min(1, point.business_relevance_score || 0));
@@ -168,11 +145,6 @@ export function ThemesScatterPlot({
     });
 
     renderedPoints.forEach((point) => {
-      ctx.beginPath();
-      ctx.arc(point.cx, point.cy, point.radius + 3, 0, 2 * Math.PI);
-      ctx.fillStyle = `${point.color}24`;
-      ctx.fill();
-
       ctx.beginPath();
       ctx.arc(point.cx, point.cy, point.radius, 0, 2 * Math.PI);
       ctx.fillStyle = `${point.color}d9`;
@@ -240,7 +212,7 @@ export function ThemesScatterPlot({
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden rounded-xl border border-border bg-white"
+      className="relative h-full w-full overflow-hidden rounded-xl bg-white"
     >
       {points.length > 0 ? (
         <canvas ref={canvasRef} className="h-full w-full" />
@@ -255,22 +227,7 @@ export function ThemesScatterPlot({
           className="pointer-events-none absolute left-0 top-0 z-10"
           style={{ transform: `translate3d(${tooltipPosition.left}px, ${tooltipPosition.top}px, 0)` }}
         >
-          <Card
-            variant="profileCard"
-            className="w-[280px] rounded-xl border-none bg-foreground-light p-3"
-          >
-            <div className="mb-1.5">
-              <Badge
-                variant="outline"
-                className="border border-general-border"
-                style={{ borderLeftColor: tooltipPoint.color, borderLeftWidth: 3 }}
-              >
-                Topic
-              </Badge>
-            </div>
-            <CardTitle className="text-sm font-medium leading-snug text-general-primary">
-              {tooltipPoint.topic_name}
-            </CardTitle>
+          <ChartHoverTooltip typeLabel="Topic" title={tooltipPoint.topic_name}>
             <div className="mt-2 flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Relevance</span>
               <RelevancePill score={tooltipPoint.business_relevance_score} />
@@ -279,13 +236,9 @@ export function ThemesScatterPlot({
               <span>X {tooltipPoint.x.toFixed(2)}</span>
               <span>Y {tooltipPoint.y.toFixed(2)}</span>
             </div>
-          </Card>
+          </ChartHoverTooltip>
         </div>
       ) : null}
-
-      <div className="absolute bottom-3 right-3 rounded border border-border bg-white/80 px-2 py-1 text-xs text-muted-foreground select-none">
-        Hover points for topic details
-      </div>
     </div>
   );
 }

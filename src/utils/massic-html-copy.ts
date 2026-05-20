@@ -1,4 +1,4 @@
-const MASSIC_CSS_PUBLIC_PATH = "/wp-css-component-library.css";
+const MASSIC_CSS_PUBLIC_PATH = "/wp-massic-page-v2-library.css";
 const MASSIC_BLOG_CSS_PUBLIC_PATH = "/wp-massic-blog-library.css";
 
 const cssTextCache = new Map<string, string>();

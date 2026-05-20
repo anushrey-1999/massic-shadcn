@@ -60,9 +60,9 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const { data: jobDetails } = useJobByBusinessId(businessId || null);
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
   const isCoreSuccess = coreStatus === "success";
-  const isStrategyReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "topic_strategy_builder");
-  const isAudienceReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "audience");
-  const isLandscapeReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "channel_analyzer");
+  const isStrategyReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "topics");
+  const isAudienceReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "audiences");
+  const isLandscapeReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "social_channels");
 
   const { fetchAllStrategyPages } = useStrategy(businessId);
   const [strategyMetrics, setStrategyMetrics] = React.useState<StrategyMetrics | null>(null);
@@ -360,7 +360,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="audience"
+              workflowKey="audiences"
               emptyStateHeight="min-h-[calc(100vh-16rem)]"
             />
           )}
@@ -377,7 +377,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="channel_analyzer"
+              workflowKey="social_channels"
               emptyStateHeight="min-h-[calc(100vh-16rem)]"
             />
           )}

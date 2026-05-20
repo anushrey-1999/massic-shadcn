@@ -76,7 +76,13 @@ import { cn } from "@/lib/utils";
 import { AIRefineToolbarDom } from "@/components/ui/ai-refine-toolbar";
 import { copyToClipboard } from "@/utils/clipboard";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { resolveBlogFinalContent, resolveFormattedBlogHtml, resolvePageContent } from "@/utils/page-content-resolver";
+import {
+  resolveBlogFinalContent,
+  resolveFormattedBlogHtml,
+  resolveFormattedPageHtml,
+  resolvePageContent,
+  resolvePageMetaFields,
+} from "@/utils/page-content-resolver";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import { ContentConverter } from "@/utils/content-converter";
 import { api } from "@/hooks/use-api";
@@ -152,6 +158,12 @@ import {
   useCmsSlugCheck,
   useCmsWebflowStagingPreview,
 } from "@/hooks/use-cms-publishing";
+import {
+  useClearCmsFeaturedImage,
+  useCmsFeaturedImage,
+  useFinalizeCmsFeaturedImage,
+  useUploadCmsFeaturedImage,
+} from "@/hooks/use-cms-featured-image";
 import {
   WebflowPublishConfirmDescription,
   WebflowPublishConfirmHint,
@@ -249,6 +261,23 @@ type InsertAnchor = {
 
 const TEXT_OWNER_SELECTOR = "p, blockquote, h1, h2, h3, h4, h5, h6, li, summary, details, a[data-massic-link-id]";
 const AI_SELECTION_ATTR = "data-massic-ai-selection";
+
+async function readImageDimensions(file: File): Promise<{ width: number | null; height: number | null }> {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const dimensions = await new Promise<{ width: number | null; height: number | null }>((resolve) => {
+      const img = new window.Image();
+      img.onload = () => resolve({ width: img.naturalWidth || null, height: img.naturalHeight || null });
+      img.onerror = () => resolve({ width: null, height: null });
+      img.src = objectUrl;
+    });
+
+    return dimensions;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 const AI_SELECTION_OWNER_ATTR = "data-massic-ai-selection-owner";
 
 function getEditableLinkElement(target: EventTarget | null): HTMLAnchorElement | null {
@@ -541,6 +570,10 @@ export function WebPageHtmlView({
     url: string;
   } | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
+  const [featuredImageAltText, setFeaturedImageAltText] = React.useState("");
+  const [featuredImageUploadProgress, setFeaturedImageUploadProgress] = React.useState<number | null>(null);
+  const [isFeaturedImageDragActive, setIsFeaturedImageDragActive] = React.useState(false);
+  const featuredImageInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const lastAutoSlugCheckKeyRef = React.useRef("");
 
@@ -615,15 +648,24 @@ export function WebPageHtmlView({
 
     return { metaTitle, metaDescription, postTitle };
   }, []);
-  const publishTitle = isBlogContent
-    ? canonicalizeMetaValue(blogPostTitleDraft) || inferPage?.title || keyword || "Untitled"
-    : inferPage?.meta_title || inferPage?.title || keyword || "Untitled";
-  const publishSeoTitle = isBlogContent
-    ? canonicalizeMetaValue(blogMetaTitleDraft) || publishTitle
-    : publishTitle;
-  const publishDescription = isBlogContent
-    ? canonicalizeMetaValue(blogMetaDescriptionDraft)
-    : "";
+  const resolveContentMetaFields = React.useCallback(
+    (responseData: any) => {
+      if (isBlogContent) {
+        return resolveBlogMetaFields(responseData);
+      }
+
+      const pageMeta = resolvePageMetaFields(responseData);
+      return {
+        metaTitle: pageMeta.metaTitle,
+        metaDescription: pageMeta.metaDescription,
+        postTitle: pageMeta.title,
+      };
+    },
+    [isBlogContent, resolveBlogMetaFields]
+  );
+  const publishTitle = canonicalizeMetaValue(blogPostTitleDraft) || inferPage?.title || keyword || "Untitled";
+  const publishSeoTitle = canonicalizeMetaValue(blogMetaTitleDraft) || publishTitle;
+  const publishDescription = canonicalizeMetaValue(blogMetaDescriptionDraft);
   const publishContentId = inferPage?.page_id || pageId;
   const publishType: "post" | "page" = isBlogContent ? "post" : "page";
   const contentStatusQuery = useCmsPublishingContentStatus(
@@ -632,6 +674,16 @@ export function WebPageHtmlView({
       ? String(publishContentId)
       : null
   );
+  const isWordpressBlogPublish = isActiveWordpress && isBlogContent;
+  const featuredImageContentId = isWordpressBlogPublish && publishContentId ? String(publishContentId) : null;
+  const featuredImageQuery = useCmsFeaturedImage(
+    isWordpressBlogPublish ? businessId : null,
+    featuredImageContentId,
+    Boolean(isPublishModalOpen && isWordpressBlogPublish)
+  );
+  const uploadFeaturedImageMutation = useUploadCmsFeaturedImage();
+  const finalizeFeaturedImageMutation = useFinalizeCmsFeaturedImage();
+  const clearFeaturedImageMutation = useClearCmsFeaturedImage();
   const persistedContent = activePlatform === "wordpress" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedContent = activePlatform === "webflow" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedStatus = (webflowPersistedContent?.status || "").toLowerCase();
@@ -688,11 +740,19 @@ export function WebPageHtmlView({
   const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
   const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
   const slugConflictReason = slugCheckResult?.conflict?.reason || null;
+  const activeFeaturedImage = isWordpressBlogPublish ? featuredImageQuery.data || null : null;
+  const featuredImageBusy = Boolean(
+    isWordpressBlogPublish &&
+      (uploadFeaturedImageMutation.isPending ||
+        finalizeFeaturedImageMutation.isPending ||
+        clearFeaturedImageMutation.isPending)
+  );
   const isPublishBusy =
     cmsPublishMutation.isPending ||
     webflowStagingPreviewMutation.isPending ||
     wpPreviewMutation.isPending ||
-    wpUnpublishMutation.isPending;
+    wpUnpublishMutation.isPending ||
+    featuredImageBusy;
   const publishStateLabel = activePlatform === "webflow"
     ? (webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published")
     : isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
@@ -727,6 +787,10 @@ export function WebPageHtmlView({
   const webflowStagingViewUrl = hasWebflowStagingPreview
     ? webflowStagingPreview?.url
     : webflowStagingPreviewUrl;
+  React.useEffect(() => {
+    if (!isPublishModalOpen || !isWordpressBlogPublish) return;
+    setFeaturedImageAltText(activeFeaturedImage?.altText || "");
+  }, [activeFeaturedImage?.altText, activeFeaturedImage?.assetId, isPublishModalOpen, isWordpressBlogPublish]);
   const liveUrl = React.useMemo(() => {
     if (persistedContent?.permalink) return persistedContent.permalink;
     if (lastPublishedData?.permalink) return lastPublishedData.permalink;
@@ -815,7 +879,7 @@ export function WebPageHtmlView({
       if (isBlogContent) {
         return resolveFormattedBlogHtml(responseData) || resolveBlogFinalContent(responseData);
       }
-      return resolvePageContent(responseData);
+      return resolveFormattedPageHtml(responseData) || resolvePageContent(responseData);
     },
     [isBlogContent]
   );
@@ -1118,7 +1182,13 @@ export function WebPageHtmlView({
       await api.post(
         endpoint,
         "python",
-        { content },
+        {
+          content,
+          html: content,
+          title: blogPostTitle || undefined,
+          meta_title: metaTitle || undefined,
+          meta_description: metaDescription || undefined,
+        },
         {
           headers: {
             "Content-Type": "application/json",
@@ -1144,11 +1214,11 @@ export function WebPageHtmlView({
 
       const serverCanonical = canonicalizeHtml(normalizeEditorHtml(resolveHtmlContent(latestData)));
       const committedCanonical = canonicalizeHtml(lastCommittedHtmlRef.current);
-      const latestBlogMeta = isBlogContent ? resolveBlogMetaFields(latestData) : null;
-      const serverMetaMatchesLocal = !isBlogContent || (
-        canonicalizeMetaValue(latestBlogMeta?.metaTitle || "") === lastSavedMetaTitleRef.current &&
-        canonicalizeMetaValue(latestBlogMeta?.metaDescription || "") === lastSavedMetaDescriptionRef.current &&
-        canonicalizeMetaValue(latestBlogMeta?.postTitle || "") === lastSavedBlogPostTitleRef.current
+      const latestMeta = resolveContentMetaFields(latestData);
+      const serverMetaMatchesLocal = (
+        canonicalizeMetaValue(latestMeta.metaTitle) === lastSavedMetaTitleRef.current &&
+        canonicalizeMetaValue(latestMeta.metaDescription) === lastSavedMetaDescriptionRef.current &&
+        canonicalizeMetaValue(latestMeta.postTitle) === lastSavedBlogPostTitleRef.current
       );
       if (!committedCanonical) return;
 
@@ -1174,12 +1244,12 @@ export function WebPageHtmlView({
         }, 800);
       }
     },
-    [canonicalizeMetaValue, contentQuery, isBlogContent, normalizeEditorHtml, resolveBlogMetaFields, resolveHtmlContent]
+    [canonicalizeMetaValue, contentQuery, normalizeEditorHtml, resolveContentMetaFields, resolveHtmlContent]
   );
 
   /** Preview / layout HTML commits */
   const HTML_SAVE_DEBOUNCE_MS = 1200;
-  /** Blog post title + SEO fields — longer quiet period to cut API noise */
+  /** Title + SEO fields — longer quiet period to cut API noise */
   const BLOG_META_FIELD_DEBOUNCE_MS = 2800;
 
   const scheduleDebouncedSave = React.useCallback((debounceMs: number = HTML_SAVE_DEBOUNCE_MS) => {
@@ -1214,7 +1284,7 @@ export function WebPageHtmlView({
         return;
       }
       const hasHtmlChanges = canonicalizeHtml(nextHtml) !== canonicalizeHtml(lastSavedHtmlRef.current);
-      const hasMetaChanges = isBlogContent && (
+      const hasMetaChanges = (
         nextMetaTitle !== lastSavedMetaTitleRef.current ||
         nextMetaDescription !== lastSavedMetaDescriptionRef.current ||
         nextBlogPostTitle !== lastSavedBlogPostTitleRef.current
@@ -1238,14 +1308,12 @@ export function WebPageHtmlView({
           nextHtml,
           nextMetaTitle,
           nextMetaDescription,
-          isBlogContent ? nextBlogPostTitle : ""
+          nextBlogPostTitle
         );
         sourceHtmlRef.current = nextHtml;
         lastSavedHtmlRef.current = canonicalizeHtml(nextHtml);
         lastCommittedHtmlRef.current = canonicalizeHtml(nextHtml);
-        if (isBlogContent) {
-          lastSavedBlogPostTitleRef.current = nextBlogPostTitle;
-        }
+        lastSavedBlogPostTitleRef.current = nextBlogPostTitle;
         lastSavedMetaTitleRef.current = nextMetaTitle;
         lastSavedMetaDescriptionRef.current = nextMetaDescription;
         // Keep newer edits typed while this save was in-flight.
@@ -1295,11 +1363,11 @@ export function WebPageHtmlView({
           setPreviewHtml(committedModel.previewHtml);
         }
 
-        const metaOnlyBlogSave = isBlogContent && hasMetaChanges && !hasHtmlChanges;
+        const metaOnlySave = hasMetaChanges && !hasHtmlChanges;
 
         if (isEditorFocusedRef.current && reason === "debounce") {
           pendingBackgroundRefetchRef.current = true;
-        } else if (metaOnlyBlogSave) {
+        } else if (metaOnlySave) {
           pendingBackgroundRefetchRef.current = false;
           // HTML unchanged — refetch would churn the editor without new document body
         } else {
@@ -1321,7 +1389,7 @@ export function WebPageHtmlView({
         }
       }
     },
-    [canonicalizeMetaValue, composeCurrentHtml, isBlogContent, runBackgroundRefetch, scheduleDebouncedSave, updateHtmlContentRequest, validateEditorHtml]
+    [canonicalizeMetaValue, composeCurrentHtml, runBackgroundRefetch, scheduleDebouncedSave, updateHtmlContentRequest, validateEditorHtml]
   );
 
   React.useEffect(() => {
@@ -1338,9 +1406,7 @@ export function WebPageHtmlView({
     const transitionedFromPollingToTerminal = wasPolling && !isPolling;
     const rawPage = resolveHtmlContent(data);
     const sanitized = normalizeEditorHtml(rawPage);
-    const nextBlogMeta = isBlogContent
-      ? resolveBlogMetaFields(data)
-      : { metaTitle: "", metaDescription: "", postTitle: "" };
+    const nextContentMeta = resolveContentMetaFields(data);
     const serverCanonical = canonicalizeHtml(sanitized);
     const localCanonical = canonicalizeHtml(lastSavedHtmlRef.current);
     const hasPendingEdits =
@@ -1348,16 +1414,16 @@ export function WebPageHtmlView({
       Object.keys(linkEditsRef.current).length > 0 ||
       Object.keys(linkLabelEditsRef.current).length > 0 ||
       Object.keys(spacingEditsRef.current).length > 0;
-    const hasPendingMetaEdits = isBlogContent && (
+    const hasPendingMetaEdits = (
       canonicalizeMetaValue(blogPostTitleDraftRef.current) !== lastSavedBlogPostTitleRef.current ||
       canonicalizeMetaValue(blogMetaTitleDraftRef.current) !== lastSavedMetaTitleRef.current ||
       canonicalizeMetaValue(blogMetaDescriptionDraftRef.current) !== lastSavedMetaDescriptionRef.current
     );
     const localChangeInProgress = hasLocalEditsRef.current || hasPendingEdits || hasPendingMetaEdits || isSavingRef.current;
-    const serverMetaMatchesLocal = !isBlogContent || (
-      canonicalizeMetaValue(nextBlogMeta.metaTitle) === lastSavedMetaTitleRef.current &&
-      canonicalizeMetaValue(nextBlogMeta.metaDescription) === lastSavedMetaDescriptionRef.current &&
-      canonicalizeMetaValue(nextBlogMeta.postTitle) === lastSavedBlogPostTitleRef.current
+    const serverMetaMatchesLocal = (
+      canonicalizeMetaValue(nextContentMeta.metaTitle) === lastSavedMetaTitleRef.current &&
+      canonicalizeMetaValue(nextContentMeta.metaDescription) === lastSavedMetaDescriptionRef.current &&
+      canonicalizeMetaValue(nextContentMeta.postTitle) === lastSavedBlogPostTitleRef.current
     );
     const serverMatchesLocal = localCanonical.length > 0 && serverCanonical === localCanonical && serverMetaMatchesLocal;
 
@@ -1401,14 +1467,12 @@ export function WebPageHtmlView({
     linkLabelEditsRef.current = {};
     spacingEditsRef.current = {};
     lastSavedHtmlRef.current = canonicalizeHtml(sanitized);
-    lastSavedBlogPostTitleRef.current = canonicalizeMetaValue(nextBlogMeta.postTitle);
-    lastSavedMetaTitleRef.current = canonicalizeMetaValue(nextBlogMeta.metaTitle);
-    lastSavedMetaDescriptionRef.current = canonicalizeMetaValue(nextBlogMeta.metaDescription);
-    if (isBlogContent) {
-      setBlogPostTitleDraft(nextBlogMeta.postTitle);
-      setBlogMetaTitleDraft(nextBlogMeta.metaTitle);
-      setBlogMetaDescriptionDraft(nextBlogMeta.metaDescription);
-    }
+    lastSavedBlogPostTitleRef.current = canonicalizeMetaValue(nextContentMeta.postTitle);
+    lastSavedMetaTitleRef.current = canonicalizeMetaValue(nextContentMeta.metaTitle);
+    lastSavedMetaDescriptionRef.current = canonicalizeMetaValue(nextContentMeta.metaDescription);
+    setBlogPostTitleDraft(nextContentMeta.postTitle);
+    setBlogMetaTitleDraft(nextContentMeta.metaTitle);
+    setBlogMetaDescriptionDraft(nextContentMeta.metaDescription);
     setTextNodeIndex(model.textNodeIndex);
     setPreviewHtml(model.previewHtml);
     setActiveLinkEditor(null);
@@ -1426,7 +1490,7 @@ export function WebPageHtmlView({
         isInitialLoadRef.current = false;
       }, 250);
     }
-  }, [canonicalizeMetaValue, data, isBlogContent, normalizeEditorHtml, resolveBlogMetaFields, resolveHtmlContent]);
+  }, [canonicalizeMetaValue, data, normalizeEditorHtml, resolveContentMetaFields, resolveHtmlContent]);
 
   React.useEffect(() => {
     const nextStatus = (data?.status || "").toString().toLowerCase();
@@ -1495,6 +1559,7 @@ export function WebPageHtmlView({
   const buildPublishPayload = React.useCallback(
     (targetStatus: "draft" | "publish") => {
       const publishHtml = composeCurrentHtml();
+      const normalizedFeaturedImageAltText = featuredImageAltText.trim();
       return {
         businessId: String(businessId || ""),
         status: targetStatus,
@@ -1509,8 +1574,14 @@ export function WebPageHtmlView({
           : extractPlainTextFromHtml(publishHtml),
         contentHtml: publishHtml,
         excerpt: publishDescription || null,
-        head: isBlogContent
+        ...(isWordpressBlogPublish
           ? {
+              featuredImageUrl: activeFeaturedImage?.cdnUrl || null,
+              featuredImageAlt: activeFeaturedImage ? normalizedFeaturedImageAltText : null,
+            }
+          : {}),
+        head:
+          {
             title: String(publishTitle),
             seoTitle: String(publishSeoTitle),
             metaDescription: publishDescription || undefined,
@@ -1523,14 +1594,16 @@ export function WebPageHtmlView({
               _massic_meta_description: publishDescription || undefined,
             },
             meta: { description: publishDescription || undefined },
-          }
-          : { title: String(publishTitle), meta: { description: publishDescription || undefined } },
+          },
       };
     },
     [
       composeCurrentHtml,
       data,
+      featuredImageAltText,
       isBlogContent,
+      isWordpressBlogPublish,
+      activeFeaturedImage,
       publishContentId,
       publishDescription,
       publishSeoTitle,
@@ -1660,6 +1733,78 @@ export function WebPageHtmlView({
     setIsPublishModalOpen(false);
   }, [businessId, router]);
 
+  const saveFeaturedImageAltText = React.useCallback(async () => {
+    if (!isWordpressBlogPublish || !businessId || !featuredImageContentId || !activeFeaturedImage) return;
+
+    const nextAltText = featuredImageAltText.trim();
+    const currentAltText = (activeFeaturedImage.altText || "").trim();
+    if (nextAltText === currentAltText) return;
+
+    try {
+      await finalizeFeaturedImageMutation.mutateAsync({
+        businessId,
+        contentId: featuredImageContentId,
+        assetId: activeFeaturedImage.assetId,
+        altText: nextAltText,
+        width: activeFeaturedImage.width,
+        height: activeFeaturedImage.height,
+      });
+    } catch {
+      toast.error("Failed to save featured image alt text");
+      throw new Error("Failed to save featured image alt text");
+    }
+  }, [
+    activeFeaturedImage,
+    businessId,
+    featuredImageAltText,
+    featuredImageContentId,
+    finalizeFeaturedImageMutation,
+    isWordpressBlogPublish,
+  ]);
+
+  const handleFeaturedImageFile = React.useCallback(
+    async (file: File | null) => {
+      if (!file || !businessId || !featuredImageContentId || !isWordpressBlogPublish) return;
+
+      setFeaturedImageUploadProgress(0);
+      const dimensions = await readImageDimensions(file);
+      const initialAltText =
+        featuredImageAltText.trim() ||
+        file.name.replace(/\.[^.]+$/, "").trim();
+
+      try {
+        const uploadedAsset = await uploadFeaturedImageMutation.mutateAsync({
+          businessId,
+          contentId: featuredImageContentId,
+          file,
+          width: dimensions.width,
+          height: dimensions.height,
+          altText: initialAltText,
+          onProgress: setFeaturedImageUploadProgress,
+        });
+        setFeaturedImageAltText(uploadedAsset.altText || initialAltText);
+        toast.success("Featured image uploaded");
+      } finally {
+        setFeaturedImageUploadProgress(null);
+        if (featuredImageInputRef.current) {
+          featuredImageInputRef.current.value = "";
+        }
+      }
+    },
+    [businessId, featuredImageAltText, featuredImageContentId, isWordpressBlogPublish, uploadFeaturedImageMutation]
+  );
+
+  const handleClearFeaturedImage = React.useCallback(async () => {
+    if (!businessId || !featuredImageContentId || !isWordpressBlogPublish) return;
+
+    await clearFeaturedImageMutation.mutateAsync({
+      businessId,
+      contentId: featuredImageContentId,
+    });
+    setFeaturedImageAltText("");
+    toast.success("Featured image removed");
+  }, [businessId, clearFeaturedImageMutation, featuredImageContentId, isWordpressBlogPublish]);
+
   const handlePublishDraft = React.useCallback(async () => {
     if (!cmsChannel?.connected || !hasFinalContent) return;
     const check = await runSlugCheck({ force: true });
@@ -1670,6 +1815,9 @@ export function WebPageHtmlView({
     }
     let result;
     try {
+      if (isWordpressBlogPublish) {
+        await saveFeaturedImageAltText();
+      }
       const payload = buildPublishPayload("draft");
       if (activePlatform === "webflow") {
         const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
@@ -1723,7 +1871,7 @@ export function WebPageHtmlView({
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isWordpressBlogPublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveFeaturedImageAltText]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId) return;
@@ -1766,6 +1914,9 @@ export function WebPageHtmlView({
     }
     let result;
     try {
+      if (isWordpressBlogPublish) {
+        await saveFeaturedImageAltText();
+      }
       const payload = {
         ...buildPublishPayload("publish"),
         ...(activePlatform === "webflow"
@@ -1821,7 +1972,7 @@ export function WebPageHtmlView({
     if (activePlatform !== "webflow") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isPersistedDraftLike, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isPersistedDraftLike, isWordpressBlogPublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
 
   const handleOpenPreview = React.useCallback(async () => {
     const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
@@ -3647,11 +3798,10 @@ export function WebPageHtmlView({
     const prevSavedHtmlCanon = canonicalizeHtml(lastSavedHtmlRef.current);
     const hadHtmlChanges = canonicalizeHtml(nextHtml) !== prevSavedHtmlCanon;
     const hadMetaChanges =
-      isBlogContent &&
-      (nextMetaTitle !== lastSavedMetaTitleRef.current ||
-        nextMetaDescription !== lastSavedMetaDescriptionRef.current ||
-        nextBlogPostTitle !== lastSavedBlogPostTitleRef.current);
-    const metaOnlyBlogSave = isBlogContent && hadMetaChanges && !hadHtmlChanges;
+      nextMetaTitle !== lastSavedMetaTitleRef.current ||
+      nextMetaDescription !== lastSavedMetaDescriptionRef.current ||
+      nextBlogPostTitle !== lastSavedBlogPostTitleRef.current;
+    const metaOnlySave = hadMetaChanges && !hadHtmlChanges;
 
     setIsSaving(true);
     try {
@@ -3659,14 +3809,12 @@ export function WebPageHtmlView({
         nextHtml,
         nextMetaTitle,
         nextMetaDescription,
-        isBlogContent ? nextBlogPostTitle : ""
+        nextBlogPostTitle
       );
       sourceHtmlRef.current = nextHtml;
       lastSavedHtmlRef.current = canonicalizeHtml(nextHtml);
       lastCommittedHtmlRef.current = canonicalizeHtml(nextHtml);
-      if (isBlogContent) {
-        lastSavedBlogPostTitleRef.current = nextBlogPostTitle;
-      }
+      lastSavedBlogPostTitleRef.current = nextBlogPostTitle;
       lastSavedMetaTitleRef.current = nextMetaTitle;
       lastSavedMetaDescriptionRef.current = nextMetaDescription;
       editsRef.current = {};
@@ -3694,7 +3842,7 @@ export function WebPageHtmlView({
       setLinkHrefError(null);
 
       toast.success("Changes saved");
-      if (!metaOnlyBlogSave) {
+      if (!metaOnlySave) {
         window.setTimeout(() => {
           void runBackgroundRefetch();
         }, 500);
@@ -3704,7 +3852,7 @@ export function WebPageHtmlView({
     } finally {
       setIsSaving(false);
     }
-  }, [canonicalizeMetaValue, composeCurrentHtml, isBlogContent, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml]);
+  }, [canonicalizeMetaValue, composeCurrentHtml, runBackgroundRefetch, updateHtmlContentRequest, validateEditorHtml]);
 
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -4321,20 +4469,16 @@ export function WebPageHtmlView({
                   {publishStateHint}
                 </Typography>
               ) : null}
-              {isBlogContent ? (
-                <div className="space-y-2 pt-1">
-                  <div>
-                    <Typography className="text-xs text-muted-foreground">Post title</Typography>
-                    <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
-                  </div>
-                  <div>
-                    <Typography className="text-xs text-muted-foreground">SEO title</Typography>
-                    <Typography className="text-sm line-clamp-2">{publishSeoTitle}</Typography>
-                  </div>
+              <div className="space-y-2 pt-1">
+                <div>
+                  <Typography className="text-xs text-muted-foreground">{isBlogContent ? "Post title" : "Page title"}</Typography>
+                  <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
                 </div>
-              ) : (
-                <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
-              )}
+                <div>
+                  <Typography className="text-xs text-muted-foreground">SEO title</Typography>
+                  <Typography className="text-sm line-clamp-2">{publishSeoTitle}</Typography>
+                </div>
+              </div>
               <div className="space-y-1 pt-2">
                 <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
                 <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>
@@ -4359,6 +4503,131 @@ export function WebPageHtmlView({
                   {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl || "Unavailable"}
                 </Typography>
               </div>
+              {isWordpressBlogPublish ? (
+                <div className="space-y-3 pt-2 border-t border-border/60">
+                  <div className="flex items-center justify-between gap-2">
+                    <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
+                      Featured Image
+                    </Typography>
+                    {activeFeaturedImage ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => featuredImageInputRef.current?.click()}
+                        disabled={featuredImageBusy}
+                      >
+                        Replace
+                      </Button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={featuredImageInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] || null;
+                      void handleFeaturedImageFile(file);
+                    }}
+                  />
+                  {activeFeaturedImage ? (
+                    <div className="space-y-3 rounded-md border border-border/70 bg-background p-3">
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={activeFeaturedImage.cdnUrl}
+                          alt={featuredImageAltText || "Featured image preview"}
+                          className="h-20 w-20 rounded-md object-cover border border-border"
+                        />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <Typography className="text-sm font-medium truncate">{activeFeaturedImage.fileName}</Typography>
+                          <Typography className="text-xs text-muted-foreground">
+                            {activeFeaturedImage.width && activeFeaturedImage.height
+                              ? `${activeFeaturedImage.width} x ${activeFeaturedImage.height}`
+                              : "Dimensions unavailable"}
+                          </Typography>
+                          <Typography className="text-xs text-muted-foreground break-all">{activeFeaturedImage.cdnUrl}</Typography>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Typography className="text-xs text-muted-foreground">Alt text</Typography>
+                        <Input
+                          value={featuredImageAltText}
+                          onChange={(event) => setFeaturedImageAltText(event.target.value)}
+                          onBlur={() => void saveFeaturedImageAltText()}
+                          placeholder="Describe this featured image"
+                          disabled={featuredImageBusy}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Typography className="text-xs text-muted-foreground">
+                          This image will also be used as the default OG image.
+                        </Typography>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void handleClearFeaturedImage()}
+                          disabled={featuredImageBusy}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className={cn(
+                        "w-full rounded-md border border-dashed p-4 text-left transition-colors",
+                        isFeaturedImageDragActive ? "border-primary bg-primary/5" : "border-border bg-background",
+                        featuredImageBusy ? "opacity-70" : "hover:border-primary/50"
+                      )}
+                      onClick={() => featuredImageInputRef.current?.click()}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setIsFeaturedImageDragActive(true);
+                      }}
+                      onDragLeave={(event) => {
+                        event.preventDefault();
+                        setIsFeaturedImageDragActive(false);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setIsFeaturedImageDragActive(false);
+                        const file = event.dataTransfer.files?.[0] || null;
+                        void handleFeaturedImageFile(file);
+                      }}
+                      disabled={featuredImageBusy}
+                    >
+                      <div className="space-y-1">
+                        <Typography className="text-sm font-medium">Upload a featured image</Typography>
+                        <Typography className="text-xs text-muted-foreground">
+                          Drag and drop a JPG, PNG, or WebP image here, or click to choose a file.
+                        </Typography>
+                      </div>
+                    </button>
+                  )}
+                  {featuredImageQuery.isLoading ? (
+                    <Typography className="text-xs text-muted-foreground">Loading featured image...</Typography>
+                  ) : null}
+                  {featuredImageUploadProgress !== null ? (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Uploading featured image...</span>
+                        <span>{featuredImageUploadProgress}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-[width]"
+                          style={{ width: `${featuredImageUploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {isSlugChecking ? <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography> : null}
               {slugCheckError ? <Typography className="text-xs text-destructive">{slugCheckError}</Typography> : null}
               {hasSlugConflict ? (
@@ -4714,9 +4983,9 @@ export function WebPageHtmlView({
                     </Button>
                     <Button
                       onClick={() => setConfirmPublishAction("live")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || cmsPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || cmsPublishMutation.isPending}
                     >
-                      {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+                      {cmsPublishMutation.isPending || featuredImageBusy ? "Publishing..." : "Publish Live"}
                     </Button>
                   </>
                 ) : (
@@ -4727,12 +4996,13 @@ export function WebPageHtmlView({
                       !normalizedSlugForPublish ||
                       hasSlugConflict ||
                       isSlugChecking ||
+                      featuredImageBusy ||
                       contentStatusQuery.isLoading ||
                       cmsPublishMutation.isPending ||
                       wpPreviewMutation.isPending
                     }
                   >
-                    {cmsPublishMutation.isPending || wpPreviewMutation.isPending ? "Publishing..." : "Publish Draft"}
+                    {cmsPublishMutation.isPending || wpPreviewMutation.isPending || featuredImageBusy ? "Publishing..." : "Publish Draft"}
                   </Button>
                 )}
               </>
@@ -5032,40 +5302,38 @@ export function WebPageHtmlView({
 
         {!isProcessing && status !== "error" ? (
           <>
-            {isBlogContent ? (
-              <Card className="border-border/50 px-2.5 py-1.5 shadow-none">
-                <div className="flex items-center gap-2">
-                  <Typography className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Title
-                  </Typography>
-                  <div className="min-w-0 flex-1 rounded-md bg-muted/30 px-1.5">
-                    <Input
-                      value={blogPostTitleDraft}
-                      onChange={(event) => {
-                        setBlogPostTitleDraft(event.target.value);
-                        hasLocalEditsRef.current = true;
-                        isEditingSessionRef.current = true;
-                        setIsDirty(true);
-                        scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
-                      }}
-                      onBlur={flushPendingDebouncedSave}
-                      placeholder="Enter post title"
-                      className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0 text-muted-foreground"
-                    onClick={() => void handleCopyBlogTitle()}
-                    disabled={!blogPostTitleDraft}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
+            <Card className="border-border/50 px-2.5 py-1.5 shadow-none">
+              <div className="flex items-center gap-2">
+                <Typography className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Title
+                </Typography>
+                <div className="min-w-0 flex-1 rounded-md bg-muted/30 px-1.5">
+                  <Input
+                    value={blogPostTitleDraft}
+                    onChange={(event) => {
+                      setBlogPostTitleDraft(event.target.value);
+                      hasLocalEditsRef.current = true;
+                      isEditingSessionRef.current = true;
+                      setIsDirty(true);
+                      scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
+                    }}
+                    onBlur={flushPendingDebouncedSave}
+                    placeholder={`Enter ${contentLabelLower} title`}
+                    className="h-7 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
                 </div>
-              </Card>
-            ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-muted-foreground"
+                  onClick={() => void handleCopyBlogTitle()}
+                  disabled={!blogPostTitleDraft}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </Card>
             <Card className="p-0">
             <div className="sticky top-0 z-30 border-b bg-background/95 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-background/80">
               <div>
@@ -5427,53 +5695,51 @@ export function WebPageHtmlView({
                 onExpandedChange={setIsAiRefineExpanded}
               />
             </div>
-            {isBlogContent ? (
-              <div className="px-4 pb-4">
-                <Card className="space-y-4 p-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Typography className="text-sm font-medium">Meta Title</Typography>
-                      <Button variant="ghost" size="icon" onClick={handleCopyMetaTitle} type="button">
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Input
-                      value={blogMetaTitleDraft}
-                      onChange={(event) => {
-                        setBlogMetaTitleDraft(event.target.value);
-                        hasLocalEditsRef.current = true;
-                        isEditingSessionRef.current = true;
-                        setIsDirty(true);
-                        scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
-                      }}
-                      onBlur={flushPendingDebouncedSave}
-                      placeholder="Enter blog meta title"
-                    />
+            <div className="px-4 pb-4">
+              <Card className="space-y-4 p-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Typography className="text-sm font-medium">Meta Title</Typography>
+                    <Button variant="ghost" size="icon" onClick={handleCopyMetaTitle} type="button">
+                      <Copy className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Typography className="text-sm font-medium">Meta Description</Typography>
-                      <Button variant="ghost" size="icon" onClick={handleCopyMetaDescription} type="button">
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Textarea
-                      value={blogMetaDescriptionDraft}
-                      onChange={(event) => {
-                        setBlogMetaDescriptionDraft(event.target.value);
-                        hasLocalEditsRef.current = true;
-                        isEditingSessionRef.current = true;
-                        setIsDirty(true);
-                        scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
-                      }}
-                      onBlur={flushPendingDebouncedSave}
-                      placeholder="Enter blog meta description"
-                      className="min-h-[120px]"
-                    />
+                  <Input
+                    value={blogMetaTitleDraft}
+                    onChange={(event) => {
+                      setBlogMetaTitleDraft(event.target.value);
+                      hasLocalEditsRef.current = true;
+                      isEditingSessionRef.current = true;
+                      setIsDirty(true);
+                      scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
+                    }}
+                    onBlur={flushPendingDebouncedSave}
+                    placeholder={`Enter ${contentLabelLower} meta title`}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Typography className="text-sm font-medium">Meta Description</Typography>
+                    <Button variant="ghost" size="icon" onClick={handleCopyMetaDescription} type="button">
+                      <Copy className="h-4 w-4" />
+                    </Button>
                   </div>
-                </Card>
-              </div>
-            ) : null}
+                  <Textarea
+                    value={blogMetaDescriptionDraft}
+                    onChange={(event) => {
+                      setBlogMetaDescriptionDraft(event.target.value);
+                      hasLocalEditsRef.current = true;
+                      isEditingSessionRef.current = true;
+                      setIsDirty(true);
+                      scheduleDebouncedSave(BLOG_META_FIELD_DEBOUNCE_MS);
+                    }}
+                    onBlur={flushPendingDebouncedSave}
+                    placeholder={`Enter ${contentLabelLower} meta description`}
+                    className="min-h-[120px]"
+                  />
+                </div>
+              </Card>
+            </div>
             <InsertBlockDialog
               open={insertDialogOpen}
               onOpenChange={setInsertDialogOpen}

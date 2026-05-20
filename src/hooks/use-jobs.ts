@@ -64,6 +64,13 @@ export interface JobDetails {
   [key: string]: any;
 }
 
+function normalizeServeValue(value: string | undefined): "local" | "online" | "both" {
+  const objective = String(value || "local").toLowerCase();
+  if (objective === "hybrid" || objective === "both") return "both";
+  if (objective === "online") return "online";
+  return "local";
+}
+
 // Helper function to convert business profile payload to job API FormData
 // Reuses the already-mapped business profile payload instead of mapping form data again
 function mapBusinessProfilePayloadToJobFormData(
@@ -106,7 +113,7 @@ function mapBusinessProfilePayloadToJobFormData(
   );
   formDataPayload.append(
     "serve",
-    (businessProfilePayload.BusinessObjective || "local").toLowerCase()
+    normalizeServeValue(businessProfilePayload.BusinessObjective)
   );
   formDataPayload.append(
     "sell",

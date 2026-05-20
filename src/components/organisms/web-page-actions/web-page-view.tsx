@@ -4,7 +4,12 @@ import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 import { useWebActionContentQuery, type WebActionType } from "@/hooks/use-web-page-actions";
-import { resolveBlogFinalContent, resolveFormattedBlogHtml, resolvePageContent } from "@/utils/page-content-resolver";
+import {
+  resolveBlogFinalContent,
+  resolveFormattedBlogHtml,
+  resolveFormattedPageHtml,
+  resolvePageContent,
+} from "@/utils/page-content-resolver";
 import { detectPageContentFormat } from "@/utils/page-content-format";
 import { WebBlogView } from "@/components/organisms/web-page-actions/web-blog-view";
 import { WebOutlineView } from "@/components/organisms/web-page-actions/web-outline-view";
@@ -47,6 +52,7 @@ export function WebPageView({ businessId, pageId }: { businessId: string; pageId
   const finalContent = React.useMemo(() => getFinalContent(type, data), [type, data]);
   const hasFinal = !!finalContent && finalContent.trim().length > 0;
   const pageContentFormat = React.useMemo(() => detectPageContentFormat(finalContent), [finalContent]);
+  const hasFormattedPageHtml = React.useMemo(() => !!resolveFormattedPageHtml(data), [data]);
   const hasFormattedBlogHtml = React.useMemo(() => !!resolveFormattedBlogHtml(data), [data]);
 
   React.useEffect(() => {
@@ -63,7 +69,7 @@ export function WebPageView({ businessId, pageId }: { businessId: string; pageId
 
   if (mode === "final" || hasFinal) {
     if (type === "page") {
-      if (pageContentFormat === "html") {
+      if (hasFormattedPageHtml || pageContentFormat === "html") {
         return <WebPageHtmlView businessId={businessId} pageId={pageId} />;
       }
       return <WebPageMarkdownFallbackView businessId={businessId} pageId={pageId} />;

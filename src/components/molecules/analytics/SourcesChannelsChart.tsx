@@ -4,13 +4,12 @@ import { scaleBand } from "d3-scale"
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
-  Legend,
   ResponsiveContainer,
 } from "recharts"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
-import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 
 interface SourcesChannelsData {
@@ -31,13 +30,15 @@ interface SourcesChannelsChartProps {
 }
 
 const chartConfig = {
-  sessions: { label: "Sessions", color: "#0374E5" },
+  sessions: { label: "Sessions", color: "#f97316" },
   goals: { label: "Goals", color: "#059669" },
 }
 
+const EMPTY_BAR_COLOR = "#E5E5E5"
+
 export function SourcesChannelsChart({
   data,
-  title = "Sources/Channels",
+  title,
   height = 320,
   fillHeight = false,
   isLoading = false,
@@ -71,34 +72,6 @@ export function SourcesChannelsChart({
     )
   }
 
-  const renderLegend = (props: any) => {
-    const { payload } = props
-    // Reorder to show Goals first, then Sessions
-    const orderedPayload = [...payload].sort((a, b) => {
-      if (a.dataKey === "goalsNorm") return -1
-      if (b.dataKey === "goalsNorm") return 1
-      return 0
-    })
-    return (
-      <div className="flex items-center justify-end gap-4">
-        {orderedPayload.map((entry: any, index: number) => (
-          <div key={`item-${index}`} className="flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity">
-            <div
-              className={cn(
-                "h-2.5 w-2.5 rounded-[2px]",
-                entry.dataKey === "sessionsNorm" && "opacity-30"
-              )}
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="text-center text-xs font-normal leading-[150%] tracking-[0.18px] text-general-muted-foreground">
-              {entry.value}
-            </span>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   if (isLoading) {
     return (
       <div
@@ -126,77 +99,90 @@ export function SourcesChannelsChart({
       className="flex flex-col gap-2.5 rounded-lg p-3 border border-general-border bg-white"
       style={fillHeight ? { minHeight: height, height: "100%" } : { minHeight: height, height }}
     >
+      {title ? (
+        <span className="text-left text-base font-medium text-general-secondary-foreground">
+          {title}
+        </span>
+      ) : null}
       <div className="flex-1 min-h-0 flex justify-center items-center">
         <div className="w-full max-w-2xl" style={{ height: chartContentHeight }}>
           <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-              data={data}
-              layout="vertical"
-              margin={{ top: LABEL_VERTICAL_MARGIN, right: 15, bottom: LABEL_VERTICAL_MARGIN, left: 0 }}
-              barSize={BAR_SIZE}
-              barGap={-BAR_SIZE}
-              maxBarSize={BAR_SIZE}
-            >
-              <XAxis type="number" hide domain={[0, 100]} />
-              <YAxis
-                type="category"
-                dataKey="name"
-                scale={categoryScale}
-                axisLine={false}
-                tickLine={false}
-                tick={renderCategoryTick}
-                width={Y_AXIS_WIDTH}
-                interval={0}
-                tickCount={data.length}
-              />
-              <ChartTooltip
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null
-                  const original = data.find((d) => d.name === label)
-                  return (
-                    <div className="rounded-lg border bg-background p-2 shadow-sm">
-                      <div className="text-xs text-muted-foreground mb-1">{label}</div>
-                      {payload.map((entry: any) => {
-                        const key = entry.dataKey.replace("Norm", "") as "sessions" | "goals"
-                        const originalValue = original?.[key] ?? 0
-                        return (
-                          <div key={entry.dataKey} className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                            <span className="text-xs">{chartConfig[key]?.label}: {originalValue.toLocaleString()}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                }}
-                cursor={false}
-                shared={true}
-                trigger="hover"
-              />
-              {/* <Legend
-                content={renderLegend}
-                verticalAlign="top"
-                align="right"
-                wrapperStyle={{ paddingBottom: "0px" }}
-              /> */}
-              <Bar 
-                dataKey="sessionsNorm" 
-                radius={[15, 15, 15, 15]} 
-                fill="#0374E5" 
-                opacity={0.3} 
-                name="Sessions"
-                isAnimationActive={false}
+                data={data}
+                layout="vertical"
+                margin={{ top: LABEL_VERTICAL_MARGIN, right: 15, bottom: LABEL_VERTICAL_MARGIN, left: 0 }}
                 barSize={BAR_SIZE}
-              />
-              <Bar 
-                dataKey="goalsNorm" 
-                radius={[15, 15, 15, 15]} 
-                fill="#059669" 
-                name="Goals"
-                isAnimationActive={false}
-                barSize={BAR_SIZE}
-              />
+                barGap={-BAR_SIZE}
+                maxBarSize={BAR_SIZE}
+              >
+                <XAxis type="number" hide domain={[0, 100]} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  scale={categoryScale}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={renderCategoryTick}
+                  width={Y_AXIS_WIDTH}
+                  interval={0}
+                  tickCount={data.length}
+                />
+                <ChartTooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null
+                    const original = data.find((d) => d.name === label)
+                    return (
+                      <div className="rounded-lg border bg-background p-2 shadow-sm">
+                        <div className="text-xs text-muted-foreground mb-1">{label}</div>
+                        {payload.map((entry: any) => {
+                          const key = entry.dataKey.replace("Norm", "") as "sessions" | "goals"
+                          const originalValue = original?.[key] ?? 0
+                          return (
+                            <div key={entry.dataKey} className="flex items-center gap-2">
+                              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                              <span className="text-xs">{chartConfig[key]?.label}: {originalValue.toLocaleString()}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  }}
+                  cursor={false}
+                  shared={true}
+                  trigger="hover"
+                />
+                <Bar
+                  dataKey="sessionsNorm"
+                  radius={[15, 15, 15, 15]}
+                  fill={chartConfig.sessions.color}
+                  opacity={0.3}
+                  name="Sessions"
+                  isAnimationActive={false}
+                  barSize={BAR_SIZE}
+                >
+                  {data.map((item) => (
+                    <Cell
+                      key={`sessions-${item.name}`}
+                      fill={item.sessions > 0 ? chartConfig.sessions.color : EMPTY_BAR_COLOR}
+                    />
+                  ))}
+                </Bar>
+                <Bar
+                  dataKey="goalsNorm"
+                  radius={[15, 15, 15, 15]}
+                  fill={chartConfig.goals.color}
+                  name="Goals"
+                  isAnimationActive={false}
+                  barSize={BAR_SIZE}
+                >
+                  {data.map((item) => (
+                    <Cell
+                      key={`goals-${item.name}`}
+                      fill={item.goals > 0 ? chartConfig.goals.color : EMPTY_BAR_COLOR}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>

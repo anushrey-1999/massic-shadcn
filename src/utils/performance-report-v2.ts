@@ -8,11 +8,12 @@ const PERFORMANCE_REPORT_V2_EDITABLE_FIELD_RULES: Array<{
   { pattern: /^plain_english_paragraph$/ },
   { pattern: /^plain_english_paragraph\.title$/ },
   { pattern: /^plain_english_paragraph\.body$/ },
+  { pattern: /^performance_narrative$/ },
+  { pattern: /^content_themes\.\d+\.theme_name$/ },
+  { pattern: /^content_themes\.\d+\.narrative$/ },
   { pattern: /^channel_notes\.[^.]+$/ },
-  { pattern: /^organic_page_note$/ },
   { pattern: /^ranking_narrative$/ },
-  { pattern: /^review_areas\.\d+\.title$/ },
-  { pattern: /^review_areas\.\d+\.body$/ },
+  { pattern: /^looking_ahead$/ },
   { pattern: /^confidence_note$/ },
 ];
 
@@ -124,7 +125,15 @@ export function isPerformanceReportV2EditableFieldPath(path: string): boolean {
   return PERFORMANCE_REPORT_V2_EDITABLE_FIELD_RULES.some(({ pattern }) => pattern.test(path));
 }
 
-export function getPerformanceReportV2EditableFieldMaxLength(_path: string): number | null {
+export function getPerformanceReportV2EditableFieldMaxLength(path: string): number | null {
+  if (path === "plain_english_paragraph") return 250;
+  if (path === "performance_narrative") return 350;
+  if (/^content_themes\.\d+\.theme_name$/.test(path)) return 60;
+  if (/^content_themes\.\d+\.narrative$/.test(path)) return 200;
+  if (/^channel_notes\.[^.]+$/.test(path)) return 150;
+  if (path === "ranking_narrative") return 200;
+  if (path === "looking_ahead") return 300;
+  if (path === "confidence_note") return 150;
   return null;
 }
 
@@ -400,6 +409,54 @@ export function normalizePerformanceReportDocument(payload: JsonObject): Perform
 }
 
 export function performanceReportToPlainText(document: PerformanceReportV2Document): string {
+  const raw = document.raw;
+  if (isObject(raw) && Array.isArray(raw.performance_table)) {
+    const lines: string[] = [];
+    const meta = isObject(raw.meta) ? raw.meta : {};
+    const title = [toDisplayString(meta.business_name), toDisplayString(meta.period_label), "Performance Report"]
+      .filter(Boolean)
+      .join(" · ");
+    if (title) lines.push(title, "");
+    if (raw.plain_english_paragraph) lines.push(toDisplayString(raw.plain_english_paragraph), "");
+    if (Array.isArray(raw.wins) && raw.wins.length) {
+      lines.push("This period's wins");
+      for (const win of raw.wins) {
+        if (isObject(win)) lines.push([win.label, win.value, win.context].map(toDisplayString).filter(Boolean).join(" | "));
+      }
+      lines.push("");
+    }
+    if (raw.performance_narrative) lines.push("Overall performance", toDisplayString(raw.performance_narrative));
+    for (const row of raw.performance_table) {
+      if (!isObject(row)) continue;
+      const change = isObject(row.change_cell) ? row.change_cell.text : "";
+      lines.push([row.label, row.prior, row.current, change].map(toDisplayString).filter(Boolean).join(" | "));
+    }
+    lines.push("");
+    if (Array.isArray(raw.content_themes) && raw.content_themes.length) {
+      lines.push("Best performing content");
+      for (const theme of raw.content_themes) {
+        if (!isObject(theme)) continue;
+        lines.push(toDisplayString(theme.theme_name));
+        if (theme.narrative) lines.push(toDisplayString(theme.narrative));
+      }
+      lines.push("");
+    }
+    if (Array.isArray(raw.other_wins_table) && raw.other_wins_table.length) {
+      lines.push("Other wins");
+      for (const row of raw.other_wins_table) {
+        if (isObject(row)) lines.push([row.area, row.what_happened, row.prior, row.current].map(toDisplayString).filter(Boolean).join(" | "));
+      }
+      lines.push("");
+    }
+    if (isObject(raw.attribution)) {
+      lines.push("How your channels work together");
+      if (raw.attribution.narrative) lines.push(toDisplayString(raw.attribution.narrative));
+      lines.push("");
+    }
+    if (raw.looking_ahead) lines.push("Looking ahead", toDisplayString(raw.looking_ahead));
+    return lines.join("\n").trim();
+  }
+
   const lines: string[] = [];
 
   if (document.title) {

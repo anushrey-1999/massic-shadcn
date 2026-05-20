@@ -26,18 +26,16 @@ import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Typography } from "@/components/ui/typography";
 import { AlertDateSelector } from "./AlertDateSelector";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
-import type { GoalData, Diagnosis } from "@/hooks/use-goal-analysis";
+import type { GoalData, Diagnosis, DailyPeak, AnomalyTier } from "@/hooks/use-goal-analysis";
 import type { TrafficData } from "@/hooks/use-traffic-analysis";
 
 interface AnomaliesSheetProps {
@@ -54,73 +52,217 @@ interface AnomaliesSheetProps {
   businessName: string;
 }
 
-const severityConfig = {
-  critical: {
-    icon: AlertCircle,
-    label: "Critical",
-    borderColor: "border-l-red-500",
-    badgeClass: "bg-red-100 text-red-700 border-red-200",
-    iconColor: "text-red-500",
-    textColor: "text-red-700",
-    bgColor: "bg-red-50",
-  },
-  warning: {
-    icon: AlertTriangle,
-    label: "Warning",
-    borderColor: "border-l-amber-500",
-    badgeClass: "bg-amber-100 text-amber-700 border-amber-200",
-    iconColor: "text-amber-600",
-    textColor: "text-amber-700",
-    bgColor: "bg-amber-50",
-  },
-  positive: {
-    icon: CheckCircle,
-    label: "Positive",
-    borderColor: "border-l-emerald-500",
-    badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    iconColor: "text-emerald-600",
-    textColor: "text-emerald-700",
-    bgColor: "bg-emerald-50",
-  },
-};
+type TrackingQuality = "stable" | "uncertain";
+type Direction = "up" | "down";
 
-const getTrafficSeverityConfig = (severity: string) => {
-  const normalized = severity.toLowerCase();
+const severityLabel = (severity: string) =>
+  severity ? severity.charAt(0).toUpperCase() + severity.slice(1) : "Notice";
 
-  if (normalized === "critical") {
+const getAnomalyConfig = (
+  direction: Direction,
+  severity: string,
+  trackingQuality: TrackingQuality = "stable",
+  tier: AnomalyTier = "anomaly"
+) => {
+  // Candidate tier renders in muted grey with a "Worth watching" sentiment so
+  // the user always gets context even when movement is below the hard anomaly
+  // threshold.
+  if (tier === "candidate") {
     return {
       icon: AlertCircle,
-      label: "Critical",
-      borderColor: "border-l-red-500",
-      badgeClass: "bg-red-100 text-red-700 border-red-200",
-      iconColor: "text-red-500",
-      textColor: "text-red-700",
-      bgColor: "bg-red-50",
+      label: severityLabel(severity),
+      sentimentLabel: "Worth watching",
+      borderColor: "border-l-slate-300",
+      badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+      iconColor: "text-slate-500",
+      textColor: "text-slate-700",
+      bgColor: "bg-slate-100",
+      cardClass: "bg-slate-50/50",
+      note: "Small change this week — worth keeping an eye on.",
     };
   }
 
-  if (normalized === "warning") {
+  if (direction === "up") {
     return {
-      icon: AlertTriangle,
-      label: "Warning",
-      borderColor: "border-l-amber-500",
-      badgeClass: "bg-amber-100 text-amber-700 border-amber-200",
-      iconColor: "text-amber-600",
-      textColor: "text-amber-700",
-      bgColor: "bg-amber-50",
+      icon: trackingQuality === "uncertain" ? AlertTriangle : CheckCircle,
+      label: severityLabel(severity),
+      sentimentLabel: trackingQuality === "uncertain" ? "Positive, verify" : "Positive",
+      borderColor: "border-l-emerald-500",
+      badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      iconColor: "text-emerald-600",
+      textColor: "text-emerald-700",
+      bgColor: "bg-emerald-50",
+      cardClass: "bg-emerald-50/35",
+      note: trackingQuality === "uncertain" ? "Looks positive - worth verifying tracking." : null,
     };
   }
 
   return {
-    icon: Activity,
-    label: "Notice",
-    borderColor: "border-l-blue-500",
-    badgeClass: "bg-blue-100 text-blue-700 border-blue-200",
-    iconColor: "text-blue-600",
-    textColor: "text-blue-700",
-    bgColor: "bg-blue-50",
+    icon: AlertCircle,
+    label: severityLabel(severity),
+    sentimentLabel: "Needs attention",
+    borderColor: "border-l-slate-400",
+    badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+    iconColor: "text-slate-600",
+    textColor: "text-slate-700",
+    bgColor: "bg-slate-100",
+    cardClass: "bg-slate-50/70",
+    note: null,
   };
 };
+
+function formatPeakDate(dateStr: string) {
+  try {
+    return format(new Date(dateStr), "EEE MMM d");
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatPeakDeltaPct(value: number) {
+  const numeric = Number(value || 0);
+  const percent = Math.abs(numeric) <= 1 ? numeric * 100 : numeric;
+  const sign = percent >= 0 ? "+" : "";
+  return `${sign}${Math.round(percent)}%`;
+}
+
+interface DailyPeakChipsProps {
+  peaks?: DailyPeak[];
+  unit: string;
+}
+
+function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
+  const triggered = (peaks || []).filter((peak) => peak.tier !== "normal");
+  if (triggered.length === 0) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {triggered.slice(0, 5).map((peak) => {
+        const isUp = peak.direction === "up";
+        const isAnomaly = peak.tier === "anomaly";
+        const Icon = isUp ? TrendingUp : TrendingDown;
+        return (
+          <div
+            key={peak.date}
+            className={cn(
+              "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+              isAnomaly
+                ? isUp
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-300 bg-slate-100 text-slate-700"
+                : "border-slate-200 bg-slate-50 text-slate-600"
+            )}
+          >
+            <Icon className="h-3 w-3" />
+            <span>{formatPeakDate(peak.date)}</span>
+            <span className="font-semibold">{formatPeakDeltaPct(peak.delta_pct)}</span>
+            <span className="text-muted-foreground/80">{unit}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+interface NormalTierRowProps {
+  title: string;
+  actual?: number;
+  expected?: number;
+  deltaPct: number;
+  unit: string;
+  peaks?: DailyPeak[];
+}
+
+function NormalTierRow({ title, actual, expected, deltaPct, unit, peaks }: NormalTierRowProps) {
+  const triggeredPeaks = (peaks || []).filter((peak) => peak.tier !== "normal");
+  return (
+    <div className="min-w-0 rounded-xl border border-border/50 bg-muted/30 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-foreground line-clamp-1">{title}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {Math.round(Number(actual || 0)).toLocaleString()} {unit} vs expected {Math.round(Number(expected || 0)).toLocaleString()} ({formatPeakDeltaPct(deltaPct)}) — within normal range
+          </p>
+        </div>
+        <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
+          Normal
+        </Badge>
+      </div>
+      {triggeredPeaks.length > 0 && (
+        <>
+          <p className="mt-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">Daily spikes / dips</p>
+          <DailyPeakChips peaks={triggeredPeaks} unit={unit} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function formatPercent(value: number | undefined) {
+  const numeric = Number(value || 0);
+  const percent = Math.abs(numeric) <= 1 ? Math.abs(numeric) * 100 : Math.abs(numeric);
+  return `${Math.round(percent)}%`;
+}
+
+function diagnosisTitle(diagnosis: Diagnosis) {
+  const labels: Record<string, string> = {
+    RANK_DROP: "Ranking decline",
+    CTR_DROP: "Search result click-through dropped",
+    CTR_DROP_SNIPPET: "Search result click-through dropped",
+    DEMAND_SOFTNESS: "Lower search demand",
+    MOBILE_UX: "Mobile experience issue",
+    GEO_ISSUE: "Regional performance issue",
+    CVR_DROP: "Conversion rate changed",
+    SERP_FEATURE_IMPACT: "Search results page changed",
+    TECHNICAL_ISSUE: "Possible technical issue",
+    PAGE_REMOVED: "Pages lost visibility",
+  };
+
+  return diagnosis.label || labels[diagnosis.cause_code] || diagnosis.cause_code.replace(/_/g, " ");
+}
+
+function managerInsight(text: string) {
+  if (/severity|confidence/i.test(text)) return null;
+  return text
+    .replace(/\s*\((?:[^)]*(?:delta|z-score|score|CVR|CTR|position)[^)]*)\)/gi, "")
+    .replace(/\bCVR\b/g, "conversion rate")
+    .replace(/\bCTR\b/g, "click-through rate");
+}
+
+function formatImpact(value: number | undefined, unit: string) {
+  const numeric = Number(value || 0);
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
+  return `${sign}${Math.abs(Math.round(numeric)).toLocaleString()} ${unit}`;
+}
+
+function EvidenceExample({ example }: { example: Record<string, string | number | boolean | null | undefined> }) {
+  const allowedKeys = new Set(["page", "query"]);
+  const entries = Object.entries(example).filter(([key, value]) => (
+    allowedKeys.has(key) && value !== null && value !== undefined && value !== ""
+  ));
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="min-w-0 rounded-md bg-muted/50 px-2 py-1.5 text-[11px] text-muted-foreground">
+      {entries.map(([key, value]) => (
+        <div key={key} className="grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] gap-1">
+          <span className="shrink-0 capitalize text-muted-foreground/80">
+            {key.replace(/_/g, " ")}
+          </span>
+          <span className="min-w-0 break-all text-foreground/80">
+            {String(value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function compactDiagnoses(primary: Diagnosis | null | undefined, contributing: Diagnosis[] | undefined, fallback: Diagnosis[] | undefined) {
+  if (primary) return [primary, ...(contributing || [])].slice(0, 3);
+  return (fallback || []).slice(0, 3);
+}
 
 interface GoalCardProps {
   goal: GoalData;
@@ -128,21 +270,22 @@ interface GoalCardProps {
 }
 
 function GoalCard({ goal, onClick }: GoalCardProps) {
-  const config = severityConfig[goal.severity];
+  const config = getAnomalyConfig(goal.direction, goal.impactSeverity, goal.trackingQuality, goal.tier);
   const Icon = config.icon;
-  const isNegative = goal.percentage.startsWith("-");
+  const isNegative = goal.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "group w-full text-left rounded-lg border-l-4 bg-card p-3 transition-all hover:shadow-md",
+        "group w-full min-w-0 text-left rounded-xl border-l-4 p-3 transition-all hover:shadow-md",
         config.borderColor,
+        config.cardClass,
         "border border-border/50 hover:border-border"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge
@@ -152,7 +295,10 @@ function GoalCard({ goal, onClick }: GoalCardProps) {
                 config.badgeClass
               )}
             >
-              {config.label}
+              {config.label} impact
+            </Badge>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              {config.sentimentLabel}
             </Badge>
             <div
               className={cn(
@@ -165,18 +311,23 @@ function GoalCard({ goal, onClick }: GoalCardProps) {
             </div>
           </div>
 
-          <h3 className="text-sm font-semibold text-foreground line-clamp-1">
+          <h3 className="break-words text-sm font-semibold text-foreground line-clamp-1">
             {goal.title}
           </h3>
 
-          <p
-            className={cn(
-              "text-xs leading-snug line-clamp-2",
-              config.textColor
-            )}
-          >
+          <p className="break-words text-xs leading-snug line-clamp-2 text-muted-foreground">
             {goal.primaryCause}
           </p>
+          <DailyPeakChips peaks={goal.dailyPeaks} unit="conversions" />
+          {config.note && (
+            <p className={cn(
+              "text-[11px] font-medium flex items-center gap-1",
+              goal.tier === "candidate" ? "text-slate-600" : "text-emerald-700"
+            )}>
+              <Icon className="h-3 w-3" />
+              {config.note}
+            </p>
+          )}
         </div>
 
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 transition-transform group-hover:translate-x-0.5" />
@@ -191,15 +342,15 @@ interface GoalDetailViewProps {
 }
 
 function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
-  const config = severityConfig[goal.severity];
+  const config = getAnomalyConfig(goal.direction, goal.impactSeverity, goal.trackingQuality, goal.tier);
   const Icon = config.icon;
-  const isNegative = goal.percentage.startsWith("-");
+  const isNegative = goal.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
+  const diagnosesToRender = compactDiagnoses(goal.primaryDiagnosis, goal.contributingDiagnoses, goal.diagnoses);
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-4 px-6 py-0">
-        <div>
+    <div className="min-w-0 space-y-4 pb-6">
+      <div>
           <Button
             variant="ghost"
             size="sm"
@@ -212,9 +363,10 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
 
           <div
             className={cn(
-              "rounded-lg p-4 border-l-4",
+              "min-w-0 rounded-xl p-4 border-l-4",
               config.borderColor,
-              "bg-card border"
+              config.cardClass,
+              "border"
             )}
           >
             <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -225,7 +377,10 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
                   config.badgeClass
                 )}
               >
-                {config.label}
+                {config.label} impact
+              </Badge>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
+                {config.sentimentLabel}
               </Badge>
               <div
                 className={cn(
@@ -238,13 +393,23 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
               </div>
             </div>
 
-            <h2 className="text-sm font-bold text-foreground leading-tight mb-2">
+            <h2 className="break-words text-sm font-bold text-foreground leading-tight mb-2">
               {goal.title}
             </h2>
 
-            <p className={cn("text-xs leading-relaxed", config.textColor)}>
+            <p className="break-words text-xs leading-relaxed text-muted-foreground">
               {goal.primaryCause}
             </p>
+            <DailyPeakChips peaks={goal.dailyPeaks} unit="conversions" />
+            {config.note && (
+              <p className={cn(
+                "mt-2 text-[11px] font-medium flex items-center gap-1",
+                goal.tier === "candidate" ? "text-slate-600" : "text-emerald-700"
+              )}>
+                <Icon className="h-3 w-3" />
+                {config.note}
+              </p>
+            )}
           </div>
         </div>
 
@@ -255,7 +420,7 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
               Key Insights
             </h3>
             <ul className="space-y-1.5">
-              {goal.summaryBullets.map((bullet, idx) => (
+              {goal.summaryBullets.map(managerInsight).filter(Boolean).slice(0, 3).map((bullet, idx) => (
                 <li
                   key={idx}
                   className="flex items-start gap-2 text-xs text-muted-foreground"
@@ -263,38 +428,41 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
                   <span className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-semibold text-primary">
                     {idx + 1}
                   </span>
-                  <span className="leading-snug pt-0.5">{bullet}</span>
+                  <span className="min-w-0 break-words leading-snug pt-0.5">{bullet}</span>
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        {goal.diagnoses && goal.diagnoses.length > 0 && (
+        {diagnosesToRender.length > 0 && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
               <Lightbulb className="h-3 w-3 text-amber-500" />
-              Diagnosis & Actions
+              Likely Drivers
             </h3>
             <div className="space-y-2">
-              {goal.diagnoses.map((diagnosis, idx) => (
-                <div key={idx} className="rounded-lg border bg-card p-3">
+              {diagnosesToRender.map((diagnosis, idx) => (
+                <div key={idx} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-3">
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <h4 className="text-xs font-semibold text-foreground flex-1 leading-tight">
-                      {diagnosis.cause_code}
+                    <h4 className="min-w-0 break-words text-xs font-semibold text-foreground flex-1 leading-tight">
+                      {idx === 0 ? "Primary: " : ""}
+                      {diagnosisTitle(diagnosis)}
                     </h4>
-                    <Badge
-                      variant="secondary"
-                      className="shrink-0 text-[10px] px-1.5 py-0"
-                    >
-                      {Math.round(diagnosis.confidence * 100)}%
-                    </Badge>
                   </div>
 
                   {diagnosis.rationale && (
-                    <p className="text-xs text-muted-foreground mb-2 leading-snug">
+                    <p className="break-words text-xs text-muted-foreground mb-2 leading-snug">
                       {diagnosis.rationale}
                     </p>
+                  )}
+
+                  {diagnosis.evidence_examples && diagnosis.evidence_examples.length > 0 && (
+                    <div className="mt-2 grid gap-1">
+                      {diagnosis.evidence_examples.slice(0, 3).map((example, exampleIdx) => (
+                        <EvidenceExample key={exampleIdx} example={example} />
+                      ))}
+                    </div>
                   )}
 
                   {diagnosis.suggested_actions &&
@@ -308,10 +476,10 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
                             (action: string, actionIdx: number) => (
                               <li
                                 key={actionIdx}
-                                className="flex items-start gap-1.5 text-xs text-muted-foreground"
+                                className="flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground"
                               >
                                 <ArrowRight className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
-                                <span className="leading-snug">{action}</span>
+                                <span className="min-w-0 break-words leading-snug">{action}</span>
                               </li>
                             )
                           )}
@@ -323,8 +491,35 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
             </div>
           </div>
         )}
-      </div>
-    </ScrollArea>
+
+        {goal.topContributors.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+              <BarChart3 className="h-3 w-3 text-primary" />
+              Top Contributors
+            </h3>
+            <div className="space-y-1.5">
+              {goal.topContributors.slice(0, 10).map((contributor, idx) => (
+                <div key={`${idx}-${contributor.key || contributor.page || ""}`} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-xs font-medium text-foreground line-clamp-1">
+                        {contributor.page || contributor.key || "Unknown contributor"}
+                      </p>
+                      {contributor.classification && (
+                        <p className="break-words text-[11px] text-muted-foreground">{contributor.classification}</p>
+                      )}
+                    </div>
+                    <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
+                      {formatImpact(contributor.delta_conversions, "conversions")}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+    </div>
   );
 }
 
@@ -334,21 +529,29 @@ interface TrafficCardProps {
 }
 
 function TrafficCard({ traffic, onClick }: TrafficCardProps) {
-  const config = getTrafficSeverityConfig(traffic.severity || "notice");
+  const tier = (traffic.tier || traffic.detection?.tier || "anomaly") as AnomalyTier;
+  const config = getAnomalyConfig(
+    traffic.direction,
+    traffic.severity || "medium",
+    traffic.tracking_quality || "stable",
+    tier
+  );
   const Icon = config.icon;
   const isNegative = traffic.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
+  const dailyPeaks = (traffic.detection?.daily_peaks || []) as DailyPeak[];
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "group w-full text-left rounded-lg border-l-4 bg-card p-3 transition-all hover:shadow-md",
+        "group w-full min-w-0 text-left rounded-xl border-l-4 p-3 transition-all hover:shadow-md",
         config.borderColor,
+        config.cardClass,
         "border border-border/50 hover:border-border"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge
@@ -358,7 +561,10 @@ function TrafficCard({ traffic, onClick }: TrafficCardProps) {
                 config.badgeClass
               )}
             >
-              {config.label}
+              {config.label} impact
+            </Badge>
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              {config.sentimentLabel}
             </Badge>
             <div
               className={cn(
@@ -369,18 +575,24 @@ function TrafficCard({ traffic, onClick }: TrafficCardProps) {
               <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
               <span className={config.iconColor}>
                 {isNegative ? "-" : "+"}
-                {Math.abs(traffic.delta_pct)}%
+                {formatPercent(traffic.delta_pct)}
               </span>
             </div>
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {isNegative ? "-" : "+"}
-              {Math.abs(traffic.delta_clicks).toLocaleString()} clicks
-            </Badge>
           </div>
 
-          <h3 className="text-sm font-semibold text-foreground line-clamp-2 leading-tight">
+          <h3 className="break-words text-sm font-semibold text-foreground line-clamp-2 leading-tight">
             {traffic.narrative?.headline || "Traffic Anomaly"}
           </h3>
+          <DailyPeakChips peaks={dailyPeaks} unit="clicks" />
+          {config.note && (
+            <p className={cn(
+              "text-[11px] font-medium flex items-center gap-1",
+              tier === "candidate" ? "text-slate-600" : "text-emerald-700"
+            )}>
+              <Icon className="h-3 w-3" />
+              {config.note}
+            </p>
+          )}
         </div>
 
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 transition-transform group-hover:translate-x-0.5" />
@@ -395,10 +607,22 @@ interface TrafficDetailViewProps {
 }
 
 function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
-  const config = getTrafficSeverityConfig(traffic.severity || "notice");
+  const tier = (traffic.tier || traffic.detection?.tier || "anomaly") as AnomalyTier;
+  const config = getAnomalyConfig(
+    traffic.direction,
+    traffic.severity || "medium",
+    traffic.tracking_quality || "stable",
+    tier
+  );
   const Icon = config.icon;
   const isNegative = traffic.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
+  const dailyPeaks = (traffic.detection?.daily_peaks || []) as DailyPeak[];
+  const diagnosesToRender = compactDiagnoses(
+    traffic.narrative?.primary_diagnosis,
+    traffic.narrative?.contributing_diagnoses,
+    traffic.narrative?.diagnoses
+  );
 
   const actionCategories = {
     urgent: traffic.narrative?.actions?.urgent || [],
@@ -407,9 +631,8 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
   };
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-4 px-6 py-0">
-        <div>
+    <div className="min-w-0 space-y-4 pb-6">
+      <div>
           <Button
             variant="ghost"
             size="sm"
@@ -422,9 +645,10 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
 
           <div
             className={cn(
-              "rounded-lg p-4 border-l-4",
+              "min-w-0 rounded-xl p-4 border-l-4",
               config.borderColor,
-              "bg-card border"
+              config.cardClass,
+              "border"
             )}
           >
             <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -435,7 +659,10 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                   config.badgeClass
                 )}
               >
-                {config.label}
+                {config.label} impact
+              </Badge>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
+                {config.sentimentLabel}
               </Badge>
               <div
                 className={cn(
@@ -446,18 +673,24 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                 <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
                 <span className={config.iconColor}>
                   {isNegative ? "-" : "+"}
-                  {Math.abs(traffic.delta_pct)}%
+                  {formatPercent(traffic.delta_pct)}
                 </span>
               </div>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
-                {isNegative ? "-" : "+"}
-                {Math.abs(traffic.delta_clicks).toLocaleString()}
-              </Badge>
             </div>
 
-            <h2 className="text-sm font-bold text-foreground leading-tight">
+            <h2 className="break-words text-sm font-bold text-foreground leading-tight">
               {traffic.narrative?.headline || "Traffic Anomaly"}
             </h2>
+            <DailyPeakChips peaks={dailyPeaks} unit="clicks" />
+            {config.note && (
+              <p className={cn(
+                "mt-2 text-[11px] font-medium flex items-center gap-1",
+                tier === "candidate" ? "text-slate-600" : "text-emerald-700"
+              )}>
+                <Icon className="h-3 w-3" />
+                {config.note}
+              </p>
+            )}
           </div>
         </div>
 
@@ -469,7 +702,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                 Insights
               </h3>
               <ul className="space-y-1.5">
-                {traffic.narrative.summary_bullets.map((bullet, idx) => (
+                {traffic.narrative.summary_bullets.map(managerInsight).filter(Boolean).slice(0, 3).map((bullet, idx) => (
                   <li
                     key={idx}
                     className="flex items-start gap-2 text-xs text-muted-foreground"
@@ -477,12 +710,43 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                     <span className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-semibold text-primary">
                       {idx + 1}
                     </span>
-                    <span className="leading-snug pt-0.5">{bullet}</span>
+                    <span className="min-w-0 break-words leading-snug pt-0.5">{bullet}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
+
+        {diagnosesToRender.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+              <Lightbulb className="h-3 w-3 text-amber-500" />
+              Likely Drivers
+            </h3>
+            <div className="space-y-2">
+              {diagnosesToRender.map((diagnosis, idx) => (
+                <div key={`${diagnosis.cause_code}-${idx}`} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h4 className="min-w-0 break-words text-xs font-semibold text-foreground flex-1 leading-tight">
+                      {idx === 0 ? "Primary: " : ""}
+                      {diagnosisTitle(diagnosis)}
+                    </h4>
+                  </div>
+                  <p className="break-words text-xs text-muted-foreground leading-snug">
+                    {diagnosis.detail || diagnosis.rationale}
+                  </p>
+                  {diagnosis.evidence_examples && diagnosis.evidence_examples.length > 0 && (
+                    <div className="mt-2 grid gap-1">
+                      {diagnosis.evidence_examples.slice(0, 3).map((example, exampleIdx) => (
+                        <EvidenceExample key={exampleIdx} example={example} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {traffic.narrative?.brand_split && (
           <div>
@@ -498,10 +762,6 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                 <p className="text-lg font-bold text-foreground">
                   {traffic.narrative.brand_split.brand_pct}%
                 </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {traffic.narrative.brand_split.brand_delta > 0 ? "+" : ""}
-                  {traffic.narrative.brand_split.brand_delta.toLocaleString()}
-                </p>
               </div>
               <div className="rounded-lg border bg-card p-2.5">
                 <p className="text-[10px] text-muted-foreground mb-0.5">
@@ -509,10 +769,6 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                 </p>
                 <p className="text-lg font-bold text-foreground">
                   {100 - traffic.narrative.brand_split.brand_pct}%
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {traffic.narrative.brand_split.nonbrand_delta > 0 ? "+" : ""}
-                  {traffic.narrative.brand_split.nonbrand_delta.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -527,35 +783,17 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               </h3>
               <div className="space-y-1.5">
                 {traffic.narrative.top_contributors.map((contributor, idx) => (
-                  <div key={idx} className="rounded-lg border bg-card p-2.5">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <p className="text-xs font-medium text-foreground flex-1 leading-tight line-clamp-1">
+                  <div key={idx} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
+                    <div className="flex min-w-0 items-start justify-between gap-3 mb-1">
+                      <p className="min-w-0 break-words text-xs font-medium text-foreground flex-1 leading-tight line-clamp-1">
                         {contributor.key}
                       </p>
-                      <div className="flex items-center gap-0.5 shrink-0">
-                        <TrendIcon
-                          className={cn(
-                            "h-3 w-3",
-                            contributor.delta_clicks > 0
-                              ? "text-emerald-500"
-                              : "text-red-500"
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "text-xs font-semibold",
-                            contributor.delta_clicks > 0
-                              ? "text-emerald-600"
-                              : "text-red-600"
-                          )}
-                        >
-                          {contributor.delta_clicks > 0 ? "+" : ""}
-                          {contributor.delta_clicks.toLocaleString()}
-                        </span>
-                      </div>
+                      <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
+                        {formatImpact(contributor.delta_clicks, "clicks")}
+                      </Badge>
                     </div>
                     {contributor.classification && (
-                      <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">
+                      <p className="break-words text-[11px] text-muted-foreground leading-snug line-clamp-2">
                         {contributor.classification}
                       </p>
                     )}
@@ -586,10 +824,10 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                       {actionCategories.urgent.map((action, idx) => (
                         <li
                           key={idx}
-                          className="flex items-start gap-1.5 text-[11px] text-red-600"
+                          className="flex min-w-0 items-start gap-1.5 text-[11px] text-red-600"
                         >
                           <ArrowRight className="h-3 w-3 shrink-0 mt-0.5" />
-                          <span className="leading-snug">{action}</span>
+                          <span className="min-w-0 break-words leading-snug">{action}</span>
                         </li>
                       ))}
                     </ul>
@@ -608,10 +846,10 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                       {actionCategories.important.map((action, idx) => (
                         <li
                           key={idx}
-                          className="flex items-start gap-1.5 text-[11px] text-amber-600"
+                          className="flex min-w-0 items-start gap-1.5 text-[11px] text-amber-600"
                         >
                           <ArrowRight className="h-3 w-3 shrink-0 mt-0.5" />
-                          <span className="leading-snug">{action}</span>
+                          <span className="min-w-0 break-words leading-snug">{action}</span>
                         </li>
                       ))}
                     </ul>
@@ -630,10 +868,10 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                       {actionCategories.monitor.map((action, idx) => (
                         <li
                           key={idx}
-                          className="flex items-start gap-1.5 text-[11px] text-blue-600"
+                          className="flex min-w-0 items-start gap-1.5 text-[11px] text-blue-600"
                         >
                           <ArrowRight className="h-3 w-3 shrink-0 mt-0.5" />
-                          <span className="leading-snug">{action}</span>
+                          <span className="min-w-0 break-words leading-snug">{action}</span>
                         </li>
                       ))}
                     </ul>
@@ -642,8 +880,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               </div>
             </div>
           )}
-      </div>
-    </ScrollArea>
+    </div>
   );
 }
 
@@ -709,7 +946,8 @@ export function AnomaliesSheet({
 
   const totalGoalCount =
     displayCriticalCount + displayWarningCount + displayPositiveCount;
-  const hasTrafficAlert = displayTrafficData !== null;
+  const trafficTier = (displayTrafficData?.tier || displayTrafficData?.detection?.tier) as AnomalyTier | undefined;
+  const hasTrafficAlert = displayTrafficData !== null && trafficTier !== "normal";
 
   const handleDateChange = (date: Date | null) => {
     setLocalDate(date);
@@ -748,18 +986,18 @@ export function AnomaliesSheet({
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent className="sm:max-w-4xl p-6 flex flex-col">
+      <SheetContent className="!right-0 !w-[min(44rem,calc(100vw-2rem))] !max-w-[min(44rem,calc(100vw-2rem))] gap-0 overflow-hidden border-l p-0">
         <SheetTitle className="sr-only">Anomalies Detected</SheetTitle>
-        <div className="flex flex-col gap-6">
-          <div className="flex items-start justify-between mt-8 pb-3 border-b border-general-border">
-            <Typography variant="h2" className="text-general-foreground">
+        <div className="shrink-0 border-b border-general-border pl-6 pb-4 pt-10 pr-14 sm:pl-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <Typography variant="h2" className="min-w-0 flex-1 text-general-foreground">
               Anomalies Detected
             </Typography>
-            <div className="flex items-center gap-2">
+            <div className="shrink-0 w-[200px] sm:w-[230px]">
               <AlertDateSelector
                 selectedDate={localDate}
                 onDateChange={handleDateChange}
-                className="w-auto"
+                className="w-full"
               />
             </div>
           </div>
@@ -768,7 +1006,7 @@ export function AnomaliesSheet({
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as "goals" | "traffic")}
           >
-            <TabsList className="justify-start bg-primary-foreground h-auto gap-2 w-1/2 p-1">
+            <TabsList className="mt-4 h-auto w-full justify-start gap-2 bg-primary-foreground p-1 sm:w-1/2">
               <TabsTrigger
                 value="goals"
                 className="flex items-center gap-1.5 px-3 py-1.5"
@@ -803,14 +1041,14 @@ export function AnomaliesSheet({
           </Tabs>
         </div>
 
-        <div className="flex-1 overflow-scroll -mx-6 pt-5">
+        <div className="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pl-6 py-5 pr-8 sm:pl-8 sm:pr-10">
           <Tabs
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as "goals" | "traffic")}
           >
-            <TabsContent value="goals" className="h-full m-0">
+            <TabsContent value="goals" className="m-0 min-w-0">
               {displayIsLoadingGoals ? (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center py-16">
                   <div className="text-center space-y-2">
                     <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
                     <p className="text-xs text-muted-foreground">Loading...</p>
@@ -822,19 +1060,17 @@ export function AnomaliesSheet({
                   onBack={() => setSelectedGoal(null)}
                 />
               ) : displayGoalData.length > 0 ? (
-                <ScrollArea className="h-full">
-                  <div className="px-6 py-0 space-y-2">
-                    {displayGoalData.map((goal) => (
-                      <GoalCard
-                        key={goal.id}
-                        goal={goal}
-                        onClick={() => setSelectedGoal(goal)}
-                      />
-                    ))}
-                  </div>
-                </ScrollArea>
+                <div className="min-w-0 space-y-2">
+                  {displayGoalData.map((goal) => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      onClick={() => setSelectedGoal(goal)}
+                    />
+                  ))}
+                </div>
               ) : (
-                <div className="flex items-center justify-center h-full px-4">
+                <div className="flex items-center justify-center py-16 px-4">
                   <div className="text-center space-y-2 max-w-xs">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
                       <Target className="h-5 w-5 text-muted-foreground" />
@@ -850,9 +1086,9 @@ export function AnomaliesSheet({
               )}
             </TabsContent>
 
-            <TabsContent value="traffic" className="h-full m-0">
+            <TabsContent value="traffic" className="m-0 min-w-0">
               {displayIsLoadingTraffic ? (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center py-16">
                   <div className="text-center space-y-2">
                     <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
                     <p className="text-xs text-muted-foreground">Loading...</p>
@@ -864,16 +1100,31 @@ export function AnomaliesSheet({
                   onBack={() => setShowTrafficDetail(false)}
                 />
               ) : displayTrafficData ? (
-                <ScrollArea className="h-full">
-                  <div className="px-6 py-0">
-                    <TrafficCard
-                      traffic={displayTrafficData}
-                      onClick={() => setShowTrafficDetail(true)}
-                    />
-                  </div>
-                </ScrollArea>
+                (() => {
+                  const trafficTier = (displayTrafficData.tier || displayTrafficData.detection?.tier || "anomaly") as AnomalyTier;
+                  if (trafficTier === "normal") {
+                    return (
+                      <NormalTierRow
+                        title={displayTrafficData.entity_name || "Organic clicks"}
+                        actual={displayTrafficData.detection?.actual}
+                        expected={displayTrafficData.detection?.expected}
+                        deltaPct={displayTrafficData.detection?.delta_pct ?? displayTrafficData.delta_pct ?? 0}
+                        unit="clicks"
+                        peaks={displayTrafficData.detection?.daily_peaks}
+                      />
+                    );
+                  }
+                  return (
+                    <div className="min-w-0">
+                      <TrafficCard
+                        traffic={displayTrafficData}
+                        onClick={() => setShowTrafficDetail(true)}
+                      />
+                    </div>
+                  );
+                })()
               ) : (
-                <div className="flex items-center justify-center h-full px-4">
+                <div className="flex items-center justify-center py-16 px-4">
                   <div className="text-center space-y-2 max-w-xs">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
                       <Activity className="h-5 w-5 text-muted-foreground" />

@@ -143,6 +143,7 @@ export function OrganicPerformanceSection({
     trafficData,
     isLoading: isLoadingTraffic,
     error: trafficError,
+    hasAnomaly: hasTrafficAnomaly,
   } = useTrafficAnalysis(businessUniqueId, businessName, null);
 
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
@@ -309,13 +310,12 @@ export function OrganicPerformanceSection({
     return chartLegendWithIcons.filter((item) => item.checked);
   }, [chartLegendWithIcons]);
 
-  // Calculate total counts from both Goals and Traffic APIs
-  const trafficCriticalCount = trafficData && trafficData.severity === "high" ? 1 : 0;
-  const trafficPositiveCount = trafficData && trafficData.direction === "up" ? 1 : 0;
-  
-  const totalCriticalCount = criticalCount + trafficCriticalCount;
-  const totalPositiveCount = positiveCount + trafficPositiveCount;
-  const totalAnomaliesCount = totalCriticalCount + totalPositiveCount;
+  // Count anomaly existence separately from sentiment so down/grey notices still open the sheet.
+  // tier === 'normal' is excluded by useTrafficAnalysis().hasAnomaly so the alert
+  // badge only fires for real anomalies + candidate-tier "worth watching" cards.
+  const trafficAnomaliesCount = hasTrafficAnomaly ? 1 : 0;
+  const goalAnomaliesCount = goalData.filter((g) => g.tier !== "normal").length;
+  const totalAnomaliesCount = goalAnomaliesCount + trafficAnomaliesCount;
   
   const hasAnomalies = totalAnomaliesCount > 0;
   const showChartLoader = loadingState.chart && !hasData;

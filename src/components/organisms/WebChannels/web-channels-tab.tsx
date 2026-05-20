@@ -13,7 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -48,7 +47,11 @@ import {
 } from "@/hooks/use-webflow-connector";
 import { PlatformIcon, SiteFavicon } from "./platform-icon";
 import { IntegrationStatusBadge } from "./integration-status-badge";
-import { WebflowPublishSetup, type WebflowMappingRow } from "./webflow-publish-setup";
+import {
+  WebflowPublishSetup,
+  type WebflowImageDestinationRow,
+  type WebflowMappingRow,
+} from "./webflow-publish-setup";
 
 interface WebChannelsTabProps {
   businessId: string;
@@ -85,11 +88,23 @@ function getWebflowFieldKey(field?: WebflowCollectionField | null) {
 }
 
 function getWebflowFieldSlug(field?: WebflowCollectionField | null) {
-  return field?.slug || field?.name || field?.id || field?._id || "";
+  const slug = field?.slug || field?.apiName || "";
+  if (slug) return slug;
+  const name = field?.name || "";
+  if (/^(name|slug)$/i.test(name)) return name.toLowerCase();
+  return name || field?.id || field?._id || "";
 }
 
 function getWebflowFieldLabel(field?: WebflowCollectionField | null) {
-  return field?.displayName || field?.name || field?.slug || field?.id || field?._id || "Field";
+  const rawLabel = field?.displayName || field?.name || field?.slug || field?.apiName || field?.id || field?._id || "Field";
+  const label = String(rawLabel).trim();
+  if (label.length > 1 && label.length % 2 === 0) {
+    const midpoint = label.length / 2;
+    const first = label.slice(0, midpoint);
+    const second = label.slice(midpoint);
+    if (first.toLowerCase() === second.toLowerCase()) return first;
+  }
+  return label;
 }
 
 function getWebflowFieldType(field?: WebflowCollectionField | null) {
@@ -108,6 +123,28 @@ function isWebflowImageField(field?: WebflowCollectionField | null) {
   return getWebflowFieldType(field).includes("image");
 }
 
+function matchesWebflowFieldName(field: WebflowCollectionField | null | undefined, patterns: RegExp[]) {
+  const label = [
+    field?.displayName,
+    field?.name,
+    field?.slug,
+    field?.id,
+    field?._id,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return patterns.some(pattern => pattern.test(label));
+}
+
+function findLikelyWebflowTextField(fields: WebflowCollectionField[], patterns: RegExp[]) {
+  return fields.find(field => {
+    const type = getWebflowFieldType(field);
+    if (type.includes("image") || type.includes("rich")) return false;
+    return matchesWebflowFieldName(field, patterns);
+  }) || null;
+}
+
 function makeWebflowMappingRow(partial: Partial<WebflowMappingRow>): WebflowMappingRow {
   return {
     id: partial.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -115,30 +152,6 @@ function makeWebflowMappingRow(partial: Partial<WebflowMappingRow>): WebflowMapp
     webflowFieldKey: partial.webflowFieldKey || "",
     staticValue: partial.staticValue || "",
   };
-}
-
-function ComingSoonIntegration({ name }: { name: "shopify" }) {
-  const label = name === "shopify" ? "Shopify" : name;
-  return (
-    <Card variant="profileCard" className="border-none bg-white p-4 opacity-70">
-      <div className="flex items-center gap-4">
-        <PlatformIcon platform={name} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Typography variant="small" className="font-medium text-general-foreground">
-              {label}
-            </Typography>
-            <Badge variant="outline" className="font-normal text-general-muted-foreground">
-              Coming soon
-            </Badge>
-          </div>
-          <p className="mt-0.5 text-sm text-general-muted-foreground">
-            {label} publishing will be available in a future update.
-          </p>
-        </div>
-      </div>
-    </Card>
-  );
 }
 
 export function WebChannelsTab({
@@ -153,6 +166,7 @@ export function WebChannelsTab({
   const [selectedWebflowSiteId, setSelectedWebflowSiteId] = React.useState("");
   const [selectedWebflowCollectionId, setSelectedWebflowCollectionId] = React.useState("");
   const [webflowMappings, setWebflowMappings] = React.useState<WebflowMappingRow[]>([]);
+  const [webflowImageDestinations, setWebflowImageDestinations] = React.useState<WebflowImageDestinationRow[]>([]);
   const [isWebflowConfigOpen, setIsWebflowConfigOpen] = React.useState(false);
   const webflowMappingInitKeyRef = React.useRef("");
 
@@ -203,8 +217,24 @@ export function WebChannelsTab({
     () => selectedWebflowFields.find(isWebflowRichTextField) || null,
     [selectedWebflowFields]
   );
-  const selectedWebflowImageField = React.useMemo(
-    () => selectedWebflowFields.find(isWebflowImageField) || null,
+  const selectedWebflowImageFields = React.useMemo(
+    () => selectedWebflowFields.filter(isWebflowImageField),
+    [selectedWebflowFields]
+  );
+  const selectedWebflowMetaTitleField = React.useMemo(
+    () =>
+      findLikelyWebflowTextField(selectedWebflowFields, [
+        /(^|\b)(seo|meta)[\s_-]*title(\b|$)/i,
+        /(^|\b)title[\s_-]*(tag|seo|meta)(\b|$)/i,
+      ]),
+    [selectedWebflowFields]
+  );
+  const selectedWebflowMetaDescriptionField = React.useMemo(
+    () =>
+      findLikelyWebflowTextField(selectedWebflowFields, [
+        /(^|\b)(seo|meta)[\s_-]*(description|desc)(\b|$)/i,
+        /(^|\b)(description|desc)[\s_-]*(tag|seo|meta)(\b|$)/i,
+      ]),
     [selectedWebflowFields]
   );
   const requiredWebflowStaticFields = React.useMemo(
@@ -214,10 +244,12 @@ export function WebChannelsTab({
         if (!isWebflowRequiredField(field)) return false;
         if (slug === "name" || slug === "slug") return false;
         if (selectedWebflowBodyField && getWebflowId(field) === getWebflowId(selectedWebflowBodyField)) return false;
-        if (selectedWebflowImageField && getWebflowId(field) === getWebflowId(selectedWebflowImageField)) return false;
+        if (selectedWebflowMetaTitleField && getWebflowId(field) === getWebflowId(selectedWebflowMetaTitleField)) return false;
+        if (selectedWebflowMetaDescriptionField && getWebflowId(field) === getWebflowId(selectedWebflowMetaDescriptionField)) return false;
+        if (isWebflowImageField(field)) return false;
         return true;
       }),
-    [selectedWebflowBodyField, selectedWebflowFields, selectedWebflowImageField]
+    [selectedWebflowBodyField, selectedWebflowFields, selectedWebflowMetaDescriptionField, selectedWebflowMetaTitleField]
   );
   const webflowFieldByKey = React.useMemo(() => {
     const map = new Map<string, WebflowCollectionField>();
@@ -237,6 +269,15 @@ export function WebChannelsTab({
     () =>
       webflowMappings.filter(row => row.massicField === "__static" && row.webflowFieldKey && !row.staticValue.trim()),
     [webflowMappings]
+  );
+  const missingRequiredImageMappings = React.useMemo(
+    () =>
+      selectedWebflowImageFields.filter(field => {
+        if (!isWebflowRequiredField(field)) return false;
+        const key = getWebflowFieldKey(field);
+        return !webflowImageDestinations.some(row => row.webflowFieldKey === key && row.enabled);
+      }),
+    [selectedWebflowImageFields, webflowImageDestinations]
   );
 
   const selectedWebflowSiteName = React.useMemo(() => {
@@ -265,6 +306,7 @@ export function WebChannelsTab({
       if (webflowMappingInitKeyRef.current !== "none") {
         webflowMappingInitKeyRef.current = "none";
         setWebflowMappings([]);
+        setWebflowImageDestinations([]);
       }
       return;
     }
@@ -287,15 +329,39 @@ export function WebChannelsTab({
 
     const savedFields =
       webflowTarget?.collectionId === selectedWebflowCollectionId ? webflowTarget?.fieldMapping?.fields || [] : [];
+    const imageFieldKeys = new Set(selectedWebflowImageFields.map(field => getWebflowFieldKey(field)).filter(Boolean));
 
     if (savedFields.length > 0) {
+      const savedImageKeys = new Set(
+        savedFields
+          .filter(field => {
+            const key = field.webflowFieldSlug || field.webflowFieldId || "";
+            return field.massicField === "featuredImage" || field.type === "image" || imageFieldKeys.has(key);
+          })
+          .map(field => field.webflowFieldSlug || field.webflowFieldId || "")
+          .filter(Boolean)
+      );
       setWebflowMappings(
-        savedFields.map((field, index) =>
-          makeWebflowMappingRow({
-            id: `saved-${index}`,
-            massicField: field.massicField || "__static",
-            webflowFieldKey: field.webflowFieldSlug || field.webflowFieldId || "",
-            staticValue: field.staticValue || "",
+        savedFields
+          .filter(field => {
+            const key = field.webflowFieldSlug || field.webflowFieldId || "";
+            return !(field.massicField === "featuredImage" || field.type === "image" || imageFieldKeys.has(key));
+          })
+          .map((field, index) =>
+            makeWebflowMappingRow({
+              id: `saved-${index}`,
+              massicField: field.massicField || "__static",
+              webflowFieldKey: field.webflowFieldSlug || field.webflowFieldId || "",
+              staticValue: field.staticValue || "",
+            })
+          )
+      );
+      setWebflowImageDestinations(
+        selectedWebflowImageFields.map(field =>
+          ({
+            id: `image-${getWebflowFieldKey(field)}`,
+            webflowFieldKey: getWebflowFieldKey(field),
+            enabled: savedImageKeys.has(getWebflowFieldKey(field)),
           })
         )
       );
@@ -315,12 +381,21 @@ export function WebChannelsTab({
         })
       );
     }
-    if (selectedWebflowImageField) {
+    if (selectedWebflowMetaTitleField) {
       rows.push(
         makeWebflowMappingRow({
-          id: "featuredImage",
-          massicField: "featuredImage",
-          webflowFieldKey: getWebflowFieldKey(selectedWebflowImageField),
+          id: "metaTitle",
+          massicField: "metaTitle",
+          webflowFieldKey: getWebflowFieldKey(selectedWebflowMetaTitleField),
+        })
+      );
+    }
+    if (selectedWebflowMetaDescriptionField) {
+      rows.push(
+        makeWebflowMappingRow({
+          id: "metaDescription",
+          massicField: "metaDescription",
+          webflowFieldKey: getWebflowFieldKey(selectedWebflowMetaDescriptionField),
         })
       );
     }
@@ -334,13 +409,22 @@ export function WebChannelsTab({
       );
     });
     setWebflowMappings(rows);
+    setWebflowImageDestinations(
+      selectedWebflowImageFields.map(field => ({
+        id: `image-${getWebflowFieldKey(field)}`,
+        webflowFieldKey: getWebflowFieldKey(field),
+        enabled: true,
+      }))
+    );
   }, [
     requiredWebflowStaticFields,
     selectedWebflowBodyField,
     selectedWebflowCollection,
     selectedWebflowCollectionId,
     selectedWebflowFields,
-    selectedWebflowImageField,
+    selectedWebflowImageFields,
+    selectedWebflowMetaDescriptionField,
+    selectedWebflowMetaTitleField,
     webflowTarget?.collectionId,
     webflowTarget?.fieldMapping?.fields,
   ]);
@@ -405,7 +489,7 @@ export function WebChannelsTab({
     ) {
       return;
     }
-    const fields = webflowMappings
+    const contentFields = webflowMappings
       .filter(row => row.webflowFieldKey)
       .map(row => {
         const field = webflowFieldByKey.get(row.webflowFieldKey);
@@ -417,12 +501,23 @@ export function WebChannelsTab({
           type: getWebflowFieldType(field),
         };
       });
+    const imageFields = webflowImageDestinations
+      .filter(row => row.enabled && row.webflowFieldKey)
+      .map(row => {
+        const field = webflowFieldByKey.get(row.webflowFieldKey);
+        return {
+          massicField: "featuredImage",
+          webflowFieldId: getWebflowId(field) || row.webflowFieldKey,
+          webflowFieldSlug: getWebflowFieldSlug(field) || row.webflowFieldKey,
+          type: "image",
+        };
+      });
     await configureWebflowMutation.mutateAsync({
       connectionId: webflowConnection.connectionId,
       siteId: selectedWebflowSiteId,
       collectionId: selectedWebflowCollectionId,
       collectionName: selectedWebflowCollection.displayName || selectedWebflowCollection.name,
-      fieldMapping: { fields },
+      fieldMapping: { fields: [...contentFields, ...imageFields] },
     });
   };
 
@@ -446,6 +541,7 @@ export function WebChannelsTab({
   const canSaveWebflowConfig =
     Boolean(webflowConnection?.connectionId && selectedWebflowSiteId && selectedWebflowCollectionId && hasBodyMapping) &&
     missingStaticMappings.length === 0 &&
+    missingRequiredImageMappings.length === 0 &&
     !configureWebflowMutation.isPending;
 
   const needsWebflowSetup = isWebflowConnected && !webflowTarget?.collectionId;
@@ -636,8 +732,11 @@ export function WebChannelsTab({
                     selectedCollection={selectedWebflowCollection}
                     mappings={webflowMappings}
                     onMappingsChange={setWebflowMappings}
+                    imageDestinations={webflowImageDestinations}
+                    onImageDestinationsChange={setWebflowImageDestinations}
                     hasBodyMapping={hasBodyMapping}
                     missingStaticCount={missingStaticMappings.length}
+                    missingRequiredImageCount={missingRequiredImageMappings.length}
                     canSave={canSaveWebflowConfig}
                     isSaving={configureWebflowMutation.isPending}
                     hasSavedTarget={Boolean(webflowTarget?.collectionId)}
@@ -653,8 +752,6 @@ export function WebChannelsTab({
             </Collapsible>
           )}
         </Card>
-
-        <ComingSoonIntegration name="shopify" />
       </div>
 
       <Dialog open={isRecommendedModalOpen} onOpenChange={setIsRecommendedModalOpen}>

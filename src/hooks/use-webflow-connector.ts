@@ -31,6 +31,7 @@ export interface WebflowConnection {
 export interface WebflowCollectionField {
   id?: string;
   _id?: string;
+  apiName?: string;
   slug?: string;
   name?: string;
   displayName?: string;

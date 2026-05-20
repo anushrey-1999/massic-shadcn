@@ -28,6 +28,11 @@ interface PublishPayload {
   excerpt?: string | null;
   featuredImageUrl?: string | null;
   featuredImageAlt?: string | null;
+  webflowImagesByFieldKey?: Record<string, {
+    assetId?: string;
+    cdnUrl: string;
+    altText?: string | null;
+  }>;
   head?: Record<string, any>;
   workflowSource?: "infer_ai";
   workflowPayload?: Record<string, any>;

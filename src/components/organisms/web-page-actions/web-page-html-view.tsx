@@ -152,6 +152,8 @@ import {
 } from "@/hooks/use-wordpress-connector";
 import {
   CmsPublishError,
+  getCmsRateLimitDescription,
+  isCmsRateLimitError,
   useCmsPublish,
   useCmsPublishingChannel,
   useCmsPublishingContentStatus,
@@ -160,9 +162,12 @@ import {
 } from "@/hooks/use-cms-publishing";
 import {
   useClearCmsFeaturedImage,
+  useClearCmsFieldImage,
+  useCmsFieldImages,
   useCmsFeaturedImage,
   useFinalizeCmsFeaturedImage,
   useUploadCmsFeaturedImage,
+  type CmsFeaturedImageAsset,
 } from "@/hooks/use-cms-featured-image";
 import {
   WebflowPublishConfirmDescription,
@@ -218,6 +223,21 @@ type ActiveTextEditorState = {
   style: EditableTextStyleValue;
 };
 type PreviewEditMode = "text" | "layout";
+type WebflowImageMapping = {
+  fieldKey: string;
+  fieldLabel: string;
+};
+
+function normalizeDuplicatedLabel(value?: string | null) {
+  const label = String(value || "").trim();
+  if (label.length > 1 && label.length % 2 === 0) {
+    const midpoint = label.length / 2;
+    const first = label.slice(0, midpoint);
+    const second = label.slice(midpoint);
+    if (first.toLowerCase() === second.toLowerCase()) return first;
+  }
+  return label;
+}
 type ActiveLayoutEditorState = {
   top: number;
   left: number;
@@ -554,6 +574,7 @@ export function WebPageHtmlView({
     mappedContentId: string | null;
   } | null>(null);
   const [slugCheckError, setSlugCheckError] = React.useState<string | null>(null);
+  const [publishRateLimitMessage, setPublishRateLimitMessage] = React.useState<string | null>(null);
   const [isSlugChecking, setIsSlugChecking] = React.useState(false);
   const [isAutoResolvingSlug, setIsAutoResolvingSlug] = React.useState(false);
   const [isEmbeddedPreviewOpen, setIsEmbeddedPreviewOpen] = React.useState(false);
@@ -573,7 +594,11 @@ export function WebPageHtmlView({
   const [featuredImageAltText, setFeaturedImageAltText] = React.useState("");
   const [featuredImageUploadProgress, setFeaturedImageUploadProgress] = React.useState<number | null>(null);
   const [isFeaturedImageDragActive, setIsFeaturedImageDragActive] = React.useState(false);
+  const [webflowImageAltTextByKey, setWebflowImageAltTextByKey] = React.useState<Record<string, string>>({});
+  const [webflowImageUploadProgressByKey, setWebflowImageUploadProgressByKey] = React.useState<Record<string, number | null>>({});
+  const [webflowImageDragActiveKey, setWebflowImageDragActiveKey] = React.useState<string | null>(null);
   const featuredImageInputRef = React.useRef<HTMLInputElement | null>(null);
+  const webflowImageInputRefs = React.useRef<Record<string, HTMLInputElement | null>>({});
 
   const lastAutoSlugCheckKeyRef = React.useRef("");
 
@@ -602,11 +627,51 @@ export function WebPageHtmlView({
   const wpStyleProfileQuery = useWordpressStyleProfile(isActiveWordpress ? activeConnection?.connectionId || null : null);
   const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
+  const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
   const webflowDomains = cmsChannel?.domains || [];
   const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
   const webflowCustomDomains = webflowDomains.filter((domain) => domain.type === "custom_domain");
+  const webflowImageMappings = React.useMemo<WebflowImageMapping[]>(() => {
+    const fields = Array.isArray(activeTarget?.fieldMapping?.fields)
+      ? activeTarget?.fieldMapping?.fields
+      : [];
+    const collectionFields = Array.isArray((activeTarget?.metadata as any)?.collection?.fields)
+      ? (activeTarget?.metadata as any).collection.fields
+      : [];
+    const fieldLabelByKey = new Map<string, string>();
+    collectionFields.forEach((field: any) => {
+      const slug = field?.slug || field?.apiName || field?.name || field?.id || field?._id || "";
+      const id = field?.id || field?._id || "";
+      const label = normalizeDuplicatedLabel(field?.displayName || field?.name || field?.slug || field?.apiName || id || slug);
+      if (slug) fieldLabelByKey.set(slug, label);
+      if (id) fieldLabelByKey.set(id, label);
+    });
+
+    const seen = new Set<string>();
+    return fields
+      .filter((field: any) => field?.massicField === "featuredImage" || field?.type === "image")
+      .map((field: any) => {
+        const fieldKey = String(field?.webflowFieldSlug || field?.webflowFieldId || "").trim();
+        if (!fieldKey || seen.has(fieldKey)) return null;
+        seen.add(fieldKey);
+        return {
+          fieldKey,
+          fieldLabel: fieldLabelByKey.get(fieldKey) || normalizeDuplicatedLabel(field?.fieldLabel || fieldKey),
+        };
+      })
+      .filter(Boolean) as WebflowImageMapping[];
+  }, [activeTarget?.fieldMapping, activeTarget?.metadata]);
+  const hasEnabledWebflowImageDestinations = webflowImageMappings.length > 0;
   const [publishToWebflowSubdomain, setPublishToWebflowSubdomain] = React.useState(true);
   const [selectedWebflowCustomDomainIds, setSelectedWebflowCustomDomainIds] = React.useState<string[]>([]);
+  const selectedWebflowLiveDomainLabels = React.useMemo(() => {
+    const labels: string[] = [];
+    if (publishToWebflowSubdomain && webflowStagingDomain?.label) labels.push(webflowStagingDomain.label);
+    webflowCustomDomains.forEach(domain => {
+      if (selectedWebflowCustomDomainIds.includes(domain.id)) labels.push(domain.label);
+    });
+    return labels;
+  }, [publishToWebflowSubdomain, selectedWebflowCustomDomainIds, webflowCustomDomains, webflowStagingDomain?.label]);
   const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
     Partial<Record<MassicStyleColorKey, string>>
   >({});
@@ -675,15 +740,25 @@ export function WebPageHtmlView({
       : null
   );
   const isWordpressBlogPublish = isActiveWordpress && isBlogContent;
-  const featuredImageContentId = isWordpressBlogPublish && publishContentId ? String(publishContentId) : null;
+  const isWebflowImagePublish = isActiveWebflow && hasEnabledWebflowImageDestinations;
+  const isCmsImagePublish = isWordpressBlogPublish;
+  const shouldLoadSharedFeaturedImage = isWordpressBlogPublish || isWebflowImagePublish;
+  const featuredImageContentId = shouldLoadSharedFeaturedImage && publishContentId ? String(publishContentId) : null;
   const featuredImageQuery = useCmsFeaturedImage(
-    isWordpressBlogPublish ? businessId : null,
+    shouldLoadSharedFeaturedImage ? businessId : null,
     featuredImageContentId,
-    Boolean(isPublishModalOpen && isWordpressBlogPublish)
+    Boolean(isPublishModalOpen && shouldLoadSharedFeaturedImage)
+  );
+  const webflowFieldImagesQuery = useCmsFieldImages(
+    isWebflowImagePublish ? businessId : null,
+    isWebflowImagePublish && publishContentId ? String(publishContentId) : null,
+    isWebflowImagePublish ? "webflow" : null,
+    Boolean(isPublishModalOpen && isWebflowImagePublish)
   );
   const uploadFeaturedImageMutation = useUploadCmsFeaturedImage();
   const finalizeFeaturedImageMutation = useFinalizeCmsFeaturedImage();
   const clearFeaturedImageMutation = useClearCmsFeaturedImage();
+  const clearFieldImageMutation = useClearCmsFieldImage();
   const persistedContent = activePlatform === "wordpress" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedContent = activePlatform === "webflow" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedStatus = (webflowPersistedContent?.status || "").toLowerCase();
@@ -740,19 +815,50 @@ export function WebPageHtmlView({
   const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
   const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
   const slugConflictReason = slugCheckResult?.conflict?.reason || null;
-  const activeFeaturedImage = isWordpressBlogPublish ? featuredImageQuery.data || null : null;
+  const sharedFeaturedImage = featuredImageQuery.data || null;
+  const activeFeaturedImage = isWordpressBlogPublish ? sharedFeaturedImage : null;
+  const webflowFieldImageByKey = React.useMemo(() => {
+    const map = new Map<string, CmsFeaturedImageAsset>();
+    (webflowFieldImagesQuery.data || []).forEach(assignment => {
+      if (assignment.fieldKey && assignment.asset) map.set(assignment.fieldKey, assignment.asset);
+    });
+    return map;
+  }, [webflowFieldImagesQuery.data]);
+  const webflowImagesByFieldKey = React.useMemo(() => {
+    const images: Record<string, { assetId?: string; cdnUrl: string; altText?: string | null }> = {};
+    webflowImageMappings.forEach(mapping => {
+      const asset = webflowFieldImageByKey.get(mapping.fieldKey);
+      if (!asset?.cdnUrl) return;
+      images[mapping.fieldKey] = {
+        assetId: asset.assetId,
+        cdnUrl: asset.cdnUrl,
+        altText: webflowImageAltTextByKey[mapping.fieldKey] ?? asset.altText ?? "",
+      };
+    });
+    return images;
+  }, [webflowFieldImageByKey, webflowImageAltTextByKey, webflowImageMappings]);
   const featuredImageBusy = Boolean(
-    isWordpressBlogPublish &&
+    isCmsImagePublish &&
       (uploadFeaturedImageMutation.isPending ||
         finalizeFeaturedImageMutation.isPending ||
         clearFeaturedImageMutation.isPending)
+  );
+  const webflowImageBusy = Boolean(
+    isWebflowImagePublish &&
+      (uploadFeaturedImageMutation.isPending ||
+        finalizeFeaturedImageMutation.isPending ||
+        clearFieldImageMutation.isPending)
   );
   const isPublishBusy =
     cmsPublishMutation.isPending ||
     webflowStagingPreviewMutation.isPending ||
     wpPreviewMutation.isPending ||
     wpUnpublishMutation.isPending ||
-    featuredImageBusy;
+    featuredImageBusy ||
+    webflowImageBusy;
+  const isPublishConnectionLoading = Boolean(
+    isPublishModalOpen && (cmsChannelQuery.isLoading || cmsChannelQuery.isFetching)
+  );
   const publishStateLabel = activePlatform === "webflow"
     ? (webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published")
     : isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
@@ -788,9 +894,23 @@ export function WebPageHtmlView({
     ? webflowStagingPreview?.url
     : webflowStagingPreviewUrl;
   React.useEffect(() => {
-    if (!isPublishModalOpen || !isWordpressBlogPublish) return;
+    if (!isPublishModalOpen || !isCmsImagePublish) return;
     setFeaturedImageAltText(activeFeaturedImage?.altText || "");
-  }, [activeFeaturedImage?.altText, activeFeaturedImage?.assetId, isPublishModalOpen, isWordpressBlogPublish]);
+  }, [activeFeaturedImage?.altText, activeFeaturedImage?.assetId, isCmsImagePublish, isPublishModalOpen]);
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen || !isWebflowImagePublish) return;
+    setWebflowImageAltTextByKey(prev => {
+      const next = { ...prev };
+      webflowImageMappings.forEach(mapping => {
+        const asset = webflowFieldImageByKey.get(mapping.fieldKey);
+        if (asset && typeof next[mapping.fieldKey] === "undefined") {
+          next[mapping.fieldKey] = asset.altText || "";
+        }
+      });
+      return next;
+    });
+  }, [isPublishModalOpen, isWebflowImagePublish, webflowFieldImageByKey, webflowImageMappings]);
   const liveUrl = React.useMemo(() => {
     if (persistedContent?.permalink) return persistedContent.permalink;
     if (lastPublishedData?.permalink) return lastPublishedData.permalink;
@@ -1560,6 +1680,7 @@ export function WebPageHtmlView({
     (targetStatus: "draft" | "publish") => {
       const publishHtml = composeCurrentHtml();
       const normalizedFeaturedImageAltText = featuredImageAltText.trim();
+      const hasFieldSpecificWebflowImages = Object.keys(webflowImagesByFieldKey).length > 0;
       return {
         businessId: String(businessId || ""),
         status: targetStatus,
@@ -1574,10 +1695,21 @@ export function WebPageHtmlView({
           : extractPlainTextFromHtml(publishHtml),
         contentHtml: publishHtml,
         excerpt: publishDescription || null,
-        ...(isWordpressBlogPublish
+        ...(isCmsImagePublish
           ? {
               featuredImageUrl: activeFeaturedImage?.cdnUrl || null,
               featuredImageAlt: activeFeaturedImage ? normalizedFeaturedImageAltText : null,
+            }
+          : {}),
+        ...(isWebflowImagePublish
+          ? {
+              webflowImagesByFieldKey,
+              ...(!hasFieldSpecificWebflowImages && sharedFeaturedImage?.cdnUrl
+                ? {
+                    featuredImageUrl: sharedFeaturedImage.cdnUrl,
+                    featuredImageAlt: sharedFeaturedImage.altText || "",
+                  }
+                : {}),
             }
           : {}),
         head:
@@ -1602,8 +1734,11 @@ export function WebPageHtmlView({
       data,
       featuredImageAltText,
       isBlogContent,
-      isWordpressBlogPublish,
+      isCmsImagePublish,
+      isWebflowImagePublish,
       activeFeaturedImage,
+      sharedFeaturedImage,
+      webflowImagesByFieldKey,
       publishContentId,
       publishDescription,
       publishSeoTitle,
@@ -1686,6 +1821,7 @@ export function WebPageHtmlView({
     setIsSlugEdited(false);
     setSlugCheckResult(null);
     setSlugCheckError(null);
+    setPublishRateLimitMessage(null);
     setIsAutoResolvingSlug(false);
     lastAutoSlugCheckKeyRef.current = "";
   }, [isPublishModalOpen]);
@@ -1734,7 +1870,7 @@ export function WebPageHtmlView({
   }, [businessId, router]);
 
   const saveFeaturedImageAltText = React.useCallback(async () => {
-    if (!isWordpressBlogPublish || !businessId || !featuredImageContentId || !activeFeaturedImage) return;
+    if (!isCmsImagePublish || !businessId || !featuredImageContentId || !activeFeaturedImage) return;
 
     const nextAltText = featuredImageAltText.trim();
     const currentAltText = (activeFeaturedImage.altText || "").trim();
@@ -1759,12 +1895,12 @@ export function WebPageHtmlView({
     featuredImageAltText,
     featuredImageContentId,
     finalizeFeaturedImageMutation,
-    isWordpressBlogPublish,
+    isCmsImagePublish,
   ]);
 
   const handleFeaturedImageFile = React.useCallback(
     async (file: File | null) => {
-      if (!file || !businessId || !featuredImageContentId || !isWordpressBlogPublish) return;
+      if (!file || !businessId || !featuredImageContentId || !isCmsImagePublish) return;
 
       setFeaturedImageUploadProgress(0);
       const dimensions = await readImageDimensions(file);
@@ -1791,11 +1927,11 @@ export function WebPageHtmlView({
         }
       }
     },
-    [businessId, featuredImageAltText, featuredImageContentId, isWordpressBlogPublish, uploadFeaturedImageMutation]
+    [businessId, featuredImageAltText, featuredImageContentId, isCmsImagePublish, uploadFeaturedImageMutation]
   );
 
   const handleClearFeaturedImage = React.useCallback(async () => {
-    if (!businessId || !featuredImageContentId || !isWordpressBlogPublish) return;
+    if (!businessId || !featuredImageContentId || !isCmsImagePublish) return;
 
     await clearFeaturedImageMutation.mutateAsync({
       businessId,
@@ -1803,7 +1939,97 @@ export function WebPageHtmlView({
     });
     setFeaturedImageAltText("");
     toast.success("Featured image removed");
-  }, [businessId, clearFeaturedImageMutation, featuredImageContentId, isWordpressBlogPublish]);
+  }, [businessId, clearFeaturedImageMutation, featuredImageContentId, isCmsImagePublish]);
+
+  const saveWebflowFieldImageAltText = React.useCallback(
+    async (mapping: WebflowImageMapping) => {
+      if (!isWebflowImagePublish || !businessId || !publishContentId) return;
+      const asset = webflowFieldImageByKey.get(mapping.fieldKey);
+      if (!asset) return;
+
+      const nextAltText = (webflowImageAltTextByKey[mapping.fieldKey] || "").trim();
+      const currentAltText = (asset.altText || "").trim();
+      if (nextAltText === currentAltText) return;
+
+      await finalizeFeaturedImageMutation.mutateAsync({
+        businessId,
+        contentId: String(publishContentId),
+        assetId: asset.assetId,
+        width: asset.width,
+        height: asset.height,
+        altText: nextAltText,
+        platform: "webflow",
+        fieldKey: mapping.fieldKey,
+        fieldLabel: mapping.fieldLabel,
+      });
+    },
+    [
+      businessId,
+      finalizeFeaturedImageMutation,
+      isWebflowImagePublish,
+      publishContentId,
+      webflowFieldImageByKey,
+      webflowImageAltTextByKey,
+    ]
+  );
+
+  const saveAllWebflowFieldImageAltText = React.useCallback(async () => {
+    if (!isWebflowImagePublish) return;
+    for (const mapping of webflowImageMappings) {
+      await saveWebflowFieldImageAltText(mapping);
+    }
+  }, [isWebflowImagePublish, saveWebflowFieldImageAltText, webflowImageMappings]);
+
+  const handleWebflowFieldImageFile = React.useCallback(
+    async (mapping: WebflowImageMapping, file: File | null) => {
+      if (!file || !businessId || !publishContentId || !isWebflowImagePublish) return;
+
+      setWebflowImageUploadProgressByKey(prev => ({ ...prev, [mapping.fieldKey]: 0 }));
+      const dimensions = await readImageDimensions(file);
+      const altText = (webflowImageAltTextByKey[mapping.fieldKey] || "").trim() || file.name.replace(/\.[^.]+$/, "");
+
+      try {
+        const uploadedAsset = await uploadFeaturedImageMutation.mutateAsync({
+          businessId,
+          contentId: String(publishContentId),
+          file,
+          width: dimensions.width,
+          height: dimensions.height,
+          altText,
+          platform: "webflow",
+          fieldKey: mapping.fieldKey,
+          fieldLabel: mapping.fieldLabel,
+          onProgress: progress => setWebflowImageUploadProgressByKey(prev => ({ ...prev, [mapping.fieldKey]: progress })),
+        });
+        setWebflowImageAltTextByKey(prev => ({
+          ...prev,
+          [mapping.fieldKey]: uploadedAsset.altText || altText,
+        }));
+        toast.success(`${mapping.fieldLabel} image uploaded`);
+      } finally {
+        setWebflowImageUploadProgressByKey(prev => ({ ...prev, [mapping.fieldKey]: null }));
+        const input = webflowImageInputRefs.current[mapping.fieldKey];
+        if (input) input.value = "";
+      }
+    },
+    [businessId, isWebflowImagePublish, publishContentId, uploadFeaturedImageMutation, webflowImageAltTextByKey]
+  );
+
+  const handleClearWebflowFieldImage = React.useCallback(
+    async (mapping: WebflowImageMapping) => {
+      if (!businessId || !publishContentId || !isWebflowImagePublish) return;
+
+      await clearFieldImageMutation.mutateAsync({
+        businessId,
+        contentId: String(publishContentId),
+        platform: "webflow",
+        fieldKey: mapping.fieldKey,
+      });
+      setWebflowImageAltTextByKey(prev => ({ ...prev, [mapping.fieldKey]: "" }));
+      toast.success(`${mapping.fieldLabel} image removed`);
+    },
+    [businessId, clearFieldImageMutation, isWebflowImagePublish, publishContentId]
+  );
 
   const handlePublishDraft = React.useCallback(async () => {
     if (!cmsChannel?.connected || !hasFinalContent) return;
@@ -1815,8 +2041,12 @@ export function WebPageHtmlView({
     }
     let result;
     try {
-      if (isWordpressBlogPublish) {
+      setPublishRateLimitMessage(null);
+      if (isCmsImagePublish) {
         await saveFeaturedImageAltText();
+      }
+      if (isWebflowImagePublish) {
+        await saveAllWebflowFieldImageAltText();
       }
       const payload = buildPublishPayload("draft");
       if (activePlatform === "webflow") {
@@ -1844,6 +2074,8 @@ export function WebPageHtmlView({
         });
         setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
         toast.error("Slug conflict: choose a unique slug");
+      } else if (isCmsRateLimitError(e)) {
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e));
       }
       return;
     }
@@ -1871,11 +2103,41 @@ export function WebPageHtmlView({
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isWordpressBlogPublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveFeaturedImageAltText]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
-    if (!isWebflowReady || !businessId || !publishContentId) return;
+    if (!isWebflowReady || !businessId || !publishContentId || !cmsChannel?.connected || !hasFinalContent) return;
+    const check = await runSlugCheck({ force: true });
+    if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
+      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use the suggested slug or edit manually.`);
+      toast.error("Slug conflict: choose a unique slug");
+      return;
+    }
     try {
+      setPublishRateLimitMessage(null);
+      if (isWebflowImagePublish) {
+        await saveAllWebflowFieldImageAltText();
+      }
+      const payload = buildPublishPayload("draft");
+      const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
+      payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
+        baseCss,
+        cssVarOverrides,
+      });
+      const draftResult = await cmsPublishMutation.mutateAsync(payload);
+      const draft = draftResult?.data;
+      if (draft) {
+        setLastPublishedData((prev) => ({
+          ...prev,
+          contentId: draft.contentId,
+          wpId: Number(draft.wpId || prev?.wpId || 0),
+          permalink: draft.externalUrl || draft.permalink || prev?.permalink || null,
+          editUrl: draft.editUrl || prev?.editUrl || null,
+          status: draft.status || "draft",
+          slug: draft.slug || normalizedSlugForPublish || prev?.slug || null,
+          previewUrl: draft.previewUrl || prev?.previewUrl,
+        }));
+      }
       const result = await webflowStagingPreviewMutation.mutateAsync({
         businessId: String(businessId),
         contentId: String(publishContentId),
@@ -1891,10 +2153,28 @@ export function WebPageHtmlView({
         });
       }
       toast.success("Published to staging. Opening preview shortly.");
-    } catch {
-      // toast handled in mutation
+    } catch (error) {
+      const e = error as CmsPublishError;
+      if (isCmsRateLimitError(e)) {
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e));
+      } else if (e?.code === "slug_conflict") {
+        const details = e?.details || {};
+        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
+        setSlugCheckResult({
+          slug: normalizedSlugForPublish,
+          publishUrl: publishUrlPreview || null,
+          exists: true,
+          sameMappedContent: false,
+          conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
+          suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          mappedToDifferentContent: false,
+          mappedContentId: null,
+        });
+        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        toast.error("Slug conflict: choose a unique slug");
+      }
     }
-  }, [businessId, isWebflowReady, openWebflowPreview, publishContentId, webflowStagingPreviewMutation]);
+  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, cssVarOverrides, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
 
   const handlePublishLive = React.useCallback(async () => {
     if (!cmsChannel?.connected || !hasFinalContent) return;
@@ -1914,8 +2194,12 @@ export function WebPageHtmlView({
     }
     let result;
     try {
-      if (isWordpressBlogPublish) {
+      setPublishRateLimitMessage(null);
+      if (isCmsImagePublish) {
         await saveFeaturedImageAltText();
+      }
+      if (isWebflowImagePublish) {
+        await saveAllWebflowFieldImageAltText();
       }
       const payload = {
         ...buildPublishPayload("publish"),
@@ -1953,6 +2237,8 @@ export function WebPageHtmlView({
         });
         setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
         toast.error("Slug conflict: choose a unique slug");
+      } else if (isCmsRateLimitError(e)) {
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e));
       }
       return;
     }
@@ -1972,7 +2258,7 @@ export function WebPageHtmlView({
     if (activePlatform !== "webflow") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isPersistedDraftLike, isWordpressBlogPublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
 
   const handleOpenPreview = React.useCallback(async () => {
     const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
@@ -4442,18 +4728,26 @@ export function WebPageHtmlView({
       </div>
 
       <Dialog open={isPublishModalOpen} onOpenChange={setIsPublishModalOpen}>
-        <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>Publish to CMS</DialogTitle>
             <DialogDescription>{`Choose what to do with this ${contentLabelLower}.`}</DialogDescription>
           </DialogHeader>
-          {!cmsChannel?.connected ? (
-            <div className="rounded-md border bg-background p-4 space-y-3">
-              <Typography className="text-sm">No publishing channel connected.</Typography>
-              <Button onClick={handleRedirectToChannels}>Connect a channel</Button>
-            </div>
-          ) : (
-            <div className="rounded-md border bg-muted/20 p-4 space-y-2 min-w-0 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            {isPublishConnectionLoading ? (
+              <div className="flex min-h-[220px] items-center justify-center rounded-md border bg-background p-6">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading publishing settings...
+                </div>
+              </div>
+            ) : !cmsChannel?.connected ? (
+              <div className="rounded-md border bg-background p-4 space-y-3">
+                <Typography className="text-sm">No publishing channel connected.</Typography>
+                <Button onClick={handleRedirectToChannels}>Connect a channel</Button>
+              </div>
+            ) : (
+              <div className="rounded-md border bg-muted/20 p-4 space-y-2 min-w-0 overflow-hidden">
               <div className="flex items-center justify-between gap-3">
                 <Typography className="text-sm font-medium truncate min-w-0 flex-1">
                   {activePlatform === "webflow"
@@ -4468,6 +4762,17 @@ export function WebPageHtmlView({
                 <Typography as="p" className="text-sm text-muted-foreground">
                   {publishStateHint}
                 </Typography>
+              ) : null}
+              {needsWebflowMappingSetup ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <Typography className="text-sm font-medium text-amber-950">Webflow mapping is required</Typography>
+                  <Typography className="mt-1 text-xs text-amber-900">
+                    Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first.
+                  </Typography>
+                  <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
+                    Configure mapping
+                  </Button>
+                </div>
               ) : null}
               <div className="space-y-2 pt-1">
                 <div>
@@ -4601,7 +4906,9 @@ export function WebPageHtmlView({
                       disabled={featuredImageBusy}
                     >
                       <div className="space-y-1">
-                        <Typography className="text-sm font-medium">Upload a featured image</Typography>
+                        <Typography className="text-sm font-medium">
+                          Upload a featured image
+                        </Typography>
                         <Typography className="text-xs text-muted-foreground">
                           Drag and drop a JPG, PNG, or WebP image here, or click to choose a file.
                         </Typography>
@@ -4628,60 +4935,159 @@ export function WebPageHtmlView({
                   ) : null}
                 </div>
               ) : null}
-              {isSlugChecking ? <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography> : null}
-              {slugCheckError ? <Typography className="text-xs text-destructive">{slugCheckError}</Typography> : null}
-              {hasSlugConflict ? (
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 space-y-2 min-w-0">
-                  <div className="break-words">
-                    {slugConflictReason === "parent_type_conflict"
-                      ? "This nested page path is blocked. Change the parent path."
-                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use a unique slug.`}
+              {isWebflowImagePublish ? (
+                <div className="space-y-3 pt-2 border-t border-border/60">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
+                        Images
+                      </Typography>
+                      <Typography className="mt-1 text-sm text-muted-foreground">
+                        Upload images for the mapped Webflow image fields.
+                      </Typography>
+                    </div>
                   </div>
-                  {slugCheckResult?.suggestedSlug ? (
-                    <Button size="sm" variant="outline" className="h-auto w-full justify-start whitespace-normal break-all text-left" onClick={autoResolveSlug} disabled={isSlugActionBusy}>
-                      {isAutoResolvingSlug ? "Resolving..." : `Use ${wordpressSlugToDisplay(slugCheckResult.suggestedSlug, "/next-available")}`}
-                    </Button>
+                  {webflowFieldImagesQuery.isLoading ? (
+                    <Typography className="text-xs text-muted-foreground">Loading Webflow images...</Typography>
                   ) : null}
+                  {webflowImageMappings.map(mapping => {
+                    const activeImage = webflowFieldImageByKey.get(mapping.fieldKey) || null;
+                    const uploadProgress = webflowImageUploadProgressByKey[mapping.fieldKey];
+                    const fieldBusy = webflowImageBusy && uploadProgress !== undefined;
+                    return (
+                      <div key={mapping.fieldKey} className="space-y-3 rounded-md border bg-background p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <Typography className="text-xs text-muted-foreground">Webflow image field</Typography>
+                            <Typography className="truncate text-sm font-medium">{mapping.fieldLabel}</Typography>
+                          </div>
+                        </div>
+                        <input
+                          ref={node => {
+                            webflowImageInputRefs.current[mapping.fieldKey] = node;
+                          }}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={event => {
+                            const file = event.target.files?.[0] || null;
+                            void handleWebflowFieldImageFile(mapping, file);
+                          }}
+                        />
+                        {activeImage ? (
+                          <div className="flex items-start gap-3">
+                            <img
+                              src={activeImage.cdnUrl}
+                              alt={webflowImageAltTextByKey[mapping.fieldKey] || activeImage.altText || `${mapping.fieldLabel} preview`}
+                              className="h-16 w-16 shrink-0 rounded-md border border-border object-cover"
+                            />
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="min-w-0">
+                                <Typography className="truncate text-sm font-medium">{activeImage.fileName}</Typography>
+                                <Typography className="text-xs text-muted-foreground">
+                                  {activeImage.width && activeImage.height
+                                    ? `${activeImage.width} x ${activeImage.height}`
+                                    : "Image uploaded"}
+                                </Typography>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Typography className="w-12 shrink-0 text-xs text-muted-foreground">Alt text</Typography>
+                                <Input
+                                  value={webflowImageAltTextByKey[mapping.fieldKey] ?? activeImage.altText ?? ""}
+                                  onChange={event =>
+                                    setWebflowImageAltTextByKey(prev => ({
+                                      ...prev,
+                                      [mapping.fieldKey]: event.target.value,
+                                    }))
+                                  }
+                                  onBlur={() => void saveWebflowFieldImageAltText(mapping)}
+                                  placeholder={`Describe ${mapping.fieldLabel}`}
+                                  disabled={webflowImageBusy}
+                                  className="h-8 min-w-0 text-sm"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 flex-col gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => webflowImageInputRefs.current[mapping.fieldKey]?.click()}
+                                disabled={webflowImageBusy}
+                              >
+                                Replace
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => void handleClearWebflowFieldImage(mapping)}
+                                disabled={webflowImageBusy}
+                              >
+                                Remove
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className={cn(
+                              "w-full rounded-md border border-dashed p-3 text-left transition-colors",
+                              webflowImageDragActiveKey === mapping.fieldKey ? "border-primary bg-primary/5" : "border-border bg-background",
+                              fieldBusy ? "opacity-70" : "hover:border-primary/50"
+                            )}
+                            onClick={() => webflowImageInputRefs.current[mapping.fieldKey]?.click()}
+                            onDragOver={event => {
+                              event.preventDefault();
+                              setWebflowImageDragActiveKey(mapping.fieldKey);
+                            }}
+                            onDragLeave={event => {
+                              event.preventDefault();
+                              setWebflowImageDragActiveKey(null);
+                            }}
+                            onDrop={event => {
+                              event.preventDefault();
+                              setWebflowImageDragActiveKey(null);
+                              const file = event.dataTransfer.files?.[0] || null;
+                              void handleWebflowFieldImageFile(mapping, file);
+                            }}
+                            disabled={webflowImageBusy}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <Typography className="truncate text-sm font-medium">Upload {mapping.fieldLabel}</Typography>
+                                <Typography className="mt-1 text-xs text-muted-foreground">
+                                  JPG, PNG, or WebP
+                                </Typography>
+                              </div>
+                              <span className="inline-flex h-8 shrink-0 items-center rounded-md border border-input bg-background px-3 text-xs font-medium">
+                                Choose file
+                              </span>
+                            </div>
+                          </button>
+                        )}
+                        {uploadProgress !== null && uploadProgress !== undefined ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Uploading {mapping.fieldLabel}...</span>
+                              <span>{uploadProgress}%</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className="h-full bg-primary transition-[width]"
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : null}
-
-              {activePlatform === "webflow" ? (
-                <div className="space-y-2 pt-2 border-t border-border/60">
-                  <Typography className="text-xs text-muted-foreground uppercase tracking-wide">Live domains</Typography>
-                  {webflowStagingDomain ? (
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={publishToWebflowSubdomain}
-                        onChange={(event) => setPublishToWebflowSubdomain(event.target.checked)}
-                        disabled={isPublishBusy}
-                      />
-                      <span className="break-all">{webflowStagingDomain.label}</span>
-                    </label>
-                  ) : null}
-                  {webflowCustomDomains.map((domain) => (
-                    <label key={domain.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedWebflowCustomDomainIds.includes(domain.id)}
-                        onChange={(event) => {
-                          setSelectedWebflowCustomDomainIds((prev) =>
-                            event.target.checked
-                              ? Array.from(new Set([...prev, domain.id]))
-                              : prev.filter((id) => id !== domain.id)
-                          );
-                        }}
-                        disabled={isPublishBusy}
-                      />
-                      <span className="break-all">{domain.label}</span>
-                    </label>
-                  ))}
-                  {!webflowDomains.length ? (
-                    <Typography className="text-xs text-muted-foreground">No publish domains returned by Webflow.</Typography>
-                  ) : null}
-                </div>
-              ) : null}
-
               {isActiveWordpress && !isBlogContent ? (
                 <>
                   <div className="space-y-2 pt-2 border-t border-border/60">
@@ -4956,13 +5362,50 @@ export function WebPageHtmlView({
                   </div>
                 </>
               ) : null}
+              </div>
+            )}
+          </div>
+          {!isPublishConnectionLoading && (publishRateLimitMessage || isSlugChecking || slugCheckError || hasSlugConflict) ? (
+            <div className={cn(
+              "shrink-0 rounded-md border p-2 text-xs",
+              publishRateLimitMessage
+                ? "border-amber-300 bg-amber-50 text-amber-900"
+                : hasSlugConflict
+                ? "border-amber-300 bg-amber-50 text-amber-900"
+                : slugCheckError
+                  ? "border-destructive/30 bg-destructive/5 text-destructive"
+                  : "border-border bg-muted/40 text-muted-foreground"
+            )}>
+              {publishRateLimitMessage ? (
+                <div className="break-words">{publishRateLimitMessage}</div>
+              ) : isSlugChecking ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Checking slug availability...</span>
+                </div>
+              ) : slugCheckError ? (
+                <div className="break-words">{slugCheckError}</div>
+              ) : hasSlugConflict ? (
+                <div className="space-y-2 min-w-0">
+                  <div className="break-words">
+                    {slugConflictReason === "parent_type_conflict"
+                      ? "This nested page path is blocked. Change the parent path."
+                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use a unique slug.`}
+                  </div>
+                  {slugCheckResult?.suggestedSlug ? (
+                    <Button size="sm" variant="outline" className="h-auto w-full justify-start whitespace-normal break-all text-left" onClick={autoResolveSlug} disabled={isSlugActionBusy}>
+                      {isAutoResolvingSlug ? "Resolving..." : `Use ${wordpressSlugToDisplay(slugCheckResult.suggestedSlug, "/next-available")}`}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
-          )}
-          <DialogFooter className="gap-2 sm:gap-2">
+          ) : null}
+          <DialogFooter className="shrink-0 border-t border-border/60 pt-4 gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setIsPublishModalOpen(false)} disabled={isPublishBusy}>
               Cancel
             </Button>
-            {isActiveWordpress ? (
+            {!isPublishConnectionLoading && isActiveWordpress ? (
               <>
                 {isPersistedLive ? (
                   <>
@@ -5007,7 +5450,7 @@ export function WebPageHtmlView({
                 )}
               </>
             ) : null}
-            {isWebflowReady ? (
+            {!isPublishConnectionLoading && isWebflowReady ? (
               <>
                 {webflowPublishState === "not_published" ? (
                   <Button
@@ -5017,10 +5460,10 @@ export function WebPageHtmlView({
                       !normalizedSlugForPublish ||
                       hasSlugConflict ||
                       isSlugChecking ||
-                      cmsPublishMutation.isPending
+                      isPublishBusy
                     }
                   >
-                    {cmsPublishMutation.isPending ? "Saving..." : "Publish Draft"}
+                    {isPublishBusy ? "Saving..." : "Publish Draft"}
                   </Button>
                 ) : null}
                 {webflowPublishState === "draft" ? (
@@ -5063,11 +5506,10 @@ export function WebPageHtmlView({
                         !normalizedSlugForPublish ||
                         hasSlugConflict ||
                         isSlugChecking ||
-                        (!publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) ||
-                        cmsPublishMutation.isPending
+                        isPublishBusy
                       }
                     >
-                      {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+                      {isPublishBusy ? "Publishing..." : "Publish Live"}
                     </Button>
                   </>
                 ) : null}
@@ -5088,9 +5530,9 @@ export function WebPageHtmlView({
                     <Button
                       variant="outline"
                       onClick={() => setConfirmPublishAction("webflow-draft")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || cmsPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || isPublishBusy}
                     >
-                      {cmsPublishMutation.isPending ? "Saving..." : "Update Draft"}
+                      {isPublishBusy ? "Saving..." : "Update Draft"}
                     </Button>
                     <Button
                       onClick={() => setConfirmPublishAction("webflow-live")}
@@ -5099,11 +5541,10 @@ export function WebPageHtmlView({
                         !normalizedSlugForPublish ||
                         hasSlugConflict ||
                         isSlugChecking ||
-                        (!publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) ||
-                        cmsPublishMutation.isPending
+                        isPublishBusy
                       }
                     >
-                      {cmsPublishMutation.isPending ? "Publishing..." : "Republish Live"}
+                      {isPublishBusy ? "Publishing..." : "Republish Live"}
                     </Button>
                   </>
                 ) : null}
@@ -5162,18 +5603,66 @@ export function WebPageHtmlView({
                   }
                   collectionName={activeTarget?.name}
                   stagingSiteHost={webflowStagingDomain?.url || null}
+                  selectedLiveDomains={selectedWebflowLiveDomainLabels}
                   isLiveItem={webflowPublishState === "live"}
                   isStagingRefresh={
                     confirmPublishAction === "webflow-staging-preview" && hasWebflowStagingPreview
                   }
                 />
+                {confirmPublishAction === "webflow-live" ? (
+                  <div className="space-y-2 rounded-md border border-border bg-background p-3">
+                    <Typography className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Live domains
+                    </Typography>
+                    {webflowStagingDomain ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={publishToWebflowSubdomain}
+                          onChange={event => setPublishToWebflowSubdomain(event.target.checked)}
+                          disabled={isPublishBusy}
+                        />
+                        <span className="break-all">{webflowStagingDomain.label}</span>
+                      </label>
+                    ) : null}
+                    {webflowCustomDomains.map(domain => (
+                      <label key={domain.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedWebflowCustomDomainIds.includes(domain.id)}
+                          onChange={event => {
+                            setSelectedWebflowCustomDomainIds(prev =>
+                              event.target.checked
+                                ? Array.from(new Set([...prev, domain.id]))
+                                : prev.filter(id => id !== domain.id)
+                            );
+                          }}
+                          disabled={isPublishBusy}
+                        />
+                        <span className="break-all">{domain.label}</span>
+                      </label>
+                    ))}
+                    {!webflowDomains.length ? (
+                      <Typography className="text-xs text-muted-foreground">No publish domains returned by Webflow.</Typography>
+                    ) : null}
+                    {!selectedWebflowLiveDomainLabels.length ? (
+                      <Typography className="text-xs text-destructive">Select at least one live domain.</Typography>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
             <AlertDialogAction asChild>
-              <Button onClick={confirmAndRunPublishAction} disabled={isPublishBusy}>
+              <Button
+                onClick={confirmAndRunPublishAction}
+                disabled={
+                  isPublishBusy ||
+                  (confirmPublishAction === "webflow-live" && selectedWebflowLiveDomainLabels.length === 0)
+                }
+              >
                 {confirmPublishAction === "live" || confirmPublishAction === "webflow-live"
                   ? "Confirm Publish Live"
                   : confirmPublishAction === "webflow-staging-preview"

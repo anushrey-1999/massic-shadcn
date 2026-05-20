@@ -150,6 +150,11 @@ interface PublishPayload {
   head?: Record<string, any>;
   featuredImageUrl?: string | null;
   featuredImageAlt?: string | null;
+  webflowImagesByFieldKey?: Record<string, {
+    assetId?: string;
+    cdnUrl: string;
+    altText?: string | null;
+  }>;
   workflowSource?: "infer_ai";
   workflowPayload?: Record<string, any>;
   domainSelection?: {
@@ -162,6 +167,8 @@ export class CmsPublishError extends Error {
   code?: string;
   details?: Record<string, any>;
   statusCode?: number;
+  retryAfterSeconds?: number;
+  retryExhausted?: boolean;
 
   constructor(message: string, code?: string, details?: Record<string, any>, statusCode?: number) {
     super(message);
@@ -169,11 +176,31 @@ export class CmsPublishError extends Error {
     this.code = code;
     this.details = details;
     this.statusCode = statusCode;
+    this.retryAfterSeconds = getRetryAfterSeconds(details);
+    this.retryExhausted = Boolean(details?.retryMeta?.exhausted);
   }
 }
 
 const getErrorMessage = (error: any, fallback: string) =>
   error?.response?.data?.message || error?.message || fallback;
+
+export function getRetryAfterSeconds(details?: Record<string, any>) {
+  const value = details?.retryMeta?.retryAfterSeconds ?? details?.retryAfterSeconds;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.ceil(parsed) : undefined;
+}
+
+export function isCmsRateLimitError(error: unknown) {
+  const e = error as CmsPublishError | undefined;
+  return e?.code === "too_many_requests" || e?.statusCode === 429;
+}
+
+export function getCmsRateLimitDescription(error: CmsPublishError) {
+  const retryAfterSeconds = error.retryAfterSeconds ?? getRetryAfterSeconds(error.details) ?? 60;
+  return error.retryExhausted
+    ? `We retried once, but Webflow is still rate limited. Try again in about ${retryAfterSeconds} seconds.`
+    : `Too many requests. Try again in about ${retryAfterSeconds} seconds.`;
+}
 
 function toCmsPublishError(error: any, fallbackMessage: string) {
   if (error instanceof CmsPublishError) return error;
@@ -262,6 +289,12 @@ export function useCmsWebflowStagingPreview() {
       });
     },
     onError: (error) => {
+      if (isCmsRateLimitError(error)) {
+        toast.error("Webflow is busy", {
+          description: getCmsRateLimitDescription(error),
+        });
+        return;
+      }
       toast.error("Staging preview failed", {
         description: getErrorMessage(error, "Please try again."),
       });
@@ -294,6 +327,12 @@ export function useCmsPublish() {
       });
     },
     onError: (error) => {
+      if (isCmsRateLimitError(error)) {
+        toast.error("Webflow is busy", {
+          description: getCmsRateLimitDescription(error),
+        });
+        return;
+      }
       if (error?.code === "slug_conflict") {
         toast.error("Slug conflict", {
           description: error.message || "This slug already exists.",

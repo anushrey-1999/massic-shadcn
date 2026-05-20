@@ -8,6 +8,7 @@ type WebflowPublishConfirmHintsProps = {
   action: WebflowPublishConfirmAction | null;
   collectionName?: string | null;
   stagingSiteHost?: string | null;
+  selectedLiveDomains?: string[];
   isLiveItem?: boolean;
   isStagingRefresh?: boolean;
 };
@@ -23,7 +24,7 @@ export function WebflowPublishConfirmDescription({
   if (action === "webflow-draft") {
     return isLiveItem
       ? "This will save your changes as a draft in Webflow. Your live page will not change yet."
-      : "This will save your post as a draft in Webflow.";
+      : "This will save your post as a Webflow CMS draft. It will not publish or update live domains.";
   }
   if (action === "webflow-staging-preview") {
     return isStagingRefresh
@@ -42,6 +43,7 @@ export function WebflowPublishConfirmHint({
   action,
   collectionName,
   stagingSiteHost,
+  selectedLiveDomains = [],
   isLiveItem = false,
   isStagingRefresh = false,
 }: WebflowPublishConfirmHintsProps) {
@@ -67,25 +69,12 @@ export function WebflowPublishConfirmHint({
 
     return (
       <div className={hintBoxClassName}>
-        <p className="font-semibold text-blue-900">You can preview this draft in two ways:</p>
-        <ul className="mt-2 list-disc space-y-1.5 pl-4 text-blue-900/90">
-          <li>
-            <span className="font-semibold text-blue-900">In Webflow</span> — open{" "}
-            <span className="font-semibold text-blue-900">CMS</span> → {collection} and view the draft item.
-          </li>
-          <li>
-            <span className="font-semibold text-blue-900">On your staging site</span> — after saving, use{" "}
-            <span className="font-semibold text-blue-900">Publish to staging</span>
-            {stagingHost ? (
-              <>
-                {" "}
-                to publish to <span className="font-mono text-[11px]">{stagingHost}</span> and open the page in a new tab.
-              </>
-            ) : (
-              " to publish to your Webflow staging domain and open the page in a new tab."
-            )}
-          </li>
-        </ul>
+        <p>
+          This saves the CMS item as a draft in Webflow. It does not publish to staging or any selected live domain.
+        </p>
+        <p className="mt-2">
+          To preview the draft, open <span className="font-semibold text-blue-900">CMS</span> → {collection} in Webflow.
+        </p>
       </div>
     );
   }
@@ -116,8 +105,13 @@ export function WebflowPublishConfirmHint({
     return (
       <div className={hintBoxClassName}>
         <p>
-          The post will be published on the website addresses you checked in the publish window. Visitors will see this
-          version on those domains.
+          The post will be published on the live domains selected here. Visitors will see this version on{" "}
+          {selectedLiveDomains.length ? (
+            <span className="font-semibold text-blue-900">{selectedLiveDomains.join(", ")}</span>
+          ) : (
+            <span className="font-semibold text-blue-900">no domains until you select at least one</span>
+          )}
+          .
         </p>
       </div>
     );

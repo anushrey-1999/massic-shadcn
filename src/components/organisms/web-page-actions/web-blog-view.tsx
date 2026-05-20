@@ -954,8 +954,30 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   ]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
-    if (!isWebflowReady || !businessId || !publishContentId) return;
+    if (!isWebflowReady || !businessId || !publishContentId || !hasFinalContent) return;
+    const check = await runSlugCheck({ force: true });
+    if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
+      setSlugCheckError("This slug already exists in Webflow. Use the suggested slug or edit manually.");
+      toast.error("Slug conflict: choose a unique slug");
+      return;
+    }
     try {
+      const payload = buildPublishPayload("draft");
+      const baseCss = await getMassicCssText();
+      payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
+        baseCss,
+        cssVarOverrides,
+      });
+      const draftResult = await cmsPublishMutation.mutateAsync(payload);
+      setLastPublishedData(prev => ({
+        contentId: draftResult.data?.contentId || String(publishContentId),
+        wpId: prev?.wpId || 0,
+        permalink: draftResult.data?.externalUrl || prev?.permalink || null,
+        editUrl: prev?.editUrl || null,
+        status: draftResult.data?.status || "draft",
+        slug: draftResult.data?.slug || normalizedSlugForPublish,
+        previewUrl: draftResult.data?.previewUrl || draftResult.data?.externalUrl || prev?.previewUrl,
+      }));
       const result = await webflowStagingPreviewMutation.mutateAsync({
         businessId,
         contentId: String(publishContentId),
@@ -974,7 +996,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     } catch {
       // toast handled in mutation
     }
-  }, [businessId, isWebflowReady, openWebflowPreview, publishContentId, webflowStagingPreviewMutation]);
+  }, [buildPublishPayload, businessId, cmsPublishMutation, cssVarOverrides, hasFinalContent, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, runSlugCheck, webflowStagingPreviewMutation]);
 
   const handlePublishWebflowLive = React.useCallback(async () => {
     if (!isWebflowReady || !hasFinalContent) return;

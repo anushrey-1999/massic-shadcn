@@ -32,6 +32,7 @@ import { parseAsStringEnum, useQueryState } from "nuqs";
 interface ThemesTableClientProps {
   businessId: string;
   onSplitViewChange?: (isSplitView: boolean) => void;
+  onMetricsTextChange?: (text: string) => void;
 }
 
 type ThemesView = "table" | "bubble" | "scatter";
@@ -80,16 +81,18 @@ function matchesAdvancedFilters(
     : results.every(Boolean);
 }
 
-export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTableClientProps) {
+export function ThemesTableClient({
+  businessId,
+  onSplitViewChange,
+  onMetricsTextChange,
+}: ThemesTableClientProps) {
   const [view, setView] = React.useState<ThemesView>("table");
   const [search, setSearch] = React.useState("");
   const [selectedOffering, setSelectedOffering] = React.useState("all");
-  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedThemeId, setSelectedThemeId] = React.useState<string | null>(null);
   const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [isPolling, setIsPolling] = React.useState(false);
-  const tableContainerRef = React.useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const themeFilterFields = React.useMemo(
@@ -160,33 +163,9 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     }
   }, [themesData?.hasData, isPolling]);
 
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (!tableContainerRef.current) return;
-      if (target.closest?.('[role="dialog"]')) return;
-      const isOutsideContainer = !tableContainerRef.current.contains(target);
-      if (isOutsideContainer) {
-        setExpandedRowId(null);
-        return;
-      }
-      const isOnTableElement = target?.closest?.(
-        'table, [role="table"], [role="row"], [role="cell"], [role="columnheader"], [role="rowheader"]'
-      );
-      const isOnInteractiveElement = target?.closest?.(
-        'button, input, select, textarea, a, [role="button"], [role="textbox"], [role="combobox"]'
-      );
-      if (!isOnTableElement && !isOnInteractiveElement) {
-        setExpandedRowId(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const columns = React.useMemo(
-    () => getThemesTableColumns({ expandedRowId, onExpandedRowChange: setExpandedRowId }),
-    [expandedRowId]
+    () => getThemesTableColumns(),
+    []
   );
 
   const allData = React.useMemo<ThemeRow[]>(
@@ -251,6 +230,87 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
 
     return data;
   }, [allData, search, selectedOffering, advancedFilters, joinOperator]);
+
+  const totalThemes = allData.length;
+  const filteredScatterPoints = React.useMemo(() => {
+    const points = scatterData?.points ?? [];
+    if (selectedOffering === "all") return points;
+
+    const topicNames = new Set(
+      filteredData.flatMap((row) =>
+        (row.topics ?? [])
+          .map((topic) => topic.topic_name?.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+
+    return points.filter((point) =>
+      topicNames.has(point.topic_name.trim().toLowerCase())
+    );
+  }, [filteredData, scatterData?.points, selectedOffering]);
+
+  const graphStats = React.useMemo(() => {
+    const offerings = new Set<string>();
+    const themeTotalScore = filteredScatterPoints.reduce(
+      (total, point) => total + (point.business_relevance_score || 0),
+      0
+    );
+
+    filteredData.forEach((row) => {
+      const names = [
+        ...(Array.isArray(row.offerings) ? row.offerings : []),
+        row.origin_offering,
+      ]
+        .map((name) => String(name ?? "").trim())
+        .filter(Boolean);
+
+      names.forEach((name) => offerings.add(name));
+    });
+
+    return {
+      offerings: offerings.size,
+      themes: filteredData.length,
+      topics: filteredScatterPoints.length,
+      themeTotalScore,
+    };
+  }, [filteredData, filteredScatterPoints]);
+  const formattedThemeTotalScore = Number.isInteger(graphStats.themeTotalScore)
+    ? String(graphStats.themeTotalScore)
+    : graphStats.themeTotalScore.toFixed(1);
+  const themeMetricsText = React.useMemo(() => {
+    if (view === "bubble") {
+      return `${graphStats.offerings} Offerings, ${graphStats.themes} Themes`;
+    }
+
+    if (view === "scatter") {
+      if (scatterLoading && !scatterData) return "Loading metrics...";
+      return `${graphStats.topics} Topics, ${formattedThemeTotalScore} Theme Total Score`;
+    }
+
+    if (themesLoading && !themesData) return "Loading metrics...";
+    if (!themesData?.hasData) return "";
+
+    return search.trim()
+      ? `${filteredData.length} of ${totalThemes} Themes total`
+      : `${totalThemes} Themes total`;
+  }, [
+    filteredData.length,
+    formattedThemeTotalScore,
+    graphStats.offerings,
+    graphStats.themes,
+    graphStats.topics,
+    scatterData,
+    scatterLoading,
+    search,
+    themesData,
+    themesLoading,
+    totalThemes,
+    view,
+  ]);
+
+  React.useEffect(() => {
+    onMetricsTextChange?.(themeMetricsText);
+  }, [onMetricsTextChange, themeMetricsText]);
 
   const { table } = useLocalDataTable({
     data: filteredData,
@@ -349,28 +409,6 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     );
   }
 
-  const totalThemes = allData.length;
-  const graphStats = (() => {
-    const offerings = new Set<string>();
-
-    filteredData.forEach((row) => {
-      const names = [
-        ...(Array.isArray(row.offerings) ? row.offerings : []),
-        row.origin_offering,
-      ]
-        .map((name) => String(name ?? "").trim())
-        .filter(Boolean);
-
-      names.forEach((name) => offerings.add(name));
-    });
-
-    return {
-      offerings: offerings.size,
-      themes: filteredData.length,
-      topics: scatterData?.points?.length ?? 0,
-    };
-  })();
-
   const handleThemeRowClick = (row: ThemeRow) => {
     setSelectedThemeId(row.id);
     setSplitViewSearch("");
@@ -424,31 +462,17 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
 
   if (view === "bubble" || view === "scatter") {
     return (
-      <div className="h-full flex flex-col gap-4">
-        <div className="shrink-0 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {view === "bubble" ? offeringsFilter : null}
-              <div className="flex items-center gap-4">
-                {view === "bubble" ? (
-                  <>
-                    <div className="text-sm font-mono text-general-muted-foreground">
-                      <span className="text-general-primary">{graphStats.offerings}</span> Offerings
-                    </div>
-                    <div className="text-sm font-mono text-general-muted-foreground">
-                      <span className="text-general-primary">{graphStats.themes}</span> Themes
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm font-mono text-general-muted-foreground">
-                    <span className="text-general-primary">{graphStats.topics}</span> Topics
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {viewToggle}
-            </div>
+      <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden gap-2.5">
+        <div
+          role="toolbar"
+          aria-orientation="horizontal"
+          className="flex w-full items-start justify-between gap-2 p-1"
+        >
+          <div className="flex flex-1 flex-wrap items-center gap-4">
+            {offeringsFilter}
+          </div>
+          <div className="flex items-center gap-2">
+            {viewToggle}
           </div>
         </div>
         <div className="flex-1 min-h-0">
@@ -476,7 +500,7 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
               <Button onClick={() => refetchScatter()}>Try Again</Button>
             </div>
           ) : (
-            <ThemesScatterPlot points={scatterData?.points ?? []} />
+            <ThemesScatterPlot points={filteredScatterPoints} />
           )}
         </div>
       </div>
@@ -499,46 +523,40 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
   }
 
   return (
-    <div ref={tableContainerRef} className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden gap-4">
-      <div className="shrink-0 flex items-center justify-between gap-4">
-        <div className="flex flex-1 flex-wrap items-center gap-2">
-          <DataTableSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search themes, offerings, topics..."
-          />
-          <DataTableFilterList table={table} align="start" />
+    <div
+      className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden"
+    >
+      <DataTable
+        table={table}
+        isLoading={themesLoading && !themesData}
+        isFetching={triggerMutation.isPending}
+        pageSizeOptions={[25, 50, 100]}
+        emptyMessage="No themes found."
+        showPagination={true}
+        disableHorizontalScroll={false}
+        onRowClick={handleThemeRowClick}
+        highlightSelectedRow={false}
+      >
+        <div
+          role="toolbar"
+          aria-orientation="horizontal"
+          className="flex w-full items-start justify-between gap-2 p-1"
+        >
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <DataTableSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Search themes, offerings, topics..."
+            />
+            <DataTableFilterList table={table} align="start" />
+          </div>
+          <div className="flex items-center gap-2">
+            <DataTableSortList table={table} align="start" />
+            <DataTableViewOptions table={table} align="end" />
+            {viewToggle}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <DataTableSortList table={table} align="start" />
-          <DataTableViewOptions table={table} align="end" />
-          {viewToggle}
-        </div>
-      </div>
-      {totalThemes != null && (
-        <div className="shrink-0">
-          <Typography variant="p" className="text-sm font-mono text-general-muted-foreground">
-            {search.trim()
-              ? `${filteredData.length} of ${totalThemes} Themes total`
-              : `${totalThemes} Themes total`}
-          </Typography>
-        </div>
-      )}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <DataTable
-          table={table}
-          isLoading={themesLoading && !themesData}
-          isFetching={triggerMutation.isPending}
-          pageSizeOptions={[25, 50, 100]}
-          emptyMessage="No themes found."
-          showPagination={true}
-          disableHorizontalScroll={false}
-          className="h-full"
-          onRowClick={handleThemeRowClick}
-          selectedRowId={expandedRowId}
-          highlightSelectedRow={false}
-        />
-      </div>
+      </DataTable>
     </div>
   );
 }

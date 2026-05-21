@@ -35,8 +35,8 @@ import { Typography } from "@/components/ui/typography";
 import { AlertDateSelector } from "./AlertDateSelector";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
-import type { GoalData, Diagnosis, DailyPeak, AnomalyTier } from "@/hooks/use-goal-analysis";
-import type { TrafficData } from "@/hooks/use-traffic-analysis";
+import type { GoalData, GoalContributor, Diagnosis, DailyPeak, AnomalyTier } from "@/hooks/use-goal-analysis";
+import type { TrafficData, TrafficContributor } from "@/hooks/use-traffic-analysis";
 
 interface AnomaliesSheetProps {
   open: boolean;
@@ -259,9 +259,65 @@ function EvidenceExample({ example }: { example: Record<string, string | number 
   );
 }
 
+function dedupeDiagnosesByCause(diagnoses: Array<Diagnosis | null | undefined>) {
+  const seen = new Set<string>();
+  const deduped: Diagnosis[] = [];
+
+  for (const diagnosis of diagnoses) {
+    if (!diagnosis?.cause_code || seen.has(diagnosis.cause_code)) continue;
+    seen.add(diagnosis.cause_code);
+    deduped.push(diagnosis);
+  }
+
+  return deduped;
+}
+
 function compactDiagnoses(primary: Diagnosis | null | undefined, contributing: Diagnosis[] | undefined, fallback: Diagnosis[] | undefined) {
-  if (primary) return [primary, ...(contributing || [])].slice(0, 3);
-  return (fallback || []).slice(0, 3);
+  return dedupeDiagnosesByCause([
+    primary,
+    ...(contributing || []),
+    ...(fallback || []),
+  ]).slice(0, 3);
+}
+
+type ContributorLike = {
+  key?: string;
+  page?: string;
+  delta_clicks?: number;
+  delta_conversions?: number;
+  share?: number;
+};
+
+function contributorDisplayKey(contributor: ContributorLike) {
+  return contributor.key || ("page" in contributor ? contributor.page : undefined) || "Unknown contributor";
+}
+
+function collapseDisplayContributors<T extends ContributorLike>(contributors: T[]) {
+  const groups = new Map<string, T>();
+
+  for (const contributor of contributors) {
+    const displayKey = contributorDisplayKey(contributor);
+    const existing = groups.get(displayKey);
+
+    if (!existing) {
+      groups.set(displayKey, { ...contributor, key: contributor.key || displayKey });
+      continue;
+    }
+
+    existing.delta_clicks = Number(existing.delta_clicks || 0) + Number(contributor.delta_clicks || 0);
+    existing.share = Number(existing.share || 0) + Number(contributor.share || 0);
+
+    if ("delta_conversions" in existing || "delta_conversions" in contributor) {
+      existing.delta_conversions = Number(existing.delta_conversions || 0) + Number(contributor.delta_conversions || 0);
+    }
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => {
+      const bImpact = Math.abs(Number(("delta_conversions" in b ? b.delta_conversions : b.delta_clicks) || 0));
+      const aImpact = Math.abs(Number(("delta_conversions" in a ? a.delta_conversions : a.delta_clicks) || 0));
+      return bImpact - aImpact;
+    });
 }
 
 interface GoalCardProps {
@@ -347,6 +403,7 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
   const isNegative = goal.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
   const diagnosesToRender = compactDiagnoses(goal.primaryDiagnosis, goal.contributingDiagnoses, goal.diagnoses);
+  const topContributors = collapseDisplayContributors(goal.topContributors).slice(0, 10);
 
   return (
     <div className="min-w-0 space-y-4 pb-6">
@@ -492,19 +549,19 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
           </div>
         )}
 
-        {goal.topContributors.length > 0 && (
+        {topContributors.length > 0 && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
               <BarChart3 className="h-3 w-3 text-primary" />
               Top Contributors
             </h3>
             <div className="space-y-1.5">
-              {goal.topContributors.slice(0, 10).map((contributor, idx) => (
+              {topContributors.map((contributor, idx) => (
                 <div key={`${idx}-${contributor.key || contributor.page || ""}`} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="break-words text-xs font-medium text-foreground line-clamp-1">
-                        {contributor.page || contributor.key || "Unknown contributor"}
+                        {contributor.key || contributor.page || "Unknown contributor"}
                       </p>
                       {contributor.classification && (
                         <p className="break-words text-[11px] text-muted-foreground">{contributor.classification}</p>
@@ -623,6 +680,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
     traffic.narrative?.contributing_diagnoses,
     traffic.narrative?.diagnoses
   );
+  const topContributors = collapseDisplayContributors(traffic.narrative?.top_contributors || []).slice(0, 10);
 
   const actionCategories = {
     urgent: traffic.narrative?.actions?.urgent || [],
@@ -775,14 +833,13 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
           </div>
         )}
 
-        {traffic.narrative?.top_contributors &&
-          traffic.narrative.top_contributors.length > 0 && (
+        {topContributors.length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-foreground mb-2">
                 Top Contributors
               </h3>
               <div className="space-y-1.5">
-                {traffic.narrative.top_contributors.map((contributor, idx) => (
+                {topContributors.map((contributor, idx) => (
                   <div key={idx} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
                     <div className="flex min-w-0 items-start justify-between gap-3 mb-1">
                       <p className="min-w-0 break-words text-xs font-medium text-foreground flex-1 leading-tight line-clamp-1">

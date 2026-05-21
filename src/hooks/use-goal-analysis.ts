@@ -37,6 +37,8 @@ export interface GoalContributor {
   level?: string
   key?: string
   page?: string
+  representative_page?: string
+  pages?: string[]
   classification?: string
   delta_conversions?: number
   delta_clicks?: number
@@ -144,6 +146,44 @@ interface UseGoalAnalysisReturn {
   refetch: () => Promise<void>
 }
 
+function dedupeDiagnosesByCause(diagnoses: Array<Diagnosis | null | undefined>): Diagnosis[] {
+  const seen = new Set<string>()
+  const deduped: Diagnosis[] = []
+
+  for (const diagnosis of diagnoses) {
+    if (!diagnosis?.cause_code || seen.has(diagnosis.cause_code)) continue
+    seen.add(diagnosis.cause_code)
+    deduped.push(diagnosis)
+  }
+
+  return deduped
+}
+
+function contributorDisplayKey(contributor: GoalContributor): string {
+  return contributor.key || contributor.page || "Unknown contributor"
+}
+
+function collapseTopContributors(contributors: GoalContributor[]): GoalContributor[] {
+  const groups = new Map<string, GoalContributor>()
+
+  for (const contributor of contributors) {
+    const displayKey = contributorDisplayKey(contributor)
+    const existing = groups.get(displayKey)
+
+    if (!existing) {
+      groups.set(displayKey, { ...contributor, key: contributor.key || displayKey })
+      continue
+    }
+
+    existing.delta_conversions = Number(existing.delta_conversions || 0) + Number(contributor.delta_conversions || 0)
+    existing.delta_clicks = Number(existing.delta_clicks || 0) + Number(contributor.delta_clicks || 0)
+    existing.share = Number(existing.share || 0) + Number(contributor.share || 0)
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => Math.abs(Number(b.delta_conversions ?? b.delta_clicks ?? 0)) - Math.abs(Number(a.delta_conversions ?? a.delta_clicks ?? 0)))
+}
+
 function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
   if (!data?.anomalies) return []
 
@@ -156,10 +196,12 @@ function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
     const summaryBullets = (normalizedNarrative?.summary_bullets || []).slice(0, 3)
     const summary = normalizedNarrative?.summary || "No summary available"
     const primaryDiagnosis = normalizedNarrative?.primary_diagnosis || null
-    const contributingDiagnoses = (normalizedNarrative?.contributing_diagnoses || []).slice(0, 3)
-    const fallbackDiagnoses = (normalizedNarrative?.diagnoses || []).slice(0, 5)
+    const contributingDiagnoses = dedupeDiagnosesByCause([
+      ...(normalizedNarrative?.contributing_diagnoses || []),
+    ].filter((diagnosis) => diagnosis?.cause_code !== primaryDiagnosis?.cause_code)).slice(0, 3)
+    const fallbackDiagnoses = dedupeDiagnosesByCause(normalizedNarrative?.diagnoses || []).slice(0, 5)
     const diagnoses = primaryDiagnosis
-      ? [primaryDiagnosis, ...contributingDiagnoses].slice(0, 5)
+      ? dedupeDiagnosesByCause([primaryDiagnosis, ...contributingDiagnoses]).slice(0, 5)
       : fallbackDiagnoses
     const impactSeverity = (anomaly.severity || anomaly.anomaly_details?.severity || "medium") as "high" | "medium" | "low"
     const legacySeverity = anomaly.anomaly_details?.severityLevel as "critical" | "warning" | "positive" | undefined
@@ -185,7 +227,7 @@ function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
       diagnoses,
       primaryDiagnosis,
       contributingDiagnoses,
-      topContributors: (normalizedNarrative?.top_contributors || []).slice(0, 10),
+      topContributors: collapseTopContributors(normalizedNarrative?.top_contributors || []).slice(0, 10),
       delta: anomaly.detection?.delta ?? anomaly.anomaly_details?.detection_stats?.delta ?? 0,
       deltaPct: rawDeltaPct,
       expected: anomaly.detection?.expected,

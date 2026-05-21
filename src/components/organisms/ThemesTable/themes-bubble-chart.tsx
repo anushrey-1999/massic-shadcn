@@ -81,7 +81,7 @@ export function ThemesBubbleChart({
         themeData: theme,
         data: {
           relevanceScore: theme.business_relevance_score,
-          coverage: theme.topic_coverage,
+          coverage: theme.theme_coverage,
         },
         children:
           (theme.topics ?? []).length > 0
@@ -360,7 +360,7 @@ export function ThemesBubbleChart({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full flex items-center justify-center bg-white rounded-lg border border-border"
+      className="relative w-full h-full flex items-center justify-center bg-white rounded-lg"
     >
       <canvas ref={canvasRef} className="w-full h-full" />
 
@@ -415,9 +415,6 @@ export function ThemesBubbleChart({
         ) : null}
       </div>
 
-      <div className="absolute bottom-3 right-3 text-xs text-muted-foreground bg-white/80 px-2 py-1 rounded border border-border select-none">
-        Click to zoom · Click outside to reset
-      </div>
     </div>
   );
 }

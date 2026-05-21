@@ -11,6 +11,7 @@ export interface ThemeItem {
   offerings: string[];
   topics: ThemeTopic[];
   business_relevance_score?: number;
+  theme_coverage?: number;
 }
 
 export interface ThemeMetrics {
@@ -38,6 +39,7 @@ export interface ThemeRow {
   offerings: string[];
   topics: ThemeTopic[];
   business_relevance_score?: number;
+  theme_coverage?: number;
   topic_coverage?: number;
 }
 

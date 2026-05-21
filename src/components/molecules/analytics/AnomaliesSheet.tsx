@@ -35,8 +35,8 @@ import { Typography } from "@/components/ui/typography";
 import { AlertDateSelector } from "./AlertDateSelector";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
-import type { GoalData, Diagnosis, DailyPeak, AnomalyTier } from "@/hooks/use-goal-analysis";
-import type { TrafficData } from "@/hooks/use-traffic-analysis";
+import type { GoalData, GoalContributor, Diagnosis, DailyPeak, AnomalyTier } from "@/hooks/use-goal-analysis";
+import type { TrafficData, TrafficContributor } from "@/hooks/use-traffic-analysis";
 
 interface AnomaliesSheetProps {
   open: boolean;
@@ -223,6 +223,7 @@ function diagnosisTitle(diagnosis: Diagnosis) {
 
 function managerInsight(text: string) {
   if (/severity|confidence/i.test(text)) return null;
+  if (/brand queries:\s*0 clicks\s*\|\s*non-brand:\s*0 clicks/i.test(text)) return null;
   return text
     .replace(/\s*\((?:[^)]*(?:delta|z-score|score|CVR|CTR|position)[^)]*)\)/gi, "")
     .replace(/\bCVR\b/g, "conversion rate")
@@ -233,6 +234,23 @@ function formatImpact(value: number | undefined, unit: string) {
   const numeric = Number(value || 0);
   const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
   return `${sign}${Math.abs(Math.round(numeric)).toLocaleString()} ${unit}`;
+}
+
+function hasMeaningfulTrafficSplit(split: NonNullable<TrafficData["narrative"]>["brand_split"] | undefined) {
+  if (!split) return false;
+  return Math.abs(Number(split.brand_delta || 0)) + Math.abs(Number(split.nonbrand_delta || 0)) > 0;
+}
+
+function attributionMessage(traffic: TrafficData) {
+  const attribution = traffic.narrative?.attribution;
+  if (!attribution || attribution.status === "complete") return null;
+
+  const directionText = traffic.direction === "up" ? "increased" : "changed";
+  if (attribution.reason === "low_detail_coverage") {
+    return `Traffic ${directionText}, but Search Console page/query details only explain ${Math.round((attribution.coverage || 0) * 100)}% of the movement. The rest may be spread across many low-volume queries.`;
+  }
+
+  return `Traffic ${directionText}, but Search Console did not provide enough page/query detail to explain the driver. This is common with low-volume or privacy-filtered queries.`;
 }
 
 function EvidenceExample({ example }: { example: Record<string, string | number | boolean | null | undefined> }) {
@@ -259,9 +277,65 @@ function EvidenceExample({ example }: { example: Record<string, string | number 
   );
 }
 
+function dedupeDiagnosesByCause(diagnoses: Array<Diagnosis | null | undefined>) {
+  const seen = new Set<string>();
+  const deduped: Diagnosis[] = [];
+
+  for (const diagnosis of diagnoses) {
+    if (!diagnosis?.cause_code || seen.has(diagnosis.cause_code)) continue;
+    seen.add(diagnosis.cause_code);
+    deduped.push(diagnosis);
+  }
+
+  return deduped;
+}
+
 function compactDiagnoses(primary: Diagnosis | null | undefined, contributing: Diagnosis[] | undefined, fallback: Diagnosis[] | undefined) {
-  if (primary) return [primary, ...(contributing || [])].slice(0, 3);
-  return (fallback || []).slice(0, 3);
+  return dedupeDiagnosesByCause([
+    primary,
+    ...(contributing || []),
+    ...(fallback || []),
+  ]).slice(0, 3);
+}
+
+type ContributorLike = {
+  key?: string;
+  page?: string;
+  delta_clicks?: number;
+  delta_conversions?: number;
+  share?: number;
+};
+
+function contributorDisplayKey(contributor: ContributorLike) {
+  return contributor.key || ("page" in contributor ? contributor.page : undefined) || "Unknown contributor";
+}
+
+function collapseDisplayContributors<T extends ContributorLike>(contributors: T[]) {
+  const groups = new Map<string, T>();
+
+  for (const contributor of contributors) {
+    const displayKey = contributorDisplayKey(contributor);
+    const existing = groups.get(displayKey);
+
+    if (!existing) {
+      groups.set(displayKey, { ...contributor, key: contributor.key || displayKey });
+      continue;
+    }
+
+    existing.delta_clicks = Number(existing.delta_clicks || 0) + Number(contributor.delta_clicks || 0);
+    existing.share = Number(existing.share || 0) + Number(contributor.share || 0);
+
+    if ("delta_conversions" in existing || "delta_conversions" in contributor) {
+      existing.delta_conversions = Number(existing.delta_conversions || 0) + Number(contributor.delta_conversions || 0);
+    }
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => {
+      const bImpact = Math.abs(Number(("delta_conversions" in b ? b.delta_conversions : b.delta_clicks) || 0));
+      const aImpact = Math.abs(Number(("delta_conversions" in a ? a.delta_conversions : a.delta_clicks) || 0));
+      return bImpact - aImpact;
+    });
 }
 
 interface GoalCardProps {
@@ -347,6 +421,7 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
   const isNegative = goal.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
   const diagnosesToRender = compactDiagnoses(goal.primaryDiagnosis, goal.contributingDiagnoses, goal.diagnoses);
+  const topContributors = collapseDisplayContributors(goal.topContributors).slice(0, 10);
 
   return (
     <div className="min-w-0 space-y-4 pb-6">
@@ -492,19 +567,19 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
           </div>
         )}
 
-        {goal.topContributors.length > 0 && (
+        {topContributors.length > 0 && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
               <BarChart3 className="h-3 w-3 text-primary" />
               Top Contributors
             </h3>
             <div className="space-y-1.5">
-              {goal.topContributors.slice(0, 10).map((contributor, idx) => (
+              {topContributors.map((contributor, idx) => (
                 <div key={`${idx}-${contributor.key || contributor.page || ""}`} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="break-words text-xs font-medium text-foreground line-clamp-1">
-                        {contributor.page || contributor.key || "Unknown contributor"}
+                        {contributor.key || contributor.page || "Unknown contributor"}
                       </p>
                       {contributor.classification && (
                         <p className="break-words text-[11px] text-muted-foreground">{contributor.classification}</p>
@@ -623,6 +698,20 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
     traffic.narrative?.contributing_diagnoses,
     traffic.narrative?.diagnoses
   );
+  const topContributors = collapseDisplayContributors(traffic.narrative?.top_contributors || [])
+    .filter((contributor) => Math.abs(Number(contributor.delta_clicks || 0)) > 0)
+    .slice(0, 10);
+  const topQueries = collapseDisplayContributors(traffic.narrative?.top_queries || [])
+    .filter((contributor) => Math.abs(Number(contributor.delta_clicks || 0)) > 0)
+    .slice(0, 10);
+  const trafficInsights = (traffic.narrative?.summary_bullets || [])
+    .map(managerInsight)
+    .filter(Boolean)
+    .slice(0, 3);
+  const trafficSplit = hasMeaningfulTrafficSplit(traffic.narrative?.brand_split)
+    ? traffic.narrative?.brand_split
+    : null;
+  const attributionCopy = attributionMessage(traffic);
 
   const actionCategories = {
     urgent: traffic.narrative?.actions?.urgent || [],
@@ -694,15 +783,14 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
           </div>
         </div>
 
-        {traffic.narrative?.summary_bullets &&
-          traffic.narrative.summary_bullets.length > 0 && (
+        {trafficInsights.length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
                 <Sparkles className="h-3 w-3 text-primary" />
                 Insights
               </h3>
               <ul className="space-y-1.5">
-                {traffic.narrative.summary_bullets.map(managerInsight).filter(Boolean).slice(0, 3).map((bullet, idx) => (
+                {trafficInsights.map((bullet, idx) => (
                   <li
                     key={idx}
                     className="flex items-start gap-2 text-xs text-muted-foreground"
@@ -716,6 +804,14 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               </ul>
             </div>
           )}
+
+        {attributionCopy && (
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="break-words text-xs text-muted-foreground leading-snug">
+              {attributionCopy}
+            </p>
+          </div>
+        )}
 
         {diagnosesToRender.length > 0 && (
           <div>
@@ -748,7 +844,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
           </div>
         )}
 
-        {traffic.narrative?.brand_split && (
+        {trafficSplit && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
               <BarChart3 className="h-3 w-3 text-primary" />
@@ -760,7 +856,10 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                   Brand
                 </p>
                 <p className="text-lg font-bold text-foreground">
-                  {traffic.narrative.brand_split.brand_pct}%
+                  {trafficSplit.brand_pct}%
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {formatImpact(trafficSplit.brand_delta, "clicks")}
                 </p>
               </div>
               <div className="rounded-lg border bg-card p-2.5">
@@ -768,21 +867,23 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                   Non-Brand
                 </p>
                 <p className="text-lg font-bold text-foreground">
-                  {100 - traffic.narrative.brand_split.brand_pct}%
+                  {100 - trafficSplit.brand_pct}%
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {formatImpact(trafficSplit.nonbrand_delta, "clicks")}
                 </p>
               </div>
             </div>
           </div>
         )}
 
-        {traffic.narrative?.top_contributors &&
-          traffic.narrative.top_contributors.length > 0 && (
+        {topContributors.length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-foreground mb-2">
-                Top Contributors
+                Top Pages
               </h3>
               <div className="space-y-1.5">
-                {traffic.narrative.top_contributors.map((contributor, idx) => (
+                {topContributors.map((contributor, idx) => (
                   <div key={idx} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
                     <div className="flex min-w-0 items-start justify-between gap-3 mb-1">
                       <p className="min-w-0 break-words text-xs font-medium text-foreground flex-1 leading-tight line-clamp-1">
@@ -802,6 +903,40 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               </div>
             </div>
           )}
+
+        {topQueries.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-foreground mb-2">
+              Top Queries
+            </h3>
+            <div className="space-y-1.5">
+              {topQueries.map((contributor, idx) => (
+                <div key={`${contributor.key}-${idx}`} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
+                  <div className="flex min-w-0 items-start justify-between gap-3 mb-1">
+                    <div className="min-w-0 flex-1">
+                      <p className="min-w-0 break-words text-xs font-medium text-foreground leading-tight line-clamp-1">
+                        {contributor.key}
+                      </p>
+                      {contributor.parent_key && (
+                        <p className="mt-0.5 break-words text-[11px] text-muted-foreground leading-snug line-clamp-1">
+                          {contributor.parent_key}
+                        </p>
+                      )}
+                    </div>
+                    <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
+                      {formatImpact(contributor.delta_clicks, "clicks")}
+                    </Badge>
+                  </div>
+                  {contributor.classification && (
+                    <p className="break-words text-[11px] text-muted-foreground leading-snug line-clamp-2">
+                      {contributor.classification}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {traffic.narrative?.actions &&
           (traffic.narrative.actions.urgent?.length > 0 ||

@@ -5,12 +5,12 @@ import { api } from "./use-api"
 export interface TrafficContributor {
   level: string
   key: string
-  parent_key: string
+  parent_key?: string | null
   delta_clicks: number
   share: number
   classification: string
-  position_delta: number
-  is_brand: boolean
+  position_delta?: number
+  is_brand?: boolean
 }
 
 export interface TrafficDiagnosis {
@@ -90,10 +90,16 @@ export interface TrafficData {
     contributing_diagnoses: TrafficDiagnosis[]
     diagnoses?: TrafficDiagnosis[]
     top_contributors: TrafficContributor[]
+    top_queries?: TrafficContributor[]
     brand_split: {
       brand_delta: number
       nonbrand_delta: number
       brand_pct: number
+    } | null
+    attribution?: {
+      status: "complete" | "partial" | "unavailable"
+      reason?: string | null
+      coverage: number
     }
     actions: TrafficActions
   } | null

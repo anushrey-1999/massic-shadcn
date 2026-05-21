@@ -5490,9 +5490,6 @@ export function WebPageHtmlView({
             </div>
           ) : null}
           <DialogFooter className="shrink-0 border-t border-border/60 pt-4 gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setIsPublishModalOpen(false)} disabled={isPublishBusy}>
-              Cancel
-            </Button>
             {!isPublishConnectionLoading && isActiveWordpress ? (
               <>
                 {isPersistedLive ? (

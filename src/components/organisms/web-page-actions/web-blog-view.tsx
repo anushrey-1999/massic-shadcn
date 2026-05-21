@@ -2159,13 +2159,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           ) : null}
 
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsPublishModalOpen(false)}
-              disabled={isPublishBusy}
-            >
-              Cancel
-            </Button>
             {isActiveWordpress ? (
               <>
                 {isPersistedLive ? (

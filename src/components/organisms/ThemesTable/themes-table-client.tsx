@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { AlertCircle, ChartScatter, Loader2, Sparkles, List, Layers } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
+import { useStrategy } from "@/hooks/use-strategy";
 import { getThemesTableColumns } from "./themes-table-columns";
 import { ThemesBubbleChart } from "./themes-bubble-chart";
 import { ThemesScatterPlot } from "./themes-scatter-plot";
@@ -36,6 +37,10 @@ interface ThemesTableClientProps {
 }
 
 type ThemesView = "table" | "bubble" | "scatter";
+
+function normalizeTopicName(value: string) {
+  return value.trim().toLowerCase();
+}
 
 function getFilterValues(row: ThemeRow, field: string): string[] {
   if (field === "theme_name") return [row.theme_name || ""];
@@ -117,6 +122,7 @@ export function ThemesTableClient({
 
 
   const { fetchThemes, fetchScatterPlot, triggerThemes } = useThemes(businessId);
+  const { fetchAllStrategyPages } = useStrategy(businessId);
 
   const {
     data: themesData,
@@ -132,6 +138,17 @@ export function ThemesTableClient({
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     enabled: !!businessId,
     refetchInterval: (query) => isPolling && !query.state.data?.hasData ? 5000 : false,
+  });
+
+  const {
+    data: strategyTopicsData,
+    isLoading: strategyTopicsLoading,
+    isError: strategyTopicsError,
+  } = useQuery({
+    queryKey: ["strategy-full-data", businessId],
+    queryFn: () => fetchAllStrategyPages(businessId),
+    staleTime: 1000 * 60 * 5,
+    enabled: !!businessId && view === "bubble",
   });
 
   const triggerMutation = useMutation({
@@ -230,6 +247,69 @@ export function ThemesTableClient({
 
     return data;
   }, [allData, search, selectedOffering, advancedFilters, joinOperator]);
+
+  const topicMetricsByName = React.useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        business_relevance_score: number;
+        topic_coverage: number;
+      }
+    >();
+
+    for (const topic of strategyTopicsData?.data ?? []) {
+      const name = normalizeTopicName(topic.topic || "");
+      if (!name) continue;
+
+      map.set(name, {
+        business_relevance_score: topic.business_relevance_score,
+        topic_coverage: topic.topic_cluster_topic_coverage,
+      });
+    }
+
+    return map;
+  }, [strategyTopicsData?.data]);
+
+  const enrichedBubbleData = React.useMemo<ThemeRow[]>(() => {
+    if (topicMetricsByName.size === 0) return filteredData;
+
+    return filteredData.map((theme) => {
+      const enrichedTopics = (theme.topics ?? []).map((topic) => {
+        const metrics = topicMetricsByName.get(normalizeTopicName(topic.topic_name));
+        if (!metrics) return topic;
+
+        return {
+          ...topic,
+          business_relevance_score: metrics.business_relevance_score,
+          topic_coverage: metrics.topic_coverage,
+        };
+      });
+
+      const coverageValues = enrichedTopics
+        .map((topic) => topic.topic_coverage)
+        .filter((value): value is number => typeof value === "number");
+      const relevanceValues = enrichedTopics
+        .map((topic) => topic.business_relevance_score)
+        .filter((value): value is number => typeof value === "number");
+
+      const averageCoverage =
+        coverageValues.length > 0
+          ? coverageValues.reduce((sum, value) => sum + value, 0) / coverageValues.length
+          : undefined;
+      const averageRelevance =
+        relevanceValues.length > 0
+          ? relevanceValues.reduce((sum, value) => sum + value, 0) / relevanceValues.length
+          : undefined;
+
+      return {
+        ...theme,
+        business_relevance_score:
+          averageRelevance ?? theme.business_relevance_score,
+        topic_coverage: averageCoverage,
+        topics: enrichedTopics,
+      };
+    });
+  }, [filteredData, topicMetricsByName]);
 
   const totalThemes = allData.length;
   const filteredScatterPoints = React.useMemo(() => {
@@ -477,10 +557,21 @@ export function ThemesTableClient({
         </div>
         <div className="flex-1 min-h-0">
           {view === "bubble" ? (
-            <ThemesBubbleChart
-              data={filteredData}
-              selectedOffering={selectedOffering === "all" ? undefined : selectedOffering}
-            />
+            strategyTopicsLoading && !strategyTopicsData ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border bg-white">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <Typography variant="p" className="font-medium text-foreground">
+                  Loading topic metrics…
+                </Typography>
+              </div>
+            ) : strategyTopicsError ? (
+              <div className="flex h-full flex-col items-center justify-center gap-4 rounded-xl border bg-white">
+                <AlertCircle className="h-8 w-8 text-destructive" />
+                <p className="text-destructive font-medium">Failed to load topic metrics</p>
+              </div>
+            ) : (
+              <ThemesBubbleChart data={enrichedBubbleData} />
+            )
           ) : scatterLoading ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border bg-white">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />

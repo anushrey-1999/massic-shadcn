@@ -24,6 +24,7 @@ export function useThemes(businessId: string) {
       topic_count: item.topic_count,
       offerings: item.offerings || [],
       topics: item.topics || [],
+      business_relevance_score: item.business_relevance_score,
     }));
   }, []);
 

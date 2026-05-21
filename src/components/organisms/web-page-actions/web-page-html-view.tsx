@@ -545,7 +545,7 @@ export function WebPageHtmlView({
   const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
   const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | null>(null);
+  const [confirmPublishAction, setConfirmPublishAction] = React.useState<"draft" | "live" | "republish" | "update-draft" | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false);
   const [featuredImageAltText, setFeaturedImageAltText] = React.useState("");
   const [featuredImageUploadProgress, setFeaturedImageUploadProgress] = React.useState<number | null>(null);
@@ -1792,6 +1792,88 @@ export function WebPageHtmlView({
     setIsPublishModalOpen(false);
   }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, isPersistedDraftLike, lastPublishedData?.wpId, saveFeaturedImageAltText, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
 
+  const handleRepublish = React.useCallback(async () => {
+    if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
+    let result;
+    try {
+      await saveFeaturedImageAltText();
+      result = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
+    } catch (error) {
+      const e = error as WordpressPublishError;
+      if (e?.code === "slug_conflict") {
+        const details = e?.details || {};
+        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
+        setSlugCheckResult({
+          slug: normalizedSlugForPublish,
+          publishUrl: publishUrlPreview || null,
+          exists: true,
+          sameMappedContent: false,
+          conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
+          suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          mappedToDifferentContent: false,
+          mappedContentId: null,
+        });
+        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        toast.error("Slug conflict: choose a unique slug");
+      }
+      return;
+    }
+    const published = result?.data;
+    if (!published) return;
+    setLastPublishedData((prev) => ({
+      ...prev,
+      contentId: published.contentId,
+      wpId: published.wpId,
+      permalink: published.permalink || null,
+      editUrl: published.editUrl || null,
+      status: published.status || "publish",
+      slug: published.slug || normalizedSlugForPublish || null,
+    }));
+    toast.success("Republished to WordPress");
+    void contentStatusQuery.refetch();
+  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, saveFeaturedImageAltText, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
+
+  const handleUpdateDraft = React.useCallback(async () => {
+    if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
+    let result;
+    try {
+      await saveFeaturedImageAltText();
+      result = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
+    } catch (error) {
+      const e = error as WordpressPublishError;
+      if (e?.code === "slug_conflict") {
+        const details = e?.details || {};
+        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
+        setSlugCheckResult({
+          slug: normalizedSlugForPublish,
+          publishUrl: publishUrlPreview || null,
+          exists: true,
+          sameMappedContent: false,
+          conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
+          suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          mappedToDifferentContent: false,
+          mappedContentId: null,
+        });
+        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        toast.error("Slug conflict: choose a unique slug");
+      }
+      return;
+    }
+    const published = result?.data;
+    if (!published) return;
+    setLastPublishedData((prev) => ({
+      ...prev,
+      contentId: published.contentId,
+      wpId: published.wpId,
+      permalink: published.permalink || null,
+      editUrl: published.editUrl || null,
+      status: published.status || "draft",
+      slug: published.slug || normalizedSlugForPublish || null,
+    }));
+    toast.success("Draft updated on WordPress");
+    void contentStatusQuery.refetch();
+  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, saveFeaturedImageAltText, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
+
   const handleOpenPreview = React.useCallback(async () => {
     const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
     if (!wpConnection?.connectionId || !wpIdToUse) {
@@ -1836,8 +1918,10 @@ export function WebPageHtmlView({
   const confirmAndRunPublishAction = React.useCallback(async () => {
     if (confirmPublishAction === "draft") await handlePublishDraft();
     else if (confirmPublishAction === "live") await handlePublishLive();
+    else if (confirmPublishAction === "republish") await handleRepublish();
+    else if (confirmPublishAction === "update-draft") await handleUpdateDraft();
     setConfirmPublishAction(null);
-  }, [confirmPublishAction, handlePublishDraft, handlePublishLive]);
+  }, [confirmPublishAction, handlePublishDraft, handlePublishLive, handleRepublish, handleUpdateDraft]);
 
   const autoResolveSlug = React.useCallback(async () => {
     if (!slugCheckResult?.suggestedSlug || isSlugActionBusy) return;
@@ -4725,15 +4809,19 @@ export function WebPageHtmlView({
             </div>
           )}
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button variant="outline" onClick={() => setIsPublishModalOpen(false)} disabled={isPublishBusy}>
-              Cancel
-            </Button>
             {isWpConnected ? (
               <>
                 {isPersistedLive ? (
                   <>
                     <Button variant="outline" onClick={() => handleChangeWordpressStatus("draft")} disabled={wpUnpublishMutation.isPending}>
                       {wpUnpublishMutation.isPending ? "Updating..." : "Move to Draft"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmPublishAction("republish")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || wpPublishMutation.isPending}
+                    >
+                      {wpPublishMutation.isPending || featuredImageBusy ? "Republishing..." : "Republish"}
                     </Button>
                     <Button onClick={() => liveUrl && openEmbeddedPreview(liveUrl, `Published WordPress ${contentLabel}`)} disabled={!liveUrl}>
                       View Live
@@ -4743,6 +4831,13 @@ export function WebPageHtmlView({
                   <>
                     <Button variant="destructive" onClick={() => setIsDeleteConfirmOpen(true)} disabled={wpUnpublishMutation.isPending}>
                       {wpUnpublishMutation.isPending ? "Deleting..." : "Delete"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmPublishAction("update-draft")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || wpPublishMutation.isPending}
+                    >
+                      {wpPublishMutation.isPending || featuredImageBusy ? "Updating..." : "Update Draft"}
                     </Button>
                     <Button variant="outline" onClick={handleOpenPreview} disabled={!persistedContent?.wpId || wpPreviewMutation.isPending}>
                       {wpPreviewMutation.isPending ? "Loading..." : "Preview Draft"}
@@ -4780,18 +4875,36 @@ export function WebPageHtmlView({
       <AlertDialog open={confirmPublishAction !== null} onOpenChange={(open) => !open && setConfirmPublishAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmPublishAction === "live" ? "Publish Live to WordPress?" : "Publish Draft to WordPress?"}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {confirmPublishAction === "live"
+                ? "Publish Live to WordPress?"
+                : confirmPublishAction === "republish"
+                  ? "Republish to WordPress?"
+                  : confirmPublishAction === "update-draft"
+                    ? "Update Draft on WordPress?"
+                    : "Publish Draft to WordPress?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmPublishAction === "live"
                 ? `This will update the live WordPress content at ${publishUrlPreview || "the selected route"}.`
-                : `This will create or update the WordPress draft at ${publishUrlPreview || "the selected route"}.`}
+                : confirmPublishAction === "republish"
+                  ? `This will push your latest content and images to the live post at ${publishUrlPreview || "the selected route"}.`
+                  : confirmPublishAction === "update-draft"
+                    ? `This will update the existing WordPress draft at ${publishUrlPreview || "the selected route"} with your latest content and images.`
+                    : `This will create or update the WordPress draft at ${publishUrlPreview || "the selected route"}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPublishBusy}>Cancel</AlertDialogCancel>
             <AlertDialogAction asChild>
               <Button onClick={() => void confirmAndRunPublishAction()} disabled={isPublishBusy}>
-                {confirmPublishAction === "live" ? "Confirm Publish Live" : "Confirm Publish Draft"}
+                {confirmPublishAction === "live"
+                  ? "Confirm Publish Live"
+                  : confirmPublishAction === "republish"
+                    ? "Confirm Republish"
+                    : confirmPublishAction === "update-draft"
+                      ? "Confirm Update Draft"
+                      : "Confirm Publish Draft"}
               </Button>
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -73,7 +73,9 @@ import {
 } from "@/hooks/use-wordpress-connector";
 import {
   type WordpressSlugConflictInfo,
+  WordpressPublishError,
   useWordpressPreviewLink,
+  useWordpressPublish,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 import {
@@ -171,7 +173,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [redirectPreviewOnFallback, setRedirectPreviewOnFallback] = React.useState(false);
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
   const [confirmPublishAction, setConfirmPublishAction] = React.useState<
-    "draft" | "live" | "webflow-draft" | "webflow-live" | "webflow-staging-preview" | null
+    "draft" | "live" | "webflow-draft" | "webflow-live" | "webflow-staging-preview" | "republish" | "update-draft" | null
   >(null);
   const [webflowStagingPreview, setWebflowStagingPreview] = React.useState<{
     contentId: string;
@@ -224,6 +226,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const activeTarget = cmsChannel?.target || null;
   const isActiveWordpress = activePlatform === "wordpress" && Boolean(activeConnection);
   const isActiveWebflow = activePlatform === "webflow" && Boolean(activeConnection);
+  const wpConnection = isActiveWordpress ? activeConnection : null;
+  const isWpConnected = isActiveWordpress;
   const wpStyleProfileQuery = useWordpressStyleProfile(isActiveWordpress ? activeConnection?.connectionId || null : null);
   const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const cmsPublishMutation = useCmsPublish();
@@ -231,6 +235,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
+  const wpPublishMutation = useWordpressPublish();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const webflowDomains = cmsChannel?.domains || [];
   const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
@@ -1111,6 +1116,122 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     lastPublishedData?.wpId,
   ]);
 
+  const handleRepublish = React.useCallback(async () => {
+    if (!isActiveWordpress) return;
+    if (!hasFinalContent) return;
+
+    let publishResult;
+    try {
+      publishResult = await cmsPublishMutation.mutateAsync(buildPublishPayload("publish"));
+    } catch (error) {
+      const publishError = error as CmsPublishError;
+      if (publishError?.code === "slug_conflict") {
+        const details = publishError?.details || {};
+        const conflictReason =
+          typeof details?.reason === "string"
+            ? details.reason
+            : ((details?.conflict as WordpressSlugConflictInfo | null)?.reason || null);
+        const conflictMessage = conflictReason === "parent_type_conflict"
+          ? "This nested page path is blocked because a parent segment already belongs to non-page content."
+          : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
+        setSlugCheckResult({
+          slug: normalizedSlugForPublish,
+          publishUrl: publishUrlPreview || null,
+          exists: true,
+          sameMappedContent: false,
+          conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
+          suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          mappedToDifferentContent: false,
+          mappedContentId: null,
+        });
+        setSlugCheckError(conflictMessage);
+        toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+      }
+      return;
+    }
+
+    const published = publishResult?.data;
+    if (!published) return;
+    setLastPublishedData((prev) => ({
+      contentId: published.contentId,
+      wpId: Number(published.wpId || 0),
+      permalink: published.permalink || null,
+      editUrl: published.editUrl || null,
+      status: published.status || "publish",
+      slug: published.slug || normalizedSlugForPublish || null,
+      previewUrl: prev?.previewUrl,
+    }));
+
+    toast.success("Republished to WordPress");
+    void contentStatusQuery.refetch();
+  }, [
+    buildPublishPayload,
+    cmsPublishMutation,
+    contentStatusQuery,
+    hasFinalContent,
+    isActiveWordpress,
+    normalizedSlugForPublish,
+    publishUrlPreview,
+  ]);
+
+  const handleUpdateDraft = React.useCallback(async () => {
+    if (!isActiveWordpress) return;
+    if (!hasFinalContent) return;
+
+    let publishResult;
+    try {
+      publishResult = await cmsPublishMutation.mutateAsync(buildPublishPayload("draft"));
+    } catch (error) {
+      const publishError = error as CmsPublishError;
+      if (publishError?.code === "slug_conflict") {
+        const details = publishError?.details || {};
+        const conflictReason =
+          typeof details?.reason === "string"
+            ? details.reason
+            : ((details?.conflict as WordpressSlugConflictInfo | null)?.reason || null);
+        const conflictMessage = conflictReason === "parent_type_conflict"
+          ? "This nested page path is blocked because a parent segment already belongs to non-page content."
+          : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
+        setSlugCheckResult({
+          slug: normalizedSlugForPublish,
+          publishUrl: publishUrlPreview || null,
+          exists: true,
+          sameMappedContent: false,
+          conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
+          suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          mappedToDifferentContent: false,
+          mappedContentId: null,
+        });
+        setSlugCheckError(conflictMessage);
+        toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+      }
+      return;
+    }
+
+    const published = publishResult?.data;
+    if (!published) return;
+    setLastPublishedData((prev) => ({
+      contentId: published.contentId,
+      wpId: Number(published.wpId || 0),
+      permalink: published.permalink || null,
+      editUrl: published.editUrl || null,
+      status: published.status || "draft",
+      slug: published.slug || normalizedSlugForPublish || null,
+      previewUrl: prev?.previewUrl,
+    }));
+
+    toast.success("Draft updated on WordPress");
+    void contentStatusQuery.refetch();
+  }, [
+    buildPublishPayload,
+    cmsPublishMutation,
+    contentStatusQuery,
+    hasFinalContent,
+    isActiveWordpress,
+    normalizedSlugForPublish,
+    publishUrlPreview,
+  ]);
+
   const handleOpenPreview = React.useCallback(async () => {
     const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;
     if (!activeConnection?.connectionId || !wpIdToUse) {
@@ -1414,6 +1535,16 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       return;
     }
 
+    if (action === "republish") {
+      await handleRepublish();
+      return;
+    }
+
+    if (action === "update-draft") {
+      await handleUpdateDraft();
+      return;
+    }
+
     await handlePublishLive();
   }, [
     confirmPublishAction,
@@ -1422,6 +1553,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     handlePublishLive,
     handlePublishWebflowDraft,
     handlePublishWebflowLive,
+    handleRepublish,
+    handleUpdateDraft,
     hasInvalidBlogSlug,
     normalizedEditableSlug,
     normalizedSlugForPublish,
@@ -2026,13 +2159,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           ) : null}
 
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsPublishModalOpen(false)}
-              disabled={isPublishBusy}
-            >
-              Cancel
-            </Button>
             {isActiveWordpress ? (
               <>
                 {isPersistedLive ? (
@@ -2043,6 +2169,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                       disabled={wpUnpublishMutation.isPending}
                     >
                       {wpUnpublishMutation.isPending ? "Updating..." : "Move to Draft"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmPublishAction("republish")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                    >
+                      {wpPublishMutation.isPending ? "Republishing..." : "Republish"}
                     </Button>
                     <Button
                       onClick={() => {
@@ -2063,6 +2196,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                       disabled={wpUnpublishMutation.isPending}
                     >
                       {wpUnpublishMutation.isPending ? "Deleting..." : "Delete"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmPublishAction("update-draft")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                    >
+                      {wpPublishMutation.isPending ? "Updating..." : "Update Draft"}
                     </Button>
                     <Button
                       variant="outline"
@@ -2220,7 +2360,11 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                       : "Publish to staging?"
                     : confirmPublishAction === "live"
                       ? "Publish Live to WordPress?"
-                      : "Publish Draft to WordPress?"}
+                      : confirmPublishAction === "republish"
+                        ? "Republish to WordPress?"
+                        : confirmPublishAction === "update-draft"
+                          ? "Update Draft on WordPress?"
+                          : "Publish Draft to WordPress?"}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
@@ -2237,6 +2381,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     />
                   ) : confirmPublishAction === "live" ? (
                     `This will update the live WordPress content at ${publishUrlPreview || "the selected route"}.`
+                  ) : confirmPublishAction === "republish" ? (
+                    `This will push your latest content and images to the live post at ${publishUrlPreview || "the selected route"}.`
+                  ) : confirmPublishAction === "update-draft" ? (
+                    `This will update the existing WordPress draft at ${publishUrlPreview || "the selected route"} with your latest content and images.`
                   ) : (
                     `This will create or update the WordPress draft at ${publishUrlPreview || "the selected route"}.`
                   )}
@@ -2265,11 +2413,15 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
               <Button onClick={confirmAndRunPublishAction} disabled={isPublishBusy}>
                 {confirmPublishAction === "live" || confirmPublishAction === "webflow-live"
                   ? "Confirm Publish Live"
-                  : confirmPublishAction === "webflow-staging-preview"
-                    ? hasWebflowStagingPreview
-                      ? "Confirm Republish"
-                      : "Confirm Publish to Staging"
-                    : "Confirm Publish Draft"}
+                  : confirmPublishAction === "republish"
+                    ? "Confirm Republish"
+                    : confirmPublishAction === "update-draft"
+                      ? "Confirm Update Draft"
+                      : confirmPublishAction === "webflow-staging-preview"
+                        ? hasWebflowStagingPreview
+                          ? "Confirm Republish"
+                          : "Confirm Publish to Staging"
+                        : "Confirm Publish Draft"}
               </Button>
             </AlertDialogAction>
           </AlertDialogFooter>

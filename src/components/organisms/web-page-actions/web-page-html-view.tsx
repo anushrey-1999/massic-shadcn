@@ -143,7 +143,9 @@ import { buildStyledMassicHtml, getMassicBlogCssText, getMassicCssText } from "@
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 import {
   type WordpressSlugConflictInfo,
+  WordpressPublishError,
   useWordpressPreviewLink,
+  useWordpressPublish,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 import {
@@ -626,6 +628,7 @@ export function WebPageHtmlView({
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
+  const wpPublishMutation = useWordpressPublish();
   const wpStyleProfileQuery = useWordpressStyleProfile(isActiveWordpress ? activeConnection?.connectionId || null : null);
   const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
@@ -2263,13 +2266,13 @@ export function WebPageHtmlView({
   }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
 
   const handleRepublish = React.useCallback(async () => {
-    if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
+    if (!isActiveWordpress || !hasFinalContent) return;
     let result;
     try {
       await saveFeaturedImageAltText();
-      result = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
+      result = await cmsPublishMutation.mutateAsync(buildPublishPayload("publish"));
     } catch (error) {
-      const e = error as WordpressPublishError;
+      const e = error as CmsPublishError;
       if (e?.code === "slug_conflict") {
         const details = e?.details || {};
         const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
@@ -2293,7 +2296,7 @@ export function WebPageHtmlView({
     setLastPublishedData((prev) => ({
       ...prev,
       contentId: published.contentId,
-      wpId: published.wpId,
+      wpId: Number(published.wpId || 0),
       permalink: published.permalink || null,
       editUrl: published.editUrl || null,
       status: published.status || "publish",
@@ -2301,16 +2304,16 @@ export function WebPageHtmlView({
     }));
     toast.success("Republished to WordPress");
     void contentStatusQuery.refetch();
-  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, saveFeaturedImageAltText, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
+  }, [buildPublishPayload, cmsPublishMutation, contentStatusQuery, hasFinalContent, isActiveWordpress, saveFeaturedImageAltText, normalizedSlugForPublish, publishUrlPreview]);
 
   const handleUpdateDraft = React.useCallback(async () => {
-    if (!isWpConnected || !wpConnection?.connectionId || !hasFinalContent) return;
+    if (!isActiveWordpress || !hasFinalContent) return;
     let result;
     try {
       await saveFeaturedImageAltText();
-      result = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
+      result = await cmsPublishMutation.mutateAsync(buildPublishPayload("draft"));
     } catch (error) {
-      const e = error as WordpressPublishError;
+      const e = error as CmsPublishError;
       if (e?.code === "slug_conflict") {
         const details = e?.details || {};
         const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
@@ -2334,7 +2337,7 @@ export function WebPageHtmlView({
     setLastPublishedData((prev) => ({
       ...prev,
       contentId: published.contentId,
-      wpId: published.wpId,
+      wpId: Number(published.wpId || 0),
       permalink: published.permalink || null,
       editUrl: published.editUrl || null,
       status: published.status || "draft",
@@ -2342,7 +2345,7 @@ export function WebPageHtmlView({
     }));
     toast.success("Draft updated on WordPress");
     void contentStatusQuery.refetch();
-  }, [buildPublishPayload, contentStatusQuery, hasFinalContent, isWpConnected, saveFeaturedImageAltText, wpConnection?.connectionId, wpPublishMutation, normalizedSlugForPublish, publishUrlPreview]);
+  }, [buildPublishPayload, cmsPublishMutation, contentStatusQuery, hasFinalContent, isActiveWordpress, saveFeaturedImageAltText, normalizedSlugForPublish, publishUrlPreview]);
 
   const handleOpenPreview = React.useCallback(async () => {
     const wpIdToUse = persistedContent?.wpId || lastPublishedData?.wpId;

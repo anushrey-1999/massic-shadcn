@@ -73,7 +73,9 @@ import {
 } from "@/hooks/use-wordpress-connector";
 import {
   type WordpressSlugConflictInfo,
+  WordpressPublishError,
   useWordpressPreviewLink,
+  useWordpressPublish,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 import {
@@ -233,6 +235,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
+  const wpPublishMutation = useWordpressPublish();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const webflowDomains = cmsChannel?.domains || [];
   const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
@@ -1114,14 +1117,14 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   ]);
 
   const handleRepublish = React.useCallback(async () => {
-    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!isActiveWordpress) return;
     if (!hasFinalContent) return;
 
     let publishResult;
     try {
-      publishResult = await wpPublishMutation.mutateAsync(buildPublishPayload("publish"));
+      publishResult = await cmsPublishMutation.mutateAsync(buildPublishPayload("publish"));
     } catch (error) {
-      const publishError = error as WordpressPublishError;
+      const publishError = error as CmsPublishError;
       if (publishError?.code === "slug_conflict") {
         const details = publishError?.details || {};
         const conflictReason =
@@ -1151,7 +1154,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     if (!published) return;
     setLastPublishedData((prev) => ({
       contentId: published.contentId,
-      wpId: published.wpId,
+      wpId: Number(published.wpId || 0),
       permalink: published.permalink || null,
       editUrl: published.editUrl || null,
       status: published.status || "publish",
@@ -1163,24 +1166,23 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     void contentStatusQuery.refetch();
   }, [
     buildPublishPayload,
+    cmsPublishMutation,
     contentStatusQuery,
     hasFinalContent,
-    isWpConnected,
+    isActiveWordpress,
     normalizedSlugForPublish,
     publishUrlPreview,
-    wpConnection?.connectionId,
-    wpPublishMutation,
   ]);
 
   const handleUpdateDraft = React.useCallback(async () => {
-    if (!isWpConnected || !wpConnection?.connectionId) return;
+    if (!isActiveWordpress) return;
     if (!hasFinalContent) return;
 
     let publishResult;
     try {
-      publishResult = await wpPublishMutation.mutateAsync(buildPublishPayload("draft"));
+      publishResult = await cmsPublishMutation.mutateAsync(buildPublishPayload("draft"));
     } catch (error) {
-      const publishError = error as WordpressPublishError;
+      const publishError = error as CmsPublishError;
       if (publishError?.code === "slug_conflict") {
         const details = publishError?.details || {};
         const conflictReason =
@@ -1210,7 +1212,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     if (!published) return;
     setLastPublishedData((prev) => ({
       contentId: published.contentId,
-      wpId: published.wpId,
+      wpId: Number(published.wpId || 0),
       permalink: published.permalink || null,
       editUrl: published.editUrl || null,
       status: published.status || "draft",
@@ -1222,13 +1224,12 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     void contentStatusQuery.refetch();
   }, [
     buildPublishPayload,
+    cmsPublishMutation,
     contentStatusQuery,
     hasFinalContent,
-    isWpConnected,
+    isActiveWordpress,
     normalizedSlugForPublish,
     publishUrlPreview,
-    wpConnection?.connectionId,
-    wpPublishMutation,
   ]);
 
   const handleOpenPreview = React.useCallback(async () => {

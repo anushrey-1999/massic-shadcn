@@ -2,6 +2,14 @@ import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "./use-api"
 
+export type AnomalyTier = "anomaly" | "candidate" | "normal"
+export type BaselineStatus = "FULL" | "PARTIAL" | "NONE"
+
+export interface HeadlineReel {
+  text: string
+  direction: "up" | "down" | "flat" | "neutral"
+}
+
 export interface TrafficContributor {
   level: string
   key: string
@@ -38,8 +46,6 @@ export interface TrafficActions {
   monitoring: string[]
 }
 
-export type AnomalyTier = "anomaly" | "candidate" | "normal"
-
 export interface DailyPeak {
   date: string
   actual: number
@@ -59,8 +65,19 @@ export interface TrafficData {
   entity_name?: string
   tier?: AnomalyTier
   tracking_quality?: "stable" | "uncertain"
+  baseline_status?: BaselineStatus
+  history_days?: number
+  obs_start_date?: string
+  obs_end_date?: string
   window?: { start: string; end: string }
-  baseline?: { start: string; end: string; method: string }
+  baseline?: {
+    start: string
+    end: string
+    method: string
+    status?: BaselineStatus
+    history_days?: number
+    anomalous_comparison_period?: boolean
+  }
   detection?: {
     tier?: AnomalyTier
     expected: number
@@ -85,6 +102,8 @@ export interface TrafficData {
   message?: string
   narrative: {
     headline: string
+    headline_reels?: HeadlineReel[]
+    bottom_line?: string
     summary_bullets: string[]
     primary_diagnosis: TrafficDiagnosis | null
     contributing_diagnoses: TrafficDiagnosis[]
@@ -113,6 +132,8 @@ interface UseTrafficAnalysisReturn {
   hasAnomaly: boolean
   refetch: () => Promise<void>
 }
+
+export type { HeadlineReel as TrafficHeadlineReel }
 
 export function useTrafficAnalysis(
   businessId: string | null,
@@ -147,12 +168,11 @@ export function useTrafficAnalysis(
     gcTime: 10 * 60 * 1000,
   })
 
-  // Treat 'normal' tier as data-present-but-not-an-anomaly so the alert badge
-  // does not light up but the sheet can still render "within normal range" copy.
+  // CHANGE 13: Badge fires only for tier === 'anomaly'. Candidate and normal
+  // tiers do not increment the alert count (hidden entirely per PRD).
   const hasAnomaly = useMemo(() => {
     const tier = data?.trafficData?.tier || data?.trafficData?.detection?.tier
-    if (tier === "normal") return false
-    return data?.trafficData !== null && !!data?.trafficData?.anomaly_id
+    return tier === "anomaly"
   }, [data])
 
   return {

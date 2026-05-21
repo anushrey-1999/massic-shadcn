@@ -16,11 +16,12 @@ import {
   Sparkles,
   Lightbulb,
   ArrowRight,
-  Activity,
   Zap,
   Clock,
   Eye,
   BarChart3,
+  Info,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -35,7 +36,7 @@ import { Typography } from "@/components/ui/typography";
 import { AlertDateSelector } from "./AlertDateSelector";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
-import type { GoalData, GoalContributor, Diagnosis, DailyPeak, AnomalyTier } from "@/hooks/use-goal-analysis";
+import type { GoalData, GoalContributor, Diagnosis, DailyPeak, AnomalyTier, HeadlineReel, Win, BaselineStatus } from "@/hooks/use-goal-analysis";
 import type { TrafficData, TrafficContributor } from "@/hooks/use-traffic-analysis";
 
 interface AnomaliesSheetProps {
@@ -50,42 +51,23 @@ interface AnomaliesSheetProps {
   defaultIsLoadingTraffic: boolean;
   businessId: string | null;
   businessName: string;
+  goalRawState?: string | null;
+  obsStartDate?: string | null;
+  obsEndDate?: string | null;
 }
 
 type TrackingQuality = "stable" | "uncertain";
 type Direction = "up" | "down";
 
-const severityLabel = (severity: string) =>
-  severity ? severity.charAt(0).toUpperCase() + severity.slice(1) : "Notice";
-
+// CHANGE 12: severity is retained in API but never rendered; getAnomalyConfig
+// no longer emits a severity badge — only sentimentLabel and the delta chip.
 const getAnomalyConfig = (
   direction: Direction,
-  severity: string,
   trackingQuality: TrackingQuality = "stable",
-  tier: AnomalyTier = "anomaly"
 ) => {
-  // Candidate tier renders in muted grey with a "Worth watching" sentiment so
-  // the user always gets context even when movement is below the hard anomaly
-  // threshold.
-  if (tier === "candidate") {
-    return {
-      icon: AlertCircle,
-      label: severityLabel(severity),
-      sentimentLabel: "Worth watching",
-      borderColor: "border-l-slate-300",
-      badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
-      iconColor: "text-slate-500",
-      textColor: "text-slate-700",
-      bgColor: "bg-slate-100",
-      cardClass: "bg-slate-50/50",
-      note: "Small change this week — worth keeping an eye on.",
-    };
-  }
-
   if (direction === "up") {
     return {
       icon: trackingQuality === "uncertain" ? AlertTriangle : CheckCircle,
-      label: severityLabel(severity),
       sentimentLabel: trackingQuality === "uncertain" ? "Positive, verify" : "Positive",
       borderColor: "border-l-emerald-500",
       badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -99,7 +81,6 @@ const getAnomalyConfig = (
 
   return {
     icon: AlertCircle,
-    label: severityLabel(severity),
     sentimentLabel: "Needs attention",
     borderColor: "border-l-slate-400",
     badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
@@ -110,6 +91,100 @@ const getAnomalyConfig = (
     note: null,
   };
 };
+
+/** CHANGE 02: Render headline reels with per-chunk direction colour. */
+function HeadlineReels({ reels, fallback }: { reels?: HeadlineReel[]; fallback?: string }) {
+  if (!reels || reels.length === 0) {
+    return <span className="text-sm font-semibold text-foreground leading-tight">{fallback || ""}</span>;
+  }
+  const colorMap: Record<string, string> = {
+    up: "text-emerald-700",
+    down: "text-slate-700",
+    flat: "text-slate-500",
+    neutral: "text-foreground",
+  };
+  return (
+    <span className="text-sm font-semibold leading-tight flex flex-wrap gap-x-1">
+      {reels.map((reel, idx) => (
+        <span key={idx} className={colorMap[reel.direction] || "text-foreground"}>
+          {idx > 0 && <span className="text-muted-foreground/50 mr-1">·</span>}
+          {reel.text}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** CHANGE 05 & 06: ChannelBlock — coloured contributor row with stat chips. */
+interface ChannelBlockProps {
+  channelName: string;
+  classification?: string;
+  anchorDelta: number;
+  anchorUnit: "conversions" | "clicks";
+  baseSessions?: number;
+  obsGoals?: number;
+  baseSessions2?: number;
+  isOrganic?: boolean;
+}
+
+function ChannelBlock({
+  channelName,
+  classification,
+  anchorDelta,
+  anchorUnit,
+  isOrganic = false,
+}: ChannelBlockProps) {
+  const isPositive = anchorDelta >= 0;
+  const blockBg = isPositive ? "bg-[#F0FDFA] border-[#9FE1CB]" : "bg-[#FEF2F2] border-[#F7C1C1]";
+  const accentBar = isPositive ? "bg-emerald-400" : "bg-red-400";
+  const deltaColor = isPositive ? "text-emerald-700" : "text-red-700";
+  const sign = isPositive ? "+" : "";
+  const suffix = isPositive ? "gained" : "lost";
+
+  return (
+    <div className={cn("flex min-w-0 gap-0 rounded-lg border overflow-hidden", blockBg)}>
+      <div className={cn("w-1 shrink-0", accentBar)} />
+      <div className="flex-1 min-w-0 px-2.5 py-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-foreground line-clamp-1">{channelName}</p>
+            {classification && (
+              <p className="text-[11px] text-muted-foreground">{classification}</p>
+            )}
+          </div>
+          <span className={cn("shrink-0 text-xs font-semibold tabular-nums", deltaColor)}>
+            {sign}{Math.abs(Math.round(anchorDelta)).toLocaleString()} {anchorUnit} {suffix}
+          </span>
+        </div>
+        {/* Stat chips are rendered inline with the delta info above for compactness */}
+        {isOrganic && (
+          <p className="mt-1 text-[10px] text-muted-foreground">Organic channel</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** CHANGE 07 / NEW 02: Amber notice bar for anomalous baseline or partial history. */
+function AmberNoticeBar({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+      <p className="text-[11px] text-amber-700 leading-snug">{message}</p>
+    </div>
+  );
+}
+
+/** NEW 02: Partial baseline amber chip shown on anomaly cards. */
+function PartialBaselineChip({ historyDays }: { historyDays: number }) {
+  const weeks = Math.floor(historyDays / 7);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+      <Info className="h-3 w-3" />
+      Limited history ({weeks} {weeks === 1 ? "week" : "weeks"})
+    </span>
+  );
+}
 
 function formatPeakDate(dateStr: string) {
   try {
@@ -344,10 +419,11 @@ interface GoalCardProps {
 }
 
 function GoalCard({ goal, onClick }: GoalCardProps) {
-  const config = getAnomalyConfig(goal.direction, goal.impactSeverity, goal.trackingQuality, goal.tier);
+  const config = getAnomalyConfig(goal.direction, goal.trackingQuality);
   const Icon = config.icon;
   const isNegative = goal.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
+  const isPartial = goal.baselineStatus === "PARTIAL";
 
   return (
     <button
@@ -361,16 +437,8 @@ function GoalCard({ goal, onClick }: GoalCardProps) {
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-2">
+          {/* CHANGE 12: severity badge removed; sentimentLabel + delta chip retained */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-[10px] font-medium px-1.5 py-0",
-                config.badgeClass
-              )}
-            >
-              {config.label} impact
-            </Badge>
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
               {config.sentimentLabel}
             </Badge>
@@ -383,20 +451,21 @@ function GoalCard({ goal, onClick }: GoalCardProps) {
               <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
               <span className={config.iconColor}>{goal.percentage}</span>
             </div>
+            {/* NEW 02: Partial baseline chip */}
+            {isPartial && <PartialBaselineChip historyDays={goal.historyDays} />}
           </div>
 
           <h3 className="break-words text-sm font-semibold text-foreground line-clamp-1">
             {goal.title}
           </h3>
 
-          <p className="break-words text-xs leading-snug line-clamp-2 text-muted-foreground">
-            {goal.primaryCause}
-          </p>
+          {/* CHANGE 02: Headline reels */}
+          <HeadlineReels reels={goal.headlineReels} fallback={goal.primaryCause} />
           <DailyPeakChips peaks={goal.dailyPeaks} unit="conversions" />
           {config.note && (
             <p className={cn(
               "text-[11px] font-medium flex items-center gap-1",
-              goal.tier === "candidate" ? "text-slate-600" : "text-emerald-700"
+              "text-emerald-700"
             )}>
               <Icon className="h-3 w-3" />
               {config.note}
@@ -416,12 +485,13 @@ interface GoalDetailViewProps {
 }
 
 function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
-  const config = getAnomalyConfig(goal.direction, goal.impactSeverity, goal.trackingQuality, goal.tier);
+  const config = getAnomalyConfig(goal.direction, goal.trackingQuality);
   const Icon = config.icon;
   const isNegative = goal.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
   const diagnosesToRender = compactDiagnoses(goal.primaryDiagnosis, goal.contributingDiagnoses, goal.diagnoses);
   const topContributors = collapseDisplayContributors(goal.topContributors).slice(0, 10);
+  const isPartial = goal.baselineStatus === "PARTIAL";
 
   return (
     <div className="min-w-0 space-y-4 pb-6">
@@ -444,16 +514,8 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
               "border"
             )}
           >
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-[10px] font-medium px-1.5 py-0.5",
-                  config.badgeClass
-                )}
-              >
-                {config.label} impact
-              </Badge>
+            {/* CHANGE 12: Severity badge removed */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
                 {config.sentimentLabel}
               </Badge>
@@ -466,20 +528,21 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
                 <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
                 <span className={config.iconColor}>{goal.percentage}</span>
               </div>
+              {/* NEW 02: Partial baseline chip in detail view */}
+              {isPartial && <PartialBaselineChip historyDays={goal.historyDays} />}
             </div>
 
             <h2 className="break-words text-sm font-bold text-foreground leading-tight mb-2">
               {goal.title}
             </h2>
 
-            <p className="break-words text-xs leading-relaxed text-muted-foreground">
-              {goal.primaryCause}
-            </p>
+            {/* CHANGE 02: Headline reels in detail view */}
+            <HeadlineReels reels={goal.headlineReels} fallback={goal.primaryCause} />
             <DailyPeakChips peaks={goal.dailyPeaks} unit="conversions" />
             {config.note && (
               <p className={cn(
                 "mt-2 text-[11px] font-medium flex items-center gap-1",
-                goal.tier === "candidate" ? "text-slate-600" : "text-emerald-700"
+                "text-emerald-700"
               )}>
                 <Icon className="h-3 w-3" />
                 {config.note}
@@ -487,6 +550,34 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
             )}
           </div>
         </div>
+
+        {/* CHANGE 07: Amber notice bar when baseline comparison period was anomalous */}
+        {goal.anomalousComparisonPeriod && (
+          <AmberNoticeBar message="Prior period was unusually high/low — this anomaly score may be inflated." />
+        )}
+
+        {/* NEW 02: Partial baseline notice bar */}
+        {isPartial && (
+          <AmberNoticeBar message={`Analysis based on ${Math.floor(goal.historyDays / 7)} weeks of history — results may be less reliable than usual.`} />
+        )}
+
+        {/* CHANGE 03: Wins bar for positive anomalies */}
+        {goal.wins && goal.wins.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+              <Trophy className="h-3 w-3 text-emerald-500" />
+              Wins This Week
+            </h3>
+            <div className="space-y-1.5">
+              {goal.wins.map((win, idx) => (
+                <div key={idx} className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-2.5 py-2">
+                  <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-emerald-700 leading-snug">{win.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {goal.summaryBullets && goal.summaryBullets.length > 0 && (
           <div>
@@ -573,23 +664,21 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
               <BarChart3 className="h-3 w-3 text-primary" />
               Top Contributors
             </h3>
+            {/* CHANGE 04: bottom_line context phrase */}
+            {goal.bottomLine && (
+              <p className="mb-2 text-[11px] text-muted-foreground leading-snug">{goal.bottomLine}</p>
+            )}
             <div className="space-y-1.5">
               {topContributors.map((contributor, idx) => (
-                <div key={`${idx}-${contributor.key || contributor.page || ""}`} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="break-words text-xs font-medium text-foreground line-clamp-1">
-                        {contributor.key || contributor.page || "Unknown contributor"}
-                      </p>
-                      {contributor.classification && (
-                        <p className="break-words text-[11px] text-muted-foreground">{contributor.classification}</p>
-                      )}
-                    </div>
-                    <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
-                      {formatImpact(contributor.delta_conversions, "conversions")}
-                    </Badge>
-                  </div>
-                </div>
+                /* CHANGE 05: ChannelBlock with green/red colouring */
+                <ChannelBlock
+                  key={`${idx}-${contributor.key || contributor.page || ""}`}
+                  channelName={contributor.key || contributor.page || "Unknown contributor"}
+                  classification={contributor.classification}
+                  anchorDelta={contributor.delta_conversions ?? 0}
+                  anchorUnit="conversions"
+                  isOrganic={(contributor.key || "").toLowerCase().includes("organic")}
+                />
               ))}
             </div>
           </div>
@@ -604,17 +693,16 @@ interface TrafficCardProps {
 }
 
 function TrafficCard({ traffic, onClick }: TrafficCardProps) {
-  const tier = (traffic.tier || traffic.detection?.tier || "anomaly") as AnomalyTier;
   const config = getAnomalyConfig(
     traffic.direction,
-    traffic.severity || "medium",
     traffic.tracking_quality || "stable",
-    tier
   );
   const Icon = config.icon;
   const isNegative = traffic.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
   const dailyPeaks = (traffic.detection?.daily_peaks || []) as DailyPeak[];
+  const isPartial = (traffic.baseline_status || traffic.baseline?.status) === "PARTIAL";
+  const historyDays = traffic.history_days || traffic.baseline?.history_days || 0;
 
   return (
     <button
@@ -628,16 +716,8 @@ function TrafficCard({ traffic, onClick }: TrafficCardProps) {
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-2">
+          {/* CHANGE 12: severity badge removed */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-[10px] font-medium px-1.5 py-0",
-                config.badgeClass
-              )}
-            >
-              {config.label} impact
-            </Badge>
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
               {config.sentimentLabel}
             </Badge>
@@ -653,16 +733,17 @@ function TrafficCard({ traffic, onClick }: TrafficCardProps) {
                 {formatPercent(traffic.delta_pct)}
               </span>
             </div>
+            {/* NEW 02: Partial baseline chip */}
+            {isPartial && <PartialBaselineChip historyDays={historyDays} />}
           </div>
 
-          <h3 className="break-words text-sm font-semibold text-foreground line-clamp-2 leading-tight">
-            {traffic.narrative?.headline || "Traffic Anomaly"}
-          </h3>
+          {/* CHANGE 02: Headline reels for traffic */}
+          <HeadlineReels reels={traffic.narrative?.headline_reels} fallback={traffic.narrative?.headline || "Traffic Anomaly"} />
           <DailyPeakChips peaks={dailyPeaks} unit="clicks" />
           {config.note && (
             <p className={cn(
               "text-[11px] font-medium flex items-center gap-1",
-              tier === "candidate" ? "text-slate-600" : "text-emerald-700"
+              "text-emerald-700"
             )}>
               <Icon className="h-3 w-3" />
               {config.note}
@@ -682,16 +763,16 @@ interface TrafficDetailViewProps {
 }
 
 function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
-  const tier = (traffic.tier || traffic.detection?.tier || "anomaly") as AnomalyTier;
   const config = getAnomalyConfig(
     traffic.direction,
-    traffic.severity || "medium",
     traffic.tracking_quality || "stable",
-    tier
   );
   const Icon = config.icon;
   const isNegative = traffic.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
+  const isPartial = (traffic.baseline_status || traffic.baseline?.status) === "PARTIAL";
+  const historyDays = traffic.history_days || traffic.baseline?.history_days || 0;
+  const anomalousComparisonPeriod = traffic.baseline?.anomalous_comparison_period ?? false;
   const dailyPeaks = (traffic.detection?.daily_peaks || []) as DailyPeak[];
   const diagnosesToRender = compactDiagnoses(
     traffic.narrative?.primary_diagnosis,
@@ -740,16 +821,8 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               "border"
             )}
           >
+            {/* CHANGE 12: Severity badge removed */}
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-[10px] font-medium px-1.5 py-0.5",
-                  config.badgeClass
-                )}
-              >
-                {config.label} impact
-              </Badge>
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
                 {config.sentimentLabel}
               </Badge>
@@ -765,16 +838,17 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                   {formatPercent(traffic.delta_pct)}
                 </span>
               </div>
+              {/* NEW 02: Partial baseline chip in detail */}
+              {isPartial && <PartialBaselineChip historyDays={historyDays} />}
             </div>
 
-            <h2 className="break-words text-sm font-bold text-foreground leading-tight">
-              {traffic.narrative?.headline || "Traffic Anomaly"}
-            </h2>
+            {/* CHANGE 02: Headline reels */}
+            <HeadlineReels reels={traffic.narrative?.headline_reels} fallback={traffic.narrative?.headline || "Traffic Anomaly"} />
             <DailyPeakChips peaks={dailyPeaks} unit="clicks" />
             {config.note && (
               <p className={cn(
                 "mt-2 text-[11px] font-medium flex items-center gap-1",
-                tier === "candidate" ? "text-slate-600" : "text-emerald-700"
+                "text-emerald-700"
               )}>
                 <Icon className="h-3 w-3" />
                 {config.note}
@@ -782,6 +856,21 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
             )}
           </div>
         </div>
+
+        {/* CHANGE 07: Amber notice bar when baseline comparison period was anomalous */}
+        {anomalousComparisonPeriod && (
+          <AmberNoticeBar message="Prior period was unusually high/low — this anomaly score may be inflated." />
+        )}
+
+        {/* NEW 02: Partial baseline notice bar */}
+        {isPartial && (
+          <AmberNoticeBar message={`Analysis based on ${Math.floor(historyDays / 7)} weeks of history — results may be less reliable than usual.`} />
+        )}
+
+        {/* CHANGE 04: bottom_line context phrase */}
+        {traffic.narrative?.bottom_line && (
+          <p className="text-[11px] text-muted-foreground leading-snug">{traffic.narrative.bottom_line}</p>
+        )}
 
         {trafficInsights.length > 0 && (
             <div>
@@ -882,23 +971,17 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               <h3 className="text-xs font-semibold text-foreground mb-2">
                 Top Pages
               </h3>
+              {/* CHANGE 05: ChannelBlock with green/red colouring for pages */}
               <div className="space-y-1.5">
                 {topContributors.map((contributor, idx) => (
-                  <div key={idx} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
-                    <div className="flex min-w-0 items-start justify-between gap-3 mb-1">
-                      <p className="min-w-0 break-words text-xs font-medium text-foreground flex-1 leading-tight line-clamp-1">
-                        {contributor.key}
-                      </p>
-                      <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
-                        {formatImpact(contributor.delta_clicks, "clicks")}
-                      </Badge>
-                    </div>
-                    {contributor.classification && (
-                      <p className="break-words text-[11px] text-muted-foreground leading-snug line-clamp-2">
-                        {contributor.classification}
-                      </p>
-                    )}
-                  </div>
+                  <ChannelBlock
+                    key={idx}
+                    channelName={contributor.key || "Unknown page"}
+                    classification={contributor.classification}
+                    anchorDelta={contributor.delta_clicks ?? 0}
+                    anchorUnit="clicks"
+                    isOrganic={true}
+                  />
                 ))}
               </div>
             </div>
@@ -910,29 +993,16 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               Top Queries
             </h3>
             <div className="space-y-1.5">
+              {/* CHANGE 05: ChannelBlock for queries */}
               {topQueries.map((contributor, idx) => (
-                <div key={`${contributor.key}-${idx}`} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-2.5">
-                  <div className="flex min-w-0 items-start justify-between gap-3 mb-1">
-                    <div className="min-w-0 flex-1">
-                      <p className="min-w-0 break-words text-xs font-medium text-foreground leading-tight line-clamp-1">
-                        {contributor.key}
-                      </p>
-                      {contributor.parent_key && (
-                        <p className="mt-0.5 break-words text-[11px] text-muted-foreground leading-snug line-clamp-1">
-                          {contributor.parent_key}
-                        </p>
-                      )}
-                    </div>
-                    <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
-                      {formatImpact(contributor.delta_clicks, "clicks")}
-                    </Badge>
-                  </div>
-                  {contributor.classification && (
-                    <p className="break-words text-[11px] text-muted-foreground leading-snug line-clamp-2">
-                      {contributor.classification}
-                    </p>
-                  )}
-                </div>
+                <ChannelBlock
+                  key={`${contributor.key}-${idx}`}
+                  channelName={contributor.key || "Unknown query"}
+                  classification={contributor.classification}
+                  anchorDelta={contributor.delta_clicks ?? 0}
+                  anchorUnit="clicks"
+                  isOrganic={true}
+                />
               ))}
             </div>
           </div>
@@ -1031,6 +1101,9 @@ export function AnomaliesSheet({
   defaultIsLoadingTraffic,
   businessId,
   businessName,
+  goalRawState,
+  obsStartDate,
+  obsEndDate,
 }: AnomaliesSheetProps) {
   const [activeTab, setActiveTab] = React.useState<"goals" | "traffic">(
     "goals"
@@ -1044,9 +1117,7 @@ export function AnomaliesSheet({
 
   const {
     goalData: localGoalData,
-    criticalCount: localCriticalCount,
-    warningCount: localWarningCount,
-    positiveCount: localPositiveCount,
+    rawData: localRawGoalData,
     isLoading: localIsLoadingGoals,
   } = useGoalAnalysis(
     businessId,
@@ -1063,12 +1134,6 @@ export function AnomaliesSheet({
 
   const displayGoalData =
     localSelectedDate !== null ? localGoalData : defaultGoalData;
-  const displayCriticalCount =
-    localSelectedDate !== null ? localCriticalCount : defaultCriticalCount;
-  const displayWarningCount =
-    localSelectedDate !== null ? localWarningCount : defaultWarningCount;
-  const displayPositiveCount =
-    localSelectedDate !== null ? localPositiveCount : defaultPositiveCount;
   const displayIsLoadingGoals =
     localSelectedDate !== null ? localIsLoadingGoals : defaultIsLoadingGoals;
 
@@ -1079,10 +1144,34 @@ export function AnomaliesSheet({
       ? localIsLoadingTraffic
       : defaultIsLoadingTraffic;
 
-  const totalGoalCount =
-    displayCriticalCount + displayWarningCount + displayPositiveCount;
+  // CHANGE 13: Only tier === 'anomaly' cards are displayed and counted.
+  const anomalyOnlyGoalData = displayGoalData.filter((g) => g.tier === "anomaly");
+  const totalGoalCount = anomalyOnlyGoalData.length;
   const trafficTier = (displayTrafficData?.tier || displayTrafficData?.detection?.tier) as AnomalyTier | undefined;
-  const hasTrafficAlert = displayTrafficData !== null && trafficTier !== "normal";
+  // CHANGE 13: Traffic badge fires only for tier === 'anomaly' (candidate hidden entirely).
+  const hasTrafficAlert = displayTrafficData !== null && trafficTier === "anomaly";
+
+  // CHANGE 10/NEW 03: Determine the active goal raw state from local or default data.
+  const activeGoalRawState = localSelectedDate !== null
+    ? (localRawGoalData?.state ?? null)
+    : (goalRawState ?? null);
+
+  // CHANGE 09: Obs dates for zero-anomaly empty state message inside the sheet.
+  const activeObsStart = obsStartDate || displayGoalData[0]?.obsStartDate || displayTrafficData?.obs_start_date;
+  const activeObsEnd = obsEndDate || displayGoalData[0]?.obsEndDate || displayTrafficData?.obs_end_date;
+  const formatSheetDate = (dateStr: string | undefined, includeYear = false) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        ...(includeYear ? { year: "numeric" } : {}),
+      });
+    } catch {
+      return dateStr;
+    }
+  };
 
   const handleDateChange = (date: Date | null) => {
     setLocalDate(date);
@@ -1144,32 +1233,54 @@ export function AnomaliesSheet({
             <TabsList className="mt-4 h-auto w-full justify-start gap-2 bg-primary-foreground p-1 sm:w-1/2">
               <TabsTrigger
                 value="goals"
-                className="flex items-center gap-1.5 px-3 py-1.5"
+                className={cn("px-3 py-1.5", localSelectedDate ? "flex flex-col items-center gap-0" : "flex items-center gap-1.5")}
               >
-                <Target className="h-4 w-4" />
-                <span>Goals</span>
-                {totalGoalCount > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-0.5 text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-700 border-0"
-                  >
-                    {totalGoalCount}
-                  </Badge>
+                <div className="flex items-center gap-1.5">
+                  <Target className="h-4 w-4" />
+                  <span>Goals</span>
+                  {totalGoalCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-0.5 text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-700 border-0"
+                    >
+                      {totalGoalCount}
+                    </Badge>
+                  )}
+                </div>
+                {/* CHANGE 11: Reserve height for both tabs only while a date is selected */}
+                {localSelectedDate && (
+                  <span className={cn(
+                    "text-[9px] font-normal",
+                    activeTab !== "goals" ? "text-muted-foreground" : "invisible"
+                  )}>
+                    Showing default window
+                  </span>
                 )}
               </TabsTrigger>
               <TabsTrigger
                 value="traffic"
-                className="flex items-center gap-1.5 px-3 py-1.5"
+                className={cn("px-3 py-1.5", localSelectedDate ? "flex flex-col items-center gap-0" : "flex items-center gap-1.5")}
               >
-                <MousePointerClick className="h-4 w-4" />
-                <span>Traffic</span>
-                {hasTrafficAlert && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-0.5 text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-700 border-0"
-                  >
-                    1
-                  </Badge>
+                <div className="flex items-center gap-1.5">
+                  <MousePointerClick className="h-4 w-4" />
+                  <span>Traffic</span>
+                  {hasTrafficAlert && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-0.5 text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-700 border-0"
+                    >
+                      1
+                    </Badge>
+                  )}
+                </div>
+                {/* CHANGE 11: Reserve height for both tabs only while a date is selected */}
+                {localSelectedDate && (
+                  <span className={cn(
+                    "text-[9px] font-normal",
+                    activeTab !== "traffic" ? "text-muted-foreground" : "invisible"
+                  )}>
+                    Showing default window
+                  </span>
                 )}
               </TabsTrigger>
             </TabsList>
@@ -1194,9 +1305,44 @@ export function AnomaliesSheet({
                   goal={selectedGoal}
                   onBack={() => setSelectedGoal(null)}
                 />
-              ) : displayGoalData.length > 0 ? (
+              ) : activeGoalRawState === "insufficient_history" ? (
+                /* NEW 03: NONE baseline — Building-your-baseline empty state */
+                <div className="flex items-center justify-center py-16 px-4">
+                  <div className="text-center space-y-3 max-w-xs">
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
+                      <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">Building your baseline</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Anomaly detection needs at least 3 weeks of data. Check back soon.
+                    </p>
+                  </div>
+                </div>
+              ) : activeGoalRawState === "no_goal_tracking" ? (
+                /* CHANGE 10: Distinct no-goal-tracking empty state */
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                    <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-blue-700 leading-snug">
+                      Goal tracking not configured — showing organic traffic only
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center py-12 px-4">
+                    <div className="text-center space-y-3 max-w-xs">
+                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
+                        <Target className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">Goal tracking not configured</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        No GA4 key events or conversions are set up for this business. Once goal tracking is configured, anomaly detection will run automatically.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : anomalyOnlyGoalData.length > 0 ? (
+                /* CHANGE 13: Only tier === 'anomaly' cards shown */
                 <div className="min-w-0 space-y-2">
-                  {displayGoalData.map((goal) => (
+                  {anomalyOnlyGoalData.map((goal) => (
                     <GoalCard
                       key={goal.id}
                       goal={goal}
@@ -1205,16 +1351,19 @@ export function AnomaliesSheet({
                   ))}
                 </div>
               ) : (
+                /* CHANGE 13: Zero-anomaly empty state with obs dates */
                 <div className="flex items-center justify-center py-16 px-4">
                   <div className="text-center space-y-2 max-w-xs">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
-                      <Target className="h-5 w-5 text-muted-foreground" />
+                      <CheckCircle className="h-5 w-5 text-emerald-500" />
                     </div>
                     <p className="text-xs font-medium text-foreground">
-                      No goal anomalies
+                      No anomalies detected
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Select a different date range to analyze
+                      {activeObsStart && activeObsEnd
+                        ? `Nothing unusual detected for ${formatSheetDate(activeObsStart)} to ${formatSheetDate(activeObsEnd, true)}`
+                        : "Select a different date range to analyze"}
                     </p>
                   </div>
                 </div>
@@ -1234,41 +1383,28 @@ export function AnomaliesSheet({
                   traffic={displayTrafficData}
                   onBack={() => setShowTrafficDetail(false)}
                 />
-              ) : displayTrafficData ? (
-                (() => {
-                  const trafficTier = (displayTrafficData.tier || displayTrafficData.detection?.tier || "anomaly") as AnomalyTier;
-                  if (trafficTier === "normal") {
-                    return (
-                      <NormalTierRow
-                        title={displayTrafficData.entity_name || "Organic clicks"}
-                        actual={displayTrafficData.detection?.actual}
-                        expected={displayTrafficData.detection?.expected}
-                        deltaPct={displayTrafficData.detection?.delta_pct ?? displayTrafficData.delta_pct ?? 0}
-                        unit="clicks"
-                        peaks={displayTrafficData.detection?.daily_peaks}
-                      />
-                    );
-                  }
-                  return (
-                    <div className="min-w-0">
-                      <TrafficCard
-                        traffic={displayTrafficData}
-                        onClick={() => setShowTrafficDetail(true)}
-                      />
-                    </div>
-                  );
-                })()
+              ) : displayTrafficData && trafficTier === "anomaly" ? (
+                /* CHANGE 13: Only render TrafficCard for tier === 'anomaly' */
+                <div className="min-w-0">
+                  <TrafficCard
+                    traffic={displayTrafficData}
+                    onClick={() => setShowTrafficDetail(true)}
+                  />
+                </div>
               ) : (
+                /* CHANGE 13: candidate and normal tiers show zero-anomaly state; include obs dates */
                 <div className="flex items-center justify-center py-16 px-4">
                   <div className="text-center space-y-2 max-w-xs">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
-                      <Activity className="h-5 w-5 text-muted-foreground" />
+                      <CheckCircle className="h-5 w-5 text-emerald-500" />
                     </div>
                     <p className="text-xs font-medium text-foreground">
-                      No traffic anomalies
+                      No anomalies detected
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      Select a different date range to analyze
+                      {activeObsStart && activeObsEnd
+                        ? `Nothing unusual detected for ${formatSheetDate(activeObsStart)} to ${formatSheetDate(activeObsEnd, true)}`
+                        : "Select a different date range to analyze"}
                     </p>
                   </div>
                 </div>

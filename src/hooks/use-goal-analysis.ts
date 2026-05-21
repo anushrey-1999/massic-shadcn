@@ -3,6 +3,18 @@ import { useQuery } from "@tanstack/react-query"
 import { api } from "./use-api"
 
 export type AnomalyTier = "anomaly" | "candidate" | "normal"
+export type BaselineStatus = "FULL" | "PARTIAL" | "NONE"
+
+export interface HeadlineReel {
+  text: string
+  direction: "up" | "down" | "flat" | "neutral"
+}
+
+export interface Win {
+  type: "metric" | "channel" | "query"
+  text: string
+  delta: number
+}
 
 export interface DailyPeak {
   date: string
@@ -47,8 +59,11 @@ export interface GoalContributor {
 
 interface GoalNarrative {
   headline?: string
+  headline_reels?: HeadlineReel[]
   summary?: string
   summary_bullets?: string[]
+  wins?: Win[]
+  bottom_line?: string
   primary_diagnosis?: Diagnosis | null
   contributing_diagnoses?: Diagnosis[]
   diagnoses?: Diagnosis[]
@@ -64,7 +79,15 @@ export interface GoalData {
   impactSeverity: "high" | "medium" | "low"
   trackingQuality: "stable" | "uncertain"
   tier: AnomalyTier
+  baselineStatus: BaselineStatus
+  historyDays: number
+  obsStartDate?: string
+  obsEndDate?: string
+  anomalousComparisonPeriod: boolean
   primaryCause: string
+  headlineReels: HeadlineReel[]
+  wins: Win[]
+  bottomLine: string
   description: string
   summaryBullets: string[]
   diagnoses: Diagnosis[]
@@ -79,7 +102,13 @@ export interface GoalData {
 }
 
 export interface GoalAnalysisResponse {
-  state?: "no_goal_tracking"
+  state?: "no_goal_tracking" | "insufficient_history"
+  show_traffic_fallback?: boolean
+  baseline_status?: BaselineStatus
+  history_days?: number
+  baseline_weeks_available?: number
+  obs_start_date?: string
+  obs_end_date?: string
   message?: string
   anomalies?: Array<{
     anomaly_id?: string
@@ -90,6 +119,13 @@ export interface GoalAnalysisResponse {
     direction?: "up" | "down"
     tier?: AnomalyTier
     tracking_quality?: "stable" | "uncertain"
+    baseline_status?: BaselineStatus
+    history_days?: number
+    obs_start_date?: string
+    obs_end_date?: string
+    baseline?: {
+      anomalous_comparison_period?: boolean
+    }
     detection?: {
       tier?: AnomalyTier
       expected: number
@@ -102,8 +138,11 @@ export interface GoalAnalysisResponse {
     }
     narrative?: {
       headline?: string
+      headline_reels?: HeadlineReel[]
       summary?: string
       summary_bullets?: string[]
+      wins?: Win[]
+      bottom_line?: string
       primary_diagnosis?: Diagnosis | null
       contributing_diagnoses?: Diagnosis[]
       diagnoses?: Diagnosis[]
@@ -138,6 +177,7 @@ export interface GoalAnalysisResponse {
 
 interface UseGoalAnalysisReturn {
   goalData: GoalData[]
+  rawData: GoalAnalysisResponse | null
   criticalCount: number
   warningCount: number
   positiveCount: number
@@ -212,6 +252,10 @@ function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
         "anomaly") as AnomalyTier
     const dailyPeaks = (anomaly.detection?.daily_peaks || []) as DailyPeak[]
 
+    const headlineReels = (normalizedNarrative?.headline_reels || []) as HeadlineReel[]
+    const wins = (normalizedNarrative?.wins || []) as Win[]
+    const bottomLine = normalizedNarrative?.bottom_line || ""
+
     return {
       id: anomaly.anomaly_id || (index + 1).toString(),
       title: anomaly.entity_name || anomaly.event_name || "Unknown Event",
@@ -221,7 +265,15 @@ function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
       impactSeverity,
       trackingQuality: anomaly.tracking_quality || "uncertain",
       tier,
+      baselineStatus: (anomaly.baseline_status || "FULL") as BaselineStatus,
+      historyDays: anomaly.history_days || 56,
+      obsStartDate: anomaly.obs_start_date,
+      obsEndDate: anomaly.obs_end_date,
+      anomalousComparisonPeriod: anomaly.baseline?.anomalous_comparison_period ?? false,
       primaryCause: normalizedNarrative?.headline || primaryDiagnosis?.rationale || "No headline available",
+      headlineReels,
+      wins,
+      bottomLine,
       description: summary,
       summaryBullets,
       diagnoses,
@@ -286,6 +338,7 @@ export function useGoalAnalysis(
 
   return {
     goalData,
+    rawData: rawData || null,
     criticalCount,
     warningCount,
     positiveCount,

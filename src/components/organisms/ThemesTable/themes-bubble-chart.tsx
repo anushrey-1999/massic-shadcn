@@ -3,41 +3,39 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import * as d3 from "d3";
 import { ChartHoverTooltip } from "@/components/ui/chart-hover-tooltip";
+import { BUSINESS_RELEVANCE_PALETTE } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import type { ThemeRow } from "@/types/themes-types";
 
-const OFFERING_COLORS = [
-  "#6366f1", "#8b5cf6", "#ec4899", "#f97316", "#eab308",
-  "#22c55e", "#14b8a6", "#0ea5e9", "#f43f5e", "#a855f7",
-  "#84cc16", "#06b6d4", "#d946ef", "#fb923c", "#facc15",
-];
-
-function hashIndex(str: string, len: number): number {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
-  return h % len;
+function normalizeScore(scoreRaw?: number) {
+  const score = scoreRaw ?? 0;
+  if (!Number.isFinite(score)) return 0;
+  if (score <= 1) return Math.max(0, Math.min(1, score));
+  if (score <= 100) return Math.max(0, Math.min(1, score / 100));
+  return 1;
 }
 
 interface BubbleNode {
   name: string;
-  type: "root" | "offering" | "theme" | "topic";
+  type: "root" | "theme" | "topic";
   value?: number;
   children?: BubbleNode[];
   themeData?: ThemeRow;
-  offeringName?: string;
+  data?: {
+    relevanceScore?: number;
+    coverage?: number;
+  };
 }
 
 type PackedNode = d3.HierarchyCircularNode<BubbleNode>;
 
 interface ThemesBubbleChartProps {
   data: ThemeRow[];
-  selectedOffering?: string;
   width?: number;
   height?: number;
 }
 
 export function ThemesBubbleChart({
   data,
-  selectedOffering,
   width = 1200,
   height = 800,
 }: ThemesBubbleChartProps) {
@@ -74,125 +72,70 @@ export function ThemesBubbleChart({
   }, []);
 
   const hierarchyData = useMemo((): BubbleNode => {
-    // Build a map of offering → all themes that include that offering.
-    // Each theme can appear under multiple offerings (one node per offering).
-    // When selectedOffering is set, only build that one offering's circle.
-    const offeringMap = new Map<string, ThemeRow[]>();
-
-    data.forEach((theme) => {
-      const allOfferings =
-        Array.isArray(theme.offerings) && theme.offerings.length > 0
-          ? [...new Set(theme.offerings.map((o) => o.trim()).filter(Boolean))]
-          : theme.origin_offering?.trim()
-            ? [theme.origin_offering.trim()]
-            : ["Other"];
-
-      const offeringsToUse = selectedOffering
-        ? allOfferings.includes(selectedOffering)
-          ? [selectedOffering]
-          : []
-        : allOfferings;
-
-      offeringsToUse.forEach((offeringName) => {
-        if (!offeringMap.has(offeringName)) offeringMap.set(offeringName, []);
-        offeringMap.get(offeringName)!.push(theme);
-      });
-    });
-
     return {
       name: "root",
       type: "root",
-      children: Array.from(offeringMap.entries()).map(([offeringName, themes]) => ({
-        name: offeringName,
-        type: "offering",
-        offeringName,
-        children: themes.map((theme) => ({
-          name: theme.theme_name,
-          type: "theme",
-          themeData: theme,
-          offeringName,
-          children:
-            (theme.topics ?? []).length > 0
-              ? theme.topics!.map((topic) => ({
-                  name: topic.topic_name,
+      children: data.map((theme) => ({
+        name: theme.theme_name,
+        type: "theme",
+        themeData: theme,
+        data: {
+          relevanceScore: theme.business_relevance_score,
+          coverage: theme.theme_coverage,
+        },
+        children:
+          (theme.topics ?? []).length > 0
+            ? theme.topics.map((topic) => ({
+                name: topic.topic_name,
+                type: "topic" as const,
+                value: 1,
+                data: {
+                  relevanceScore: topic.business_relevance_score,
+                  coverage: topic.topic_coverage,
+                },
+              }))
+            : [
+                {
+                  name: theme.theme_name,
                   type: "topic" as const,
-                  value: 1,
-                  offeringName,
-                }))
-              : [
-                  {
-                    name: theme.theme_name,
-                    type: "topic" as const,
-                    value: Math.max(theme.topic_count ?? 1, 1),
-                    offeringName,
+                  value: Math.max(theme.topic_count ?? 1, 1),
+                  data: {
+                    relevanceScore: theme.business_relevance_score,
+                    coverage: theme.topic_coverage,
                   },
-                ],
-        })),
+                },
+              ],
       })),
     };
   }, [data]);
 
-  const offeringColorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    (hierarchyData.children ?? []).forEach((offering) => {
-      map[offering.name] = OFFERING_COLORS[hashIndex(offering.name, OFFERING_COLORS.length)];
-    });
-    return map;
-  }, [hierarchyData]);
+  const getColor = useCallback((node: PackedNode): string => {
+    const themeAncestor =
+      node.data.type === "theme"
+        ? node
+        : node.ancestors().find((a): a is PackedNode => a.data.type === "theme") ?? null;
+    const score = normalizeScore(
+      node.data.data?.coverage ??
+        themeAncestor?.data.data?.coverage ??
+        node.data.data?.relevanceScore ??
+        themeAncestor?.data.data?.relevanceScore
+    );
+    const index = Math.max(
+      0,
+      Math.min(
+        BUSINESS_RELEVANCE_PALETTE.length - 1,
+        Math.round(score * (BUSINESS_RELEVANCE_PALETTE.length - 1))
+      )
+    );
+    return BUSINESS_RELEVANCE_PALETTE[index];
+  }, []);
 
-  const getColor = useCallback(
-    (node: PackedNode): string =>
-      offeringColorMap[node.data.offeringName ?? ""] ?? "#94a3b8",
-    [offeringColorMap]
-  );
-
-  const drawWrappedText = useCallback(
-    (
-      ctx: CanvasRenderingContext2D,
-      text: string,
-      cx: number,
-      cy: number,
-      maxWidth: number,
-      fontSize: number,
-      color: string,
-      fontWeight = "600"
-    ) => {
-      ctx.font = `${fontWeight} ${fontSize}px -apple-system, BlinkMacSystemFont, system-ui, sans-serif`;
-      ctx.fillStyle = color;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      const words = text.split(" ");
-      const lines: string[] = [];
-      let line = "";
-
-      for (const word of words) {
-        const test = line ? `${line} ${word}` : word;
-        if (ctx.measureText(test).width > maxWidth && line) {
-          lines.push(line);
-          line = word;
-          if (lines.length >= 2) break;
-        } else {
-          line = test;
-        }
-      }
-      if (line) {
-        if (lines.length >= 2) {
-          while (ctx.measureText(line + "…").width > maxWidth && line.length > 1) {
-            line = line.slice(0, -1);
-          }
-          lines.push(line.length < text.split(" ").join("").length ? line + "…" : line);
-        } else {
-          lines.push(line);
-        }
-      }
-
-      const lineHeight = fontSize * 1.3;
-      const startY = cy - ((lines.length - 1) * lineHeight) / 2;
-      lines.forEach((l, i) => ctx.fillText(l, cx, startY + i * lineHeight));
-    },
-    []
-  );
+  const formatPercent = useCallback((value?: number) => {
+    if (value === undefined || value === null) return "-";
+    if (!Number.isFinite(value)) return "-";
+    const normalized = value <= 1 ? value * 100 : value;
+    return `${Math.round(normalized)}%`;
+  }, []);
 
   useEffect(() => {
     if (!canvasRef.current || !hierarchyData.children?.length) return;
@@ -217,8 +160,8 @@ export function ThemesBubbleChart({
       .pack<BubbleNode>()
       .size([actualWidth, actualHeight])
       .padding((node) => {
-        if (node.depth === 0) return 16;
-        if (node.depth === 1) return 6;
+        if (node.depth === 0) return 10;
+        if (node.depth === 1) return 4;
         return 2;
       });
 
@@ -246,7 +189,6 @@ export function ThemesBubbleChart({
 
       const k = getScale();
 
-      // Draw filled circles (back-to-front: offering → theme → topic)
       allNodes.forEach((node) => {
         if (node.data.type === "root") return;
 
@@ -260,25 +202,21 @@ export function ThemesBubbleChart({
         ctx.beginPath();
         ctx.arc(x, y, r, 0, 2 * Math.PI);
 
-        if (node.data.type === "offering") {
-          ctx.fillStyle = color + "1e"; // ~12% opacity
+        if (node.data.type === "theme") {
+          ctx.fillStyle = color + "26";
           ctx.fill();
           ctx.strokeStyle = color + "cc";
           ctx.lineWidth = 2;
           ctx.stroke();
-        } else if (node.data.type === "theme") {
-          ctx.fillStyle = color + "b8"; // ~72% opacity
+        } else if (node.data.type === "topic") {
+          ctx.fillStyle = color + "d9";
           ctx.fill();
-          ctx.strokeStyle = "#ffffff55";
+          ctx.strokeStyle = "#ffffff99";
           ctx.lineWidth = 1;
           ctx.stroke();
-        } else if (node.data.type === "topic") {
-          ctx.fillStyle = color + "d4"; // ~83% opacity
-          ctx.fill();
         }
       });
 
-      // Hover ring
       if (currentHoveredNode && currentHoveredNode !== focusNode) {
         const hx = (currentHoveredNode.x - view[0]) * k + centerX;
         const hy = (currentHoveredNode.y - view[1]) * k + centerY;
@@ -290,22 +228,6 @@ export function ThemesBubbleChart({
         ctx.stroke();
       }
 
-      // Draw text labels
-      allNodes.forEach((node) => {
-        if (node.data.type === "root") return;
-
-        const x = (node.x - view[0]) * k + centerX;
-        const y = (node.y - view[1]) * k + centerY;
-        const r = node.r * k;
-        if (r < 0.5) return;
-
-        const color = getColor(node);
-
-        if (node.data.type === "topic" && r > 9) {
-          const fontSize = Math.min(9, Math.max(6, r / 3));
-          drawWrappedText(ctx, node.data.name, x, y, r * 1.75, fontSize, "#ffffffdd", "400");
-        }
-      });
     };
 
     const zoomTo = (node: PackedNode, duration = 750) => {
@@ -422,24 +344,23 @@ export function ThemesBubbleChart({
     width,
     height,
     getColor,
-    drawWrappedText,
   ]);
 
   const tooltipType = tooltipNode?.data.type;
   const tooltipTypeLabel =
-    tooltipType === "offering"
-      ? "Offering"
-      : tooltipType === "theme"
-        ? "Theme"
-        : tooltipType === "topic"
-          ? "Topic"
-          : null;
+    tooltipType === "theme"
+      ? "Theme"
+      : tooltipType === "topic"
+        ? "Topic"
+        : null;
   const tooltipThemeData = tooltipNode?.data.themeData;
+  const tooltipRelevance = formatPercent(tooltipNode?.data.data?.relevanceScore);
+  const tooltipCoverage = formatPercent(tooltipNode?.data.data?.coverage);
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full flex items-center justify-center bg-white rounded-lg border border-border"
+      className="relative w-full h-full flex items-center justify-center bg-white rounded-lg"
     >
       <canvas ref={canvasRef} className="w-full h-full" />
 
@@ -452,14 +373,18 @@ export function ThemesBubbleChart({
             typeLabel={tooltipTypeLabel}
             title={tooltipNode.data.name}
             metrics={
-              tooltipType === "offering"
+              tooltipType === "theme" && tooltipThemeData
                 ? [
-                    { label: "Themes", value: tooltipNode.children?.length ?? 0 },
-                    { label: "Topics", value: tooltipNode.value ?? 0 },
+                    { label: "Topics", value: tooltipThemeData.topic_count ?? 0 },
+                    { label: "Coverage", value: tooltipCoverage },
+                    { label: "Relevance", value: tooltipRelevance },
                   ]
-                : tooltipType === "theme" && tooltipThemeData
-                  ? [{ label: "Topics", value: tooltipThemeData.topic_count ?? 0 }]
-                  : []
+                : tooltipType === "topic"
+                  ? [
+                      { label: "Coverage", value: tooltipCoverage },
+                      { label: "Relevance", value: tooltipRelevance },
+                    ]
+                : []
             }
           >
             {tooltipType === "theme" &&
@@ -490,24 +415,6 @@ export function ThemesBubbleChart({
         ) : null}
       </div>
 
-      {/* Legend */}
-      {Object.keys(offeringColorMap).length > 0 && (
-        <div className="absolute bottom-3 left-3 flex flex-wrap gap-x-3 gap-y-1.5 max-w-[55%] rounded-lg border border-border bg-white/90 px-3 py-2 shadow-sm">
-          {Object.entries(offeringColorMap).map(([name, color]) => (
-            <span key={name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span
-                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-              {name}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="absolute bottom-3 right-3 text-xs text-muted-foreground bg-white/80 px-2 py-1 rounded border border-border select-none">
-        Click to zoom · Click outside to reset
-      </div>
     </div>
   );
 }

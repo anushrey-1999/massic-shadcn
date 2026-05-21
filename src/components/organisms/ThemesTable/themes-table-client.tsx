@@ -10,6 +10,7 @@ import { DataTableSortList } from "@/components/filter-table/data-table-sort-lis
 import { getFiltersStateParser } from "@/components/filter-table/parsers";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { AlertCircle, ChartScatter, Loader2, Sparkles, List, Layers } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
+import { BUSINESS_RELEVANCE_PALETTE } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { getThemesTableColumns } from "./themes-table-columns";
 import { ThemesBubbleChart } from "./themes-bubble-chart";
 import { ThemesScatterPlot } from "./themes-scatter-plot";
@@ -460,7 +462,52 @@ export function ThemesTableClient({
     </Tabs>
   );
 
-  if (view === "bubble" || view === "scatter") {
+  if (view === "bubble") {
+    return (
+      <div className="flex-1 min-h-0 overflow-hidden h-full">
+        <Card className="h-full w-full p-4 rounded-lg border-none shadow-none flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Typography
+                variant="p"
+                className="font-mono mb-2 text-base text-general-muted-foreground"
+              >
+                Topic Coverage
+              </Typography>
+              <div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
+                <div className="absolute inset-0 flex">
+                  {BUSINESS_RELEVANCE_PALETTE.map((color) => (
+                    <div
+                      key={color}
+                      className="h-full flex-1 shadow-inner"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                <div className="absolute inset-0 flex items-center justify-between px-3">
+                  <span className="text-[10px] font-medium text-general-muted-foreground">
+                    Low
+                  </span>
+                  <span className="text-[10px] font-medium text-general-muted-foreground">
+                    High
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              {offeringsFilter}
+              {viewToggle}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            <ThemesBubbleChart data={filteredData} />
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (view === "scatter") {
     return (
       <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden gap-2.5">
         <div
@@ -476,12 +523,7 @@ export function ThemesTableClient({
           </div>
         </div>
         <div className="flex-1 min-h-0">
-          {view === "bubble" ? (
-            <ThemesBubbleChart
-              data={filteredData}
-              selectedOffering={selectedOffering === "all" ? undefined : selectedOffering}
-            />
-          ) : scatterLoading ? (
+          {scatterLoading ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border bg-white">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
               <Typography variant="p" className="font-medium text-foreground">

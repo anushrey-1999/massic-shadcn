@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Loader2,
-  Sparkles,
   Lightbulb,
   ArrowRight,
   Zap,
@@ -36,7 +35,7 @@ import { Typography } from "@/components/ui/typography";
 import { AlertDateSelector } from "./AlertDateSelector";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
-import type { GoalData, GoalContributor, Diagnosis, DailyPeak, AnomalyTier, HeadlineReel, Win, BaselineStatus } from "@/hooks/use-goal-analysis";
+import type { GoalData, GoalContributor, PageBreakdown, Diagnosis, DailyPeak, AnomalyTier, HeadlineReel, Win, BaselineStatus } from "@/hooks/use-goal-analysis";
 import type { TrafficData, TrafficContributor } from "@/hooks/use-traffic-analysis";
 
 interface AnomaliesSheetProps {
@@ -115,16 +114,32 @@ function HeadlineReels({ reels, fallback }: { reels?: HeadlineReel[]; fallback?:
   );
 }
 
-/** CHANGE 05 & 06: ChannelBlock — coloured contributor row with stat chips. */
+/** CHANGE 07: ChannelBlock — coloured contributor row with stat chips and per-page breakdown. */
 interface ChannelBlockProps {
   channelName: string;
   classification?: string;
   anchorDelta: number;
   anchorUnit: "conversions" | "clicks";
-  baseSessions?: number;
-  obsGoals?: number;
-  baseSessions2?: number;
+  deltaGoals?: number;
+  deltaSessions?: number;
+  pages?: PageBreakdown[];
   isOrganic?: boolean;
+  isTraffic?: boolean;
+}
+
+function StatChip({ label, value, positive }: { label: string; value: number; positive?: boolean }) {
+  const isPos = value >= 0;
+  const color = positive !== undefined
+    ? (positive ? "text-emerald-700" : "text-slate-600")
+    : (isPos ? "text-emerald-700" : "text-slate-600");
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[10px] tabular-nums">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn("font-semibold", color)}>
+        {isPos ? "+" : ""}{Math.round(value).toLocaleString()}
+      </span>
+    </span>
+  );
 }
 
 function ChannelBlock({
@@ -132,33 +147,123 @@ function ChannelBlock({
   classification,
   anchorDelta,
   anchorUnit,
+  deltaGoals,
+  deltaSessions,
+  pages = [],
   isOrganic = false,
+  isTraffic = false,
 }: ChannelBlockProps) {
   const isPositive = anchorDelta >= 0;
-  const blockBg = isPositive ? "bg-[#F0FDFA] border-[#9FE1CB]" : "bg-[#FEF2F2] border-[#F7C1C1]";
-  const accentBar = isPositive ? "bg-emerald-400" : "bg-red-400";
-  const deltaColor = isPositive ? "text-emerald-700" : "text-red-700";
+  const blockBg = isPositive ? "bg-[#F0FDFA] border-[#9FE1CB]" : "bg-slate-50 border-slate-200";
+  const accentBar = isPositive ? "bg-emerald-400" : "bg-slate-400";
+  const deltaColor = isPositive ? "text-emerald-700" : "text-slate-600";
   const sign = isPositive ? "+" : "";
   const suffix = isPositive ? "gained" : "lost";
+  const goalsLabel = isPositive ? "GOALS GAINED" : "GOALS LOST";
+  const sessionsLabel = isPositive ? "SESSIONS GAINED" : "SESSIONS LOST";
+  const clicksLabel = isPositive ? "CLICKS GAINED" : "CLICKS LOST";
+  const impressLabel = isPositive ? "IMPR GAINED" : "IMPR LOST";
 
   return (
     <div className={cn("flex min-w-0 gap-0 rounded-lg border overflow-hidden", blockBg)}>
       <div className={cn("w-1 shrink-0", accentBar)} />
-      <div className="flex-1 min-w-0 px-2.5 py-2">
+      <div className="flex-1 min-w-0 px-2.5 py-2 space-y-1.5">
+        {/* Header row */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs font-medium text-foreground line-clamp-1">{channelName}</p>
             {classification && (
-              <p className="text-[11px] text-muted-foreground">{classification}</p>
+              <p className="text-[10px] text-muted-foreground">{classification}</p>
             )}
           </div>
           <span className={cn("shrink-0 text-xs font-semibold tabular-nums", deltaColor)}>
             {sign}{Math.abs(Math.round(anchorDelta)).toLocaleString()} {anchorUnit} {suffix}
           </span>
         </div>
-        {/* Stat chips are rendered inline with the delta info above for compactness */}
-        {isOrganic && (
-          <p className="mt-1 text-[10px] text-muted-foreground">Organic channel</p>
+
+        {/* Stat summary row */}
+        {!isTraffic && (deltaGoals !== undefined || deltaSessions !== undefined) && (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+            {deltaGoals !== undefined && (
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                {goalsLabel}: <span className={cn("font-bold tabular-nums", isPositive ? "text-emerald-700" : "text-slate-600")}>
+                  {sign}{Math.abs(Math.round(deltaGoals)).toLocaleString()}
+                </span>
+              </span>
+            )}
+            {deltaSessions !== undefined && (
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                {sessionsLabel}: <span className={cn("font-bold tabular-nums", isPositive ? "text-emerald-700" : "text-slate-600")}>
+                  {sign}{Math.abs(Math.round(deltaSessions)).toLocaleString()}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+        {isTraffic && (deltaGoals !== undefined || deltaSessions !== undefined) && (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+            {deltaGoals !== undefined && (
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                {clicksLabel}: <span className={cn("font-bold tabular-nums", isPositive ? "text-emerald-700" : "text-slate-600")}>
+                  {sign}{Math.abs(Math.round(deltaGoals)).toLocaleString()}
+                </span>
+              </span>
+            )}
+            {deltaSessions !== undefined && (
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                {impressLabel}: <span className={cn("font-bold tabular-nums", isPositive ? "text-emerald-700" : "text-slate-600")}>
+                  {sign}{Math.abs(Math.round(deltaSessions)).toLocaleString()}
+                </span>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Per-page breakdown */}
+        {pages.length > 0 && (
+          <div className="space-y-1.5 mt-1 pt-1.5 border-t border-current/10">
+            {pages.slice(0, 5).map((p, idx) => (
+              <div key={idx} className="space-y-0.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-[10px] font-medium text-foreground/80 break-all line-clamp-1 min-w-0 flex-1">
+                    {p.page}
+                  </span>
+                  <div className="flex flex-wrap gap-x-2 shrink-0">
+                    {!isTraffic && p.delta_goals !== null && p.delta_goals !== undefined && (
+                      <StatChip label="Goals" value={p.delta_goals} />
+                    )}
+                    {!isTraffic && p.delta_sessions !== null && p.delta_sessions !== undefined && (
+                      <StatChip label="Sessions" value={p.delta_sessions} />
+                    )}
+                    {p.delta_clicks !== null && p.delta_clicks !== undefined && (
+                      <StatChip label="Clicks" value={p.delta_clicks} />
+                    )}
+                    {p.delta_impressions !== null && p.delta_impressions !== undefined && (
+                      <StatChip label="Impr" value={p.delta_impressions} />
+                    )}
+                    {p.delta_position !== null && p.delta_position !== undefined && (
+                      <span className="text-[10px] tabular-nums">
+                        <span className="text-muted-foreground">Pos </span>
+                        <span className={cn("font-semibold", p.delta_position > 0 ? "text-red-700" : "text-emerald-700")}>
+                          {p.delta_position > 0 ? "↓" : "↑"}{Math.abs(p.delta_position).toFixed(1)}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {/* Query chips */}
+                {p.queries && p.queries.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {p.queries.slice(0, 4).map((q, qi) => (
+                      <span key={qi} className="inline-flex items-center rounded-md border border-muted-foreground/20 bg-background/60 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                        {q}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -184,6 +289,16 @@ function PartialBaselineChip({ historyDays }: { historyDays: number }) {
       Limited history ({weeks} {weeks === 1 ? "week" : "weeks"})
     </span>
   );
+}
+
+/** CHANGE 02: Plain English severity for negative cards (5-band scale, matches backend). */
+function formatSeverityText(absDeltaPct: number): string {
+  const p = Math.abs(absDeltaPct);
+  if (p >= 0.90) return "Very few this week compared to your normal";
+  if (p >= 0.75) return "A quieter week than normal";
+  if (p >= 0.50) return "Lower than usual this week";
+  if (p >= 0.25) return "Lower than your typical week";
+  return "Slightly lower than your usual week";
 }
 
 function formatPeakDate(dateStr: string) {
@@ -296,15 +411,6 @@ function diagnosisTitle(diagnosis: Diagnosis) {
   return diagnosis.label || labels[diagnosis.cause_code] || diagnosis.cause_code.replace(/_/g, " ");
 }
 
-function managerInsight(text: string) {
-  if (/severity|confidence/i.test(text)) return null;
-  if (/brand queries:\s*0 clicks\s*\|\s*non-brand:\s*0 clicks/i.test(text)) return null;
-  return text
-    .replace(/\s*\((?:[^)]*(?:delta|z-score|score|CVR|CTR|position)[^)]*)\)/gi, "")
-    .replace(/\bCVR\b/g, "conversion rate")
-    .replace(/\bCTR\b/g, "click-through rate");
-}
-
 function formatImpact(value: number | undefined, unit: string) {
   const numeric = Number(value || 0);
   const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
@@ -328,29 +434,6 @@ function attributionMessage(traffic: TrafficData) {
   return `Traffic ${directionText}, but Search Console did not provide enough page/query detail to explain the driver. This is common with low-volume or privacy-filtered queries.`;
 }
 
-function EvidenceExample({ example }: { example: Record<string, string | number | boolean | null | undefined> }) {
-  const allowedKeys = new Set(["page", "query"]);
-  const entries = Object.entries(example).filter(([key, value]) => (
-    allowedKeys.has(key) && value !== null && value !== undefined && value !== ""
-  ));
-
-  if (entries.length === 0) return null;
-
-  return (
-    <div className="min-w-0 rounded-md bg-muted/50 px-2 py-1.5 text-[11px] text-muted-foreground">
-      {entries.map(([key, value]) => (
-        <div key={key} className="grid min-w-0 grid-cols-[3.5rem_minmax(0,1fr)] gap-1">
-          <span className="shrink-0 capitalize text-muted-foreground/80">
-            {key.replace(/_/g, " ")}
-          </span>
-          <span className="min-w-0 break-all text-foreground/80">
-            {String(value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function dedupeDiagnosesByCause(diagnoses: Array<Diagnosis | null | undefined>) {
   const seen = new Set<string>();
@@ -442,15 +525,18 @@ function GoalCard({ goal, onClick }: GoalCardProps) {
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
               {config.sentimentLabel}
             </Badge>
-            <div
-              className={cn(
-                "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold",
-                config.bgColor
-              )}
-            >
-              <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
-              <span className={config.iconColor}>{goal.percentage}</span>
-            </div>
+            {/* CHANGE 02: Positive cards show raw %; negative cards show plain English severity */}
+            {isNegative ? (
+              <span className={cn("text-xs font-semibold flex items-center gap-1", config.textColor)}>
+                <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
+                {formatSeverityText(goal.deltaPct)}
+              </span>
+            ) : (
+              <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold", config.bgColor)}>
+                <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
+                <span className={config.iconColor}>{goal.percentage}</span>
+              </div>
+            )}
             {/* NEW 02: Partial baseline chip */}
             {isPartial && <PartialBaselineChip historyDays={goal.historyDays} />}
           </div>
@@ -489,8 +575,12 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
   const Icon = config.icon;
   const isNegative = goal.direction === "down";
   const TrendIcon = isNegative ? TrendingDown : TrendingUp;
-  const diagnosesToRender = compactDiagnoses(goal.primaryDiagnosis, goal.contributingDiagnoses, goal.diagnoses);
-  const topContributors = collapseDisplayContributors(goal.topContributors).slice(0, 10);
+  // CHANGE 05+06: Show max 2 drivers, using plain_text
+  const diagnosesToRender = dedupeDiagnosesByCause([
+    goal.primaryDiagnosis,
+    ...(goal.contributingDiagnoses || []),
+    ...(goal.diagnoses || []),
+  ]).filter(Boolean).slice(0, 2);
   const isPartial = goal.baselineStatus === "PARTIAL";
 
   return (
@@ -519,15 +609,18 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
                 {config.sentimentLabel}
               </Badge>
-              <div
-                className={cn(
-                  "flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold",
-                  config.bgColor
-                )}
-              >
-                <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
-                <span className={config.iconColor}>{goal.percentage}</span>
-              </div>
+              {/* CHANGE 02: Positive cards show raw %; negative cards show plain English severity */}
+              {isNegative ? (
+                <span className={cn("text-xs font-semibold flex items-center gap-1", config.textColor)}>
+                  <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
+                  {formatSeverityText(goal.deltaPct)}
+                </span>
+              ) : (
+                <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold", config.bgColor)}>
+                  <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
+                  <span className={config.iconColor}>{goal.percentage}</span>
+                </div>
+              )}
               {/* NEW 02: Partial baseline chip in detail view */}
               {isPartial && <PartialBaselineChip historyDays={goal.historyDays} />}
             </div>
@@ -551,7 +644,24 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
           </div>
         </div>
 
-        {/* CHANGE 07: Amber notice bar when baseline comparison period was anomalous */}
+        {/* BUG 08: Absolute numbers line — negative cards only */}
+        {isNegative && goal.actual !== undefined && goal.expected !== undefined && (
+          <p className="text-xs text-muted-foreground leading-snug">
+            <span className="font-medium text-foreground">{Math.round(goal.actual).toLocaleString()}</span> conversions this week, compared to an average of <span className="font-medium text-foreground">{Math.round(goal.expected).toLocaleString()}</span> over the past 8 weeks.
+          </p>
+        )}
+
+        {/* CHANGE 14: Cross-event context line — negative cards only, gated by backend */}
+        {isNegative && goal.crossEventContext && (
+          <p className="text-[11px] text-muted-foreground italic leading-snug">{goal.crossEventContext}</p>
+        )}
+
+        {/* BUG 10 (frontend): Large position drop amber notice — negative cards only */}
+        {isNegative && goal.largePositionDrop && (
+          <AmberNoticeBar message="Pages moved far down in search results this week — worth checking for technical issues." />
+        )}
+
+        {/* CHANGE 07 (anomalous comparison period): Amber notice bar */}
         {goal.anomalousComparisonPeriod && (
           <AmberNoticeBar message="Prior period was unusually high/low — this anomaly score may be inflated." />
         )}
@@ -561,8 +671,8 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
           <AmberNoticeBar message={`Analysis based on ${Math.floor(goal.historyDays / 7)} weeks of history — results may be less reliable than usual.`} />
         )}
 
-        {/* CHANGE 03: Wins bar for positive anomalies */}
-        {goal.wins && goal.wins.length > 0 && (
+        {/* CHANGE 13: Wins bar only for positive cards with >= 2 wins */}
+        {goal.direction === 'up' && goal.wins && goal.wins.length >= 2 && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
               <Trophy className="h-3 w-3 text-emerald-500" />
@@ -579,28 +689,12 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
           </div>
         )}
 
-        {goal.summaryBullets && goal.summaryBullets.length > 0 && (
-          <div>
-            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <Sparkles className="h-3 w-3 text-primary" />
-              Key Insights
-            </h3>
-            <ul className="space-y-1.5">
-              {goal.summaryBullets.map(managerInsight).filter(Boolean).slice(0, 3).map((bullet, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-2 text-xs text-muted-foreground"
-                >
-                  <span className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-semibold text-primary">
-                    {idx + 1}
-                  </span>
-                  <span className="min-w-0 break-words leading-snug pt-0.5">{bullet}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* CHANGE 04: Single context_line paragraph replaces Key Insights numbered list */}
+        {goal.contextLine && (
+          <p className="text-xs text-muted-foreground leading-snug">{goal.contextLine}</p>
         )}
 
+        {/* CHANGE 05+06: Likely Drivers — max 2, numbered, plain_text only, no Primary: label, no actions */}
         {diagnosesToRender.length > 0 && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
@@ -609,74 +703,40 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
             </h3>
             <div className="space-y-2">
               {diagnosesToRender.map((diagnosis, idx) => (
-                <div key={idx} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-3">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h4 className="min-w-0 break-words text-xs font-semibold text-foreground flex-1 leading-tight">
-                      {idx === 0 ? "Primary: " : ""}
-                      {diagnosisTitle(diagnosis)}
-                    </h4>
-                  </div>
-
-                  {diagnosis.rationale && (
-                    <p className="break-words text-xs text-muted-foreground mb-2 leading-snug">
-                      {diagnosis.rationale}
-                    </p>
-                  )}
-
-                  {diagnosis.evidence_examples && diagnosis.evidence_examples.length > 0 && (
-                    <div className="mt-2 grid gap-1">
-                      {diagnosis.evidence_examples.slice(0, 3).map((example, exampleIdx) => (
-                        <EvidenceExample key={exampleIdx} example={example} />
-                      ))}
-                    </div>
-                  )}
-
-                  {diagnosis.suggested_actions &&
-                    diagnosis.suggested_actions.length > 0 && (
-                      <div className="mt-2 pt-2 border-t">
-                        <p className="text-[10px] font-semibold text-foreground mb-1.5">
-                          Actions:
-                        </p>
-                        <ul className="space-y-1">
-                          {diagnosis.suggested_actions.map(
-                            (action: string, actionIdx: number) => (
-                              <li
-                                key={actionIdx}
-                                className="flex min-w-0 items-start gap-1.5 text-xs text-muted-foreground"
-                              >
-                                <ArrowRight className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
-                                <span className="min-w-0 break-words leading-snug">{action}</span>
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      </div>
-                    )}
+                <div key={idx} className="min-w-0 flex items-start gap-2.5">
+                  <span className="h-5 w-5 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-amber-700">
+                    {idx + 1}
+                  </span>
+                  <p className="min-w-0 break-words text-xs text-muted-foreground leading-snug pt-0.5">
+                    {diagnosis.plain_text || diagnosisTitle(diagnosis)}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {topContributors.length > 0 && (
+        {/* CHANGE 07: Top Contributors with expanded ChannelBlock */}
+        {goal.topContributors.length > 0 && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
               <BarChart3 className="h-3 w-3 text-primary" />
               Top Contributors
             </h3>
-            {/* CHANGE 04: bottom_line context phrase */}
             {goal.bottomLine && (
               <p className="mb-2 text-[11px] text-muted-foreground leading-snug">{goal.bottomLine}</p>
             )}
             <div className="space-y-1.5">
-              {topContributors.map((contributor, idx) => (
-                /* CHANGE 05: ChannelBlock with green/red colouring */
+              {goal.topContributors.map((contributor, idx) => (
                 <ChannelBlock
-                  key={`${idx}-${contributor.key || contributor.page || ""}`}
-                  channelName={contributor.key || contributor.page || "Unknown contributor"}
+                  key={`${idx}-${contributor.key || ""}`}
+                  channelName={contributor.key || "Unknown contributor"}
                   classification={contributor.classification}
-                  anchorDelta={contributor.delta_conversions ?? 0}
+                  anchorDelta={contributor.delta_goals ?? contributor.delta_conversions ?? 0}
                   anchorUnit="conversions"
+                  deltaGoals={contributor.delta_goals}
+                  deltaSessions={contributor.delta_sessions}
+                  pages={contributor.pages as PageBreakdown[] | undefined}
                   isOrganic={(contributor.key || "").toLowerCase().includes("organic")}
                 />
               ))}
@@ -721,18 +781,20 @@ function TrafficCard({ traffic, onClick }: TrafficCardProps) {
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
               {config.sentimentLabel}
             </Badge>
-            <div
-              className={cn(
-                "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold",
-                config.bgColor
-              )}
-            >
-              <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
-              <span className={config.iconColor}>
-                {isNegative ? "-" : "+"}
-                {formatPercent(traffic.delta_pct)}
+            {/* CHANGE 02: Positive cards show raw %; negative cards show plain English severity */}
+            {isNegative ? (
+              <span className={cn("text-xs font-semibold flex items-center gap-1", config.textColor)}>
+                <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
+                {formatSeverityText(traffic.delta_pct)}
               </span>
-            </div>
+            ) : (
+              <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold", config.bgColor)}>
+                <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
+                <span className={config.iconColor}>
+                  +{formatPercent(traffic.delta_pct)}
+                </span>
+              </div>
+            )}
             {/* NEW 02: Partial baseline chip */}
             {isPartial && <PartialBaselineChip historyDays={historyDays} />}
           </div>
@@ -785,10 +847,6 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
   const topQueries = collapseDisplayContributors(traffic.narrative?.top_queries || [])
     .filter((contributor) => Math.abs(Number(contributor.delta_clicks || 0)) > 0)
     .slice(0, 10);
-  const trafficInsights = (traffic.narrative?.summary_bullets || [])
-    .map(managerInsight)
-    .filter(Boolean)
-    .slice(0, 3);
   const trafficSplit = hasMeaningfulTrafficSplit(traffic.narrative?.brand_split)
     ? traffic.narrative?.brand_split
     : null;
@@ -826,18 +884,20 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
                 {config.sentimentLabel}
               </Badge>
-              <div
-                className={cn(
-                  "flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold",
-                  config.bgColor
-                )}
-              >
-                <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
-                <span className={config.iconColor}>
-                  {isNegative ? "-" : "+"}
-                  {formatPercent(traffic.delta_pct)}
+              {/* CHANGE 02: Positive cards show raw %; negative cards show plain English severity */}
+              {isNegative ? (
+                <span className={cn("text-xs font-semibold flex items-center gap-1", config.textColor)}>
+                  <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
+                  {formatSeverityText(traffic.delta_pct)}
                 </span>
-              </div>
+              ) : (
+                <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold", config.bgColor)}>
+                  <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
+                  <span className={config.iconColor}>
+                    +{formatPercent(traffic.delta_pct)}
+                  </span>
+                </div>
+              )}
               {/* NEW 02: Partial baseline chip in detail */}
               {isPartial && <PartialBaselineChip historyDays={historyDays} />}
             </div>
@@ -857,7 +917,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
           </div>
         </div>
 
-        {/* CHANGE 07: Amber notice bar when baseline comparison period was anomalous */}
+        {/* Anomalous comparison period amber notice */}
         {anomalousComparisonPeriod && (
           <AmberNoticeBar message="Prior period was unusually high/low — this anomaly score may be inflated." />
         )}
@@ -867,32 +927,20 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
           <AmberNoticeBar message={`Analysis based on ${Math.floor(historyDays / 7)} weeks of history — results may be less reliable than usual.`} />
         )}
 
-        {/* CHANGE 04: bottom_line context phrase */}
+        {/* BUG 10 (frontend): Large position drop amber notice — negative cards only */}
+        {isNegative && (traffic.large_position_drop || traffic.narrative?.large_position_drop) && (
+          <AmberNoticeBar message="Pages moved far down in search results this week — worth checking for technical issues." />
+        )}
+
+        {/* CHANGE 04: Single context_line paragraph replaces Key Insights numbered list */}
+        {traffic.narrative?.context_line && (
+          <p className="text-xs text-muted-foreground leading-snug">{traffic.narrative.context_line}</p>
+        )}
+
+        {/* bottom_line context phrase */}
         {traffic.narrative?.bottom_line && (
           <p className="text-[11px] text-muted-foreground leading-snug">{traffic.narrative.bottom_line}</p>
         )}
-
-        {trafficInsights.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                <Sparkles className="h-3 w-3 text-primary" />
-                Insights
-              </h3>
-              <ul className="space-y-1.5">
-                {trafficInsights.map((bullet, idx) => (
-                  <li
-                    key={idx}
-                    className="flex items-start gap-2 text-xs text-muted-foreground"
-                  >
-                    <span className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-semibold text-primary">
-                      {idx + 1}
-                    </span>
-                    <span className="min-w-0 break-words leading-snug pt-0.5">{bullet}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
 
         {attributionCopy && (
           <div className="rounded-lg border bg-muted/30 p-3">
@@ -902,6 +950,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
           </div>
         )}
 
+        {/* CHANGE 05+06: Likely Drivers — max 2, numbered, plain_text only, no Primary: label, no actions */}
         {diagnosesToRender.length > 0 && (
           <div>
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
@@ -909,24 +958,14 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
               Likely Drivers
             </h3>
             <div className="space-y-2">
-              {diagnosesToRender.map((diagnosis, idx) => (
-                <div key={`${diagnosis.cause_code}-${idx}`} className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card p-3">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h4 className="min-w-0 break-words text-xs font-semibold text-foreground flex-1 leading-tight">
-                      {idx === 0 ? "Primary: " : ""}
-                      {diagnosisTitle(diagnosis)}
-                    </h4>
-                  </div>
-                  <p className="break-words text-xs text-muted-foreground leading-snug">
-                    {diagnosis.detail || diagnosis.rationale}
+              {diagnosesToRender.slice(0, 2).map((diagnosis, idx) => (
+                <div key={`${diagnosis.cause_code}-${idx}`} className="min-w-0 flex items-start gap-2.5">
+                  <span className="h-5 w-5 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold text-amber-700">
+                    {idx + 1}
+                  </span>
+                  <p className="min-w-0 break-words text-xs text-muted-foreground leading-snug pt-0.5">
+                    {(diagnosis as { plain_text?: string }).plain_text || diagnosisTitle(diagnosis)}
                   </p>
-                  {diagnosis.evidence_examples && diagnosis.evidence_examples.length > 0 && (
-                    <div className="mt-2 grid gap-1">
-                      {diagnosis.evidence_examples.slice(0, 3).map((example, exampleIdx) => (
-                        <EvidenceExample key={exampleIdx} example={example} />
-                      ))}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -941,59 +980,46 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
             </h3>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg border bg-card p-2.5">
-                <p className="text-[10px] text-muted-foreground mb-0.5">
-                  Brand
-                </p>
-                <p className="text-lg font-bold text-foreground">
-                  {trafficSplit.brand_pct}%
-                </p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {formatImpact(trafficSplit.brand_delta, "clicks")}
-                </p>
+                <p className="text-[10px] text-muted-foreground mb-0.5">Brand</p>
+                <p className="text-lg font-bold text-foreground">{trafficSplit.brand_pct}%</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{formatImpact(trafficSplit.brand_delta, "clicks")}</p>
               </div>
               <div className="rounded-lg border bg-card p-2.5">
-                <p className="text-[10px] text-muted-foreground mb-0.5">
-                  Non-Brand
-                </p>
-                <p className="text-lg font-bold text-foreground">
-                  {100 - trafficSplit.brand_pct}%
-                </p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {formatImpact(trafficSplit.nonbrand_delta, "clicks")}
-                </p>
+                <p className="text-[10px] text-muted-foreground mb-0.5">Non-Brand</p>
+                <p className="text-lg font-bold text-foreground">{100 - trafficSplit.brand_pct}%</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{formatImpact(trafficSplit.nonbrand_delta, "clicks")}</p>
               </div>
             </div>
           </div>
         )}
 
+        {/* CHANGE 07: Top Pages with expanded ChannelBlock (clicks + impressions + query chips) */}
         {topContributors.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold text-foreground mb-2">
-                Top Pages
-              </h3>
-              {/* CHANGE 05: ChannelBlock with green/red colouring for pages */}
-              <div className="space-y-1.5">
-                {topContributors.map((contributor, idx) => (
-                  <ChannelBlock
-                    key={idx}
-                    channelName={contributor.key || "Unknown page"}
-                    classification={contributor.classification}
-                    anchorDelta={contributor.delta_clicks ?? 0}
-                    anchorUnit="clicks"
-                    isOrganic={true}
-                  />
-                ))}
-              </div>
+          <div>
+            <h3 className="text-xs font-semibold text-foreground mb-2">Top Pages</h3>
+            <div className="space-y-1.5">
+              {topContributors.map((contributor, idx) => (
+                <ChannelBlock
+                  key={idx}
+                  channelName={contributor.key || "Unknown page"}
+                  classification={contributor.classification}
+                  anchorDelta={contributor.delta_clicks ?? 0}
+                  anchorUnit="clicks"
+                  deltaGoals={contributor.delta_clicks}
+                  deltaSessions={(contributor as { delta_impressions?: number }).delta_impressions}
+                  pages={(contributor as { queries?: string[] }).queries?.map(q => ({ page: '', delta_goals: 0, delta_sessions: 0, queries: [q] })) || undefined}
+                  isTraffic={true}
+                  isOrganic={true}
+                />
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
         {topQueries.length > 0 && (
           <div>
-            <h3 className="text-xs font-semibold text-foreground mb-2">
-              Top Queries
-            </h3>
+            <h3 className="text-xs font-semibold text-foreground mb-2">Top Queries</h3>
             <div className="space-y-1.5">
-              {/* CHANGE 05: ChannelBlock for queries */}
               {topQueries.map((contributor, idx) => (
                 <ChannelBlock
                   key={`${contributor.key}-${idx}`}
@@ -1001,6 +1027,7 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
                   classification={contributor.classification}
                   anchorDelta={contributor.delta_clicks ?? 0}
                   anchorUnit="clicks"
+                  isTraffic={true}
                   isOrganic={true}
                 />
               ))}

@@ -15,10 +15,13 @@ export interface TrafficContributor {
   key: string
   parent_key?: string | null
   delta_clicks: number
+  delta_impressions?: number | null
+  delta_position?: number | null
   share: number
   classification: string
   position_delta?: number
   is_brand?: boolean
+  queries?: string[]
 }
 
 export interface TrafficDiagnosis {
@@ -35,6 +38,7 @@ export interface TrafficDiagnosis {
   evidence_examples?: Array<Record<string, string | number | boolean | null | undefined>>
   rationale: string
   confidence: number
+  plain_text?: string
   label?: string
   detail?: string
   is_primary?: boolean
@@ -100,9 +104,12 @@ export interface TrafficData {
   primary_cause_code?: string
   confidence?: number
   message?: string
+  large_position_drop?: boolean
   narrative: {
     headline: string
     headline_reels?: HeadlineReel[]
+    context_line?: string
+    large_position_drop?: boolean
     bottom_line?: string
     summary_bullets: string[]
     primary_diagnosis: TrafficDiagnosis | null

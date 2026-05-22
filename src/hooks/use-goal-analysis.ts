@@ -33,6 +33,7 @@ export interface Diagnosis {
   cause_category?: string
   confidence: number
   rationale: string
+  plain_text?: string
   suggested_actions?: string[]
   label?: string
   detail?: string
@@ -45,13 +46,25 @@ export interface Diagnosis {
   evidence_examples?: Array<Record<string, string | number | boolean | null | undefined>>
 }
 
+export interface PageBreakdown {
+  page: string
+  delta_goals: number
+  delta_sessions: number
+  delta_clicks?: number | null
+  delta_impressions?: number | null
+  delta_position?: number | null
+  queries?: string[]
+}
+
 export interface GoalContributor {
   level?: string
   key?: string
   page?: string
   representative_page?: string
-  pages?: string[]
+  pages?: PageBreakdown[]
   classification?: string
+  delta_goals?: number
+  delta_sessions?: number
   delta_conversions?: number
   delta_clicks?: number
   share?: number
@@ -60,6 +73,9 @@ export interface GoalContributor {
 interface GoalNarrative {
   headline?: string
   headline_reels?: HeadlineReel[]
+  context_line?: string
+  cross_event_context?: string
+  large_position_drop?: boolean
   summary?: string
   summary_bullets?: string[]
   wins?: Win[]
@@ -88,6 +104,9 @@ export interface GoalData {
   headlineReels: HeadlineReel[]
   wins: Win[]
   bottomLine: string
+  contextLine: string
+  crossEventContext?: string
+  largePositionDrop: boolean
   description: string
   summaryBullets: string[]
   diagnoses: Diagnosis[]
@@ -139,6 +158,9 @@ export interface GoalAnalysisResponse {
     narrative?: {
       headline?: string
       headline_reels?: HeadlineReel[]
+      context_line?: string
+      cross_event_context?: string
+      large_position_drop?: boolean
       summary?: string
       summary_bullets?: string[]
       wins?: Win[]
@@ -255,6 +277,9 @@ function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
     const headlineReels = (normalizedNarrative?.headline_reels || []) as HeadlineReel[]
     const wins = (normalizedNarrative?.wins || []) as Win[]
     const bottomLine = normalizedNarrative?.bottom_line || ""
+    const contextLine = normalizedNarrative?.context_line || ""
+    const crossEventContext = normalizedNarrative?.cross_event_context
+    const largePositionDrop = normalizedNarrative?.large_position_drop === true
 
     return {
       id: anomaly.anomaly_id || (index + 1).toString(),
@@ -274,12 +299,15 @@ function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
       headlineReels,
       wins,
       bottomLine,
+      contextLine,
+      crossEventContext,
+      largePositionDrop,
       description: summary,
       summaryBullets,
       diagnoses,
       primaryDiagnosis,
       contributingDiagnoses,
-      topContributors: collapseTopContributors(normalizedNarrative?.top_contributors || []).slice(0, 10),
+      topContributors: (normalizedNarrative?.top_contributors || []).slice(0, 10),
       delta: anomaly.detection?.delta ?? anomaly.anomaly_details?.detection_stats?.delta ?? 0,
       deltaPct: rawDeltaPct,
       expected: anomaly.detection?.expected,

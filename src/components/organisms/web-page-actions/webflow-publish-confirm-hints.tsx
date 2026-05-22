@@ -2,7 +2,11 @@
 
 import * as React from "react";
 
-export type WebflowPublishConfirmAction = "webflow-draft" | "webflow-live" | "webflow-staging-preview";
+export type WebflowPublishConfirmAction =
+  | "webflow-draft"
+  | "webflow-live"
+  | "webflow-staging-preview"
+  | "webflow-rollback-draft";
 
 type WebflowPublishConfirmHintsProps = {
   action: WebflowPublishConfirmAction | null;
@@ -35,6 +39,11 @@ export function WebflowPublishConfirmDescription({
     return isLiveItem
       ? "This will update the live post on the domains you selected."
       : "This will publish your post live on the domains you selected.";
+  }
+  if (action === "webflow-rollback-draft") {
+    return isLiveItem
+      ? "This will unpublish only this Webflow CMS item and move it back to draft."
+      : "This will remove only this post from Webflow staging preview and move it back to draft.";
   }
   return null;
 }
@@ -112,6 +121,20 @@ export function WebflowPublishConfirmHint({
             <span className="font-semibold text-blue-900">no domains until you select at least one</span>
           )}
           .
+        </p>
+      </div>
+    );
+  }
+
+  if (action === "webflow-rollback-draft") {
+    return (
+      <div className={hintBoxClassName}>
+        <p>
+          This affects <span className="font-semibold text-blue-900">only this CMS item</span>. It does not publish the
+          site, delete the CMS item, overwrite fields, or change other Webflow pages.
+        </p>
+        <p className="mt-2 text-blue-900/90">
+          The item stays editable in Webflow CMS as a draft.
         </p>
       </div>
     );

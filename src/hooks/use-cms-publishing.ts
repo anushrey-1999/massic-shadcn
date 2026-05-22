@@ -116,6 +116,25 @@ export interface CmsWebflowStagingPreviewResponse {
   };
 }
 
+export interface CmsWebflowRollbackToDraftResponse {
+  success: boolean;
+  err: boolean;
+  code?: string;
+  message?: string;
+  details?: Record<string, any>;
+  data?: {
+    platform: "webflow";
+    contentId: string;
+    itemId?: string;
+    targetId?: string;
+    status?: "draft";
+    slug?: string | null;
+    externalUrl?: string | null;
+    previewUrl?: string | null;
+    alreadyDraft?: boolean;
+  };
+}
+
 interface ChannelResponse {
   success: boolean;
   err: boolean;
@@ -263,6 +282,11 @@ interface WebflowStagingPreviewPayload {
   contentId: string;
 }
 
+interface WebflowRollbackToDraftPayload {
+  businessId: string;
+  contentId: string;
+}
+
 export function useCmsWebflowStagingPreview() {
   const queryClient = useQueryClient();
 
@@ -296,6 +320,48 @@ export function useCmsWebflowStagingPreview() {
         return;
       }
       toast.error("Staging preview failed", {
+        description: getErrorMessage(error, "Please try again."),
+      });
+    },
+  });
+}
+
+export function useCmsWebflowRollbackToDraft() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CmsWebflowRollbackToDraftResponse, CmsPublishError, WebflowRollbackToDraftPayload>({
+    mutationFn: async (payload) => {
+      try {
+        const res = await api.post<CmsWebflowRollbackToDraftResponse>(
+          "/cms/publishing/rollback-webflow-draft",
+          "node",
+          payload
+        );
+        if (!res?.success) {
+          throw new CmsPublishError(res?.message || "Failed to move Webflow item back to draft", res?.code, res?.details);
+        }
+        return res;
+      } catch (error: any) {
+        throw toCmsPublishError(error, "Failed to move Webflow item back to draft");
+      }
+    },
+    retry: false,
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["cms-publishing-content-status", variables.businessId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["cms-publishing-channel", variables.businessId],
+      });
+    },
+    onError: (error) => {
+      if (isCmsRateLimitError(error)) {
+        toast.error("Webflow is busy", {
+          description: getCmsRateLimitDescription(error),
+        });
+        return;
+      }
+      toast.error("Webflow rollback failed", {
         description: getErrorMessage(error, "Please try again."),
       });
     },

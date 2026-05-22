@@ -160,6 +160,7 @@ import {
   useCmsPublishingChannel,
   useCmsPublishingContentStatus,
   useCmsSlugCheck,
+  useCmsWebflowRollbackToDraft,
   useCmsWebflowStagingPreview,
 } from "@/hooks/use-cms-publishing";
 import {
@@ -586,7 +587,15 @@ export function WebPageHtmlView({
   const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
   const [confirmPublishAction, setConfirmPublishAction] = React.useState<
-    "draft" | "live" | "webflow-draft" | "webflow-live" | "webflow-staging-preview" | "republish" | "update-draft" | null
+    | "draft"
+    | "live"
+    | "webflow-draft"
+    | "webflow-live"
+    | "webflow-staging-preview"
+    | "webflow-rollback-draft"
+    | "republish"
+    | "update-draft"
+    | null
   >(null);
   const [webflowStagingPreview, setWebflowStagingPreview] = React.useState<{
     contentId: string;
@@ -625,6 +634,7 @@ export function WebPageHtmlView({
   const isWpConnected = isActiveWordpress;
   const cmsPublishMutation = useCmsPublish();
   const webflowStagingPreviewMutation = useCmsWebflowStagingPreview();
+  const webflowRollbackToDraftMutation = useCmsWebflowRollbackToDraft();
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
@@ -772,9 +782,15 @@ export function WebPageHtmlView({
     [webflowPersistedContent?.slug]
   );
   const lastPublishedStatus = (lastPublishedData?.status || "").toLowerCase();
+  const isWebflowStagingPreviewStatus = React.useCallback(
+    (status?: string | null) => String(status || "").toLowerCase() === "staged_for_staging_preview",
+    []
+  );
   const isWebflowLive = webflowPersistedStatus === "published" || lastPublishedStatus === "published";
   const isWebflowDraftLike = Boolean(
     (webflowPersistedContent && webflowPersistedStatus === "draft") ||
+      isWebflowStagingPreviewStatus(webflowPersistedStatus) ||
+      isWebflowStagingPreviewStatus(lastPublishedStatus) ||
       (lastPublishedStatus === "draft" && lastPublishedData?.contentId)
   );
   const hasWebflowMapping = Boolean(webflowPersistedContent?.itemId || lastPublishedData?.contentId);
@@ -857,6 +873,7 @@ export function WebPageHtmlView({
   const isPublishBusy =
     cmsPublishMutation.isPending ||
     webflowStagingPreviewMutation.isPending ||
+    webflowRollbackToDraftMutation.isPending ||
     wpPreviewMutation.isPending ||
     wpUnpublishMutation.isPending ||
     featuredImageBusy ||
@@ -893,7 +910,10 @@ export function WebPageHtmlView({
     null;
   const webflowPreviewUrl = isWebflowLive ? webflowLiveUrl || webflowStagingPreviewUrl : webflowStagingPreviewUrl;
   const hasWebflowStagingPreview = Boolean(
-    webflowStagingPreview?.contentId === String(publishContentId) && webflowStagingPreview?.url
+    (webflowStagingPreview?.contentId === String(publishContentId) && webflowStagingPreview?.url) ||
+      (hasWebflowMapping &&
+        (isWebflowStagingPreviewStatus(webflowPersistedStatus) || isWebflowStagingPreviewStatus(lastPublishedStatus)) &&
+        webflowStagingPreviewUrl)
   );
   const webflowStagingViewUrl = hasWebflowStagingPreview
     ? webflowStagingPreview?.url
@@ -2148,6 +2168,15 @@ export function WebPageHtmlView({
         contentId: String(publishContentId),
       });
       const previewUrl = result.data?.previewUrl;
+      setLastPublishedData(prev => ({
+        contentId: result.data?.contentId || String(publishContentId),
+        wpId: prev?.wpId || 0,
+        permalink: previewUrl || prev?.permalink || null,
+        editUrl: prev?.editUrl || null,
+        status: result.data?.status || "staged_for_staging_preview",
+        slug: result.data?.slug || normalizedSlugForPublish || prev?.slug || null,
+        previewUrl: previewUrl || prev?.previewUrl,
+      }));
       if (previewUrl) {
         const contentId = String(publishContentId);
         setWebflowStagingPreview({ contentId, url: previewUrl });
@@ -2180,6 +2209,46 @@ export function WebPageHtmlView({
       }
     }
   }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, cssVarOverrides, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
+
+  const handleRollbackWebflowToDraft = React.useCallback(async () => {
+    if (!isWebflowReady || !businessId || !publishContentId || !hasWebflowMapping) return;
+
+    try {
+      setPublishRateLimitMessage(null);
+      const result = await webflowRollbackToDraftMutation.mutateAsync({
+        businessId: String(businessId),
+        contentId: String(publishContentId),
+      });
+      const data = result.data;
+      setWebflowStagingPreview(null);
+      clearWebflowStagingPreviewSession(String(publishContentId));
+      setLastPublishedData(prev => ({
+        contentId: data?.contentId || String(publishContentId),
+        wpId: prev?.wpId || 0,
+        permalink: null,
+        editUrl: prev?.editUrl || null,
+        status: "draft",
+        slug: data?.slug || webflowPersistedContent?.slug || prev?.slug || null,
+        previewUrl: data?.previewUrl || webflowPersistedContent?.previewUrl || prev?.previewUrl,
+      }));
+      await contentStatusQuery.refetch();
+      toast.success(data?.alreadyDraft ? "Webflow item is already a draft" : "Moved back to Webflow draft");
+    } catch (error) {
+      const e = error as CmsPublishError;
+      if (isCmsRateLimitError(e)) {
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e));
+      }
+    }
+  }, [
+    businessId,
+    contentStatusQuery,
+    hasWebflowMapping,
+    isWebflowReady,
+    publishContentId,
+    webflowPersistedContent?.previewUrl,
+    webflowPersistedContent?.slug,
+    webflowRollbackToDraftMutation,
+  ]);
 
   const handlePublishLive = React.useCallback(async () => {
     if (!cmsChannel?.connected || !hasFinalContent) return;
@@ -2394,9 +2463,10 @@ export function WebPageHtmlView({
     if (action === "draft" || action === "webflow-draft") await handlePublishDraft();
     else if (action === "webflow-live" || action === "live") await handlePublishLive();
     else if (action === "webflow-staging-preview") await handlePreviewWebflowStaging();
+    else if (action === "webflow-rollback-draft") await handleRollbackWebflowToDraft();
     else if (action === "republish") await handleRepublish();
     else if (action === "update-draft") await handleUpdateDraft();
-  }, [confirmPublishAction, handlePreviewWebflowStaging, handlePublishDraft, handlePublishLive, handleRepublish, handleUpdateDraft]);
+  }, [confirmPublishAction, handlePreviewWebflowStaging, handlePublishDraft, handlePublishLive, handleRepublish, handleRollbackWebflowToDraft, handleUpdateDraft]);
 
   const autoResolveSlug = React.useCallback(async () => {
     if (!slugCheckResult?.suggestedSlug || isSlugActionBusy) return;
@@ -5504,9 +5574,21 @@ export function WebPageHtmlView({
                     >
                       {wpPublishMutation.isPending || featuredImageBusy ? "Republishing..." : "Republish"}
                     </Button>
-                    <Button onClick={() => liveUrl && openEmbeddedPreview(liveUrl, `Published WordPress ${contentLabel}`)} disabled={!liveUrl}>
-                      View Live
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={() => liveUrl && openEmbeddedPreview(liveUrl, `Published WordPress ${contentLabel}`)}
+                          disabled={!liveUrl}
+                          aria-label={`View live WordPress ${contentLabelLower}`}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>View Live</TooltipContent>
+                    </Tooltip>
                   </>
                 ) : isPersistedDraftLike ? (
                   <>
@@ -5569,18 +5651,26 @@ export function WebPageHtmlView({
                   <>
                     {hasWebflowStagingPreview ? (
                       <>
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            openWebflowPreview(webflowStagingViewUrl, {
-                              delayMs: WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
-                              subject: "staging page",
-                            })
-                          }
-                          disabled={!webflowStagingViewUrl}
-                        >
-                          View on staging
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="outline"
+                              onClick={() =>
+                                openWebflowPreview(webflowStagingViewUrl, {
+                                  delayMs: WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
+                                  subject: "staging page",
+                                })
+                              }
+                              disabled={!webflowStagingViewUrl}
+                              aria-label="View on staging"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>View on staging</TooltipContent>
+                        </Tooltip>
                         <Button
                           variant="outline"
                           onClick={() => setConfirmPublishAction("webflow-staging-preview")}
@@ -5588,15 +5678,24 @@ export function WebPageHtmlView({
                         >
                           {webflowStagingPreviewMutation.isPending ? "Republishing..." : "Republish"}
                         </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setConfirmPublishAction("webflow-rollback-draft")}
+                          disabled={!hasWebflowMapping || webflowRollbackToDraftMutation.isPending || isPublishBusy}
+                        >
+                          {webflowRollbackToDraftMutation.isPending ? "Moving..." : "Move back to draft"}
+                        </Button>
                       </>
                     ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => setConfirmPublishAction("webflow-staging-preview")}
-                        disabled={!hasWebflowMapping || webflowStagingPreviewMutation.isPending || isPublishBusy}
-                      >
-                        {webflowStagingPreviewMutation.isPending ? "Publishing..." : "Publish to staging"}
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => setConfirmPublishAction("webflow-staging-preview")}
+                          disabled={!hasWebflowMapping || webflowStagingPreviewMutation.isPending || isPublishBusy}
+                        >
+                          {webflowStagingPreviewMutation.isPending ? "Publishing..." : "Publish to staging"}
+                        </Button>
+                      </>
                     )}
                     <Button
                       onClick={() => setConfirmPublishAction("webflow-live")}
@@ -5614,17 +5713,32 @@ export function WebPageHtmlView({
                 ) : null}
                 {webflowPublishState === "live" ? (
                   <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={() =>
+                            openWebflowPreview(webflowPreviewUrl, {
+                              delayMs: WEBFLOW_LIVE_VIEW_OPEN_DELAY_MS,
+                              subject: "live page",
+                            })
+                          }
+                          disabled={!webflowPreviewUrl}
+                          aria-label="View live page"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>View live page</TooltipContent>
+                    </Tooltip>
                     <Button
                       variant="outline"
-                      onClick={() =>
-                        openWebflowPreview(webflowPreviewUrl, {
-                          delayMs: WEBFLOW_LIVE_VIEW_OPEN_DELAY_MS,
-                          subject: "live page",
-                        })
-                      }
-                      disabled={!webflowPreviewUrl}
+                      onClick={() => setConfirmPublishAction("webflow-rollback-draft")}
+                      disabled={!hasWebflowMapping || webflowRollbackToDraftMutation.isPending || isPublishBusy}
                     >
-                      View live page
+                      {webflowRollbackToDraftMutation.isPending ? "Moving..." : "Move back to draft"}
                     </Button>
                     <Button
                       variant="outline"
@@ -5669,6 +5783,8 @@ export function WebPageHtmlView({
                     ? hasWebflowStagingPreview
                       ? "Republish to staging?"
                       : "Publish to staging?"
+                    : confirmPublishAction === "webflow-rollback-draft"
+                      ? "Move Webflow item back to draft?"
                     : confirmPublishAction === "live"
                       ? "Publish Live to WordPress?"
                       : confirmPublishAction === "republish"
@@ -5682,7 +5798,8 @@ export function WebPageHtmlView({
                 <p className="text-sm text-muted-foreground">
                   {confirmPublishAction === "webflow-draft" ||
                   confirmPublishAction === "webflow-live" ||
-                  confirmPublishAction === "webflow-staging-preview" ? (
+                  confirmPublishAction === "webflow-staging-preview" ||
+                  confirmPublishAction === "webflow-rollback-draft" ? (
                     <WebflowPublishConfirmDescription
                       action={confirmPublishAction as WebflowPublishConfirmAction}
                       isLiveItem={webflowPublishState === "live"}
@@ -5704,7 +5821,8 @@ export function WebPageHtmlView({
                   action={
                     confirmPublishAction === "webflow-draft" ||
                     confirmPublishAction === "webflow-live" ||
-                    confirmPublishAction === "webflow-staging-preview"
+                    confirmPublishAction === "webflow-staging-preview" ||
+                    confirmPublishAction === "webflow-rollback-draft"
                       ? (confirmPublishAction as WebflowPublishConfirmAction)
                       : null
                   }
@@ -5776,6 +5894,8 @@ export function WebPageHtmlView({
                     ? "Confirm Republish"
                     : confirmPublishAction === "update-draft"
                       ? "Confirm Update Draft"
+                      : confirmPublishAction === "webflow-rollback-draft"
+                        ? "Confirm Move back to draft"
                       : confirmPublishAction === "webflow-staging-preview"
                         ? hasWebflowStagingPreview
                           ? "Confirm Republish"

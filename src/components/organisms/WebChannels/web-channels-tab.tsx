@@ -45,6 +45,16 @@ import {
   type WebflowCollection,
   type WebflowCollectionField,
 } from "@/hooks/use-webflow-connector";
+import {
+  useConfigureSanity,
+  useConnectSanity,
+  useDisconnectSanity,
+  useSanityConnection,
+  useSanityDocumentTypes,
+  useSanityFields,
+  useValidateSanity,
+  type SanityField,
+} from "@/hooks/use-sanity-connector";
 import { PlatformIcon, SiteFavicon } from "./platform-icon";
 import { IntegrationStatusBadge } from "./integration-status-badge";
 import {
@@ -52,6 +62,11 @@ import {
   type WebflowImageDestinationRow,
   type WebflowMappingRow,
 } from "./webflow-publish-setup";
+import {
+  SanityPublishSetup,
+  type SanityImageDestinationRow,
+  type SanityMappingRow,
+} from "./sanity-publish-setup";
 
 interface WebChannelsTabProps {
   businessId: string;
@@ -61,6 +76,7 @@ interface WebChannelsTabProps {
 }
 
 const EMPTY_WEBFLOW_FIELDS: WebflowCollectionField[] = [];
+const EMPTY_SANITY_FIELDS: SanityField[] = [];
 const WORDPRESS_PLUGIN_ZIP_PATH = "/downloads/massic-wp-connector-1.0.0.zip";
 
 function normalizeSiteUrlInput(value: string) {
@@ -154,6 +170,24 @@ function makeWebflowMappingRow(partial: Partial<WebflowMappingRow>): WebflowMapp
   };
 }
 
+function makeSanityMappingRow(partial: Partial<SanityMappingRow>): SanityMappingRow {
+  return {
+    id: partial.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    massicField: partial.massicField || "",
+    sanityFieldPath: partial.sanityFieldPath || "",
+    staticValue: partial.staticValue || "",
+    sourcePath: partial.sourcePath || "",
+    type: partial.type || "string",
+  };
+}
+
+function findSanityField(fields: SanityField[], patterns: RegExp[]) {
+  return fields.find(field => {
+    const text = [field.fieldPath, field.label, field.name].filter(Boolean).join(" ").toLowerCase();
+    return patterns.some(pattern => pattern.test(text));
+  }) || null;
+}
+
 export function WebChannelsTab({
   businessId,
   defaultSiteUrl,
@@ -162,13 +196,25 @@ export function WebChannelsTab({
 }: WebChannelsTabProps) {
   const [isRecommendedModalOpen, setIsRecommendedModalOpen] = React.useState(false);
   const [isHowToModalOpen, setIsHowToModalOpen] = React.useState(false);
+  const [isSanityConnectModalOpen, setIsSanityConnectModalOpen] = React.useState(false);
+  const [isSanityGuideOpen, setIsSanityGuideOpen] = React.useState(false);
   const [recommendedSiteUrl, setRecommendedSiteUrl] = React.useState(defaultSiteUrl || "");
+  const [sanityProjectId, setSanityProjectId] = React.useState("");
+  const [sanityDataset, setSanityDataset] = React.useState("production");
+  const [sanityToken, setSanityToken] = React.useState("");
+  const [sanityPreviewBaseUrl, setSanityPreviewBaseUrl] = React.useState("");
+  const [sanityUrlPattern, setSanityUrlPattern] = React.useState("/blog/{slug}");
   const [selectedWebflowSiteId, setSelectedWebflowSiteId] = React.useState("");
   const [selectedWebflowCollectionId, setSelectedWebflowCollectionId] = React.useState("");
   const [webflowMappings, setWebflowMappings] = React.useState<WebflowMappingRow[]>([]);
   const [webflowImageDestinations, setWebflowImageDestinations] = React.useState<WebflowImageDestinationRow[]>([]);
   const [isWebflowConfigOpen, setIsWebflowConfigOpen] = React.useState(false);
+  const [selectedSanityDocumentType, setSelectedSanityDocumentType] = React.useState("");
+  const [sanityMappings, setSanityMappings] = React.useState<SanityMappingRow[]>([]);
+  const [sanityImageDestinations, setSanityImageDestinations] = React.useState<SanityImageDestinationRow[]>([]);
+  const [isSanityConfigOpen, setIsSanityConfigOpen] = React.useState(false);
   const webflowMappingInitKeyRef = React.useRef("");
+  const sanityMappingInitKeyRef = React.useRef("");
 
   const { data, isLoading, refetch } = useWordpressConnection(businessId);
   const prevActiveRef = React.useRef(false);
@@ -196,6 +242,19 @@ export function WebChannelsTab({
   const startWebflowOauthMutation = useStartWebflowOauth();
   const disconnectWebflowMutation = useDisconnectWebflow(businessId);
   const configureWebflowMutation = useConfigureWebflow(businessId);
+  const sanityConnectionQuery = useSanityConnection(businessId);
+  const sanityConnection = sanityConnectionQuery.data?.connection || null;
+  const isSanityConnected = Boolean(sanityConnectionQuery.data?.connected && sanityConnection);
+  const sanityTarget = sanityConnection?.target || null;
+  const connectSanityMutation = useConnectSanity(businessId);
+  const validateSanityMutation = useValidateSanity();
+  const disconnectSanityMutation = useDisconnectSanity(businessId);
+  const configureSanityMutation = useConfigureSanity(businessId);
+  const sanityDocumentTypesQuery = useSanityDocumentTypes(sanityConnection?.connectionId || null);
+  const sanityDocumentTypes = sanityDocumentTypesQuery.data || [];
+  const effectiveSanityDocumentType = selectedSanityDocumentType || sanityTarget?.documentType || "";
+  const sanityFieldsQuery = useSanityFields(sanityConnection?.connectionId || null, effectiveSanityDocumentType || null);
+  const sanityFields = sanityFieldsQuery.data || EMPTY_SANITY_FIELDS;
   const webflowSitesQuery = useWebflowSites(webflowConnection?.connectionId || null);
   const webflowSites = webflowSitesQuery.data || [];
   const effectiveWebflowSiteId = selectedWebflowSiteId || webflowTarget?.siteId || "";
@@ -213,6 +272,10 @@ export function WebChannelsTab({
     [selectedWebflowCollectionId, webflowCollections]
   );
   const selectedWebflowFields = selectedWebflowCollection?.fields || EMPTY_WEBFLOW_FIELDS;
+  const selectedSanityImageFields = React.useMemo(
+    () => sanityFields.filter(field => field.possibleImage || field.type === "image"),
+    [sanityFields]
+  );
   const selectedWebflowBodyField = React.useMemo(
     () => selectedWebflowFields.find(isWebflowRichTextField) || null,
     [selectedWebflowFields]
@@ -289,10 +352,48 @@ export function WebChannelsTab({
     () => selectedWebflowCollection?.displayName || selectedWebflowCollection?.name || webflowTarget?.name || null,
     [selectedWebflowCollection, webflowTarget?.name]
   );
+  const savedSanityPreviewBaseUrl = React.useMemo(
+    () =>
+      String(
+        sanityTarget?.metadata?.previewBaseUrl ||
+          sanityConnection?.metadata?.previewBaseUrl ||
+          sanityConnection?.siteUrl ||
+          ""
+      ),
+    [
+      sanityConnection?.metadata?.previewBaseUrl,
+      sanityConnection?.siteUrl,
+      sanityTarget?.metadata?.previewBaseUrl,
+    ]
+  );
+  const savedSanityUrlPattern = React.useMemo(
+    () =>
+      String(
+        sanityTarget?.metadata?.urlPattern ||
+          sanityConnection?.metadata?.urlPattern ||
+          ""
+      ),
+    [
+      sanityConnection?.metadata?.urlPattern,
+      sanityTarget?.metadata?.urlPattern,
+    ]
+  );
 
   React.useEffect(() => {
     if (!recommendedSiteUrl && defaultSiteUrl) setRecommendedSiteUrl(defaultSiteUrl);
   }, [defaultSiteUrl, recommendedSiteUrl]);
+
+  React.useEffect(() => {
+    if (savedSanityPreviewBaseUrl) {
+      setSanityPreviewBaseUrl(savedSanityPreviewBaseUrl);
+      return;
+    }
+    if (defaultSiteUrl) setSanityPreviewBaseUrl(defaultSiteUrl);
+  }, [defaultSiteUrl, savedSanityPreviewBaseUrl]);
+
+  React.useEffect(() => {
+    if (savedSanityUrlPattern) setSanityUrlPattern(savedSanityUrlPattern);
+  }, [savedSanityUrlPattern]);
 
   React.useEffect(() => {
     if (webflowTarget?.siteId && !selectedWebflowSiteId) setSelectedWebflowSiteId(webflowTarget.siteId);
@@ -300,6 +401,15 @@ export function WebChannelsTab({
       setSelectedWebflowCollectionId(webflowTarget.collectionId);
     }
   }, [selectedWebflowCollectionId, selectedWebflowSiteId, webflowTarget?.collectionId, webflowTarget?.siteId]);
+
+  React.useEffect(() => {
+    if (sanityTarget?.documentType && !selectedSanityDocumentType) {
+      setSelectedSanityDocumentType(sanityTarget.documentType);
+    }
+  }, [
+    sanityTarget?.documentType,
+    selectedSanityDocumentType,
+  ]);
 
   React.useEffect(() => {
     if (!selectedWebflowCollection) {
@@ -430,12 +540,105 @@ export function WebChannelsTab({
   ]);
 
   React.useEffect(() => {
+    if (!effectiveSanityDocumentType) {
+      if (sanityMappingInitKeyRef.current !== "none") {
+        sanityMappingInitKeyRef.current = "none";
+        setSanityMappings([]);
+        setSanityImageDestinations([]);
+      }
+      return;
+    }
+
+    const fieldSignature = sanityFields
+      .map(field => `${field.fieldPath}:${field.type}:${field.possibleImage ? "image" : ""}:${field.possibleBody ? "body" : ""}`)
+      .join("|");
+    const savedSignature = JSON.stringify(sanityTarget?.fieldMapping?.fields || []);
+    const initKey = [
+      effectiveSanityDocumentType,
+      fieldSignature,
+      sanityTarget?.documentType === effectiveSanityDocumentType ? savedSignature : "",
+    ].join("::");
+
+    if (sanityMappingInitKeyRef.current === initKey) return;
+    sanityMappingInitKeyRef.current = initKey;
+
+    const savedFields =
+      sanityTarget?.documentType === effectiveSanityDocumentType ? sanityTarget?.fieldMapping?.fields || [] : [];
+    const imageFieldKeys = new Set(selectedSanityImageFields.map(field => field.fieldPath).filter(Boolean));
+
+    if (savedFields.length > 0) {
+      const savedImageKeys = new Set(
+        savedFields
+          .filter(field => {
+            const key = field.sanityFieldPath || "";
+            return field.type === "image" || imageFieldKeys.has(key);
+          })
+          .map(field => field.sanityFieldPath || "")
+          .filter(Boolean)
+      );
+      setSanityMappings(
+        savedFields
+          .filter(field => {
+            const key = field.sanityFieldPath || "";
+            return !(field.type === "image" || imageFieldKeys.has(key));
+          })
+          .map((field, index) =>
+            makeSanityMappingRow({
+              id: `saved-sanity-${index}`,
+              massicField: field.massicField || "__static",
+              sanityFieldPath: field.sanityFieldPath || "",
+              sourcePath: field.sourcePath || "",
+              staticValue: field.staticValue || "",
+              type: field.type || field.sanityFieldType || "string",
+            })
+          )
+      );
+      setSanityImageDestinations(
+        selectedSanityImageFields.map(field => ({
+          id: `image-${field.fieldPath}`,
+          sanityFieldPath: field.fieldPath,
+          enabled: savedImageKeys.has(field.fieldPath),
+        }))
+      );
+      return;
+    }
+
+    const titleField = findSanityField(sanityFields, [/^title$/i, /\btitle\b/i]);
+    const slugField = findSanityField(sanityFields, [/^slug$/i, /\bslug\b/i]);
+    const bodyField = sanityFields.find(field => field.possibleBody || field.type === "portableText") || findSanityField(sanityFields, [/\bbody\b/i, /\bcontent\b/i]);
+    const metaTitleField = findSanityField(sanityFields, [/(seo|meta).*title/i, /title.*(seo|meta)/i]);
+    const metaDescriptionField = findSanityField(sanityFields, [/(seo|meta).*(description|desc)/i, /(description|desc).*(seo|meta)/i, /\bexcerpt\b/i]);
+    const rows: SanityMappingRow[] = [];
+    if (titleField) rows.push(makeSanityMappingRow({ id: "sanity-title", massicField: "title", sanityFieldPath: titleField.fieldPath, type: titleField.type || "string" }));
+    if (slugField) rows.push(makeSanityMappingRow({ id: "sanity-slug", massicField: "slug", sanityFieldPath: slugField.fieldPath, type: "slug" }));
+    if (bodyField) rows.push(makeSanityMappingRow({ id: "sanity-body", massicField: "bodyHtml", sanityFieldPath: bodyField.fieldPath, type: bodyField.type || "portableText" }));
+    if (metaTitleField) rows.push(makeSanityMappingRow({ id: "sanity-meta-title", massicField: "metaTitle", sanityFieldPath: metaTitleField.fieldPath, type: metaTitleField.type || "string" }));
+    if (metaDescriptionField) rows.push(makeSanityMappingRow({ id: "sanity-meta-description", massicField: "metaDescription", sanityFieldPath: metaDescriptionField.fieldPath, type: metaDescriptionField.type || "string" }));
+
+    setSanityMappings(rows);
+    setSanityImageDestinations(
+      selectedSanityImageFields.map(field => ({
+        id: `image-${field.fieldPath}`,
+        sanityFieldPath: field.fieldPath,
+        enabled: true,
+      }))
+    );
+  }, [
+    effectiveSanityDocumentType,
+    sanityFields,
+    sanityTarget?.documentType,
+    sanityTarget?.fieldMapping?.fields,
+    selectedSanityImageFields,
+  ]);
+
+  React.useEffect(() => {
     const onWebflowOauthMessage = (event: MessageEvent) => {
       const payload = event.data;
       if (!payload || payload.source !== "massic-webflow-oauth") return;
       if (payload.ok) {
         toast.success("Webflow connected");
         void webflowConnectionQuery.refetch();
+        void sanityConnectionQuery.refetch();
         void refetch();
         return;
       }
@@ -445,7 +648,7 @@ export function WebChannelsTab({
     };
     window.addEventListener("message", onWebflowOauthMessage);
     return () => window.removeEventListener("message", onWebflowOauthMessage);
-  }, [refetch, webflowConnectionQuery]);
+  }, [refetch, sanityConnectionQuery, webflowConnectionQuery]);
 
   const submitRecommended = async () => {
     const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl);
@@ -521,6 +724,56 @@ export function WebChannelsTab({
     });
   };
 
+  const sanityConnectionPayload = () => ({
+    businessId,
+    projectId: sanityProjectId.trim(),
+    dataset: sanityDataset.trim() || "production",
+    token: sanityToken.trim(),
+    previewBaseUrl: normalizeSiteUrlInput(sanityPreviewBaseUrl),
+    urlPattern: sanityUrlPattern.trim() || "/blog/{slug}",
+  });
+
+  const submitSanityValidation = async () => {
+    await validateSanityMutation.mutateAsync(sanityConnectionPayload());
+  };
+
+  const submitSanityConnect = async () => {
+    const response = await connectSanityMutation.mutateAsync(sanityConnectionPayload());
+    const connection = response?.data?.connection;
+    if (connection?.metadata?.projectId) setSanityProjectId(String(connection.metadata.projectId));
+    if (connection?.metadata?.dataset) setSanityDataset(String(connection.metadata.dataset));
+    setSanityToken("");
+    setIsSanityConnectModalOpen(false);
+  };
+
+  const submitSanityConfiguration = async () => {
+    if (!sanityConnection?.connectionId || !effectiveSanityDocumentType) return;
+    const contentFields = sanityMappings
+      .filter(row => row.sanityFieldPath)
+      .map(row => ({
+        ...(row.massicField && row.massicField !== "__static" && row.massicField !== "__custom" ? { massicField: row.massicField } : {}),
+        sanityFieldPath: row.sanityFieldPath,
+        ...(row.sourcePath ? { sourcePath: row.sourcePath } : {}),
+        ...(row.massicField === "__static" || row.massicField === "__custom" ? { staticValue: row.staticValue } : {}),
+        type: row.type || "string",
+      }));
+    const imageFields = sanityImageDestinations
+      .filter(row => row.enabled && row.sanityFieldPath)
+      .map(row => ({
+        massicField: "featuredImage",
+        sanityFieldPath: row.sanityFieldPath,
+        type: "image",
+      }));
+
+    await configureSanityMutation.mutateAsync({
+      connectionId: sanityConnection.connectionId,
+      documentType: effectiveSanityDocumentType,
+      previewBaseUrl: normalizeSiteUrlInput(sanityPreviewBaseUrl),
+      urlPattern: sanityUrlPattern.trim() || "/blog/{slug}",
+      fieldMapping: { fields: [...contentFields, ...imageFields] },
+    });
+  };
+
   const handleOpenWordpressAdmin = () => {
     if (!connection?.siteUrl) return;
     try {
@@ -545,12 +798,20 @@ export function WebChannelsTab({
     !configureWebflowMutation.isPending;
 
   const needsWebflowSetup = isWebflowConnected && !webflowTarget?.collectionId;
+  const canSaveSanityConfig =
+    Boolean(sanityConnection?.connectionId && effectiveSanityDocumentType && sanityMappings.some(row => row.sanityFieldPath)) &&
+    sanityUrlPattern.includes("{slug}") &&
+    !configureSanityMutation.isPending;
+  const needsSanitySetup = isSanityConnected && !sanityTarget?.targetId;
 
   React.useEffect(() => {
     if (needsWebflowSetup) {
       setIsWebflowConfigOpen(true);
     }
-  }, [needsWebflowSetup]);
+    if (needsSanitySetup) {
+      setIsSanityConfigOpen(true);
+    }
+  }, [needsSanitySetup, needsWebflowSetup]);
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto">
@@ -752,7 +1013,266 @@ export function WebChannelsTab({
             </Collapsible>
           )}
         </Card>
+
+        {/* Sanity */}
+        <Card variant="profileCard" className="border-none bg-white p-4">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 p-0 pb-0">
+            <div className="flex min-w-0 flex-1 items-start gap-4">
+              <PlatformIcon platform="sanity" />
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-base font-medium">Sanity</CardTitle>
+                  <IntegrationStatusBadge
+                    connected={isSanityConnected}
+                    loading={sanityConnectionQuery.isLoading}
+                  />
+                </div>
+                <CardDescription>
+                  Publish blog drafts and live documents to Sanity.
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {isSanityConnected ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      sanityConnection?.connectionId &&
+                      disconnectSanityMutation.mutate({ connectionId: sanityConnection.connectionId })
+                    }
+                    disabled={disconnectSanityMutation.isPending}
+                  >
+                    {disconnectSanityMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="outline" className="size-9">
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem onClick={() => setIsSanityGuideOpen(true)}>Setup guide</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-general-muted-foreground"
+                    onClick={() => setIsSanityGuideOpen(true)}
+                  >
+                    <HelpCircle className="mr-1.5 size-4" />
+                    Guide
+                  </Button>
+                  <Button size="sm" onClick={() => setIsSanityConnectModalOpen(true)} disabled={connectSanityMutation.isPending}>
+                    <Link2 className="mr-1.5 size-4" />
+                    Connect
+                  </Button>
+                </>
+              )}
+            </div>
+          </CardHeader>
+
+          {isSanityConnected && (
+            <Collapsible
+              open={isSanityConfigOpen}
+              onOpenChange={setIsSanityConfigOpen}
+              className="mt-3 border-t border-general-border"
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full cursor-pointer items-center justify-between gap-3 py-3 text-left",
+                    "rounded-md transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  )}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-general-foreground">
+                      {needsSanitySetup ? "Complete publishing setup" : "Publishing settings"}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-general-muted-foreground">
+                      {needsSanitySetup
+                        ? "Choose document type, preview URL, and field mapping"
+                        : sanityTarget?.documentType
+                          ? [sanityTarget.documentType, sanityConnection?.metadata?.dataset]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : "Document type and field mapping"}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 shrink-0 text-general-muted-foreground transition-transform duration-200",
+                      isSanityConfigOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="overflow-hidden">
+                <div className="pb-1 pt-2">
+                  <SanityPublishSetup
+                    documentTypes={sanityDocumentTypes}
+                    fields={sanityFields}
+                    documentTypesLoading={sanityDocumentTypesQuery.isLoading}
+                    fieldsLoading={sanityFieldsQuery.isLoading}
+                    selectedDocumentType={effectiveSanityDocumentType}
+                    onDocumentTypeChange={setSelectedSanityDocumentType}
+                    previewBaseUrl={sanityPreviewBaseUrl}
+                    onPreviewBaseUrlChange={setSanityPreviewBaseUrl}
+                    urlPattern={sanityUrlPattern}
+                    onUrlPatternChange={setSanityUrlPattern}
+                    mappings={sanityMappings}
+                    onMappingsChange={setSanityMappings}
+                    imageDestinations={sanityImageDestinations}
+                    onImageDestinationsChange={setSanityImageDestinations}
+                    canSave={canSaveSanityConfig}
+                    isSaving={configureSanityMutation.isPending}
+                    hasSavedTarget={Boolean(sanityTarget?.targetId)}
+                    onSave={submitSanityConfiguration}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+        </Card>
       </div>
+
+      <Dialog open={isSanityConnectModalOpen} onOpenChange={setIsSanityConnectModalOpen}>
+        <DialogContent className="sm:max-w-lg" showCloseButton={!connectSanityMutation.isPending}>
+          <DialogHeader>
+            <DialogTitle>Connect Sanity</DialogTitle>
+            <DialogDescription>
+              Add your project details. The token is validated and stored encrypted.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-1">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="sanity-project-id">Project ID</Label>
+                <Input
+                  id="sanity-project-id"
+                  value={sanityProjectId}
+                  onChange={event => setSanityProjectId(event.target.value)}
+                  placeholder="abc123"
+                  disabled={connectSanityMutation.isPending}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="sanity-dataset">Dataset</Label>
+                <Input
+                  id="sanity-dataset"
+                  value={sanityDataset}
+                  onChange={event => setSanityDataset(event.target.value)}
+                  placeholder="production"
+                  disabled={connectSanityMutation.isPending}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="sanity-token">API token</Label>
+              <Input
+                id="sanity-token"
+                value={sanityToken}
+                onChange={event => setSanityToken(event.target.value)}
+                placeholder="sk..."
+                type="password"
+                disabled={connectSanityMutation.isPending}
+              />
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="sanity-preview-url">Site/preview base URL</Label>
+                <Input
+                  id="sanity-preview-url"
+                  value={sanityPreviewBaseUrl}
+                  onChange={event => setSanityPreviewBaseUrl(event.target.value)}
+                  placeholder="https://example.com"
+                  disabled={connectSanityMutation.isPending}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="sanity-url-pattern-connect">Blog URL pattern</Label>
+                <Input
+                  id="sanity-url-pattern-connect"
+                  value={sanityUrlPattern}
+                  onChange={event => setSanityUrlPattern(event.target.value)}
+                  placeholder="/blog/{slug}"
+                  disabled={connectSanityMutation.isPending}
+                />
+              </div>
+            </div>
+            <Button
+              variant="link"
+              className="h-auto justify-start px-0 text-xs"
+              onClick={() => setIsSanityGuideOpen(true)}
+            >
+              Need help finding these?
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSanityConnectModalOpen(false)} disabled={connectSanityMutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={submitSanityValidation}
+              disabled={!sanityProjectId.trim() || !sanityToken.trim() || validateSanityMutation.isPending || connectSanityMutation.isPending}
+            >
+              {validateSanityMutation.isPending ? "Validating..." : "Validate"}
+            </Button>
+            <Button
+              onClick={submitSanityConnect}
+              disabled={!sanityProjectId.trim() || !sanityToken.trim() || connectSanityMutation.isPending}
+            >
+              {connectSanityMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSanityGuideOpen} onOpenChange={setIsSanityGuideOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Sanity setup</DialogTitle>
+            <DialogDescription>Find the values needed to connect Sanity publishing.</DialogDescription>
+          </DialogHeader>
+          <ol className="list-decimal space-y-2.5 py-1 pl-5 text-sm text-general-foreground">
+            <li>
+              <strong>Project ID:</strong> Open <strong>sanity.io/manage</strong>, choose your project, and copy the
+              project ID. You can also find it in your Studio config or environment variables.
+            </li>
+            <li>
+              <strong>Dataset:</strong> In Sanity Manage, open <strong>Datasets</strong>. Most sites use{" "}
+              <strong>production</strong>.
+            </li>
+            <li>
+              <strong>API token:</strong> In Sanity Manage, open <strong>API &gt; Tokens</strong> and create a token
+              with write access for draft/live publishing and asset upload.
+            </li>
+            <li>
+              <strong>Site/preview base URL:</strong> Use the live or preview frontend URL where blog posts render,
+              such as <strong>https://example.com</strong>.
+            </li>
+            <li>
+              <strong>Blog URL pattern:</strong> Enter the route your frontend uses for posts, such as{" "}
+              <strong>/blog/{"{slug}"}</strong>. The <strong>{"{slug}"}</strong> token is required.
+            </li>
+          </ol>
+          <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
+            Tokens are validated by the backend and are not shown again after saving.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSanityGuideOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isRecommendedModalOpen} onOpenChange={setIsRecommendedModalOpen}>
         <DialogContent className="sm:max-w-md" showCloseButton={!oauthStartLinkMutation.isPending}>

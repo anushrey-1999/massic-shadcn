@@ -593,6 +593,8 @@ export function WebPageHtmlView({
     | "webflow-live"
     | "webflow-staging-preview"
     | "webflow-rollback-draft"
+    | "sanity-draft"
+    | "sanity-live"
     | "republish"
     | "update-draft"
     | null
@@ -630,6 +632,7 @@ export function WebPageHtmlView({
   const activeTarget = cmsChannel?.target || null;
   const isActiveWordpress = activePlatform === "wordpress" && Boolean(activeConnection);
   const isActiveWebflow = activePlatform === "webflow" && Boolean(activeConnection);
+  const isActiveSanity = activePlatform === "sanity" && Boolean(activeConnection);
   const wpConnection = isActiveWordpress ? activeConnection : null;
   const isWpConnected = isActiveWordpress;
   const cmsPublishMutation = useCmsPublish();
@@ -643,6 +646,8 @@ export function WebPageHtmlView({
   const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
+  const isSanityReady = isActiveSanity && Boolean(activeTarget?.targetId);
+  const needsSanityMappingSetup = isActiveSanity && !activeTarget?.targetId;
   const webflowDomains = cmsChannel?.domains || [];
   const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
   const webflowCustomDomains = webflowDomains.filter((domain) => domain.type === "custom_domain");
@@ -653,6 +658,9 @@ export function WebPageHtmlView({
     const collectionFields = Array.isArray((activeTarget?.metadata as any)?.collection?.fields)
       ? (activeTarget?.metadata as any).collection.fields
       : [];
+    const sanityFields = Array.isArray((activeTarget?.metadata as any)?.fields)
+      ? (activeTarget?.metadata as any).fields
+      : [];
     const fieldLabelByKey = new Map<string, string>();
     collectionFields.forEach((field: any) => {
       const slug = field?.slug || field?.apiName || field?.name || field?.id || field?._id || "";
@@ -661,12 +669,16 @@ export function WebPageHtmlView({
       if (slug) fieldLabelByKey.set(slug, label);
       if (id) fieldLabelByKey.set(id, label);
     });
+    sanityFields.forEach((field: any) => {
+      const path = field?.fieldPath || "";
+      if (path) fieldLabelByKey.set(path, normalizeDuplicatedLabel(field?.label || field?.name || path));
+    });
 
     const seen = new Set<string>();
     return fields
       .filter((field: any) => field?.massicField === "featuredImage" || field?.type === "image")
       .map((field: any) => {
-        const fieldKey = String(field?.webflowFieldSlug || field?.webflowFieldId || "").trim();
+        const fieldKey = String(field?.webflowFieldSlug || field?.webflowFieldId || field?.sanityFieldPath || "").trim();
         if (!fieldKey || seen.has(fieldKey)) return null;
         seen.add(fieldKey);
         return {
@@ -750,14 +762,15 @@ export function WebPageHtmlView({
   const publishType: "post" | "page" = isBlogContent ? "post" : "page";
   const contentStatusQuery = useCmsPublishingContentStatus(
     businessId || null,
-    publishContentId && (isActiveWebflow || (isActiveWordpress && isPublishModalOpen))
+    publishContentId && (isActiveWebflow || isActiveSanity || (isActiveWordpress && isPublishModalOpen))
       ? String(publishContentId)
       : null
   );
   const isWordpressBlogPublish = isActiveWordpress && isBlogContent;
   const isWebflowImagePublish = isActiveWebflow && hasEnabledWebflowImageDestinations;
+  const isSanityImagePublish = isActiveSanity && hasEnabledWebflowImageDestinations;
   const isCmsImagePublish = isWordpressBlogPublish;
-  const shouldLoadSharedFeaturedImage = isWordpressBlogPublish || isWebflowImagePublish;
+  const shouldLoadSharedFeaturedImage = isWordpressBlogPublish || isWebflowImagePublish || isSanityImagePublish;
   const featuredImageContentId = shouldLoadSharedFeaturedImage && publishContentId ? String(publishContentId) : null;
   const featuredImageQuery = useCmsFeaturedImage(
     shouldLoadSharedFeaturedImage ? businessId : null,
@@ -765,10 +778,10 @@ export function WebPageHtmlView({
     Boolean(isPublishModalOpen && shouldLoadSharedFeaturedImage)
   );
   const webflowFieldImagesQuery = useCmsFieldImages(
-    isWebflowImagePublish ? businessId : null,
-    isWebflowImagePublish && publishContentId ? String(publishContentId) : null,
-    isWebflowImagePublish ? "webflow" : null,
-    Boolean(isPublishModalOpen && isWebflowImagePublish)
+    isWebflowImagePublish || isSanityImagePublish ? businessId : null,
+    (isWebflowImagePublish || isSanityImagePublish) && publishContentId ? String(publishContentId) : null,
+    isSanityImagePublish ? "sanity" : isWebflowImagePublish ? "webflow" : null,
+    Boolean(isPublishModalOpen && (isWebflowImagePublish || isSanityImagePublish))
   );
   const uploadFeaturedImageMutation = useUploadCmsFeaturedImage();
   const finalizeFeaturedImageMutation = useFinalizeCmsFeaturedImage();
@@ -776,7 +789,9 @@ export function WebPageHtmlView({
   const clearFieldImageMutation = useClearCmsFieldImage();
   const persistedContent = activePlatform === "wordpress" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedContent = activePlatform === "webflow" ? contentStatusQuery.data?.content || null : null;
+  const sanityPersistedContent = activePlatform === "sanity" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedStatus = (webflowPersistedContent?.status || "").toLowerCase();
+  const sanityPersistedStatus = (sanityPersistedContent?.status || "").toLowerCase();
   const webflowPersistedSlug = React.useMemo(
     () => normalizeWordpressBlogEditableSlug(webflowPersistedContent?.slug || ""),
     [webflowPersistedContent?.slug]
@@ -794,9 +809,20 @@ export function WebPageHtmlView({
       (lastPublishedStatus === "draft" && lastPublishedData?.contentId)
   );
   const hasWebflowMapping = Boolean(webflowPersistedContent?.itemId || lastPublishedData?.contentId);
+  const isSanityLive = sanityPersistedStatus === "published" || lastPublishedStatus === "published";
+  const isSanityDraftLike = Boolean(
+    (sanityPersistedContent && sanityPersistedStatus === "draft") ||
+      (lastPublishedStatus === "draft" && lastPublishedData?.contentId)
+  );
+  const hasSanityMapping = Boolean(sanityPersistedContent?.itemId || lastPublishedData?.contentId);
   const webflowPublishState: "not_published" | "draft" | "live" = isWebflowLive
     ? "live"
     : isWebflowDraftLike || hasWebflowMapping
+      ? "draft"
+      : "not_published";
+  const sanityPublishState: "not_published" | "draft" | "live" = isSanityLive
+    ? "live"
+    : isSanityDraftLike || hasSanityMapping
       ? "draft"
       : "not_published";
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
@@ -819,10 +845,11 @@ export function WebPageHtmlView({
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
     if (!isPersistedTrashed && webflowPersistedSlug) return webflowPersistedSlug;
+    if (!isPersistedTrashed && sanityPersistedContent?.slug) return normalizeWordpressBlogEditableSlug(sanityPersistedContent.slug);
     if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
     if (generatedSlug) return generatedSlug;
     return generatedSlugFallback;
-  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug, webflowPersistedSlug]);
+  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug, sanityPersistedContent?.slug, webflowPersistedSlug]);
   const normalizedEditableSlug = React.useMemo(() => normalizeWordpressBlogEditableSlug(editableSlug), [editableSlug]);
   const hasInvalidBlogSlug = React.useMemo(
     () => Boolean(normalizedEditableSlug && normalizedEditableSlug.includes("/")),
@@ -865,7 +892,7 @@ export function WebPageHtmlView({
         clearFeaturedImageMutation.isPending)
   );
   const webflowImageBusy = Boolean(
-    isWebflowImagePublish &&
+    (isWebflowImagePublish || isSanityImagePublish) &&
       (uploadFeaturedImageMutation.isPending ||
         finalizeFeaturedImageMutation.isPending ||
         clearFieldImageMutation.isPending)
@@ -883,24 +910,48 @@ export function WebPageHtmlView({
   );
   const publishStateLabel = activePlatform === "webflow"
     ? (webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published")
-    : isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
-  const publishStateHint = isPersistedLive
-    ? "This content is live on WordPress."
-    : isPersistedDraftLike
-      ? "A draft exists in WordPress."
-      : isPersistedTrashed
-        ? "This content was moved to trash."
-        : `No WordPress ${isBlogContent ? "post" : "page"} exists yet.`;
+    : activePlatform === "sanity"
+      ? (sanityPublishState === "live" ? "Live" : sanityPublishState === "draft" ? "Draft" : "Not Published")
+      : isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
+  const publishStateHint = activePlatform === "sanity"
+    ? sanityPublishState === "live"
+      ? "This content is live in Sanity."
+      : sanityPublishState === "draft"
+        ? "A draft exists in Sanity."
+        : "No Sanity document exists yet."
+    : isPersistedLive
+      ? "This content is live on WordPress."
+      : isPersistedDraftLike
+        ? "A draft exists in WordPress."
+        : isPersistedTrashed
+          ? "This content was moved to trash."
+          : `No WordPress ${isBlogContent ? "post" : "page"} exists yet.`;
   const publishUrlPreview = React.useMemo(() => {
+    const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
+    if (activePlatform === "sanity") {
+      const baseUrl = String(
+        (activeTarget?.metadata as any)?.previewBaseUrl ||
+          activeConnection?.metadata?.previewBaseUrl ||
+          activeConnection?.siteUrl ||
+          ""
+      ).replace(/\/+$/, "");
+      const pattern = String(
+        (activeTarget?.metadata as any)?.urlPattern ||
+          activeConnection?.metadata?.urlPattern ||
+          "/blog/{slug}"
+      );
+      if (!baseUrl || !slugForPreview) return null;
+      const path = pattern.includes("{slug}") ? pattern.replace(/\{slug\}/g, encodeURIComponent(slugForPreview)) : `/${slugForPreview}`;
+      return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+    }
     const siteUrl = String(
       activePlatform === "webflow"
         ? (webflowStagingDomain?.url ? `https://${webflowStagingDomain.url}` : "")
         : activeConnection?.siteUrl || ""
     ).replace(/\/+$/, "");
-    const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
     if (!siteUrl || !slugForPreview) return null;
     return `${siteUrl}/${slugForPreview}`;
-  }, [activeConnection?.siteUrl, activePlatform, normalizedSlugForPublish, slugCheckResult?.slug, webflowStagingDomain?.url]);
+  }, [activeConnection?.metadata, activeConnection?.siteUrl, activePlatform, activeTarget?.metadata, normalizedSlugForPublish, slugCheckResult?.slug, webflowStagingDomain?.url]);
   const webflowStagingPreviewUrl =
     lastPublishedData?.previewUrl || webflowPersistedContent?.previewUrl || publishUrlPreview || null;
   const webflowLiveUrl =
@@ -924,7 +975,7 @@ export function WebPageHtmlView({
   }, [activeFeaturedImage?.altText, activeFeaturedImage?.assetId, isCmsImagePublish, isPublishModalOpen]);
 
   React.useEffect(() => {
-    if (!isPublishModalOpen || !isWebflowImagePublish) return;
+    if (!isPublishModalOpen || !(isWebflowImagePublish || isSanityImagePublish)) return;
     setWebflowImageAltTextByKey(prev => {
       const next = { ...prev };
       webflowImageMappings.forEach(mapping => {
@@ -935,7 +986,7 @@ export function WebPageHtmlView({
       });
       return next;
     });
-  }, [isPublishModalOpen, isWebflowImagePublish, webflowFieldImageByKey, webflowImageMappings]);
+  }, [isPublishModalOpen, isSanityImagePublish, isWebflowImagePublish, webflowFieldImageByKey, webflowImageMappings]);
   const liveUrl = React.useMemo(() => {
     if (persistedContent?.permalink) return persistedContent.permalink;
     if (lastPublishedData?.permalink) return lastPublishedData.permalink;
@@ -1737,6 +1788,11 @@ export function WebPageHtmlView({
                 : {}),
             }
           : {}),
+        ...(isSanityImagePublish
+          ? {
+              sanityImagesByFieldKey: webflowImagesByFieldKey,
+            }
+          : {}),
         head:
           {
             title: String(publishTitle),
@@ -1760,6 +1816,7 @@ export function WebPageHtmlView({
       featuredImageAltText,
       isBlogContent,
       isCmsImagePublish,
+      isSanityImagePublish,
       isWebflowImagePublish,
       activeFeaturedImage,
       sharedFeaturedImage,
@@ -1805,7 +1862,7 @@ export function WebPageHtmlView({
         setSlugCheckResult(result);
         return result;
       } catch (err: unknown) {
-        const message = (err as { message?: string })?.message || `Failed to check slug in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}.`;
+        const message = (err as { message?: string })?.message || `Failed to check slug in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}.`;
         setSlugCheckResult(null);
         setSlugCheckError(message);
         return null;
@@ -1968,7 +2025,7 @@ export function WebPageHtmlView({
 
   const saveWebflowFieldImageAltText = React.useCallback(
     async (mapping: WebflowImageMapping) => {
-      if (!isWebflowImagePublish || !businessId || !publishContentId) return;
+      if (!(isWebflowImagePublish || isSanityImagePublish) || !businessId || !publishContentId) return;
       const asset = webflowFieldImageByKey.get(mapping.fieldKey);
       if (!asset) return;
 
@@ -1983,7 +2040,7 @@ export function WebPageHtmlView({
         width: asset.width,
         height: asset.height,
         altText: nextAltText,
-        platform: "webflow",
+        platform: isSanityImagePublish ? "sanity" : "webflow",
         fieldKey: mapping.fieldKey,
         fieldLabel: mapping.fieldLabel,
       });
@@ -1991,6 +2048,7 @@ export function WebPageHtmlView({
     [
       businessId,
       finalizeFeaturedImageMutation,
+      isSanityImagePublish,
       isWebflowImagePublish,
       publishContentId,
       webflowFieldImageByKey,
@@ -1999,15 +2057,15 @@ export function WebPageHtmlView({
   );
 
   const saveAllWebflowFieldImageAltText = React.useCallback(async () => {
-    if (!isWebflowImagePublish) return;
+    if (!(isWebflowImagePublish || isSanityImagePublish)) return;
     for (const mapping of webflowImageMappings) {
       await saveWebflowFieldImageAltText(mapping);
     }
-  }, [isWebflowImagePublish, saveWebflowFieldImageAltText, webflowImageMappings]);
+  }, [isSanityImagePublish, isWebflowImagePublish, saveWebflowFieldImageAltText, webflowImageMappings]);
 
   const handleWebflowFieldImageFile = React.useCallback(
     async (mapping: WebflowImageMapping, file: File | null) => {
-      if (!file || !businessId || !publishContentId || !isWebflowImagePublish) return;
+      if (!file || !businessId || !publishContentId || !(isWebflowImagePublish || isSanityImagePublish)) return;
 
       setWebflowImageUploadProgressByKey(prev => ({ ...prev, [mapping.fieldKey]: 0 }));
       const dimensions = await readImageDimensions(file);
@@ -2021,7 +2079,7 @@ export function WebPageHtmlView({
           width: dimensions.width,
           height: dimensions.height,
           altText,
-          platform: "webflow",
+          platform: isSanityImagePublish ? "sanity" : "webflow",
           fieldKey: mapping.fieldKey,
           fieldLabel: mapping.fieldLabel,
           onProgress: progress => setWebflowImageUploadProgressByKey(prev => ({ ...prev, [mapping.fieldKey]: progress })),
@@ -2037,30 +2095,30 @@ export function WebPageHtmlView({
         if (input) input.value = "";
       }
     },
-    [businessId, isWebflowImagePublish, publishContentId, uploadFeaturedImageMutation, webflowImageAltTextByKey]
+    [businessId, isSanityImagePublish, isWebflowImagePublish, publishContentId, uploadFeaturedImageMutation, webflowImageAltTextByKey]
   );
 
   const handleClearWebflowFieldImage = React.useCallback(
     async (mapping: WebflowImageMapping) => {
-      if (!businessId || !publishContentId || !isWebflowImagePublish) return;
+      if (!businessId || !publishContentId || !(isWebflowImagePublish || isSanityImagePublish)) return;
 
       await clearFieldImageMutation.mutateAsync({
         businessId,
         contentId: String(publishContentId),
-        platform: "webflow",
+        platform: isSanityImagePublish ? "sanity" : "webflow",
         fieldKey: mapping.fieldKey,
       });
       setWebflowImageAltTextByKey(prev => ({ ...prev, [mapping.fieldKey]: "" }));
       toast.success(`${mapping.fieldLabel} image removed`);
     },
-    [businessId, clearFieldImageMutation, isWebflowImagePublish, publishContentId]
+    [businessId, clearFieldImageMutation, isSanityImagePublish, isWebflowImagePublish, publishContentId]
   );
 
   const handlePublishDraft = React.useCallback(async () => {
     if (!cmsChannel?.connected || !hasFinalContent) return;
     const check = await runSlugCheck({ force: true });
     if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
-      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use the suggested slug or edit manually.`);
+      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use the suggested slug or edit manually.`);
       toast.error("Slug conflict: choose a unique slug");
       return;
     }
@@ -2070,7 +2128,7 @@ export function WebPageHtmlView({
       if (isCmsImagePublish) {
         await saveFeaturedImageAltText();
       }
-      if (isWebflowImagePublish) {
+      if (isWebflowImagePublish || isSanityImagePublish) {
         await saveAllWebflowFieldImageAltText();
       }
       const payload = buildPublishPayload("draft");
@@ -2115,7 +2173,7 @@ export function WebPageHtmlView({
       slug: published.slug || normalizedSlugForPublish || null,
       previewUrl: published.previewUrl || undefined,
     });
-    toast.success(activePlatform === "webflow" ? "Webflow draft saved" : "Draft pushed to WordPress");
+    toast.success(activePlatform === "webflow" ? "Webflow draft saved" : activePlatform === "sanity" ? "Sanity draft saved" : "Draft pushed to WordPress");
     if (activePlatform === "webflow") {
       setWebflowStagingPreview(null);
       if (publishContentId) {
@@ -2124,23 +2182,23 @@ export function WebPageHtmlView({
     }
     const previewUrl = published.previewUrl || published.externalUrl;
     if (previewUrl && activePlatform !== "webflow") {
-      openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
+      openEmbeddedPreview(previewUrl, activePlatform === "sanity" ? "Sanity Draft Preview" : "WordPress Draft Preview");
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isSanityImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !cmsChannel?.connected || !hasFinalContent) return;
     const check = await runSlugCheck({ force: true });
     if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
-      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use the suggested slug or edit manually.`);
+      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use the suggested slug or edit manually.`);
       toast.error("Slug conflict: choose a unique slug");
       return;
     }
     try {
       setPublishRateLimitMessage(null);
-      if (isWebflowImagePublish) {
+      if (isWebflowImagePublish || isSanityImagePublish) {
         await saveAllWebflowFieldImageAltText();
       }
       const payload = buildPublishPayload("draft");
@@ -2262,7 +2320,7 @@ export function WebPageHtmlView({
     }
     const check = await runSlugCheck({ force: true });
     if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
-      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use the suggested slug or edit manually.`);
+      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use the suggested slug or edit manually.`);
       toast.error("Slug conflict: choose a unique slug");
       return;
     }
@@ -2272,7 +2330,7 @@ export function WebPageHtmlView({
       if (isCmsImagePublish) {
         await saveFeaturedImageAltText();
       }
-      if (isWebflowImagePublish) {
+      if (isWebflowImagePublish || isSanityImagePublish) {
         await saveAllWebflowFieldImageAltText();
       }
       const payload = {
@@ -2324,15 +2382,15 @@ export function WebPageHtmlView({
       wpId: Number(published.wpId || 0),
       permalink: published.externalUrl || published.permalink || null,
       editUrl: published.editUrl || null,
-      status: published.status || (activePlatform === "webflow" ? "published" : "publish"),
+      status: published.status || (activePlatform === "webflow" || activePlatform === "sanity" ? "published" : "publish"),
       slug: published.slug || normalizedSlugForPublish || null,
     }));
-    toast.success(activePlatform === "webflow" ? "Published live to Webflow" : "Published live to WordPress");
+    toast.success(activePlatform === "webflow" ? "Published live to Webflow" : activePlatform === "sanity" ? "Published live to Sanity" : "Published live to WordPress");
     void contentStatusQuery.refetch();
     if (activePlatform !== "webflow") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
 
   const handleRepublish = React.useCallback(async () => {
     if (!isActiveWordpress || !hasFinalContent) return;
@@ -2460,8 +2518,8 @@ export function WebPageHtmlView({
   const confirmAndRunPublishAction = React.useCallback(async () => {
     const action = confirmPublishAction;
     setConfirmPublishAction(null);
-    if (action === "draft" || action === "webflow-draft") await handlePublishDraft();
-    else if (action === "webflow-live" || action === "live") await handlePublishLive();
+    if (action === "draft" || action === "webflow-draft" || action === "sanity-draft") await handlePublishDraft();
+    else if (action === "webflow-live" || action === "sanity-live" || action === "live") await handlePublishLive();
     else if (action === "webflow-staging-preview") await handlePreviewWebflowStaging();
     else if (action === "webflow-rollback-draft") await handleRollbackWebflowToDraft();
     else if (action === "republish") await handleRepublish();
@@ -4910,6 +4968,8 @@ export function WebPageHtmlView({
                 <Typography className="text-sm font-medium truncate min-w-0 flex-1">
                   {activePlatform === "webflow"
                     ? `Webflow: ${activeTarget?.name || "Configured collection"}`
+                    : activePlatform === "sanity"
+                      ? `Sanity: ${activeTarget?.documentType || activeTarget?.name || "Configured document"}`
                     : activeConnection?.siteUrl}
                 </Typography>
                 <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap shrink-0">
@@ -4921,11 +4981,15 @@ export function WebPageHtmlView({
                   {publishStateHint}
                 </Typography>
               ) : null}
-              {needsWebflowMappingSetup ? (
+              {needsWebflowMappingSetup || needsSanityMappingSetup ? (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <Typography className="text-sm font-medium text-amber-950">Webflow mapping is required</Typography>
+                  <Typography className="text-sm font-medium text-amber-950">
+                    {needsSanityMappingSetup ? "Sanity mapping is required" : "Webflow mapping is required"}
+                  </Typography>
                   <Typography className="mt-1 text-xs text-amber-900">
-                    Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first.
+                    {needsSanityMappingSetup
+                      ? "Choose the Sanity document type and field mapping before publishing."
+                      : "Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first."}
                   </Typography>
                   <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
                     Configure mapping
@@ -4963,7 +5027,7 @@ export function WebPageHtmlView({
                   {activePlatform === "webflow" && webflowPublishState === "draft" ? "Staging page path" : "Publish route"}
                 </Typography>
                 <Typography className="text-sm font-mono break-all">
-                  {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl || "Unavailable"}
+                  {slugCheckResult?.publishUrl || publishUrlPreview || (activePlatform === "webflow" ? webflowStagingPreviewUrl : null) || "Unavailable"}
                 </Typography>
               </div>
               {isWordpressBlogPublish ? (
@@ -5093,7 +5157,7 @@ export function WebPageHtmlView({
                   ) : null}
                 </div>
               ) : null}
-              {isWebflowImagePublish ? (
+              {isWebflowImagePublish || isSanityImagePublish ? (
                 <div className="space-y-3 pt-2 border-t border-border/60">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -5101,12 +5165,12 @@ export function WebPageHtmlView({
                         Images
                       </Typography>
                       <Typography className="mt-1 text-sm text-muted-foreground">
-                        Upload images for the mapped Webflow image fields.
+                        Upload images for the mapped {isSanityImagePublish ? "Sanity" : "Webflow"} image fields.
                       </Typography>
                     </div>
                   </div>
                   {webflowFieldImagesQuery.isLoading ? (
-                    <Typography className="text-xs text-muted-foreground">Loading Webflow images...</Typography>
+                    <Typography className="text-xs text-muted-foreground">Loading {isSanityImagePublish ? "Sanity" : "Webflow"} images...</Typography>
                   ) : null}
                   {webflowImageMappings.map(mapping => {
                     const activeImage = webflowFieldImageByKey.get(mapping.fieldKey) || null;
@@ -5116,7 +5180,7 @@ export function WebPageHtmlView({
                       <div key={mapping.fieldKey} className="space-y-3 rounded-md border bg-background p-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <Typography className="text-xs text-muted-foreground">Webflow image field</Typography>
+                            <Typography className="text-xs text-muted-foreground">{isSanityImagePublish ? "Sanity" : "Webflow"} image field</Typography>
                             <Typography className="truncate text-sm font-medium">{mapping.fieldLabel}</Typography>
                           </div>
                         </div>
@@ -5548,7 +5612,7 @@ export function WebPageHtmlView({
                   <div className="break-words">
                     {slugConflictReason === "parent_type_conflict"
                       ? "This nested page path is blocked. Change the parent path."
-                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use a unique slug.`}
+                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use a unique slug.`}
                   </div>
                   {slugCheckResult?.suggestedSlug ? (
                     <Button size="sm" variant="outline" className="h-auto w-full justify-start whitespace-normal break-all text-left" onClick={autoResolveSlug} disabled={isSlugActionBusy}>
@@ -5763,6 +5827,82 @@ export function WebPageHtmlView({
                 ) : null}
               </>
             ) : null}
+            {!isPublishConnectionLoading && isSanityReady ? (
+              <>
+                {sanityPublishState === "not_published" ? (
+                  <Button
+                    onClick={() => setConfirmPublishAction("sanity-draft")}
+                    disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isPublishBusy}
+                  >
+                    {isPublishBusy ? "Saving..." : "Publish Draft"}
+                  </Button>
+                ) : null}
+                {sanityPublishState === "draft" ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={() => publishUrlPreview && openEmbeddedPreview(publishUrlPreview, "Sanity Draft Preview")}
+                          disabled={!publishUrlPreview}
+                          aria-label="Preview Sanity draft"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Preview draft</TooltipContent>
+                    </Tooltip>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmPublishAction("sanity-draft")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || isPublishBusy}
+                    >
+                      {isPublishBusy ? "Saving..." : "Update Draft"}
+                    </Button>
+                    <Button
+                      onClick={() => setConfirmPublishAction("sanity-live")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isPublishBusy}
+                    >
+                      {isPublishBusy ? "Publishing..." : "Publish Live"}
+                    </Button>
+                  </>
+                ) : null}
+                {sanityPublishState === "live" ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          onClick={() => publishUrlPreview && openEmbeddedPreview(publishUrlPreview, "Published Sanity Post")}
+                          disabled={!publishUrlPreview}
+                          aria-label="View live Sanity post"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>View live</TooltipContent>
+                    </Tooltip>
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmPublishAction("sanity-draft")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || isPublishBusy}
+                    >
+                      {isPublishBusy ? "Saving..." : "Update Draft"}
+                    </Button>
+                    <Button
+                      onClick={() => setConfirmPublishAction("sanity-live")}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isPublishBusy}
+                    >
+                      {isPublishBusy ? "Publishing..." : "Republish Live"}
+                    </Button>
+                  </>
+                ) : null}
+              </>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -5783,8 +5923,16 @@ export function WebPageHtmlView({
                     ? hasWebflowStagingPreview
                       ? "Republish to staging?"
                       : "Publish to staging?"
-                    : confirmPublishAction === "webflow-rollback-draft"
+                  : confirmPublishAction === "webflow-rollback-draft"
                       ? "Move Webflow item back to draft?"
+                    : confirmPublishAction === "sanity-draft"
+                      ? sanityPublishState === "live"
+                        ? "Update Sanity Draft?"
+                        : "Publish Sanity Draft?"
+                    : confirmPublishAction === "sanity-live"
+                      ? sanityPublishState === "live"
+                        ? "Republish Live to Sanity?"
+                        : "Publish Live to Sanity?"
                     : confirmPublishAction === "live"
                       ? "Publish Live to WordPress?"
                       : confirmPublishAction === "republish"
@@ -5809,6 +5957,10 @@ export function WebPageHtmlView({
                     />
                   ) : confirmPublishAction === "live" ? (
                     `This will update the live WordPress content at ${publishUrlPreview || "the selected route"}.`
+                  ) : confirmPublishAction === "sanity-live" ? (
+                    `This will create or update the published Sanity document at ${publishUrlPreview || "the configured route"}.`
+                  ) : confirmPublishAction === "sanity-draft" ? (
+                    `This will create or update the Sanity draft at ${publishUrlPreview || "the configured route"}.`
                   ) : confirmPublishAction === "republish" ? (
                     `This will push your latest content and images to the live post at ${publishUrlPreview || "the selected route"}.`
                   ) : confirmPublishAction === "update-draft" ? (
@@ -5888,7 +6040,7 @@ export function WebPageHtmlView({
                   (confirmPublishAction === "webflow-live" && selectedWebflowLiveDomainLabels.length === 0)
                 }
               >
-                {confirmPublishAction === "live" || confirmPublishAction === "webflow-live"
+                {confirmPublishAction === "live" || confirmPublishAction === "webflow-live" || confirmPublishAction === "sanity-live"
                   ? "Confirm Publish Live"
                   : confirmPublishAction === "republish"
                     ? "Confirm Republish"

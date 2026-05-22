@@ -36,7 +36,7 @@ export interface CmsFieldImageAssignment {
   assignmentId: string;
   businessId: string;
   contentId: string;
-  platform: "webflow";
+  platform: "webflow" | "sanity";
   fieldKey: string;
   fieldLabel: string;
   asset: CmsFeaturedImageAsset | null;
@@ -87,7 +87,7 @@ interface FinalizePayload {
   width?: number | null;
   height?: number | null;
   altText?: string | null;
-  platform?: "webflow";
+  platform?: "webflow" | "sanity";
   fieldKey?: string;
   fieldLabel?: string | null;
 }
@@ -100,7 +100,7 @@ interface ClearPayload {
 interface ClearFieldImagePayload {
   businessId: string;
   contentId: string;
-  platform: "webflow";
+  platform: "webflow" | "sanity";
   fieldKey: string;
 }
 
@@ -111,7 +111,7 @@ export interface UploadFeaturedImagePayload {
   width?: number | null;
   height?: number | null;
   altText?: string | null;
-  platform?: "webflow";
+  platform?: "webflow" | "sanity";
   fieldKey?: string;
   fieldLabel?: string | null;
   onProgress?: (progressPercent: number) => void;
@@ -137,7 +137,7 @@ function fieldImagesQueryKey(businessId: string | null, contentId: string | null
 function upsertFieldImageQueryCache(
   queryClient: QueryClient,
   asset: CmsFeaturedImageAsset,
-  variables: { platform?: "webflow"; fieldKey?: string; fieldLabel?: string | null }
+  variables: { platform?: "webflow" | "sanity"; fieldKey?: string; fieldLabel?: string | null }
 ) {
   if (!variables.platform || !variables.fieldKey) return;
 
@@ -167,7 +167,7 @@ function upsertFieldImageQueryCache(
 
 function removeFieldImageQueryCache(
   queryClient: QueryClient,
-  variables: { businessId: string; contentId: string; platform: "webflow"; fieldKey: string }
+  variables: { businessId: string; contentId: string; platform: "webflow" | "sanity"; fieldKey: string }
 ) {
   queryClient.setQueryData<CmsFieldImageAssignment[]>(
     fieldImagesQueryKey(variables.businessId, variables.contentId, variables.platform),
@@ -195,7 +195,7 @@ export function useCmsFeaturedImage(businessId: string | null, contentId: string
 export function useCmsFieldImages(
   businessId: string | null,
   contentId: string | null,
-  platform: "webflow" | null,
+  platform: "webflow" | "sanity" | null,
   enabled = true
 ) {
   return useQuery<CmsFieldImageAssignment[]>({

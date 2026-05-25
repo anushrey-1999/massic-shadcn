@@ -715,24 +715,12 @@ export function useGA4Analytics(
   const normalizedChannelsData = useMemo(() => {
     if (channelsData.length === 0) return []
 
-    const sessionsValues = channelsData.map((d) => d.sessions || 0)
-    const goalsValues = channelsData.map((d) => d.goals || 0)
-
-    const minSessions = Math.min(...sessionsValues)
-    const maxSessions = Math.max(...sessionsValues)
-    const minGoals = Math.min(...goalsValues)
-    const maxGoals = Math.max(...goalsValues)
-
-    const scaleValueToBand = (value: number, min: number, max: number, bandStart: number, bandEnd: number): number => {
-      if (max === min) return (bandStart + bandEnd) / 2
-      const normalized = (value - min) / (max - min)
-      return bandStart + normalized * (bandEnd - bandStart)
-    }
+    const maxValue = Math.max(...channelsData.map((d) => Math.max(d.sessions || 0, d.goals || 0)), 1)
 
     return channelsData.map((item) => ({
       ...item,
-      goalsNorm: scaleValueToBand(item.goals, minGoals, maxGoals, 0, 50),
-      sessionsNorm: scaleValueToBand(item.sessions, minSessions, maxSessions, 50, 100),
+      sessionsNorm: (item.sessions / maxValue) * 100,
+      goalsNorm: (item.goals / maxValue) * 100,
     }))
   }, [channelsData])
 

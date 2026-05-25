@@ -1,16 +1,12 @@
 "use client"
 
-import { scaleBand } from "d3-scale"
-import {
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  ResponsiveContainer,
-} from "recharts"
-import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
 import { Loader2 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface SourcesChannelsData {
   name: string
@@ -29,12 +25,11 @@ interface SourcesChannelsChartProps {
   hasData?: boolean
 }
 
-const chartConfig = {
-  sessions: { label: "Sessions", color: "#f97316" },
-  goals: { label: "Goals", color: "#059669" },
+function formatValue(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
+  if (n >= 10_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`
+  return n.toLocaleString()
 }
-
-const EMPTY_BAR_COLOR = "#E5E5E5"
 
 export function SourcesChannelsChart({
   data,
@@ -44,34 +39,6 @@ export function SourcesChannelsChart({
   isLoading = false,
   hasData = true,
 }: SourcesChannelsChartProps) {
-  const BAR_SIZE = 8
-  const GAP_PX = 14
-  const CHART_CHROME_HEIGHT = 60
-  const Y_AXIS_WIDTH = 120
-  const Y_LABEL_LEFT_PADDING = 15
-  const barAreaHeight = data.length * BAR_SIZE + (data.length - 1) * GAP_PX
-  const LABEL_VERTICAL_MARGIN = 10
-  const chartContentHeight = barAreaHeight + CHART_CHROME_HEIGHT + LABEL_VERTICAL_MARGIN * 2
-  const categoryScale = scaleBand().paddingInner(0).paddingOuter(0)
-
-  const renderCategoryTick = (props: any) => {
-    const { x, y, payload } = props
-    return (
-      <text
-        x={x}
-        y={y}
-        dx={-(Y_AXIS_WIDTH - Y_LABEL_LEFT_PADDING)}
-        textAnchor="start"
-        dominantBaseline="central"
-        fontSize="12"
-        fill="#0A0A0A"
-        style={{ fill: "#0A0A0A", fontSize: "12px" }}
-      >
-        {payload?.value}
-      </text>
-    )
-  }
-
   if (isLoading) {
     return (
       <div
@@ -104,90 +71,60 @@ export function SourcesChannelsChart({
           {title}
         </span>
       ) : null}
-      <div className="flex-1 min-h-0 flex justify-center items-center">
-        <div className="w-full max-w-2xl" style={{ height: chartContentHeight }}>
-          <ChartContainer config={chartConfig} className="h-full w-full aspect-auto">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={data}
-                layout="vertical"
-                margin={{ top: LABEL_VERTICAL_MARGIN, right: 15, bottom: LABEL_VERTICAL_MARGIN, left: 0 }}
-                barSize={BAR_SIZE}
-                barGap={-BAR_SIZE}
-                maxBarSize={BAR_SIZE}
-              >
-                <XAxis type="number" hide domain={[0, 100]} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  scale={categoryScale}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={renderCategoryTick}
-                  width={Y_AXIS_WIDTH}
-                  interval={0}
-                  tickCount={data.length}
-                />
-                <ChartTooltip
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null
-                    const original = data.find((d) => d.name === label)
-                    return (
-                      <div className="rounded-lg border bg-background p-2 shadow-sm">
-                        <div className="text-xs text-muted-foreground mb-1">{label}</div>
-                        {payload.map((entry: any) => {
-                          const key = entry.dataKey.replace("Norm", "") as "sessions" | "goals"
-                          const originalValue = original?.[key] ?? 0
-                          return (
-                            <div key={entry.dataKey} className="flex items-center gap-2">
-                              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-                              <span className="text-xs">{chartConfig[key]?.label}: {originalValue.toLocaleString()}</span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )
-                  }}
-                  cursor={false}
-                  shared={true}
-                  trigger="hover"
-                />
-                <Bar
-                  dataKey="sessionsNorm"
-                  radius={[15, 15, 15, 15]}
-                  fill={chartConfig.sessions.color}
-                  opacity={0.3}
-                  name="Sessions"
-                  isAnimationActive={false}
-                  barSize={BAR_SIZE}
-                >
-                  {data.map((item) => (
-                    <Cell
-                      key={`sessions-${item.name}`}
-                      fill={item.sessions > 0 ? chartConfig.sessions.color : EMPTY_BAR_COLOR}
-                    />
-                  ))}
-                </Bar>
-                <Bar
-                  dataKey="goalsNorm"
-                  radius={[15, 15, 15, 15]}
-                  fill={chartConfig.goals.color}
-                  name="Goals"
-                  isAnimationActive={false}
-                  barSize={BAR_SIZE}
-                >
-                  {data.map((item) => (
-                    <Cell
-                      key={`goals-${item.name}`}
-                      fill={item.goals > 0 ? chartConfig.goals.color : EMPTY_BAR_COLOR}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+
+      <TooltipProvider>
+        <div className="flex flex-col justify-center flex-1 gap-1">
+          {data.map((item) => {
+            const sessionsWidth = item.sessionsNorm ?? 0
+            const goalsWidth = item.goalsNorm ?? 0
+
+            return (
+              <Tooltip key={item.name}>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-3 py-[7px] cursor-default">
+                    <span className="w-[120px] shrink-0 truncate text-sm text-[#0A0A0A]">
+                      {item.name}
+                    </span>
+
+                    <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[#E5E5E5]">
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full"
+                        style={{
+                          width: sessionsWidth > 0 ? `${sessionsWidth}%` : "4px",
+                          backgroundColor: item.sessions > 0 ? "#f97316" : "#E5E5E5",
+                          opacity: 0.3,
+                        }}
+                      />
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full"
+                        style={{
+                          width: goalsWidth > 0 ? `${goalsWidth}%` : "0px",
+                          backgroundColor: item.goals > 0 ? "#059669" : "transparent",
+                        }}
+                      />
+                    </div>
+
+                    <span className="w-[52px] shrink-0 text-right text-[12px] font-normal tracking-[0.18px] text-[#0a0a0a]">
+                      {formatValue(item.sessions)}
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="p-2">
+                  <div className="mb-1 opacity-70">{item.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: "#f97316" }} />
+                    <span>Sessions: {item.sessions.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: "#059669" }} />
+                    <span>Goals: {item.goals.toLocaleString()}</span>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
         </div>
-      </div>
+      </TooltipProvider>
     </div>
   )
 }

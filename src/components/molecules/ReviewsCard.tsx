@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Star, SendHorizontal, X, Loader2 } from "lucide-react"
+import { Star, SendHorizontal, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -24,7 +24,6 @@ export interface ReviewsCardProps {
   isSending?: boolean
   onSend?: (response: string) => Promise<unknown> | unknown
   onAutoSave?: (payload: { businessId: string; reviewId: string; updatedResponse: string }) => Promise<unknown>
-  onIgnore?: () => void
 }
 
 function RatingStars({ value }: { value: number }) {
@@ -87,7 +86,6 @@ export function ReviewsCard({
   isSending = false,
   onSend,
   onAutoSave,
-  onIgnore,
 }: ReviewsCardProps) {
   const persistedResponse = editedResponse ?? generatedResponse ?? ""
   const [response, setResponse] = React.useState(persistedResponse)
@@ -268,7 +266,7 @@ export function ReviewsCard({
           </p>
         </div>
 
-        <div className="flex items-start gap-3 w-full">
+        <div className="flex items-end gap-3 w-full">
           <div className="flex-1 bg-white rounded-lg p-2">
             <div className="text-xs text-general-muted-foreground pb-2">
               {hasReply ? "Reply" : "Auto-generated Response"}
@@ -308,16 +306,7 @@ export function ReviewsCard({
           </div>
 
           {!hasReply ? (
-            <div className="flex flex-col gap-2 shrink-0 w-[91.5px]">
-              <Button
-                variant="outline"
-                className="w-full justify-center gap-2"
-                onClick={onIgnore}
-                type="button"
-              >
-                <X className="h-3.5 w-3.5" />
-                Ignore
-              </Button>
+            <div className="flex flex-col gap-2 shrink-0 w-[91.5px] justify-end">
               <Button
                 className="w-full justify-center gap-2"
                 onClick={handleSendClick}

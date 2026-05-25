@@ -542,7 +542,7 @@ export function ThemesTableClient({
               <Button onClick={() => refetchScatter()}>Try Again</Button>
             </div>
           ) : (
-            <ThemesScatterPlot points={filteredScatterPoints} />
+            <ThemesScatterPlot points={filteredScatterPoints} themes={filteredData} />
           )}
         </div>
       </div>

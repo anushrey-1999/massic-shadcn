@@ -411,6 +411,10 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
     ];
   }
 
+  if (strategyType === "publish") {
+    columns = columns.filter((col) => col.id !== "url");
+  }
+
   if (hideActions) {
     return columns.filter((col) => col.id !== "actions");
   }

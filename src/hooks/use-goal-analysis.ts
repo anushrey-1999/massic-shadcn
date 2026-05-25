@@ -275,7 +275,9 @@ function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
     const dailyPeaks = (anomaly.detection?.daily_peaks || []) as DailyPeak[]
 
     const headlineReels = (normalizedNarrative?.headline_reels || []) as HeadlineReel[]
-    const wins = (normalizedNarrative?.wins || []) as Win[]
+    const wins = ((normalizedNarrative?.wins || []) as Win[])
+      .filter((win) => Number(win?.delta || 0) > 0)
+      .slice(0, 3)
     const bottomLine = normalizedNarrative?.bottom_line || ""
     const contextLine = normalizedNarrative?.context_line || ""
     const crossEventContext = normalizedNarrative?.cross_event_context

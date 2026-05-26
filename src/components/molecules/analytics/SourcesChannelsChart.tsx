@@ -105,7 +105,7 @@ export function SourcesChannelsChart({
                     </div>
 
                     <div className="w-[80px] shrink-0 flex items-baseline gap-1 justify-end">
-                      <span className="text-[12px] font-medium tracking-[0.18px] text-[#0a0a0a]">
+                      <span className="text-[12px] font-normal tracking-[0.18px] text-[#0a0a0a]">
                         {formatValue(item.goals)}
                       </span>
                       <span className="text-[10px] font-normal tracking-[0.18px] text-[#737373]">

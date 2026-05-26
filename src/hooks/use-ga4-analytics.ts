@@ -715,13 +715,15 @@ export function useGA4Analytics(
   const normalizedChannelsData = useMemo(() => {
     if (channelsData.length === 0) return []
 
-    const maxValue = Math.max(...channelsData.map((d) => Math.max(d.sessions || 0, d.goals || 0)), 1)
-
-    return channelsData.map((item) => ({
-      ...item,
-      sessionsNorm: (item.sessions / maxValue) * 100,
-      goalsNorm: (item.goals / maxValue) * 100,
-    }))
+    return channelsData.map((item) => {
+      const sessions = item.sessions || 0
+      const goals = item.goals || 0
+      return {
+        ...item,
+        sessionsNorm: sessions > 0 ? 100 : 0,
+        goalsNorm: sessions > 0 ? Math.min((goals / sessions) * 100, 100) : 0,
+      }
+    })
   }, [channelsData])
 
   const handleGoalsFilterChange = useCallback((filter: TableFilterType) => {

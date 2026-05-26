@@ -188,6 +188,17 @@ function findSanityField(fields: SanityField[], patterns: RegExp[]) {
   }) || null;
 }
 
+function isSanityManagedMassicStyleMapping(row: Pick<SanityMappingRow, "massicField" | "sanityFieldPath">) {
+  return (
+    row.massicField === "styledHtml" ||
+    row.massicField === "massicHtml" ||
+    row.massicField === "massicHtmlContent" ||
+    row.massicField === "massicCss" ||
+    row.sanityFieldPath === "massicHtml" ||
+    row.sanityFieldPath === "massicCss"
+  );
+}
+
 export function WebChannelsTab({
   businessId,
   defaultSiteUrl,
@@ -576,11 +587,13 @@ export function WebChannelsTab({
           .map(field => field.sanityFieldPath || "")
           .filter(Boolean)
       );
-      setSanityMappings(
-        savedFields
+      const savedRows = savedFields
           .filter(field => {
             const key = field.sanityFieldPath || "";
-            return !(field.type === "image" || imageFieldKeys.has(key));
+            return !(field.type === "image" || imageFieldKeys.has(key) || isSanityManagedMassicStyleMapping({
+              massicField: field.massicField || "",
+              sanityFieldPath: key,
+            }));
           })
           .map((field, index) =>
             makeSanityMappingRow({
@@ -591,8 +604,8 @@ export function WebChannelsTab({
               staticValue: field.staticValue || "",
               type: field.type || field.sanityFieldType || "string",
             })
-          )
-      );
+          );
+      setSanityMappings(savedRows);
       setSanityImageDestinations(
         selectedSanityImageFields.map(field => ({
           id: `image-${field.fieldPath}`,
@@ -749,7 +762,7 @@ export function WebChannelsTab({
   const submitSanityConfiguration = async () => {
     if (!sanityConnection?.connectionId || !effectiveSanityDocumentType) return;
     const contentFields = sanityMappings
-      .filter(row => row.sanityFieldPath)
+      .filter(row => row.sanityFieldPath && !isSanityManagedMassicStyleMapping(row))
       .map(row => ({
         ...(row.massicField && row.massicField !== "__static" && row.massicField !== "__custom" ? { massicField: row.massicField } : {}),
         sanityFieldPath: row.sanityFieldPath,

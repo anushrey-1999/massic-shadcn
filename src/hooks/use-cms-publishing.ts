@@ -165,6 +165,8 @@ interface PublishPayload {
   title?: string;
   slug?: string | null;
   contentHtml?: string;
+  styledHtml?: string;
+  massicCss?: string;
   contentMarkdown?: string;
   excerpt?: string | null;
   head?: Record<string, any>;

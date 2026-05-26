@@ -195,6 +195,10 @@ export function SanityPublishSetup({
             <p className="mt-0.5 text-sm text-general-muted-foreground">
               Map Massic content into your Sanity document fields. Field paths can be inferred or typed manually.
             </p>
+            <p className="mt-1 text-xs text-general-muted-foreground">
+              Newly added empty Sanity schema fields may not appear in the picker until a document has a value. Type the
+              field path manually when needed.
+            </p>
             <p className="mt-2 text-xs text-general-muted-foreground">
               {mappedCount} fields mapped · {imageFields.length} image fields detected
             </p>

@@ -104,9 +104,14 @@ export function SourcesChannelsChart({
                       />
                     </div>
 
-                    <span className="w-[52px] shrink-0 text-right text-[12px] font-normal tracking-[0.18px] text-[#0a0a0a]">
-                      {formatValue(item.sessions)}
-                    </span>
+                    <div className="w-[80px] shrink-0 flex items-baseline gap-1 justify-end">
+                      <span className="text-[12px] font-medium tracking-[0.18px] text-[#0a0a0a]">
+                        {formatValue(item.goals)}
+                      </span>
+                      <span className="text-[10px] font-normal tracking-[0.18px] text-[#737373]">
+                        {formatValue(item.sessions)}
+                      </span>
+                    </div>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent className="p-2">

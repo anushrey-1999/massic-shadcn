@@ -30,6 +30,7 @@ import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useReportRunDetail, useUpdatePerformanceReport } from "@/hooks/use-report-runs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { toast } from "sonner";
 import { copyToClipboard } from "@/utils/clipboard";
@@ -41,7 +42,6 @@ import {
 } from "@/components/ui/tooltip";
 import {
   parsePerformanceReport,
-  performanceReportToPlainText,
   getPerformanceReportV2EditedFields,
   type PerformanceReportV2EditedFields,
 } from "@/utils/performance-report-v2";
@@ -56,6 +56,15 @@ interface ReportDetailClientProps {
   reportRunId: string;
 }
 
+function normalizeEmailSummaryValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+
+  const record = value as Record<string, unknown>;
+  const direct = record.email_summary ?? record.summary;
+  return typeof direct === "string" ? direct : "";
+}
+
 export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClientProps) {
   const router = useRouter();
   const [reportEditor, setReportEditor] = React.useState<Editor | null>(null);
@@ -66,6 +75,9 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const [isEditorFocused, setIsEditorFocused] = React.useState(false);
   const [isV2EditMode, setIsV2EditMode] = React.useState(false);
   const [v2ResetVersion, setV2ResetVersion] = React.useState(0);
+  const [emailSummaryDraft, setEmailSummaryDraft] = React.useState("");
+  const [isEmailSummaryFocused, setIsEmailSummaryFocused] = React.useState(false);
+  const [isEmailSummarySaving, setIsEmailSummarySaving] = React.useState(false);
   const lastSavedRef = React.useRef<string>("");
   const isInitialLoadRef = React.useRef(true);
   const lastStatusRef = React.useRef<string>("");
@@ -73,6 +85,12 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const periodicTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = React.useRef(false);
+  const emailSummaryDraftRef = React.useRef("");
+  const emailSummarySavedRef = React.useRef("");
+  const emailSummaryDirtyRef = React.useRef(false);
+  const emailSummaryDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const emailSummarySaveInFlightRef = React.useRef(false);
+  const pendingEmailSummarySaveRef = React.useRef<string | null>(null);
 
   const { profileData } = useBusinessProfileById(businessId);
   const businessName = profileData?.Name || profileData?.DisplayName || "Business";
@@ -102,6 +120,24 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
     if (!performanceReportV2Raw) return 0;
     return Object.keys(getPerformanceReportV2EditedFields(performanceReportV2Raw)).length;
   }, [performanceReportV2Raw]);
+  const emailSummary = React.useMemo(() => {
+    const direct = normalizeEmailSummaryValue(reportData?.email_summary);
+    if (direct.trim()) return direct;
+
+    const narrativeText = reportData?.narrative_text;
+    const nested = narrativeText && typeof narrativeText === "object"
+      ? normalizeEmailSummaryValue((narrativeText as Record<string, unknown>).email_summary)
+      : "";
+    if (nested.trim()) return nested;
+
+    const llmOutputs = narrativeText && typeof narrativeText === "object"
+      ? (narrativeText as Record<string, unknown>).llm_outputs
+      : null;
+    const llmEmailSummary = llmOutputs && typeof llmOutputs === "object"
+      ? normalizeEmailSummaryValue((llmOutputs as Record<string, unknown>).email_summary)
+      : "";
+    return llmEmailSummary;
+  }, [reportData?.email_summary, reportData?.narrative_text]);
   const hasReportContent =
     parsedReport.kind === "v2" || (parsedReport.kind === "markdown" && !!parsedReport.markdown.trim());
   const period = reportData?.period || "3-month";
@@ -153,6 +189,9 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
       if (periodicTimerRef.current) {
         clearInterval(periodicTimerRef.current);
       }
+      if (emailSummaryDebounceTimerRef.current) {
+        clearTimeout(emailSummaryDebounceTimerRef.current);
+      }
     };
   }, [isV2Report]);
 
@@ -188,6 +227,25 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
       isInitialLoadRef.current = false;
     }
   }, [reportData, status, reportEditor, isV2Report]);
+
+  React.useEffect(() => {
+    emailSummaryDirtyRef.current = false;
+    emailSummarySavedRef.current = emailSummary;
+    emailSummaryDraftRef.current = emailSummary;
+    setEmailSummaryDraft(emailSummary);
+    setIsEmailSummaryFocused(false);
+    if (emailSummaryDebounceTimerRef.current) {
+      clearTimeout(emailSummaryDebounceTimerRef.current);
+      emailSummaryDebounceTimerRef.current = null;
+    }
+  }, [reportRunId]);
+
+  React.useEffect(() => {
+    if (emailSummaryDirtyRef.current || isEmailSummaryFocused) return;
+    emailSummarySavedRef.current = emailSummary;
+    emailSummaryDraftRef.current = emailSummary;
+    setEmailSummaryDraft(emailSummary);
+  }, [emailSummary, isEmailSummaryFocused]);
 
   React.useEffect(() => {
     if (!isV2Report && !isV2EditMode) {
@@ -253,6 +311,68 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
     [reportRunId, updateMutation]
   );
 
+  const saveEmailSummary = React.useCallback(async (nextValue: string, options?: { showToast?: boolean }) => {
+    if (!isV2Report) return;
+    const next = nextValue;
+    if (next === emailSummarySavedRef.current) {
+      emailSummaryDirtyRef.current = false;
+      return;
+    }
+
+    if (emailSummarySaveInFlightRef.current) {
+      pendingEmailSummarySaveRef.current = next;
+      return;
+    }
+
+    try {
+      emailSummarySaveInFlightRef.current = true;
+      setIsEmailSummarySaving(true);
+      await updateMutation.mutateAsync({
+        reportRunId,
+        email_summary: next,
+      });
+      emailSummarySavedRef.current = next;
+      emailSummaryDirtyRef.current = emailSummaryDraftRef.current !== next;
+      if (options?.showToast) toast.success("Email summary saved");
+    } catch {
+      toast.error("Failed to save email summary");
+    } finally {
+      emailSummarySaveInFlightRef.current = false;
+      setIsEmailSummarySaving(false);
+
+      const pending = pendingEmailSummarySaveRef.current;
+      pendingEmailSummarySaveRef.current = null;
+      if (pending !== null && pending !== emailSummarySavedRef.current) {
+        await saveEmailSummary(pending);
+      }
+    }
+  }, [isV2Report, reportRunId, updateMutation]);
+
+  const scheduleEmailSummarySave = React.useCallback(() => {
+    if (emailSummaryDebounceTimerRef.current) {
+      clearTimeout(emailSummaryDebounceTimerRef.current);
+    }
+
+    emailSummaryDebounceTimerRef.current = setTimeout(() => {
+      emailSummaryDebounceTimerRef.current = null;
+      saveEmailSummary(emailSummaryDraftRef.current);
+    }, 1500);
+  }, [saveEmailSummary]);
+
+  const handleEmailSummaryChange = React.useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const next = event.target.value;
+    emailSummaryDraftRef.current = next;
+    emailSummaryDirtyRef.current = next !== emailSummarySavedRef.current;
+    setEmailSummaryDraft(next);
+    scheduleEmailSummarySave();
+  }, [scheduleEmailSummarySave]);
+
+  const handleCopyEmailSummary = React.useCallback(async () => {
+    const ok = await copyToClipboard(emailSummaryDraft);
+    if (ok) toast.success("Email summary copied");
+    else toast.error("Copy failed");
+  }, [emailSummaryDraft]);
+
   const handleDiscardAllV2Edits = React.useCallback(async () => {
     try {
       await updateMutation.mutateAsync({
@@ -290,48 +410,6 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
       }, 45000);
     }
   }, [handleSaveReport]);
-
-  const handleCopyReport = async () => {
-    if (isV2Report && performanceReportV2) {
-      const plainText = performanceReportToPlainText(performanceReportV2);
-      const ok = await copyToClipboard(plainText);
-      if (ok) toast.success("Copied");
-      else toast.error("Copy failed");
-      return;
-    }
-
-    if (reportEditor) {
-      const htmlContent = reportEditor.getHTML();
-      if (htmlContent && htmlContent.trim()) {
-        try {
-          if (typeof ClipboardItem !== "undefined") {
-            const clipboardItem = new ClipboardItem({
-              "text/html": new Blob([htmlContent], { type: "text/html" }),
-              "text/plain": new Blob([reportEditor.getText()], { type: "text/plain" }),
-            });
-            await navigator.clipboard.write([clipboardItem]);
-          } else {
-            await navigator.clipboard.writeText(reportEditor.getText());
-          }
-          toast.success("Copied");
-          return;
-        } catch {
-          try {
-            await navigator.clipboard.writeText(reportEditor.getText());
-            toast.success("Copied");
-            return;
-          } catch {
-            toast.error("Copy failed");
-            return;
-          }
-        }
-      }
-    }
-
-    const ok = await copyToClipboard(performanceReport);
-    if (ok) toast.success("Copied");
-    else toast.error("Copy failed");
-  };
 
   const handleDownloadPdf = React.useCallback(
     async (filename: string) => {
@@ -420,16 +498,6 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={handleCopyReport}
-                    disabled={isProcessing || !hasReportContent}
-                    title="Copy Report"
-                    className="h-9 w-9"
-                  >
-                    <Copy className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
                     onClick={handleDownload}
                     disabled={isProcessing || !hasReportContent}
                     title="Download Report"
@@ -452,8 +520,8 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
           {/* Line Separator */}
           <div className="w-full h-px bg-border" />
 
-          {/* Content Section */}
-          <div className="flex-1 min-h-0 overflow-auto">
+          {/* Content Section — email summary scrolls with the report */}
+          <div className="flex-1 min-h-0 overflow-auto flex flex-col gap-4">
             {isProcessing && (
               <div className="flex items-center justify-center h-64">
                 <div className="flex flex-col items-center gap-4">
@@ -489,16 +557,44 @@ export function ReportDetailClient({ businessId, reportRunId }: ReportDetailClie
               </div>
             )}
 
-            {(isSuccess && isV2Report && performanceReportV2) || isV2EditMode ? (
-              <Card className="p-4 space-y-3 border-0 bg-transparent shadow-none">
-                <PerformanceReportV2View
-                  performanceReport={performanceReportV2Raw}
-                  context={reportTemplateContext}
-                  isEditing={isV2EditMode}
-                  resetVersion={v2ResetVersion}
-                  onSaveEditedFields={handleSaveV2EditedFields}
-                />
-              </Card>
+            {isSuccess && isV2Report ? (
+              <div className="space-y-4 p-4">
+                <div className="flex w-full shrink-0 flex-col gap-1.5 rounded-lg border border-border bg-background p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-muted-foreground">Email summary</p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleCopyEmailSummary}
+                      disabled={!emailSummaryDraft.trim()}
+                      title="Copy email summary"
+                      className="h-7 w-7 shrink-0 text-muted-foreground"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={emailSummaryDraft}
+                    onChange={handleEmailSummaryChange}
+                    onFocus={() => setIsEmailSummaryFocused(true)}
+                    onBlur={() => setIsEmailSummaryFocused(false)}
+                    className="min-h-12 resize-y bg-white py-2 text-sm leading-snug field-sizing-content"
+                    placeholder="Short summary for the share email…"
+                  />
+                  {isEmailSummarySaving ? (
+                    <p className="text-[11px] text-muted-foreground">Saving…</p>
+                  ) : null}
+                </div>
+                {(performanceReportV2 || isV2EditMode) && (
+                  <PerformanceReportV2View
+                    performanceReport={performanceReportV2Raw}
+                    context={reportTemplateContext}
+                    isEditing={isV2EditMode}
+                    resetVersion={v2ResetVersion}
+                    onSaveEditedFields={handleSaveV2EditedFields}
+                  />
+                )}
+              </div>
             ) : null}
 
             {isSuccess && !isV2Report && performanceReport && (

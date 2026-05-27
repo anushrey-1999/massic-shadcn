@@ -7,9 +7,10 @@ import { Typography } from "./typography";
 interface RelevancePillProps {
   score: number;
   className?: string;
+  color?: string;
 }
 
-export function RelevancePill({ score, className }: RelevancePillProps) {
+export function RelevancePill({ score, className, color }: RelevancePillProps) {
   const normalizedScore = Math.max(0, Math.min(1, score || 0));
   
   // Calculate how many bars to fill (1-4)
@@ -19,7 +20,10 @@ export function RelevancePill({ score, className }: RelevancePillProps) {
   // Determine color based on number of filled bars
   let barColor: string;
   let emptyBarColor: string;
-  if (barsToFill === 1) {
+  if (color) {
+    barColor = color;
+    emptyBarColor = `${color}33`;
+  } else if (barsToFill === 1) {
     barColor = "#dc2626"; // red-600
     emptyBarColor = "#fecaca"; // red-200
   } else if (barsToFill === 2) {

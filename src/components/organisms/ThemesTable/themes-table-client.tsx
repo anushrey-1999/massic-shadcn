@@ -27,6 +27,8 @@ import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
 import type { ExtendedColumnFilter, JoinOperator } from "@/types/data-table-types";
 import { parseAsStringEnum, useQueryState } from "nuqs";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface ThemesTableClientProps {
   businessId: string;
@@ -407,6 +409,10 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     </Tabs>
   );
 
+  const handleDownloadCsv = React.useCallback(() => {
+    downloadRowsAsCsv(filteredData, "themes.csv");
+  }, [filteredData]);
+
   if (view === "graph" || view === "umap") {
     return (
       <div className="h-full flex flex-col gap-4">
@@ -427,6 +433,7 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <DownloadCsvButton onDownload={handleDownloadCsv} disabled={filteredData.length === 0} />
               {viewToggle}
             </div>
           </div>
@@ -467,6 +474,7 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
         <div className="flex items-center gap-2">
           <DataTableSortList table={table} align="start" />
           <DataTableViewOptions table={table} align="end" />
+          <DownloadCsvButton onDownload={handleDownloadCsv} disabled={filteredData.length === 0} />
           {viewToggle}
         </div>
       </div>

@@ -13,6 +13,7 @@ export function useThemes(businessId: string) {
 
   const transformToTableRows = useCallback((items: ThemesApiResponse["output_data"]["items"]): ThemeRow[] => {
     return items.map((item, index) => ({
+      ...item,
       id: `${item.theme_name}-${index}`,
       theme_name: item.theme_name,
       origin_offering: item.origin_offering,

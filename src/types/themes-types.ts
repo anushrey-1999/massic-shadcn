@@ -8,6 +8,7 @@ export interface ThemeItem {
   topic_count: number;
   offerings: string[];
   topics: ThemeTopic[];
+  [key: string]: any;
 }
 
 export interface ThemeMetrics {
@@ -34,4 +35,5 @@ export interface ThemeRow {
   topic_count: number;
   offerings: string[];
   topics: ThemeTopic[];
+  [key: string]: any;
 }

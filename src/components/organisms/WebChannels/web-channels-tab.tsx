@@ -28,6 +28,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Typography } from "@/components/ui/typography";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -37,6 +44,7 @@ import {
 } from "@/hooks/use-wordpress-connector";
 import {
   useConfigureWebflow,
+  useConfigureWebflowPages,
   useDisconnectWebflow,
   useStartWebflowOauth,
   useWebflowCollections,
@@ -164,6 +172,7 @@ export function WebChannelsTab({
   const [isHowToModalOpen, setIsHowToModalOpen] = React.useState(false);
   const [recommendedSiteUrl, setRecommendedSiteUrl] = React.useState(defaultSiteUrl || "");
   const [selectedWebflowSiteId, setSelectedWebflowSiteId] = React.useState("");
+  const [selectedWebflowPageSiteId, setSelectedWebflowPageSiteId] = React.useState("");
   const [selectedWebflowCollectionId, setSelectedWebflowCollectionId] = React.useState("");
   const [webflowMappings, setWebflowMappings] = React.useState<WebflowMappingRow[]>([]);
   const [webflowImageDestinations, setWebflowImageDestinations] = React.useState<WebflowImageDestinationRow[]>([]);
@@ -193,12 +202,15 @@ export function WebChannelsTab({
   const webflowConnection = webflowConnectionQuery.data?.connection || null;
   const isWebflowConnected = Boolean(webflowConnectionQuery.data?.connected && webflowConnection);
   const webflowTarget = webflowConnection?.target || null;
+  const webflowPageTarget = webflowConnection?.targets?.page || null;
   const startWebflowOauthMutation = useStartWebflowOauth();
   const disconnectWebflowMutation = useDisconnectWebflow(businessId);
   const configureWebflowMutation = useConfigureWebflow(businessId);
+  const configureWebflowPagesMutation = useConfigureWebflowPages(businessId);
   const webflowSitesQuery = useWebflowSites(webflowConnection?.connectionId || null);
   const webflowSites = webflowSitesQuery.data || [];
   const effectiveWebflowSiteId = selectedWebflowSiteId || webflowTarget?.siteId || "";
+  const effectiveWebflowPageSiteId = selectedWebflowPageSiteId || webflowPageTarget?.siteId || "";
   const webflowCollectionsQuery = useWebflowCollections(
     webflowConnection?.connectionId || null,
     effectiveWebflowSiteId || null
@@ -285,10 +297,28 @@ export function WebChannelsTab({
     return site?.displayName || site?.name || site?.shortName || null;
   }, [effectiveWebflowSiteId, webflowSites]);
 
+  const selectedWebflowPageSiteName = React.useMemo(() => {
+    const site = webflowSites.find(s => getWebflowId(s) === effectiveWebflowPageSiteId);
+    return site?.displayName || site?.name || site?.shortName || null;
+  }, [effectiveWebflowPageSiteId, webflowSites]);
+
   const selectedWebflowCollectionName = React.useMemo(
     () => selectedWebflowCollection?.displayName || selectedWebflowCollection?.name || webflowTarget?.name || null,
     [selectedWebflowCollection, webflowTarget?.name]
   );
+
+  const latestWebflowPageSetupData =
+    configureWebflowPagesMutation.variables?.siteId === effectiveWebflowPageSiteId
+      ? configureWebflowPagesMutation.data?.data || null
+      : null;
+  const hasSavedWebflowPageTarget = Boolean(
+    webflowPageTarget?.collectionId && webflowPageTarget.siteId === effectiveWebflowPageSiteId
+  );
+  const isWebflowPageSetupReady = latestWebflowPageSetupData
+    ? Boolean(latestWebflowPageSetupData.ready)
+    : hasSavedWebflowPageTarget;
+  const webflowPageSetupStatus = latestWebflowPageSetupData?.status || (isWebflowPageSetupReady ? "ready" : "not_checked");
+  const webflowPageSetupErrors = latestWebflowPageSetupData?.errors || [];
 
   React.useEffect(() => {
     if (!recommendedSiteUrl && defaultSiteUrl) setRecommendedSiteUrl(defaultSiteUrl);
@@ -300,6 +330,12 @@ export function WebChannelsTab({
       setSelectedWebflowCollectionId(webflowTarget.collectionId);
     }
   }, [selectedWebflowCollectionId, selectedWebflowSiteId, webflowTarget?.collectionId, webflowTarget?.siteId]);
+
+  React.useEffect(() => {
+    if (webflowPageTarget?.siteId && !selectedWebflowPageSiteId) {
+      setSelectedWebflowPageSiteId(webflowPageTarget.siteId);
+    }
+  }, [selectedWebflowPageSiteId, webflowPageTarget?.siteId]);
 
   React.useEffect(() => {
     if (!selectedWebflowCollection) {
@@ -521,6 +557,14 @@ export function WebChannelsTab({
     });
   };
 
+  const submitWebflowPagesConfiguration = async () => {
+    if (!webflowConnection?.connectionId || !effectiveWebflowPageSiteId) return;
+    await configureWebflowPagesMutation.mutateAsync({
+      connectionId: webflowConnection.connectionId,
+      siteId: effectiveWebflowPageSiteId,
+    });
+  };
+
   const handleOpenWordpressAdmin = () => {
     if (!connection?.siteUrl) return;
     try {
@@ -543,6 +587,8 @@ export function WebChannelsTab({
     missingStaticMappings.length === 0 &&
     missingRequiredImageMappings.length === 0 &&
     !configureWebflowMutation.isPending;
+  const canCheckWebflowPagesSetup = Boolean(webflowConnection?.connectionId && effectiveWebflowPageSiteId) &&
+    !configureWebflowPagesMutation.isPending;
 
   const needsWebflowSetup = isWebflowConnected && !webflowTarget?.collectionId;
 
@@ -747,6 +793,84 @@ export function WebChannelsTab({
                     getWebflowFieldType={getWebflowFieldType}
                     isWebflowRequiredField={isWebflowRequiredField}
                   />
+                  <div className="mt-5 rounded-lg border border-general-border bg-background p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <Typography variant="small" className="font-medium text-general-foreground">
+                          Massic Pages collection
+                        </Typography>
+                        <p className="mt-1 text-sm text-general-muted-foreground">
+                          Create a Webflow CMS collection named <span className="font-medium text-general-foreground">Massic Pages</span>.
+                          Add custom fields <span className="font-medium text-general-foreground">Content</span> (Rich Text),
+                          <span className="font-medium text-general-foreground"> Meta title</span> (Plain Text), and
+                          <span className="font-medium text-general-foreground"> Meta description</span> (Plain Text).
+                        </p>
+                        <p className="mt-1 text-xs text-general-muted-foreground">
+                          Recommended collection URL slug: <span className="font-medium text-general-foreground">resources</span>.
+                          Massic checks the collection and fields before allowing Webflow page publishing.
+                        </p>
+                      </div>
+                      <div className="shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium text-general-muted-foreground">
+                        {isWebflowPageSetupReady
+                          ? "Ready"
+                          : webflowPageSetupStatus === "missing_collection"
+                            ? "Collection missing"
+                            : webflowPageSetupStatus === "invalid_schema"
+                              ? "Invalid fields"
+                              : "Not checked"}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                      <div className="space-y-2">
+                        <Label htmlFor="webflow-page-site">Page publish site</Label>
+                        <Select
+                          value={effectiveWebflowPageSiteId || undefined}
+                          onValueChange={setSelectedWebflowPageSiteId}
+                          disabled={webflowSitesQuery.isLoading}
+                        >
+                          <SelectTrigger id="webflow-page-site" className="w-full cursor-pointer">
+                            <SelectValue placeholder={webflowSitesQuery.isLoading ? "Loading sites…" : "Select site"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {webflowSites.map(site => {
+                              const id = getWebflowId(site);
+                              return (
+                                <SelectItem key={id} value={id}>
+                                  {site.displayName || site.name || site.shortName || id}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        variant={isWebflowPageSetupReady ? "outline" : "default"}
+                        onClick={submitWebflowPagesConfiguration}
+                        disabled={!canCheckWebflowPagesSetup}
+                      >
+                        {configureWebflowPagesMutation.isPending ? "Checking…" : isWebflowPageSetupReady ? "Recheck setup" : "Check setup"}
+                      </Button>
+                    </div>
+
+                    <div className="mt-3 text-xs text-general-muted-foreground">
+                      {isWebflowPageSetupReady ? (
+                        <span>
+                          Pages will publish to {webflowPageTarget?.name || "Massic Pages"}
+                          {selectedWebflowPageSiteName ? ` on ${selectedWebflowPageSiteName}` : ""}.
+                        </span>
+                      ) : webflowPageSetupErrors.length > 0 ? (
+                        <ul className="list-disc space-y-1 pl-4">
+                          {webflowPageSetupErrors.map(error => (
+                            <li key={error}>{error}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span>Select a site and check setup after creating the Massic Pages collection in Webflow.</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </CollapsibleContent>
             </Collapsible>

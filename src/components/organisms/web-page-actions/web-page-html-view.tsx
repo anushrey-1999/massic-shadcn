@@ -549,6 +549,7 @@ export function WebPageHtmlView({
   const isBlogContent = contentType === "blog";
   const contentLabel = isBlogContent ? "Blog" : "Page";
   const contentLabelLower = contentLabel.toLowerCase();
+  const publishType: "post" | "page" = isBlogContent ? "post" : "page";
 
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
   const [previewHtml, setPreviewHtml] = React.useState("");
@@ -627,9 +628,13 @@ export function WebPageHtmlView({
   const cmsChannel = cmsChannelQuery.data || null;
   const activePlatform = cmsChannel?.platform || null;
   const activeConnection = cmsChannel?.connection || null;
-  const activeTarget = cmsChannel?.target || null;
   const isActiveWordpress = activePlatform === "wordpress" && Boolean(activeConnection);
   const isActiveWebflow = activePlatform === "webflow" && Boolean(activeConnection);
+  const activeTarget = isActiveWebflow
+    ? publishType === "page"
+      ? cmsChannel?.targets?.page || null
+      : cmsChannel?.targets?.post || cmsChannel?.target || null
+    : cmsChannel?.target || null;
   const wpConnection = isActiveWordpress ? activeConnection : null;
   const isWpConnected = isActiveWordpress;
   const cmsPublishMutation = useCmsPublish();
@@ -643,7 +648,11 @@ export function WebPageHtmlView({
   const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
-  const webflowDomains = cmsChannel?.domains || [];
+  const webflowDomains = isActiveWebflow
+    ? publishType === "page"
+      ? cmsChannel?.domainsByType?.page || cmsChannel?.domains || []
+      : cmsChannel?.domainsByType?.post || cmsChannel?.domains || []
+    : cmsChannel?.domains || [];
   const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
   const webflowCustomDomains = webflowDomains.filter((domain) => domain.type === "custom_domain");
   const webflowImageMappings = React.useMemo<WebflowImageMapping[]>(() => {
@@ -747,7 +756,6 @@ export function WebPageHtmlView({
   const publishSeoTitle = canonicalizeMetaValue(blogMetaTitleDraft) || publishTitle;
   const publishDescription = canonicalizeMetaValue(blogMetaDescriptionDraft);
   const publishContentId = inferPage?.page_id || pageId;
-  const publishType: "post" | "page" = isBlogContent ? "post" : "page";
   const contentStatusQuery = useCmsPublishingContentStatus(
     businessId || null,
     publishContentId && (isActiveWebflow || (isActiveWordpress && isPublishModalOpen))
@@ -2166,6 +2174,7 @@ export function WebPageHtmlView({
       const result = await webflowStagingPreviewMutation.mutateAsync({
         businessId: String(businessId),
         contentId: String(publishContentId),
+        type: publishType,
       });
       const previewUrl = result.data?.previewUrl;
       setLastPublishedData(prev => ({
@@ -2208,7 +2217,7 @@ export function WebPageHtmlView({
         toast.error("Slug conflict: choose a unique slug");
       }
     }
-  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, cssVarOverrides, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
+  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, cssVarOverrides, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
 
   const handleRollbackWebflowToDraft = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !hasWebflowMapping) return;
@@ -2218,6 +2227,7 @@ export function WebPageHtmlView({
       const result = await webflowRollbackToDraftMutation.mutateAsync({
         businessId: String(businessId),
         contentId: String(publishContentId),
+        type: publishType,
       });
       const data = result.data;
       setWebflowStagingPreview(null);
@@ -2245,6 +2255,7 @@ export function WebPageHtmlView({
     hasWebflowMapping,
     isWebflowReady,
     publishContentId,
+    publishType,
     webflowPersistedContent?.previewUrl,
     webflowPersistedContent?.slug,
     webflowRollbackToDraftMutation,
@@ -4870,17 +4881,15 @@ export function WebPageHtmlView({
                 </TooltipTrigger><TooltipContent>Copy Text</TooltipContent></Tooltip>
               </>
             )}
-            {isBlogContent ? (
-              <Button
-                className="gap-2"
-                type="button"
-                onClick={() => setIsPublishModalOpen(true)}
-                disabled={isProcessing || !hasFinalContent}
-              >
-                <Globe className="h-4 w-4" />
-                Actions
-              </Button>
-            ) : null}
+            <Button
+              className="gap-2"
+              type="button"
+              onClick={() => setIsPublishModalOpen(true)}
+              disabled={isProcessing || !hasFinalContent}
+            >
+              <Globe className="h-4 w-4" />
+              Actions
+            </Button>
           </div>
         </div>
       </div>
@@ -4923,12 +4932,16 @@ export function WebPageHtmlView({
               ) : null}
               {needsWebflowMappingSetup ? (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <Typography className="text-sm font-medium text-amber-950">Webflow mapping is required</Typography>
+                  <Typography className="text-sm font-medium text-amber-950">
+                    {publishType === "page" ? "Massic Pages setup is required" : "Webflow mapping is required"}
+                  </Typography>
                   <Typography className="mt-1 text-xs text-amber-900">
-                    Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first.
+                    {publishType === "page"
+                      ? "Create the Massic Pages collection in Webflow, then check setup in integrations before publishing pages."
+                      : "Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first."}
                   </Typography>
                   <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
-                    Configure mapping
+                    {publishType === "page" ? "Check page setup" : "Configure mapping"}
                   </Button>
                 </div>
               ) : null}

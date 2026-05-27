@@ -14,6 +14,15 @@ export interface CmsPublishingDomain {
   lastPublished?: string | null;
 }
 
+export interface CmsPublishingTarget {
+  targetId: string;
+  siteId: string;
+  collectionId: string;
+  name: string;
+  fieldMapping?: Record<string, any>;
+  metadata?: Record<string, any> | null;
+}
+
 export interface CmsPublishingChannel {
   connected: boolean;
   platform: CmsPublishingPlatform | null;
@@ -27,15 +36,16 @@ export interface CmsPublishingChannel {
     lastUsedAt?: string | null;
     metadata?: Record<string, any> | null;
   } | null;
-  target: {
-    targetId: string;
-    siteId: string;
-    collectionId: string;
-    name: string;
-    fieldMapping?: Record<string, any>;
-    metadata?: Record<string, any> | null;
-  } | null;
+  target: CmsPublishingTarget | null;
+  targets?: {
+    post?: CmsPublishingTarget | null;
+    page?: CmsPublishingTarget | null;
+  };
   domains: CmsPublishingDomain[];
+  domainsByType?: {
+    post?: CmsPublishingDomain[];
+    page?: CmsPublishingDomain[];
+  };
 }
 
 export interface CmsSlugCheckResponse {
@@ -243,7 +253,7 @@ export function useCmsPublishingChannel(businessId: string | null) {
         "node"
       );
       if (!res?.success) throw new Error(res?.message || "Failed to fetch publishing channel");
-      return res.data || { connected: false, platform: null, connection: null, target: null, domains: [] };
+      return res.data || { connected: false, platform: null, connection: null, target: null, targets: {}, domains: [], domainsByType: {} };
     },
     staleTime: 15 * 1000,
   });
@@ -280,11 +290,13 @@ export function useCmsSlugCheck() {
 interface WebflowStagingPreviewPayload {
   businessId: string;
   contentId: string;
+  type?: "post" | "page";
 }
 
 interface WebflowRollbackToDraftPayload {
   businessId: string;
   contentId: string;
+  type?: "post" | "page";
 }
 
 export function useCmsWebflowStagingPreview() {

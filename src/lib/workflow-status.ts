@@ -19,17 +19,14 @@ export function getWorkflowStatus(
 
   if (!workflowStatus) return undefined;
 
-  // Check granular per-workflow status first (nested under .workflows)
   const workflows = workflowStatus.workflows;
-  if (workflows && typeof workflows === "object" && workflowKey in workflows) {
+  if (workflows && typeof workflows === "object") {
     return workflows[workflowKey];
   }
 
-  // Check flat key directly on workflow_status
   const directValue = (workflowStatus as Record<string, WorkflowStatusValue>)[workflowKey];
   if (directValue !== undefined) return directValue;
 
-  // When the overall workflow is "success", every individual workflow is implicitly done
   if (workflowStatus.status === "success") return "success";
 
   return undefined;

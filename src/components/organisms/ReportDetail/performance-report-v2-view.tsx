@@ -56,6 +56,18 @@ function normalizeReviewAreas(value: unknown): Array<{ title: string; body: stri
     .filter((item): item is { title: string; body: string } => Boolean(item));
 }
 
+function normalizeContentThemes(value: unknown): Array<{ themeName: string; narrative: string }> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!isObject(item)) return null;
+      const themeName = toText(item.theme_name).trim();
+      const narrative = toText(item.narrative).trim();
+      return themeName || narrative ? { themeName, narrative } : null;
+    })
+    .filter((item): item is { themeName: string; narrative: string } => Boolean(item));
+}
+
 function unwrapNamedOutput(value: unknown, key: string): Record<string, unknown> {
   if (!isObject(value)) return {};
   if (isObject(value[key])) return value[key] as Record<string, unknown>;
@@ -117,7 +129,12 @@ function resolveEditableFields(
   report: unknown,
   context?: PerformanceReportV2TemplateContext,
   editedFields?: PerformanceReportV2EditedFields
-): { values: Record<string, string>; channelNames: string[]; reviewAreas: Array<{ title: string; body: string }> } {
+): {
+  values: Record<string, string>;
+  channelNames: string[];
+  reviewAreas: Array<{ title: string; body: string }>;
+  contentThemes: Array<{ themeName: string; narrative: string }>;
+} {
   const r = isObject(report) ? report : {};
   const prose = getProseOutput(context);
   const rChannelNotes = isObject(r.channel_notes) ? (r.channel_notes as Record<string, unknown>) : {};
@@ -148,11 +165,25 @@ function resolveEditableFields(
     if (text) values[`channel_notes.${name}`] = text;
   }
 
+  const performanceNarrative = pickText(r.performance_narrative, prose.performance_narrative);
+  if (performanceNarrative) values.performance_narrative = performanceNarrative;
+
   const organicNote = pickText(r.organic_page_note, prose.organic_page_note);
   if (organicNote) values.organic_page_note = organicNote;
 
+  const contentThemes = normalizeContentThemes(
+    Array.isArray(r.content_themes) && r.content_themes.length ? r.content_themes : prose.content_themes
+  );
+  contentThemes.forEach((theme, index) => {
+    if (theme.themeName) values[`content_themes.${index}.theme_name`] = theme.themeName;
+    if (theme.narrative) values[`content_themes.${index}.narrative`] = theme.narrative;
+  });
+
   const rankNarr = pickText(r.ranking_narrative, prose.ranking_narrative);
   if (rankNarr) values.ranking_narrative = rankNarr;
+
+  const lookingAhead = pickText(r.looking_ahead, prose.looking_ahead);
+  if (lookingAhead) values.looking_ahead = lookingAhead;
 
   const areas = normalizeReviewAreas(
     Array.isArray(r.review_areas) && r.review_areas.length ? r.review_areas : prose.review_areas
@@ -167,17 +198,20 @@ function resolveEditableFields(
 
   const channels = isObject(report) && Array.isArray(report.channels)
     ? report.channels.filter((c): c is Record<string, unknown> => isObject(c))
+    : isObject(report) && isObject(report.channels) && Array.isArray(report.channels.cards)
+      ? report.channels.cards.filter((c): c is Record<string, unknown> => isObject(c))
     : [];
   const channelNames = channels.map((c) => toText(c.name).trim());
 
-  return { values, channelNames, reviewAreas: areas };
+  return { values, channelNames, reviewAreas: areas, contentThemes };
 }
 
 function discoverEditableFields(
   container: HTMLElement,
   fieldValues: Record<string, string>,
   channelNames: string[],
-  reviewAreas: Array<{ title: string; body: string }>
+  reviewAreas: Array<{ title: string; body: string }>,
+  contentThemes: Array<{ themeName: string; narrative: string }>
 ): EditableField[] {
   const fields: EditableField[] = [];
 
@@ -220,6 +254,49 @@ function discoverEditableFields(
       getValue: () => normalizeEditableText(note.innerText, false),
       setValue: (v) => { note.innerText = v; },
     });
+  });
+
+  const perfNarrative = container.querySelector(".perf-narrative");
+  if (perfNarrative instanceof HTMLElement && fieldValues.performance_narrative) {
+    fields.push({
+      path: "performance_narrative",
+      multiline: true,
+      nodes: [perfNarrative],
+      ownerNode: perfNarrative,
+      getValue: () => normalizeEditableText(perfNarrative.innerText, true),
+      setValue: (v) => { perfNarrative.innerText = v; },
+    });
+  }
+
+  const themeNodes = Array.from(container.querySelectorAll(".theme"));
+  themeNodes.forEach((themeNode, index) => {
+    if (!(themeNode instanceof HTMLElement)) return;
+    const theme = contentThemes[index];
+    if (!theme) return;
+    const nameNode = themeNode.querySelector(".theme-name");
+    const narrativeNode = themeNode.querySelector(".theme-narrative");
+    const namePath = `content_themes.${index}.theme_name`;
+    const narrativePath = `content_themes.${index}.narrative`;
+    if (nameNode instanceof HTMLElement && fieldValues[namePath]) {
+      fields.push({
+        path: namePath,
+        multiline: false,
+        nodes: [nameNode],
+        ownerNode: nameNode,
+        getValue: () => normalizeEditableText(nameNode.innerText, false),
+        setValue: (v) => { nameNode.innerText = v; },
+      });
+    }
+    if (narrativeNode instanceof HTMLElement && fieldValues[narrativePath]) {
+      fields.push({
+        path: narrativePath,
+        multiline: true,
+        nodes: [narrativeNode],
+        ownerNode: narrativeNode,
+        getValue: () => normalizeEditableText(narrativeNode.innerText, true),
+        setValue: (v) => { narrativeNode.innerText = v; },
+      });
+    }
   });
 
   const pgNote = container.querySelector(".pg-note");
@@ -305,6 +382,18 @@ function discoverEditableFields(
       ownerNode: cfBody,
       getValue: () => normalizeEditableText(cfBody.innerText, true),
       setValue: (v) => { cfBody.innerText = v; },
+    });
+  }
+
+  const lookingAhead = container.querySelector(".looking-ahead-body");
+  if (lookingAhead instanceof HTMLElement && fieldValues.looking_ahead) {
+    fields.push({
+      path: "looking_ahead",
+      multiline: true,
+      nodes: [lookingAhead],
+      ownerNode: lookingAhead,
+      getValue: () => normalizeEditableText(lookingAhead.innerText, true),
+      setValue: (v) => { lookingAhead.innerText = v; },
     });
   }
 
@@ -395,7 +484,7 @@ export function PerformanceReportV2View({
     });
   }, [performanceReport, serverEdited, context]);
 
-  const { values: fieldValues, channelNames, reviewAreas } = React.useMemo(
+  const { values: fieldValues, channelNames, reviewAreas, contentThemes } = React.useMemo(
     () => resolveEditableFields(resolvedReport, context, serverEdited),
     [resolvedReport, context, serverEdited]
   );
@@ -475,7 +564,7 @@ export function PerformanceReportV2View({
     const container = contentRef.current;
     if (!container) return;
 
-    const fields = discoverEditableFields(container, fieldValues, channelNames, reviewAreas);
+    const fields = discoverEditableFields(container, fieldValues, channelNames, reviewAreas, contentThemes);
     fieldsRef.current = fields;
 
     for (const field of fields) {
@@ -568,7 +657,7 @@ export function PerformanceReportV2View({
         field.ownerNode.removeAttribute("data-edit-active");
       }
     };
-  }, [fieldValues, channelNames, reviewAreas, teardownEditing, scheduleSave]);
+  }, [fieldValues, channelNames, reviewAreas, contentThemes, teardownEditing, scheduleSave]);
 
   // Inject HTML into the content div imperatively so React never touches it
   const lastInjectedHtml = React.useRef<string>("");

@@ -10,6 +10,7 @@ import { DataTableSortList } from "@/components/filter-table/data-table-sort-lis
 import { getFiltersStateParser } from "@/components/filter-table/parsers";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -18,10 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, Loader2, Sparkles, List, Network } from "lucide-react";
+import { AlertCircle, ChartScatter, Loader2, Sparkles, List, Layers } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
+import { BUSINESS_RELEVANCE_PALETTE } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { getThemesTableColumns } from "./themes-table-columns";
-import { ThemesForceGraph } from "./themes-force-graph";
+import { ThemesBubbleChart } from "./themes-bubble-chart";
+import { ThemesScatterPlot } from "./themes-scatter-plot";
 import { ThemesSplitView } from "./themes-split-view";
 import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
@@ -33,9 +36,10 @@ import { downloadRowsAsCsv } from "@/lib/csv-export";
 interface ThemesTableClientProps {
   businessId: string;
   onSplitViewChange?: (isSplitView: boolean) => void;
+  onMetricsTextChange?: (text: string) => void;
 }
 
-type ThemesView = "table" | "graph" | "umap";
+type ThemesView = "table" | "bubble" | "scatter";
 
 function getFilterValues(row: ThemeRow, field: string): string[] {
   if (field === "theme_name") return [row.theme_name || ""];
@@ -81,16 +85,18 @@ function matchesAdvancedFilters(
     : results.every(Boolean);
 }
 
-export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTableClientProps) {
+export function ThemesTableClient({
+  businessId,
+  onSplitViewChange,
+  onMetricsTextChange,
+}: ThemesTableClientProps) {
   const [view, setView] = React.useState<ThemesView>("table");
   const [search, setSearch] = React.useState("");
   const [selectedOffering, setSelectedOffering] = React.useState("all");
-  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedThemeId, setSelectedThemeId] = React.useState<string | null>(null);
   const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [isPolling, setIsPolling] = React.useState(false);
-  const tableContainerRef = React.useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const themeFilterFields = React.useMemo(
@@ -113,7 +119,8 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     }
   }, [view, selectedOffering]);
 
-  const { fetchThemes, triggerThemes } = useThemes(businessId);
+
+  const { fetchThemes, fetchScatterPlot, triggerThemes } = useThemes(businessId);
 
   const {
     data: themesData,
@@ -139,39 +146,30 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     },
   });
 
+  const {
+    data: scatterData,
+    isLoading: scatterLoading,
+    isError: scatterError,
+    error: scatterErrorData,
+    refetch: refetchScatter,
+  } = useQuery({
+    queryKey: ["themes-scatter-plot", businessId],
+    queryFn: fetchScatterPlot,
+    staleTime: 1000 * 60 * 5,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    enabled: !!businessId && view === "scatter",
+  });
+
   React.useEffect(() => {
     if (themesData?.hasData && isPolling) {
       setIsPolling(false);
     }
   }, [themesData?.hasData, isPolling]);
 
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (!tableContainerRef.current) return;
-      if (target.closest?.('[role="dialog"]')) return;
-      const isOutsideContainer = !tableContainerRef.current.contains(target);
-      if (isOutsideContainer) {
-        setExpandedRowId(null);
-        return;
-      }
-      const isOnTableElement = target?.closest?.(
-        'table, [role="table"], [role="row"], [role="cell"], [role="columnheader"], [role="rowheader"]'
-      );
-      const isOnInteractiveElement = target?.closest?.(
-        'button, input, select, textarea, a, [role="button"], [role="textbox"], [role="combobox"]'
-      );
-      if (!isOnTableElement && !isOnInteractiveElement) {
-        setExpandedRowId(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const columns = React.useMemo(
-    () => getThemesTableColumns({ expandedRowId, onExpandedRowChange: setExpandedRowId }),
-    [expandedRowId]
+    () => getThemesTableColumns(),
+    []
   );
 
   const allData = React.useMemo<ThemeRow[]>(
@@ -236,6 +234,87 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
 
     return data;
   }, [allData, search, selectedOffering, advancedFilters, joinOperator]);
+
+  const totalThemes = allData.length;
+  const filteredScatterPoints = React.useMemo(() => {
+    const points = scatterData?.points ?? [];
+    if (selectedOffering === "all") return points;
+
+    const topicNames = new Set(
+      filteredData.flatMap((row) =>
+        (row.topics ?? [])
+          .map((topic) => topic.topic_name?.trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+
+    return points.filter((point) =>
+      topicNames.has(point.topic_name.trim().toLowerCase())
+    );
+  }, [filteredData, scatterData?.points, selectedOffering]);
+
+  const graphStats = React.useMemo(() => {
+    const offerings = new Set<string>();
+    const themeTotalScore = filteredScatterPoints.reduce(
+      (total, point) => total + (point.business_relevance_score || 0),
+      0
+    );
+
+    filteredData.forEach((row) => {
+      const names = [
+        ...(Array.isArray(row.offerings) ? row.offerings : []),
+        row.origin_offering,
+      ]
+        .map((name) => String(name ?? "").trim())
+        .filter(Boolean);
+
+      names.forEach((name) => offerings.add(name));
+    });
+
+    return {
+      offerings: offerings.size,
+      themes: filteredData.length,
+      topics: filteredScatterPoints.length,
+      themeTotalScore,
+    };
+  }, [filteredData, filteredScatterPoints]);
+  const formattedThemeTotalScore = Number.isInteger(graphStats.themeTotalScore)
+    ? String(graphStats.themeTotalScore)
+    : graphStats.themeTotalScore.toFixed(1);
+  const themeMetricsText = React.useMemo(() => {
+    if (view === "bubble") {
+      return `${graphStats.offerings} Offerings, ${graphStats.themes} Themes`;
+    }
+
+    if (view === "scatter") {
+      if (scatterLoading && !scatterData) return "Loading metrics...";
+      return `${graphStats.topics} Topics, ${formattedThemeTotalScore} Theme Total Score`;
+    }
+
+    if (themesLoading && !themesData) return "Loading metrics...";
+    if (!themesData?.hasData) return "";
+
+    return search.trim()
+      ? `${filteredData.length} of ${totalThemes} Themes total`
+      : `${totalThemes} Themes total`;
+  }, [
+    filteredData.length,
+    formattedThemeTotalScore,
+    graphStats.offerings,
+    graphStats.themes,
+    graphStats.topics,
+    scatterData,
+    scatterLoading,
+    search,
+    themesData,
+    themesLoading,
+    totalThemes,
+    view,
+  ]);
+
+  React.useEffect(() => {
+    onMetricsTextChange?.(themeMetricsText);
+  }, [onMetricsTextChange, themeMetricsText]);
 
   const { table } = useLocalDataTable({
     data: filteredData,
@@ -334,30 +413,6 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     );
   }
 
-  const totalThemes = allData.length;
-  const graphStats = (() => {
-    const offerings = new Set<string>();
-    let sharedThemes = 0;
-
-    filteredData.forEach((row) => {
-      const names = [
-        ...(Array.isArray(row.offerings) ? row.offerings : []),
-        row.origin_offering,
-      ]
-        .map((name) => String(name ?? "").trim())
-        .filter(Boolean);
-
-      names.forEach((name) => offerings.add(name));
-      if (new Set(names).size > 1) sharedThemes += 1;
-    });
-
-    return {
-      offerings: offerings.size,
-      themes: filteredData.length,
-      sharedThemes,
-    };
-  })();
-
   const handleThemeRowClick = (row: ThemeRow) => {
     setSelectedThemeId(row.id);
     setSplitViewSearch("");
@@ -397,13 +452,13 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
           <List className="h-4 w-4" />
           List
         </TabsTrigger>
-        <TabsTrigger value="graph">
-          <Network className="h-4 w-4" />
-          Graph
+        <TabsTrigger value="bubble">
+          <Layers className="h-4 w-4" />
+          Map
         </TabsTrigger>
-        <TabsTrigger value="umap">
-          <Network className="h-4 w-4" />
-          UMAP
+        <TabsTrigger value="scatter">
+          <ChartScatter className="h-4 w-4" />
+          Scatter
         </TabsTrigger>
       </TabsList>
     </Tabs>
@@ -413,33 +468,118 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     downloadRowsAsCsv(filteredData, "themes.csv");
   }, [filteredData]);
 
-  if (view === "graph" || view === "umap") {
+  if (view === "bubble") {
     return (
-      <div className="h-full flex flex-col gap-4">
-        <div className="shrink-0 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {offeringsFilter}
-              <div className="flex items-center gap-4">
-                <div className="text-sm font-mono text-general-muted-foreground">
-                  <span className="text-general-primary">{graphStats.offerings}</span> Offerings
+      <div className="flex-1 min-h-0 overflow-hidden h-full">
+        <Card className="h-full w-full p-4 rounded-lg border-none shadow-none flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Typography
+                variant="p"
+                className="font-mono mb-2 text-base text-general-muted-foreground"
+              >
+                Topic Coverage
+              </Typography>
+              <div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
+                <div className="absolute inset-0 flex">
+                  {BUSINESS_RELEVANCE_PALETTE.map((color) => (
+                    <div
+                      key={color}
+                      className="h-full flex-1 shadow-inner"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
                 </div>
-                <div className="text-sm font-mono text-general-muted-foreground">
-                  <span className="text-general-primary">{graphStats.themes}</span> Themes
-                </div>
-                <div className="text-sm font-mono text-general-muted-foreground">
-                  <span className="text-general-primary">{graphStats.sharedThemes}</span> Shared
+                <div className="absolute inset-0 flex items-center justify-between px-3">
+                  <span className="text-[10px] font-medium text-general-muted-foreground">
+                    Low
+                  </span>
+                  <span className="text-[10px] font-medium text-general-muted-foreground">
+                    High
+                  </span>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <DownloadCsvButton onDownload={handleDownloadCsv} disabled={filteredData.length === 0} />
-              {viewToggle}
+              <div className="flex items-center gap-4">
+                {offeringsFilter}
+                {viewToggle}
+              </div>
             </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            <ThemesBubbleChart data={filteredData} />
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (view === "scatter") {
+    return (
+      <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden gap-2.5">
+        <div
+          role="toolbar"
+          aria-orientation="horizontal"
+          className="flex w-full items-start justify-between gap-2 p-1"
+        >
+          <div className="flex flex-1 flex-wrap items-center gap-4">
+            <div>
+              <Typography
+                variant="p"
+                className="font-mono mb-2 text-base text-general-muted-foreground"
+              >
+                Topic Relevance
+              </Typography>
+              <div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
+                <div className="absolute inset-0 flex">
+                  {BUSINESS_RELEVANCE_PALETTE.map((color) => (
+                    <div
+                      key={color}
+                      className="h-full flex-1 shadow-inner"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                <div className="absolute inset-0 flex items-center justify-between px-3">
+                  <span className="text-[10px] font-medium text-general-muted-foreground">
+                    Low
+                  </span>
+                  <span className="text-[10px] font-medium text-general-muted-foreground">
+                    High
+                  </span>
+                </div>
+              </div>
+            </div>
+            {offeringsFilter}
+          </div>
+          <div className="flex items-center gap-2">
+            {viewToggle}
           </div>
         </div>
         <div className="flex-1 min-h-0">
-          <ThemesForceGraph data={filteredData} layout={view === "umap" ? "umap" : "force"} />
+          {scatterLoading ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-xl border bg-white">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Typography variant="p" className="font-medium text-foreground">
+                Loading scatter plot…
+              </Typography>
+            </div>
+          ) : scatterError ? (
+            <div className="flex h-full flex-col items-center justify-center gap-4 rounded-xl border bg-white">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+              <p className="text-destructive font-medium">Failed to load scatter plot</p>
+              <p className="text-sm text-muted-foreground">
+                {scatterErrorData instanceof Error
+                  ? scatterErrorData.message
+                  : "An error occurred"}
+              </p>
+              <Button onClick={() => refetchScatter()}>Try Again</Button>
+            </div>
+          ) : (
+            <ThemesScatterPlot points={filteredScatterPoints} />
+          )}
         </div>
       </div>
     );
@@ -461,47 +601,40 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
   }
 
   return (
-    <div ref={tableContainerRef} className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden gap-4">
-      <div className="shrink-0 flex items-center justify-between gap-4">
-        <div className="flex flex-1 flex-wrap items-center gap-2">
-          <DataTableSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search themes, offerings, topics..."
-          />
-          <DataTableFilterList table={table} align="start" />
+    <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
+      <DataTable
+        table={table}
+        isLoading={themesLoading && !themesData}
+        isFetching={triggerMutation.isPending}
+        pageSizeOptions={[25, 50, 100]}
+        emptyMessage="No themes found."
+        showPagination={true}
+        disableHorizontalScroll={false}
+        className="h-full"
+        onRowClick={handleThemeRowClick}
+        highlightSelectedRow={false}
+      >
+        <div
+          role="toolbar"
+          aria-orientation="horizontal"
+          className="flex w-full items-start justify-between gap-2 p-1"
+        >
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <DataTableSearch
+              value={search}
+              onChange={setSearch}
+              placeholder="Search themes, offerings, topics..."
+            />
+            <DataTableFilterList table={table} align="start" />
+          </div>
+          <div className="flex items-center gap-2">
+            <DataTableSortList table={table} align="start" />
+            <DataTableViewOptions table={table} align="end" />
+            <DownloadCsvButton onDownload={handleDownloadCsv} disabled={filteredData.length === 0} />
+            {viewToggle}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <DataTableSortList table={table} align="start" />
-          <DataTableViewOptions table={table} align="end" />
-          <DownloadCsvButton onDownload={handleDownloadCsv} disabled={filteredData.length === 0} />
-          {viewToggle}
-        </div>
-      </div>
-      {totalThemes != null && (
-        <div className="shrink-0">
-          <Typography variant="p" className="text-sm font-mono text-general-muted-foreground">
-            {search.trim()
-              ? `${filteredData.length} of ${totalThemes} Themes total`
-              : `${totalThemes} Themes total`}
-          </Typography>
-        </div>
-      )}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <DataTable
-          table={table}
-          isLoading={themesLoading && !themesData}
-          isFetching={triggerMutation.isPending}
-          pageSizeOptions={[25, 50, 100]}
-          emptyMessage="No themes found."
-          showPagination={true}
-          disableHorizontalScroll={false}
-          className="h-full"
-          onRowClick={handleThemeRowClick}
-          selectedRowId={expandedRowId}
-          highlightSelectedRow={false}
-        />
-      </div>
+      </DataTable>
     </div>
   );
 }

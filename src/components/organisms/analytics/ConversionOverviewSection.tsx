@@ -66,11 +66,11 @@ function ConversionOverviewSkeleton() {
             {Array.from({ length: 6 }).map((_, rowIndex) => (
               <div
                 key={rowIndex}
-                className="flex items-center gap-6 border-b border-[#e5e5e5] py-2 pr-3"
+                className="flex items-center gap-3 border-b border-[#e5e5e5] px-3 py-2"
               >
-                <Skeleton className="h-4 w-[100px] shrink-0" />
+                <Skeleton className="h-4 w-[120px] shrink-0" />
                 <Skeleton className="h-2 flex-1 rounded-full" />
-                <Skeleton className="h-4 w-12 shrink-0" />
+                <Skeleton className="h-4 w-[72px] shrink-0" />
               </div>
             ))}
           </div>
@@ -110,10 +110,10 @@ function TouchPanel({
           return (
             <div
               key={row.channel}
-              className="flex items-center gap-6 border-b border-[#e5e5e5] py-2 pr-3 last:border-b-0"
+              className="flex min-h-8 items-center gap-3 border-b border-[#e5e5e5] px-3 py-2 last:border-b-0"
             >
               <div
-                className="w-[100px] shrink-0 truncate text-right text-[12px] font-medium leading-normal tracking-[0.18px]"
+                className="w-[120px] shrink-0 truncate text-left text-[12px] font-medium leading-normal tracking-[0.18px]"
                 style={{ color }}
               >
                 {row.channel}
@@ -124,7 +124,7 @@ function TouchPanel({
                   style={{ width: `${percentage}%`, background: color }}
                 />
               </div>
-              <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap leading-normal">
+              <div className="ml-auto flex min-w-[72px] shrink-0 items-center justify-end gap-1.5 whitespace-nowrap text-right leading-normal">
                 <span className="text-[12px] font-normal tracking-[0.18px] text-[#0a0a0a]">
                   {formatPct(row.pct)}
                 </span>

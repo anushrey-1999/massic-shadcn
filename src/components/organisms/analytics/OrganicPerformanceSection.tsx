@@ -132,6 +132,7 @@ export function OrganicPerformanceSection({
 
   const {
     goalData,
+    rawData: goalRawData,
     criticalCount,
     warningCount,
     positiveCount,
@@ -143,6 +144,7 @@ export function OrganicPerformanceSection({
     trafficData,
     isLoading: isLoadingTraffic,
     error: trafficError,
+    hasAnomaly: hasTrafficAnomaly,
   } = useTrafficAnalysis(businessUniqueId, businessName, null);
 
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
@@ -309,13 +311,41 @@ export function OrganicPerformanceSection({
     return chartLegendWithIcons.filter((item) => item.checked);
   }, [chartLegendWithIcons]);
 
-  // Calculate total counts from both Goals and Traffic APIs
-  const trafficCriticalCount = trafficData && trafficData.severity === "high" ? 1 : 0;
-  const trafficPositiveCount = trafficData && trafficData.direction === "up" ? 1 : 0;
-  
-  const totalCriticalCount = criticalCount + trafficCriticalCount;
-  const totalPositiveCount = positiveCount + trafficPositiveCount;
-  const totalAnomaliesCount = totalCriticalCount + totalPositiveCount;
+  // CHANGE 13: Badge fires only for tier === 'anomaly'. Candidate and normal tiers
+  // are hidden entirely from the sheet and do not increment the alert count.
+  const trafficAnomaliesCount = hasTrafficAnomaly ? 1 : 0;
+  const goalAnomaliesCount = goalData.filter((g) => g.tier === "anomaly").length;
+  const totalAnomaliesCount = goalAnomaliesCount + trafficAnomaliesCount;
+
+  // CHANGE 09: Compute obs window from API response for the alert bar no-anomalies message.
+  const obsStartDate =
+    goalRawData?.obs_start_date ||
+    goalRawData?.anomalies?.[0]?.obs_start_date ||
+    trafficData?.obs_start_date ||
+    trafficData?.window?.start;
+  const obsEndDate =
+    goalRawData?.obs_end_date ||
+    goalRawData?.anomalies?.[0]?.obs_end_date ||
+    trafficData?.obs_end_date ||
+    trafficData?.window?.end;
+
+  const formatObsDate = (dateStr: string | undefined, includeYear = false) => {
+    if (!dateStr) return null;
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        ...(includeYear ? { year: "numeric" } : {}),
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const noAnomaliesMsg = obsStartDate && obsEndDate
+    ? `No anomalies detected for ${formatObsDate(obsStartDate)} to ${formatObsDate(obsEndDate, true)}`
+    : `No recent anomalies detected as of ${new Date().toLocaleDateString()}`;
   
   const hasAnomalies = totalAnomaliesCount > 0;
   const showChartLoader = loadingState.chart && !hasData;
@@ -375,7 +405,7 @@ export function OrganicPerformanceSection({
         }
         isLoading={isLoadingGoals || isLoadingTraffic}
         error={goalError || trafficError}
-        noAlertsMessage={`No recent anomalies detected as of ${new Date().toLocaleDateString()}`}
+        noAlertsMessage={noAnomaliesMsg}
         onClick={() => setAnomaliesSheetOpen(true)}
         variant="secondary"
       />
@@ -393,6 +423,9 @@ export function OrganicPerformanceSection({
         defaultIsLoadingTraffic={isLoadingTraffic}
         businessId={businessUniqueId}
         businessName={businessName}
+        goalRawState={goalRawData?.state}
+        obsStartDate={obsStartDate}
+        obsEndDate={obsEndDate}
       />
 
       <div className="flex flex-col gap-3">

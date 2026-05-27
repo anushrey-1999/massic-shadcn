@@ -146,7 +146,6 @@ import {
   useWordpressPreviewLink,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
-import { useWordpressStyleProfile } from "@/hooks/use-wordpress-connector";
 import {
   CmsPublishError,
   getCmsRateLimitDescription,
@@ -182,7 +181,6 @@ import {
   WEBFLOW_STAGING_PUBLISH_OPEN_DELAY_MS,
   WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
 } from "@/components/organisms/web-page-actions/webflow-open-preview";
-import { buildMassicCssVariableOverrides } from "@/utils/massic-style-overrides";
 import { LayoutPanel, MediaEditorPanel } from "@/components/ui/layout-panel";
 import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 
@@ -468,57 +466,6 @@ function detectInlineFormatsAtNode(node: Node | null, container: HTMLElement): {
   return result;
 }
 
-const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
-  primary: "Primary",
-  secondary: "Secondary",
-  accent: "Accent",
-  link: "Link",
-  text: "Text",
-  mutedText: "Muted Text",
-  background: "Background",
-  surface: "Surface",
-  buttonBg: "Button Background",
-  buttonText: "Button Text",
-};
-const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "primary",
-  "secondary",
-  "accent",
-  "link",
-  "buttonBg",
-  "buttonText",
-];
-const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "text",
-  "mutedText",
-  "background",
-  "surface",
-];
-const STYLE_TYPOGRAPHY_OPTION_LABELS: Partial<Record<MassicStyleTypographyKey, string>> = {
-  baseFontSize: "Base Text Size",
-  baseLineHeight: "Base Line Height",
-  h1Size: "H1 Size",
-  h2Size: "H2 Size",
-  h3Size: "H3 Size",
-};
-const VISIBLE_STYLE_TYPOGRAPHY_KEYS: MassicStyleTypographyKey[] = [
-  "baseFontSize",
-  "baseLineHeight",
-  "h1Size",
-  "h2Size",
-  "h3Size",
-];
-const LINE_HEIGHT_PRESETS = ["1.3", "1.4", "1.5", "1.6", "1.8", "2"];
-const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
-  bodyFontFamily: [],
-  headingFontFamily: [],
-  baseFontSize: ["14px", "16px", "18px", "20px", "22px", "24px"],
-  baseLineHeight: LINE_HEIGHT_PRESETS,
-  h1Size: ["28px", "32px", "36px", "40px", "42px", "48px"],
-  h2Size: ["22px", "24px", "28px", "32px", "36px"],
-  h3Size: ["18px", "20px", "22px", "26px", "30px"],
-};
-
 type HtmlContentType = "page" | "blog";
 
 export function WebPageHtmlView({
@@ -630,7 +577,6 @@ export function WebPageHtmlView({
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
-  const wpStyleProfileQuery = useWordpressStyleProfile(isActiveWordpress ? activeConnection?.connectionId || null : null);
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
   const webflowDomains = isActiveWebflow
@@ -969,34 +915,6 @@ export function WebPageHtmlView({
     return null;
   }, [activeConnection?.siteUrl, isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId]);
 
-  const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
-  const shouldApplyWpStyle = isActiveWordpress && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
-  const styleProfileForPreview = React.useMemo(
-    () => (shouldApplyWpStyle ? wpStyleProfileQuery.data?.profile || null : null),
-    [shouldApplyWpStyle, wpStyleProfileQuery.data?.profile]
-  );
-  const cssVarOverrides = React.useMemo(
-    () =>
-      styleProfileForPreview
-        ? buildMassicCssVariableOverrides({ normalizedProfile: styleProfileForPreview })
-        : {},
-    [styleProfileForPreview]
-  );
-  const previewStyleVars = React.useMemo(() => {
-    if (isBlogContent) return {};
-    const style: React.CSSProperties = {};
-    for (const [key, value] of Object.entries(cssVarOverrides)) {
-      (style as Record<string, string>)[key] = value;
-    }
-    return style;
-  }, [cssVarOverrides, isBlogContent]);
-  const previewMassicVarCss = React.useMemo(() => {
-    if (isBlogContent) return "";
-    const entries = Object.entries(cssVarOverrides);
-    if (!entries.length) return "";
-    const declarations = entries.map(([key, value]) => `${key}: ${value};`).join(" ");
-    return `.massic-html-preview .massic-content { ${declarations} }`;
-  }, [cssVarOverrides, isBlogContent]);
   const previewBaseCss = React.useMemo(() => {
     if (!editorBaseCss) return "";
     if (!isBlogContent) return editorBaseCss;
@@ -1886,7 +1804,6 @@ export function WebPageHtmlView({
         const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
-          cssVarOverrides,
         });
       }
       result = await cmsPublishMutation.mutateAsync(payload);
@@ -1936,7 +1853,7 @@ export function WebPageHtmlView({
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !cmsChannel?.connected || !hasFinalContent) return;
@@ -1955,7 +1872,6 @@ export function WebPageHtmlView({
       const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
       payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
         baseCss,
-        cssVarOverrides,
       });
       const draftResult = await cmsPublishMutation.mutateAsync(payload);
       const draft = draftResult?.data;
@@ -2017,7 +1933,7 @@ export function WebPageHtmlView({
         toast.error("Slug conflict: choose a unique slug");
       }
     }
-  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, cssVarOverrides, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
+  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
 
   const handleRollbackWebflowToDraft = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !hasWebflowMapping) return;
@@ -2101,7 +2017,6 @@ export function WebPageHtmlView({
         const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
-          cssVarOverrides,
         });
       }
       result = await cmsPublishMutation.mutateAsync(payload);
@@ -2143,7 +2058,7 @@ export function WebPageHtmlView({
     if (activePlatform !== "webflow") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
 
   const handleRepublish = React.useCallback(async () => {
     if (!isActiveWordpress || !hasFinalContent) return;
@@ -2335,7 +2250,6 @@ export function WebPageHtmlView({
     const baseCss = editorBaseCss || (await (isBlogContent ? getMassicBlogCssText() : getMassicCssText()));
     const styledHtml = buildStyledMassicHtml(safeHtml, {
       baseCss,
-      cssVarOverrides,
     });
 
     if (!styledHtml) {
@@ -5945,7 +5859,6 @@ export function WebPageHtmlView({
                   previewEditMode === "text" && "massic-mode-text",
                   previewEditMode === "layout" && "massic-mode-layout"
                 )}
-                style={previewStyleVars}
                 onMouseDownCapture={handlePreviewMouseDownCapture}
                 onMouseUpCapture={handlePreviewMouseUpCapture}
                 onClickCapture={handlePreviewClickCapture}
@@ -6059,7 +5972,6 @@ export function WebPageHtmlView({
             </AlertDialog>
             <style>{`
               ${previewBaseCss}
-              ${previewMassicVarCss}
               .massic-html-preview .massic-text-editable {
                 border-radius: 4px;
                 outline: none;

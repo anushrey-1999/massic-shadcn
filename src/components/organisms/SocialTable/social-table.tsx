@@ -10,6 +10,7 @@ import type { SocialRow } from "@/types/social-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getSocialTableColumns } from "./social-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface SocialTableProps {
   data: SocialRow[];
@@ -23,6 +24,7 @@ interface SocialTableProps {
   channelsSidebar?: React.ReactNode;
   onRowClick?: (row: SocialRow) => void;
   toolbarRightPrefix?: React.ReactNode;
+  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function SocialTable({
@@ -37,6 +39,7 @@ export function SocialTable({
   channelsSidebar,
   onRowClick,
   toolbarRightPrefix,
+  onDownloadCsv,
 }: SocialTableProps) {
   const enableAdvancedFilter = true;
 
@@ -93,6 +96,9 @@ export function SocialTable({
             <div className="flex items-center gap-2">
               <DataTableSortList table={table} align="start" />
               <DataTableViewOptions table={table} align="end" />
+              {onDownloadCsv && (
+                <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
+              )}
               {toolbarRightPrefix}
             </div>
           </div>

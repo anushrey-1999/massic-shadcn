@@ -10,6 +10,7 @@ import type { StrategyRow } from "@/types/strategy-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getStrategyTableColumns } from "./strategy-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface StrategyTableProps {
   data: StrategyRow[];
@@ -26,6 +27,7 @@ interface StrategyTableProps {
   onRowClick?: (row: StrategyRow) => void;
   toolbarRightPrefix?: React.ReactNode;
   columnVisibilityKey?: string;
+  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function StrategyTable({
@@ -43,6 +45,7 @@ export function StrategyTable({
   onRowClick,
   toolbarRightPrefix,
   columnVisibilityKey,
+  onDownloadCsv,
 }: StrategyTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
@@ -117,7 +120,10 @@ export function StrategyTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
-               {toolbarRightPrefix}
+            {onDownloadCsv && (
+              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
+            )}
+            {toolbarRightPrefix}
           </div>
         </div>
       </DataTable>

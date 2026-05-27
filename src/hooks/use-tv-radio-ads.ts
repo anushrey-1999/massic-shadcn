@@ -82,6 +82,7 @@ export function useTvRadioAds(_businessId: string) {
       };
 
       return {
+        ...item,
         id: String(item.ad_concept_id || ""),
         subtopic: String(item.display_name || ""),
         type: item.channel,

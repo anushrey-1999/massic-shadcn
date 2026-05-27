@@ -30,6 +30,8 @@ import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
 import type { ExtendedColumnFilter, JoinOperator } from "@/types/data-table-types";
 import { parseAsStringEnum, useQueryState } from "nuqs";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface ThemesTableClientProps {
   businessId: string;
@@ -462,6 +464,10 @@ export function ThemesTableClient({
     </Tabs>
   );
 
+  const handleDownloadCsv = React.useCallback(() => {
+    downloadRowsAsCsv(filteredData, "themes.csv");
+  }, [filteredData]);
+
   if (view === "bubble") {
     return (
       <div className="flex-1 min-h-0 overflow-hidden h-full">
@@ -494,9 +500,12 @@ export function ThemesTableClient({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              {offeringsFilter}
-              {viewToggle}
+            <div className="flex items-center gap-2">
+              <DownloadCsvButton onDownload={handleDownloadCsv} disabled={filteredData.length === 0} />
+              <div className="flex items-center gap-4">
+                {offeringsFilter}
+                {viewToggle}
+              </div>
             </div>
           </div>
           <div className="flex-1 min-h-0">
@@ -592,9 +601,7 @@ export function ThemesTableClient({
   }
 
   return (
-    <div
-      className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden"
-    >
+    <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
       <DataTable
         table={table}
         isLoading={themesLoading && !themesData}
@@ -603,6 +610,7 @@ export function ThemesTableClient({
         emptyMessage="No themes found."
         showPagination={true}
         disableHorizontalScroll={false}
+        className="h-full"
         onRowClick={handleThemeRowClick}
         highlightSelectedRow={false}
       >
@@ -622,6 +630,7 @@ export function ThemesTableClient({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
+            <DownloadCsvButton onDownload={handleDownloadCsv} disabled={filteredData.length === 0} />
             {viewToggle}
           </div>
         </div>

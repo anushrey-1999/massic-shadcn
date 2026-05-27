@@ -56,11 +56,23 @@ export interface PageBreakdown {
   queries?: string[]
 }
 
+export interface SourceBreakdown {
+  level?: "source"
+  key: string
+  source?: string
+  pages?: PageBreakdown[]
+  classification?: string
+  delta_goals?: number
+  delta_sessions?: number
+  share?: number
+}
+
 export interface GoalContributor {
   level?: string
   key?: string
   page?: string
   representative_page?: string
+  sources?: SourceBreakdown[]
   pages?: PageBreakdown[]
   classification?: string
   delta_goals?: number

@@ -29,6 +29,7 @@ import {
   YAxis,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceDot,
 } from "recharts";
 import {
   ChartContainer,
@@ -43,6 +44,8 @@ import { useGapAnalysis } from "@/hooks/use-gap-analysis";
 import { useBrandedNonBranded } from "@/hooks/use-branded-nonbranded";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
+import { useAnalyticsAnomalyDates } from "@/hooks/use-analytics-anomaly-dates";
+import type { AnalyticsAnomalyDate } from "@/hooks/use-analytics-anomaly-dates";
 import { useBusinessStore } from "@/store/business-store";
 import { usePathname } from "next/navigation";
 import { useMemo, useState, useCallback, useEffect } from "react";
@@ -63,6 +66,36 @@ const METRIC_ICONS: Record<string, React.ReactNode> = {
   "non-branded": <TrendingUp className="h-5 w-5" />,
 };
 const CHART_METRIC_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
+type AnomalySheetTab = "goals" | "traffic";
+
+const CHART_SERIES_COLORS = {
+  impressions: "#6b7280",
+  clicks: "#2563eb",
+  sessions: "#ea580c",
+  goals: "#059669",
+};
+
+function AnomalyCircleMarker(props: {
+  cx?: number | string;
+  cy?: number | string;
+  fill?: string;
+  stroke?: string;
+  onClick?: () => void;
+}) {
+  const x = Number(props.cx);
+  const y = Number(props.cy);
+  const color = props.fill || props.stroke || CHART_SERIES_COLORS.goals;
+
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return <g />;
+
+  return (
+    <g className="cursor-pointer" onClick={props.onClick} pointerEvents="all">
+      <circle cx={x} cy={y} r={8} fill={color} opacity={0.12} />
+      <circle cx={x} cy={y} r={4.25} fill="#ffffff" opacity={0.9} />
+      <circle cx={x} cy={y} r={3.25} fill={color} />
+    </g>
+  );
+}
 
 export interface OrganicPerformanceSectionProps {
   period?: TimePeriodValue;
@@ -73,6 +106,7 @@ export interface OrganicPerformanceSectionProps {
   ga4TrafficScope?: GA4TrafficScope;
   groupBy?: AnalyticsGroupBy;
   onAvailableGroupingsChange?: (available: AnalyticsGroupBy[]) => void;
+  showAnomalyHighlights?: boolean;
 }
 
 export function OrganicPerformanceSection({
@@ -84,6 +118,7 @@ export function OrganicPerformanceSection({
   ga4TrafficScope = "organic",
   groupBy = "day",
   onAvailableGroupingsChange,
+  showAnomalyHighlights = true,
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -148,6 +183,8 @@ export function OrganicPerformanceSection({
   } = useTrafficAnalysis(businessUniqueId, businessName, null);
 
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
+  const [anomaliesSheetTab, setAnomaliesSheetTab] = useState<AnomalySheetTab>("goals");
+  const [anomaliesSheetDate, setAnomaliesSheetDate] = useState<string | null>(null);
   const [brandedKeywordsModalOpen, setBrandedKeywordsModalOpen] = useState(false);
 
   const [visibleLinesLocal, setVisibleLinesLocal] = useState<
@@ -239,6 +276,14 @@ export function OrganicPerformanceSection({
 
   const useNormalizedKeys = normalizedGroupedChartData.length > 0 && !singleMetricMode;
   const chartDataToRender = useNormalizedKeys ? normalizedGroupedChartData : groupedChartData;
+  const {
+    anomalyDates,
+  } = useAnalyticsAnomalyDates(
+    businessUniqueId,
+    chartRanges.currentStart,
+    chartRanges.currentEnd,
+    !loadingState.chart && Boolean(chartRanges.currentStart && chartRanges.currentEnd)
+  );
 
   const singleMetricYDomain = useMemo(() => {
     if (!singleMetricMode || groupedChartData.length === 0) return undefined;
@@ -280,11 +325,15 @@ export function OrganicPerformanceSection({
       const month = d.date.split(" ")[0];
       if (month !== lastMonth) {
         lastMonth = month;
-        ticks.push(d.date);
+        ticks.push(d.bucketKey);
       }
     }
     return ticks.length > 0 ? ticks : undefined;
   }, [effectiveGroupBy, groupedChartData, period]);
+
+  const xAxisTickLabels = useMemo(() => {
+    return new Map(chartDataToRender.map((point) => [point.bucketKey, point.date]));
+  }, [chartDataToRender]);
 
   const chartLegendWithIcons = useMemo(() => {
     const iconConfig: Record<string, { icon: React.ReactNode; color: string }> =
@@ -373,6 +422,87 @@ export function OrganicPerformanceSection({
   const hasFunnelDataToRender = funnelChartData.some((item) => item.value > 0);
   const showFunnelLoader = loadingState.funnel && !hasFunnelDataToRender;
 
+  const chartAnomalyMarkers = useMemo(() => {
+    if (!showAnomalyHighlights) return [];
+    if (chartDataToRender.length === 0 || anomalyDates.length === 0) return [];
+
+    const markers: Array<{
+      key: string;
+      x: string;
+      y: number;
+      yAxisId: "left" | "right";
+      date: string;
+      tab: AnomalySheetTab;
+      label: string;
+      color: string;
+    }> = [];
+
+    for (const point of chartDataToRender) {
+      const pointValues = point as unknown as Record<string, string | number | undefined>;
+      const bucketStart = point.bucketStart || point.dateKey;
+      const bucketEnd = point.bucketEnd || point.dateKey;
+      if (!bucketStart || !bucketEnd) continue;
+
+      const matching = anomalyDates.filter((item) => item.date >= bucketStart && item.date <= bucketEnd);
+      const goalMatch = matching.find((item) => item.hasGoalAnomaly);
+      const trafficMatch = ga4TrafficScope === "organic"
+        ? matching.find((item) => item.hasTrafficAnomaly)
+        : null;
+
+      if (goalMatch && visibleLines.goals) {
+        const y = Number(pointValues[useNormalizedKeys ? "goalsNorm" : "goals"]);
+        if (Number.isFinite(y)) {
+          markers.push({
+            key: `goal-${point.bucketKey || point.dateKey || point.date}`,
+            x: point.bucketKey || point.dateKey || point.date,
+            y,
+            yAxisId: "left",
+            date: goalMatch.date,
+            tab: "goals",
+            label: "Goal anomaly",
+            color: CHART_SERIES_COLORS.goals,
+          });
+        }
+      }
+
+      if (trafficMatch && (visibleLines.clicks || visibleLines.impressions)) {
+        const metricKey = visibleLines.clicks ? "clicks" : "impressions";
+        const y = Number(pointValues[useNormalizedKeys ? `${metricKey}Norm` : metricKey]);
+        const yAxisId =
+          metricKey === "impressions" && !useNormalizedKeys && !singleMetricMode
+            ? "right"
+            : "left";
+
+        if (Number.isFinite(y)) {
+          markers.push({
+            key: `traffic-${point.bucketKey || point.dateKey || point.date}`,
+            x: point.bucketKey || point.dateKey || point.date,
+            y,
+            yAxisId,
+            date: trafficMatch.date,
+            tab: "traffic",
+            label: "Traffic anomaly",
+            color: CHART_SERIES_COLORS[metricKey],
+          });
+        }
+      }
+    }
+
+    return markers;
+  }, [anomalyDates, chartDataToRender, ga4TrafficScope, showAnomalyHighlights, singleMetricMode, useNormalizedKeys, visibleLines]);
+
+  const openAnomalyMarker = useCallback((tab: AnomalySheetTab, date: string) => {
+    setAnomaliesSheetTab(tab);
+    setAnomaliesSheetDate(date);
+    setAnomaliesSheetOpen(true);
+  }, []);
+
+  const openDefaultAnomaliesSheet = useCallback(() => {
+    setAnomaliesSheetTab("goals");
+    setAnomaliesSheetDate(null);
+    setAnomaliesSheetOpen(true);
+  }, []);
+
   return (
     <div className="flex flex-col gap-3">
 
@@ -406,7 +536,7 @@ export function OrganicPerformanceSection({
         isLoading={isLoadingGoals || isLoadingTraffic}
         error={goalError || trafficError}
         noAlertsMessage={noAnomaliesMsg}
-        onClick={() => setAnomaliesSheetOpen(true)}
+        onClick={openDefaultAnomaliesSheet}
         variant="secondary"
       />
 
@@ -426,6 +556,8 @@ export function OrganicPerformanceSection({
         goalRawState={goalRawData?.state}
         obsStartDate={obsStartDate}
         obsEndDate={obsEndDate}
+        initialTab={anomaliesSheetTab}
+        initialSelectedDate={anomaliesSheetDate}
       />
 
       <div className="flex flex-col gap-3">
@@ -597,7 +729,7 @@ export function OrganicPerformanceSection({
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
                         data={chartDataToRender}
-                        margin={{ top: 0, right: 8, left: 8, bottom: 0 }}
+                        margin={{ top: 12, right: 8, left: 8, bottom: 0 }}
                       >
                         <defs>
                           <linearGradient
@@ -679,7 +811,8 @@ export function OrganicPerformanceSection({
                           vertical={false}
                         />
                         <XAxis
-                          dataKey="date"
+                          dataKey="bucketKey"
+                          tickFormatter={(value) => xAxisTickLabels.get(String(value)) || String(value)}
                           tickLine={false}
                           axisLine={false}
                           tick={{ fontSize: 12, fill: "#9ca3af" }}
@@ -730,6 +863,22 @@ export function OrganicPerformanceSection({
                           content={({ active, payload, label }) => {
                             if (!active || !payload?.length) return null;
                             const data = payload[0]?.payload as GroupedAnalyticsChartPoint | undefined;
+                            const bucketStart = data?.bucketStart || data?.dateKey;
+                            const bucketEnd = data?.bucketEnd || data?.dateKey;
+                            const anomalyStatus = showAnomalyHighlights && bucketStart && bucketEnd
+                              ? anomalyDates.find((item) => item.date >= bucketStart && item.date <= bucketEnd)
+                              : null;
+                            const showAnomalyHint = Boolean(
+                              anomalyStatus &&
+                              (
+                                (visibleLines.goals && anomalyStatus.hasGoalAnomaly) ||
+                                (
+                                  ga4TrafficScope === "organic" &&
+                                  (visibleLines.clicks || visibleLines.impressions) &&
+                                  anomalyStatus.hasTrafficAnomaly
+                                )
+                              )
+                            );
                             return (
                               <div className="min-w-[196px] rounded-lg border border-border bg-background px-3 py-2.5 shadow-md">
                                 {data?.rangeContextLabel ? (
@@ -737,9 +886,16 @@ export function OrganicPerformanceSection({
                                     {data.rangeContextLabel}
                                   </p>
                                 ) : null}
-                                <p className="mb-2 text-base font-medium leading-5 text-general-foreground">
-                                  {data?.rangeLabel || label}
-                                </p>
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                  <p className="text-base font-medium leading-5 text-general-foreground">
+                                    {data?.rangeLabel || label}
+                                  </p>
+                                  {showAnomalyHint && (
+                                    <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium leading-4 text-amber-700">
+                                      Click to view anomaly
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="space-y-1.5 text-sm">
                                   {visibleLines.impressions && (
                                     <div className="flex items-center justify-between gap-4">
@@ -836,6 +992,29 @@ export function OrganicPerformanceSection({
                             name="Sessions"
                           />
                         )}
+                        {chartAnomalyMarkers.map((marker) => (
+                          <ReferenceDot
+                            key={marker.key}
+                            x={marker.x}
+                            y={marker.y}
+                            yAxisId={marker.yAxisId}
+                            r={3.25}
+                            fill={marker.color}
+                            stroke={marker.color}
+                            strokeWidth={0}
+                            className="cursor-pointer outline-none"
+                            onClick={() => openAnomalyMarker(marker.tab, marker.date)}
+                            ifOverflow="extendDomain"
+                            shape={(props) => (
+                              <AnomalyCircleMarker
+                                {...props}
+                                onClick={() => openAnomalyMarker(marker.tab, marker.date)}
+                              />
+                            )}
+                          >
+                            <title>{`${marker.label} · ${marker.date}`}</title>
+                          </ReferenceDot>
+                        ))}
                       </AreaChart>
                     </ResponsiveContainer>
                   </ChartContainer>

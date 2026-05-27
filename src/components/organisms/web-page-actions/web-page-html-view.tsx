@@ -10,7 +10,6 @@ import {
   ArrowDown,
   ArrowDownFromLine,
   ArrowLeft,
-  ChevronDown,
   Copy,
   ExternalLink,
   Globe,
@@ -143,15 +142,10 @@ import { buildStyledMassicHtml, getMassicBlogCssText, getMassicCssText } from "@
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 import {
   type WordpressSlugConflictInfo,
-  WordpressPublishError,
   useWordpressPreviewLink,
-  useWordpressPublish,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
-import {
-  useWordpressStyleProfile,
-  useUpdateWordpressStyleOverrides,
-} from "@/hooks/use-wordpress-connector";
+import { useWordpressStyleProfile } from "@/hooks/use-wordpress-connector";
 import {
   CmsPublishError,
   getCmsRateLimitDescription,
@@ -159,6 +153,7 @@ import {
   useCmsPublish,
   useCmsPublishingChannel,
   useCmsPublishingContentStatus,
+  useCmsWordpressPageTemplateStatus,
   useCmsSlugCheck,
   useCmsWebflowRollbackToDraft,
   useCmsWebflowStagingPreview,
@@ -186,16 +181,7 @@ import {
   WEBFLOW_STAGING_PUBLISH_OPEN_DELAY_MS,
   WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
 } from "@/components/organisms/web-page-actions/webflow-open-preview";
-import {
-  applyMassicStyleOverrides,
-  buildMassicCssVariableOverrides,
-  MASSIC_STYLE_COLOR_KEYS,
-  MASSIC_STYLE_TYPOGRAPHY_KEYS,
-  normalizeMassicStyleColorOverrides,
-  normalizeMassicStyleTypographyOverrides,
-  type MassicStyleColorKey,
-  type MassicStyleTypographyKey,
-} from "@/utils/massic-style-overrides";
+import { buildMassicCssVariableOverrides } from "@/utils/massic-style-overrides";
 import { LayoutPanel, MediaEditorPanel } from "@/components/ui/layout-panel";
 import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 
@@ -378,56 +364,6 @@ function areSpacingValuesEqual(left: Partial<EditableSpacingValue> | null | unde
   );
 }
 
-const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
-  primary: "Primary",
-  secondary: "Secondary",
-  accent: "Accent",
-  link: "Link",
-  text: "Text",
-  mutedText: "Muted Text",
-  background: "Background",
-  surface: "Surface",
-  buttonBg: "Button Background",
-  buttonText: "Button Text",
-};
-const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "primary",
-  "secondary",
-  "accent",
-  "link",
-  "buttonBg",
-  "buttonText",
-];
-const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "text",
-  "mutedText",
-  "background",
-  "surface",
-];
-const STYLE_TYPOGRAPHY_OPTION_LABELS: Partial<Record<MassicStyleTypographyKey, string>> = {
-  baseFontSize: "Base Text Size",
-  baseLineHeight: "Base Line Height",
-  h1Size: "H1 Size",
-  h2Size: "H2 Size",
-  h3Size: "H3 Size",
-};
-const VISIBLE_STYLE_TYPOGRAPHY_KEYS: MassicStyleTypographyKey[] = [
-  "baseFontSize",
-  "baseLineHeight",
-  "h1Size",
-  "h2Size",
-  "h3Size",
-];
-const LINE_HEIGHT_PRESETS = ["1.3", "1.4", "1.5", "1.6", "1.8", "2"];
-const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
-  bodyFontFamily: [],
-  headingFontFamily: [],
-  baseFontSize: ["14px", "16px", "18px", "20px", "22px", "24px"],
-  baseLineHeight: LINE_HEIGHT_PRESETS,
-  h1Size: ["28px", "32px", "36px", "40px", "42px", "48px"],
-  h2Size: ["22px", "24px", "28px", "32px", "36px"],
-  h3Size: ["18px", "20px", "22px", "26px", "30px"],
-};
 const SPACING_STEP = 8;
 const SPACING_PIXEL_BASE: Record<string, number> = {
   none: 0,
@@ -643,9 +579,7 @@ export function WebPageHtmlView({
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
-  const wpPublishMutation = useWordpressPublish();
   const wpStyleProfileQuery = useWordpressStyleProfile(isActiveWordpress ? activeConnection?.connectionId || null : null);
-  const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
   const webflowDomains = isActiveWebflow
@@ -696,14 +630,6 @@ export function WebPageHtmlView({
     });
     return labels;
   }, [publishToWebflowSubdomain, selectedWebflowCustomDomainIds, webflowCustomDomains, webflowStagingDomain?.label]);
-  const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
-    Partial<Record<MassicStyleColorKey, string>>
-  >({});
-  const [showAllStyleColorOptions, setShowAllStyleColorOptions] = React.useState(false);
-  const [openStylePaletteKey, setOpenStylePaletteKey] = React.useState<MassicStyleColorKey | null>(null);
-  const [styleTypographyOverridesDraft, setStyleTypographyOverridesDraft] = React.useState<
-    Partial<Record<MassicStyleTypographyKey, string>>
-  >({});
   const [blogPostTitleDraft, setBlogPostTitleDraft] = React.useState("");
   const [blogMetaTitleDraft, setBlogMetaTitleDraft] = React.useState("");
   const [blogMetaDescriptionDraft, setBlogMetaDescriptionDraft] = React.useState("");
@@ -762,6 +688,11 @@ export function WebPageHtmlView({
       ? String(publishContentId)
       : null
   );
+  const requiresWordpressPageTemplate = isActiveWordpress && publishType === "page";
+  const wpPageTemplateQuery = useCmsWordpressPageTemplateStatus(
+    businessId || null,
+    Boolean(isPublishModalOpen && requiresWordpressPageTemplate)
+  );
   const isWordpressBlogPublish = isActiveWordpress && isBlogContent;
   const isWebflowImagePublish = isActiveWebflow && hasEnabledWebflowImageDestinations;
   const isCmsImagePublish = isWordpressBlogPublish;
@@ -810,8 +741,11 @@ export function WebPageHtmlView({
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
   const isPersistedTrashed = persistedStatus === "trash";
   const persistedSlug = React.useMemo(
-    () => normalizeWordpressBlogEditableSlug(persistedContent?.slug || ""),
-    [persistedContent?.slug]
+    () =>
+      publishType === "page"
+        ? normalizeWordpressSlugPath(persistedContent?.slug || "")
+        : normalizeWordpressBlogEditableSlug(persistedContent?.slug || ""),
+    [persistedContent?.slug, publishType]
   );
   const generatedSlugFallback = React.useMemo(
     () =>
@@ -821,20 +755,37 @@ export function WebPageHtmlView({
     [isBlogContent, keyword, publishTitle, publishSeoTitle]
   );
   const generatedSlug = React.useMemo(
-    () => normalizeWordpressBlogEditableSlug(generatedSlugFallback),
-    [generatedSlugFallback]
+    () =>
+      publishType === "page"
+        ? normalizeWordpressSlugPath(generatedSlugFallback)
+        : normalizeWordpressBlogEditableSlug(generatedSlugFallback),
+    [generatedSlugFallback, publishType]
   );
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
     if (!isPersistedTrashed && webflowPersistedSlug) return webflowPersistedSlug;
-    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
+    if (!isPersistedTrashed && lastPublishedData?.slug) {
+      return publishType === "page"
+        ? normalizeWordpressSlugPath(lastPublishedData.slug)
+        : normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
+    }
     if (generatedSlug) return generatedSlug;
     return generatedSlugFallback;
-  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug, webflowPersistedSlug]);
-  const normalizedEditableSlug = React.useMemo(() => normalizeWordpressBlogEditableSlug(editableSlug), [editableSlug]);
+  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug, publishType, webflowPersistedSlug]);
+  const normalizedEditableSlug = React.useMemo(
+    () =>
+      publishType === "page"
+        ? normalizeWordpressSlugPath(editableSlug)
+        : normalizeWordpressBlogEditableSlug(editableSlug),
+    [editableSlug, publishType]
+  );
   const hasInvalidBlogSlug = React.useMemo(
-    () => Boolean(normalizedEditableSlug && normalizedEditableSlug.includes("/")),
-    [normalizedEditableSlug]
+    () => Boolean(
+      normalizedEditableSlug &&
+      normalizedEditableSlug.includes("/") &&
+      (publishType === "post" || activePlatform === "webflow")
+    ),
+    [activePlatform, normalizedEditableSlug, publishType]
   );
   const normalizedSlugForPublish = React.useMemo(() => {
     if (!normalizedEditableSlug || hasInvalidBlogSlug) return "";
@@ -888,6 +839,20 @@ export function WebPageHtmlView({
     webflowImageBusy;
   const isPublishConnectionLoading = Boolean(
     isPublishModalOpen && (cmsChannelQuery.isLoading || cmsChannelQuery.isFetching)
+  );
+  const isWordpressPageTemplateChecking = Boolean(
+    requiresWordpressPageTemplate &&
+      isPublishModalOpen &&
+      (wpPageTemplateQuery.isLoading || wpPageTemplateQuery.isFetching)
+  );
+  const wordpressPageTemplateBlockMessage = requiresWordpressPageTemplate &&
+    !isWordpressPageTemplateChecking &&
+    (wpPageTemplateQuery.isError || wpPageTemplateQuery.data?.exists === false)
+      ? "Massic Template doesn't exist in this WordPress theme. Add a page template named \"Massic Template\" before publishing pages."
+      : null;
+  const isWordpressPagePublishBlocked = Boolean(
+    requiresWordpressPageTemplate &&
+      (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage)
   );
   const publishStateLabel = activePlatform === "webflow"
     ? (webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published")
@@ -953,52 +918,11 @@ export function WebPageHtmlView({
     return null;
   }, [activeConnection?.siteUrl, isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId]);
 
-  const normalizedStoredStyleColorOverrides = React.useMemo(
-    () => normalizeMassicStyleColorOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).colors || {},
-    [wpStyleProfileQuery.data?.styleOverrides]
-  );
-  const serializedStoredColorOverrides = React.useMemo(
-    () => JSON.stringify(normalizedStoredStyleColorOverrides),
-    [normalizedStoredStyleColorOverrides]
-  );
-  const normalizedStoredStyleTypographyOverrides = React.useMemo(
-    () => normalizeMassicStyleTypographyOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).typography || {},
-    [wpStyleProfileQuery.data?.styleOverrides]
-  );
-  const serializedStoredTypographyOverrides = React.useMemo(
-    () => JSON.stringify(normalizedStoredStyleTypographyOverrides),
-    [normalizedStoredStyleTypographyOverrides]
-  );
-  React.useEffect(() => {
-    setStyleColorOverridesDraft((prev) => {
-      const prevSerialized = JSON.stringify(
-        normalizeMassicStyleColorOverrides({ colors: prev }).colors || {}
-      );
-      if (prevSerialized === serializedStoredColorOverrides) return prev;
-      return normalizedStoredStyleColorOverrides;
-    });
-  }, [normalizedStoredStyleColorOverrides, serializedStoredColorOverrides]);
-  React.useEffect(() => {
-    setStyleTypographyOverridesDraft((prev) => {
-      const prevSerialized = JSON.stringify(
-        normalizeMassicStyleTypographyOverrides({ typography: prev }).typography || {}
-      );
-      if (prevSerialized === serializedStoredTypographyOverrides) return prev;
-      return normalizedStoredStyleTypographyOverrides;
-    });
-  }, [normalizedStoredStyleTypographyOverrides, serializedStoredTypographyOverrides]);
-
   const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
   const shouldApplyWpStyle = isActiveWordpress && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
   const styleProfileForPreview = React.useMemo(
-    () =>
-      shouldApplyWpStyle
-        ? applyMassicStyleOverrides(wpStyleProfileQuery.data?.profile, {
-          colors: styleColorOverridesDraft,
-          typography: styleTypographyOverridesDraft,
-        })
-        : null,
-    [shouldApplyWpStyle, styleColorOverridesDraft, styleTypographyOverridesDraft, wpStyleProfileQuery.data?.profile]
+    () => (shouldApplyWpStyle ? wpStyleProfileQuery.data?.profile || null : null),
+    [shouldApplyWpStyle, wpStyleProfileQuery.data?.profile]
   );
   const cssVarOverrides = React.useMemo(
     () =>
@@ -1053,181 +977,6 @@ export function WebPageHtmlView({
       cancelled = true;
     };
   }, [isBlogContent]);
-  const extractedStyleColors = React.useMemo(() => {
-    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as { colors?: Record<string, unknown> } | undefined;
-    return (extractedProfile?.colors || {}) as Record<string, unknown>;
-  }, [wpStyleProfileQuery.data?.extractedProfile]);
-  const effectiveProfileColors = React.useMemo(() => {
-    const profile = wpStyleProfileQuery.data?.profile as { colors?: Record<string, unknown> } | undefined;
-    return (profile?.colors || {}) as Record<string, unknown>;
-  }, [wpStyleProfileQuery.data?.profile]);
-  const normalizeAnyColor = React.useCallback((value: unknown) => {
-    if (typeof value !== "string") return null;
-    return normalizeMassicStyleColorOverrides({ colors: { primary: value } }).colors?.primary || null;
-  }, []);
-  const extractedColorByKey = React.useMemo(() => {
-    const next: Partial<Record<MassicStyleColorKey, string>> = {};
-    for (const key of MASSIC_STYLE_COLOR_KEYS) {
-      const extracted = normalizeAnyColor(extractedStyleColors[key]);
-      const profileFallback = normalizeAnyColor(effectiveProfileColors[key]);
-      if (extracted) next[key] = extracted;
-      else if (profileFallback) next[key] = profileFallback;
-    }
-    return next;
-  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
-  const extractedPaletteColors = React.useMemo(() => {
-    const candidates: string[] = [];
-    for (const value of Object.values(extractedStyleColors || {})) {
-      const normalized = normalizeAnyColor(value);
-      if (normalized) candidates.push(normalized);
-    }
-    for (const value of Object.values(effectiveProfileColors || {})) {
-      const normalized = normalizeAnyColor(value);
-      if (normalized) candidates.push(normalized);
-    }
-    return Array.from(new Set(candidates));
-  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
-  const visibleStyleColorKeys = showAllStyleColorOptions
-    ? [...CORE_STYLE_COLOR_KEYS, ...ADVANCED_STYLE_COLOR_KEYS]
-    : CORE_STYLE_COLOR_KEYS;
-  const extractedStyleTypography = React.useMemo(() => {
-    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as
-      | { typography?: Record<string, unknown> }
-      | undefined;
-    return (extractedProfile?.typography || {}) as Record<string, unknown>;
-  }, [wpStyleProfileQuery.data?.extractedProfile]);
-  const effectiveProfileTypography = React.useMemo(() => {
-    const profile = wpStyleProfileQuery.data?.profile as
-      | { typography?: Record<string, unknown> }
-      | undefined;
-    return (profile?.typography || {}) as Record<string, unknown>;
-  }, [wpStyleProfileQuery.data?.profile]);
-  const extractedTypographyByKey = React.useMemo(() => {
-    const readTypographyValue = (source: Record<string, unknown>, key: MassicStyleTypographyKey): string | null => {
-      if (key === "h1Size") {
-        const value = (source.h1 as Record<string, unknown> | undefined)?.size;
-        return typeof value === "string" ? value : null;
-      }
-      if (key === "h2Size") {
-        const value = (source.h2 as Record<string, unknown> | undefined)?.size;
-        return typeof value === "string" ? value : null;
-      }
-      if (key === "h3Size") {
-        const value = (source.h3 as Record<string, unknown> | undefined)?.size;
-        return typeof value === "string" ? value : null;
-      }
-      const value = source[key];
-      return typeof value === "string" ? value : null;
-    };
-
-    const next: Partial<Record<MassicStyleTypographyKey, string>> = {};
-    for (const key of MASSIC_STYLE_TYPOGRAPHY_KEYS) {
-      const extracted = readTypographyValue(extractedStyleTypography, key);
-      const fallback = readTypographyValue(effectiveProfileTypography, key);
-      if (extracted) {
-        next[key] = extracted;
-      } else if (fallback) {
-        next[key] = fallback;
-      }
-    }
-    return next;
-  }, [effectiveProfileTypography, extractedStyleTypography]);
-  const normalizedDraftStyleColorOverrides = React.useMemo(
-    () => normalizeMassicStyleColorOverrides({ colors: styleColorOverridesDraft }).colors || {},
-    [styleColorOverridesDraft]
-  );
-  const normalizedDraftStyleTypographyOverrides = React.useMemo(
-    () => normalizeMassicStyleTypographyOverrides({ typography: styleTypographyOverridesDraft }).typography || {},
-    [styleTypographyOverridesDraft]
-  );
-  const serializedDraftColorOverrides = React.useMemo(
-    () => JSON.stringify(normalizedDraftStyleColorOverrides),
-    [normalizedDraftStyleColorOverrides]
-  );
-  const serializedDraftTypographyOverrides = React.useMemo(
-    () => JSON.stringify(normalizedDraftStyleTypographyOverrides),
-    [normalizedDraftStyleTypographyOverrides]
-  );
-  const hasUnsavedStyleColorOverrides = serializedDraftColorOverrides !== serializedStoredColorOverrides;
-  const hasUnsavedStyleTypographyOverrides = serializedDraftTypographyOverrides !== serializedStoredTypographyOverrides;
-  const invalidTypographyKeys = React.useMemo(
-    () =>
-      VISIBLE_STYLE_TYPOGRAPHY_KEYS.filter((key) => {
-        const raw = String(styleTypographyOverridesDraft[key] || "").trim();
-        if (!raw) return false;
-        return !normalizedDraftStyleTypographyOverrides[key];
-      }),
-    [normalizedDraftStyleTypographyOverrides, styleTypographyOverridesDraft]
-  );
-  const hasTypographyValidationErrors = invalidTypographyKeys.length > 0;
-  const isStyleOverrideSaving = wpStyleOverridesMutation.isPending;
-
-  const handleStyleOverrideColorChange = React.useCallback((key: MassicStyleColorKey, value: string) => {
-    const normalized = normalizeMassicStyleColorOverrides({ colors: { [key]: value } }).colors?.[key];
-    if (!normalized) return;
-    setStyleColorOverridesDraft((prev) => ({
-      ...prev,
-      [key]: normalized,
-    }));
-  }, []);
-  const handleStyleOverrideTypographyChange = React.useCallback((key: MassicStyleTypographyKey, value: string) => {
-    setStyleTypographyOverridesDraft((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  }, []);
-
-  const resetStyleOverrideKey = React.useCallback((key: MassicStyleColorKey) => {
-    setStyleColorOverridesDraft((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }, []);
-  const handleSaveStyleColorOverrides = React.useCallback(async () => {
-    if (!isActiveWordpress || !activeConnection?.connectionId) return;
-    const response = await wpStyleOverridesMutation.mutateAsync({
-      connectionId: activeConnection.connectionId,
-      overrides: {
-        colors: normalizedDraftStyleColorOverrides,
-        typography: normalizedStoredStyleTypographyOverrides,
-      },
-    });
-    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
-    const savedTypography = normalizeMassicStyleTypographyOverrides(response?.data?.styleOverrides || {}).typography || {};
-    setStyleColorOverridesDraft(savedColors);
-    setStyleTypographyOverridesDraft(savedTypography);
-  }, [
-    activeConnection?.connectionId,
-    isActiveWordpress,
-    normalizedDraftStyleColorOverrides,
-    normalizedStoredStyleTypographyOverrides,
-    wpStyleOverridesMutation,
-  ]);
-
-  const handleSaveStyleTypographyOverrides = React.useCallback(async () => {
-    if (!isActiveWordpress || !activeConnection?.connectionId) return;
-    if (hasTypographyValidationErrors) return;
-    const response = await wpStyleOverridesMutation.mutateAsync({
-      connectionId: activeConnection.connectionId,
-      overrides: {
-        colors: normalizedStoredStyleColorOverrides,
-        typography: normalizedDraftStyleTypographyOverrides,
-      },
-    });
-    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
-    const savedTypography = normalizeMassicStyleTypographyOverrides(response?.data?.styleOverrides || {}).typography || {};
-    setStyleColorOverridesDraft(savedColors);
-    setStyleTypographyOverridesDraft(savedTypography);
-  }, [
-    activeConnection?.connectionId,
-    hasTypographyValidationErrors,
-    isActiveWordpress,
-    normalizedDraftStyleTypographyOverrides,
-    normalizedStoredStyleColorOverrides,
-    wpStyleOverridesMutation,
-  ]);
-
   const [previewEditMode, setPreviewEditMode] = React.useState<PreviewEditMode>("text");
   const [activeLinkEditor, setActiveLinkEditor] = React.useState<ActiveLinkEditorState | null>(null);
   const [linkHrefDraft, setLinkHrefDraft] = React.useState("");
@@ -4945,6 +4694,18 @@ export function WebPageHtmlView({
                   </Button>
                 </div>
               ) : null}
+              {requiresWordpressPageTemplate && (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage) ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  {isWordpressPageTemplateChecking ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Checking for Massic Template...</span>
+                    </div>
+                  ) : (
+                    <div className="break-words">{wordpressPageTemplateBlockMessage}</div>
+                  )}
+                </div>
+              ) : null}
               <div className="space-y-2 pt-1">
                 <div>
                   <Typography className="text-xs text-muted-foreground">{isBlogContent ? "Post title" : "Page title"}</Typography>
@@ -5259,280 +5020,6 @@ export function WebPageHtmlView({
                   })}
                 </div>
               ) : null}
-              {isActiveWordpress && !isBlogContent ? (
-                <>
-                  <div className="space-y-2 pt-2 border-t border-border/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                        Style Colors
-                      </Typography>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setStyleColorOverridesDraft({})}
-                          disabled={isStyleOverrideSaving || !Object.keys(styleColorOverridesDraft).length}
-                        >
-                          Reset All
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={handleSaveStyleColorOverrides}
-                          disabled={isStyleOverrideSaving || !hasUnsavedStyleColorOverrides}
-                        >
-                          {isStyleOverrideSaving ? "Saving..." : "Save Colors"}
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <Typography className="text-xs text-muted-foreground">
-                        Overrides are saved separately. Use extracted colors or custom picks.
-                      </Typography>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => setShowAllStyleColorOptions((prev) => !prev)}
-                      >
-                        {showAllStyleColorOptions
-                          ? "Show Core"
-                          : `Show All (${MASSIC_STYLE_COLOR_KEYS.length})`}
-                      </Button>
-                    </div>
-                    {extractedPaletteColors.length ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Typography className="text-[11px] text-muted-foreground">
-                          Extracted palette:
-                        </Typography>
-                        {extractedPaletteColors.slice(0, 10).map((color) => (
-                          <span
-                            key={color}
-                            className="inline-flex h-5 w-5 rounded-full border border-border"
-                            style={{ backgroundColor: color }}
-                            title={color}
-                          />
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {visibleStyleColorKeys.map((key) => {
-                        const label = STYLE_COLOR_OPTION_LABELS[key] || key;
-                        const extractedColor = extractedColorByKey[key] || null;
-                        const overrideColor = normalizedDraftStyleColorOverrides[key] || null;
-                        const pickerValue =
-                          overrideColor ||
-                          extractedColor ||
-                          extractedPaletteColors[0] ||
-                          "#000000";
-                        return (
-                          <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <Typography className="text-xs font-medium">{label}</Typography>
-                              <Typography className="text-[11px] text-muted-foreground font-mono">
-                                {overrideColor || extractedColor || "n/a"}
-                              </Typography>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="color"
-                                value={pickerValue}
-                                onChange={(e) => handleStyleOverrideColorChange(key, e.target.value)}
-                                disabled={isStyleOverrideSaving}
-                                className="h-8 w-11 p-1 shrink-0"
-                              />
-                              <Popover
-                                open={openStylePaletteKey === key}
-                                onOpenChange={(open) => setOpenStylePaletteKey(open ? key : null)}
-                              >
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
-                                    disabled={isStyleOverrideSaving || !extractedPaletteColors.length}
-                                  >
-                                    <span className="flex min-w-0 items-center gap-2">
-                                      <span
-                                        className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
-                                        style={{
-                                          backgroundColor:
-                                            overrideColor ||
-                                            extractedColor ||
-                                            extractedPaletteColors[0] ||
-                                            "#000000",
-                                        }}
-                                      />
-                                      <span className="truncate">
-                                        {overrideColor || extractedColor || "Use extracted"}
-                                      </span>
-                                    </span>
-                                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent align="start" className="w-56 p-1">
-                                  <div className="max-h-56 space-y-1 overflow-y-auto">
-                                    {extractedPaletteColors.map((color) => (
-                                      <button
-                                        key={`${key}-${color}`}
-                                        type="button"
-                                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
-                                        onClick={() => {
-                                          handleStyleOverrideColorChange(key, color);
-                                          setOpenStylePaletteKey(null);
-                                        }}
-                                      >
-                                        <span
-                                          className="h-4 w-4 shrink-0 rounded-full border border-border"
-                                          style={{ backgroundColor: color }}
-                                        />
-                                        <span className="font-mono">{color}</span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2 text-xs"
-                                onClick={() => resetStyleOverrideKey(key)}
-                                disabled={isStyleOverrideSaving || !overrideColor}
-                              >
-                                Clear
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {!showAllStyleColorOptions ? (
-                      <Typography className="text-[11px] text-muted-foreground">
-                        Showing core colors. Enable &quot;Show All&quot; for text/surface options.
-                      </Typography>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2 pt-2 border-t border-border/60">
-                    <div className="flex items-center justify-between gap-2">
-                      <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                        Typography
-                      </Typography>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setStyleTypographyOverridesDraft({})}
-                          disabled={isStyleOverrideSaving || !Object.keys(styleTypographyOverridesDraft).length}
-                        >
-                          Reset Typography
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={handleSaveStyleTypographyOverrides}
-                          disabled={isStyleOverrideSaving || hasTypographyValidationErrors || !hasUnsavedStyleTypographyOverrides}
-                        >
-                          {isStyleOverrideSaving ? "Saving..." : "Save Typography"}
-                        </Button>
-                      </div>
-                    </div>
-                    <Typography className="text-xs text-muted-foreground">
-                      Adjust only the core text scale. Font-family overrides are hidden for a simpler setup.
-                    </Typography>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {VISIBLE_STYLE_TYPOGRAPHY_KEYS.map((key) => {
-                        const label = STYLE_TYPOGRAPHY_OPTION_LABELS[key] || key;
-                        const extractedValue = extractedTypographyByKey[key] || "";
-                        const overrideValue = styleTypographyOverridesDraft[key] || "";
-                        const displayValue = overrideValue || extractedValue || "";
-                        const isInvalid = Boolean(
-                          overrideValue &&
-                          !normalizedDraftStyleTypographyOverrides[key]
-                        );
-                        const presetOptions = TYPOGRAPHY_PRESETS[key] || [];
-                        const presetMenuOptions = (() => {
-                          const seen = new Set<string>();
-                          const merged: Array<{ value: string; label: string }> = [];
-
-                          const pushOption = (value: string, label: string) => {
-                            const trimmed = String(value || "").trim();
-                            if (!trimmed) return;
-                            const dedupeKey = trimmed.toLowerCase();
-                            if (seen.has(dedupeKey)) return;
-                            seen.add(dedupeKey);
-                            merged.push({ value: trimmed, label });
-                          };
-
-                          if (extractedValue) {
-                            pushOption(extractedValue, `Extracted: ${extractedValue}`);
-                          }
-                          for (const preset of presetOptions) {
-                            pushOption(preset, preset);
-                          }
-
-                          return merged;
-                        })();
-                        return (
-                          <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <Typography className="text-xs font-medium">{label}</Typography>
-                              <Typography className="text-[11px] text-muted-foreground font-mono truncate">
-                                {displayValue || "n/a"}
-                              </Typography>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={overrideValue}
-                                onChange={(event) => handleStyleOverrideTypographyChange(key, event.target.value)}
-                                placeholder={extractedValue || "Enter value"}
-                                className={cn("h-8 text-xs", isInvalid ? "border-destructive" : "")}
-                                disabled={isStyleOverrideSaving}
-                              />
-                              <select
-                                className="h-8 w-[128px] shrink-0 rounded-md border border-input bg-background px-2 text-xs"
-                                value=""
-                                disabled={isStyleOverrideSaving || !presetMenuOptions.length}
-                                onChange={(event) => {
-                                  const selected = event.target.value;
-                                  if (!selected) return;
-                                  handleStyleOverrideTypographyChange(key, selected);
-                                }}
-                              >
-                                <option value="">Presets</option>
-                                {presetMenuOptions.map((option) => (
-                                  <option key={`${key}-${option.value}`} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
-                              <Typography className="text-[11px] text-muted-foreground truncate">
-                                {extractedValue ? `Extracted: ${extractedValue}` : "No extracted value"}
-                              </Typography>
-                              {isInvalid ? (
-                                <Typography className="text-[11px] text-destructive">
-                                  Invalid format
-                                </Typography>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {hasTypographyValidationErrors ? (
-                      <Typography className="text-[11px] text-destructive">
-                        Invalid values found. Use sizes like 16px and line-height like 1.6.
-                      </Typography>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
               </div>
             )}
           </div>
@@ -5583,9 +5070,9 @@ export function WebPageHtmlView({
                     <Button
                       variant="outline"
                       onClick={() => setConfirmPublishAction("republish")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || wpPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
                     >
-                      {wpPublishMutation.isPending || featuredImageBusy ? "Republishing..." : "Republish"}
+                      {cmsPublishMutation.isPending || featuredImageBusy ? "Republishing..." : "Republish"}
                     </Button>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -5611,16 +5098,16 @@ export function WebPageHtmlView({
                     <Button
                       variant="outline"
                       onClick={() => setConfirmPublishAction("update-draft")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || wpPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
                     >
-                      {wpPublishMutation.isPending || featuredImageBusy ? "Updating..." : "Update Draft"}
+                      {cmsPublishMutation.isPending || featuredImageBusy ? "Updating..." : "Update Draft"}
                     </Button>
                     <Button variant="outline" onClick={handleOpenPreview} disabled={!persistedContent?.wpId || wpPreviewMutation.isPending}>
                       {wpPreviewMutation.isPending ? "Loading..." : "Preview Draft"}
                     </Button>
                     <Button
                       onClick={() => setConfirmPublishAction("live")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || cmsPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || featuredImageBusy || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
                     >
                       {cmsPublishMutation.isPending || featuredImageBusy ? "Publishing..." : "Publish Live"}
                     </Button>
@@ -5633,6 +5120,7 @@ export function WebPageHtmlView({
                       !normalizedSlugForPublish ||
                       hasSlugConflict ||
                       isSlugChecking ||
+                      isWordpressPagePublishBlocked ||
                       featuredImageBusy ||
                       contentStatusQuery.isLoading ||
                       cmsPublishMutation.isPending ||

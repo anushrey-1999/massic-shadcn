@@ -48,6 +48,18 @@ export interface CmsPublishingChannel {
   };
 }
 
+export interface CmsWordpressPageTemplateStatus {
+  platform: "wordpress";
+  templateName: string;
+  exists: boolean;
+  templateFile?: string | null;
+  theme?: {
+    name?: string | null;
+    stylesheet?: string | null;
+    template?: string | null;
+  } | null;
+}
+
 export interface CmsSlugCheckResponse {
   success: boolean;
   err: boolean;
@@ -157,6 +169,13 @@ interface ContentStatusResponse {
   err: boolean;
   message?: string;
   data?: CmsContentStatus;
+}
+
+interface WordpressPageTemplateStatusResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: CmsWordpressPageTemplateStatus;
 }
 
 interface SlugCheckPayload {
@@ -272,6 +291,30 @@ export function useCmsPublishingContentStatus(businessId: string | null, content
       return res.data || { platform: null, exists: false, content: null };
     },
     staleTime: 10 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useCmsWordpressPageTemplateStatus(businessId: string | null, enabled = true) {
+  return useQuery<CmsWordpressPageTemplateStatus>({
+    queryKey: ["cms-publishing-wordpress-page-template", businessId],
+    enabled: Boolean(enabled && businessId),
+    queryFn: async () => {
+      const res = await api.get<WordpressPageTemplateStatusResponse>(
+        `/cms/publishing/wordpress-page-template?businessId=${encodeURIComponent(String(businessId))}`,
+        "node"
+      );
+      if (!res?.success) throw new Error(res?.message || "Failed to verify WordPress Massic Template");
+      return res.data || {
+        platform: "wordpress",
+        templateName: "Massic Template",
+        exists: false,
+        templateFile: null,
+        theme: null,
+      };
+    },
+    staleTime: 15 * 1000,
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
   });

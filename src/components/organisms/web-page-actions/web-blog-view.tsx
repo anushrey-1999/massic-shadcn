@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Bold,
-  ChevronDown,
   Copy,
   ExternalLink,
   Italic,
@@ -28,7 +27,6 @@ import type { Editor } from "@tiptap/react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Typography } from "@/components/ui/typography";
@@ -60,23 +58,12 @@ import { ContentConverter } from "@/utils/content-converter";
 import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { detectPageContentFormat } from "@/utils/page-content-format";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
-import {
-  applyMassicStyleColorOverrides,
-  buildMassicCssVariableOverrides,
-  MASSIC_STYLE_COLOR_KEYS,
-  normalizeMassicStyleColorOverrides,
-  type MassicStyleColorKey,
-} from "@/utils/massic-style-overrides";
+import { buildMassicCssVariableOverrides } from "@/utils/massic-style-overrides";
 import { cn } from "@/lib/utils";
-import {
-  useUpdateWordpressStyleOverrides,
-  useWordpressStyleProfile,
-} from "@/hooks/use-wordpress-connector";
+import { useWordpressStyleProfile } from "@/hooks/use-wordpress-connector";
 import {
   type WordpressSlugConflictInfo,
-  WordpressPublishError,
   useWordpressPreviewLink,
-  useWordpressPublish,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 import {
@@ -84,6 +71,7 @@ import {
   useCmsPublish,
   useCmsPublishingChannel,
   useCmsPublishingContentStatus,
+  useCmsWordpressPageTemplateStatus,
   useCmsSlugCheck,
   useCmsWebflowRollbackToDraft,
   useCmsWebflowStagingPreview,
@@ -109,33 +97,6 @@ function getTypeFromPageType(pageType: string | null, intent?: string | null): W
   if (pt) return "page";
   return (intent || "").toLowerCase() === "informational" ? "blog" : "page";
 }
-
-const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
-  primary: "Primary",
-  secondary: "Secondary",
-  accent: "Accent",
-  link: "Link",
-  text: "Text",
-  mutedText: "Muted Text",
-  background: "Background",
-  surface: "Surface",
-  buttonBg: "Button Background",
-  buttonText: "Button Text",
-};
-const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "primary",
-  "secondary",
-  "accent",
-  "link",
-  "buttonBg",
-  "buttonText",
-];
-const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
-  "text",
-  "mutedText",
-  "background",
-  "surface",
-];
 
 export function WebBlogView({ businessId, pageId }: { businessId: string; pageId: string }) {
   const router = useRouter();
@@ -239,46 +200,19 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const wpConnection = isActiveWordpress ? activeConnection : null;
   const isWpConnected = isActiveWordpress;
   const wpStyleProfileQuery = useWordpressStyleProfile(isActiveWordpress ? activeConnection?.connectionId || null : null);
-  const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const cmsPublishMutation = useCmsPublish();
   const webflowStagingPreviewMutation = useCmsWebflowStagingPreview();
   const webflowRollbackToDraftMutation = useCmsWebflowRollbackToDraft();
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
-  const wpPublishMutation = useWordpressPublish();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const webflowDomains = cmsChannel?.domains || [];
   const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
   const webflowCustomDomains = webflowDomains.filter((domain) => domain.type === "custom_domain");
   const [publishToWebflowSubdomain, setPublishToWebflowSubdomain] = React.useState(true);
   const [selectedWebflowCustomDomainIds, setSelectedWebflowCustomDomainIds] = React.useState<string[]>([]);
-  const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
-    Partial<Record<MassicStyleColorKey, string>>
-  >({});
-  const [showAllStyleColorOptions, setShowAllStyleColorOptions] = React.useState(false);
-  const [openStylePaletteKey, setOpenStylePaletteKey] = React.useState<MassicStyleColorKey | null>(null);
   const lastAutoSlugCheckKeyRef = React.useRef("");
-
-  const normalizedStoredStyleOverrides = React.useMemo(
-    () => normalizeMassicStyleColorOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).colors || {},
-    [wpStyleProfileQuery.data?.styleOverrides]
-  );
-  const serializedStoredOverrides = React.useMemo(
-    () => JSON.stringify(normalizedStoredStyleOverrides),
-    [normalizedStoredStyleOverrides]
-  );
-  React.useEffect(() => {
-    setStyleColorOverridesDraft((prev) => {
-      const prevSerialized = JSON.stringify(
-        normalizeMassicStyleColorOverrides({ colors: prev }).colors || {}
-      );
-      if (prevSerialized === serializedStoredOverrides) {
-        return prev;
-      }
-      return normalizedStoredStyleOverrides;
-    });
-  }, [normalizedStoredStyleOverrides, serializedStoredOverrides]);
 
   React.useEffect(() => {
     if (!data) return;
@@ -375,6 +309,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const isHtmlContent = contentFormat === "html";
 
   const typeLabel = type === "blog" ? "blog" : "page";
+  const publishType: "post" | "page" = type === "blog" ? "post" : "page";
   const outlineFromServer = cleanEscapedContent(data?.output_data?.page?.outline || "");
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
   const hasFinalContent = !!mainContent && mainContent.trim().length > 0;
@@ -396,24 +331,43 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     [keyword, seoTitle, visiblePostTitle]
   );
   const generatedSlug = React.useMemo(() => {
-    if (inferSlug) return normalizeWordpressBlogEditableSlug(inferSlug);
-    return normalizeWordpressBlogEditableSlug(generatedSlugFallback);
-  }, [generatedSlugFallback, inferSlug]);
-  const normalizedEditableSlug = React.useMemo(() => normalizeWordpressBlogEditableSlug(editableSlug), [editableSlug]);
+    const source = inferSlug || generatedSlugFallback;
+    return publishType === "page"
+      ? normalizeWordpressSlugPath(source)
+      : normalizeWordpressBlogEditableSlug(source);
+  }, [generatedSlugFallback, inferSlug, publishType]);
+  const normalizedEditableSlug = React.useMemo(
+    () =>
+      publishType === "page"
+        ? normalizeWordpressSlugPath(editableSlug)
+        : normalizeWordpressBlogEditableSlug(editableSlug),
+    [editableSlug, publishType]
+  );
   const hasInvalidBlogSlug = React.useMemo(
-    () => Boolean(normalizedEditableSlug && normalizedEditableSlug.includes("/")),
-    [normalizedEditableSlug]
+    () => Boolean(
+      normalizedEditableSlug &&
+      normalizedEditableSlug.includes("/") &&
+      (publishType === "post" || activePlatform === "webflow")
+    ),
+    [activePlatform, normalizedEditableSlug, publishType]
   );
   const normalizedSlugForPublish = React.useMemo(() => {
     if (!normalizedEditableSlug || hasInvalidBlogSlug) return "";
     return normalizedEditableSlug;
   }, [hasInvalidBlogSlug, normalizedEditableSlug]);
-  const publishType: "post" | "page" = type === "blog" ? "post" : "page";
+  const singleSegmentSlugError = publishType === "post"
+    ? "Blog slug must be a single segment (no nested '/' paths)."
+    : "Webflow slug must be a single segment (no nested '/' paths).";
   const contentStatusQuery = useCmsPublishingContentStatus(
     businessId || null,
     publishContentId && (isActiveWebflow || (isActiveWordpress && isPublishModalOpen))
       ? String(publishContentId)
       : null
+  );
+  const requiresWordpressPageTemplate = isActiveWordpress && publishType === "page";
+  const wpPageTemplateQuery = useCmsWordpressPageTemplateStatus(
+    businessId || null,
+    Boolean(isPublishModalOpen && requiresWordpressPageTemplate)
   );
   const webflowPersistedContent = activePlatform === "webflow" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedStatus = (webflowPersistedContent?.status || "").toLowerCase();
@@ -443,16 +397,23 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
   const isPersistedTrashed = persistedStatus === "trash";
   const persistedSlug = React.useMemo(
-    () => normalizeWordpressBlogEditableSlug(persistedContent?.slug || ""),
-    [persistedContent?.slug]
+    () =>
+      publishType === "page"
+        ? normalizeWordpressSlugPath(persistedContent?.slug || "")
+        : normalizeWordpressBlogEditableSlug(persistedContent?.slug || ""),
+    [persistedContent?.slug, publishType]
   );
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
     if (!isPersistedTrashed && webflowPersistedSlug) return webflowPersistedSlug;
-    if (!isPersistedTrashed && lastPublishedData?.slug) return normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
+    if (!isPersistedTrashed && lastPublishedData?.slug) {
+      return publishType === "page"
+        ? normalizeWordpressSlugPath(lastPublishedData.slug)
+        : normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
+    }
     if (generatedSlug) return generatedSlug;
     return generatedSlugFallback;
-  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug, webflowPersistedSlug]);
+  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug, publishType, webflowPersistedSlug]);
   const isPersistedLive = persistedStatus === "publish";
   const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
   const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
@@ -463,6 +424,20 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     webflowRollbackToDraftMutation.isPending ||
     wpPreviewMutation.isPending ||
     wpUnpublishMutation.isPending;
+  const isWordpressPageTemplateChecking = Boolean(
+    requiresWordpressPageTemplate &&
+      isPublishModalOpen &&
+      (wpPageTemplateQuery.isLoading || wpPageTemplateQuery.isFetching)
+  );
+  const wordpressPageTemplateBlockMessage = requiresWordpressPageTemplate &&
+    !isWordpressPageTemplateChecking &&
+    (wpPageTemplateQuery.isError || wpPageTemplateQuery.data?.exists === false)
+      ? "Massic Template doesn't exist in this WordPress theme. Add a page template named \"Massic Template\" before publishing pages."
+      : null;
+  const isWordpressPagePublishBlocked = Boolean(
+    requiresWordpressPageTemplate &&
+      (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage)
+  );
   const isSlugInputBusy = isPublishBusy || isAutoResolvingSlug;
   const isSlugActionBusy = isPublishBusy || isSlugChecking || isAutoResolvingSlug;
   const publishStateLabel = isPersistedLive
@@ -530,14 +505,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
   const shouldApplyWpStyle = isActiveWordpress && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
   const styleProfileForCopy = React.useMemo(
-    () =>
-      shouldApplyWpStyle
-        ? applyMassicStyleColorOverrides(
-            wpStyleProfileQuery.data?.profile,
-            { colors: styleColorOverridesDraft }
-          )
-        : null,
-    [shouldApplyWpStyle, styleColorOverridesDraft, wpStyleProfileQuery.data?.profile]
+    () => (shouldApplyWpStyle ? wpStyleProfileQuery.data?.profile || null : null),
+    [shouldApplyWpStyle, wpStyleProfileQuery.data?.profile]
   );
   const cssVarOverrides = React.useMemo(
     () =>
@@ -546,93 +515,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         : {},
     [styleProfileForCopy]
   );
-  const extractedStyleColors = React.useMemo(() => {
-    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as
-      | { colors?: Record<string, unknown> }
-      | undefined;
-    return (extractedProfile?.colors || {}) as Record<string, unknown>;
-  }, [wpStyleProfileQuery.data?.extractedProfile]);
-  const effectiveProfileColors = React.useMemo(() => {
-    const profile = wpStyleProfileQuery.data?.profile as
-      | { colors?: Record<string, unknown> }
-      | undefined;
-    return (profile?.colors || {}) as Record<string, unknown>;
-  }, [wpStyleProfileQuery.data?.profile]);
-  const normalizeAnyColor = React.useCallback((value: unknown) => {
-    if (typeof value !== "string") return null;
-    return (
-      normalizeMassicStyleColorOverrides({ colors: { primary: value } }).colors
-        ?.primary || null
-    );
-  }, []);
-  const extractedColorByKey = React.useMemo(() => {
-    const next: Partial<Record<MassicStyleColorKey, string>> = {};
-    for (const key of MASSIC_STYLE_COLOR_KEYS) {
-      const extracted = normalizeAnyColor(extractedStyleColors[key]);
-      const profileFallback = normalizeAnyColor(effectiveProfileColors[key]);
-      if (extracted) {
-        next[key] = extracted;
-      } else if (profileFallback) {
-        next[key] = profileFallback;
-      }
-    }
-    return next;
-  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
-  const extractedPaletteColors = React.useMemo(() => {
-    const candidates: string[] = [];
-    for (const value of Object.values(extractedStyleColors || {})) {
-      const normalized = normalizeAnyColor(value);
-      if (normalized) candidates.push(normalized);
-    }
-    for (const value of Object.values(effectiveProfileColors || {})) {
-      const normalized = normalizeAnyColor(value);
-      if (normalized) candidates.push(normalized);
-    }
-    return Array.from(new Set(candidates));
-  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
-  const visibleStyleColorKeys = showAllStyleColorOptions
-    ? [...CORE_STYLE_COLOR_KEYS, ...ADVANCED_STYLE_COLOR_KEYS]
-    : CORE_STYLE_COLOR_KEYS;
-  const normalizedDraftStyleOverrides = React.useMemo(
-    () => normalizeMassicStyleColorOverrides({ colors: styleColorOverridesDraft }).colors || {},
-    [styleColorOverridesDraft]
-  );
-  const serializedDraftOverrides = React.useMemo(
-    () => JSON.stringify(normalizedDraftStyleOverrides),
-    [normalizedDraftStyleOverrides]
-  );
-  const hasUnsavedStyleOverrides = serializedDraftOverrides !== serializedStoredOverrides;
-  const isStyleOverrideSaving = wpStyleOverridesMutation.isPending;
-
-  const handleStyleOverrideColorChange = React.useCallback((key: MassicStyleColorKey, value: string) => {
-    const normalized = normalizeMassicStyleColorOverrides({ colors: { [key]: value } }).colors?.[key];
-    if (!normalized) return;
-    setStyleColorOverridesDraft(prev => ({
-      ...prev,
-      [key]: normalized,
-    }));
-  }, []);
-
-  const resetStyleOverrideKey = React.useCallback((key: MassicStyleColorKey) => {
-    setStyleColorOverridesDraft(prev => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }, []);
-
-  const handleSaveStyleOverrides = React.useCallback(async () => {
-    if (!isActiveWordpress || !activeConnection?.connectionId) return;
-    const response = await wpStyleOverridesMutation.mutateAsync({
-      connectionId: activeConnection.connectionId,
-      overrides: {
-        colors: normalizedDraftStyleOverrides,
-      },
-    });
-    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
-    setStyleColorOverridesDraft(savedColors);
-  }, [activeConnection?.connectionId, isActiveWordpress, normalizedDraftStyleOverrides, wpStyleOverridesMutation]);
-
   React.useEffect(() => {
     if (!isPublishModalOpen) return;
     if (isSlugEdited) return;
@@ -738,7 +620,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
     if (hasInvalidBlogSlug) {
       setSlugCheckResult(null);
-      setSlugCheckError("Blog slug must be a single segment (no nested '/' paths).");
+      setSlugCheckError(singleSegmentSlugError);
       lastAutoSlugCheckKeyRef.current = "";
       return null;
     }
@@ -783,6 +665,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     normalizedSlugForPublish,
     publishContentId,
     publishType,
+    singleSegmentSlugError,
     slugCheckMutateAsync,
   ]);
 
@@ -800,7 +683,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
     if (hasInvalidBlogSlug) {
       setSlugCheckResult(null);
-      setSlugCheckError("Blog slug must be a single segment (no nested '/' paths).");
+      setSlugCheckError(singleSegmentSlugError);
       lastAutoSlugCheckKeyRef.current = "";
       return;
     }
@@ -819,6 +702,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     normalizedEditableSlug,
     publishContentId,
     runSlugCheck,
+    singleSegmentSlugError,
   ]);
 
   const buildPublishPayload = React.useCallback(
@@ -1563,8 +1447,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       }
 
       if (hasInvalidBlogSlug || !normalizedSlugForPublish) {
-        setSlugCheckError("Blog slug must be a single segment (no nested '/' paths).");
-        toast.error("Blog slug must be a single segment");
+        setSlugCheckError(singleSegmentSlugError);
+        toast.error(singleSegmentSlugError);
         return;
       }
 
@@ -1635,6 +1519,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     normalizedEditableSlug,
     normalizedSlugForPublish,
     runSlugCheck,
+    singleSegmentSlugError,
   ]);
 
   const autoResolveSlug = React.useCallback(async () => {
@@ -1902,9 +1787,21 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                 </Typography>
               </div>
               <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
+              {requiresWordpressPageTemplate && (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage) ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  {isWordpressPageTemplateChecking ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Checking for Massic Template...</span>
+                    </div>
+                  ) : (
+                    <div className="break-words">{wordpressPageTemplateBlockMessage}</div>
+                  )}
+                </div>
+              ) : null}
               <div className="space-y-1">
                 <div>
-                  <Typography className="text-xs text-muted-foreground">Post title</Typography>
+                  <Typography className="text-xs text-muted-foreground">{publishType === "page" ? "Page title" : "Post title"}</Typography>
                   <Typography className="text-sm line-clamp-2">{visiblePostTitle}</Typography>
                 </div>
                 <div>
@@ -1924,7 +1821,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     setEditableSlug(event.target.value);
                     setIsSlugEdited(true);
                   }}
-                  placeholder="enter-blog-slug"
+                  placeholder={publishType === "page" ? "enter-page-slug" : "enter-blog-slug"}
                   disabled={isSlugInputBusy}
                 />
               </div>
@@ -1959,160 +1856,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                 </div>
               ) : null}
 
-              <div className="space-y-2 pt-2 border-t border-border/60">
-                <div className="flex items-center justify-between gap-2">
-                  <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                    Style Colors
-                  </Typography>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setStyleColorOverridesDraft({})}
-                      disabled={isStyleOverrideSaving || !Object.keys(styleColorOverridesDraft).length}
-                    >
-                      Reset All
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleSaveStyleOverrides}
-                      disabled={isStyleOverrideSaving || !hasUnsavedStyleOverrides}
-                    >
-                      {isStyleOverrideSaving ? "Saving..." : "Save Colors"}
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <Typography className="text-xs text-muted-foreground">
-                    Overrides are saved separately. Use extracted colors or custom picks.
-                  </Typography>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setShowAllStyleColorOptions((prev) => !prev)}
-                  >
-                    {showAllStyleColorOptions
-                      ? "Show Core"
-                      : `Show All (${MASSIC_STYLE_COLOR_KEYS.length})`}
-                  </Button>
-                </div>
-                {extractedPaletteColors.length ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Typography className="text-[11px] text-muted-foreground">
-                      Extracted palette:
-                    </Typography>
-                    {extractedPaletteColors.slice(0, 10).map((color) => (
-                      <span
-                        key={color}
-                        className="inline-flex h-5 w-5 rounded-full border border-border"
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {visibleStyleColorKeys.map((key) => {
-                    const label = STYLE_COLOR_OPTION_LABELS[key] || key;
-                    const extractedColor = extractedColorByKey[key] || null;
-                    const overrideColor = normalizedDraftStyleOverrides[key] || null;
-                    const pickerValue =
-                      overrideColor ||
-                      extractedColor ||
-                      extractedPaletteColors[0] ||
-                      "#000000";
-                    return (
-                      <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <Typography className="text-xs font-medium">{label}</Typography>
-                          <Typography className="text-[11px] text-muted-foreground font-mono">
-                            {overrideColor || extractedColor || "n/a"}
-                          </Typography>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="color"
-                            value={pickerValue}
-                            onChange={(event) => handleStyleOverrideColorChange(key, event.target.value)}
-                            disabled={isStyleOverrideSaving}
-                            className="h-8 w-11 p-1 shrink-0"
-                          />
-                          <Popover
-                            open={openStylePaletteKey === key}
-                            onOpenChange={(open) => setOpenStylePaletteKey(open ? key : null)}
-                          >
-                            <PopoverTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
-                                disabled={isStyleOverrideSaving || !extractedPaletteColors.length}
-                              >
-                                <span className="flex min-w-0 items-center gap-2">
-                                  <span
-                                    className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
-                                    style={{
-                                      backgroundColor:
-                                        overrideColor ||
-                                        extractedColor ||
-                                        extractedPaletteColors[0] ||
-                                        "#000000",
-                                    }}
-                                  />
-                                  <span className="truncate">
-                                    {overrideColor || extractedColor || "Use extracted"}
-                                  </span>
-                                </span>
-                                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent align="start" className="w-56 p-1">
-                              <div className="max-h-56 space-y-1 overflow-y-auto">
-                                {extractedPaletteColors.map((color) => (
-                                  <button
-                                    key={`${key}-${color}`}
-                                    type="button"
-                                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
-                                    onClick={() => {
-                                      handleStyleOverrideColorChange(key, color);
-                                      setOpenStylePaletteKey(null);
-                                    }}
-                                  >
-                                    <span
-                                      className="h-4 w-4 shrink-0 rounded-full border border-border"
-                                      style={{ backgroundColor: color }}
-                                    />
-                                    <span className="font-mono">{color}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 px-2 text-xs"
-                            onClick={() => resetStyleOverrideKey(key)}
-                            disabled={isStyleOverrideSaving || !overrideColor}
-                          >
-                            Clear
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {!showAllStyleColorOptions ? (
-                  <Typography className="text-[11px] text-muted-foreground">
-                    Showing core colors. Enable "Show All" for text/surface options.
-                  </Typography>
-                ) : null}
-              </div>
             </div>
           ) : null}
 
@@ -2144,7 +1887,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     setEditableSlug(event.target.value);
                     setIsSlugEdited(true);
                   }}
-                  placeholder="enter-blog-slug"
+                  placeholder={publishType === "page" ? "enter-page-slug" : "enter-blog-slug"}
                   disabled={isSlugInputBusy}
                 />
               </div>
@@ -2249,9 +1992,9 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     <Button
                       variant="outline"
                       onClick={() => setConfirmPublishAction("republish")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
                     >
-                      {wpPublishMutation.isPending ? "Republishing..." : "Republish"}
+                      {cmsPublishMutation.isPending ? "Republishing..." : "Republish"}
                     </Button>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -2261,7 +2004,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                           variant="outline"
                           onClick={() => {
                             if (liveUrl) {
-                              openEmbeddedPreview(liveUrl, "Published WordPress Blog");
+                              openEmbeddedPreview(liveUrl, publishType === "page" ? "Published WordPress Page" : "Published WordPress Blog");
                             }
                           }}
                           disabled={!liveUrl}
@@ -2285,9 +2028,9 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     <Button
                       variant="outline"
                       onClick={() => setConfirmPublishAction("update-draft")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || wpPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
                     >
-                      {wpPublishMutation.isPending ? "Updating..." : "Update Draft"}
+                      {cmsPublishMutation.isPending ? "Updating..." : "Update Draft"}
                     </Button>
                     <Button
                       variant="outline"
@@ -2298,7 +2041,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                     </Button>
                     <Button
                       onClick={() => setConfirmPublishAction("live")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || cmsPublishMutation.isPending}
+                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
                     >
                       {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
                     </Button>
@@ -2311,6 +2054,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                       !normalizedSlugForPublish ||
                       hasSlugConflict ||
                       isSlugChecking ||
+                      isWordpressPagePublishBlocked ||
                       contentStatusQuery.isLoading ||
                       cmsPublishMutation.isPending ||
                       wpPreviewMutation.isPending

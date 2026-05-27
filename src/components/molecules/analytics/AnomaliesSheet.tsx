@@ -30,7 +30,7 @@ import { Typography } from "@/components/ui/typography";
 import { AlertDateSelector } from "./AlertDateSelector";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
-import type { GoalData, GoalContributor, PageBreakdown, Diagnosis, DailyPeak, AnomalyTier, HeadlineReel, Win, BaselineStatus } from "@/hooks/use-goal-analysis";
+import type { GoalData, GoalContributor, PageBreakdown, SourceBreakdown, Diagnosis, DailyPeak, AnomalyTier, HeadlineReel, Win, BaselineStatus } from "@/hooks/use-goal-analysis";
 import type { TrafficData, TrafficContributor } from "@/hooks/use-traffic-analysis";
 
 interface AnomaliesSheetProps {
@@ -63,12 +63,12 @@ const getAnomalyConfig = (
     return {
       icon: trackingQuality === "uncertain" ? AlertTriangle : CheckCircle,
       sentimentLabel: trackingQuality === "uncertain" ? "Positive, verify" : "Positive",
-      borderColor: "border-l-emerald-500",
+      borderColor: "border-[#9FE1CB]",
       badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200",
       iconColor: "text-emerald-600",
       textColor: "text-emerald-700",
       bgColor: "bg-emerald-50",
-      cardClass: "bg-emerald-50/35",
+      cardClass: "bg-[#F0FDFA]",
       note: trackingQuality === "uncertain" ? "Looks positive - worth verifying tracking." : null,
     };
   }
@@ -76,12 +76,12 @@ const getAnomalyConfig = (
   return {
     icon: AlertCircle,
     sentimentLabel: "Needs attention",
-    borderColor: "border-l-slate-400",
-    badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
-    iconColor: "text-slate-600",
-    textColor: "text-slate-700",
-    bgColor: "bg-slate-100",
-    cardClass: "bg-slate-50/70",
+    borderColor: "border-[#F7C1C1]",
+    badgeClass: "bg-red-100 text-red-700 border-red-200",
+    iconColor: "text-[#E24B4A]",
+    textColor: "text-[#A32D2D]",
+    bgColor: "bg-[#FEF2F2]",
+    cardClass: "bg-[#FEF2F2]",
     note: null,
   };
 };
@@ -93,8 +93,8 @@ function HeadlineReels({ reels, fallback }: { reels?: HeadlineReel[]; fallback?:
   }
   const colorMap: Record<string, string> = {
     up: "text-emerald-700",
-    down: "text-slate-700",
-    flat: "text-slate-500",
+    down: "text-[#A32D2D]",
+    flat: "text-amber-700",
     neutral: "text-foreground",
   };
   return (
@@ -116,6 +116,7 @@ interface ChannelBlockProps {
   anchorUnit: "conversions" | "clicks";
   deltaGoals?: number;
   deltaSessions?: number;
+  sources?: SourceBreakdown[];
   pages?: PageBreakdown[];
   isTraffic?: boolean;
 }
@@ -123,8 +124,8 @@ interface ChannelBlockProps {
 function StatChip({ label, value, positive }: { label: string; value: number; positive?: boolean }) {
   const isPos = value >= 0;
   const color = positive !== undefined
-    ? (positive ? "text-emerald-700" : "text-slate-600")
-    : (isPos ? "text-emerald-700" : "text-slate-600");
+    ? (positive ? "text-[#0F6E56]" : "text-[#A32D2D]")
+    : (isPos ? "text-[#0F6E56]" : "text-[#A32D2D]");
   return (
     <span className="inline-flex items-center gap-0.5 text-[10px] tabular-nums">
       <span className="text-muted-foreground">{label}</span>
@@ -140,6 +141,28 @@ function formatSignedNumber(value: number) {
   const rounded = Math.round(numeric);
   const sign = rounded > 0 ? "+" : rounded < 0 ? "-" : "";
   return `${sign}${Math.abs(rounded).toLocaleString()}`;
+}
+
+function contributorDeltaColor(value: number | null | undefined) {
+  const numeric = Number(value || 0);
+  if (numeric > 0) return "text-[#0F6E56]";
+  if (numeric < 0) return "text-[#A32D2D]";
+  return "text-muted-foreground";
+}
+
+function ContributorStat({ label, value }: { label: string; value: number | undefined }) {
+  if (value === undefined) return null;
+
+  return (
+    <div className="text-right">
+      <p className="mb-px text-[9px] uppercase tracking-[0.06em] text-muted-foreground/70">
+        {label}
+      </p>
+      <p className={cn("text-[14px] font-medium tabular-nums", contributorDeltaColor(value))}>
+        {formatSignedNumber(value)}
+      </p>
+    </div>
+  );
 }
 
 function hasNonZeroPageContribution(page: PageBreakdown) {
@@ -181,125 +204,129 @@ function fallbackDriverText(diagnosis: Diagnosis) {
   return diagnosis.plain_text || map[code] || diagnosis.rationale || "A real change in performance drove this anomaly.";
 }
 
+function ContributorPageRows({ pages, isTraffic = false }: { pages: PageBreakdown[]; isTraffic?: boolean }) {
+  const visiblePages = pages.filter(hasNonZeroPageContribution).slice(0, 5);
+
+  if (visiblePages.length === 0) return null;
+
+  return (
+    <div className="divide-y divide-border/30 bg-background">
+      {visiblePages.map((p, idx) => (
+        <div key={idx} className="min-w-0 px-4 py-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
+                {getPageLabel(p.page)}
+              </span>
+            </div>
+            <div className="flex shrink-0 flex-wrap justify-end gap-3">
+              {!isTraffic && p.delta_goals !== null && p.delta_goals !== undefined && (
+                <StatChip label="Goals" value={p.delta_goals} />
+              )}
+              {!isTraffic && p.delta_sessions !== null && p.delta_sessions !== undefined && (
+                <StatChip label="Sessions" value={p.delta_sessions} />
+              )}
+              {p.delta_clicks !== null && p.delta_clicks !== undefined && (
+                <StatChip label="Clicks" value={p.delta_clicks} />
+              )}
+              {p.delta_impressions !== null && p.delta_impressions !== undefined && (
+                <StatChip label="Impr" value={p.delta_impressions} />
+              )}
+              {p.delta_position !== null && p.delta_position !== undefined && (
+                <span className="text-[10px] tabular-nums">
+                  <span className="text-muted-foreground">Pos </span>
+                  <span className={cn("font-semibold", p.delta_position > 0 ? "text-[#A32D2D]" : "text-[#0F6E56]")}>
+                    {p.delta_position > 0 ? "↓" : "↑"}{Math.abs(p.delta_position).toFixed(1)}
+                  </span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          {p.queries && p.queries.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {p.queries.slice(0, 4).map((q, qi) => (
+                <span key={qi} className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background px-2 py-[3px] text-[11px] text-muted-foreground">
+                  {q}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ChannelBlock({
   channelName,
   anchorDelta,
   anchorUnit,
   deltaGoals,
   deltaSessions,
+  sources = [],
   pages = [],
   isTraffic = false,
 }: ChannelBlockProps) {
   const isPositive = anchorDelta >= 0;
-  const blockBg = isPositive ? "bg-[#F0FDFA] border-[#9FE1CB]" : "bg-slate-50 border-slate-200";
-  const accentBar = isPositive ? "bg-emerald-400" : "bg-slate-400";
-  const deltaColor = isPositive ? "text-emerald-700" : "text-slate-600";
-  const suffix = isPositive ? "gained" : "lost";
-  const goalsLabel = isPositive ? "GOALS GAINED" : "GOALS LOST";
-  const sessionsLabel = isPositive ? "SESSIONS GAINED" : "SESSIONS LOST";
-  const clicksLabel = isPositive ? "CLICKS GAINED" : "CLICKS LOST";
-  const impressLabel = isPositive ? "IMPR GAINED" : "IMPR LOST";
-  const visiblePages = pages.filter(hasNonZeroPageContribution).slice(0, 5);
+  const headerClass = isPositive
+    ? "bg-[#F0FDFA] border-b border-[#9FE1CB]"
+    : "bg-[#FEF2F2] border-b border-[#F7C1C1]";
+  const accentBar = isPositive ? "bg-[#1D9E75]" : "bg-[#E24B4A]";
+  const anchorLabel = `${anchorUnit} ${isPositive ? "gained" : "lost"}`;
+  const primaryMetricLabel = isTraffic
+    ? `clicks ${isPositive ? "gained" : "lost"}`
+    : `goals ${isPositive ? "gained" : "lost"}`;
+  const secondaryMetricLabel = isTraffic
+    ? `impr ${isPositive ? "gained" : "lost"}`
+    : `sessions ${isPositive ? "gained" : "lost"}`;
+  const visibleSources = sources
+    .filter((source) => Math.abs(Number(source.delta_goals || 0)) > 0)
+    .slice(0, 10);
+  const showFallbackPages = visibleSources.length === 0;
 
   return (
-    <div className={cn("flex min-w-0 gap-0 rounded-lg border overflow-hidden shadow-sm", blockBg)}>
-      <div className={cn("w-1 shrink-0", accentBar)} />
-      <div className="flex-1 min-w-0 px-3 py-2.5 space-y-2.5">
-        {/* Header row */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-foreground line-clamp-1">{channelName}</p>
-          </div>
-          <span className={cn("shrink-0 text-[13px] font-bold tabular-nums", deltaColor)}>
-            {formatSignedNumber(anchorDelta)} {anchorUnit} {suffix}
-          </span>
+    <div className="min-w-0 overflow-hidden rounded-xl border border-border/40">
+      <div className={cn("flex items-center justify-between gap-3 px-4 py-3", headerClass)}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className={cn("h-[22px] w-1 shrink-0 rounded-sm", accentBar)} />
+          <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{channelName}</span>
         </div>
-
-        {/* Stat summary row */}
-        {!isTraffic && (deltaGoals !== undefined || deltaSessions !== undefined) && (
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-            {deltaGoals !== undefined && (
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                {goalsLabel}: <span className={cn("font-bold tabular-nums", isPositive ? "text-emerald-700" : "text-slate-600")}>
-                  {formatSignedNumber(deltaGoals)}
-                </span>
-              </span>
-            )}
-            {deltaSessions !== undefined && (
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                {sessionsLabel}: <span className={cn("font-bold tabular-nums", isPositive ? "text-emerald-700" : "text-slate-600")}>
-                  {formatSignedNumber(deltaSessions)}
-                </span>
-              </span>
-            )}
-          </div>
-        )}
-        {isTraffic && (deltaGoals !== undefined || deltaSessions !== undefined) && (
-          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-            {deltaGoals !== undefined && (
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                {clicksLabel}: <span className={cn("font-bold tabular-nums", isPositive ? "text-emerald-700" : "text-slate-600")}>
-                  {formatSignedNumber(deltaGoals)}
-                </span>
-              </span>
-            )}
-            {deltaSessions !== undefined && (
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                {impressLabel}: <span className={cn("font-bold tabular-nums", isPositive ? "text-emerald-700" : "text-slate-600")}>
-                  {formatSignedNumber(deltaSessions)}
-                </span>
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Per-page breakdown */}
-        {visiblePages.length > 0 && (
-          <div className="space-y-2.5 mt-1 pt-2 border-t border-current/10">
-            {visiblePages.map((p, idx) => (
-              <div key={idx} className="rounded-md bg-background/55 px-2.5 py-2 ring-1 ring-border/50">
-                <div className="min-w-0 space-y-1.5">
-                  <span className="block text-[11px] font-semibold text-foreground/90 break-all leading-snug">
-                    {getPageLabel(p.page)}
-                  </span>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1">
-                    {!isTraffic && p.delta_goals !== null && p.delta_goals !== undefined && (
-                      <StatChip label="Goals" value={p.delta_goals} />
-                    )}
-                    {!isTraffic && p.delta_sessions !== null && p.delta_sessions !== undefined && (
-                      <StatChip label="Sessions" value={p.delta_sessions} />
-                    )}
-                    {p.delta_clicks !== null && p.delta_clicks !== undefined && (
-                      <StatChip label="Clicks" value={p.delta_clicks} />
-                    )}
-                    {p.delta_impressions !== null && p.delta_impressions !== undefined && (
-                      <StatChip label="Impr" value={p.delta_impressions} />
-                    )}
-                    {p.delta_position !== null && p.delta_position !== undefined && (
-                      <span className="text-[10px] tabular-nums">
-                        <span className="text-muted-foreground">Pos </span>
-                        <span className={cn("font-semibold", p.delta_position > 0 ? "text-red-700" : "text-emerald-700")}>
-                          {p.delta_position > 0 ? "↓" : "↑"}{Math.abs(p.delta_position).toFixed(1)}
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {/* Query chips */}
-                {p.queries && p.queries.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {p.queries.slice(0, 4).map((q, qi) => (
-                      <span key={qi} className="inline-flex max-w-full items-center rounded-md border border-muted-foreground/20 bg-background/80 px-1.5 py-0.5 text-[9px] text-muted-foreground">
-                        {q}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="flex shrink-0 flex-wrap justify-end gap-4">
+          <ContributorStat label={anchorLabel} value={anchorDelta} />
+          {deltaGoals !== undefined && deltaGoals !== anchorDelta && (
+            <ContributorStat label={primaryMetricLabel} value={deltaGoals} />
+          )}
+          {deltaSessions !== undefined && (
+            <ContributorStat label={secondaryMetricLabel} value={deltaSessions} />
+          )}
+        </div>
       </div>
+
+      {visibleSources.length > 0 && (
+        <div className="divide-y divide-border/40 bg-background">
+          {visibleSources.map((source, idx) => (
+            <div key={`${source.key}-${idx}`} className="min-w-0">
+              <div className="flex items-center justify-between gap-3 bg-muted/30 px-4 py-2">
+                <span className="min-w-0 truncate text-[12px] font-medium text-foreground">
+                  {source.source || source.key || "Unknown source"}
+                </span>
+                <div className="flex shrink-0 flex-wrap justify-end gap-3">
+                  {source.delta_goals !== undefined && (
+                    <StatChip label={isTraffic ? "Clicks" : "Goals"} value={source.delta_goals} />
+                  )}
+                  {source.delta_sessions !== undefined && (
+                    <StatChip label={isTraffic ? "Impr" : "Sessions"} value={source.delta_sessions} />
+                  )}
+                </div>
+              </div>
+              <ContributorPageRows pages={source.pages || []} isTraffic={isTraffic} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showFallbackPages && <ContributorPageRows pages={pages} isTraffic={isTraffic} />}
     </div>
   );
 }
@@ -373,8 +400,10 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
               isAnomaly
                 ? isUp
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-slate-300 bg-slate-100 text-slate-700"
-                : "border-slate-200 bg-slate-50 text-slate-600"
+                  : "border-red-200 bg-red-50 text-red-700"
+                : isUp
+                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
             )}
           >
             <Icon className="h-3 w-3" />
@@ -529,10 +558,9 @@ function GoalCard({ goal, onClick }: GoalCardProps) {
     <button
       onClick={onClick}
       className={cn(
-        "group w-full min-w-0 text-left rounded-xl border-l-4 p-3 transition-all hover:shadow-md",
+        "group w-full min-w-0 text-left rounded-xl border p-3 transition-all hover:shadow-md",
         config.borderColor,
-        config.cardClass,
-        "border border-border/50 hover:border-border"
+        config.cardClass
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -627,10 +655,9 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
 
           <div
             className={cn(
-              "min-w-0 rounded-xl p-4 border-l-4",
+              "min-w-0 rounded-xl border p-4",
               config.borderColor,
-              config.cardClass,
-              "border"
+              config.cardClass
             )}
           >
             {/* CHANGE 12: Severity badge removed */}
@@ -745,6 +772,7 @@ function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
                   anchorUnit="conversions"
                   deltaGoals={contributor.delta_goals}
                   deltaSessions={contributor.delta_sessions}
+                  sources={contributor.sources}
                   pages={contributor.pages as PageBreakdown[] | undefined}
                 />
               ))}
@@ -776,10 +804,9 @@ function TrafficCard({ traffic, onClick }: TrafficCardProps) {
     <button
       onClick={onClick}
       className={cn(
-        "group w-full min-w-0 text-left rounded-xl border-l-4 p-3 transition-all hover:shadow-md",
+        "group w-full min-w-0 text-left rounded-xl border p-3 transition-all hover:shadow-md",
         config.borderColor,
-        config.cardClass,
-        "border border-border/50 hover:border-border"
+        config.cardClass
       )}
     >
       <div className="flex min-w-0 items-start justify-between gap-3">
@@ -887,10 +914,9 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
 
           <div
             className={cn(
-              "min-w-0 rounded-xl p-4 border-l-4",
+              "min-w-0 rounded-xl border p-4",
               config.borderColor,
-              config.cardClass,
-              "border"
+              config.cardClass
             )}
           >
             {/* CHANGE 12: Severity badge removed */}

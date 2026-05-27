@@ -48,6 +48,8 @@ interface AnomaliesSheetProps {
   goalRawState?: string | null;
   obsStartDate?: string | null;
   obsEndDate?: string | null;
+  initialTab?: "goals" | "traffic";
+  initialSelectedDate?: string | null;
 }
 
 type TrackingQuality = "stable" | "uncertain";
@@ -1075,6 +1077,8 @@ export function AnomaliesSheet({
   goalRawState,
   obsStartDate,
   obsEndDate,
+  initialTab = "goals",
+  initialSelectedDate = null,
 }: AnomaliesSheetProps) {
   const [activeTab, setActiveTab] = React.useState<"goals" | "traffic">(
     "goals"
@@ -1171,6 +1175,22 @@ export function AnomaliesSheet({
       setLocalSelectedDate(null);
     }
   }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    setActiveTab(initialTab);
+    setSelectedGoal(null);
+    setShowTrafficDetail(false);
+
+    if (initialSelectedDate) {
+      setLocalSelectedDate(initialSelectedDate);
+      setLocalDate(new Date(`${initialSelectedDate}T00:00:00`));
+    } else {
+      setLocalSelectedDate(null);
+      setLocalDate(null);
+    }
+  }, [initialSelectedDate, initialTab, open]);
 
   React.useEffect(() => {
     if (localSelectedDate && open) {

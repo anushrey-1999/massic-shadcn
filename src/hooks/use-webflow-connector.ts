@@ -26,6 +26,10 @@ export interface WebflowConnection {
   connectedAt: string | null;
   lastUsedAt: string | null;
   target: WebflowTarget | null;
+  targets?: {
+    post?: WebflowTarget | null;
+    page?: WebflowTarget | null;
+  };
 }
 
 export interface WebflowCollectionField {
@@ -155,6 +159,53 @@ export function useConfigureWebflow(businessId: string | null) {
     onError: (error) => {
       toast.error("Failed to save Webflow configuration", {
         description: getErrorMessage(error, "Please complete required field mappings."),
+      });
+    },
+  });
+}
+
+export interface WebflowPagesSetupResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    ready: boolean;
+    status: "ready" | "missing_collection" | "invalid_schema";
+    errors?: string[];
+    fields?: Record<string, any>;
+    collection?: {
+      id?: string | null;
+      name?: string | null;
+    } | null;
+    target?: WebflowTarget | null;
+  };
+}
+
+export function useConfigureWebflowPages(businessId: string | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation<WebflowPagesSetupResponse, Error, {
+    connectionId: string;
+    siteId: string;
+  }>({
+    mutationFn: async (payload) => {
+      const res = await api.post<WebflowPagesSetupResponse>("/cms/webflow/page-configuration", "node", payload);
+      if (!res?.success) throw new Error(res?.message || "Failed to check Massic Pages setup");
+      return res;
+    },
+    onSuccess: (res) => {
+      const ready = Boolean(res.data?.ready);
+      toast[ready ? "success" : "warning"](ready ? "Massic Pages setup ready" : "Massic Pages setup needs changes", {
+        description: ready
+          ? "Webflow pages can now publish to the Massic Pages collection."
+          : res.data?.errors?.[0] || "Check the collection name and fields in Webflow.",
+      });
+      void queryClient.invalidateQueries({ queryKey: ["webflow-connection", businessId] });
+      void queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", businessId] });
+    },
+    onError: (error) => {
+      toast.error("Failed to check Massic Pages setup", {
+        description: getErrorMessage(error, "Please try again."),
       });
     },
   });

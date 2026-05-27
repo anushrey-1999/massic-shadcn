@@ -90,9 +90,9 @@ export function SourcesChannelsChart({
                       <div
                         className="absolute inset-y-0 left-0 rounded-full"
                         style={{
-                          width: sessionsWidth > 0 ? `${sessionsWidth}%` : "4px",
+                          width: sessionsWidth > 0 ? `${sessionsWidth}%` : "0px",
                           backgroundColor: item.sessions > 0 ? "#f97316" : "#E5E5E5",
-                          opacity: 0.3,
+                          opacity: 0.45,
                         }}
                       />
                       <div

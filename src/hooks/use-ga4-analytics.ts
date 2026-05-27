@@ -715,13 +715,24 @@ export function useGA4Analytics(
   const normalizedChannelsData = useMemo(() => {
     if (channelsData.length === 0) return []
 
+    const maxSessions = Math.max(...channelsData.map((item) => item.sessions || 0))
+    const maxGoals = Math.max(...channelsData.map((item) => item.goals || 0))
+    const scaleNonZeroValue = (value: number, max: number, maxWidth: number) => {
+      if (value <= 0 || max <= 0) return 0
+      return 4 + (Math.log1p(value) / Math.log1p(max)) * (maxWidth - 4)
+    }
+
     return channelsData.map((item) => {
       const sessions = item.sessions || 0
       const goals = item.goals || 0
+      const sessionsNorm = scaleNonZeroValue(sessions, maxSessions, 100)
+      const goalsNorm = scaleNonZeroValue(goals, maxGoals, 85)
+      const visibleSessionsNorm = sessions > 0 ? Math.min(Math.max(sessionsNorm, goalsNorm + 10), 100) : 0
+
       return {
         ...item,
-        sessionsNorm: sessions > 0 ? 100 : 0,
-        goalsNorm: sessions > 0 ? Math.min((goals / sessions) * 100, 100) : 0,
+        sessionsNorm: visibleSessionsNorm,
+        goalsNorm: Math.min(goalsNorm, visibleSessionsNorm * 0.85),
       }
     })
   }, [channelsData])

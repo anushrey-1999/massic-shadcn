@@ -516,6 +516,33 @@ export function ThemesTableClient({
           className="flex w-full items-start justify-between gap-2 p-1"
         >
           <div className="flex flex-1 flex-wrap items-center gap-4">
+            <div>
+              <Typography
+                variant="p"
+                className="font-mono mb-2 text-base text-general-muted-foreground"
+              >
+                Topic Relevance
+              </Typography>
+              <div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
+                <div className="absolute inset-0 flex">
+                  {BUSINESS_RELEVANCE_PALETTE.map((color) => (
+                    <div
+                      key={color}
+                      className="h-full flex-1 shadow-inner"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+                <div className="absolute inset-0 flex items-center justify-between px-3">
+                  <span className="text-[10px] font-medium text-general-muted-foreground">
+                    Low
+                  </span>
+                  <span className="text-[10px] font-medium text-general-muted-foreground">
+                    High
+                  </span>
+                </div>
+              </div>
+            </div>
             {offeringsFilter}
           </div>
           <div className="flex items-center gap-2">
@@ -542,7 +569,7 @@ export function ThemesTableClient({
               <Button onClick={() => refetchScatter()}>Try Again</Button>
             </div>
           ) : (
-            <ThemesScatterPlot points={filteredScatterPoints} themes={filteredData} />
+            <ThemesScatterPlot points={filteredScatterPoints} />
           )}
         </div>
       </div>

@@ -1,11 +1,39 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 
+export type AnalyticsAnomalyTier = "anomaly" | "candidate" | "normal";
+
+export interface AnalyticsAnomalyDailyPeak {
+  date: string;
+  actual?: number;
+  expected?: number;
+  delta?: number;
+  delta_pct?: number;
+  score?: number | string;
+  direction?: "up" | "down";
+  tier?: AnalyticsAnomalyTier;
+  baseline_samples?: number;
+}
+
+export interface AnalyticsAnomalyMetricPayload {
+  weeklyTier?: AnalyticsAnomalyTier;
+  dailyPeakForDate?: AnalyticsAnomalyDailyPeak | null;
+  dailyPeaks?: AnalyticsAnomalyDailyPeak[];
+  cards?: Array<Record<string, unknown>>;
+  card?: Record<string, unknown> | null;
+}
+
+export interface AnalyticsAnomalyPayload {
+  goal?: AnalyticsAnomalyMetricPayload | null;
+  traffic?: AnalyticsAnomalyMetricPayload | null;
+}
+
 export interface AnalyticsAnomalyDate {
   date: string;
   hasGoalAnomaly: boolean;
   hasTrafficAnomaly: boolean;
   goalAnomalyCount: number;
+  analysisPayload?: AnalyticsAnomalyPayload | null;
 }
 
 interface AnalyticsAnomalyDatesResponse {

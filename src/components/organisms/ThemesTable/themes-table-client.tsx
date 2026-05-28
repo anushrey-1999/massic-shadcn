@@ -49,10 +49,6 @@ function matchesAdvancedFilters(
 ) {
   const results = filters.map((filter) => {
     const values = getFilterValues(row, filter.field);
-    const filterValue = Array.isArray(filter.value)
-      ? filter.value.join(" ")
-      : String(filter.value ?? "");
-    const normalizedFilterValue = filterValue.toLowerCase();
     const normalizedValues = values.map((value) => value.toLowerCase());
 
     if (filter.operator === "isEmpty") {
@@ -62,6 +58,18 @@ function matchesAdvancedFilters(
     if (filter.operator === "isNotEmpty") {
       return values.some((value) => value.trim().length > 0);
     }
+
+    if (filter.operator === "inArray") {
+      const selected = Array.isArray(filter.value)
+        ? filter.value.map((v) => String(v).toLowerCase())
+        : [String(filter.value ?? "").toLowerCase()];
+      return selected.some((s) => normalizedValues.includes(s));
+    }
+
+    const filterValue = Array.isArray(filter.value)
+      ? filter.value.join(" ")
+      : String(filter.value ?? "");
+    const normalizedFilterValue = filterValue.toLowerCase();
 
     if (filter.operator === "notILike") {
       return normalizedValues.every((value) => !value.includes(normalizedFilterValue));
@@ -167,11 +175,6 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const columns = React.useMemo(
-    () => getThemesTableColumns({ expandedRowId, onExpandedRowChange: setExpandedRowId }),
-    [expandedRowId]
-  );
-
   const allData = React.useMemo<ThemeRow[]>(
     () => themesData?.data || [],
     [themesData?.data]
@@ -189,6 +192,11 @@ export function ThemesTableClient({ businessId, onSplitViewChange }: ThemesTable
     });
     return Array.from(offeringsSet).sort();
   }, [allData]);
+
+  const columns = React.useMemo(
+    () => getThemesTableColumns({ expandedRowId, onExpandedRowChange: setExpandedRowId, offeringOptions: allOfferings }),
+    [expandedRowId, allOfferings]
+  );
 
   React.useEffect(() => {
     if (selectedOffering === "all") return;

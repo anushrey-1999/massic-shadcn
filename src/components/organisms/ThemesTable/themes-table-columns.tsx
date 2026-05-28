@@ -16,9 +16,10 @@ const textFilterOperators = [
 interface GetThemesTableColumnsProps {
   expandedRowId?: string | null;
   onExpandedRowChange?: (rowId: string | null) => void;
+  offeringOptions?: string[];
 }
 
-export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChange }: GetThemesTableColumnsProps = {}): ColumnDef<ThemeRow>[] {
+export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChange, offeringOptions = [] }: GetThemesTableColumnsProps = {}): ColumnDef<ThemeRow>[] {
   return [
     {
       id: "theme_name",
@@ -72,12 +73,20 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
           </div>
         );
       },
-      meta: {
-        label: "Offerings",
-        placeholder: "Search offerings...",
-        variant: "text",
-        operators: textFilterOperators,
-      },
+      meta: offeringOptions.length > 0
+        ? {
+            label: "Offerings",
+            variant: "multiSelect" as const,
+            options: offeringOptions.map((o) => ({ label: o, value: o })),
+            operators: [{ label: "Has any of", value: "inArray" as const }],
+            closeOnSelect: true,
+          }
+        : {
+            label: "Offerings",
+            placeholder: "Search offerings...",
+            variant: "text" as const,
+            operators: textFilterOperators,
+          },
       enableColumnFilter: true,
       enableSorting: false,
       size: 150,

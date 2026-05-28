@@ -25,6 +25,7 @@ export interface TvRadioAdConceptRow {
   comp: number;
   comp_level: string;
   relevance: number;
+  offerings?: string[];
 
   problem_head_term?: string;
   solution_head_term?: string;

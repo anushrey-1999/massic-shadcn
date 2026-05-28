@@ -141,6 +141,14 @@ export function TvRadioAdsTableClient({ businessId, onMetricsChange }: TvRadioAd
     onMetricsChange?.(data?.metrics ?? null);
   }, [onMetricsChange, data?.metrics]);
 
+  const offeringOptions = React.useMemo(() => {
+    if (!jobDetails?.offerings) return [] as string[];
+    return (jobDetails.offerings as Array<{ name?: string; offering?: string }>)
+      .map((o) => (o.name || o.offering || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+  }, [jobDetails]);
+
   React.useEffect(() => {
     if (!jobExists || !data || !data.pageCount) return;
     if (hasActiveSearchOrFilters) return;
@@ -295,6 +303,7 @@ export function TvRadioAdsTableClient({ businessId, onMetricsChange }: TvRadioAd
       <TvRadioAdsTable
         data={data?.data || []}
         pageCount={data?.pageCount || 0}
+        offeringOptions={offeringOptions}
         isLoading={isLoading && !data}
         isFetching={isFetching}
         search={search}

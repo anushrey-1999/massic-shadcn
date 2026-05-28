@@ -17,6 +17,7 @@ import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 interface TvRadioAdsTableProps {
   data: TvRadioAdConceptRow[];
   pageCount: number;
+  offeringOptions?: string[];
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -29,6 +30,7 @@ interface TvRadioAdsTableProps {
 export function TvRadioAdsTable({
   data,
   pageCount,
+  offeringOptions = [],
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -39,7 +41,10 @@ export function TvRadioAdsTable({
 }: TvRadioAdsTableProps) {
   const enableAdvancedFilter = true;
 
-  const columns = React.useMemo(() => getTvRadioAdsTableColumns(), []);
+  const columns = React.useMemo(
+    () => getTvRadioAdsTableColumns({ offeringOptions }),
+    [offeringOptions]
+  );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
     data,
@@ -50,6 +55,9 @@ export function TvRadioAdsTable({
       pagination: {
         pageIndex: 0,
         pageSize: 24,
+      },
+      columnVisibility: {
+        offerings: false,
       },
     },
     queryKeys,

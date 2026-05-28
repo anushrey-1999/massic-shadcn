@@ -6,11 +6,12 @@ const PERFORMANCE_REPORT_V2_EDITABLE_FIELD_PATTERNS = [
   /^plain_english_paragraph$/,
   /^plain_english_paragraph\.title$/,
   /^plain_english_paragraph\.body$/,
+  /^performance_narrative$/,
   /^channel_notes\.[^.]+$/,
-  /^organic_page_note$/,
+  /^content_themes\.\d+\.theme_name$/,
+  /^content_themes\.\d+\.narrative$/,
   /^ranking_narrative$/,
-  /^review_areas\.\d+\.title$/,
-  /^review_areas\.\d+\.body$/,
+  /^looking_ahead$/,
   /^confidence_note$/,
 ];
 
@@ -270,6 +271,140 @@ function mapBusinessInsightTag(insight) {
   return "Search insight";
 }
 
+function formatPct(value) {
+  const text = toText(value);
+  if (!text) return "";
+  return text.endsWith("%") ? text : `${text}%`;
+}
+
+function toneFromSignedText(value) {
+  const text = toText(value);
+  return text.startsWith("+") ? "strong" : "neu";
+}
+
+function humanizeToken(value) {
+  return toText(value)
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function contentThemeName(group, pages = []) {
+  const normalized = toText(group).toLowerCase();
+  if (normalized && normalized !== "other") return humanizeToken(normalized);
+  const firstPage = pages.find((page) => page && page.url);
+  const urlParts = toText(firstPage && firstPage.url).split("/").filter(Boolean);
+  const lastPart = urlParts[urlParts.length - 1];
+  return lastPart ? humanizeToken(lastPart) : "Content gaining traction";
+}
+
+function contentThemeNarrative(themeName, pages = []) {
+  const strongest = pages.find((page) => page && page.url) || {};
+  const signals = [
+    toText(strongest.goals) ? `${toText(strongest.goals)} goals` : "",
+    toText(strongest.sessions) ? `${toText(strongest.sessions)} sessions` : "",
+    toText(strongest.cvr) ? `${toText(strongest.cvr)} conversion-rate change` : "",
+    toText(strongest.clicks) ? `${toText(strongest.clicks)} search clicks` : "",
+  ].filter(Boolean);
+
+  if (!signals.length) {
+    return `${themeName} is one of the content areas showing positive movement this period.`;
+  }
+
+  return `${themeName} stood out this period, led by ${signals.slice(0, 2).join(" and ")}.`;
+}
+
+function contentColumnsForGroup(group) {
+  const normalized = toText(group).toLowerCase();
+  if (["blog", "articles", "guides", "location"].includes(normalized)) {
+    return [
+      { key: "sessions", label: "Sessions" },
+      { key: "clicks", label: "Clicks from search" },
+      { key: "ranking", label: "Ranking" },
+    ];
+  }
+  if (["services", "catering", "menu", "product"].includes(normalized)) {
+    return [
+      { key: "goals", label: "Goals" },
+      { key: "sessions", label: "Sessions" },
+      { key: "cvr", label: "CVR change" },
+    ];
+  }
+  return [
+    { key: "goals", label: "Goals" },
+    { key: "sessions", label: "Sessions" },
+    { key: "clicks", label: "Clicks from search" },
+  ];
+}
+
+function groupContentRows(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = row.theme || "other";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+
+  return Array.from(groups.entries()).map(([group, pages]) => {
+    const themeName = contentThemeName(group, pages);
+    return {
+      themeName,
+      narrative: contentThemeNarrative(themeName, pages),
+      pages: pages.map((page) => page.url),
+      rows: pages.slice(0, 5),
+      columns: contentColumnsForGroup(group),
+    };
+  });
+}
+
+function formatSignedContentValue(value, suffix = "") {
+  const text = toText(value);
+  if (!text) return "";
+  const numeric = Number(text);
+  if (!Number.isFinite(numeric)) return text;
+  if (numeric > 0) return `+${numeric.toLocaleString("en-US")}${suffix}`;
+  if (numeric < 0) return `${numeric.toLocaleString("en-US")}${suffix}`;
+  return `0${suffix}`;
+}
+
+function derivePerformanceNarrative({ report, proseOutput, headlineParagraph, performanceRows }) {
+  const direct = pickText(report.performance_narrative, proseOutput.performance_narrative);
+  if (direct) return direct;
+
+  if (headlineParagraph) return splitHeadline(headlineParagraph).body;
+
+  const positiveRows = performanceRows.filter((row) => row.tone === "strong");
+  if (positiveRows.length) {
+    const labels = positiveRows.slice(0, 2).map((row) => row.label.toLowerCase()).join(" and ");
+    return `The strongest movement this period came from ${labels}, giving the numbers below useful context before the period comparison.`;
+  }
+
+  return "";
+}
+
+function deriveLookingAhead({ report, proseOutput, contentThemes, rankingNarrative, wins }) {
+  const direct = pickText(report.looking_ahead, proseOutput.looking_ahead);
+  if (direct) return direct;
+
+  const theme = contentThemes.find((item) => item.themeName);
+  if (theme) {
+    return `The gains around ${theme.themeName} give this report a clear forward signal. The ranking and content movement from this period creates more ways for people to discover the business. The next report can build from this momentum while keeping the focus on the pages and searches already gaining traction.`;
+  }
+
+  if (rankingNarrative) {
+    return `The ranking movement this period gives the business more visibility in searches that can keep building over time. These gains create a stronger base for future discovery. The next period can show how that visibility turns into more customer actions.`;
+  }
+
+  const firstWin = wins.find((win) => win.label || win.value);
+  if (firstWin) {
+    return `${firstWin.label || "This period's strongest signal"} is the clearest momentum point from this report. The gains from this period create a stronger base for future discovery. The next report can show how that momentum continues into customer actions.`;
+  }
+
+  return "";
+}
+
 function normalizeReportInput(input) {
   if (isObject(input)) return input;
   if (typeof input === "string") {
@@ -359,8 +494,11 @@ function mapPerformanceReportV2Template(input, context = {}) {
 
   const meta = isObject(report.meta) ? report.meta : {};
   const flags = isObject(report.flags) ? report.flags : {};
+  const reportOptions = isObject(report.report_options) ? report.report_options : {};
+  const isPrdReport = Array.isArray(report.performance_table);
   const businessName = toText(meta.business_name) || toText(context.businessName) || "Business";
-  const agencyName = toText(meta.agency_name) || "MASSIC";
+  const rawAgencyName = toText(meta.agency_name);
+  const agencyName = rawAgencyName.toLowerCase() === "massic" ? "" : rawAgencyName;
   const windowDaysMatch = context.period ? context.period.match(/\d+/) : null;
   const windowDays = Number(meta.window_days || (windowDaysMatch ? windowDaysMatch[0] : 0));
   const reportTag = windowDays > 0 ? `${windowDays}-Day Report` : "Performance Report";
@@ -404,7 +542,11 @@ function mapPerformanceReportV2Template(input, context = {}) {
 
   const wins = asArray(report.wins).map(formatWinLine).filter(Boolean);
 
-  const metricCards = asArray(report.metric_cards)
+  const metricCardSource = !isPrdReport && asArray(report.metric_cards).length
+    ? asArray(report.metric_cards)
+    : [];
+
+  const metricCards = metricCardSource
     .map((card, index) => {
       const label = toText(card.label);
       const value = toText(card.value_formatted);
@@ -428,15 +570,25 @@ function mapPerformanceReportV2Template(input, context = {}) {
         ? proseOutput.channel_notes
         : {};
 
-  const channels = asArray(report.channels)
+  const channelSource = Array.isArray(report.channels)
+    ? report.channels
+    : isObject(report.channels) && Array.isArray(report.channels.cards)
+      ? report.channels.cards
+      : [];
+  const channelSummary = isObject(report.channels) ? toText(report.channels.summary) : "";
+
+  const shouldRenderChannelCards = !isPrdReport || reportOptions.scope === "all_channels";
+  const channels = shouldRenderChannelCards ? asArray(channelSource)
     .map((channel) => {
       const rawName = toText(channel.name);
       if (!rawName) return null;
-      const tone = toneFromDirection(channel.direction);
+      const isOrganicChannel = rawName.toLowerCase().includes("organic");
+      const rawTone = toneFromDirection(channel.direction);
+      const tone = isPrdReport && rawTone === "dip" ? "neu" : rawTone;
       const stats = [
         { label: toText(channel.goals_label) || "Goals", value: toText(channel.goals_value) },
         { label: toText(channel.sessions_label) || "Sessions", value: toText(channel.sessions_value) },
-        { label: "Clicks", value: toText(channel.clicks_value) },
+        { label: "Organic clicks", value: isOrganicChannel ? toText(channel.clicks_value) : "" },
       ].filter((item) => item.value);
 
       return {
@@ -447,10 +599,10 @@ function mapPerformanceReportV2Template(input, context = {}) {
         stats,
       };
     })
-    .filter(Boolean);
+    .filter(Boolean) : [];
 
   const gbp =
-    Boolean(flags.show_gbp) && isObject(report.gbp)
+    (Boolean(flags.show_gbp) || isPrdReport) && isObject(report.gbp)
       ? {
           tone: "strong",
           metrics: [
@@ -467,7 +619,9 @@ function mapPerformanceReportV2Template(input, context = {}) {
                 label,
                 value: toText(value.current),
                 delta: delta ? `${delta} vs prior` : "",
-                tone: toneFromDirection(value.direction || delta),
+                tone: isPrdReport && toneFromDirection(value.direction || delta) === "dip"
+                  ? "neu"
+                  : toneFromDirection(value.direction || delta),
               };
             })
             .filter(Boolean),
@@ -488,11 +642,11 @@ function mapPerformanceReportV2Template(input, context = {}) {
 
   const normalizedReviewInsightsSource =
     isObject(report.review_insights) && Object.keys(report.review_insights).length
-      ? report.review_insights
+      ? unwrapNamedOutput(report.review_insights, "review_insights")
       : reviewInsightsOutput;
 
   const reviewInsights = (() => {
-    if (!isObject(normalizedReviewInsightsSource) || !gbp) return null;
+    if (!isObject(normalizedReviewInsightsSource)) return null;
 
     const summary = isObject(normalizedReviewInsightsSource.review_summary)
       ? normalizedReviewInsightsSource.review_summary
@@ -509,7 +663,9 @@ function mapPerformanceReportV2Template(input, context = {}) {
           .join(" · ")
       : null;
     const positives = normalizeReviewThemes(normalizedReviewInsightsSource.positives, "theme", "insight");
-    const watchAreas = normalizeReviewThemes(normalizedReviewInsightsSource.watch_areas, "theme", "insight");
+    const watchAreas = isPrdReport && reportOptions.perspective === "wins"
+      ? []
+      : normalizeReviewThemes(normalizedReviewInsightsSource.watch_areas, "theme", "insight");
 
     if (!summaryLabel && !positives.length && !watchAreas.length) return null;
 
@@ -522,10 +678,10 @@ function mapPerformanceReportV2Template(input, context = {}) {
 
   const normalizedBusinessIntelligenceSource =
     isObject(report.business_intelligence) && Object.keys(report.business_intelligence).length
-      ? report.business_intelligence
+      ? unwrapNamedOutput(report.business_intelligence, "business_intelligence")
       : businessIntelligenceOutput;
 
-  const businessIntelligence = isObject(normalizedBusinessIntelligenceSource)
+  const businessIntelligenceInsights = isObject(normalizedBusinessIntelligenceSource)
     ? asArray(normalizedBusinessIntelligenceSource.insights)
         .map((item) => {
           const title = toText(item.title);
@@ -539,10 +695,91 @@ function mapPerformanceReportV2Template(input, context = {}) {
         })
         .filter(Boolean)
     : [];
+  const aiSearchSource = isObject(report.ai_search) ? report.ai_search : null;
+  const aiSearchInsight = aiSearchSource
+    ? (() => {
+      const sessions = isObject(aiSearchSource.sessions) ? toText(aiSearchSource.sessions.current) : "";
+      const goals = isObject(aiSearchSource.goals) ? toText(aiSearchSource.goals.current) : "";
+      const pct = toText(aiSearchSource.pct_of_total);
+      const bodyParts = [
+        sessions ? `AI search contributed ${sessions} sessions` : "",
+        goals && goals !== "0" ? `${goals} customer actions` : "",
+        pct ? `${pct}% of total sessions` : "",
+      ].filter(Boolean);
+      if (!bodyParts.length) return null;
+      return {
+        tag: "AI search",
+        title: "AI search discovery",
+        body: `${bodyParts.join(" and ")} this period, adding another discovery path for customers.`,
+      };
+    })()
+    : null;
+  const businessIntelligence = [...businessIntelligenceInsights, aiSearchInsight].filter(Boolean);
+
+  const performanceRows = asArray(report.performance_table)
+    .map((row) => {
+      if (!isObject(row)) return null;
+      const changeCell = isObject(row.change_cell) ? row.change_cell : {};
+      return {
+        label: toText(row.label),
+        prior: toText(row.prior),
+        current: toText(row.current),
+        change: toText(changeCell.text),
+        tone: toText(changeCell.class) === "strong" || toText(row.direction) === "up" ? "strong" : "neu",
+      };
+    })
+    .filter(Boolean);
+  const context90dLine = toText(report.context_90d_line);
+  const contentHomepageNote = toText(report.content_homepage_note);
 
   const organicPageNote = pickText(report.organic_page_note, proseOutput.organic_page_note) || null;
 
-  const organicPagesRows = asArray(report.organic_pages)
+  const organicPageSource = !isPrdReport && asArray(report.organic_pages).length
+    ? asArray(report.organic_pages)
+    : [];
+
+  const contentPageRows = asArray(report.content_pages)
+    .map((page) => {
+      if (!isObject(page)) return null;
+      return {
+        url: toText(page.url),
+        theme: toText(page.theme),
+        goals: formatSignedContentValue(page.goals_delta),
+        sessions: formatSignedContentValue(page.sessions_delta),
+        clicks: formatSignedContentValue(page.clicks_delta),
+        cvr: formatSignedContentValue(page.cvr_pp_delta, " pts"),
+        ranking: toText(page.ranking),
+      };
+    })
+    .filter((page) => page && page.url);
+
+  const explicitContentThemes = asArray(report.content_themes)
+    .map((theme) => {
+      if (!isObject(theme)) return null;
+      const themeName = toText(theme.theme_name);
+      const narrative = toText(theme.narrative);
+      const pages = asArray(theme.pages).map(toText).filter(Boolean);
+      const rows = contentPageRows.filter((row) => pages.includes(row.url));
+      return themeName || narrative || pages.length
+        ? {
+            themeName,
+            narrative,
+            pages,
+            rows,
+            columns: contentColumnsForGroup(rows[0] && rows[0].theme),
+          }
+        : null;
+    })
+    .filter(Boolean);
+  const contentThemes = explicitContentThemes.length ? explicitContentThemes : groupContentRows(contentPageRows);
+  const performanceNarrative = derivePerformanceNarrative({
+    report,
+    proseOutput,
+    headlineParagraph,
+    performanceRows,
+  });
+
+  const organicPagesRows = asArray(organicPageSource)
     .map((page) => {
       const url = toText(page.url);
       if (!url) return null;
@@ -580,7 +817,8 @@ function mapPerformanceReportV2Template(input, context = {}) {
     organicPagesRows[targetIndex] = { ...organicPagesRows[targetIndex], note: organicPageNote };
   }
 
-  const biggestMovers = asArray(report.biggest_movers)
+  const rankingMoverSource = asArray(report.ranking_movers).length ? report.ranking_movers : report.biggest_movers;
+  const biggestMovers = asArray(rankingMoverSource)
     .map((item) => {
       const query = toText(item.query);
       const improvement = toText(item.position_improvement);
@@ -633,10 +871,43 @@ function mapPerformanceReportV2Template(input, context = {}) {
     .filter(Boolean);
 
   const confidenceNote = pickText(report.confidence_note, proseOutput.confidence_note) || null;
+  const lookingAhead = deriveLookingAhead({
+    report,
+    proseOutput,
+    contentThemes,
+    rankingNarrative,
+    wins,
+  }) || null;
+
+  const otherWins = asArray(report.other_wins_table)
+    .map((row) => {
+      if (!isObject(row)) return null;
+      return {
+        area: toText(row.area),
+        what: toText(row.what_happened),
+        prior: toText(row.prior),
+        current: toText(row.current),
+      };
+    })
+    .filter(Boolean);
+
+  const attributionSource = isObject(report.attribution) ? report.attribution : null;
+  const attribution = attributionSource &&
+    (asArray(attributionSource.first_touch).length ||
+      asArray(attributionSource.last_touch).length ||
+      toText(attributionSource.narrative))
+    ? {
+        firstTouch: asArray(attributionSource.first_touch),
+        lastTouch: asArray(attributionSource.last_touch),
+        narrative: toText(attributionSource.narrative),
+      }
+    : null;
 
   const generatedAt = parseDate(meta.generated_at || context.createdAt);
   const footerLabel = toText(meta.period_label) || (generatedAt ? formatMonthYear(generatedAt) : "");
-  const footer = footerLabel ? `Prepared by ${agencyName} · ${footerLabel}` : `Prepared by ${agencyName}`;
+  const footer = agencyName
+    ? (footerLabel ? `Prepared by ${agencyName} · ${footerLabel}` : `Prepared by ${agencyName}`)
+    : footerLabel;
 
   return {
     header: {
@@ -644,12 +915,26 @@ function mapPerformanceReportV2Template(input, context = {}) {
       businessName,
       periodLine: derivePeriodLine(context, meta),
       reportTag,
+      scopeTag: reportOptions.scope === "all_channels" ? "All channels" : isPrdReport ? "Organic scope" : null,
     },
-    notices,
+    isPrdReport,
+    notices: isPrdReport ? [] : notices,
     headline,
     wins,
+    performance: {
+      narrative: performanceNarrative,
+      rows: performanceRows,
+      context90dLine,
+    },
+    contentThemes,
+    contentHomepageNote,
+    contentPageRows,
+    channelSummary: isPrdReport && reportOptions.scope !== "all_channels" ? channelSummary : "",
     metricCards,
     channels,
+    otherWins,
+    rankingNarrative,
+    attribution,
     gbp,
     reviewInsights,
     businessIntelligence,
@@ -660,7 +945,8 @@ function mapPerformanceReportV2Template(input, context = {}) {
         }
       : null,
     rankings,
-    reviewAreas,
+    reviewAreas: isPrdReport && lookingAhead ? [] : reviewAreas,
+    lookingAhead,
     confidenceNote,
     footer,
   };
@@ -751,6 +1037,106 @@ function renderMetricCardsPdf(model) {
   `;
 }
 
+function renderPerformance(model) {
+  if (!model.performance || (!model.performance.narrative && !model.performance.rows.length)) return "";
+  return `
+    <div class="sec">Overall performance</div>
+    <div class="perf-card">
+      ${model.performance.narrative ? `<div class="perf-narrative">${renderHtmlParagraphs(model.performance.narrative)}</div>` : ""}
+      ${model.performance.rows.length ? `
+        <div class="pr-table-wrap">
+          <table class="pr-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Prior period</th>
+                <th>This period</th>
+                <th>Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${model.performance.rows
+                .map((row) => `
+                  <tr>
+                    <td>${escapeHtml(row.label)}</td>
+                    <td>${escapeHtml(row.prior)}</td>
+                    <td>${escapeHtml(row.current)}</td>
+                    <td class="${row.tone}">${escapeHtml(row.change || "—")}</td>
+                  </tr>
+                `)
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      ` : ""}
+      ${model.confidenceNote ? `<div class="cf-body perf-note">${escapeHtml(model.confidenceNote)}</div>` : ""}
+      ${model.performance.context90dLine ? `<div class="cf-body perf-note">${escapeHtml(model.performance.context90dLine)}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderContentThemes(model) {
+  if (!model.contentThemes.length && !model.contentPageRows.length) return "";
+  return `
+    <div class="sec">Best performing content</div>
+    <div class="pages-card content-themes-card">
+      ${model.contentThemes
+        .map((theme, index) => `
+          <div class="theme" data-theme-index="${index}">
+            ${theme.themeName ? `<div class="theme-name">${escapeHtml(theme.themeName)}</div>` : ""}
+            ${theme.narrative ? `<div class="theme-narrative">${renderHtmlParagraphs(theme.narrative)}</div>` : ""}
+            ${theme.pages.length ? `<div class="theme-pages">${theme.pages.map((page) => `<span>${escapeHtml(page)}</span>`).join("")}</div>` : ""}
+            ${theme.rows && theme.rows.length ? `
+              <div class="pr-table-wrap flush theme-table">
+                <table class="pr-table">
+                  <thead>
+                    <tr>
+                      <th>Page</th>
+                      ${theme.columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${theme.rows
+                      .map((row) => `
+                        <tr>
+                          <td>${escapeHtml(row.url)}</td>
+                          ${theme.columns
+                            .map((column) => {
+                              const value = toText(row[column.key]);
+                              return `<td class="${toneFromSignedText(value)}">${escapeHtml(value || "—")}</td>`;
+                            })
+                            .join("")}
+                        </tr>
+                      `)
+                      .join("")}
+                  </tbody>
+                </table>
+              </div>
+            ` : ""}
+          </div>
+        `)
+        .join("")}
+      ${!model.contentThemes.length && model.contentPageRows.length ? `
+        <div class="theme">
+          <div class="theme-name">Content gaining traction</div>
+          <div class="theme-narrative">${renderHtmlParagraphs(contentThemeNarrative("Content gaining traction", model.contentPageRows))}</div>
+        </div>
+      ` : ""}
+      ${model.contentHomepageNote ? `<div class="theme-homepage-note">${escapeHtml(model.contentHomepageNote)}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderChannelSummary(model) {
+  if (!model.channelSummary) return "";
+  return `
+    <div class="sec">Channel summary</div>
+    <div class="ch-card channel-summary-card">
+      <div class="ch-note">${escapeHtml(model.channelSummary)}</div>
+    </div>
+  `;
+}
+
 function renderChannels(model) {
   if (!model.channels.length) return "";
   return `
@@ -786,6 +1172,68 @@ function renderChannels(model) {
           `
         )
         .join("")}
+    </div>
+  `;
+}
+
+function renderOtherWins(model) {
+  if (!model.otherWins.length) return "";
+  return `
+    <div class="sec">Other wins</div>
+    ${model.rankingNarrative ? `<div class="section-caption">${renderHtmlParagraphs(model.rankingNarrative)}</div>` : ""}
+    <div class="pr-table-wrap">
+      <table class="pr-table">
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>What happened</th>
+            <th>Prior</th>
+            <th>This period</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${model.otherWins
+            .map((row) => `
+              <tr>
+                <td>${escapeHtml(row.area)}</td>
+                <td>${escapeHtml(row.what)}</td>
+                <td>${escapeHtml(row.prior)}</td>
+                <td class="strong">${escapeHtml(row.current)}</td>
+              </tr>
+            `)
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderAttribution(model) {
+  if (!model.attribution) return "";
+  const renderRows = (rows) => rows
+    .map((row) => `
+      <tr>
+        <td class="${toText(row.channel).toLowerCase() === "organic search" ? "strong" : ""}">${escapeHtml(toText(row.channel))}</td>
+        <td>${escapeHtml(toText(row.count))}</td>
+        <td>${escapeHtml(formatPct(row.pct))}</td>
+      </tr>
+    `)
+    .join("");
+
+  return `
+    <div class="sec">How your channels work together</div>
+    <div class="attr-card">
+      <div class="attr-grid">
+        <div>
+          <div class="attr-title">First touch</div>
+          <table class="pr-table compact"><tbody>${renderRows(model.attribution.firstTouch)}</tbody></table>
+        </div>
+        <div>
+          <div class="attr-title">Last touch</div>
+          <table class="pr-table compact"><tbody>${renderRows(model.attribution.lastTouch)}</tbody></table>
+        </div>
+      </div>
+      ${model.attribution.narrative ? `<div class="ch-note">${escapeHtml(model.attribution.narrative)}</div>` : ""}
     </div>
   `;
 }
@@ -914,7 +1362,7 @@ function renderReviewInsights(model) {
         <span class="rv-title">Customer feedback themes</span>
         ${model.reviewInsights.summary ? `<span class="rv-meta">${escapeHtml(model.reviewInsights.summary)}</span>` : ""}
       </div>
-      <div class="rv-cols">
+      <div class="rv-cols${model.reviewInsights.watchAreas.length ? "" : " single"}">
         <div class="rv-col">
           <div class="rv-col-lbl pos">What they love</div>
           ${model.reviewInsights.positives
@@ -928,19 +1376,21 @@ function renderReviewInsights(model) {
             )
             .join("")}
         </div>
-        <div class="rv-col watch">
-          <div class="rv-col-lbl watch">Worth your attention</div>
-          ${model.reviewInsights.watchAreas
-            .map(
-              (theme) => `
-                <div class="rv-theme">
-                  <div class="rv-theme-title">${escapeHtml(theme.title)}</div>
-                  <div class="rv-theme-body">${escapeHtml(theme.body)}</div>
-                </div>
-              `
-            )
-            .join("")}
-        </div>
+        ${model.reviewInsights.watchAreas.length ? `
+          <div class="rv-col watch">
+            <div class="rv-col-lbl watch">Worth your attention</div>
+            ${model.reviewInsights.watchAreas
+              .map(
+                (theme) => `
+                  <div class="rv-theme">
+                    <div class="rv-theme-title">${escapeHtml(theme.title)}</div>
+                    <div class="rv-theme-body">${escapeHtml(theme.body)}</div>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+        ` : ""}
       </div>
     </div>
   `;
@@ -952,7 +1402,7 @@ function renderBusinessIntelligence(model) {
     <div class="bi-wrap">
       <div class="bi-hdr">
         <div>
-          <div class="bi-hdr-title">What your search data tells us</div>
+          <div class="bi-hdr-title">Search insights</div>
           <div class="bi-hdr-sub">Patterns in what your customers are searching for</div>
         </div>
         <div class="bi-badge">Search insight</div>
@@ -1191,34 +1641,52 @@ function renderConfidenceNote(model) {
   `;
 }
 
+function renderLookingAhead(model) {
+  if (!model.lookingAhead) return "";
+  return `
+    <div class="wr-block">
+      <div class="wr-lbl">Looking ahead</div>
+      <div class="cf-body looking-ahead-body">${escapeHtml(model.lookingAhead)}</div>
+    </div>
+  `;
+}
+
 function renderHeader(model) {
+  const headerLabel = model.header.agencyName
+    ? `SEO Performance Report · ${model.header.agencyName}`
+    : "SEO Performance Report";
   return `
     <header class="hdr">
       <div>
-        <div class="hdr-agency">SEO Performance Report · ${escapeHtml(model.header.agencyName)}</div>
+        <div class="hdr-agency">${escapeHtml(headerLabel)}</div>
         <div class="hdr-client">${escapeHtml(model.header.businessName)}</div>
       </div>
       <div class="hdr-meta">
         ${model.header.periodLine ? `<div class="hdr-period">${escapeHtml(model.header.periodLine)}</div>` : ""}
         <div class="hdr-tag">${escapeHtml(model.header.reportTag)}</div>
+        ${model.header.scopeTag ? `<div class="hdr-tag hdr-scope">${escapeHtml(model.header.scopeTag)}</div>` : ""}
       </div>
     </header>
   `;
 }
 
 function renderHeaderPdf(model) {
+  const headerLabel = model.header.agencyName
+    ? `SEO Performance Report · ${model.header.agencyName}`
+    : "SEO Performance Report";
   return `
     <header class="hdr hdr-pdf">
       <table class="hdr-table" role="presentation">
         <tbody>
           <tr>
             <td class="hdr-left-cell">
-              <div class="hdr-agency">SEO Performance Report · ${escapeHtml(model.header.agencyName)}</div>
+              <div class="hdr-agency">${escapeHtml(headerLabel)}</div>
               <div class="hdr-client">${escapeHtml(model.header.businessName)}</div>
             </td>
             <td class="hdr-right-cell">
               ${model.header.periodLine ? `<div class="hdr-period">${escapeHtml(model.header.periodLine)}</div>` : ""}
               <div class="hdr-tag">${escapeHtml(model.header.reportTag)}</div>
+              ${model.header.scopeTag ? `<div class="hdr-tag hdr-scope">${escapeHtml(model.header.scopeTag)}</div>` : ""}
             </td>
           </tr>
         </tbody>
@@ -1241,15 +1709,20 @@ function buildPerformanceReportV2BodyHtml(input, context = {}) {
         ${renderNotices(model)}
         ${model.headline ? `<div class="headline"><div class="hl-title">${escapeHtml(model.headline.title)}</div><div class="hl-body">${renderHtmlParagraphs(model.headline.body)}</div></div>` : ""}
         ${renderWins(model)}
-        ${renderMetricCards(model)}
+        ${model.isPrdReport ? renderPerformance(model) : renderMetricCards(model)}
+        ${model.isPrdReport ? renderContentThemes(model) : ""}
+        ${model.isPrdReport ? renderChannelSummary(model) : ""}
         ${renderChannels(model)}
+        ${model.isPrdReport ? renderOtherWins(model) : ""}
+        ${model.isPrdReport ? renderAttribution(model) : ""}
         ${renderGbp(model)}
         ${renderReviewInsights(model)}
         ${renderBusinessIntelligence(model)}
-        ${renderOrganicPages(model)}
-        ${renderRankings(model)}
-        ${renderReviewAreas(model)}
-        ${renderConfidenceNote(model)}
+        ${model.isPrdReport ? "" : renderOrganicPages(model)}
+        ${model.isPrdReport ? "" : renderRankings(model)}
+        ${model.isPrdReport ? "" : renderReviewAreas(model)}
+        ${renderLookingAhead(model)}
+        ${model.isPrdReport ? "" : renderConfidenceNote(model)}
         ${model.footer ? `<footer class="rpt-footer">${escapeHtml(model.footer)}</footer>` : ""}
       </div>
     </div>
@@ -1270,15 +1743,20 @@ function buildPerformanceReportV2PdfBodyHtml(input, context = {}) {
         ${renderNotices(model)}
         ${model.headline ? `<div class="headline"><div class="hl-title">${escapeHtml(model.headline.title)}</div><div class="hl-body">${renderHtmlParagraphs(model.headline.body)}</div></div>` : ""}
         ${renderWins(model)}
-        ${renderMetricCardsPdf(model)}
+        ${model.isPrdReport ? renderPerformance(model) : renderMetricCardsPdf(model)}
+        ${model.isPrdReport ? renderContentThemes(model) : ""}
+        ${model.isPrdReport ? renderChannelSummary(model) : ""}
         ${renderChannelsPdf(model)}
+        ${model.isPrdReport ? renderOtherWins(model) : ""}
+        ${model.isPrdReport ? renderAttribution(model) : ""}
         ${renderGbpPdf(model)}
         ${renderReviewInsights(model)}
         ${renderBusinessIntelligence(model)}
-        ${renderOrganicPagesPdf(model)}
-        ${renderRankingsPdf(model)}
-        ${renderReviewAreas(model)}
-        ${renderConfidenceNote(model)}
+        ${model.isPrdReport ? "" : renderOrganicPagesPdf(model)}
+        ${model.isPrdReport ? "" : renderRankingsPdf(model)}
+        ${model.isPrdReport ? "" : renderReviewAreas(model)}
+        ${renderLookingAhead(model)}
+        ${model.isPrdReport ? "" : renderConfidenceNote(model)}
         ${model.footer ? `<footer class="rpt-footer">${escapeHtml(model.footer)}</footer>` : ""}
       </div>
     </div>
@@ -1436,6 +1914,7 @@ const PERFORMANCE_REPORT_V2_BASE_CSS = `
   .pr-v2-root .pill.neu::before{background:var(--report-muted)}
   .pr-v2-root .ch-stack{display:flex;flex-direction:column;gap:10px;margin-bottom:24px}
   .pr-v2-root .ch-card{background:var(--report-card);border-radius:12px;border:var(--rule);overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .pr-v2-root .channel-summary-card{margin-bottom:24px}
   .pr-v2-root .ch-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:var(--rule);gap:16px}
   .pr-v2-root .ch-hdr.strong{background:#FBFDFB}
   .pr-v2-root .ch-hdr.dip{background:#FFFBFB}
@@ -1618,6 +2097,47 @@ const PERFORMANCE_REPORT_V2_BASE_CSS = `
   .pr-v2-root .cf-body{
     font-size:13px;color:var(--report-text-soft);line-height:1.65
   }
+  .pr-v2-root .hdr-scope{margin-top:6px}
+  .pr-v2-root .perf-card,
+  .pr-v2-root .attr-card{
+    background:var(--report-card);border:var(--rule);border-radius:12px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04);overflow:hidden;margin-bottom:24px
+  }
+  .pr-v2-root .perf-narrative{padding:16px 20px;border-bottom:var(--rule);font-size:13px;color:var(--report-text-soft);line-height:1.68}
+  .pr-v2-root .perf-narrative p{margin-bottom:8px}
+  .pr-v2-root .perf-narrative p:last-child{margin-bottom:0}
+  .pr-v2-root .perf-note{padding:10px 20px;border-top:var(--rule);color:var(--report-muted);font-style:italic}
+  .pr-v2-root .section-caption{font-size:13px;color:var(--report-text-soft);line-height:1.65;margin:0 0 16px}
+  .pr-v2-root .section-caption p{margin-bottom:8px}
+  .pr-v2-root .section-caption p:last-child{margin-bottom:0}
+  .pr-v2-root .pr-table-wrap{border:var(--rule);border-radius:12px;overflow:hidden;margin-bottom:24px;background:var(--report-card);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .pr-v2-root .perf-card .pr-table-wrap,
+  .pr-v2-root .attr-card .pr-table-wrap,
+  .pr-v2-root .content-themes-card .pr-table-wrap{border:none;border-radius:0;box-shadow:none;margin-bottom:0}
+  .pr-v2-root .pr-table{width:100%;border-collapse:collapse}
+  .pr-v2-root .pr-table th,
+  .pr-v2-root .pr-table td{padding:10px 14px;border-bottom:var(--rule);font-size:12px;line-height:1.45;text-align:left;vertical-align:top}
+  .pr-v2-root .pr-table th{background:var(--report-subtle);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--report-muted)}
+  .pr-v2-root .pr-table tr:last-child td{border-bottom:none}
+  .pr-v2-root .pr-table .strong,
+  .pr-v2-root td.strong{color:var(--report-positive);font-weight:600}
+  .pr-v2-root .pr-table .neu,
+  .pr-v2-root td.neu{color:var(--report-muted);font-weight:500}
+  .pr-v2-root .content-themes-card{margin-bottom:24px}
+  .pr-v2-root .theme{padding:16px 20px;border-bottom:var(--rule)}
+  .pr-v2-root .theme:last-child{border-bottom:none}
+  .pr-v2-root .theme-name{font-size:14px;font-weight:600;color:var(--report-text);margin-bottom:6px}
+  .pr-v2-root .theme-narrative{font-size:13px;color:var(--report-text-soft);line-height:1.65}
+  .pr-v2-root .theme-pages{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .pr-v2-root .theme-pages span{font-size:11px;color:var(--report-muted);border:1px solid var(--report-border);border-radius:999px;padding:3px 8px;background:var(--report-subtle)}
+  .pr-v2-root .theme-table{margin-top:12px}
+  .pr-v2-root .theme-homepage-note{padding:12px 20px;border-top:var(--rule);font-size:12px;color:var(--report-muted);background:var(--report-subtle)}
+  .pr-v2-root .rv-cols.single{grid-template-columns:1fr}
+  .pr-v2-root .attr-card{padding:0}
+  .pr-v2-root .attr-grid{display:grid;grid-template-columns:1fr 1fr;border-bottom:var(--rule)}
+  .pr-v2-root .attr-grid > div:first-child{border-right:var(--rule)}
+  .pr-v2-root .attr-title{padding:12px 16px;border-bottom:var(--rule);background:var(--report-subtle);font-size:12px;font-weight:600;color:var(--report-text)}
+  .pr-v2-root .attr-card .ch-note{border-top:none}
   .pr-v2-root .rpt-footer{
     text-align:center;padding-top:24px;border-top:1px solid var(--report-border);
     font-size:11px;color:var(--report-muted);font-family:var(--font-mono)
@@ -1625,7 +2145,8 @@ const PERFORMANCE_REPORT_V2_BASE_CSS = `
   @media (max-width: 860px) {
     .pr-v2-root .m-grid,
     .pr-v2-root .gbp-grid { flex-direction:column; }
-    .pr-v2-root .rv-cols { grid-template-columns:1fr; }
+    .pr-v2-root .rv-cols,
+    .pr-v2-root .attr-grid { grid-template-columns:1fr; }
     .pr-v2-root .hdr,
     .pr-v2-root .ch-hdr,
     .pr-v2-root .pg-row,
@@ -1636,6 +2157,7 @@ const PERFORMANCE_REPORT_V2_BASE_CSS = `
     .pr-v2-root .ch-stats,
     .pr-v2-root .pg-metrics { flex-wrap:wrap; }
     .pr-v2-root .rv-col.watch { border-left:none; border-top:var(--rule); }
+    .pr-v2-root .attr-grid > div:first-child{border-right:none;border-bottom:var(--rule)}
     .pr-v2-root .gbp-m { border-right:none; border-bottom:var(--rule); }
     .pr-v2-root .gbp-m:last-child { border-bottom:none; }
   }

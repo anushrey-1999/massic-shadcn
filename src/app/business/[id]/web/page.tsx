@@ -116,7 +116,7 @@ export default function BusinessWebPage({ params }: PageProps) {
   const showNewPagesContent =
     !jobDetailsLoading &&
     coreStatus === "success" &&
-    isWorkflowSuccess(jobDetails, "blogs_and_pages_planner")
+    isWorkflowSuccess(jobDetails, "webpages")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
   const hideTabs = isOptimizeSplitView && activeTab === "optimize"
@@ -200,7 +200,7 @@ export default function BusinessWebPage({ params }: PageProps) {
               ) : (
                 <WorkflowStatusBanner
                   businessId={businessId}
-                  workflowKey="blogs_and_pages_planner"
+                  workflowKey="webpages"
                   emptyStateHeight="min-h-[calc(100vh-16rem)]"
                 />
               )}
@@ -211,20 +211,11 @@ export default function BusinessWebPage({ params }: PageProps) {
               </EntitlementsGuard>
             </TabsContent>
             <TabsContent value="settings" className={cn("flex-1 min-h-0 overflow-hidden", !hideTabs && "mt-4")}>
-              <div className="flex h-full flex-col gap-6 overflow-auto px-1">
-                <header className="space-y-1">
-                  <h2 className="text-lg font-semibold tracking-tight text-general-foreground">Integrations</h2>
-                  <p className="text-sm text-general-muted-foreground">
-                    Connect your sites to publish and manage content from Massic.
-                  </p>
-                </header>
-                <WebChannelsTab
-                  businessId={businessId}
-                  defaultSiteUrl={profileData?.Website || ""}
-                  isActive={activeTab === "settings"}
-                  showHeader={false}
-                />
-              </div>
+              <WebChannelsTab
+                businessId={businessId}
+                defaultSiteUrl={profileData?.Website || ""}
+                isActive={activeTab === "settings"}
+              />
             </TabsContent>
             <TabsContent value="all-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
               <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>

@@ -42,8 +42,11 @@ interface PageProps {
 
 function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [primaryTab, setPrimaryTab] = React.useState<
-    "strategy" | "audience" | "themes" | "landscape"
+    "strategy" | "audience" | "landscape"
   >("strategy");
+  const [topicTab, setTopicTab] = React.useState<"detailed" | "overview">(
+    "detailed"
+  );
   const [isStrategySplitView, setIsStrategySplitView] = React.useState(false);
   const [isAudienceSplitView, setIsAudienceSplitView] = React.useState(false);
   const [isThemesSplitView, setIsThemesSplitView] = React.useState(false);
@@ -57,13 +60,14 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const { data: jobDetails } = useJobByBusinessId(businessId || null);
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
   const isCoreSuccess = coreStatus === "success";
-  const isStrategyReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "topic_strategy_builder");
-  const isAudienceReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "audience");
-  const isLandscapeReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "channel_analyzer");
+  const isStrategyReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "topics");
+  const isAudienceReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "audiences");
+  const isLandscapeReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "social_channels");
 
   const { fetchAllStrategyPages } = useStrategy(businessId);
   const [strategyMetrics, setStrategyMetrics] = React.useState<StrategyMetrics | null>(null);
   const [audienceMetrics, setAudienceMetrics] = React.useState<AudienceMetrics | null>(null);
+  const [themesMetricsText, setThemesMetricsText] = React.useState("Loading metrics...");
 
   // Fetch all strategy pages upfront so bubble map data is ready immediately
   const {
@@ -119,6 +123,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
 
   const headerMetricsText = React.useMemo(() => {
     if (primaryTab === "strategy") {
+      if (topicTab === "overview") return themesMetricsText;
       if (!isStrategyReady) return "Workflow processing...";
       if (!strategyMetrics) return "Loading metrics...";
       return `${strategyMetrics.total_topics} Topics, ${strategyMetrics.total_clusters} Sub Topics and ${strategyMetrics.total_keywords} Keywords`;
@@ -131,11 +136,11 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     }
 
     return "";
-  }, [audienceMetrics, isAudienceReady, isStrategyReady, primaryTab, strategyMetrics]);
+  }, [audienceMetrics, isAudienceReady, isStrategyReady, primaryTab, strategyMetrics, themesMetricsText, topicTab]);
 
   const handlePrimaryTabChange = React.useCallback(
     (value: string) => {
-      setPrimaryTab(value as "strategy" | "audience" | "themes" | "landscape");
+      setPrimaryTab(value as "strategy" | "audience" | "landscape");
       router.replace(pathname);
     },
     [router, pathname]
@@ -174,7 +179,6 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
             <TabsList>
               <TabsTrigger value="strategy">Topics</TabsTrigger>
               <TabsTrigger value="audience">Audience</TabsTrigger>
-              <TabsTrigger value="themes">Themes</TabsTrigger>
               <TabsTrigger value="landscape">Landscape</TabsTrigger>
             </TabsList>
             <Typography
@@ -192,118 +196,153 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
             !isAnySplitView && "mt-4"
           )}
         >
-          {isStrategyReady ? (
-            strategyView === "list" ? (
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <StrategyTableClient
-                  businessId={businessId}
-                  onSplitViewChange={setIsStrategySplitView}
-                  toolbarRightPrefix={strategyViewTabs}
-                  onMetricsChange={setStrategyMetrics}
-                />
-              </div>
-            ) : (
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <Card className="h-full w-full p-4 rounded-lg border-none shadow-none flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Typography
-                        variant="p"
-                        className="font-mono mb-2 text-base text-general-muted-foreground"
-                      >
-                        Topic Coverage
-                      </Typography>
-                      <div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
-                        <div className="absolute inset-0 flex">
-                          {BUSINESS_RELEVANCE_PALETTE.map((color) => (
-                            <div
-                              key={color}
-                              className="h-full flex-1 shadow-inner"
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
+          <Tabs
+            value={topicTab}
+            onValueChange={(value) =>
+              setTopicTab(value as "detailed" | "overview")
+            }
+            className="flex flex-col flex-1 min-h-0"
+          >
+            {!isStrategySplitView && !isThemesSplitView && (
+              <TabsList className="shrink-0">
+                <TabsTrigger value="detailed">Detailed</TabsTrigger>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+              </TabsList>
+            )}
+            <TabsContent
+              value="detailed"
+              className={cn(
+                "flex-1 min-h-0 overflow-hidden flex flex-col",
+                !isStrategySplitView && !isThemesSplitView && "mt-4"
+              )}
+            >
+              {isStrategyReady ? (
+                strategyView === "list" ? (
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <StrategyTableClient
+                      businessId={businessId}
+                      onSplitViewChange={setIsStrategySplitView}
+                      toolbarRightPrefix={strategyViewTabs}
+                      onMetricsChange={setStrategyMetrics}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex-1 min-h-0 overflow-hidden">
+                    <Card className="h-full w-full p-4 rounded-lg border-none shadow-none flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Typography
+                            variant="p"
+                            className="font-mono mb-2 text-base text-general-muted-foreground"
+                          >
+                            Topic Coverage
+                          </Typography>
+                          <div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
+                            <div className="absolute inset-0 flex">
+                              {BUSINESS_RELEVANCE_PALETTE.map((color) => (
+                                <div
+                                  key={color}
+                                  className="h-full flex-1 shadow-inner"
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                            </div>
+                            <div className="absolute inset-0 flex items-center justify-between px-3">
+                              <span className="text-[10px] font-medium text-general-muted-foreground">
+                                Low
+                              </span>
+                              <span className="text-[10px] font-medium text-general-muted-foreground">
+                                High
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="absolute inset-0 flex items-center justify-between px-3">
-                          <span className="text-[10px] font-medium text-general-muted-foreground">
-                            Low
-                          </span>
-                          <span className="text-[10px] font-medium text-general-muted-foreground">
-                            High
-                          </span>
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-4">
-                      <Typography
-                        variant="p"
-                        className="text-base font-mono text-general-muted-foreground"
-                      >
-                        {fullData?.data
-                          ? `${filteredBubbleData.length} topic${filteredBubbleData.length === 1 ? "" : "s"
-                          }${selectedOffering === "all"
-                            ? ""
-                            : ` (of ${fullData.data.length})`
-                          }`
-                          : isLoadingFullData
-                            ? "Loading.."
-                            : "No data"}
-                      </Typography>
-                      {offeringOptions.length > 0 ? (
-                        <Select
-                          value={selectedOffering}
-                          onValueChange={setSelectedOffering}
-                        >
-                          <SelectTrigger className="w-[240px] max-w-[45vw]">
-                            <SelectValue placeholder="All offerings" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All offerings</SelectItem>
-                            {offeringOptions.map((offering) => (
-                              <SelectItem key={offering} value={offering}>
-                                {formatOfferingLabel(offering)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : null}
-                      {strategyViewTabs}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-h-0">
-                    {isLoadingFullData ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Loading..</span>
+                        <div className="flex items-center gap-4">
+                          <Typography
+                            variant="p"
+                            className="text-base font-mono text-general-muted-foreground"
+                          >
+                            {fullData?.data
+                              ? `${filteredBubbleData.length} topic${filteredBubbleData.length === 1 ? "" : "s"
+                              }${selectedOffering === "all"
+                                ? ""
+                                : ` (of ${fullData.data.length})`
+                              }`
+                              : isLoadingFullData
+                                ? "Loading.."
+                                : "No data"}
+                          </Typography>
+                          {offeringOptions.length > 0 ? (
+                            <Select
+                              value={selectedOffering}
+                              onValueChange={setSelectedOffering}
+                            >
+                              <SelectTrigger className="w-[240px] max-w-[45vw]">
+                                <SelectValue placeholder="All offerings" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All offerings</SelectItem>
+                                {offeringOptions.map((offering) => (
+                                  <SelectItem key={offering} value={offering}>
+                                    {formatOfferingLabel(offering)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : null}
+                          {strategyViewTabs}
                         </div>
                       </div>
-                    ) : fullDataError ? (
-                      <div className="flex items-center justify-center h-full">
-                        <p className="text-destructive">
-                          Error loading data: {String(fullDataError)}
-                        </p>
+                      <div className="flex-1 min-h-0">
+                        {isLoadingFullData ? (
+                          <div className="flex items-center justify-center h-full">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Loading..</span>
+                            </div>
+                          </div>
+                        ) : fullDataError ? (
+                          <div className="flex items-center justify-center h-full">
+                            <p className="text-destructive">
+                              Error loading data: {String(fullDataError)}
+                            </p>
+                          </div>
+                        ) : fullData?.data ? (
+                          <StrategyBubbleChart data={filteredBubbleData} />
+                        ) : (
+                          <div className="flex items-center justify-center h-full">
+                            <p className="text-muted-foreground">
+                              No data available.
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    ) : fullData?.data ? (
-                      <StrategyBubbleChart data={filteredBubbleData} />
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <p className="text-muted-foreground">
-                          No data available.
-                        </p>
-                      </div>
-                    )}
+                    </Card>
                   </div>
-                </Card>
-              </div>
-            )
-          ) : (
-            <WorkflowStatusBanner
-              businessId={businessId}
-              workflowKey="topic_strategy_builder"
-              emptyStateHeight="min-h-[calc(100vh-16rem)]"
-            />
-          )}
+                )
+              ) : (
+                <WorkflowStatusBanner
+                  businessId={businessId}
+                  workflowKey="topic_strategy_builder"
+                  emptyStateHeight="min-h-[calc(100vh-16rem)]"
+                />
+              )}
+            </TabsContent>
+            <TabsContent
+              value="overview"
+              className={cn(
+                "flex-1 min-h-0 overflow-hidden",
+                !isStrategySplitView && !isThemesSplitView && "mt-4"
+              )}
+            >
+              <ThemesTableClient
+                businessId={businessId}
+                onSplitViewChange={setIsThemesSplitView}
+                onMetricsTextChange={setThemesMetricsText}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         <TabsContent
           value="audience"
@@ -321,22 +360,10 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="audience"
+              workflowKey="audiences"
               emptyStateHeight="min-h-[calc(100vh-16rem)]"
             />
           )}
-        </TabsContent>
-        <TabsContent
-          value="themes"
-          className={cn(
-            "flex-1 min-h-0 overflow-hidden",
-            !isAnySplitView && "mt-4"
-          )}
-        >
-          <ThemesTableClient
-            businessId={businessId}
-            onSplitViewChange={setIsThemesSplitView}
-          />
         </TabsContent>
         <TabsContent
           value="landscape"
@@ -350,7 +377,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="channel_analyzer"
+              workflowKey="social_channels"
               emptyStateHeight="min-h-[calc(100vh-16rem)]"
             />
           )}

@@ -4,7 +4,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { format, differenceInCalendarDays, startOfDay, subDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
-import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronLeft, ChevronRight, History, Info, Loader2 } from "lucide-react"
+import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown, ChevronLeft, ChevronRight, History, Info, LinkIcon, Loader2, Search, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -35,7 +35,13 @@ import {
   type PrimaryDriversHeadlineReel,
   type PrimaryDriversPageContributor,
   type PrimaryDriversQuery,
+  type PrimaryDriversLegacyResponse,
   type PrimaryDriversResponse,
+  type PrimaryDriversV2Channel,
+  type PrimaryDriversV2Cta,
+  type PrimaryDriversV2Page,
+  type PrimaryDriversV2Response,
+  type PrimaryDriversV2Source,
   type PrimaryDriversWin,
 } from "@/hooks/use-primary-drivers"
 import { useCallPrepBrief } from "@/hooks/use-call-prep-brief"
@@ -262,7 +268,7 @@ function InfoBar({ text }: { text: string }) {
 
 // ─── Headline panel ───────────────────────────────────────────────────────────────
 
-function HeadlinePanel({ data }: { data: PrimaryDriversResponse }) {
+function HeadlinePanel({ data }: { data: PrimaryDriversLegacyResponse }) {
   // Use structured reels from backend — each has an explicit direction tag.
   // Fall back to plain-text split only if headline_reels is missing (old API response).
   const reels: PrimaryDriversHeadlineReel[] = data.headline_reels?.length
@@ -801,12 +807,28 @@ type PrimaryDriversSheetView = "whats-happening" | "call-brief"
 type PrimaryDriversSheetMode = "current" | "history"
 type HistoryDetailTab = "call-brief" | "primary-drivers"
 
-function isPrimaryDriversSnapshot(value: unknown): value is PrimaryDriversResponse {
+function isPrimaryDriversV2Response(value: unknown): value is PrimaryDriversV2Response {
+  return Boolean(value)
+    && typeof value === "object"
+    && Array.isArray((value as Record<string, unknown>).ctas)
+}
+
+function isPrimaryDriversLegacyResponse(value: unknown): value is PrimaryDriversLegacyResponse {
   return Boolean(value)
     && typeof value === "object"
     && "headline" in (value as Record<string, unknown>)
-    && Array.isArray((value as PrimaryDriversResponse).drivers)
-    && Array.isArray((value as PrimaryDriversResponse).contributors)
+    && Array.isArray((value as PrimaryDriversLegacyResponse).drivers)
+    && Array.isArray((value as PrimaryDriversLegacyResponse).contributors)
+}
+
+function isPrimaryDriversSnapshot(value: unknown): value is PrimaryDriversResponse {
+  return isPrimaryDriversV2Response(value) || isPrimaryDriversLegacyResponse(value)
+}
+
+function getPrimaryDriversWins(data: PrimaryDriversResponse | null | undefined): PrimaryDriversWin[] {
+  if (!data) return []
+  if (isPrimaryDriversV2Response(data)) return data.ctas[0]?.wins ?? []
+  return data.wins ?? []
 }
 
 function getHistoryWindowBucketLabel(bucket: string | null | undefined) {
@@ -817,11 +839,11 @@ function getHistoryWindowBucketLabel(bucket: string | null | undefined) {
   return "Custom"
 }
 
-function PrimaryDriversSnapshotView({
+function LegacyPrimaryDriversSnapshotView({
   data,
   businessName,
 }: {
-  data: PrimaryDriversResponse
+  data: PrimaryDriversLegacyResponse
   businessName: string
 }) {
   return (
@@ -872,6 +894,263 @@ function PrimaryDriversSnapshotView({
       )}
     </div>
   )
+}
+
+function pctDisplay(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—"
+  const sign = value > 0 ? "+" : value < 0 ? "−" : ""
+  return `${sign}${Math.abs(value * 100).toFixed(0)}%`
+}
+
+function flagCopy(flag: string): string {
+  const normalized = flag.replace(/_/g, " ")
+  if (flag === "possible_tracking_issue") return "Sessions dropped sharply while impressions held steady. Treat this as a possible tracking issue."
+  if (flag === "possible_penalty") return "Search impressions dropped sharply while sessions held steady. This may be worth investigating."
+  if (flag === "anomalous_comparison_period") return "The comparison period looks unusual, so read the movement with extra context."
+  if (flag === "distributed_movement") return "Movement is spread across several contributors rather than concentrated in one place."
+  if (flag === "new") return "This CTA did not fire in the previous period."
+  if (flag === "ended") return "This CTA did not fire in the current period."
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+function CtaPills({ channels }: { channels: PrimaryDriversV2Channel[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {channels.map((channel) => {
+        const isOrganic = channel.channel_name.toLowerCase().includes("organic")
+        const delta = channel.goals_delta ?? 0
+        const cls = isOrganic
+          ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+          : delta > 0
+            ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+            : delta < 0
+              ? "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
+              : "border-border/60 bg-secondary/30 text-muted-foreground"
+        return (
+          <span key={channel.channel_name} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", cls)}>
+            {channel.channel_name} {fmtAbsolute(delta)}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function V2QueryChips({ page }: { page: PrimaryDriversV2Page }) {
+  if (!page.queries?.length) return null
+  return (
+    <div className="mt-1.5 flex min-w-0 max-w-full flex-wrap gap-1.5">
+      {page.queries.map((query, index) => (
+        <Tooltip key={`${query.full_query_text}-${index}`}>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              "max-w-full truncate rounded-full border px-2 py-[3px] text-[11px] sm:max-w-[220px]",
+              query.is_branded
+                ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+                : "border-border/60 bg-background text-muted-foreground",
+            )}>
+              {query.query_text}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
+            {query.full_query_text}
+          </TooltipContent>
+        </Tooltip>
+      ))}
+    </div>
+  )
+}
+
+function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; organic: boolean }) {
+  return (
+    <div className="min-w-0 max-w-full overflow-hidden border-t border-border/40 px-3 py-2.5 sm:px-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {organic ? <Search className="h-3.5 w-3.5 text-muted-foreground" /> : <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+          <span className="truncate text-[13px] font-medium">{source.source_name}</span>
+        </div>
+        <div className="flex min-w-0 flex-wrap justify-end gap-x-3 gap-y-1 text-right">
+          <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.goals_delta))}>{fmtAbsolute(source.goals_delta)}</span>
+          <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.sessions_delta))}>{fmtAbsolute(source.sessions_delta)}</span>
+        </div>
+      </div>
+      <div className="mt-2 min-w-0 max-w-full space-y-2 pl-0 sm:pl-5">
+        {source.pages.map((page, index) => (
+          <div key={`${page.page_path}-${index}`} className="min-w-0 max-w-full overflow-hidden rounded-md bg-secondary/30 px-3 py-2">
+            <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
+              <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground">{page.page_path}</span>
+              <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[11px] tabular-nums sm:justify-end">
+                <span className={deltaColor(page.goals_delta)}>goals {fmtAbsolute(page.goals_delta)}</span>
+                <span className={deltaColor(page.sessions_delta)}>sessions {fmtAbsolute(page.sessions_delta)}</span>
+                {organic ? <span className={deltaColor(page.clicks_delta)}>clicks {fmtAbsolute(page.clicks_delta)}</span> : null}
+              </div>
+            </div>
+            {organic ? <V2QueryChips page={page} /> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function V2ChannelBlock({ channel }: { channel: PrimaryDriversV2Channel }) {
+  const organic = channel.channel_name.toLowerCase().includes("organic")
+  const net = channel.goals_delta ?? 0
+  const bar = net > 0 ? "bg-[#1D9E75]" : net < 0 ? "bg-[#E24B4A]" : "bg-muted-foreground/40"
+
+  return (
+    <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border/50 bg-white">
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-left sm:px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className={cn("h-6 w-[3px] rounded-full", bar)} />
+          <span className="truncate text-[13px] font-medium">{channel.channel_name}</span>
+          {organic ? <span className="rounded-full bg-[#E6FFFA] px-1.5 py-0.5 text-[10px] font-medium text-[#0F6E56]">primary</span> : null}
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          <ChStat def={{ key: "goals", value: channel.goals_delta }} />
+          <ChStat def={{ key: "sessions", value: channel.sessions_delta }} />
+          {organic ? <ChStat def={{ key: "clicks", value: channel.clicks_delta }} /> : null}
+        </div>
+      </div>
+      <div>
+        {channel.sources.map((source, index) => (
+          <V2SourceRow key={`${source.source_name}-${index}`} source={source} organic={organic} />
+        ))}
+        <div className="border-t border-border/40 px-4 py-2 text-[11px] italic text-muted-foreground">
+          showing {Math.round((channel.coverage_pct || channel.contribution_share || 0) * 100)}% of {channel.channel_name.toLowerCase()} change
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CtaCard({
+  cta,
+  open,
+  onToggle,
+}: {
+  cta: PrimaryDriversV2Cta
+  open: boolean
+  onToggle: () => void
+}) {
+  const positive = cta.absolute_delta > 0
+  const neutral = cta.absolute_delta === 0
+  const badgeCls = neutral
+    ? "bg-secondary text-muted-foreground"
+    : positive
+      ? "bg-[#F0FDFA] text-[#0F6E56] border-[#9FE1CB]"
+      : "bg-[#FEF2F2] text-[#A32D2D] border-[#F7C1C1]"
+  const warning = cta.edge_case_flags.find((flag) => !["low_volume"].includes(flag))
+
+  return (
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-shadow duration-200 ease-out">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/20"
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-3">
+              <span className="truncate font-mono text-[14px] font-medium">{cta.display_name}</span>
+              <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[12px] font-semibold tabular-nums", badgeCls)}>
+                {fmtAbsolute(cta.absolute_delta)} ({pctDisplay(cta.pct_change)})
+              </span>
+            </div>
+            {cta.why_sentence ? (
+              <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">{cta.why_sentence}</p>
+            ) : null}
+            <div className="mt-2">
+              <CtaPills channels={cta.channels} />
+            </div>
+          </div>
+          <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+        </div>
+      </button>
+      <div className={cn(
+        "grid transition-[grid-template-rows] duration-200 ease-out",
+        open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      )}>
+        <div className="min-h-0 overflow-hidden">
+          <div className={cn(
+            "min-w-0 max-w-full space-y-2 overflow-hidden border-t border-border/50 bg-secondary/20 px-3 py-3 transition-opacity duration-150 ease-out sm:px-4",
+            open ? "opacity-100" : "opacity-0",
+          )}>
+            {warning ? <NoticeBar text={flagCopy(warning)} /> : null}
+            {cta.channels.map((channel) => (
+              <V2ChannelBlock key={channel.channel_name} channel={channel} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function V2PrimaryDriversSnapshotView({
+  data,
+  businessName,
+}: {
+  data: PrimaryDriversV2Response
+  businessName: string
+}) {
+  const days = getRangeLength({
+    from: new Date(`${data.date_range.start}T00:00:00`),
+    to: new Date(`${data.date_range.end}T00:00:00`),
+  })
+  const [expandedCta, setExpandedCta] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (expandedCta && !data.ctas.some((cta) => cta.event_name === expandedCta)) {
+      setExpandedCta(null)
+    }
+  }, [data.ctas, expandedCta])
+
+  return (
+    <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
+      <div>
+        <p className="text-[15px] font-medium text-foreground">{businessName}</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          {fmtDateRange(data.date_range.start, data.date_range.end)}
+          <span className="mx-1.5">·</span>
+          vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
+          <span className="mx-1.5">·</span>
+          {days} days
+        </p>
+      </div>
+
+      <div className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <Target className="h-3.5 w-3.5" />
+        CTAs · top movers
+      </div>
+
+      <div className="min-w-0 max-w-full space-y-2.5 overflow-hidden">
+        {data.ctas.map((cta) => (
+          <CtaCard
+            key={cta.event_name}
+            cta={cta}
+            open={expandedCta === cta.event_name}
+            onToggle={() => setExpandedCta((current) => current === cta.event_name ? null : cta.event_name)}
+          />
+        ))}
+      </div>
+
+    </div>
+  )
+}
+
+function PrimaryDriversSnapshotView({
+  data,
+  businessName,
+}: {
+  data: PrimaryDriversResponse
+  businessName: string
+}) {
+  if (isPrimaryDriversV2Response(data)) {
+    return <V2PrimaryDriversSnapshotView data={data} businessName={businessName} />
+  }
+  return <LegacyPrimaryDriversSnapshotView data={data} businessName={businessName} />
 }
 
 function CallPrepHistoryList({
@@ -1054,7 +1333,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
   const committedRangeKey = startDate && endDate ? `${startDate}:${endDate}` : null
 
   const { data, isLoading, isFetching, isError, error } = usePrimaryDrivers({
-    businessId, startDate, endDate, enabled: open,
+    businessId, startDate, endDate, includeAllCtas: true, enabled: open,
   })
   const callPrepBriefMutation = useCallPrepBrief()
   const { fetchCallPrepRuns } = useCallPrepRuns()
@@ -1252,11 +1531,14 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
           ) : data ? (
             <div className="relative flex h-full flex-col">
               <ScrollArea className="flex-1">
-                <div className="max-w-[720px] px-6 py-5">
+                <div className="min-w-0 max-w-full px-4 py-5 sm:px-6">
                   {view === "call-brief" && currentCallBrief ? (
-                    <CallPrepBriefView callBrief={currentCallBrief} wins={data.wins} />
+                    <CallPrepBriefView callBrief={currentCallBrief} wins={getPrimaryDriversWins(data)} />
                   ) : (
-                    <PrimaryDriversSnapshotView data={data} businessName={businessName} />
+                    <PrimaryDriversSnapshotView
+                      data={data}
+                      businessName={businessName}
+                    />
                   )}
                 </div>
               </ScrollArea>
@@ -1320,7 +1602,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
           ) : (
               <div className="flex h-full flex-col">
                 <ScrollArea className="flex-1">
-                  <div className="max-w-[720px] px-6 py-5">
+                  <div className="min-w-0 max-w-full px-4 py-5 sm:px-6">
                     {selectedHistoryRunId ? (
                       historyDetailQuery.isLoading ? (
                         <div className="flex h-full min-h-[320px] items-center justify-center">
@@ -1366,7 +1648,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                               {historyCallBriefSnapshot ? (
                                 <CallPrepBriefView
                                   callBrief={historyCallBriefSnapshot}
-                                  wins={historyPrimaryDriversSnapshot?.wins ?? []}
+                                  wins={getPrimaryDriversWins(historyPrimaryDriversSnapshot)}
                                 />
                               ) : (
                                 <div className="rounded-xl border border-dashed border-general-border px-5 py-10 text-center">

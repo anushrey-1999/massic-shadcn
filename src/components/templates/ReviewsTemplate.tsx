@@ -424,6 +424,7 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                             rating={review.numericRating || parseInt(review.StarRating) || 0}
                             reviewText={review.Comment || ""}
                             reviewerImageSrc={review.ReviewerProfilePhotoUrl || undefined}
+                            createdAt={review.CreateTime || undefined}
                             generatedResponse={review.SuggestedResponse}
                             editedResponse={review.EditedResponse}
                             existingReply={review.ReviewReplyComment}

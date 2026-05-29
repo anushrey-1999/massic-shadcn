@@ -53,10 +53,6 @@ function matchesAdvancedFilters(
 ) {
   const results = filters.map((filter) => {
     const values = getFilterValues(row, filter.field);
-    const filterValue = Array.isArray(filter.value)
-      ? filter.value.join(" ")
-      : String(filter.value ?? "");
-    const normalizedFilterValue = filterValue.toLowerCase();
     const normalizedValues = values.map((value) => value.toLowerCase());
 
     if (filter.operator === "isEmpty") {
@@ -66,6 +62,18 @@ function matchesAdvancedFilters(
     if (filter.operator === "isNotEmpty") {
       return values.some((value) => value.trim().length > 0);
     }
+
+    if (filter.operator === "inArray") {
+      const selected = Array.isArray(filter.value)
+        ? filter.value.map((v) => String(v).toLowerCase())
+        : [String(filter.value ?? "").toLowerCase()];
+      return selected.some((s) => normalizedValues.includes(s));
+    }
+
+    const filterValue = Array.isArray(filter.value)
+      ? filter.value.join(" ")
+      : String(filter.value ?? "");
+    const normalizedFilterValue = filterValue.toLowerCase();
 
     if (filter.operator === "notILike") {
       return normalizedValues.every((value) => !value.includes(normalizedFilterValue));
@@ -95,6 +103,8 @@ export function ThemesTableClient({
   const [selectedThemeId, setSelectedThemeId] = React.useState<string | null>(null);
   const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [isPolling, setIsPolling] = React.useState(false);
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
+  const tableContainerRef = React.useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const themeFilterFields = React.useMemo(
@@ -165,10 +175,29 @@ export function ThemesTableClient({
     }
   }, [themesData?.hasData, isPolling]);
 
-  const columns = React.useMemo(
-    () => getThemesTableColumns(),
-    []
-  );
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!tableContainerRef.current) return;
+      if (target.closest?.('[role="dialog"]')) return;
+      const isOutsideContainer = !tableContainerRef.current.contains(target);
+      if (isOutsideContainer) {
+        setExpandedRowId(null);
+        return;
+      }
+      const isOnTableElement = target?.closest?.(
+        'table, [role="table"], [role="row"], [role="cell"], [role="columnheader"], [role="rowheader"]'
+      );
+      const isOnInteractiveElement = target?.closest?.(
+        'button, input, select, textarea, a, [role="button"], [role="textbox"], [role="combobox"]'
+      );
+      if (!isOnTableElement && !isOnInteractiveElement) {
+        setExpandedRowId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const allData = React.useMemo<ThemeRow[]>(
     () => themesData?.data || [],
@@ -187,6 +216,11 @@ export function ThemesTableClient({
     });
     return Array.from(offeringsSet).sort();
   }, [allData]);
+
+  const columns = React.useMemo(
+    () => getThemesTableColumns({ expandedRowId, onExpandedRowChange: setExpandedRowId, offeringOptions: allOfferings }),
+    [expandedRowId, allOfferings]
+  );
 
   React.useEffect(() => {
     if (selectedOffering === "all") return;

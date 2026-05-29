@@ -6,8 +6,11 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Bold,
+  ChevronDown,
+  ChevronRight,
   Copy,
   ExternalLink,
+  ImageIcon,
   Italic,
   Loader2,
   Link2,
@@ -24,9 +27,15 @@ import {
 } from "lucide-react";
 import type { Editor } from "@tiptap/react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Typography } from "@/components/ui/typography";
@@ -58,12 +67,22 @@ import { ContentConverter } from "@/utils/content-converter";
 import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
 import { detectPageContentFormat } from "@/utils/page-content-format";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
-import { buildMassicCssVariableOverrides } from "@/utils/massic-style-overrides";
+import {
+  applyMassicStyleColorOverrides,
+  buildMassicCssVariableOverrides,
+  MASSIC_STYLE_COLOR_KEYS,
+  normalizeMassicStyleColorOverrides,
+  type MassicStyleColorKey,
+} from "@/utils/massic-style-overrides";
 import { cn } from "@/lib/utils";
-import { useWordpressStyleProfile } from "@/hooks/use-wordpress-connector";
+import {
+  useUpdateWordpressStyleOverrides,
+  useWordpressStyleProfile,
+} from "@/hooks/use-wordpress-connector";
 import {
   type WordpressSlugConflictInfo,
   useWordpressPreviewLink,
+  useWordpressPublish,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 import {
@@ -90,6 +109,33 @@ import {
   WEBFLOW_STAGING_PUBLISH_OPEN_DELAY_MS,
   WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
 } from "@/components/organisms/web-page-actions/webflow-open-preview";
+
+const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
+  primary: "Primary",
+  secondary: "Secondary",
+  accent: "Accent",
+  link: "Link",
+  text: "Text",
+  mutedText: "Muted Text",
+  background: "Background",
+  surface: "Surface",
+  buttonBg: "Button Background",
+  buttonText: "Button Text",
+};
+const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "primary",
+  "secondary",
+  "accent",
+  "link",
+  "buttonBg",
+  "buttonText",
+];
+const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "text",
+  "mutedText",
+  "background",
+  "surface",
+];
 
 function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
   const pt = (pageType || "").toLowerCase();
@@ -119,6 +165,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const [metaDescription, setMetaDescription] = React.useState("");
   const [citations, setCitations] = React.useState<string[]>([]);
   const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
+  const [styleColorsOpen, setStyleColorsOpen] = React.useState(false);
+  const [publishTab, setPublishTab] = React.useState<"details" | "images">("details");
   const [lastPublishedData, setLastPublishedData] = React.useState<{
     contentId: string;
     wpId: number;
@@ -206,12 +254,19 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
+  const wpPublishMutation = useWordpressPublish();
+  const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const webflowDomains = cmsChannel?.domains || [];
   const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
   const webflowCustomDomains = webflowDomains.filter((domain) => domain.type === "custom_domain");
   const [publishToWebflowSubdomain, setPublishToWebflowSubdomain] = React.useState(true);
   const [selectedWebflowCustomDomainIds, setSelectedWebflowCustomDomainIds] = React.useState<string[]>([]);
+  const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
+    Partial<Record<MassicStyleColorKey, string>>
+  >({});
+  const [showAllStyleColorOptions, setShowAllStyleColorOptions] = React.useState(false);
+  const [openStylePaletteKey, setOpenStylePaletteKey] = React.useState<MassicStyleColorKey | null>(null);
   const lastAutoSlugCheckKeyRef = React.useRef("");
 
   React.useEffect(() => {
@@ -383,9 +438,9 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const isWebflowLive = webflowPersistedStatus === "published" || lastPublishedStatus === "published";
   const isWebflowDraftLike = Boolean(
     (webflowPersistedContent && webflowPersistedStatus === "draft") ||
-      isWebflowStagingPreviewStatus(webflowPersistedStatus) ||
-      isWebflowStagingPreviewStatus(lastPublishedStatus) ||
-      (lastPublishedStatus === "draft" && lastPublishedData?.contentId)
+    isWebflowStagingPreviewStatus(webflowPersistedStatus) ||
+    isWebflowStagingPreviewStatus(lastPublishedStatus) ||
+    (lastPublishedStatus === "draft" && lastPublishedData?.contentId)
   );
   const hasWebflowMapping = Boolean(webflowPersistedContent?.itemId || lastPublishedData?.contentId);
   const webflowPublishState: "not_published" | "draft" | "live" = isWebflowLive
@@ -426,17 +481,17 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     wpUnpublishMutation.isPending;
   const isWordpressPageTemplateChecking = Boolean(
     requiresWordpressPageTemplate &&
-      isPublishModalOpen &&
-      (wpPageTemplateQuery.isLoading || wpPageTemplateQuery.isFetching)
+    isPublishModalOpen &&
+    (wpPageTemplateQuery.isLoading || wpPageTemplateQuery.isFetching)
   );
   const wordpressPageTemplateBlockMessage = requiresWordpressPageTemplate &&
     !isWordpressPageTemplateChecking &&
     (wpPageTemplateQuery.isError || wpPageTemplateQuery.data?.exists === false)
-      ? "Massic Template doesn't exist in this WordPress theme. Add a page template named \"Massic Template\" before publishing pages."
-      : null;
+    ? "Massic Template doesn't exist in this WordPress theme. Add a page template named \"Massic Template\" before publishing pages."
+    : null;
   const isWordpressPagePublishBlocked = Boolean(
     requiresWordpressPageTemplate &&
-      (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage)
+    (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage)
   );
   const isSlugInputBusy = isPublishBusy || isAutoResolvingSlug;
   const isSlugActionBusy = isPublishBusy || isSlugChecking || isAutoResolvingSlug;
@@ -495,18 +550,43 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const webflowPreviewUrl = isWebflowLive ? webflowLiveUrl || webflowStagingPreviewUrl : webflowStagingPreviewUrl;
   const hasWebflowStagingPreview = Boolean(
     (webflowStagingPreview?.contentId === String(publishContentId) && webflowStagingPreview?.url) ||
-      (hasWebflowMapping &&
-        (isWebflowStagingPreviewStatus(webflowPersistedStatus) || isWebflowStagingPreviewStatus(lastPublishedStatus)) &&
-        webflowStagingPreviewUrl)
+    (hasWebflowMapping &&
+      (isWebflowStagingPreviewStatus(webflowPersistedStatus) || isWebflowStagingPreviewStatus(lastPublishedStatus)) &&
+      webflowStagingPreviewUrl)
   );
   const webflowStagingViewUrl = hasWebflowStagingPreview
     ? webflowStagingPreview?.url
     : webflowStagingPreviewUrl;
   const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
   const shouldApplyWpStyle = isActiveWordpress && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
+
+  const normalizedStoredStyleOverrides = React.useMemo(
+    () => normalizeMassicStyleColorOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).colors || {},
+    [wpStyleProfileQuery.data?.styleOverrides]
+  );
+  const serializedStoredOverrides = React.useMemo(
+    () => JSON.stringify(normalizedStoredStyleOverrides),
+    [normalizedStoredStyleOverrides]
+  );
+  React.useEffect(() => {
+    setStyleColorOverridesDraft((prev) => {
+      const prevSerialized = JSON.stringify(
+        normalizeMassicStyleColorOverrides({ colors: prev }).colors || {}
+      );
+      if (prevSerialized === serializedStoredOverrides) return prev;
+      return normalizedStoredStyleOverrides;
+    });
+  }, [normalizedStoredStyleOverrides, serializedStoredOverrides]);
+
   const styleProfileForCopy = React.useMemo(
-    () => (shouldApplyWpStyle ? wpStyleProfileQuery.data?.profile || null : null),
-    [shouldApplyWpStyle, wpStyleProfileQuery.data?.profile]
+    () =>
+      shouldApplyWpStyle
+        ? applyMassicStyleColorOverrides(
+            wpStyleProfileQuery.data?.profile,
+            { colors: styleColorOverridesDraft }
+          )
+        : null,
+    [shouldApplyWpStyle, styleColorOverridesDraft, wpStyleProfileQuery.data?.profile]
   );
   const cssVarOverrides = React.useMemo(
     () =>
@@ -515,6 +595,87 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         : {},
     [styleProfileForCopy]
   );
+
+  const extractedStyleColors = React.useMemo(() => {
+    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as
+      | { colors?: Record<string, unknown> }
+      | undefined;
+    return (extractedProfile?.colors || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.extractedProfile]);
+  const effectiveProfileColors = React.useMemo(() => {
+    const profile = wpStyleProfileQuery.data?.profile as
+      | { colors?: Record<string, unknown> }
+      | undefined;
+    return (profile?.colors || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.profile]);
+  const normalizeAnyColor = React.useCallback((value: unknown) => {
+    if (typeof value !== "string") return null;
+    return (
+      normalizeMassicStyleColorOverrides({ colors: { primary: value } }).colors?.primary || null
+    );
+  }, []);
+  const extractedColorByKey = React.useMemo(() => {
+    const next: Partial<Record<MassicStyleColorKey, string>> = {};
+    for (const key of MASSIC_STYLE_COLOR_KEYS) {
+      const extracted = normalizeAnyColor(extractedStyleColors[key]);
+      const profileFallback = normalizeAnyColor(effectiveProfileColors[key]);
+      if (extracted) {
+        next[key] = extracted;
+      } else if (profileFallback) {
+        next[key] = profileFallback;
+      }
+    }
+    return next;
+  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
+  const extractedPaletteColors = React.useMemo(() => {
+    const candidates: string[] = [];
+    for (const value of Object.values(extractedStyleColors || {})) {
+      const normalized = normalizeAnyColor(value);
+      if (normalized) candidates.push(normalized);
+    }
+    for (const value of Object.values(effectiveProfileColors || {})) {
+      const normalized = normalizeAnyColor(value);
+      if (normalized) candidates.push(normalized);
+    }
+    return Array.from(new Set(candidates));
+  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
+  const visibleStyleColorKeys = showAllStyleColorOptions
+    ? [...CORE_STYLE_COLOR_KEYS, ...ADVANCED_STYLE_COLOR_KEYS]
+    : CORE_STYLE_COLOR_KEYS;
+  const normalizedDraftStyleOverrides = React.useMemo(
+    () => normalizeMassicStyleColorOverrides({ colors: styleColorOverridesDraft }).colors || {},
+    [styleColorOverridesDraft]
+  );
+  const serializedDraftOverrides = React.useMemo(
+    () => JSON.stringify(normalizedDraftStyleOverrides),
+    [normalizedDraftStyleOverrides]
+  );
+  const hasUnsavedStyleOverrides = serializedDraftOverrides !== serializedStoredOverrides;
+  const isStyleOverrideSaving = wpStyleOverridesMutation.isPending;
+
+  const handleStyleOverrideColorChange = React.useCallback((key: MassicStyleColorKey, value: string) => {
+    const normalized = normalizeMassicStyleColorOverrides({ colors: { [key]: value } }).colors?.[key];
+    if (!normalized) return;
+    setStyleColorOverridesDraft((prev) => ({ ...prev, [key]: normalized }));
+  }, []);
+
+  const resetStyleOverrideKey = React.useCallback((key: MassicStyleColorKey) => {
+    setStyleColorOverridesDraft((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const handleSaveStyleOverrides = React.useCallback(async () => {
+    if (!isActiveWordpress || !activeConnection?.connectionId) return;
+    const response = await wpStyleOverridesMutation.mutateAsync({
+      connectionId: activeConnection.connectionId,
+      overrides: { colors: normalizedDraftStyleOverrides },
+    });
+    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
+    setStyleColorOverridesDraft(savedColors);
+  }, [activeConnection?.connectionId, isActiveWordpress, normalizedDraftStyleOverrides, wpStyleOverridesMutation]);
   React.useEffect(() => {
     if (!isPublishModalOpen) return;
     if (isSlugEdited) return;
@@ -1774,434 +1935,623 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           </DialogHeader>
 
           {!cmsChannel?.connected ? (
-            <div className="rounded-md border bg-background p-4 space-y-3">
+            <div className="rounded-lg bg-background p-4 space-y-3">
               <Typography className="text-sm">No publishing channel connected.</Typography>
               <Button onClick={handleRedirectToChannels}>Connect a channel</Button>
             </div>
           ) : isActiveWordpress ? (
-            <div className="rounded-md border bg-muted/20 p-4 space-y-2 min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between gap-3">
-                <Typography className="text-sm font-medium truncate min-w-0 flex-1">{activeConnection?.siteUrl}</Typography>
-                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap shrink-0">
-                  {publishStateLabel}
-                </Typography>
-              </div>
-              <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
-              {requiresWordpressPageTemplate && (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage) ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  {isWordpressPageTemplateChecking ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>Checking for Massic Template...</span>
+            <div className="rounded-lg bg-muted/20 py-4 min-w-0 overflow-hidden space-y-3">
+              <Tabs value={publishTab} onValueChange={(v) => setPublishTab(v as "details" | "images")}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Typography className="text-sm font-medium truncate min-w-0">{activeConnection?.siteUrl}</Typography>
+                    <Badge
+                      className={cn("shrink-0 font-medium", isPersistedLive && "border-transparent bg-green-600 text-white")}
+                      variant={isPersistedLive ? "default" : isPersistedDraftLike ? "secondary" : isPersistedTrashed ? "destructive" : "outline"}
+                    >
+                      {publishStateLabel}
+                    </Badge>
+
+                    <Typography className="text-sm text-muted-foreground">{publishStateHint}</Typography>
+                    <div>
+                      {requiresWordpressPageTemplate && (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage) ? (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                          {isWordpressPageTemplateChecking ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Checking for Massic Template...</span>
+                            </div>
+                          ) : (
+                            <div className="wrap-break-word">{wordpressPageTemplateBlockMessage}</div>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : (
-                    <div className="break-words">{wordpressPageTemplateBlockMessage}</div>
-                  )}
-                </div>
-              ) : null}
-              <div className="space-y-1">
-                <div>
-                  <Typography className="text-xs text-muted-foreground">{publishType === "page" ? "Page title" : "Post title"}</Typography>
-                  <Typography className="text-sm line-clamp-2">{visiblePostTitle}</Typography>
-                </div>
-                <div>
-                  <Typography className="text-xs text-muted-foreground">SEO title</Typography>
-                  <Typography className="text-sm line-clamp-2">{seoTitle}</Typography>
-                </div>
-              </div>
-              <div className="space-y-1 pt-2">
-                <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
-                <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>
-              </div>
-              <div className="space-y-1 pt-2">
-                <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
-                <Input
-                  value={editableSlug}
-                  onChange={(event) => {
-                    setEditableSlug(event.target.value);
-                    setIsSlugEdited(true);
-                  }}
-                  placeholder={publishType === "page" ? "enter-page-slug" : "enter-blog-slug"}
-                  disabled={isSlugInputBusy}
-                />
-              </div>
-              <div className="space-y-1">
-                <Typography className="text-xs text-muted-foreground">Publish route</Typography>
-                <Typography className="text-sm font-mono break-all">{publishUrlPreview || "Unavailable"}</Typography>
-              </div>
-              {isSlugChecking ? (
-                <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography>
-              ) : null}
-              {slugCheckError ? (
-                <Typography className="text-xs text-destructive">{slugCheckError}</Typography>
-              ) : null}
-              {hasSlugConflict ? (
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 space-y-2 min-w-0">
-                  <div className="break-words">
-                    {slugConflictReason === "parent_type_conflict"
-                      ? "This nested page path is blocked because a parent segment already belongs to non-page content. Change the parent path."
-                      : "This slug already exists in WordPress. Publishing is blocked until you use a unique slug."}
                   </div>
-                  {slugCheckResult?.suggestedSlug ? (
+                  <TabsList className="h-7 shrink-0 rounded-sm">
+                    <TabsTrigger value="details" className="text-xs px-2.5 h-6 rounded-sm">Details</TabsTrigger>
+                    <TabsTrigger value="images" className="text-xs px-2.5 h-6 rounded-sm">Images</TabsTrigger>
+                  </TabsList>
+                </div>
+
+                {!isPersistedLive ? (
+                  <p className="text-xs text-muted-foreground">{publishStateHint}</p>
+                ) : null}
+                <TabsContent value="details" className="space-y-4 pt-1">
+                  <div className="space-y-3">
+                    <div className="space-y-0.5">
+                      <span className="text-xs text-muted-foreground">Post title</span>
+                      <p className="text-sm line-clamp-2">{visiblePostTitle}</p>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-xs text-muted-foreground">SEO title</span>
+                      <p className="text-sm line-clamp-2">{seoTitle}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Publish slug</Label>
+                    <Input
+                      value={editableSlug}
+                      onChange={(event) => {
+                        setEditableSlug(event.target.value);
+                        setIsSlugEdited(true);
+                      }}
+                      placeholder={publishType === "page" ? "enter-page-slug" : "enter-blog-slug"}
+                      disabled={isSlugInputBusy}
+                    />
+                    {publishUrlPreview ? (
+                      <p className="text-xs text-muted-foreground font-mono break-all">{publishUrlPreview}</p>
+                    ) : null}
+                  </div>
+
+                  {isSlugChecking ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Checking slug availability…
+                    </div>
+                  ) : slugCheckError ? (
+                    <p className="text-xs text-destructive">{slugCheckError}</p>
+                  ) : hasSlugConflict ? (
+                    <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 space-y-2 min-w-0">
+                      <p className="wrap-break-word">
+                        {slugConflictReason === "parent_type_conflict"
+                          ? "This nested page path is blocked because a parent segment already belongs to non-page content. Change the parent path."
+                          : "This slug already exists in WordPress. Publishing is blocked until you use a unique slug."}
+                      </p>
+                      {slugCheckResult?.suggestedSlug ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-auto w-full justify-start whitespace-normal break-all text-left"
+                          onClick={autoResolveSlug}
+                          disabled={isSlugActionBusy}
+                        >
+                          {isAutoResolvingSlug ? "Resolving..." : `Use ${wordpressSlugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+              <Collapsible open={styleColorsOpen} onOpenChange={setStyleColorsOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between border-t border-border/60 pt-3 text-left"
+                  >
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Style Colors</span>
+                    <div className="flex items-center gap-2">
+                      {Object.keys(styleColorOverridesDraft).length > 0 ? (
+                        <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                          {Object.keys(styleColorOverridesDraft).length}
+                        </Badge>
+                      ) : null}
+                      <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", styleColorsOpen && "rotate-90")} />
+                    </div>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Use extracted colors or custom picks.
+                    </p>
                     <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs shrink-0"
+                      onClick={() => setShowAllStyleColorOptions((prev) => !prev)}
+                    >
+                      {showAllStyleColorOptions ? "Show Core" : `Show All (${MASSIC_STYLE_COLOR_KEYS.length})`}
+                    </Button>
+                  </div>
+                  {extractedPaletteColors.length ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground">Palette:</span>
+                      {extractedPaletteColors.slice(0, 10).map((color) => (
+                        <span
+                          key={color}
+                          className="inline-flex h-5 w-5 rounded-full border border-border"
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {visibleStyleColorKeys.map((key) => {
+                      const label = STYLE_COLOR_OPTION_LABELS[key] || key;
+                      const extractedColor = extractedColorByKey[key] || null;
+                      const overrideColor = normalizedDraftStyleOverrides[key] || null;
+                      const pickerValue = overrideColor || extractedColor || extractedPaletteColors[0] || "#000000";
+                      return (
+                        <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium">{label}</span>
+                            <span className="text-[11px] text-muted-foreground font-mono">{overrideColor || extractedColor || "—"}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="color"
+                              value={pickerValue}
+                              onChange={(event) => handleStyleOverrideColorChange(key, event.target.value)}
+                              disabled={isStyleOverrideSaving}
+                              className="h-8 w-11 p-1 shrink-0"
+                            />
+                            <Popover
+                              open={openStylePaletteKey === key}
+                              onOpenChange={(open) => setOpenStylePaletteKey(open ? key : null)}
+                            >
+                              <PopoverTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
+                                  disabled={isStyleOverrideSaving || !extractedPaletteColors.length}
+                                >
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span
+                                      className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
+                                      style={{ backgroundColor: overrideColor || extractedColor || extractedPaletteColors[0] || "#000000" }}
+                                    />
+                                    <span className="truncate">{overrideColor || extractedColor || "Use extracted"}</span>
+                                  </span>
+                                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="w-56 p-1">
+                                <div className="max-h-56 space-y-1 overflow-y-auto">
+                                  {extractedPaletteColors.map((color) => (
+                                    <button
+                                      key={`${key}-${color}`}
+                                      type="button"
+                                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
+                                      onClick={() => {
+                                        handleStyleOverrideColorChange(key, color);
+                                        setOpenStylePaletteKey(null);
+                                      }}
+                                    >
+                                      <span className="h-4 w-4 shrink-0 rounded-full border border-border" style={{ backgroundColor: color }} />
+                                      <span className="font-mono">{color}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => resetStyleOverrideKey(key)}
+                              disabled={isStyleOverrideSaving || !overrideColor}
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {!showAllStyleColorOptions ? (
+                    <p className="text-[11px] text-muted-foreground">Showing core colors. Enable &quot;Show All&quot; for text/surface options.</p>
+                  ) : null}
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
                       size="sm"
                       variant="outline"
-                      className="h-auto w-full justify-start whitespace-normal break-all text-left"
-                      onClick={autoResolveSlug}
-                      disabled={isSlugActionBusy}
+                      onClick={() => setStyleColorOverridesDraft({})}
+                      disabled={isStyleOverrideSaving || !Object.keys(styleColorOverridesDraft).length}
                     >
-                      {isAutoResolvingSlug ? "Resolving..." : `Auto-resolve to ${wordpressSlugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
+                      Reset All
                     </Button>
-                  ) : null}
-                </div>
-              ) : null}
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveStyleOverrides}
+                      disabled={isStyleOverrideSaving || !hasUnsavedStyleOverrides}
+                    >
+                      {isStyleOverrideSaving ? "Saving..." : "Save Colors"}
+                    </Button>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+                </TabsContent>
+                <TabsContent value="images" className="space-y-3 pt-1">
+                  <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-background p-6 text-center">
+                    <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium text-muted-foreground">No image fields</p>
+                      <p className="text-xs text-muted-foreground">Image fields are not configured for blog posts.</p>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div >
+          ) : null
+}
 
+{
+  isWebflowReady ? (
+    <div className="rounded-lg bg-muted/20 py-4 min-w-0 overflow-hidden space-y-3">
+      <Tabs value={publishTab} onValueChange={(v) => setPublishTab(v as "details" | "images")}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Typography className="text-sm font-medium truncate min-w-0">
+              Webflow: {activeTarget?.name || "Configured collection"}
+            </Typography>
+            <Badge
+              className={cn("shrink-0 font-medium", webflowPublishState === "live" && "border-transparent bg-green-600 text-white")}
+              variant={webflowPublishState === "live" ? "default" : webflowPublishState === "draft" ? "secondary" : "outline"}
+            >
+              {webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published"}
+            </Badge>
+          </div>
+          <TabsList className="h-7 shrink-0 rounded-sm">
+            <TabsTrigger value="details" className="text-xs px-2.5 h-6 rounded-sm">Details</TabsTrigger>
+            <TabsTrigger value="images" className="text-xs px-2.5 h-6 rounded-sm">Images</TabsTrigger>
+          </TabsList>
+        </div>
+        <TabsContent value="details" className="space-y-4 pt-1">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Publish slug</Label>
+            <Input
+              value={editableSlug}
+              onChange={(event) => {
+                setEditableSlug(event.target.value);
+                setIsSlugEdited(true);
+              }}
+              placeholder={publishType === "page" ? "enter-page-slug" : "enter-blog-slug"}
+              disabled={isSlugInputBusy}
+            />
+            {(slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl) ? (
+              <p className="text-xs text-muted-foreground font-mono break-all">
+                {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl}
+              </p>
+            ) : null}
+          </div>
+
+          {isSlugChecking ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Checking slug availability…
+            </div>
+          ) : slugCheckError ? (
+            <p className="text-xs text-destructive">{slugCheckError}</p>
+          ) : hasSlugConflict ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 space-y-2 min-w-0">
+              <p className="wrap-break-word">This slug already exists in Webflow. Publishing is blocked until you use a unique slug.</p>
+              {slugCheckResult?.suggestedSlug ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-auto w-full justify-start whitespace-normal break-all text-left"
+                  onClick={autoResolveSlug}
+                  disabled={isSlugActionBusy}
+                >
+                  {isAutoResolvingSlug ? "Resolving..." : `Use ${wordpressSlugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
+                </Button>
+              ) : null}
             </div>
           ) : null}
 
-          {isWebflowReady ? (
-            <div className="rounded-md border bg-muted/20 p-4 space-y-2 min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between gap-3">
-                <Typography className="text-sm font-medium truncate min-w-0 flex-1">
-                  Webflow: {activeTarget?.name || "Configured collection"}
-                </Typography>
-                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap shrink-0">
-                  {webflowPublishState === "live"
-                    ? "Live"
-                    : webflowPublishState === "draft"
-                      ? "Draft"
-                      : "Not Published"}
-                </Typography>
-              </div>
-              <div className="space-y-1">
-                <Typography className="text-xs text-muted-foreground">CMS item slug</Typography>
-                <Typography className="text-sm font-mono break-all">
-                  {wordpressSlugToDisplay(normalizedSlugForPublish || effectiveModalSlug, "/untitled-content")}
-                </Typography>
-              </div>
-              <div className="space-y-1 pt-2">
-                <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
-                <Input
-                  value={editableSlug}
-                  onChange={(event) => {
-                    setEditableSlug(event.target.value);
-                    setIsSlugEdited(true);
-                  }}
-                  placeholder={publishType === "page" ? "enter-page-slug" : "enter-blog-slug"}
-                  disabled={isSlugInputBusy}
-                />
-              </div>
-              <div className="space-y-1">
-                <Typography className="text-xs text-muted-foreground">
-                  {webflowPublishState === "draft" ? "Staging page path" : "Preview route"}
-                </Typography>
-                <Typography className="text-sm font-mono break-all">
-                  {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl || "Unavailable"}
-                </Typography>
-              </div>
-              {isSlugChecking ? (
-                <Typography className="text-xs text-muted-foreground">Checking slug availability...</Typography>
-              ) : null}
-              {slugCheckError ? (
-                <Typography className="text-xs text-destructive">{slugCheckError}</Typography>
-              ) : null}
-              {hasSlugConflict ? (
-                <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 space-y-2 min-w-0">
-                  <div className="break-words">
-                    This slug already exists in Webflow. Publishing is blocked until you use a unique slug.
-                  </div>
-                  {slugCheckResult?.suggestedSlug ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-auto w-full justify-start whitespace-normal break-all text-left"
-                      onClick={autoResolveSlug}
-                      disabled={isSlugActionBusy}
-                    >
-                      {isAutoResolvingSlug ? "Resolving..." : `Auto-resolve to ${wordpressSlugToDisplay(slugCheckResult?.suggestedSlug, "/next-available")}`}
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
+          {(webflowStagingPreviewUrl || webflowLiveUrl) ? (
+            <div className="space-y-1.5">
               {webflowStagingPreviewUrl ? (
-                <div className="space-y-1">
-                  <Typography className="text-xs text-muted-foreground">Staging preview URL</Typography>
-                  <Typography className="text-sm font-mono break-all">{webflowStagingPreviewUrl}</Typography>
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-xs text-muted-foreground shrink-0">Staging URL</span>
+                  <span className="text-xs font-mono text-right break-all min-w-0">{webflowStagingPreviewUrl}</span>
                 </div>
               ) : null}
               {webflowLiveUrl ? (
-                <div className="space-y-1">
-                  <Typography className="text-xs text-muted-foreground">Live URL</Typography>
-                  <Typography className="text-sm font-mono break-all">{webflowLiveUrl}</Typography>
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-xs text-muted-foreground shrink-0">Live URL</span>
+                  <span className="text-xs font-mono text-right break-all min-w-0">{webflowLiveUrl}</span>
                 </div>
               ) : null}
-              <div className="space-y-2 pt-2 border-t border-border/60">
-                <Typography className="text-xs text-muted-foreground uppercase tracking-wide">Live domains</Typography>
-                {webflowStagingDomain ? (
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={publishToWebflowSubdomain}
-                      onChange={(event) => setPublishToWebflowSubdomain(event.target.checked)}
-                      disabled={isPublishBusy}
-                    />
-                    <span className="break-all">{webflowStagingDomain.label}</span>
-                  </label>
-                ) : null}
-                {webflowCustomDomains.map((domain) => (
-                  <label key={domain.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedWebflowCustomDomainIds.includes(domain.id)}
-                      onChange={(event) => {
-                        setSelectedWebflowCustomDomainIds((prev) =>
-                          event.target.checked
-                            ? Array.from(new Set([...prev, domain.id]))
-                            : prev.filter((id) => id !== domain.id)
-                        );
-                      }}
-                      disabled={isPublishBusy}
-                    />
-                    <span className="break-all">{domain.label}</span>
-                  </label>
-                ))}
-                {!webflowDomains.length ? (
-                  <Typography className="text-xs text-muted-foreground">No publish domains returned by Webflow.</Typography>
-                ) : null}
-              </div>
-            </div>
-          ) : isActiveWebflow ? (
-            <div className="rounded-md border bg-background p-4 space-y-3">
-              <Typography className="text-sm">Webflow is connected but no collection mapping is saved.</Typography>
-              <Button onClick={handleRedirectToChannels}>Configure Webflow</Button>
             </div>
           ) : null}
 
-          <DialogFooter className="gap-2 sm:gap-2">
-            {isActiveWordpress ? (
-              <>
-                {isPersistedLive ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleChangeWordpressStatus("draft")}
-                      disabled={wpUnpublishMutation.isPending}
-                    >
-                      {wpUnpublishMutation.isPending ? "Updating..." : "Move to Draft"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setConfirmPublishAction("republish")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
-                    >
-                      {cmsPublishMutation.isPending ? "Republishing..." : "Republish"}
-                    </Button>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => {
-                            if (liveUrl) {
-                              openEmbeddedPreview(liveUrl, publishType === "page" ? "Published WordPress Page" : "Published WordPress Blog");
-                            }
-                          }}
-                          disabled={!liveUrl}
-                          aria-label="View live WordPress blog"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>View Live</TooltipContent>
-                    </Tooltip>
-                  </>
-                ) : isPersistedDraftLike ? (
-                  <>
-                    <Button
-                      variant="destructive"
-                      onClick={() => setIsDeleteConfirmOpen(true)}
-                      disabled={wpUnpublishMutation.isPending}
-                    >
-                      {wpUnpublishMutation.isPending ? "Deleting..." : "Delete"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setConfirmPublishAction("update-draft")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
-                    >
-                      {cmsPublishMutation.isPending ? "Updating..." : "Update Draft"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleOpenPreview}
-                      disabled={!persistedContent?.wpId || wpPreviewMutation.isPending}
-                    >
-                      {wpPreviewMutation.isPending ? "Loading..." : "Preview Draft"}
-                    </Button>
-                    <Button
-                      onClick={() => setConfirmPublishAction("live")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
-                    >
-                      {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
-                    </Button>
-                  </>
-                ) : (
+          <div className="space-y-2 border-t border-border/60 pt-3">
+            <span className="text-xs text-muted-foreground uppercase tracking-wide">Publish to domains</span>
+            <div className="space-y-2">
+              {webflowStagingDomain ? (
+                <label className="flex items-center gap-2.5 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={publishToWebflowSubdomain}
+                    onCheckedChange={(checked) => setPublishToWebflowSubdomain(Boolean(checked))}
+                    disabled={isPublishBusy}
+                  />
+                  <span className="break-all">{webflowStagingDomain.label}</span>
+                </label>
+              ) : null}
+              {webflowCustomDomains.map((domain) => (
+                <label key={domain.id} className="flex items-center gap-2.5 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={selectedWebflowCustomDomainIds.includes(domain.id)}
+                    onCheckedChange={(checked) => {
+                      setSelectedWebflowCustomDomainIds((prev) =>
+                        checked
+                          ? Array.from(new Set([...prev, domain.id]))
+                          : prev.filter((id) => id !== domain.id)
+                      );
+                    }}
+                    disabled={isPublishBusy}
+                  />
+                  <span className="break-all">{domain.label}</span>
+                </label>
+              ))}
+              {!webflowDomains.length ? (
+                <p className="text-xs text-muted-foreground">No publish domains returned by Webflow.</p>
+              ) : null}
+            </div>
+          </div>
+        </TabsContent>
+        <TabsContent value="images" className="space-y-3 pt-1">
+          <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-background p-6 text-center">
+            <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium text-muted-foreground">No image fields</p>
+              <p className="text-xs text-muted-foreground">Image fields are not configured for blog posts.</p>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  ) : isActiveWebflow ? (
+    <div className="rounded-lg bg-background p-4 space-y-3">
+      <Typography className="text-sm">Webflow is connected but no collection mapping is saved.</Typography>
+      <Button onClick={handleRedirectToChannels}>Configure Webflow</Button>
+    </div>
+  ) : null
+}
+
+<DialogFooter className="gap-2 sm:gap-2">
+  {isActiveWordpress ? (
+    <>
+      {isPersistedLive ? (
+        <>
+          <Button
+            variant="outline"
+            onClick={() => handleChangeWordpressStatus("draft")}
+            disabled={wpUnpublishMutation.isPending}
+          >
+            {wpUnpublishMutation.isPending ? "Updating..." : "Move to Draft"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setConfirmPublishAction("republish")}
+            disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
+          >
+            {cmsPublishMutation.isPending ? "Republishing..." : "Republish"}
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() => {
+                  if (liveUrl) {
+                    openEmbeddedPreview(liveUrl, publishType === "page" ? "Published WordPress Page" : "Published WordPress Blog");
+                  }
+                }}
+                disabled={!liveUrl}
+                aria-label="View live WordPress blog"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>View Live</TooltipContent>
+          </Tooltip>
+        </>
+      ) : isPersistedDraftLike ? (
+        <>
+          <Button
+            variant="destructive"
+            onClick={() => setIsDeleteConfirmOpen(true)}
+            disabled={wpUnpublishMutation.isPending}
+          >
+            {wpUnpublishMutation.isPending ? "Deleting..." : "Delete"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setConfirmPublishAction("update-draft")}
+            disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
+          >
+            {cmsPublishMutation.isPending ? "Updating..." : "Update Draft"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleOpenPreview}
+            disabled={!persistedContent?.wpId || wpPreviewMutation.isPending}
+          >
+            {wpPreviewMutation.isPending ? "Loading..." : "Preview Draft"}
+          </Button>
+          <Button
+            onClick={() => setConfirmPublishAction("live")}
+            disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isWordpressPagePublishBlocked || cmsPublishMutation.isPending}
+          >
+            {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+          </Button>
+        </>
+      ) : (
+        <Button
+          onClick={() => setConfirmPublishAction("draft")}
+          disabled={
+            !hasFinalContent ||
+            !normalizedSlugForPublish ||
+            hasSlugConflict ||
+            isSlugChecking ||
+            isWordpressPagePublishBlocked ||
+            contentStatusQuery.isLoading ||
+            cmsPublishMutation.isPending ||
+            wpPreviewMutation.isPending
+          }
+        >
+          {cmsPublishMutation.isPending || wpPreviewMutation.isPending ? "Publishing..." : "Publish Draft"}
+        </Button>
+      )}
+    </>
+  ) : null}
+  {isWebflowReady ? (
+    <>
+      {webflowPublishState === "not_published" ? (
+        <Button
+          onClick={() => setConfirmPublishAction("webflow-draft")}
+          disabled={
+            !hasFinalContent ||
+            !normalizedSlugForPublish ||
+            hasSlugConflict ||
+            isSlugChecking ||
+            cmsPublishMutation.isPending
+          }
+        >
+          {cmsPublishMutation.isPending ? "Saving..." : "Publish Draft"}
+        </Button>
+      ) : null}
+      {webflowPublishState === "draft" ? (
+        <>
+          {hasWebflowStagingPreview ? (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button
-                    onClick={() => setConfirmPublishAction("draft")}
-                    disabled={
-                      !hasFinalContent ||
-                      !normalizedSlugForPublish ||
-                      hasSlugConflict ||
-                      isSlugChecking ||
-                      isWordpressPagePublishBlocked ||
-                      contentStatusQuery.isLoading ||
-                      cmsPublishMutation.isPending ||
-                      wpPreviewMutation.isPending
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    onClick={() =>
+                      openWebflowPreview(webflowStagingViewUrl, {
+                        delayMs: WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
+                        subject: "staging page",
+                      })
                     }
+                    disabled={!webflowStagingViewUrl}
+                    aria-label="View on staging"
                   >
-                    {cmsPublishMutation.isPending || wpPreviewMutation.isPending ? "Publishing..." : "Publish Draft"}
+                    <ExternalLink className="h-4 w-4" />
                   </Button>
-                )}
-              </>
-            ) : null}
-            {isWebflowReady ? (
-              <>
-                {webflowPublishState === "not_published" ? (
-                  <Button
-                    onClick={() => setConfirmPublishAction("webflow-draft")}
-                    disabled={
-                      !hasFinalContent ||
-                      !normalizedSlugForPublish ||
-                      hasSlugConflict ||
-                      isSlugChecking ||
-                      cmsPublishMutation.isPending
-                    }
-                  >
-                    {cmsPublishMutation.isPending ? "Saving..." : "Publish Draft"}
-                  </Button>
-                ) : null}
-                {webflowPublishState === "draft" ? (
-                  <>
-                    {hasWebflowStagingPreview ? (
-                      <>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="outline"
-                              onClick={() =>
-                                openWebflowPreview(webflowStagingViewUrl, {
-                                  delayMs: WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
-                                  subject: "staging page",
-                                })
-                              }
-                              disabled={!webflowStagingViewUrl}
-                              aria-label="View on staging"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>View on staging</TooltipContent>
-                        </Tooltip>
-                        <Button
-                          variant="outline"
-                          onClick={() => setConfirmPublishAction("webflow-staging-preview")}
-                          disabled={!hasWebflowMapping || webflowStagingPreviewMutation.isPending || isPublishBusy}
-                        >
-                          {webflowStagingPreviewMutation.isPending ? "Republishing..." : "Republish"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setConfirmPublishAction("webflow-rollback-draft")}
-                          disabled={!hasWebflowMapping || webflowRollbackToDraftMutation.isPending || isPublishBusy}
-                        >
-                          {webflowRollbackToDraftMutation.isPending ? "Moving..." : "Move back to draft"}
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={() => setConfirmPublishAction("webflow-staging-preview")}
-                          disabled={!hasWebflowMapping || webflowStagingPreviewMutation.isPending || isPublishBusy}
-                        >
-                          {webflowStagingPreviewMutation.isPending ? "Publishing..." : "Publish to staging"}
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      onClick={() => setConfirmPublishAction("webflow-live")}
-                      disabled={
-                        !hasFinalContent ||
-                        !normalizedSlugForPublish ||
-                        hasSlugConflict ||
-                        isSlugChecking ||
-                        (!publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) ||
-                        cmsPublishMutation.isPending
-                      }
-                    >
-                      {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
-                    </Button>
-                  </>
-                ) : null}
-                {webflowPublishState === "live" ? (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() =>
-                            openWebflowPreview(webflowPreviewUrl, {
-                              delayMs: WEBFLOW_LIVE_VIEW_OPEN_DELAY_MS,
-                              subject: "live page",
-                            })
-                          }
-                          disabled={!webflowPreviewUrl}
-                          aria-label="View live page"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>View live page</TooltipContent>
-                    </Tooltip>
-                    <Button
-                      variant="outline"
-                      onClick={() => setConfirmPublishAction("webflow-rollback-draft")}
-                      disabled={!hasWebflowMapping || webflowRollbackToDraftMutation.isPending || isPublishBusy}
-                    >
-                      {webflowRollbackToDraftMutation.isPending ? "Moving..." : "Move back to draft"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setConfirmPublishAction("webflow-draft")}
-                      disabled={!hasFinalContent || !normalizedSlugForPublish || cmsPublishMutation.isPending}
-                    >
-                      {cmsPublishMutation.isPending ? "Saving..." : "Update Draft"}
-                    </Button>
-                    <Button
-                      onClick={() => setConfirmPublishAction("webflow-live")}
-                      disabled={
-                        !hasFinalContent ||
-                        !normalizedSlugForPublish ||
-                        hasSlugConflict ||
-                        isSlugChecking ||
-                        (!publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) ||
-                        cmsPublishMutation.isPending
-                      }
-                    >
-                      {cmsPublishMutation.isPending ? "Publishing..." : "Republish Live"}
-                    </Button>
-                  </>
-                ) : null}
-              </>
-            ) : null}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                </TooltipTrigger>
+                <TooltipContent>View on staging</TooltipContent>
+              </Tooltip>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmPublishAction("webflow-staging-preview")}
+                disabled={!hasWebflowMapping || webflowStagingPreviewMutation.isPending || isPublishBusy}
+              >
+                {webflowStagingPreviewMutation.isPending ? "Republishing..." : "Republish"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmPublishAction("webflow-rollback-draft")}
+                disabled={!hasWebflowMapping || webflowRollbackToDraftMutation.isPending || isPublishBusy}
+              >
+                {webflowRollbackToDraftMutation.isPending ? "Moving..." : "Move back to draft"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setConfirmPublishAction("webflow-staging-preview")}
+                disabled={!hasWebflowMapping || webflowStagingPreviewMutation.isPending || isPublishBusy}
+              >
+                {webflowStagingPreviewMutation.isPending ? "Publishing..." : "Publish to staging"}
+              </Button>
+            </>
+          )}
+          <Button
+            onClick={() => setConfirmPublishAction("webflow-live")}
+            disabled={
+              !hasFinalContent ||
+              !normalizedSlugForPublish ||
+              hasSlugConflict ||
+              isSlugChecking ||
+              (!publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) ||
+              cmsPublishMutation.isPending
+            }
+          >
+            {cmsPublishMutation.isPending ? "Publishing..." : "Publish Live"}
+          </Button>
+        </>
+      ) : null}
+      {webflowPublishState === "live" ? (
+        <>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={() =>
+                  openWebflowPreview(webflowPreviewUrl, {
+                    delayMs: WEBFLOW_LIVE_VIEW_OPEN_DELAY_MS,
+                    subject: "live page",
+                  })
+                }
+                disabled={!webflowPreviewUrl}
+                aria-label="View live page"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>View live page</TooltipContent>
+          </Tooltip>
+          <Button
+            variant="outline"
+            onClick={() => setConfirmPublishAction("webflow-rollback-draft")}
+            disabled={!hasWebflowMapping || webflowRollbackToDraftMutation.isPending || isPublishBusy}
+          >
+            {webflowRollbackToDraftMutation.isPending ? "Moving..." : "Move back to draft"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setConfirmPublishAction("webflow-draft")}
+            disabled={!hasFinalContent || !normalizedSlugForPublish || cmsPublishMutation.isPending}
+          >
+            {cmsPublishMutation.isPending ? "Saving..." : "Update Draft"}
+          </Button>
+          <Button
+            onClick={() => setConfirmPublishAction("webflow-live")}
+            disabled={
+              !hasFinalContent ||
+              !normalizedSlugForPublish ||
+              hasSlugConflict ||
+              isSlugChecking ||
+              (!publishToWebflowSubdomain && selectedWebflowCustomDomainIds.length === 0) ||
+              cmsPublishMutation.isPending
+            }
+          >
+            {cmsPublishMutation.isPending ? "Publishing..." : "Republish Live"}
+          </Button>
+        </>
+      ) : null}
+    </>
+  ) : null}
+</DialogFooter>
+        </DialogContent >
+      </Dialog >
 
       <AlertDialog open={confirmPublishAction !== null} onOpenChange={(open) => !open && setConfirmPublishAction(null)}>
         <AlertDialogContent>
@@ -2425,6 +2775,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

@@ -10,9 +10,12 @@ import {
   ArrowDown,
   ArrowDownFromLine,
   ArrowLeft,
+  ChevronDown,
+  ChevronRight,
   Copy,
   ExternalLink,
   Globe,
+  ImageIcon,
   Loader2,
   Monitor,
   ArrowUp,
@@ -31,6 +34,7 @@ import {
   PanelRight,
   Plus,
   Redo2,
+  RefreshCw,
   RotateCcw,
   Save,
   Smartphone,
@@ -44,9 +48,14 @@ import {
   X,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
@@ -143,9 +152,13 @@ import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 import {
   type WordpressSlugConflictInfo,
   useWordpressPreviewLink,
+  useWordpressPublish,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
-import { useWordpressStyleProfile } from "@/hooks/use-wordpress-connector";
+import {
+  useUpdateWordpressStyleOverrides,
+  useWordpressStyleProfile,
+} from "@/hooks/use-wordpress-connector";
 import {
   CmsPublishError,
   getCmsRateLimitDescription,
@@ -181,7 +194,16 @@ import {
   WEBFLOW_STAGING_PUBLISH_OPEN_DELAY_MS,
   WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
 } from "@/components/organisms/web-page-actions/webflow-open-preview";
-import { buildMassicCssVariableOverrides } from "@/utils/massic-style-overrides";
+import {
+  applyMassicStyleOverrides,
+  buildMassicCssVariableOverrides,
+  MASSIC_STYLE_COLOR_KEYS,
+  MASSIC_STYLE_TYPOGRAPHY_KEYS,
+  normalizeMassicStyleColorOverrides,
+  normalizeMassicStyleTypographyOverrides,
+  type MassicStyleColorKey,
+  type MassicStyleTypographyKey,
+} from "@/utils/massic-style-overrides";
 import { LayoutPanel, MediaEditorPanel } from "@/components/ui/layout-panel";
 import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 
@@ -215,6 +237,57 @@ type PreviewEditMode = "text" | "layout";
 type WebflowImageMapping = {
   fieldKey: string;
   fieldLabel: string;
+};
+
+const STYLE_COLOR_OPTION_LABELS: Record<MassicStyleColorKey, string> = {
+  primary: "Primary",
+  secondary: "Secondary",
+  accent: "Accent",
+  link: "Link",
+  text: "Text",
+  mutedText: "Muted Text",
+  background: "Background",
+  surface: "Surface",
+  buttonBg: "Button Background",
+  buttonText: "Button Text",
+};
+const CORE_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "primary",
+  "secondary",
+  "accent",
+  "link",
+  "buttonBg",
+  "buttonText",
+];
+const ADVANCED_STYLE_COLOR_KEYS: MassicStyleColorKey[] = [
+  "text",
+  "mutedText",
+  "background",
+  "surface",
+];
+const STYLE_TYPOGRAPHY_OPTION_LABELS: Partial<Record<MassicStyleTypographyKey, string>> = {
+  baseFontSize: "Base Text Size",
+  baseLineHeight: "Base Line Height",
+  h1Size: "H1 Size",
+  h2Size: "H2 Size",
+  h3Size: "H3 Size",
+};
+const VISIBLE_STYLE_TYPOGRAPHY_KEYS: MassicStyleTypographyKey[] = [
+  "baseFontSize",
+  "baseLineHeight",
+  "h1Size",
+  "h2Size",
+  "h3Size",
+];
+const LINE_HEIGHT_PRESETS = ["1.3", "1.4", "1.5", "1.6", "1.8", "2"];
+const TYPOGRAPHY_PRESETS: Record<MassicStyleTypographyKey, string[]> = {
+  bodyFontFamily: [],
+  headingFontFamily: [],
+  baseFontSize: ["14px", "16px", "18px", "20px", "22px", "24px"],
+  baseLineHeight: LINE_HEIGHT_PRESETS,
+  h1Size: ["28px", "32px", "36px", "40px", "42px", "48px"],
+  h2Size: ["22px", "24px", "28px", "32px", "36px"],
+  h3Size: ["18px", "20px", "22px", "26px", "30px"],
 };
 
 function normalizeDuplicatedLabel(value?: string | null) {
@@ -492,6 +565,9 @@ export function WebPageHtmlView({
   const [textNodeIndex, setTextNodeIndex] = React.useState<EditableTextNodeRef[]>([]);
   const [editorBaseCss, setEditorBaseCss] = React.useState("");
   const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
+  const [styleColorsOpen, setStyleColorsOpen] = React.useState(false);
+  const [typographyOpen, setTypographyOpen] = React.useState(false);
+  const [publishTab, setPublishTab] = React.useState<"details" | "images">("details");
   const [lastPublishedData, setLastPublishedData] = React.useState<{
     contentId: string;
     wpId: number;
@@ -579,7 +655,9 @@ export function WebPageHtmlView({
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
+  const wpPublishMutation = useWordpressPublish();
   const wpStyleProfileQuery = useWordpressStyleProfile(isActiveWordpress ? activeConnection?.connectionId || null : null);
+  const wpStyleOverridesMutation = useUpdateWordpressStyleOverrides();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
   const webflowDomains = isActiveWebflow
@@ -622,6 +700,14 @@ export function WebPageHtmlView({
   const hasEnabledWebflowImageDestinations = webflowImageMappings.length > 0;
   const [publishToWebflowSubdomain, setPublishToWebflowSubdomain] = React.useState(true);
   const [selectedWebflowCustomDomainIds, setSelectedWebflowCustomDomainIds] = React.useState<string[]>([]);
+  const [styleColorOverridesDraft, setStyleColorOverridesDraft] = React.useState<
+    Partial<Record<MassicStyleColorKey, string>>
+  >({});
+  const [showAllStyleColorOptions, setShowAllStyleColorOptions] = React.useState(false);
+  const [openStylePaletteKey, setOpenStylePaletteKey] = React.useState<MassicStyleColorKey | null>(null);
+  const [styleTypographyOverridesDraft, setStyleTypographyOverridesDraft] = React.useState<
+    Partial<Record<MassicStyleTypographyKey, string>>
+  >({});
   const selectedWebflowLiveDomainLabels = React.useMemo(() => {
     const labels: string[] = [];
     if (publishToWebflowSubdomain && webflowStagingDomain?.label) labels.push(webflowStagingDomain.label);
@@ -920,9 +1006,51 @@ export function WebPageHtmlView({
 
   const extractionStatus = (wpStyleProfileQuery.data?.latestExtraction?.status || "").toLowerCase();
   const shouldApplyWpStyle = isActiveWordpress && !!wpStyleProfileQuery.data?.profile && (extractionStatus === "success" || extractionStatus === "partial");
+
+  const normalizedStoredStyleColorOverrides = React.useMemo(
+    () => normalizeMassicStyleColorOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).colors || {},
+    [wpStyleProfileQuery.data?.styleOverrides]
+  );
+  const serializedStoredColorOverrides = React.useMemo(
+    () => JSON.stringify(normalizedStoredStyleColorOverrides),
+    [normalizedStoredStyleColorOverrides]
+  );
+  const normalizedStoredStyleTypographyOverrides = React.useMemo(
+    () => normalizeMassicStyleTypographyOverrides(wpStyleProfileQuery.data?.styleOverrides || {}).typography || {},
+    [wpStyleProfileQuery.data?.styleOverrides]
+  );
+  const serializedStoredTypographyOverrides = React.useMemo(
+    () => JSON.stringify(normalizedStoredStyleTypographyOverrides),
+    [normalizedStoredStyleTypographyOverrides]
+  );
+  React.useEffect(() => {
+    setStyleColorOverridesDraft((prev) => {
+      const prevSerialized = JSON.stringify(
+        normalizeMassicStyleColorOverrides({ colors: prev }).colors || {}
+      );
+      if (prevSerialized === serializedStoredColorOverrides) return prev;
+      return normalizedStoredStyleColorOverrides;
+    });
+  }, [normalizedStoredStyleColorOverrides, serializedStoredColorOverrides]);
+  React.useEffect(() => {
+    setStyleTypographyOverridesDraft((prev) => {
+      const prevSerialized = JSON.stringify(
+        normalizeMassicStyleTypographyOverrides({ typography: prev }).typography || {}
+      );
+      if (prevSerialized === serializedStoredTypographyOverrides) return prev;
+      return normalizedStoredStyleTypographyOverrides;
+    });
+  }, [normalizedStoredStyleTypographyOverrides, serializedStoredTypographyOverrides]);
+
   const styleProfileForPreview = React.useMemo(
-    () => (shouldApplyWpStyle ? wpStyleProfileQuery.data?.profile || null : null),
-    [shouldApplyWpStyle, wpStyleProfileQuery.data?.profile]
+    () =>
+      shouldApplyWpStyle
+        ? applyMassicStyleOverrides(wpStyleProfileQuery.data?.profile, {
+            colors: styleColorOverridesDraft,
+            typography: styleTypographyOverridesDraft,
+          })
+        : null,
+    [shouldApplyWpStyle, styleColorOverridesDraft, styleTypographyOverridesDraft, wpStyleProfileQuery.data?.profile]
   );
   const cssVarOverrides = React.useMemo(
     () =>
@@ -931,6 +1059,169 @@ export function WebPageHtmlView({
         : {},
     [styleProfileForPreview]
   );
+
+  const extractedStyleColors = React.useMemo(() => {
+    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as { colors?: Record<string, unknown> } | undefined;
+    return (extractedProfile?.colors || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.extractedProfile]);
+  const effectiveProfileColors = React.useMemo(() => {
+    const profile = wpStyleProfileQuery.data?.profile as { colors?: Record<string, unknown> } | undefined;
+    return (profile?.colors || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.profile]);
+  const normalizeAnyColor = React.useCallback((value: unknown) => {
+    if (typeof value !== "string") return null;
+    return normalizeMassicStyleColorOverrides({ colors: { primary: value } }).colors?.primary || null;
+  }, []);
+  const extractedColorByKey = React.useMemo(() => {
+    const next: Partial<Record<MassicStyleColorKey, string>> = {};
+    for (const key of MASSIC_STYLE_COLOR_KEYS) {
+      const extracted = normalizeAnyColor(extractedStyleColors[key]);
+      const profileFallback = normalizeAnyColor(effectiveProfileColors[key]);
+      if (extracted) next[key] = extracted;
+      else if (profileFallback) next[key] = profileFallback;
+    }
+    return next;
+  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
+  const extractedPaletteColors = React.useMemo(() => {
+    const candidates: string[] = [];
+    for (const value of Object.values(extractedStyleColors || {})) {
+      const normalized = normalizeAnyColor(value);
+      if (normalized) candidates.push(normalized);
+    }
+    for (const value of Object.values(effectiveProfileColors || {})) {
+      const normalized = normalizeAnyColor(value);
+      if (normalized) candidates.push(normalized);
+    }
+    return Array.from(new Set(candidates));
+  }, [effectiveProfileColors, extractedStyleColors, normalizeAnyColor]);
+  const visibleStyleColorKeys = showAllStyleColorOptions
+    ? [...CORE_STYLE_COLOR_KEYS, ...ADVANCED_STYLE_COLOR_KEYS]
+    : CORE_STYLE_COLOR_KEYS;
+  const extractedStyleTypography = React.useMemo(() => {
+    const extractedProfile = wpStyleProfileQuery.data?.extractedProfile as
+      | { typography?: Record<string, unknown> }
+      | undefined;
+    return (extractedProfile?.typography || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.extractedProfile]);
+  const effectiveProfileTypography = React.useMemo(() => {
+    const profile = wpStyleProfileQuery.data?.profile as
+      | { typography?: Record<string, unknown> }
+      | undefined;
+    return (profile?.typography || {}) as Record<string, unknown>;
+  }, [wpStyleProfileQuery.data?.profile]);
+  const extractedTypographyByKey = React.useMemo(() => {
+    const readTypographyValue = (source: Record<string, unknown>, key: MassicStyleTypographyKey): string | null => {
+      if (key === "h1Size") {
+        const value = (source.h1 as Record<string, unknown> | undefined)?.size;
+        return typeof value === "string" ? value : null;
+      }
+      if (key === "h2Size") {
+        const value = (source.h2 as Record<string, unknown> | undefined)?.size;
+        return typeof value === "string" ? value : null;
+      }
+      if (key === "h3Size") {
+        const value = (source.h3 as Record<string, unknown> | undefined)?.size;
+        return typeof value === "string" ? value : null;
+      }
+      const value = source[key];
+      return typeof value === "string" ? value : null;
+    };
+    const next: Partial<Record<MassicStyleTypographyKey, string>> = {};
+    for (const key of MASSIC_STYLE_TYPOGRAPHY_KEYS) {
+      const extracted = readTypographyValue(extractedStyleTypography, key);
+      const fallback = readTypographyValue(effectiveProfileTypography, key);
+      if (extracted) next[key] = extracted;
+      else if (fallback) next[key] = fallback;
+    }
+    return next;
+  }, [effectiveProfileTypography, extractedStyleTypography]);
+  const normalizedDraftStyleColorOverrides = React.useMemo(
+    () => normalizeMassicStyleColorOverrides({ colors: styleColorOverridesDraft }).colors || {},
+    [styleColorOverridesDraft]
+  );
+  const normalizedDraftStyleTypographyOverrides = React.useMemo(
+    () => normalizeMassicStyleTypographyOverrides({ typography: styleTypographyOverridesDraft }).typography || {},
+    [styleTypographyOverridesDraft]
+  );
+  const serializedDraftColorOverrides = React.useMemo(
+    () => JSON.stringify(normalizedDraftStyleColorOverrides),
+    [normalizedDraftStyleColorOverrides]
+  );
+  const serializedDraftTypographyOverrides = React.useMemo(
+    () => JSON.stringify(normalizedDraftStyleTypographyOverrides),
+    [normalizedDraftStyleTypographyOverrides]
+  );
+  const hasUnsavedStyleColorOverrides = serializedDraftColorOverrides !== serializedStoredColorOverrides;
+  const hasUnsavedStyleTypographyOverrides = serializedDraftTypographyOverrides !== serializedStoredTypographyOverrides;
+  const invalidTypographyKeys = React.useMemo(
+    () =>
+      VISIBLE_STYLE_TYPOGRAPHY_KEYS.filter((key) => {
+        const raw = String(styleTypographyOverridesDraft[key] || "").trim();
+        if (!raw) return false;
+        return !normalizedDraftStyleTypographyOverrides[key];
+      }),
+    [normalizedDraftStyleTypographyOverrides, styleTypographyOverridesDraft]
+  );
+  const hasTypographyValidationErrors = invalidTypographyKeys.length > 0;
+  const isStyleOverrideSaving = wpStyleOverridesMutation.isPending;
+
+  const handleStyleOverrideColorChange = React.useCallback((key: MassicStyleColorKey, value: string) => {
+    const normalized = normalizeMassicStyleColorOverrides({ colors: { [key]: value } }).colors?.[key];
+    if (!normalized) return;
+    setStyleColorOverridesDraft((prev) => ({ ...prev, [key]: normalized }));
+  }, []);
+  const handleStyleOverrideTypographyChange = React.useCallback((key: MassicStyleTypographyKey, value: string) => {
+    setStyleTypographyOverridesDraft((prev) => ({ ...prev, [key]: value }));
+  }, []);
+  const resetStyleOverrideKey = React.useCallback((key: MassicStyleColorKey) => {
+    setStyleColorOverridesDraft((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+  const handleSaveStyleColorOverrides = React.useCallback(async () => {
+    if (!isActiveWordpress || !activeConnection?.connectionId) return;
+    const response = await wpStyleOverridesMutation.mutateAsync({
+      connectionId: activeConnection.connectionId,
+      overrides: {
+        colors: normalizedDraftStyleColorOverrides,
+        typography: normalizedStoredStyleTypographyOverrides,
+      },
+    });
+    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
+    const savedTypography = normalizeMassicStyleTypographyOverrides(response?.data?.styleOverrides || {}).typography || {};
+    setStyleColorOverridesDraft(savedColors);
+    setStyleTypographyOverridesDraft(savedTypography);
+  }, [
+    activeConnection?.connectionId,
+    isActiveWordpress,
+    normalizedDraftStyleColorOverrides,
+    normalizedStoredStyleTypographyOverrides,
+    wpStyleOverridesMutation,
+  ]);
+  const handleSaveStyleTypographyOverrides = React.useCallback(async () => {
+    if (!isActiveWordpress || !activeConnection?.connectionId) return;
+    if (hasTypographyValidationErrors) return;
+    const response = await wpStyleOverridesMutation.mutateAsync({
+      connectionId: activeConnection.connectionId,
+      overrides: {
+        colors: normalizedStoredStyleColorOverrides,
+        typography: normalizedDraftStyleTypographyOverrides,
+      },
+    });
+    const savedColors = normalizeMassicStyleColorOverrides(response?.data?.styleOverrides || {}).colors || {};
+    const savedTypography = normalizeMassicStyleTypographyOverrides(response?.data?.styleOverrides || {}).typography || {};
+    setStyleColorOverridesDraft(savedColors);
+    setStyleTypographyOverridesDraft(savedTypography);
+  }, [
+    activeConnection?.connectionId,
+    hasTypographyValidationErrors,
+    isActiveWordpress,
+    normalizedDraftStyleTypographyOverrides,
+    normalizedStoredStyleColorOverrides,
+    wpStyleOverridesMutation,
+  ]);
   const previewStyleVars = React.useMemo(() => {
     if (isBlogContent) return {};
     const style: React.CSSProperties = {};
@@ -4651,77 +4942,93 @@ export function WebPageHtmlView({
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             {isPublishConnectionLoading ? (
-              <div className="flex min-h-[220px] items-center justify-center rounded-md border bg-background p-6">
+              <div className="flex min-h-[220px] items-center justify-center rounded-md bg-background p-6">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Loading publishing settings...
                 </div>
               </div>
             ) : !cmsChannel?.connected ? (
-              <div className="rounded-md border bg-background p-4 space-y-3">
+              <div className="rounded-lg bg-background p-4 space-y-3">
                 <Typography className="text-sm">No publishing channel connected.</Typography>
                 <Button onClick={handleRedirectToChannels}>Connect a channel</Button>
               </div>
             ) : (
-              <div className="rounded-md border bg-muted/20 p-4 space-y-2 min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between gap-3">
-                <Typography className="text-sm font-medium truncate min-w-0 flex-1">
-                  {activePlatform === "webflow"
-                    ? `Webflow: ${activeTarget?.name || "Configured collection"}`
-                    : activeConnection?.siteUrl}
-                </Typography>
-                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap shrink-0">
-                  {publishStateLabel}
-                </Typography>
+              <div className="rounded-lg bg-muted/20 py-4 min-w-0 overflow-hidden space-y-3">
+              <Tabs value={publishTab} onValueChange={(v) => setPublishTab(v as "details" | "images")}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Typography className="text-sm font-medium truncate min-w-0">
+                      {activePlatform === "webflow"
+                        ? `Webflow: ${activeTarget?.name || "Configured collection"}`
+                        : activeConnection?.siteUrl}
+                    </Typography>
+                    <Badge
+                      className={cn(
+                        "shrink-0 font-medium",
+                        publishStateLabel === "Live" && "border-transparent bg-green-600 text-white"
+                      )}
+                      variant={
+                        publishStateLabel === "Live"
+                          ? "default"
+                          : publishStateLabel === "Draft"
+                            ? "secondary"
+                            : publishStateLabel === "In Trash"
+                              ? "destructive"
+                              : "outline"
+                      }
+                    >
+                      {publishStateLabel}
+                    </Badge>
+                  </div>
+                  <TabsList className="h-7 shrink-0 rounded-sm">
+                    <TabsTrigger value="details" className="text-xs px-2.5 h-6 rounded-sm">Details</TabsTrigger>
+                    <TabsTrigger value="images" className="text-xs px-2.5 h-6 rounded-sm">Images</TabsTrigger>
+                  </TabsList>
+                </div>
+                {activePlatform !== "webflow" && publishStateLabel !== "Live" ? (
+                  <p className="text-sm text-muted-foreground">{publishStateHint}</p>
+                ) : null}
+                {needsWebflowMappingSetup ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <Typography className="text-sm font-medium text-amber-950">
+                      {publishType === "page" ? "Massic Pages setup is required" : "Webflow mapping is required"}
+                    </Typography>
+                    <Typography className="mt-1 text-xs text-amber-900">
+                      {publishType === "page"
+                        ? "Create the Massic Pages collection in Webflow, then check setup in integrations before publishing pages."
+                        : "Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first."}
+                    </Typography>
+                    <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
+                      {publishType === "page" ? "Check page setup" : "Configure mapping"}
+                    </Button>
+                  </div>
+                ) : null}
+                {requiresWordpressPageTemplate && (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage) ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    {isWordpressPageTemplateChecking ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Checking for Massic Template...</span>
+                      </div>
+                    ) : (
+                      <div className="wrap-break-word">{wordpressPageTemplateBlockMessage}</div>
+                    )}
+                  </div>
+                ) : null}
+                <TabsContent value="details" className="space-y-4 pt-1">
+              <div className="space-y-3">
+                <div className="space-y-0.5">
+                  <span className="text-xs text-muted-foreground">{isBlogContent ? "Post title" : "Page title"}</span>
+                  <p className="text-sm line-clamp-2">{publishTitle}</p>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-xs text-muted-foreground">SEO title</span>
+                  <p className="text-sm line-clamp-2">{publishSeoTitle}</p>
+                </div>
               </div>
-              {activePlatform !== "webflow" ? (
-                <Typography as="p" className="text-sm text-muted-foreground">
-                  {publishStateHint}
-                </Typography>
-              ) : null}
-              {needsWebflowMappingSetup ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <Typography className="text-sm font-medium text-amber-950">
-                    {publishType === "page" ? "Massic Pages setup is required" : "Webflow mapping is required"}
-                  </Typography>
-                  <Typography className="mt-1 text-xs text-amber-900">
-                    {publishType === "page"
-                      ? "Create the Massic Pages collection in Webflow, then check setup in integrations before publishing pages."
-                      : "Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first."}
-                  </Typography>
-                  <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
-                    {publishType === "page" ? "Check page setup" : "Configure mapping"}
-                  </Button>
-                </div>
-              ) : null}
-              {requiresWordpressPageTemplate && (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage) ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  {isWordpressPageTemplateChecking ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>Checking for Massic Template...</span>
-                    </div>
-                  ) : (
-                    <div className="break-words">{wordpressPageTemplateBlockMessage}</div>
-                  )}
-                </div>
-              ) : null}
-              <div className="space-y-2 pt-1">
-                <div>
-                  <Typography className="text-xs text-muted-foreground">{isBlogContent ? "Post title" : "Page title"}</Typography>
-                  <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
-                </div>
-                <div>
-                  <Typography className="text-xs text-muted-foreground">SEO title</Typography>
-                  <Typography className="text-sm line-clamp-2">{publishSeoTitle}</Typography>
-                </div>
-              </div>
-              <div className="space-y-1 pt-2">
-                <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
-                <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>
-              </div>
-              <div className="space-y-1 pt-2">
-                <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Publish slug</Label>
                 <Input
                   value={editableSlug}
                   onChange={(e) => {
@@ -4731,34 +5038,278 @@ export function WebPageHtmlView({
                   placeholder={isBlogContent ? "enter-blog-slug" : "enter-page-slug"}
                   disabled={isPublishBusy || isAutoResolvingSlug}
                 />
+                {(slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl) ? (
+                  <p className="text-xs text-muted-foreground font-mono break-all">
+                    {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl}
+                  </p>
+                ) : null}
               </div>
-              <div className="space-y-1">
-                <Typography className="text-xs text-muted-foreground">
-                  {activePlatform === "webflow" && webflowPublishState === "draft" ? "Staging page path" : "Publish route"}
-                </Typography>
-                <Typography className="text-sm font-mono break-all">
-                  {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl || "Unavailable"}
-                </Typography>
-              </div>
-              {isWordpressBlogPublish ? (
-                <div className="space-y-3 pt-2 border-t border-border/60">
-                  <div className="flex items-center justify-between gap-2">
-                    <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Featured Image
-                    </Typography>
-                    {activeFeaturedImage ? (
-                      <Button
+              {isActiveWordpress && !isBlogContent ? (
+                <>
+                  <Collapsible open={styleColorsOpen} onOpenChange={setStyleColorsOpen}>
+                    <CollapsibleTrigger asChild>
+                      <button
                         type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => featuredImageInputRef.current?.click()}
-                        disabled={featuredImageBusy}
+                        className="flex w-full items-center justify-between border-t border-border/60 pt-3 text-left"
                       >
-                        Replace
-                      </Button>
-                    ) : null}
-                  </div>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide">Style Colors</span>
+                        <div className="flex items-center gap-2">
+                          {Object.keys(styleColorOverridesDraft).length > 0 ? (
+                            <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                              {Object.keys(styleColorOverridesDraft).length}
+                            </Badge>
+                          ) : null}
+                          <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", styleColorsOpen && "rotate-90")} />
+                        </div>
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 pt-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">Use extracted colors or custom picks.</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs shrink-0"
+                          onClick={() => setShowAllStyleColorOptions((prev) => !prev)}
+                        >
+                          {showAllStyleColorOptions ? "Show Core" : `Show All (${MASSIC_STYLE_COLOR_KEYS.length})`}
+                        </Button>
+                      </div>
+                      {extractedPaletteColors.length ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] text-muted-foreground">Palette:</span>
+                          {extractedPaletteColors.slice(0, 10).map((color) => (
+                            <span
+                              key={color}
+                              className="inline-flex h-5 w-5 rounded-full border border-border"
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {visibleStyleColorKeys.map((key) => {
+                          const label = STYLE_COLOR_OPTION_LABELS[key] || key;
+                          const extractedColor = extractedColorByKey[key] || null;
+                          const overrideColor = normalizedDraftStyleColorOverrides[key] || null;
+                          const pickerValue = overrideColor || extractedColor || extractedPaletteColors[0] || "#000000";
+                          return (
+                            <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-medium">{label}</span>
+                                <span className="text-[11px] text-muted-foreground font-mono">{overrideColor || extractedColor || "—"}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="color"
+                                  value={pickerValue}
+                                  onChange={(e) => handleStyleOverrideColorChange(key, e.target.value)}
+                                  disabled={isStyleOverrideSaving}
+                                  className="h-8 w-11 p-1 shrink-0"
+                                />
+                                <Popover
+                                  open={openStylePaletteKey === key}
+                                  onOpenChange={(open) => setOpenStylePaletteKey(open ? key : null)}
+                                >
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      className="h-8 min-w-0 flex-1 justify-between px-2 text-xs"
+                                      disabled={isStyleOverrideSaving || !extractedPaletteColors.length}
+                                    >
+                                      <span className="flex min-w-0 items-center gap-2">
+                                        <span
+                                          className="h-3.5 w-3.5 shrink-0 rounded-full border border-border"
+                                          style={{ backgroundColor: overrideColor || extractedColor || extractedPaletteColors[0] || "#000000" }}
+                                        />
+                                        <span className="truncate">{overrideColor || extractedColor || "Use extracted"}</span>
+                                      </span>
+                                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align="start" className="w-56 p-1">
+                                    <div className="max-h-56 space-y-1 overflow-y-auto">
+                                      {extractedPaletteColors.map((color) => (
+                                        <button
+                                          key={`${key}-${color}`}
+                                          type="button"
+                                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted"
+                                          onClick={() => {
+                                            handleStyleOverrideColorChange(key, color);
+                                            setOpenStylePaletteKey(null);
+                                          }}
+                                        >
+                                          <span className="h-4 w-4 shrink-0 rounded-full border border-border" style={{ backgroundColor: color }} />
+                                          <span className="font-mono">{color}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 px-2 text-xs"
+                                  onClick={() => resetStyleOverrideKey(key)}
+                                  disabled={isStyleOverrideSaving || !overrideColor}
+                                >
+                                  Clear
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {!showAllStyleColorOptions ? (
+                        <p className="text-[11px] text-muted-foreground">Showing core colors. Enable &quot;Show All&quot; for text/surface options.</p>
+                      ) : null}
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setStyleColorOverridesDraft({})}
+                          disabled={isStyleOverrideSaving || !Object.keys(styleColorOverridesDraft).length}
+                        >
+                          Reset All
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleSaveStyleColorOverrides}
+                          disabled={isStyleOverrideSaving || !hasUnsavedStyleColorOverrides}
+                        >
+                          {isStyleOverrideSaving ? "Saving..." : "Save Colors"}
+                        </Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  <Collapsible open={typographyOpen} onOpenChange={setTypographyOpen}>
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between border-t border-border/60 pt-3 text-left"
+                      >
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide">Typography</span>
+                        <div className="flex items-center gap-2">
+                          {Object.keys(styleTypographyOverridesDraft).length > 0 ? (
+                            <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                              {Object.keys(styleTypographyOverridesDraft).length}
+                            </Badge>
+                          ) : null}
+                          <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", typographyOpen && "rotate-90")} />
+                        </div>
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-3 pt-3">
+                      <p className="text-xs text-muted-foreground">
+                        Adjust only the core text scale. Font-family overrides are hidden for a simpler setup.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {VISIBLE_STYLE_TYPOGRAPHY_KEYS.map((key) => {
+                          const label = STYLE_TYPOGRAPHY_OPTION_LABELS[key] || key;
+                          const extractedValue = extractedTypographyByKey[key] || "";
+                          const overrideValue = styleTypographyOverridesDraft[key] || "";
+                          const displayValue = overrideValue || extractedValue || "";
+                          const isInvalid = Boolean(overrideValue && !normalizedDraftStyleTypographyOverrides[key]);
+                          const presetOptions = TYPOGRAPHY_PRESETS[key] || [];
+                          const presetMenuOptions = (() => {
+                            const seen = new Set<string>();
+                            const merged: Array<{ value: string; label: string }> = [];
+                            const pushOption = (value: string, label: string) => {
+                              const trimmed = String(value || "").trim();
+                              if (!trimmed) return;
+                              const dedupeKey = trimmed.toLowerCase();
+                              if (seen.has(dedupeKey)) return;
+                              seen.add(dedupeKey);
+                              merged.push({ value: trimmed, label });
+                            };
+                            if (extractedValue) pushOption(extractedValue, `Extracted: ${extractedValue}`);
+                            for (const preset of presetOptions) pushOption(preset, preset);
+                            return merged;
+                          })();
+                          return (
+                            <div key={key} className="rounded-md border border-border/70 p-2 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-medium">{label}</span>
+                                <span className="text-[11px] text-muted-foreground font-mono truncate">{displayValue || "—"}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={overrideValue}
+                                  onChange={(event) => handleStyleOverrideTypographyChange(key, event.target.value)}
+                                  placeholder={extractedValue || "Enter value"}
+                                  className={cn("h-8 text-xs", isInvalid ? "border-destructive" : "")}
+                                  disabled={isStyleOverrideSaving}
+                                />
+                                <select
+                                  className="h-8 w-[128px] shrink-0 rounded-md border border-input bg-background px-2 text-xs"
+                                  value=""
+                                  disabled={isStyleOverrideSaving || !presetMenuOptions.length}
+                                  onChange={(event) => {
+                                    const selected = event.target.value;
+                                    if (!selected) return;
+                                    handleStyleOverrideTypographyChange(key, selected);
+                                  }}
+                                >
+                                  <option value="">Presets</option>
+                                  {presetMenuOptions.map((option) => (
+                                    <option key={`${key}-${option.value}`} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-muted-foreground truncate">
+                                  {extractedValue ? `Extracted: ${extractedValue}` : "No extracted value"}
+                                </span>
+                                {isInvalid ? (
+                                  <span className="text-[11px] text-destructive">Invalid format</span>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {hasTypographyValidationErrors ? (
+                        <p className="text-[11px] text-destructive">
+                          Invalid values found. Use sizes like 16px and line-height like 1.6.
+                        </p>
+                      ) : null}
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setStyleTypographyOverridesDraft({})}
+                          disabled={isStyleOverrideSaving || !Object.keys(styleTypographyOverridesDraft).length}
+                        >
+                          Reset
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleSaveStyleTypographyOverrides}
+                          disabled={isStyleOverrideSaving || hasTypographyValidationErrors || !hasUnsavedStyleTypographyOverrides}
+                        >
+                          {isStyleOverrideSaving ? "Saving..." : "Save Typography"}
+                        </Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </>
+              ) : null}
+                </TabsContent>
+                <TabsContent value="images" className="space-y-3 pt-1">
+              {isWordpressBlogPublish ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">This image will also be used as the default OG image.</p>
                   <input
                     ref={featuredImageInputRef}
                     type="file"
@@ -4770,25 +5321,46 @@ export function WebPageHtmlView({
                     }}
                   />
                   {activeFeaturedImage ? (
-                    <div className="space-y-3 rounded-md border border-border/70 bg-background p-3">
+                    <div className="rounded-md border border-border/70 bg-background p-3 space-y-3">
                       <div className="flex items-start gap-3">
                         <img
                           src={activeFeaturedImage.cdnUrl}
                           alt={featuredImageAltText || "Featured image preview"}
-                          className="h-20 w-20 rounded-md object-cover border border-border"
+                          className="h-[72px] w-[72px] shrink-0 rounded object-cover border border-border"
                         />
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <Typography className="text-sm font-medium truncate">{activeFeaturedImage.fileName}</Typography>
-                          <Typography className="text-xs text-muted-foreground">
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <p className="text-sm font-medium truncate">{activeFeaturedImage.fileName}</p>
+                          <p className="text-xs text-muted-foreground">
                             {activeFeaturedImage.width && activeFeaturedImage.height
-                              ? `${activeFeaturedImage.width} x ${activeFeaturedImage.height}`
+                              ? `${activeFeaturedImage.width} × ${activeFeaturedImage.height}`
                               : "Dimensions unavailable"}
-                          </Typography>
-                          <Typography className="text-xs text-muted-foreground break-all">{activeFeaturedImage.cdnUrl}</Typography>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => featuredImageInputRef.current?.click()}
+                            disabled={featuredImageBusy}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => void handleClearFeaturedImage()}
+                            disabled={featuredImageBusy}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="space-y-1">
-                        <Typography className="text-xs text-muted-foreground">Alt text</Typography>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Alt text</Label>
                         <Input
                           value={featuredImageAltText}
                           onChange={(event) => setFeaturedImageAltText(event.target.value)}
@@ -4796,20 +5368,6 @@ export function WebPageHtmlView({
                           placeholder="Describe this featured image"
                           disabled={featuredImageBusy}
                         />
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <Typography className="text-xs text-muted-foreground">
-                          This image will also be used as the default OG image.
-                        </Typography>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void handleClearFeaturedImage()}
-                          disabled={featuredImageBusy}
-                        >
-                          Remove
-                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -4821,14 +5379,8 @@ export function WebPageHtmlView({
                         featuredImageBusy ? "opacity-70" : "hover:border-primary/50"
                       )}
                       onClick={() => featuredImageInputRef.current?.click()}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        setIsFeaturedImageDragActive(true);
-                      }}
-                      onDragLeave={(event) => {
-                        event.preventDefault();
-                        setIsFeaturedImageDragActive(false);
-                      }}
+                      onDragOver={(event) => { event.preventDefault(); setIsFeaturedImageDragActive(true); }}
+                      onDragLeave={(event) => { event.preventDefault(); setIsFeaturedImageDragActive(false); }}
                       onDrop={(event) => {
                         event.preventDefault();
                         setIsFeaturedImageDragActive(false);
@@ -4837,67 +5389,51 @@ export function WebPageHtmlView({
                       }}
                       disabled={featuredImageBusy}
                     >
-                      <div className="space-y-1">
-                        <Typography className="text-sm font-medium">
-                          Upload a featured image
-                        </Typography>
-                        <Typography className="text-xs text-muted-foreground">
-                          Drag and drop a JPG, PNG, or WebP image here, or click to choose a file.
-                        </Typography>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-border/70 bg-muted">
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">Upload a featured image</p>
+                          <p className="text-xs text-muted-foreground">JPG, PNG, or WebP. Click or drag and drop.</p>
+                        </div>
                       </div>
                     </button>
                   )}
                   {featuredImageQuery.isLoading ? (
-                    <Typography className="text-xs text-muted-foreground">Loading featured image...</Typography>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" /><span>Loading featured image…</span>
+                    </div>
                   ) : null}
                   {featuredImageUploadProgress !== null ? (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Uploading featured image...</span>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /><span>Uploading…</span></div>
                         <span>{featuredImageUploadProgress}%</span>
                       </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full bg-primary transition-[width]"
-                          style={{ width: `${featuredImageUploadProgress}%` }}
-                        />
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full bg-primary transition-[width]" style={{ width: `${featuredImageUploadProgress}%` }} />
                       </div>
                     </div>
                   ) : null}
                 </div>
-              ) : null}
-              {isWebflowImagePublish ? (
-                <div className="space-y-3 pt-2 border-t border-border/60">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                        Images
-                      </Typography>
-                      <Typography className="mt-1 text-sm text-muted-foreground">
-                        Upload images for the mapped Webflow image fields.
-                      </Typography>
-                    </div>
-                  </div>
+              ) : isWebflowImagePublish ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Upload images for the mapped Webflow image fields.</p>
                   {webflowFieldImagesQuery.isLoading ? (
-                    <Typography className="text-xs text-muted-foreground">Loading Webflow images...</Typography>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" /><span>Loading Webflow images…</span>
+                    </div>
                   ) : null}
                   {webflowImageMappings.map(mapping => {
                     const activeImage = webflowFieldImageByKey.get(mapping.fieldKey) || null;
                     const uploadProgress = webflowImageUploadProgressByKey[mapping.fieldKey];
                     const fieldBusy = webflowImageBusy && uploadProgress !== undefined;
                     return (
-                      <div key={mapping.fieldKey} className="space-y-3 rounded-md border bg-background p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <Typography className="text-xs text-muted-foreground">Webflow image field</Typography>
-                            <Typography className="truncate text-sm font-medium">{mapping.fieldLabel}</Typography>
-                          </div>
-                        </div>
+                      <div key={mapping.fieldKey} className="space-y-3">
+                        <p className="text-xs font-medium text-muted-foreground">{mapping.fieldLabel}</p>
                         <input
-                          ref={node => {
-                            webflowImageInputRefs.current[mapping.fieldKey] = node;
-                          }}
+                          ref={node => { webflowImageInputRefs.current[mapping.fieldKey] = node; }}
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
                           className="hidden"
@@ -4907,111 +5443,98 @@ export function WebPageHtmlView({
                           }}
                         />
                         {activeImage ? (
-                          <div className="flex items-start gap-3">
-                            <img
-                              src={activeImage.cdnUrl}
-                              alt={webflowImageAltTextByKey[mapping.fieldKey] || activeImage.altText || `${mapping.fieldLabel} preview`}
-                              className="h-16 w-16 shrink-0 rounded-md border border-border object-cover"
-                            />
-                            <div className="min-w-0 flex-1 space-y-2">
-                              <div className="min-w-0">
-                                <Typography className="truncate text-sm font-medium">{activeImage.fileName}</Typography>
-                                <Typography className="text-xs text-muted-foreground">
+                          <div className="rounded-md border border-border/70 bg-background p-3 space-y-3">
+                            <div className="flex items-start gap-3">
+                              <img
+                                src={activeImage.cdnUrl}
+                                alt={webflowImageAltTextByKey[mapping.fieldKey] || activeImage.altText || `${mapping.fieldLabel} preview`}
+                                className="h-[72px] w-[72px] shrink-0 rounded object-cover border border-border"
+                              />
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <p className="text-sm font-medium truncate">{activeImage.fileName}</p>
+                                <p className="text-xs text-muted-foreground">
                                   {activeImage.width && activeImage.height
-                                    ? `${activeImage.width} x ${activeImage.height}`
+                                    ? `${activeImage.width} × ${activeImage.height}`
                                     : "Image uploaded"}
-                                </Typography>
+                                </p>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Typography className="w-12 shrink-0 text-xs text-muted-foreground">Alt text</Typography>
-                                <Input
-                                  value={webflowImageAltTextByKey[mapping.fieldKey] ?? activeImage.altText ?? ""}
-                                  onChange={event =>
-                                    setWebflowImageAltTextByKey(prev => ({
-                                      ...prev,
-                                      [mapping.fieldKey]: event.target.value,
-                                    }))
-                                  }
-                                  onBlur={() => void saveWebflowFieldImageAltText(mapping)}
-                                  placeholder={`Describe ${mapping.fieldLabel}`}
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => webflowImageInputRefs.current[mapping.fieldKey]?.click()}
                                   disabled={webflowImageBusy}
-                                  className="h-8 min-w-0 text-sm"
-                                />
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => void handleClearWebflowFieldImage(mapping)}
+                                  disabled={webflowImageBusy}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex shrink-0 flex-col gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-3 text-xs"
-                                onClick={() => webflowImageInputRefs.current[mapping.fieldKey]?.click()}
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">Alt text</Label>
+                              <Input
+                                value={webflowImageAltTextByKey[mapping.fieldKey] ?? activeImage.altText ?? ""}
+                                onChange={event =>
+                                  setWebflowImageAltTextByKey(prev => ({
+                                    ...prev,
+                                    [mapping.fieldKey]: event.target.value,
+                                  }))
+                                }
+                                onBlur={() => void saveWebflowFieldImageAltText(mapping)}
+                                placeholder={`Describe ${mapping.fieldLabel}`}
                                 disabled={webflowImageBusy}
-                              >
-                                Replace
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-3 text-xs"
-                                onClick={() => void handleClearWebflowFieldImage(mapping)}
-                                disabled={webflowImageBusy}
-                              >
-                                Remove
-                              </Button>
+                              />
                             </div>
                           </div>
                         ) : (
                           <button
                             type="button"
                             className={cn(
-                              "w-full rounded-md border border-dashed p-3 text-left transition-colors",
+                              "w-full rounded-md border border-dashed p-4 text-left transition-colors",
                               webflowImageDragActiveKey === mapping.fieldKey ? "border-primary bg-primary/5" : "border-border bg-background",
                               fieldBusy ? "opacity-70" : "hover:border-primary/50"
                             )}
                             onClick={() => webflowImageInputRefs.current[mapping.fieldKey]?.click()}
-                            onDragOver={event => {
-                              event.preventDefault();
-                              setWebflowImageDragActiveKey(mapping.fieldKey);
-                            }}
-                            onDragLeave={event => {
-                              event.preventDefault();
-                              setWebflowImageDragActiveKey(null);
-                            }}
+                            onDragOver={event => { event.preventDefault(); setWebflowImageDragActiveKey(mapping.fieldKey); }}
+                            onDragLeave={event => { event.preventDefault(); setWebflowImageDragActiveKey(null); }}
                             onDrop={event => {
                               event.preventDefault();
                               setWebflowImageDragActiveKey(null);
                               const file = event.dataTransfer.files?.[0] || null;
                               void handleWebflowFieldImageFile(mapping, file);
                             }}
-                            disabled={webflowImageBusy}
+                            disabled={fieldBusy}
                           >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <Typography className="truncate text-sm font-medium">Upload {mapping.fieldLabel}</Typography>
-                                <Typography className="mt-1 text-xs text-muted-foreground">
-                                  JPG, PNG, or WebP
-                                </Typography>
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-border/70 bg-muted">
+                                <ImageIcon className="h-5 w-5 text-muted-foreground" />
                               </div>
-                              <span className="inline-flex h-8 shrink-0 items-center rounded-md border border-input bg-background px-3 text-xs font-medium">
-                                Choose file
-                              </span>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">Upload {mapping.fieldLabel}</p>
+                                <p className="text-xs text-muted-foreground">JPG, PNG, or WebP. Click or drag and drop.</p>
+                              </div>
                             </div>
                           </button>
                         )}
                         {uploadProgress !== null && uploadProgress !== undefined ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              <span>Uploading {mapping.fieldLabel}...</span>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /><span>Uploading…</span></div>
                               <span>{uploadProgress}%</span>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full bg-primary transition-[width]"
-                                style={{ width: `${uploadProgress}%` }}
-                              />
+                            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                              <div className="h-full bg-primary transition-[width]" style={{ width: `${uploadProgress}%` }} />
                             </div>
                           </div>
                         ) : null}
@@ -5019,7 +5542,17 @@ export function WebPageHtmlView({
                     );
                   })}
                 </div>
-              ) : null}
+              ) : (
+                <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-background p-6 text-center">
+                  <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-muted-foreground">No image fields</p>
+                    <p className="text-xs text-muted-foreground">This content type has no image fields configured.</p>
+                  </div>
+                </div>
+              )}
+                </TabsContent>
+              </Tabs>
               </div>
             )}
           </div>
@@ -5035,17 +5568,17 @@ export function WebPageHtmlView({
                   : "border-border bg-muted/40 text-muted-foreground"
             )}>
               {publishRateLimitMessage ? (
-                <div className="break-words">{publishRateLimitMessage}</div>
+                <div className="wrap-break-word">{publishRateLimitMessage}</div>
               ) : isSlugChecking ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>Checking slug availability...</span>
                 </div>
               ) : slugCheckError ? (
-                <div className="break-words">{slugCheckError}</div>
+                <div className="wrap-break-word">{slugCheckError}</div>
               ) : hasSlugConflict ? (
                 <div className="space-y-2 min-w-0">
-                  <div className="break-words">
+                  <div className="wrap-break-word">
                     {slugConflictReason === "parent_type_conflict"
                       ? "This nested page path is blocked. Change the parent path."
                       : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use a unique slug.`}
@@ -5337,43 +5870,43 @@ export function WebPageHtmlView({
                 />
                 {confirmPublishAction === "webflow-live" ? (
                   <div className="space-y-2 rounded-md border border-border bg-background p-3">
-                    <Typography className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Live domains
-                    </Typography>
-                    {webflowStagingDomain ? (
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={publishToWebflowSubdomain}
-                          onChange={event => setPublishToWebflowSubdomain(event.target.checked)}
-                          disabled={isPublishBusy}
-                        />
-                        <span className="break-all">{webflowStagingDomain.label}</span>
-                      </label>
-                    ) : null}
-                    {webflowCustomDomains.map(domain => (
-                      <label key={domain.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={selectedWebflowCustomDomainIds.includes(domain.id)}
-                          onChange={event => {
-                            setSelectedWebflowCustomDomainIds(prev =>
-                              event.target.checked
-                                ? Array.from(new Set([...prev, domain.id]))
-                                : prev.filter(id => id !== domain.id)
-                            );
-                          }}
-                          disabled={isPublishBusy}
-                        />
-                        <span className="break-all">{domain.label}</span>
-                      </label>
-                    ))}
-                    {!webflowDomains.length ? (
-                      <Typography className="text-xs text-muted-foreground">No publish domains returned by Webflow.</Typography>
-                    ) : null}
-                    {!selectedWebflowLiveDomainLabels.length ? (
-                      <Typography className="text-xs text-destructive">Select at least one live domain.</Typography>
-                    ) : null}
+                    </span>
+                    <div className="space-y-2 pt-1">
+                      {webflowStagingDomain ? (
+                        <label className="flex items-center gap-2.5 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={publishToWebflowSubdomain}
+                            onCheckedChange={(checked) => setPublishToWebflowSubdomain(Boolean(checked))}
+                            disabled={isPublishBusy}
+                          />
+                          <span className="break-all">{webflowStagingDomain.label}</span>
+                        </label>
+                      ) : null}
+                      {webflowCustomDomains.map(domain => (
+                        <label key={domain.id} className="flex items-center gap-2.5 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={selectedWebflowCustomDomainIds.includes(domain.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedWebflowCustomDomainIds(prev =>
+                                checked
+                                  ? Array.from(new Set([...prev, domain.id]))
+                                  : prev.filter(id => id !== domain.id)
+                              );
+                            }}
+                            disabled={isPublishBusy}
+                          />
+                          <span className="break-all">{domain.label}</span>
+                        </label>
+                      ))}
+                      {!webflowDomains.length ? (
+                        <p className="text-xs text-muted-foreground">No publish domains returned by Webflow.</p>
+                      ) : null}
+                      {!selectedWebflowLiveDomainLabels.length ? (
+                        <p className="text-xs text-destructive">Select at least one live domain.</p>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
               </div>

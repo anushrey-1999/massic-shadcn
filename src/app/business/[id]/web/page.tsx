@@ -116,7 +116,7 @@ export default function BusinessWebPage({ params }: PageProps) {
   const showNewPagesContent =
     !jobDetailsLoading &&
     coreStatus === "success" &&
-    isWorkflowSuccess(jobDetails, "blogs_and_pages_planner")
+    isWorkflowSuccess(jobDetails, "webpages")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
   const hideTabs = isOptimizeSplitView && activeTab === "optimize"
@@ -200,7 +200,7 @@ export default function BusinessWebPage({ params }: PageProps) {
               ) : (
                 <WorkflowStatusBanner
                   businessId={businessId}
-                  workflowKey="blogs_and_pages_planner"
+                  workflowKey="webpages"
                   emptyStateHeight="min-h-[calc(100vh-16rem)]"
                 />
               )}

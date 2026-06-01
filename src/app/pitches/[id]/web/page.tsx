@@ -9,14 +9,16 @@ import { PageHeader } from "@/components/molecules/PageHeader";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { WorkflowStatusBanner as BusinessWorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanner";
 import { WebPageTableClient } from "@/components/organisms/WebPageTable/web-page-table-client";
+import { getWorkflowStatus, isWorkflowSuccess } from "@/lib/workflow-status";
 
 export default function PitchWebPage() {
   const params = useParams();
   const businessId = (params as any)?.id as string | undefined;
   const { data: jobDetails, isLoading } = useJobByBusinessId(businessId ?? null);
 
-  const workflowStatus = jobDetails?.workflow_status?.status;
-  const canShowData = workflowStatus === "success";
+  const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
+  const canShowData =
+    coreStatus === "success" && isWorkflowSuccess(jobDetails, "webpages");
 
   if (!businessId) return null;
 
@@ -26,6 +28,7 @@ export default function PitchWebPage() {
         <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
           <WorkflowStatusBanner
             businessId={businessId}
+            workflowKey="webpages"
             profileHref={`/pitches/${businessId}/profile`}
             emptyStateHeight="min-h-[calc(100vh-12rem)]"
           />

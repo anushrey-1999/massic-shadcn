@@ -28,6 +28,7 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  ImageIcon,
   Loader2,
   Monitor,
   Plus,

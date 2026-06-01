@@ -917,15 +917,12 @@ function CtaPills({ channels }: { channels: PrimaryDriversV2Channel[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {channels.map((channel) => {
-        const isOrganic = channel.channel_name.toLowerCase().includes("organic")
         const delta = channel.goals_delta ?? 0
-        const cls = isOrganic
+        const cls = delta > 0
           ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
-          : delta > 0
-            ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
-            : delta < 0
-              ? "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
-              : "border-border/60 bg-secondary/30 text-muted-foreground"
+          : delta < 0
+            ? "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
+            : "border-border/60 bg-secondary/30 text-muted-foreground"
         return (
           <span key={channel.channel_name} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", cls)}>
             {channel.channel_name} {fmtAbsolute(delta)}
@@ -1004,7 +1001,6 @@ function V2ChannelBlock({ channel }: { channel: PrimaryDriversV2Channel }) {
         <div className="flex min-w-0 items-center gap-2.5">
           <div className={cn("h-6 w-[3px] rounded-full", bar)} />
           <span className="truncate text-[13px] font-medium">{channel.channel_name}</span>
-          {organic ? <span className="rounded-full bg-[#E6FFFA] px-1.5 py-0.5 text-[10px] font-medium text-[#0F6E56]">primary</span> : null}
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
           <ChStat def={{ key: "goals", value: channel.goals_delta }} />
@@ -1122,7 +1118,7 @@ function V2PrimaryDriversSnapshotView({
 
       <div className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
         <Target className="h-3.5 w-3.5" />
-        CTAs · top movers
+        Top movers
       </div>
 
       <div className="min-w-0 max-w-full space-y-2.5 overflow-hidden">

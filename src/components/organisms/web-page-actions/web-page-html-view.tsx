@@ -28,10 +28,12 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  ImageIcon,
   Loader2,
   Monitor,
   Plus,
   Redo2,
+  RefreshCw,
   RotateCcw,
   Save,
   SquarePlus,
@@ -45,9 +47,13 @@ import {
   X,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
@@ -144,6 +150,7 @@ import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 import {
   type WordpressSlugConflictInfo,
   useWordpressPreviewLink,
+  useWordpressPublish,
   useWordpressUnpublish,
 } from "@/hooks/use-wordpress-publishing";
 import {
@@ -490,6 +497,7 @@ export function WebPageHtmlView({
   const [textNodeIndex, setTextNodeIndex] = React.useState<EditableTextNodeRef[]>([]);
   const [editorBaseCss, setEditorBaseCss] = React.useState("");
   const [isPublishModalOpen, setIsPublishModalOpen] = React.useState(false);
+  const [publishTab, setPublishTab] = React.useState<"details" | "images">("details");
   const [lastPublishedData, setLastPublishedData] = React.useState<{
     contentId: string;
     wpId: number;
@@ -690,10 +698,10 @@ export function WebPageHtmlView({
     businessId || null,
     Boolean(isPublishModalOpen && requiresWordpressPageTemplate)
   );
-  const isWordpressBlogPublish = isActiveWordpress && isBlogContent;
+  const isWordpressFeaturedImagePublish = isActiveWordpress;
   const isWebflowImagePublish = isActiveWebflow && hasEnabledWebflowImageDestinations;
-  const isCmsImagePublish = isWordpressBlogPublish;
-  const shouldLoadSharedFeaturedImage = isWordpressBlogPublish || isWebflowImagePublish;
+  const isCmsImagePublish = isWordpressFeaturedImagePublish;
+  const shouldLoadSharedFeaturedImage = isWordpressFeaturedImagePublish || isWebflowImagePublish;
   const featuredImageContentId = shouldLoadSharedFeaturedImage && publishContentId ? String(publishContentId) : null;
   const featuredImageQuery = useCmsFeaturedImage(
     shouldLoadSharedFeaturedImage ? businessId : null,
@@ -793,7 +801,7 @@ export function WebPageHtmlView({
   const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
   const slugConflictReason = slugCheckResult?.conflict?.reason || null;
   const sharedFeaturedImage = featuredImageQuery.data || null;
-  const activeFeaturedImage = isWordpressBlogPublish ? sharedFeaturedImage : null;
+  const activeFeaturedImage = isWordpressFeaturedImagePublish ? sharedFeaturedImage : null;
   const webflowFieldImageByKey = React.useMemo(() => {
     const map = new Map<string, CmsFeaturedImageAsset>();
     (webflowFieldImagesQuery.data || []).forEach(assignment => {
@@ -4615,77 +4623,93 @@ export function WebPageHtmlView({
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             {isPublishConnectionLoading ? (
-              <div className="flex min-h-[220px] items-center justify-center rounded-md border bg-background p-6">
+              <div className="flex min-h-[220px] items-center justify-center rounded-md bg-background p-6">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Loading publishing settings...
                 </div>
               </div>
             ) : !cmsChannel?.connected ? (
-              <div className="rounded-md border bg-background p-4 space-y-3">
+              <div className="rounded-lg bg-background p-4 space-y-3">
                 <Typography className="text-sm">No publishing channel connected.</Typography>
                 <Button onClick={handleRedirectToChannels}>Connect a channel</Button>
               </div>
             ) : (
-              <div className="rounded-md border bg-muted/20 p-4 space-y-2 min-w-0 overflow-hidden">
-              <div className="flex items-center justify-between gap-3">
-                <Typography className="text-sm font-medium truncate min-w-0 flex-1">
-                  {activePlatform === "webflow"
-                    ? `Webflow: ${activeTarget?.name || "Configured collection"}`
-                    : activeConnection?.siteUrl}
-                </Typography>
-                <Typography className="text-xs uppercase tracking-wide text-muted-foreground whitespace-nowrap shrink-0">
-                  {publishStateLabel}
-                </Typography>
+              <div className="rounded-lg bg-muted/20 py-4 min-w-0 overflow-hidden space-y-3">
+              <Tabs value={publishTab} onValueChange={(v) => setPublishTab(v as "details" | "images")}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Typography className="text-sm font-medium truncate min-w-0">
+                      {activePlatform === "webflow"
+                        ? `Webflow: ${activeTarget?.name || "Configured collection"}`
+                        : activeConnection?.siteUrl}
+                    </Typography>
+                    <Badge
+                      className={cn(
+                        "shrink-0 font-medium",
+                        publishStateLabel === "Live" && "border-transparent bg-green-600 text-white"
+                      )}
+                      variant={
+                        publishStateLabel === "Live"
+                          ? "default"
+                          : publishStateLabel === "Draft"
+                            ? "secondary"
+                            : publishStateLabel === "In Trash"
+                              ? "destructive"
+                              : "outline"
+                      }
+                    >
+                      {publishStateLabel}
+                    </Badge>
+                  </div>
+                  <TabsList className="h-7 shrink-0 rounded-sm">
+                    <TabsTrigger value="details" className="text-xs px-2.5 h-6 rounded-sm">Details</TabsTrigger>
+                    <TabsTrigger value="images" className="text-xs px-2.5 h-6 rounded-sm">Images</TabsTrigger>
+                  </TabsList>
+                </div>
+                {activePlatform !== "webflow" && publishStateLabel !== "Live" ? (
+                  <p className="text-sm text-muted-foreground">{publishStateHint}</p>
+                ) : null}
+                {needsWebflowMappingSetup ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <Typography className="text-sm font-medium text-amber-950">
+                      {publishType === "page" ? "Massic Pages setup is required" : "Webflow mapping is required"}
+                    </Typography>
+                    <Typography className="mt-1 text-xs text-amber-900">
+                      {publishType === "page"
+                        ? "Create the Massic Pages collection in Webflow, then check setup in integrations before publishing pages."
+                        : "Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first."}
+                    </Typography>
+                    <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
+                      {publishType === "page" ? "Check page setup" : "Configure mapping"}
+                    </Button>
+                  </div>
+                ) : null}
+                {requiresWordpressPageTemplate && (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage) ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    {isWordpressPageTemplateChecking ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Checking for Massic Template...</span>
+                      </div>
+                    ) : (
+                      <div className="wrap-break-word">{wordpressPageTemplateBlockMessage}</div>
+                    )}
+                  </div>
+                ) : null}
+                <TabsContent value="details" className="space-y-4 pt-1">
+              <div className="space-y-3">
+                <div className="space-y-0.5">
+                  <span className="text-xs text-muted-foreground">{isBlogContent ? "Post title" : "Page title"}</span>
+                  <p className="text-sm line-clamp-2">{publishTitle}</p>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-xs text-muted-foreground">SEO title</span>
+                  <p className="text-sm line-clamp-2">{publishSeoTitle}</p>
+                </div>
               </div>
-              {activePlatform !== "webflow" ? (
-                <Typography as="p" className="text-sm text-muted-foreground">
-                  {publishStateHint}
-                </Typography>
-              ) : null}
-              {needsWebflowMappingSetup ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <Typography className="text-sm font-medium text-amber-950">
-                    {publishType === "page" ? "Massic Pages setup is required" : "Webflow mapping is required"}
-                  </Typography>
-                  <Typography className="mt-1 text-xs text-amber-900">
-                    {publishType === "page"
-                      ? "Create the Massic Pages collection in Webflow, then check setup in integrations before publishing pages."
-                      : "Choose the Webflow collection fields before publishing. Massic needs title, body, meta fields, and optional image destinations saved first."}
-                  </Typography>
-                  <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
-                    {publishType === "page" ? "Check page setup" : "Configure mapping"}
-                  </Button>
-                </div>
-              ) : null}
-              {requiresWordpressPageTemplate && (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage) ? (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  {isWordpressPageTemplateChecking ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>Checking for Massic Template...</span>
-                    </div>
-                  ) : (
-                    <div className="break-words">{wordpressPageTemplateBlockMessage}</div>
-                  )}
-                </div>
-              ) : null}
-              <div className="space-y-2 pt-1">
-                <div>
-                  <Typography className="text-xs text-muted-foreground">{isBlogContent ? "Post title" : "Page title"}</Typography>
-                  <Typography className="text-sm line-clamp-2">{publishTitle}</Typography>
-                </div>
-                <div>
-                  <Typography className="text-xs text-muted-foreground">SEO title</Typography>
-                  <Typography className="text-sm line-clamp-2">{publishSeoTitle}</Typography>
-                </div>
-              </div>
-              <div className="space-y-1 pt-2">
-                <Typography className="text-xs text-muted-foreground">Generated slug</Typography>
-                <Typography className="text-sm font-mono break-all">{wordpressSlugToDisplay(effectiveModalSlug, "/untitled-content")}</Typography>
-              </div>
-              <div className="space-y-1 pt-2">
-                <Typography className="text-xs text-muted-foreground">Publish slug</Typography>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Publish slug</Label>
                 <Input
                   value={editableSlug}
                   onChange={(e) => {
@@ -4695,34 +4719,19 @@ export function WebPageHtmlView({
                   placeholder={isBlogContent ? "enter-blog-slug" : "enter-page-slug"}
                   disabled={isPublishBusy || isAutoResolvingSlug}
                 />
+                {(slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl) ? (
+                  <p className="text-xs text-muted-foreground font-mono break-all">
+                    {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl}
+                  </p>
+                ) : null}
               </div>
-              <div className="space-y-1">
-                <Typography className="text-xs text-muted-foreground">
-                  {activePlatform === "webflow" && webflowPublishState === "draft" ? "Staging page path" : "Publish route"}
-                </Typography>
-                <Typography className="text-sm font-mono break-all">
-                  {slugCheckResult?.publishUrl || publishUrlPreview || webflowStagingPreviewUrl || "Unavailable"}
-                </Typography>
-              </div>
-              {isWordpressBlogPublish ? (
-                <div className="space-y-3 pt-2 border-t border-border/60">
-                  <div className="flex items-center justify-between gap-2">
-                    <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Featured Image
-                    </Typography>
-                    {activeFeaturedImage ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => featuredImageInputRef.current?.click()}
-                        disabled={featuredImageBusy}
-                      >
-                        Replace
-                      </Button>
-                    ) : null}
-                  </div>
+                </TabsContent>
+                <TabsContent value="images" className="space-y-3 pt-1">
+              {isWordpressFeaturedImagePublish ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    This image will be used for link previews and as the WordPress featured image when supported.
+                  </p>
                   <input
                     ref={featuredImageInputRef}
                     type="file"
@@ -4734,25 +4743,46 @@ export function WebPageHtmlView({
                     }}
                   />
                   {activeFeaturedImage ? (
-                    <div className="space-y-3 rounded-md border border-border/70 bg-background p-3">
+                    <div className="rounded-md border border-border/70 bg-background p-3 space-y-3">
                       <div className="flex items-start gap-3">
                         <img
                           src={activeFeaturedImage.cdnUrl}
                           alt={featuredImageAltText || "Featured image preview"}
-                          className="h-20 w-20 rounded-md object-cover border border-border"
+                          className="h-[72px] w-[72px] shrink-0 rounded object-cover border border-border"
                         />
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <Typography className="text-sm font-medium truncate">{activeFeaturedImage.fileName}</Typography>
-                          <Typography className="text-xs text-muted-foreground">
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <p className="text-sm font-medium truncate">{activeFeaturedImage.fileName}</p>
+                          <p className="text-xs text-muted-foreground">
                             {activeFeaturedImage.width && activeFeaturedImage.height
-                              ? `${activeFeaturedImage.width} x ${activeFeaturedImage.height}`
+                              ? `${activeFeaturedImage.width} × ${activeFeaturedImage.height}`
                               : "Dimensions unavailable"}
-                          </Typography>
-                          <Typography className="text-xs text-muted-foreground break-all">{activeFeaturedImage.cdnUrl}</Typography>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => featuredImageInputRef.current?.click()}
+                            disabled={featuredImageBusy}
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => void handleClearFeaturedImage()}
+                            disabled={featuredImageBusy}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="space-y-1">
-                        <Typography className="text-xs text-muted-foreground">Alt text</Typography>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Alt text</Label>
                         <Input
                           value={featuredImageAltText}
                           onChange={(event) => setFeaturedImageAltText(event.target.value)}
@@ -4760,20 +4790,6 @@ export function WebPageHtmlView({
                           placeholder="Describe this featured image"
                           disabled={featuredImageBusy}
                         />
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <Typography className="text-xs text-muted-foreground">
-                          This image will also be used as the default OG image.
-                        </Typography>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void handleClearFeaturedImage()}
-                          disabled={featuredImageBusy}
-                        >
-                          Remove
-                        </Button>
                       </div>
                     </div>
                   ) : (
@@ -4785,14 +4801,8 @@ export function WebPageHtmlView({
                         featuredImageBusy ? "opacity-70" : "hover:border-primary/50"
                       )}
                       onClick={() => featuredImageInputRef.current?.click()}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        setIsFeaturedImageDragActive(true);
-                      }}
-                      onDragLeave={(event) => {
-                        event.preventDefault();
-                        setIsFeaturedImageDragActive(false);
-                      }}
+                      onDragOver={(event) => { event.preventDefault(); setIsFeaturedImageDragActive(true); }}
+                      onDragLeave={(event) => { event.preventDefault(); setIsFeaturedImageDragActive(false); }}
                       onDrop={(event) => {
                         event.preventDefault();
                         setIsFeaturedImageDragActive(false);
@@ -4801,67 +4811,51 @@ export function WebPageHtmlView({
                       }}
                       disabled={featuredImageBusy}
                     >
-                      <div className="space-y-1">
-                        <Typography className="text-sm font-medium">
-                          Upload a featured image
-                        </Typography>
-                        <Typography className="text-xs text-muted-foreground">
-                          Drag and drop a JPG, PNG, or WebP image here, or click to choose a file.
-                        </Typography>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-border/70 bg-muted">
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">Upload a featured image</p>
+                          <p className="text-xs text-muted-foreground">JPG, PNG, or WebP. Click or drag and drop.</p>
+                        </div>
                       </div>
                     </button>
                   )}
                   {featuredImageQuery.isLoading ? (
-                    <Typography className="text-xs text-muted-foreground">Loading featured image...</Typography>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" /><span>Loading featured image…</span>
+                    </div>
                   ) : null}
                   {featuredImageUploadProgress !== null ? (
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Uploading featured image...</span>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /><span>Uploading…</span></div>
                         <span>{featuredImageUploadProgress}%</span>
                       </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full bg-primary transition-[width]"
-                          style={{ width: `${featuredImageUploadProgress}%` }}
-                        />
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full bg-primary transition-[width]" style={{ width: `${featuredImageUploadProgress}%` }} />
                       </div>
                     </div>
                   ) : null}
                 </div>
-              ) : null}
-              {isWebflowImagePublish ? (
-                <div className="space-y-3 pt-2 border-t border-border/60">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <Typography className="text-xs text-muted-foreground uppercase tracking-wide">
-                        Images
-                      </Typography>
-                      <Typography className="mt-1 text-sm text-muted-foreground">
-                        Upload images for the mapped Webflow image fields.
-                      </Typography>
-                    </div>
-                  </div>
+              ) : isWebflowImagePublish ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Upload images for the mapped Webflow image fields.</p>
                   {webflowFieldImagesQuery.isLoading ? (
-                    <Typography className="text-xs text-muted-foreground">Loading Webflow images...</Typography>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" /><span>Loading Webflow images…</span>
+                    </div>
                   ) : null}
                   {webflowImageMappings.map(mapping => {
                     const activeImage = webflowFieldImageByKey.get(mapping.fieldKey) || null;
                     const uploadProgress = webflowImageUploadProgressByKey[mapping.fieldKey];
                     const fieldBusy = webflowImageBusy && uploadProgress !== undefined;
                     return (
-                      <div key={mapping.fieldKey} className="space-y-3 rounded-md border bg-background p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <Typography className="text-xs text-muted-foreground">Webflow image field</Typography>
-                            <Typography className="truncate text-sm font-medium">{mapping.fieldLabel}</Typography>
-                          </div>
-                        </div>
+                      <div key={mapping.fieldKey} className="space-y-3">
+                        <p className="text-xs font-medium text-muted-foreground">{mapping.fieldLabel}</p>
                         <input
-                          ref={node => {
-                            webflowImageInputRefs.current[mapping.fieldKey] = node;
-                          }}
+                          ref={node => { webflowImageInputRefs.current[mapping.fieldKey] = node; }}
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
                           className="hidden"
@@ -4871,111 +4865,98 @@ export function WebPageHtmlView({
                           }}
                         />
                         {activeImage ? (
-                          <div className="flex items-start gap-3">
-                            <img
-                              src={activeImage.cdnUrl}
-                              alt={webflowImageAltTextByKey[mapping.fieldKey] || activeImage.altText || `${mapping.fieldLabel} preview`}
-                              className="h-16 w-16 shrink-0 rounded-md border border-border object-cover"
-                            />
-                            <div className="min-w-0 flex-1 space-y-2">
-                              <div className="min-w-0">
-                                <Typography className="truncate text-sm font-medium">{activeImage.fileName}</Typography>
-                                <Typography className="text-xs text-muted-foreground">
+                          <div className="rounded-md border border-border/70 bg-background p-3 space-y-3">
+                            <div className="flex items-start gap-3">
+                              <img
+                                src={activeImage.cdnUrl}
+                                alt={webflowImageAltTextByKey[mapping.fieldKey] || activeImage.altText || `${mapping.fieldLabel} preview`}
+                                className="h-[72px] w-[72px] shrink-0 rounded object-cover border border-border"
+                              />
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                <p className="text-sm font-medium truncate">{activeImage.fileName}</p>
+                                <p className="text-xs text-muted-foreground">
                                   {activeImage.width && activeImage.height
-                                    ? `${activeImage.width} x ${activeImage.height}`
+                                    ? `${activeImage.width} × ${activeImage.height}`
                                     : "Image uploaded"}
-                                </Typography>
+                                </p>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <Typography className="w-12 shrink-0 text-xs text-muted-foreground">Alt text</Typography>
-                                <Input
-                                  value={webflowImageAltTextByKey[mapping.fieldKey] ?? activeImage.altText ?? ""}
-                                  onChange={event =>
-                                    setWebflowImageAltTextByKey(prev => ({
-                                      ...prev,
-                                      [mapping.fieldKey]: event.target.value,
-                                    }))
-                                  }
-                                  onBlur={() => void saveWebflowFieldImageAltText(mapping)}
-                                  placeholder={`Describe ${mapping.fieldLabel}`}
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => webflowImageInputRefs.current[mapping.fieldKey]?.click()}
                                   disabled={webflowImageBusy}
-                                  className="h-8 min-w-0 text-sm"
-                                />
+                                >
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => void handleClearWebflowFieldImage(mapping)}
+                                  disabled={webflowImageBusy}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex shrink-0 flex-col gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-3 text-xs"
-                                onClick={() => webflowImageInputRefs.current[mapping.fieldKey]?.click()}
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">Alt text</Label>
+                              <Input
+                                value={webflowImageAltTextByKey[mapping.fieldKey] ?? activeImage.altText ?? ""}
+                                onChange={event =>
+                                  setWebflowImageAltTextByKey(prev => ({
+                                    ...prev,
+                                    [mapping.fieldKey]: event.target.value,
+                                  }))
+                                }
+                                onBlur={() => void saveWebflowFieldImageAltText(mapping)}
+                                placeholder={`Describe ${mapping.fieldLabel}`}
                                 disabled={webflowImageBusy}
-                              >
-                                Replace
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-3 text-xs"
-                                onClick={() => void handleClearWebflowFieldImage(mapping)}
-                                disabled={webflowImageBusy}
-                              >
-                                Remove
-                              </Button>
+                              />
                             </div>
                           </div>
                         ) : (
                           <button
                             type="button"
                             className={cn(
-                              "w-full rounded-md border border-dashed p-3 text-left transition-colors",
+                              "w-full rounded-md border border-dashed p-4 text-left transition-colors",
                               webflowImageDragActiveKey === mapping.fieldKey ? "border-primary bg-primary/5" : "border-border bg-background",
                               fieldBusy ? "opacity-70" : "hover:border-primary/50"
                             )}
                             onClick={() => webflowImageInputRefs.current[mapping.fieldKey]?.click()}
-                            onDragOver={event => {
-                              event.preventDefault();
-                              setWebflowImageDragActiveKey(mapping.fieldKey);
-                            }}
-                            onDragLeave={event => {
-                              event.preventDefault();
-                              setWebflowImageDragActiveKey(null);
-                            }}
+                            onDragOver={event => { event.preventDefault(); setWebflowImageDragActiveKey(mapping.fieldKey); }}
+                            onDragLeave={event => { event.preventDefault(); setWebflowImageDragActiveKey(null); }}
                             onDrop={event => {
                               event.preventDefault();
                               setWebflowImageDragActiveKey(null);
                               const file = event.dataTransfer.files?.[0] || null;
                               void handleWebflowFieldImageFile(mapping, file);
                             }}
-                            disabled={webflowImageBusy}
+                            disabled={fieldBusy}
                           >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <Typography className="truncate text-sm font-medium">Upload {mapping.fieldLabel}</Typography>
-                                <Typography className="mt-1 text-xs text-muted-foreground">
-                                  JPG, PNG, or WebP
-                                </Typography>
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-border/70 bg-muted">
+                                <ImageIcon className="h-5 w-5 text-muted-foreground" />
                               </div>
-                              <span className="inline-flex h-8 shrink-0 items-center rounded-md border border-input bg-background px-3 text-xs font-medium">
-                                Choose file
-                              </span>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium">Upload {mapping.fieldLabel}</p>
+                                <p className="text-xs text-muted-foreground">JPG, PNG, or WebP. Click or drag and drop.</p>
+                              </div>
                             </div>
                           </button>
                         )}
                         {uploadProgress !== null && uploadProgress !== undefined ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              <span>Uploading {mapping.fieldLabel}...</span>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /><span>Uploading…</span></div>
                               <span>{uploadProgress}%</span>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full bg-primary transition-[width]"
-                                style={{ width: `${uploadProgress}%` }}
-                              />
+                            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                              <div className="h-full bg-primary transition-[width]" style={{ width: `${uploadProgress}%` }} />
                             </div>
                           </div>
                         ) : null}
@@ -4983,7 +4964,17 @@ export function WebPageHtmlView({
                     );
                   })}
                 </div>
-              ) : null}
+              ) : (
+                <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-background p-6 text-center">
+                  <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-muted-foreground">No image fields</p>
+                    <p className="text-xs text-muted-foreground">This content type has no image fields configured.</p>
+                  </div>
+                </div>
+              )}
+                </TabsContent>
+              </Tabs>
               </div>
             )}
           </div>
@@ -4999,17 +4990,17 @@ export function WebPageHtmlView({
                   : "border-border bg-muted/40 text-muted-foreground"
             )}>
               {publishRateLimitMessage ? (
-                <div className="break-words">{publishRateLimitMessage}</div>
+                <div className="wrap-break-word">{publishRateLimitMessage}</div>
               ) : isSlugChecking ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>Checking slug availability...</span>
                 </div>
               ) : slugCheckError ? (
-                <div className="break-words">{slugCheckError}</div>
+                <div className="wrap-break-word">{slugCheckError}</div>
               ) : hasSlugConflict ? (
                 <div className="space-y-2 min-w-0">
-                  <div className="break-words">
+                  <div className="wrap-break-word">
                     {slugConflictReason === "parent_type_conflict"
                       ? "This nested page path is blocked. Change the parent path."
                       : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : "WordPress"}. Use a unique slug.`}
@@ -5301,43 +5292,43 @@ export function WebPageHtmlView({
                 />
                 {confirmPublishAction === "webflow-live" ? (
                   <div className="space-y-2 rounded-md border border-border bg-background p-3">
-                    <Typography className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Live domains
-                    </Typography>
-                    {webflowStagingDomain ? (
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={publishToWebflowSubdomain}
-                          onChange={event => setPublishToWebflowSubdomain(event.target.checked)}
-                          disabled={isPublishBusy}
-                        />
-                        <span className="break-all">{webflowStagingDomain.label}</span>
-                      </label>
-                    ) : null}
-                    {webflowCustomDomains.map(domain => (
-                      <label key={domain.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={selectedWebflowCustomDomainIds.includes(domain.id)}
-                          onChange={event => {
-                            setSelectedWebflowCustomDomainIds(prev =>
-                              event.target.checked
-                                ? Array.from(new Set([...prev, domain.id]))
-                                : prev.filter(id => id !== domain.id)
-                            );
-                          }}
-                          disabled={isPublishBusy}
-                        />
-                        <span className="break-all">{domain.label}</span>
-                      </label>
-                    ))}
-                    {!webflowDomains.length ? (
-                      <Typography className="text-xs text-muted-foreground">No publish domains returned by Webflow.</Typography>
-                    ) : null}
-                    {!selectedWebflowLiveDomainLabels.length ? (
-                      <Typography className="text-xs text-destructive">Select at least one live domain.</Typography>
-                    ) : null}
+                    </span>
+                    <div className="space-y-2 pt-1">
+                      {webflowStagingDomain ? (
+                        <label className="flex items-center gap-2.5 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={publishToWebflowSubdomain}
+                            onCheckedChange={(checked) => setPublishToWebflowSubdomain(Boolean(checked))}
+                            disabled={isPublishBusy}
+                          />
+                          <span className="break-all">{webflowStagingDomain.label}</span>
+                        </label>
+                      ) : null}
+                      {webflowCustomDomains.map(domain => (
+                        <label key={domain.id} className="flex items-center gap-2.5 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={selectedWebflowCustomDomainIds.includes(domain.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedWebflowCustomDomainIds(prev =>
+                                checked
+                                  ? Array.from(new Set([...prev, domain.id]))
+                                  : prev.filter(id => id !== domain.id)
+                              );
+                            }}
+                            disabled={isPublishBusy}
+                          />
+                          <span className="break-all">{domain.label}</span>
+                        </label>
+                      ))}
+                      {!webflowDomains.length ? (
+                        <p className="text-xs text-muted-foreground">No publish domains returned by Webflow.</p>
+                      ) : null}
+                      {!selectedWebflowLiveDomainLabels.length ? (
+                        <p className="text-xs text-destructive">Select at least one live domain.</p>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
               </div>

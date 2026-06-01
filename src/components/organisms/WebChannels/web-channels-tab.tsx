@@ -69,7 +69,33 @@ interface WebChannelsTabProps {
 }
 
 const EMPTY_WEBFLOW_FIELDS: WebflowCollectionField[] = [];
-const WORDPRESS_PLUGIN_ZIP_PATH = "/downloads/massic-wp-connector-1.0.0.zip";
+const WORDPRESS_PLUGIN_ZIP_PATHS = {
+  qa: "/downloads/massic-wp-connector-qa-1.0.0.zip",
+  prod: "/downloads/massic-wp-connector-prod-1.0.0.zip",
+} as const;
+
+function getWordpressPluginBuildEnv(): keyof typeof WORDPRESS_PLUGIN_ZIP_PATHS {
+  const envLabel = [
+    process.env.NEXT_PUBLIC_APP_ENV,
+    process.env.NEXT_PUBLIC_ENV,
+    process.env.NEXT_PUBLIC_DEPLOY_ENV,
+    process.env.NEXT_PUBLIC_NODE_API_URL,
+    process.env.NODE_ENV,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/(qa|dev|development|staging|seedinternaldev|localhost)/.test(envLabel)) {
+    return "qa";
+  }
+
+  return "prod";
+}
+
+const WORDPRESS_PLUGIN_BUILD_ENV = getWordpressPluginBuildEnv();
+const WORDPRESS_PLUGIN_ZIP_PATH = WORDPRESS_PLUGIN_ZIP_PATHS[WORDPRESS_PLUGIN_BUILD_ENV];
+const WORDPRESS_PLUGIN_BUILD_LABEL = WORDPRESS_PLUGIN_BUILD_ENV.toUpperCase();
 
 function normalizeSiteUrlInput(value: string) {
   const trimmed = value.trim();
@@ -942,7 +968,7 @@ export function WebChannelsTab({
             <Button asChild>
               <a href={WORDPRESS_PLUGIN_ZIP_PATH} download>
                 <Download className="mr-1.5 size-4" />
-                Download plugin
+                Download {WORDPRESS_PLUGIN_BUILD_LABEL} plugin
               </a>
             </Button>
           </DialogFooter>

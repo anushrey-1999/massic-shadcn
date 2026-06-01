@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "../utils/wp-css-component-library.css";
 
 @keyframes loaderWave {
   0% {

@@ -15,6 +15,7 @@ import { CreateBusinessTemplate } from "@/components/templates/CreateBusinessTem
 import { api } from "@/hooks/use-api";
 import {
   cleanWebsiteUrl,
+  isValidWebsiteUrl,
   normalizeWebsiteUrl,
 } from "@/utils/utils";
 import { getAutofillErrorMessage } from "@/utils/profile-autofill";
@@ -67,7 +68,9 @@ const formSchema = z.object({
   website: z
     .string()
     .min(1, "Website is required")
-    .url("Please enter a valid URL"),
+    .refine((val) => isValidWebsiteUrl(val), {
+      message: "Please enter a valid website URL",
+    }),
   businessName: z.string().min(1, "Business Name is required"),
   primaryLocation: z.string().min(1, "Primary Location is required"),
   serveCustomers: z
@@ -325,65 +328,9 @@ export default function CreateBusinessPage() {
     validators: {
       onChange: formSchema,
     },
-    onSubmit: async ({ value }) => {
-      try {
-        const result = await createBusiness.mutateAsync({
-          website: value.website,
-          businessName: value.businessName,
-          primaryLocation: value.primaryLocation,
-          serveCustomers: value.serveCustomers as "local" | "online",
-          offerType: value.offerType as "products" | "services",
-        });
-
-        await refetchBusinessProfiles();
-
-        const businessId = result?.createdBusiness?.UniqueId;
-        if (businessId) {
-          const offerings =
-            extractedOfferings.length > 0
-              ? extractedOfferings
-              : offeringsExtractionPromiseRef.current
-                ? await offeringsExtractionPromiseRef.current
-                : [];
-          const businessProfilePayload = buildBusinessProfilePayload(
-            value,
-            autofillProfileData
-          );
-
-          try {
-            await updateCreatedBusinessProfile(
-              businessId,
-              result.createdBusiness,
-              businessProfilePayload
-            );
-          } catch (error) {
-            console.error("Failed to update business profile after creation:", error);
-          }
-
-          try {
-            await createJob.mutateAsync({
-              businessId,
-              businessProfilePayload,
-              offerings,
-            });
-          } catch (error) {
-            console.error("Failed to create job after business creation:", error);
-          }
-
-          await refetchBusinessProfiles();
-
-          router.push(`/business/${businessId}/profile`);
-        } else {
-          router.push("/");
-        }
-      } catch (error) {
-        // Error is already handled in the hook's onError
-        throw error;
-      }
-    },
   });
 
-  const handleSubmitCreate = useCallback(() => {
+  const handleSubmitCreate = useCallback(async () => {
     const values = form.state.values as FormData;
     const validation = formSchema.safeParse(values);
 
@@ -411,8 +358,69 @@ export default function CreateBusinessPage() {
       return;
     }
 
-    form.handleSubmit();
-  }, [form]);
+    try {
+      const result = await createBusiness.mutateAsync({
+        website: values.website,
+        businessName: values.businessName,
+        primaryLocation: values.primaryLocation,
+        serveCustomers: values.serveCustomers as "local" | "online",
+        offerType: values.offerType as "products" | "services",
+      });
+
+      await refetchBusinessProfiles();
+
+      const businessId = result?.createdBusiness?.UniqueId;
+      if (businessId) {
+        const offerings =
+          extractedOfferings.length > 0
+            ? extractedOfferings
+            : offeringsExtractionPromiseRef.current
+              ? await offeringsExtractionPromiseRef.current
+              : [];
+        const businessProfilePayload = buildBusinessProfilePayload(
+          values,
+          autofillProfileData
+        );
+
+        try {
+          await updateCreatedBusinessProfile(
+            businessId,
+            result.createdBusiness,
+            businessProfilePayload
+          );
+        } catch (error) {
+          console.error("Failed to update business profile after creation:", error);
+        }
+
+        try {
+          await createJob.mutateAsync({
+            businessId,
+            businessProfilePayload,
+            offerings,
+          });
+        } catch (error) {
+          console.error("Failed to create job after business creation:", error);
+        }
+
+        await refetchBusinessProfiles();
+
+        router.push(`/business/${businessId}/profile`);
+      } else {
+        router.push("/");
+      }
+    } catch {
+      // Error is already handled in the mutation's onError
+    }
+  }, [
+    form,
+    createBusiness,
+    createJob,
+    refetchBusinessProfiles,
+    router,
+    extractedOfferings,
+    offeringsExtractionPromiseRef,
+    autofillProfileData,
+  ]);
 
   const handleAutofillProfile = useCallback(async () => {
     const values = form.state.values as FormData;
@@ -457,7 +465,7 @@ export default function CreateBusinessPage() {
         String(pa.url || res?.business_url || website)
       );
       if (nextWebsite) {
-        form.setFieldValue("website", nextWebsite);
+        form.setFieldValue("website", normalizeWebsiteUrl(nextWebsite));
       }
 
       const nextBusinessName = String(pa.business_name ?? "").trim();

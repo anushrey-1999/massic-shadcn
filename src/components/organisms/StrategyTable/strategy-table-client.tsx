@@ -13,6 +13,8 @@ import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { StrategyCluster, StrategyRow, StrategyTopic } from "@/types/strategy-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
 import type { StrategyMetrics } from "@/types/strategy-types";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
+import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 
 interface StrategyTableClientProps {
   businessId: string;
@@ -344,6 +346,21 @@ export function StrategyTableClient({
     onSplitViewChange?.(false);
   }, [onSplitViewChange]);
 
+  const handleDownloadCsv = React.useCallback(async () => {
+    const rows = await fetchAllTableData<StrategyRow>((csvPage, csvPerPage) =>
+      fetchStrategy({
+        business_id: businessId,
+        page: csvPage,
+        perPage: csvPerPage,
+        search: search || undefined,
+        sort: sort || [],
+        filters: filters || [],
+        joinOperator: (joinOperator || "and") as "and" | "or",
+      })
+    );
+    downloadRowsAsCsv(rows, "strategy-topics.csv");
+  }, [businessId, fetchStrategy, filters, joinOperator, search, sort]);
+
   const selectedTopic = React.useMemo(() => {
     if (!selectedTopicId || !strategyData?.data) return null;
     return strategyData.data.find((row) => row.id === selectedTopicId) || null;
@@ -446,6 +463,7 @@ export function StrategyTableClient({
         onRowClick={handleRowClick}
         toolbarRightPrefix={toolbarRightPrefix}
         columnVisibilityKey={columnVisibilityKey}
+        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

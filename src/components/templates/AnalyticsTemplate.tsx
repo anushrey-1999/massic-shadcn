@@ -79,6 +79,7 @@ export function AnalyticsTemplate() {
     useState<TimePeriodValue>("3 months");
   const [selectedTab, setSelectedTab] = useState<"all" | "organic">("all");
   const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
+  const [showAnomalyHighlights, setShowAnomalyHighlights] = useState(false);
   const [availableGroupByOptions, setAvailableGroupByOptions] =
     useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -427,6 +428,8 @@ export function AnalyticsTemplate() {
               onKeywordScopeChange={handleKeywordScopeChange}
               showKeywordScope={selectedTab === "organic"}
               hasActiveKeywordScope={keywordScope !== "all"}
+              anomalyHighlightsEnabled={showAnomalyHighlights}
+              onAnomalyHighlightsChange={setShowAnomalyHighlights}
             />
           </div>
         </div>
@@ -452,6 +455,7 @@ export function AnalyticsTemplate() {
             ga4TrafficScope={selectedTab}
             groupBy={groupBy}
             onAvailableGroupingsChange={setAvailableGroupByOptions}
+            showAnomalyHighlights={showAnomalyHighlights}
           />
         </div>
         <DiscoveryPerformanceSection

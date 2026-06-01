@@ -32,11 +32,13 @@ function StepNode({
   isClickable: boolean;
   onStepClick?: (index: number) => void;
 }) {
+  const handleClick = () => onStepClick?.(index);
+
   return (
     <div className="flex items-center gap-2 shrink-0">
       <button
         type="button"
-        onClick={() => onStepClick?.(index)}
+        onClick={handleClick}
         disabled={!isClickable}
         className={cn(
           "flex items-center justify-center size-6 rounded-full text-xs font-medium text-white transition-colors shrink-0",
@@ -55,14 +57,19 @@ function StepNode({
           index + 1
         )}
       </button>
-      <span
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={!isClickable}
         className={cn(
-          "text-sm font-medium leading-normal truncate",
-          isActive ? "text-general-foreground" : "text-general-muted-foreground"
+          "text-sm font-medium leading-normal truncate transition-colors",
+          isActive ? "text-general-foreground" : "text-general-muted-foreground",
+          isClickable && "cursor-pointer hover:text-general-foreground",
+          !isClickable && "cursor-default"
         )}
       >
         {step.label}
-      </span>
+      </button>
     </div>
   );
 }

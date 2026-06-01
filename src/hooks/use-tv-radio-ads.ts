@@ -82,6 +82,7 @@ export function useTvRadioAds(_businessId: string) {
       };
 
       return {
+        ...item,
         id: String(item.ad_concept_id || ""),
         subtopic: String(item.display_name || ""),
         type: item.channel,
@@ -102,6 +103,8 @@ export function useTvRadioAds(_businessId: string) {
         solution_keywords: toArray(item.supporting_data?.by_role_keywords?.solution),
         proof_keywords: toArray(item.supporting_data?.by_role_keywords?.proof),
         action_keywords: toArray(item.supporting_data?.by_role_keywords?.action),
+
+        offerings: toArray(item.offerings),
 
         totals,
       };

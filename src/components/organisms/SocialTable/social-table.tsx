@@ -10,11 +10,13 @@ import type { SocialRow } from "@/types/social-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getSocialTableColumns } from "./social-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface SocialTableProps {
   data: SocialRow[];
   pageCount: number;
   offeringCounts?: Record<string, number>;
+  offeringOptions?: string[];
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -23,12 +25,14 @@ interface SocialTableProps {
   channelsSidebar?: React.ReactNode;
   onRowClick?: (row: SocialRow) => void;
   toolbarRightPrefix?: React.ReactNode;
+  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function SocialTable({
   data,
   pageCount,
   offeringCounts = {},
+  offeringOptions,
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -37,12 +41,13 @@ export function SocialTable({
   channelsSidebar,
   onRowClick,
   toolbarRightPrefix,
+  onDownloadCsv,
 }: SocialTableProps) {
   const enableAdvancedFilter = true;
 
   const columns = React.useMemo(
-    () => getSocialTableColumns({ offeringCounts }),
-    [offeringCounts]
+    () => getSocialTableColumns({ offeringCounts, offeringOptions }),
+    [offeringCounts, offeringOptions]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -93,6 +98,9 @@ export function SocialTable({
             <div className="flex items-center gap-2">
               <DataTableSortList table={table} align="start" />
               <DataTableViewOptions table={table} align="end" />
+              {onDownloadCsv && (
+                <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
+              )}
               {toolbarRightPrefix}
             </div>
           </div>

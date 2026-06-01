@@ -11,6 +11,8 @@ import { ChannelsSidebar } from "./channels-sidebar";
 import { useSocial } from "@/hooks/use-social";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { SocialRow, SocialStrategyType } from "@/types/social-types";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
+import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 
 interface SocialTableClientProps {
   businessId: string;
@@ -380,21 +382,37 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     enabled: false,
   });
 
-  const offerings = React.useMemo(() => {
-    if (!jobDetails?.offerings) return [] as string[];
+  const offeringOptions = React.useMemo(() => {
+    const set = new Set<string>();
 
-    return jobDetails.offerings
-      .map((offering: any) => offering.name || offering.offering || "")
-      .filter((name: string) => name.length > 0);
-  }, [jobDetails]);
+    // Primary source: job-level offerings (covers all pages)
+    if (jobDetails?.offerings) {
+      (jobDetails.offerings as Array<{ name?: string; offering?: string }>).forEach((o) => {
+        const name = (o.name || o.offering || "").trim();
+        if (name) set.add(name);
+      });
+    }
+
+    // Supplement with offerings from loaded row data
+    const rows = [
+      ...(channelsData?.data ?? []),
+      ...(socialData?.data ?? []),
+    ];
+    rows.forEach((row) => {
+      (Array.isArray(row.offerings) ? row.offerings : []).forEach((o: string) => {
+        const trimmed = typeof o === "string" ? o.trim() : "";
+        if (trimmed) set.add(trimmed);
+      });
+    });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [jobDetails?.offerings, channelsData?.data, socialData?.data]);
 
   const offeringCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
-    offerings.forEach((offering: string) => {
-      counts[offering] = 0;
-    });
+    offeringOptions.forEach((o) => { counts[o] = 0; });
     return counts;
-  }, [offerings]);
+  }, [offeringOptions]);
 
   // Use selectedRowChannel for tactics if available, otherwise use channelName from URL
   const tacticsChannel = selectedRowChannel || channelName;
@@ -512,6 +530,22 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     setTacticsSearch("");
   }, [setCampaignName]);
 
+  const handleDownloadCsv = React.useCallback(async () => {
+    const rows = await fetchAllTableData<SocialRow>((csvPage, csvPerPage) =>
+      fetchSocial({
+        business_id: businessId,
+        page: csvPage,
+        perPage: csvPerPage,
+        search: search || undefined,
+        sort: sort || [],
+        filters: filters || [],
+        joinOperator: (joinOperator || "and") as "and" | "or",
+        channel_name: effectiveChannelName,
+      })
+    );
+    downloadRowsAsCsv(rows, `${strategyType}-social-campaigns.csv`);
+  }, [businessId, effectiveChannelName, fetchSocial, filters, joinOperator, search, sort, strategyType]);
+
   if (jobLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -588,6 +622,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         data={socialData?.data || []}
         pageCount={socialData?.pageCount || 0}
         offeringCounts={offeringCounts}
+        offeringOptions={offeringOptions}
         isLoading={socialLoading && !socialData}
         isFetching={socialFetching}
         search={search}
@@ -595,6 +630,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         channelsSidebar={sidebarNode}
         onRowClick={handleRowClick}
         toolbarRightPrefix={toolbarRightPrefix}
+        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

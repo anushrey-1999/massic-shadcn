@@ -12,31 +12,39 @@ import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import type { TvRadioAdConceptRow } from "@/types/tv-radio-ads-types";
 import { getTvRadioAdsTableColumns } from "./tv-radio-ads-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface TvRadioAdsTableProps {
   data: TvRadioAdConceptRow[];
   pageCount: number;
+  offeringOptions?: string[];
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
   search?: string;
   onSearchChange?: (value: string) => void;
   onRowClick?: (row: TvRadioAdConceptRow) => void;
+  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function TvRadioAdsTable({
   data,
   pageCount,
+  offeringOptions = [],
   queryKeys,
   isLoading = false,
   isFetching = false,
   search = "",
   onSearchChange,
   onRowClick,
+  onDownloadCsv,
 }: TvRadioAdsTableProps) {
   const enableAdvancedFilter = true;
 
-  const columns = React.useMemo(() => getTvRadioAdsTableColumns(), []);
+  const columns = React.useMemo(
+    () => getTvRadioAdsTableColumns({ offeringOptions }),
+    [offeringOptions]
+  );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
     data,
@@ -47,6 +55,9 @@ export function TvRadioAdsTable({
       pagination: {
         pageIndex: 0,
         pageSize: 24,
+      },
+      columnVisibility: {
+        offerings: false,
       },
     },
     queryKeys,
@@ -86,6 +97,9 @@ export function TvRadioAdsTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
+            {onDownloadCsv && (
+              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
+            )}
           </div>
         </div>
       </DataTable>

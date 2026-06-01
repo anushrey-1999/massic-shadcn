@@ -10,12 +10,6 @@ import {
   ArrowDown,
   ArrowDownFromLine,
   ArrowLeft,
-  Copy,
-  ExternalLink,
-  Globe,
-  ImageIcon,
-  Loader2,
-  Monitor,
   ArrowUp,
   ArrowUpFromLine,
   Bold,
@@ -30,18 +24,24 @@ import {
   MoveVertical,
   PanelLeft,
   PanelRight,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Globe,
+  Loader2,
+  Monitor,
   Plus,
   Redo2,
   RefreshCw,
   RotateCcw,
   Save,
-  Smartphone,
-  Tablet,
   SquarePlus,
   Strikethrough,
   Trash2,
   Underline,
   Unlink,
+  Smartphone,
+  Tablet,
   Undo2,
   X,
 } from "lucide-react";
@@ -472,7 +472,6 @@ function detectInlineFormatsAtNode(node: Node | null, container: HTMLElement): {
   return result;
 }
 
-
 type HtmlContentType = "page" | "blog";
 
 export function WebPageHtmlView({
@@ -585,7 +584,6 @@ export function WebPageHtmlView({
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
-  const wpPublishMutation = useWordpressPublish();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
   const webflowDomains = isActiveWebflow
@@ -924,9 +922,6 @@ export function WebPageHtmlView({
     return null;
   }, [activeConnection?.siteUrl, isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId]);
 
-  const cssVarOverrides = React.useMemo<Record<string, string>>(() => ({}), []);
-  const previewStyleVars = React.useMemo<React.CSSProperties>(() => ({}), []);
-  const previewMassicVarCss = "";
   const previewBaseCss = React.useMemo(() => {
     if (!editorBaseCss) return "";
     if (!isBlogContent) return editorBaseCss;
@@ -1816,7 +1811,6 @@ export function WebPageHtmlView({
         const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
-          cssVarOverrides,
         });
       }
       result = await cmsPublishMutation.mutateAsync(payload);
@@ -1866,7 +1860,7 @@ export function WebPageHtmlView({
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !cmsChannel?.connected || !hasFinalContent) return;
@@ -1885,7 +1879,6 @@ export function WebPageHtmlView({
       const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
       payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
         baseCss,
-        cssVarOverrides,
       });
       const draftResult = await cmsPublishMutation.mutateAsync(payload);
       const draft = draftResult?.data;
@@ -1947,7 +1940,7 @@ export function WebPageHtmlView({
         toast.error("Slug conflict: choose a unique slug");
       }
     }
-  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, cssVarOverrides, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
+  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
 
   const handleRollbackWebflowToDraft = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !hasWebflowMapping) return;
@@ -2031,7 +2024,6 @@ export function WebPageHtmlView({
         const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
-          cssVarOverrides,
         });
       }
       result = await cmsPublishMutation.mutateAsync(payload);
@@ -2073,7 +2065,7 @@ export function WebPageHtmlView({
     if (activePlatform !== "webflow") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
 
   const handleRepublish = React.useCallback(async () => {
     if (!isActiveWordpress || !hasFinalContent) return;
@@ -2265,7 +2257,6 @@ export function WebPageHtmlView({
     const baseCss = editorBaseCss || (await (isBlogContent ? getMassicBlogCssText() : getMassicCssText()));
     const styledHtml = buildStyledMassicHtml(safeHtml, {
       baseCss,
-      cssVarOverrides,
     });
 
     if (!styledHtml) {
@@ -4577,7 +4568,6 @@ export function WebPageHtmlView({
               <Plus className="h-4 w-4" />
               Insert
             </Button>
-
             <div className="h-5 w-px bg-border" />
             <div className="inline-flex items-center gap-0.5">
               <Tooltip><TooltipTrigger asChild>
@@ -5859,7 +5849,6 @@ export function WebPageHtmlView({
                   previewEditMode === "text" && "massic-mode-text",
                   previewEditMode === "layout" && "massic-mode-layout"
                 )}
-                style={previewStyleVars}
                 onMouseDownCapture={handlePreviewMouseDownCapture}
                 onMouseUpCapture={handlePreviewMouseUpCapture}
                 onClickCapture={handlePreviewClickCapture}
@@ -5973,7 +5962,6 @@ export function WebPageHtmlView({
             </AlertDialog>
             <style>{`
               ${previewBaseCss}
-              ${previewMassicVarCss}
               .massic-html-preview .massic-text-editable {
                 border-radius: 4px;
                 outline: none;

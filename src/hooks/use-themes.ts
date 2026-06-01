@@ -3,22 +3,30 @@
 import { useCallback } from "react";
 import type { AxiosError } from "axios";
 import { useApi, type ApiPlatform } from "./use-api";
-import type { ThemesApiResponse, ThemeRow } from "@/types/themes-types";
+import type {
+  ThemeScatterApiResponse,
+  ThemesApiResponse,
+  ThemeRow,
+} from "@/types/themes-types";
 
 export function useThemes(businessId: string) {
   const platform: ApiPlatform = "python";
 
   const themesGetApi = useApi<ThemesApiResponse>({ platform });
   const themesPostApi = useApi<ThemesApiResponse>({ platform });
+  const scatterPlotApi = useApi<ThemeScatterApiResponse>({ platform });
 
   const transformToTableRows = useCallback((items: ThemesApiResponse["output_data"]["items"]): ThemeRow[] => {
     return items.map((item, index) => ({
+      ...item,
       id: `${item.theme_name}-${index}`,
       theme_name: item.theme_name,
       origin_offering: item.origin_offering,
       topic_count: item.topic_count,
       offerings: item.offerings || [],
       topics: item.topics || [],
+      business_relevance_score: item.business_relevance_score,
+      theme_coverage: item.theme_coverage,
     }));
   }, []);
 
@@ -57,8 +65,14 @@ export function useThemes(businessId: string) {
     await themesPostApi.execute(endpoint, { method: "POST" });
   }, [businessId, themesPostApi]);
 
+  const fetchScatterPlot = useCallback(async () => {
+    const endpoint = `/tools/topics/scatter-plot?business_id=${businessId}`;
+    return scatterPlotApi.execute(endpoint, { method: "GET" });
+  }, [businessId, scatterPlotApi]);
+
   return {
     fetchThemes,
+    fetchScatterPlot,
     triggerThemes,
     loading: themesGetApi.loading,
     error: themesGetApi.error,

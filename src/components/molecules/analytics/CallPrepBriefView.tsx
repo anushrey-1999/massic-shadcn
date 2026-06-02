@@ -11,6 +11,7 @@ import type {
   CallPrepBriefHighlight,
   CallPrepBriefResponse,
   CallPrepHighlightTone,
+  CallPrepOtherCtaSummary,
   PrimaryDriversWin,
 } from "@/hooks/use-primary-drivers"
 
@@ -94,6 +95,66 @@ const HIGHLIGHT_STYLES: Record<CallPrepHighlightTone, { item: string; dot: strin
   },
 }
 
+function formatSignedNumber(value: number | null): string {
+  const numericValue = Number(value || 0)
+  return `${numericValue >= 0 ? "+" : ""}${numericValue}`
+}
+
+function formatPercent(value: number | null): string {
+  const pct = Math.round(Number(value || 0) * 100)
+  return `${pct >= 0 ? "+" : ""}${pct}%`
+}
+
+function getOtherCtaBadgeClass(direction: CallPrepOtherCtaSummary["direction"]) {
+  if (direction === "up") {
+    return "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+  }
+  if (direction === "down") {
+    return "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
+  }
+  return "border-border/60 bg-secondary text-muted-foreground"
+}
+
+function getOtherCtaDirectionLabel(direction: CallPrepOtherCtaSummary["direction"]) {
+  if (direction === "up") return "Up"
+  if (direction === "down") return "Down"
+  return "Steady"
+}
+
+function OtherCtasSection({ items }: { items?: CallPrepOtherCtaSummary[] }) {
+  if (!items || items.length === 0) return null
+
+  return (
+    <section className="space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+        Other CTAs
+      </p>
+      <div className="space-y-1.5">
+        {items.map((cta, index) => (
+          <div
+            key={`${cta.display_name}-${index}`}
+            className="rounded-lg border border-border/60 bg-white px-3 py-2.5"
+          >
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <p className="truncate text-[13px] font-medium text-foreground">{cta.display_name}</p>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                  getOtherCtaBadgeClass(cta.direction),
+                )}
+              >
+                {getOtherCtaDirectionLabel(cta.direction)} {formatSignedNumber(cta.absolute_delta)} ({formatPercent(cta.pct_change)})
+              </Badge>
+            </div>
+            <p className="mt-1 truncate text-[13px] text-muted-foreground">{cta.one_liner}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 interface CallPrepBriefViewProps {
   callBrief: CallPrepBriefResponse
   wins?: PrimaryDriversWin[]
@@ -107,6 +168,7 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
   ].join(" · ")
 
   const showCurveballs = !callBrief.all_positive && callBrief.brief.curveballs.length > 0
+  const otherCtas = callBrief.brief.other_ctas_summary ?? []
 
   return (
     <div className="space-y-4">
@@ -156,6 +218,8 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
           </div>
         </div>
       ) : null}
+
+      {!showCurveballs ? <OtherCtasSection items={otherCtas} /> : null}
 
       {callBrief.brief.highlights.length > 0 ? (
         <section className="space-y-2">
@@ -252,6 +316,8 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
           </div>
         </section>
       ) : null}
+
+      {showCurveballs ? <OtherCtasSection items={otherCtas} /> : null}
     </div>
   )
 }

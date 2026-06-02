@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, PanelLeftOpen, Share2, X } from "lucide-react";
+import { ChevronDown, Share2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/auth-store";
 import { AgentHistorySidebar } from "./agent-history-sidebar";
 import { AgentChatThread } from "./agent-chat-thread";
 import { AgentComposer } from "./agent-composer";
+import { AgentEmptyState } from "./agent-empty-state";
+import { AgentChatsListView } from "./agent-chats-list-view";
 import { AgentSearchDialog } from "./agent-search-dialog";
 import { deriveTitle, seedConversations, simulateAgentStream, type StreamHandle } from "./mock-data";
 import type { AgentAction, AgentConversation, AgentMessage, StreamPhase } from "./types";
@@ -36,6 +39,7 @@ function saveConversations(items: AgentConversation[]) {
 }
 
 export function MassicAgentShell() {
+  const user = useAuthStore((s) => s.user);
   const [conversations, setConversations] = React.useState<AgentConversation[]>([]);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [input, setInput] = React.useState("");
@@ -43,6 +47,7 @@ export function MassicAgentShell() {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [hydrated, setHydrated] = React.useState(false);
+  const [view, setView] = React.useState<"chat" | "chats">("chat");
 
   const streamRef = React.useRef<StreamHandle | null>(null);
 
@@ -81,6 +86,8 @@ export function MassicAgentShell() {
     [conversations, activeId]
   );
 
+  const showEmptyState = !activeConversation || activeConversation.messages.length === 0;
+
   const updateConversation = React.useCallback(
     (id: string, updater: (c: AgentConversation) => AgentConversation) => {
       setConversations((prev) => prev.map((c) => (c.id === id ? updater(c) : c)));
@@ -94,14 +101,15 @@ export function MassicAgentShell() {
     setStreamPhase(null);
     setActiveId(null);
     setInput("");
+    setView("chat");
   };
 
   const handleSelect = (id: string) => {
-    if (id === activeId) return;
     streamRef.current?.cancel();
     streamRef.current = null;
     setStreamPhase(null);
     setActiveId(id);
+    setView("chat");
   };
 
   const handleDelete = (id: string) => {
@@ -121,9 +129,7 @@ export function MassicAgentShell() {
   const startStream = (conversationId: string, assistantId: string) => {
     streamRef.current?.cancel();
 
-    const patchMessage = (
-      patcher: (m: AgentMessage) => AgentMessage
-    ) => {
+    const patchMessage = (patcher: (m: AgentMessage) => AgentMessage) => {
       setConversations((prev) =>
         prev.map((c) =>
           c.id !== conversationId
@@ -242,19 +248,30 @@ export function MassicAgentShell() {
     return <div className="h-full w-full bg-background" />;
   }
 
+  const userName = user?.username || user?.email;
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
-      {sidebarOpen ? (
+      <div
+        className={cn(
+          "shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
+          sidebarOpen ? "w-[20%] min-w-[200px] max-w-[280px]" : "w-12"
+        )}
+      >
         <AgentHistorySidebar
           conversations={conversations}
           activeId={activeId}
+          activeView={view}
+          isCollapsed={!sidebarOpen}
           onSelect={handleSelect}
           onNewChat={handleNewChat}
           onDelete={handleDelete}
           onSearch={() => setSearchOpen(true)}
           onCollapse={() => setSidebarOpen(false)}
+          onExpand={() => setSidebarOpen(true)}
+          onChatsView={() => setView("chats")}
         />
-      ) : null}
+      </div>
 
       <AgentSearchDialog
         open={searchOpen}
@@ -264,28 +281,19 @@ export function MassicAgentShell() {
       />
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-border px-4">
+        <header className="grid h-14 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 px-4">
           <div className="flex min-w-0 items-center gap-2">
-            {!sidebarOpen ? (
-              <Button
+            {!showEmptyState && view === "chat" ? (
+              <button
                 type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open sidebar"
+                className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-foreground hover:bg-muted/60"
               >
-                <PanelLeftOpen className="h-4 w-4" />
-              </Button>
+                <span className="max-w-[320px] truncate">
+                  {activeConversation?.title ?? "New chat"}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </button>
             ) : null}
-            <button
-              type="button"
-              className="flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-foreground hover:bg-muted/60"
-            >
-              <span className="max-w-[320px] truncate">
-                {activeConversation?.title ?? "New chat"}
-              </span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </button>
           </div>
 
           <div className="flex justify-center">
@@ -302,32 +310,55 @@ export function MassicAgentShell() {
           </div>
 
           <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" className="gap-2" disabled>
-              <Share2 className="h-3.5 w-3.5" />
-              Share
-            </Button>
+            {!showEmptyState && view === "chat" ? (
+              <Button type="button" variant="outline" size="sm" className="gap-2" disabled>
+                <Share2 className="h-3.5 w-3.5" />
+                Share
+              </Button>
+            ) : null}
           </div>
         </header>
 
         <div className={cn("flex min-h-0 flex-1 flex-col")}>
-          <AgentChatThread
-            messages={activeConversation?.messages ?? []}
-            streamPhase={streamPhase}
-            onPickSuggestion={(text) => handleSend(text)}
-            onRegenerate={handleRegenerate}
-          />
-
-          <div className="shrink-0 px-4 pb-4">
-            <div className="mx-auto w-full max-w-3xl">
-              <AgentComposer
-                value={input}
-                onChange={setInput}
-                onSend={() => handleSend()}
-                onStop={handleStop}
-                isStreaming={streamPhase !== null}
+          {view === "chats" ? (
+            <AgentChatsListView
+              conversations={conversations}
+              onSelect={handleSelect}
+              onNewChat={handleNewChat}
+            />
+          ) : showEmptyState ? (
+            <AgentEmptyState
+              value={input}
+              onChange={setInput}
+              onSend={handleSend}
+              onStop={handleStop}
+              isStreaming={streamPhase !== null}
+              userName={userName ?? undefined}
+            />
+          ) : (
+            <>
+              <AgentChatThread
+                messages={activeConversation?.messages ?? []}
+                streamPhase={streamPhase}
+                onRegenerate={handleRegenerate}
               />
-            </div>
-          </div>
+
+              <div className="shrink-0 px-4 pb-4">
+                <div className="mx-auto w-full max-w-3xl">
+                  <AgentComposer
+                    value={input}
+                    onChange={setInput}
+                    onSend={() => handleSend()}
+                    onStop={handleStop}
+                    isStreaming={streamPhase !== null}
+                  />
+                  <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                    Massic is AI and can make mistakes. Please double-check responses.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </main>
     </div>

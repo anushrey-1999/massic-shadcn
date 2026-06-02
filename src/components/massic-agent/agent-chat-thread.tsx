@@ -1,71 +1,91 @@
 "use client";
 
 import * as React from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ArrowDown } from "lucide-react";
 import { MassicLoader } from "@/components/ui/massic-loader";
+import { Button } from "@/components/ui/button";
 import { AgentMessageView } from "./agent-message";
-import { AgentEmptyState } from "./agent-empty-state";
 import type { AgentMessage, StreamPhase } from "./types";
 
 type Props = {
   messages: AgentMessage[];
   streamPhase: StreamPhase;
-  onPickSuggestion: (text: string) => void;
   onRegenerate?: () => void;
 };
 
-export function AgentChatThread({
-  messages,
-  streamPhase,
-  onPickSuggestion,
-  onRegenerate,
-}: Props) {
+export function AgentChatThread({ messages, streamPhase, onRegenerate }: Props) {
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = React.useState(false);
+
+  const scrollToBottom = React.useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, []);
 
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, streamPhase]);
+    scrollToBottom();
+  }, [messages, streamPhase, scrollToBottom]);
 
-  if (messages.length === 0) {
-    return (
-      <div className="flex-1 min-h-0">
-        <AgentEmptyState onPick={onPickSuggestion} />
-      </div>
-    );
-  }
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollBtn(distanceFromBottom > 120);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   const lastMessage = messages[messages.length - 1];
   const isStreaming = streamPhase !== null;
   const showBottomLoader =
-    lastMessage.role === "assistant" &&
+    lastMessage?.role === "assistant" &&
     streamPhase !== "thinking" &&
     streamPhase !== "searching";
 
   return (
-    <ScrollArea className="flex-1 min-h-0">
-      <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6">
-        {messages.map((m, i) => (
-          <AgentMessageView
-            key={m.id}
-            message={m}
-            isLast={i === messages.length - 1}
-            streamPhase={streamPhase}
-            onRegenerate={
-              m.role === "assistant" && i === messages.length - 1 && streamPhase === null
-                ? onRegenerate
-                : undefined
-            }
-          />
-        ))}
+    <div className="relative flex-1 min-h-0">
+      <div ref={scrollRef} className="h-full overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-8 sm:px-6">
+          {messages.map((m, i) => (
+            <AgentMessageView
+              key={m.id}
+              message={m}
+              isLast={i === messages.length - 1}
+              streamPhase={streamPhase}
+              onRegenerate={
+                m.role === "assistant" && i === messages.length - 1 && streamPhase === null
+                  ? onRegenerate
+                  : undefined
+              }
+            />
+          ))}
 
-        {showBottomLoader ? (
-          <div className="flex items-center pt-1">
-            <MassicLoader size={28} animate={isStreaming} />
-          </div>
-        ) : null}
+          {showBottomLoader ? (
+            <div className="flex items-center pt-1">
+              <MassicLoader size={28} animate={isStreaming} />
+            </div>
+          ) : null}
 
-        <div ref={bottomRef} />
+          <div ref={bottomRef} />
+        </div>
       </div>
-    </ScrollArea>
+
+      {showScrollBtn ? (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            onClick={scrollToBottom}
+            className="h-8 w-8 rounded-full shadow-md bg-background text-muted-foreground hover:bg-background hover:border-general-primary/40 hover:text-foreground"
+            aria-label="Scroll to bottom"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </Button>
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MassicLoader } from "@/components/ui/massic-loader";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { renderLightMarkdown } from "@/components/chatbot/markdown";
 import { cn } from "@/lib/utils";
 import { AgentThinking } from "./agent-thinking";
@@ -22,15 +23,15 @@ function AgentActionRow({ action }: { action: AgentAction }) {
 }
 
 const proseClasses = cn(
-  "text-[15px] leading-7 text-foreground",
-  "[&_p]:my-3 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
-  "[&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:text-xl [&_h1]:font-semibold",
-  "[&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold",
-  "[&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-base [&_h3]:font-semibold",
-  "[&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:text-sm [&_h4]:font-semibold",
-  "[&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-1.5",
-  "[&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:space-y-1.5",
-  "[&_li]:leading-7 [&_li_p]:my-0",
+  "text-[15px] leading-6 text-foreground",
+  "[&_p]:my-2 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
+  "[&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-xl [&_h1]:font-semibold",
+  "[&_h2]:mt-3 [&_h2]:mb-1.5 [&_h2]:text-lg [&_h2]:font-semibold",
+  "[&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:text-base [&_h3]:font-semibold",
+  "[&_h4]:mt-2.5 [&_h4]:mb-1 [&_h4]:text-sm [&_h4]:font-semibold",
+  "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-1",
+  "[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:space-y-1",
+  "[&_li]:leading-6 [&_li_p]:my-0",
   "[&_strong]:font-semibold [&_strong]:text-foreground",
   "[&_em]:italic",
   "[&_a]:text-general-primary [&_a]:underline [&_a]:underline-offset-2",
@@ -101,61 +102,82 @@ export function AgentMessageView({ message, isLast, streamPhase, onRegenerate }:
       ) : null}
 
       {!isStreaming && message.content ? (
-        <div
-          className={cn(
-            "flex items-center gap-0.5 transition-opacity",
-            isLast ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          )}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={handleCopy}
-            aria-label="Copy"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          >
-            {copied ? (
-              <Check className="h-3.5 w-3.5" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
+        <TooltipProvider delayDuration={400}>
+          <div
+            className={cn(
+              "flex items-center gap-0.5 transition-opacity",
+              isLast ? "opacity-100" : "opacity-0 group-hover:opacity-100"
             )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setFeedback(feedback === "up" ? null : "up")}
-            aria-label="Good response"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground data-[active=true]:text-foreground"
-            data-active={feedback === "up"}
           >
-            <ThumbsUp className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setFeedback(feedback === "down" ? null : "down")}
-            aria-label="Bad response"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground data-[active=true]:text-foreground"
-            data-active={feedback === "down"}
-          >
-            <ThumbsDown className="h-3.5 w-3.5" />
-          </Button>
-          {onRegenerate ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onRegenerate}
-              aria-label="Regenerate"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-          ) : null}
-        </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleCopy}
+                  aria-label="Copy"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{copied ? "Copied!" : "Copy"}</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setFeedback(feedback === "up" ? null : "up")}
+                  aria-label="Good response"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground data-[active=true]:text-foreground"
+                  data-active={feedback === "up"}
+                >
+                  <ThumbsUp className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Good response</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setFeedback(feedback === "down" ? null : "down")}
+                  aria-label="Bad response"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground data-[active=true]:text-foreground"
+                  data-active={feedback === "down"}
+                >
+                  <ThumbsDown className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Bad response</TooltipContent>
+            </Tooltip>
+
+            {onRegenerate ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onRegenerate}
+                    aria-label="Regenerate"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Regenerate</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
+        </TooltipProvider>
       ) : null}
     </div>
   );

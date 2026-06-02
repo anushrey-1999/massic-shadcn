@@ -112,15 +112,13 @@ export function AgentThinking({ text, isActive, defaultOpen = false }: Props) {
           {steps.map((step, idx) => (
             <div key={idx} className="flex gap-3">
               <div className="flex flex-col items-center">
-                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border bg-background">
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
                 </span>
-                {idx < steps.length - 1 ? (
-                  <span className="mt-1 w-px flex-1 bg-border" />
-                ) : null}
+                <span className="mt-1 w-px flex-1 min-h-[12px] bg-border" />
               </div>
 
-              <div className={cn("min-w-0 pb-4 text-sm", idx === steps.length - 1 && "pb-1")}>
+              <div className="min-w-0 pb-4 text-sm">
                 {hasUrl(step) ? (
                   <LinkCard text={step} />
                 ) : (
@@ -132,14 +130,22 @@ export function AgentThinking({ text, isActive, defaultOpen = false }: Props) {
             </div>
           ))}
 
-          <div className="flex gap-3">
-            <div className="flex flex-col items-center">
+          {/* Done node */}
+          {!isActive ? (
+            <div className="flex gap-3 items-center">
               <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-general-primary/40 bg-general-primary/10">
                 <Check className="h-2.5 w-2.5 text-general-primary" />
               </span>
+              <span className="text-xs font-medium text-general-primary">Done</span>
             </div>
-            <span className="text-xs text-muted-foreground">Done</span>
-          </div>
+          ) : (
+            <div className="flex gap-3 items-center">
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-border bg-background">
+                <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-pulse" />
+              </span>
+              <span className="text-xs text-muted-foreground italic">Thinking…</span>
+            </div>
+          )}
         </div>
       ) : null}
     </div>

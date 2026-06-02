@@ -19,6 +19,7 @@ type Props = {
   onStop?: () => void;
   isStreaming: boolean;
   disabled?: boolean;
+  placeholder?: string;
 };
 
 const models = ["Massic v1", "Massic v1 Pro", "Massic Lite"];
@@ -30,6 +31,7 @@ export function AgentComposer({
   onStop,
   isStreaming,
   disabled,
+  placeholder = "Write a message…",
 }: Props) {
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const [model, setModel] = React.useState(models[0]);
@@ -47,15 +49,15 @@ export function AgentComposer({
     <div className="w-full">
       <div
         className={cn(
-          "relative flex w-full flex-col rounded-2xl border border-border bg-card",
-          "focus-within:border-ring/60"
+          "relative flex w-full flex-col rounded-2xl border border-border bg-card shadow-sm shadow-black/[0.06] transition-shadow",
+          "focus-within:border-general-primary/40 focus-within:shadow-md focus-within:shadow-black/[0.1]"
         )}
       >
         <Textarea
           ref={textareaRef}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Write a message…"
+          placeholder={placeholder}
           rows={1}
           className="min-h-[52px] max-h-[220px] resize-none border-0 bg-transparent px-4 pt-3.5 pb-1 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           onKeyDown={(e) => {
@@ -147,9 +149,6 @@ export function AgentComposer({
         </div>
       </div>
 
-      <p className="mt-2 text-center text-xs text-muted-foreground">
-        Massic is AI and can make mistakes. Please double-check important info.
-      </p>
     </div>
   );
 }

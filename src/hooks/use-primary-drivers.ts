@@ -102,7 +102,7 @@ export interface PrimaryDriversBaseline {
 
 // Wins bar entry
 export interface PrimaryDriversWin {
-  type: "driver" | "channel" | "query"
+  type: "driver" | "channel" | "query" | "other_cta"
   label: string
   value: string
 }
@@ -262,6 +262,14 @@ export interface CallPrepBriefCurveball {
   evaluation_areas: string[]
 }
 
+export interface CallPrepOtherCtaSummary {
+  display_name: string
+  direction: "up" | "down" | "steady"
+  absolute_delta: number
+  pct_change: number | null
+  one_liner: string
+}
+
 export interface CallPrepBriefResponse {
   business_name: string
   date_range: CallPrepDateRange
@@ -281,6 +289,7 @@ export interface CallPrepBriefResponse {
       locations: CallPrepBriefLocation[]
     }
     curveballs: CallPrepBriefCurveball[]
+    other_ctas_summary: CallPrepOtherCtaSummary[]
     confidence_note: string | null
   }
   validation: {

@@ -827,7 +827,24 @@ function isPrimaryDriversSnapshot(value: unknown): value is PrimaryDriversRespon
 
 function getPrimaryDriversWins(data: PrimaryDriversResponse | null | undefined): PrimaryDriversWin[] {
   if (!data) return []
-  if (isPrimaryDriversV2Response(data)) return data.ctas[0]?.wins ?? []
+  if (isPrimaryDriversV2Response(data)) {
+    const [primaryCta, ...secondaryCtas] = data.ctas
+    const wins = [...(primaryCta?.wins ?? [])]
+
+    if (primaryCta?.direction === "down") {
+      secondaryCtas
+        .filter((cta) => cta.direction === "up")
+        .forEach((cta) => {
+          wins.push({
+            type: "other_cta",
+            label: cta.display_name,
+            value: `${fmtAbsolute(cta.absolute_delta)} (${pctDisplay(cta.pct_change)})`,
+          })
+        })
+    }
+
+    return wins.slice(0, 3)
+  }
   return data.wins ?? []
 }
 

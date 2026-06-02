@@ -5,7 +5,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
-import { ExpandablePills } from "@/components/ui/expandable-pills";
 
 const textFilterOperators = [
   { label: "Contains", value: "iLike" as const },
@@ -30,7 +29,7 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
       cell: ({ row }) => {
         const name = row.getValue("theme_name") as string;
         return (
-          <Typography variant="p" className="font-medium truncate" title={name}>
+          <Typography variant="p" className="truncate" title={name}>
             {name || "-"}
           </Typography>
         );
@@ -59,18 +58,10 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
       ),
       cell: ({ row }) => {
         const offerings = row.getValue("offerings") as string[];
-        const isExpanded = expandedRowId === row.id;
         return (
-          <div className="max-w-full">
-            <ExpandablePills
-              items={offerings || []}
-              pillVariant="outline"
-              expanded={isExpanded}
-              onExpandedChange={(next) => {
-                onExpandedRowChange?.(next ? row.id : null);
-              }}
-            />
-          </div>
+          <Typography variant="p">
+            {offerings?.length ?? 0}
+          </Typography>
         );
       },
       meta: offeringOptions.length > 0
@@ -100,19 +91,10 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
         <DataTableColumnHeader column={column} label="Topics" />
       ),
       cell: ({ row }) => {
-        const topicNames = (row.original.topics || []).map((t) => t.topic_name);
-        const isExpanded = expandedRowId === row.id;
         return (
-          <div className="max-w-full">
-            <ExpandablePills
-              items={topicNames}
-              pillVariant="secondary"
-              expanded={isExpanded}
-              onExpandedChange={(next) => {
-                onExpandedRowChange?.(next ? row.id : null);
-              }}
-            />
-          </div>
+          <Typography variant="p">
+            {row.original.topics?.length ?? 0}
+          </Typography>
         );
       },
       meta: {

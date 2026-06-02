@@ -255,7 +255,7 @@ export function MassicAgentShell() {
       <div
         className={cn(
           "shrink-0 transition-[width] duration-300 ease-in-out overflow-hidden",
-          sidebarOpen ? "w-[20%] min-w-[200px] max-w-[280px]" : "w-12"
+          sidebarOpen ? "w-[240px]" : "w-12"
         )}
       >
         <AgentHistorySidebar

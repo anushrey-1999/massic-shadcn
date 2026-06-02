@@ -57,6 +57,17 @@ export function AgentHistorySidebar({
   onExpand,
   onChatsView,
 }: Props) {
+  const [expandedVisible, setExpandedVisible] = React.useState(!isCollapsed);
+
+  React.useEffect(() => {
+    if (!isCollapsed) {
+      const t = setTimeout(() => setExpandedVisible(true), 300);
+      return () => clearTimeout(t);
+    } else {
+      setExpandedVisible(false);
+    }
+  }, [isCollapsed]);
+
   const primaryNavItems: NavItem[] = [
     { id: "new", label: "New chat", icon: Plus, onClick: onNewChat },
     { id: "chats", label: "Chats", icon: MessageSquare, onClick: onChatsView },
@@ -95,8 +106,8 @@ export function AgentHistorySidebar({
 
       {/* Expanded full sidebar */}
       <div className={cn(
-        "flex h-full flex-col transition-opacity duration-200",
-        isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100 pointer-events-auto delay-150"
+        "flex h-full flex-col transition-opacity duration-150",
+        expandedVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
       )}>
         <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2">
           <div className="flex items-center gap-2">

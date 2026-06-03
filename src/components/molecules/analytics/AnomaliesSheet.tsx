@@ -5,33 +5,29 @@ import { format } from "date-fns";
 import {
   Target,
   MousePointerClick,
-  TrendingUp,
-  TrendingDown,
-  ChevronRight,
-  ChevronLeft,
-  AlertCircle,
+  ChevronDown,
   AlertTriangle,
-  CheckCircle,
   Loader2,
-  Lightbulb,
-  BarChart3,
   Info,
+  Lightbulb,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Typography } from "@/components/ui/typography";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertDateSelector } from "./AlertDateSelector";
+import { SourceFavicon } from "./SourceFavicon";
 import { useGoalAnalysis } from "@/hooks/use-goal-analysis";
 import { useTrafficAnalysis } from "@/hooks/use-traffic-analysis";
-import type { GoalData, GoalContributor, PageBreakdown, SourceBreakdown, Diagnosis, DailyPeak, AnomalyTier, HeadlineReel, Win, BaselineStatus } from "@/hooks/use-goal-analysis";
-import type { TrafficData, TrafficContributor } from "@/hooks/use-traffic-analysis";
+import type { GoalData, PageBreakdown, SourceBreakdown, Diagnosis, DailyPeak, AnomalyTier, HeadlineReel, Win } from "@/hooks/use-goal-analysis";
+import type { TrafficData } from "@/hooks/use-traffic-analysis";
 
 interface AnomaliesSheetProps {
   open: boolean;
@@ -53,63 +49,195 @@ interface AnomaliesSheetProps {
 type TrackingQuality = "stable" | "uncertain";
 type Direction = "up" | "down";
 
-// CHANGE 12: severity is retained in API but never rendered; getAnomalyConfig
-// no longer emits a severity badge — only sentimentLabel and the delta chip.
 const getAnomalyConfig = (
   direction: Direction,
   trackingQuality: TrackingQuality = "stable",
 ) => {
   if (direction === "up") {
     return {
-      icon: trackingQuality === "uncertain" ? AlertTriangle : CheckCircle,
-      sentimentLabel: trackingQuality === "uncertain" ? "Positive, verify" : "Positive",
-      borderColor: "border-[#9FE1CB]",
-      badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      iconColor: "text-emerald-600",
-      textColor: "text-emerald-700",
-      bgColor: "bg-emerald-50",
-      cardClass: "bg-[#F0FDFA]",
+      label: trackingQuality === "uncertain" ? "Positive, verify" : "Positive",
+      chipClass: "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]",
+      accentClass: "bg-[#1D9E75]",
       note: trackingQuality === "uncertain" ? "Looks positive - worth verifying tracking." : null,
     };
   }
 
   return {
-    icon: AlertCircle,
-    sentimentLabel: "Needs attention",
-    borderColor: "border-[#F7C1C1]",
-    badgeClass: "bg-red-100 text-red-700 border-red-200",
-    iconColor: "text-[#E24B4A]",
-    textColor: "text-[#A32D2D]",
-    bgColor: "bg-[#FEF2F2]",
-    cardClass: "bg-[#FEF2F2]",
+    label: "Needs attention",
+    chipClass: "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]",
+    accentClass: "bg-[#E24B4A]",
     note: null,
   };
 };
 
-/** CHANGE 02: Render headline reels with per-chunk direction colour. */
-function HeadlineReels({ reels, fallback }: { reels?: HeadlineReel[]; fallback?: string }) {
-  if (!reels || reels.length === 0) {
-    return <span className="text-sm font-semibold text-foreground leading-tight">{fallback || ""}</span>;
-  }
-  const colorMap: Record<string, string> = {
-    up: "text-emerald-700",
-    down: "text-[#A32D2D]",
-    flat: "text-amber-700",
-    neutral: "text-foreground",
-  };
+type ReelColor = "neg" | "pos" | "flat" | "neutral";
+
+const REEL_COLOR_CLS: Record<ReelColor, string> = {
+  neg: "text-[#A32D2D]",
+  pos: "text-[#0F6E56]",
+  flat: "text-muted-foreground",
+  neutral: "text-foreground",
+};
+
+const DIRECTION_TO_COLOR: Record<HeadlineReel["direction"], ReelColor> = {
+  down: "neg",
+  up: "pos",
+  flat: "flat",
+  neutral: "neutral",
+};
+
+function fmtAbsolute(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  const abs = Math.abs(value);
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  if (abs < 1000) return `${sign}${Math.round(abs).toLocaleString("en-US")}`;
+  if (abs < 1_000_000) return `${sign}${(abs / 1000).toFixed(abs >= 10000 ? 0 : 1).replace(/\.0$/, "")}K`;
+  return `${sign}${(abs / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+}
+
+function pctDisplay(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  const normalized = Math.abs(value) <= 1 ? value * 100 : value;
+  const sign = normalized > 0 ? "+" : normalized < 0 ? "-" : "";
+  return `${sign}${Math.abs(normalized).toFixed(0)}%`;
+}
+
+function deltaColor(value: number | null | undefined): string {
+  if (value === null || value === undefined || value === 0) return "text-muted-foreground";
+  return value > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]";
+}
+
+function HeadlinePanel({
+  reels,
+  fallback,
+  bottomLine,
+}: {
+  reels?: HeadlineReel[];
+  fallback?: string;
+  bottomLine?: string | null;
+}) {
+  const displayReels = reels?.length
+    ? reels
+    : fallback
+      ? [{ text: fallback, direction: "neutral" as const }]
+      : [];
+
+  if (displayReels.length === 0 && !bottomLine) return null;
+
   return (
-    <span className="text-sm font-semibold leading-tight flex flex-wrap gap-x-1">
-      {reels.map((reel, idx) => (
-        <span key={idx} className={colorMap[reel.direction] || "text-foreground"}>
-          {idx > 0 && <span className="text-muted-foreground/50 mr-1">·</span>}
-          {reel.text}
-        </span>
-      ))}
+    <div className="rounded-lg bg-background/55 px-3 py-2">
+      {displayReels.length > 0 ? (
+        <p className="text-[14px] leading-[1.45]">
+          {displayReels.map((reel, idx) => (
+            <React.Fragment key={`${reel.text}-${idx}`}>
+              {idx > 0 && <span className="mx-[6px] text-[18px] leading-none text-foreground/70">·</span>}
+              <span className={REEL_COLOR_CLS[DIRECTION_TO_COLOR[reel.direction] || "neutral"]}>
+                {reel.text}
+              </span>
+            </React.Fragment>
+          ))}
+        </p>
+      ) : null}
+      {bottomLine ? (
+        <p className="mt-1 text-[12px] leading-[1.45] text-muted-foreground">
+          {bottomLine}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function NoticeBar({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-[#FAC775] bg-[#FFFBEB] px-3 py-2 text-[12px] text-[#633806]">
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#B45309]" />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function InfoBar({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-[12px] text-blue-800">
+      <Info className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+function DeltaPill({ value, percent }: { value: number; percent?: number }) {
+  const positive = value > 0;
+  const neutral = value === 0;
+  const cls = neutral
+    ? "border-border/60 bg-secondary/30 text-muted-foreground"
+    : positive
+      ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+      : "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]";
+
+  return (
+    <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[12px] font-semibold tabular-nums", cls)}>
+      {fmtAbsolute(value)} {percent !== undefined ? `(${pctDisplay(percent)})` : null}
     </span>
   );
 }
 
-/** CHANGE 07: ChannelBlock — coloured contributor row with stat chips and per-page breakdown. */
+function ChStat({ label, value }: { label: string; value: number | null | undefined }) {
+  return (
+    <div className="text-right">
+      <p className="mb-px text-[9px] uppercase tracking-[0.06em] text-muted-foreground/70">
+        {label}
+      </p>
+      <p className={cn("text-[14px] font-medium tabular-nums", deltaColor(value))}>
+        {fmtAbsolute(value)}
+      </p>
+    </div>
+  );
+}
+
+function TruncatedTooltipText({
+  text,
+  className,
+  tooltipClassName = "max-w-[360px] break-words text-xs",
+}: {
+  text: string;
+  className?: string;
+  tooltipClassName?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn("cursor-default", className)}>{text}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className={tooltipClassName}>
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function QueryChips({ queries }: { queries?: string[] }) {
+  if (!queries?.length) return null;
+
+  const colorMap: Record<string, string> = {
+    default: "border-border/60 bg-background text-muted-foreground",
+  };
+
+  return (
+    <div className="mt-1.5 flex min-w-0 max-w-full flex-wrap gap-1.5">
+      {queries.slice(0, 6).map((query, idx) => (
+        <TruncatedTooltipText
+          key={`${query}-${idx}`}
+          text={query}
+          className={cn(
+            "max-w-full truncate rounded-full border px-2 py-[3px] text-[11px] sm:max-w-[220px]",
+            colorMap.default,
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
 interface ChannelBlockProps {
   channelName: string;
   anchorDelta: number;
@@ -119,50 +247,6 @@ interface ChannelBlockProps {
   sources?: SourceBreakdown[];
   pages?: PageBreakdown[];
   isTraffic?: boolean;
-}
-
-function StatChip({ label, value, positive }: { label: string; value: number; positive?: boolean }) {
-  const isPos = value >= 0;
-  const color = positive !== undefined
-    ? (positive ? "text-[#0F6E56]" : "text-[#A32D2D]")
-    : (isPos ? "text-[#0F6E56]" : "text-[#A32D2D]");
-  return (
-    <span className="inline-flex items-center gap-0.5 text-[10px] tabular-nums">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={cn("font-semibold", color)}>
-        {formatSignedNumber(value)}
-      </span>
-    </span>
-  );
-}
-
-function formatSignedNumber(value: number) {
-  const numeric = Number(value || 0);
-  const rounded = Math.round(numeric);
-  const sign = rounded > 0 ? "+" : rounded < 0 ? "-" : "";
-  return `${sign}${Math.abs(rounded).toLocaleString()}`;
-}
-
-function contributorDeltaColor(value: number | null | undefined) {
-  const numeric = Number(value || 0);
-  if (numeric > 0) return "text-[#0F6E56]";
-  if (numeric < 0) return "text-[#A32D2D]";
-  return "text-muted-foreground";
-}
-
-function ContributorStat({ label, value }: { label: string; value: number | undefined }) {
-  if (value === undefined) return null;
-
-  return (
-    <div className="text-right">
-      <p className="mb-px text-[9px] uppercase tracking-[0.06em] text-muted-foreground/70">
-        {label}
-      </p>
-      <p className={cn("text-[14px] font-medium tabular-nums", contributorDeltaColor(value))}>
-        {formatSignedNumber(value)}
-      </p>
-    </div>
-  );
 }
 
 function hasNonZeroPageContribution(page: PageBreakdown) {
@@ -177,6 +261,12 @@ function hasNonZeroPageContribution(page: PageBreakdown) {
 function getPageLabel(page: string) {
   if (!page || page === "/") return "Homepage";
   return page;
+}
+
+function metricLabel(metric: "goals" | "sessions" | "clicks" | "impr", value: number | null | undefined) {
+  const base = metric === "goals" ? "Goals" : metric === "sessions" ? "Sessions" : metric === "clicks" ? "Clicks" : "Impr";
+  if (!value) return base;
+  return value > 0 ? `${base} gained` : `${base} lost`;
 }
 
 function fallbackDriverText(diagnosis: Diagnosis) {
@@ -212,28 +302,30 @@ function ContributorPageRows({ pages, isTraffic = false }: { pages: PageBreakdow
   return (
     <div className="divide-y divide-border/30 bg-background">
       {visiblePages.map((p, idx) => (
-        <div key={idx} className="min-w-0 px-4 py-2.5">
-          <div className="flex items-center justify-between gap-3">
+        <div key={idx} className="min-w-0 px-3 py-2.5 sm:px-4">
+          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
             <div className="min-w-0 flex-1 overflow-hidden">
-              <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
-                {getPageLabel(p.page)}
-              </span>
+              <TruncatedTooltipText
+                text={getPageLabel(p.page)}
+                className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground"
+                tooltipClassName="max-w-[400px] break-all text-xs"
+              />
             </div>
-            <div className="flex shrink-0 flex-wrap justify-end gap-3">
+            <div className="flex shrink-0 flex-wrap gap-x-2 gap-y-1 text-[11px] tabular-nums sm:justify-end">
               {!isTraffic && p.delta_goals !== null && p.delta_goals !== undefined && (
-                <StatChip label="Goals" value={p.delta_goals} />
+                <span className={deltaColor(p.delta_goals)}>goals {fmtAbsolute(p.delta_goals)}</span>
               )}
               {!isTraffic && p.delta_sessions !== null && p.delta_sessions !== undefined && (
-                <StatChip label="Sessions" value={p.delta_sessions} />
+                <span className={deltaColor(p.delta_sessions)}>sessions {fmtAbsolute(p.delta_sessions)}</span>
               )}
               {p.delta_clicks !== null && p.delta_clicks !== undefined && (
-                <StatChip label="Clicks" value={p.delta_clicks} />
+                <span className={deltaColor(p.delta_clicks)}>clicks {fmtAbsolute(p.delta_clicks)}</span>
               )}
               {p.delta_impressions !== null && p.delta_impressions !== undefined && (
-                <StatChip label="Impr" value={p.delta_impressions} />
+                <span className={deltaColor(p.delta_impressions)}>impr {fmtAbsolute(p.delta_impressions)}</span>
               )}
               {p.delta_position !== null && p.delta_position !== undefined && (
-                <span className="text-[10px] tabular-nums">
+                <span>
                   <span className="text-muted-foreground">Pos </span>
                   <span className={cn("font-semibold", p.delta_position > 0 ? "text-[#A32D2D]" : "text-[#0F6E56]")}>
                     {p.delta_position > 0 ? "↓" : "↑"}{Math.abs(p.delta_position).toFixed(1)}
@@ -243,15 +335,7 @@ function ContributorPageRows({ pages, isTraffic = false }: { pages: PageBreakdow
             </div>
           </div>
 
-          {p.queries && p.queries.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {p.queries.slice(0, 4).map((q, qi) => (
-                <span key={qi} className="inline-flex max-w-full items-center rounded-full border border-border/60 bg-background px-2 py-[3px] text-[11px] text-muted-foreground">
-                  {q}
-                </span>
-              ))}
-            </div>
-          )}
+          <QueryChips queries={p.queries} />
         </div>
       ))}
     </div>
@@ -273,32 +357,29 @@ function ChannelBlock({
     ? "bg-[#F0FDFA] border-b border-[#9FE1CB]"
     : "bg-[#FEF2F2] border-b border-[#F7C1C1]";
   const accentBar = isPositive ? "bg-[#1D9E75]" : "bg-[#E24B4A]";
-  const anchorLabel = `${anchorUnit} ${isPositive ? "gained" : "lost"}`;
-  const primaryMetricLabel = isTraffic
-    ? `clicks ${isPositive ? "gained" : "lost"}`
-    : `goals ${isPositive ? "gained" : "lost"}`;
-  const secondaryMetricLabel = isTraffic
-    ? `impr ${isPositive ? "gained" : "lost"}`
-    : `sessions ${isPositive ? "gained" : "lost"}`;
   const visibleSources = sources
-    .filter((source) => Math.abs(Number(source.delta_goals || 0)) > 0)
+    .filter((source) => Math.abs(Number(source.delta_goals || source.delta_sessions || 0)) > 0)
     .slice(0, 10);
   const showFallbackPages = visibleSources.length === 0;
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-xl border border-border/40">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/40 bg-white">
       <div className={cn("flex items-center justify-between gap-3 px-4 py-3", headerClass)}>
         <div className="flex min-w-0 items-center gap-2.5">
           <div className={cn("h-[22px] w-1 shrink-0 rounded-sm", accentBar)} />
-          <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{channelName}</span>
+          <TruncatedTooltipText
+            text={channelName}
+            className="min-w-0 truncate text-[13px] font-medium text-foreground"
+            tooltipClassName="max-w-[400px] break-all text-xs"
+          />
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-4">
-          <ContributorStat label={anchorLabel} value={anchorDelta} />
+          <ChStat label={metricLabel(anchorUnit === "clicks" ? "clicks" : "goals", anchorDelta)} value={anchorDelta} />
           {deltaGoals !== undefined && deltaGoals !== anchorDelta && (
-            <ContributorStat label={primaryMetricLabel} value={deltaGoals} />
+            <ChStat label={metricLabel(isTraffic ? "clicks" : "goals", deltaGoals)} value={deltaGoals} />
           )}
           {deltaSessions !== undefined && (
-            <ContributorStat label={secondaryMetricLabel} value={deltaSessions} />
+            <ChStat label={metricLabel(isTraffic ? "impr" : "sessions", deltaSessions)} value={deltaSessions} />
           )}
         </div>
       </div>
@@ -307,16 +388,21 @@ function ChannelBlock({
         <div className="divide-y divide-border/40 bg-background">
           {visibleSources.map((source, idx) => (
             <div key={`${source.key}-${idx}`} className="min-w-0">
-              <div className="flex items-center justify-between gap-3 bg-muted/30 px-4 py-2">
-                <span className="min-w-0 truncate text-[12px] font-medium text-foreground">
-                  {source.source || source.key || "Unknown source"}
-                </span>
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:px-4">
+                <div className="flex min-w-0 items-center gap-2">
+                  <SourceFavicon sourceName={source.source || source.key || ""} fallback={isTraffic ? "search" : "auto"} />
+                  <TruncatedTooltipText
+                    text={source.source || source.key || "Unknown source"}
+                    className="min-w-0 truncate text-[13px] font-medium text-foreground"
+                    tooltipClassName="max-w-[400px] break-all text-xs"
+                  />
+                </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-3">
                   {source.delta_goals !== undefined && (
-                    <StatChip label={isTraffic ? "Clicks" : "Goals"} value={source.delta_goals} />
+                    <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.delta_goals))}>{fmtAbsolute(source.delta_goals)}</span>
                   )}
                   {source.delta_sessions !== undefined && (
-                    <StatChip label={isTraffic ? "Impr" : "Sessions"} value={source.delta_sessions} />
+                    <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.delta_sessions))}>{fmtAbsolute(source.delta_sessions)}</span>
                   )}
                 </div>
               </div>
@@ -331,35 +417,14 @@ function ChannelBlock({
   );
 }
 
-/** CHANGE 07 / NEW 02: Amber notice bar for anomalous baseline or partial history. */
-function AmberNoticeBar({ message }: { message: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-      <p className="text-[11px] text-amber-700 leading-snug">{message}</p>
-    </div>
-  );
-}
-
-/** NEW 02: Partial baseline amber chip shown on anomaly cards. */
 function PartialBaselineChip({ historyDays }: { historyDays: number }) {
   const weeks = Math.floor(historyDays / 7);
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+    <span className="inline-flex items-center gap-1 rounded border border-[#FAC775] bg-[#FFFBEB] px-2 py-0.5 text-[10px] font-medium text-[#854F0B]">
       <Info className="h-3 w-3" />
       Limited history ({weeks} {weeks === 1 ? "week" : "weeks"})
     </span>
   );
-}
-
-/** CHANGE 02: Plain English severity for negative cards (5-band scale, matches backend). */
-function formatSeverityText(absDeltaPct: number): string {
-  const p = Math.abs(absDeltaPct);
-  if (p >= 0.90) return "Very few this week compared to your normal";
-  if (p >= 0.75) return "A quieter week than normal";
-  if (p >= 0.50) return "Lower than usual this week";
-  if (p >= 0.25) return "Lower than your typical week";
-  return "Slightly lower than your usual week";
 }
 
 function formatPeakDate(dateStr: string) {
@@ -391,12 +456,11 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
       {triggered.slice(0, 5).map((peak) => {
         const isUp = peak.direction === "up";
         const isAnomaly = peak.tier === "anomaly";
-        const Icon = isUp ? TrendingUp : TrendingDown;
         return (
           <div
             key={peak.date}
             className={cn(
-              "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+              "inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-[3px] text-[11px] font-medium sm:max-w-[220px]",
               isAnomaly
                 ? isUp
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -406,7 +470,6 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
                   : "border-amber-200 bg-amber-50 text-amber-700"
             )}
           >
-            <Icon className="h-3 w-3" />
             <span>{formatPeakDate(peak.date)}</span>
             <span className="font-semibold">{formatPeakDeltaPct(peak.delta_pct)}</span>
             <span className="text-muted-foreground/80">{unit}</span>
@@ -415,52 +478,6 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
       })}
     </div>
   );
-}
-
-interface NormalTierRowProps {
-  title: string;
-  actual?: number;
-  expected?: number;
-  deltaPct: number;
-  unit: string;
-  peaks?: DailyPeak[];
-}
-
-function NormalTierRow({ title, actual, expected, deltaPct, unit, peaks }: NormalTierRowProps) {
-  const triggeredPeaks = (peaks || []).filter((peak) => peak.tier !== "normal");
-  return (
-    <div className="min-w-0 rounded-xl border border-border/50 bg-muted/30 p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-foreground line-clamp-1">{title}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {Math.round(Number(actual || 0)).toLocaleString()} {unit} vs expected {Math.round(Number(expected || 0)).toLocaleString()} ({formatPeakDeltaPct(deltaPct)}) — within normal range
-          </p>
-        </div>
-        <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
-          Normal
-        </Badge>
-      </div>
-      {triggeredPeaks.length > 0 && (
-        <>
-          <p className="mt-2 text-[10px] uppercase tracking-wide text-muted-foreground/80">Daily spikes / dips</p>
-          <DailyPeakChips peaks={triggeredPeaks} unit={unit} />
-        </>
-      )}
-    </div>
-  );
-}
-
-function formatPercent(value: number | undefined) {
-  const numeric = Number(value || 0);
-  const percent = Math.abs(numeric) <= 1 ? Math.abs(numeric) * 100 : Math.abs(numeric);
-  return `${Math.round(percent)}%`;
-}
-
-function formatImpact(value: number | undefined, unit: string) {
-  const numeric = Number(value || 0);
-  const sign = numeric > 0 ? "+" : numeric < 0 ? "-" : "";
-  return `${sign}${Math.abs(Math.round(numeric)).toLocaleString()} ${unit}`;
 }
 
 function hasMeaningfulTrafficSplit(split: NonNullable<TrafficData["narrative"]>["brand_split"] | undefined) {
@@ -544,333 +561,211 @@ function collapseDisplayContributors<T extends ContributorLike>(contributors: T[
 
 interface GoalCardProps {
   goal: GoalData;
-  onClick: () => void;
+  open: boolean;
+  onToggle: () => void;
 }
 
-function GoalCard({ goal, onClick }: GoalCardProps) {
-  const config = getAnomalyConfig(goal.direction, goal.trackingQuality);
-  const Icon = config.icon;
-  const isNegative = goal.direction === "down";
-  const TrendIcon = isNegative ? TrendingDown : TrendingUp;
-  const isPartial = goal.baselineStatus === "PARTIAL";
+function PositivePointCards({ wins }: { wins: Win[] }) {
+  const visiblePoints = wins.filter((win) => Number(win.delta || 0) > 0).slice(0, 3);
+  if (visiblePoints.length < 2) return null;
 
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "group w-full min-w-0 text-left rounded-xl border p-3 transition-all hover:shadow-md",
-        config.borderColor,
-        config.cardClass
-      )}
-    >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="flex-1 min-w-0 space-y-2">
-          {/* CHANGE 12: severity badge removed; sentimentLabel + delta chip retained */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {config.sentimentLabel}
-            </Badge>
-            {/* CHANGE 02: Positive cards show raw %; negative cards show plain English severity */}
-            {isNegative ? (
-              <span className={cn("text-xs font-semibold flex items-center gap-1", config.textColor)}>
-                <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
-                {formatSeverityText(goal.deltaPct)}
-              </span>
-            ) : (
-              <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold", config.bgColor)}>
-                <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
-                <span className={config.iconColor}>{goal.percentage}</span>
-              </div>
-            )}
-            {/* NEW 02: Partial baseline chip */}
-            {isPartial && <PartialBaselineChip historyDays={goal.historyDays} />}
-          </div>
-
-          <h3 className="break-words text-sm font-semibold text-foreground line-clamp-1">
-            {goal.title}
-          </h3>
-
-          {/* CHANGE 02: Headline reels */}
-          <HeadlineReels reels={goal.headlineReels} fallback={goal.primaryCause} />
-          <DailyPeakChips peaks={goal.dailyPeaks} unit="conversions" />
-          {config.note && (
-            <p className={cn(
-              "text-[11px] font-medium flex items-center gap-1",
-              "text-emerald-700"
-            )}>
-              <Icon className="h-3 w-3" />
-              {config.note}
-            </p>
-          )}
-        </div>
-
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 transition-transform group-hover:translate-x-0.5" />
-      </div>
-    </button>
+    <div className="flex flex-wrap gap-1.5">
+      {visiblePoints.map((win, idx) => (
+        <span
+          key={`${win.text}-${idx}`}
+          className="inline-flex min-w-0 rounded-md border border-[#9FE1CB] bg-[#F0FDFA] px-2 py-1 text-[11px] font-medium leading-snug text-[#0F6E56]"
+        >
+          <span className="break-words">{win.text}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
-interface GoalDetailViewProps {
-  goal: GoalData;
-  onBack: () => void;
+function LikelyDrivers({ diagnoses }: { diagnoses: Diagnosis[] }) {
+  if (diagnoses.length === 0) return null;
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#854F0B]">
+        <Lightbulb className="h-3.5 w-3.5 text-[#B45309]" />
+        Likely drivers
+      </div>
+      <div className="space-y-2">
+        {diagnoses.slice(0, 2).map((diagnosis, idx) => {
+          const label = diagnosis.label || diagnosis.cause_category || diagnosis.cause_code?.replace(/_/g, " ");
+          return (
+            <div
+              key={`${diagnosis.cause_code}-${idx}`}
+              className="min-w-0 overflow-hidden rounded-lg border border-[#FAC775]/70 bg-[#FFFBEB]/70"
+            >
+              <div className="flex min-w-0 gap-3 px-3 py-2.5">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[#FAC775] bg-white text-[10px] font-semibold tabular-nums text-[#854F0B]">
+                  {idx + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  {label ? (
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#854F0B]/80">
+                      {label}
+                    </p>
+                  ) : null}
+                  <p className="min-w-0 break-words text-[12px] leading-5 text-[#633806]">
+                    {fallbackDriverText(diagnosis)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-function GoalDetailView({ goal, onBack }: GoalDetailViewProps) {
+function GoalExpandedContent({ goal }: { goal: GoalData }) {
   const config = getAnomalyConfig(goal.direction, goal.trackingQuality);
-  const Icon = config.icon;
   const isNegative = goal.direction === "down";
-  const TrendIcon = isNegative ? TrendingDown : TrendingUp;
-  // CHANGE 05+06: Show max 2 drivers, using plain_text
+  const isPartial = goal.baselineStatus === "PARTIAL";
   const diagnosesToRender = dedupeDiagnosesByCause([
     goal.primaryDiagnosis,
     ...(goal.contributingDiagnoses || []),
     ...(goal.diagnoses || []),
   ]).filter(Boolean).slice(0, 2);
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        {isNegative && goal.largePositionDrop ? (
+          <NoticeBar text="Pages moved far down in search results this week — worth checking for technical issues." />
+        ) : null}
+        {goal.anomalousComparisonPeriod ? (
+          <NoticeBar text="Prior period was unusually high/low — this anomaly score may be inflated." />
+        ) : null}
+        {isPartial ? (
+          <NoticeBar text={`Analysis based on ${Math.floor(goal.historyDays / 7)} weeks of history — results may be less reliable than usual.`} />
+        ) : null}
+      </div>
+
+      {isNegative && goal.actual !== undefined && goal.expected !== undefined ? (
+        <p className="text-xs leading-snug text-muted-foreground">
+          <span className="font-medium text-foreground">{Math.round(goal.actual).toLocaleString()}</span> conversions this week, compared to an average of <span className="font-medium text-foreground">{Math.round(goal.expected).toLocaleString()}</span> over the past 8 weeks.
+        </p>
+      ) : null}
+
+      {isNegative && goal.crossEventContext ? (
+        <p className="text-[11px] italic leading-snug text-muted-foreground">{goal.crossEventContext}</p>
+      ) : null}
+
+      {goal.direction === "up" ? <PositivePointCards wins={goal.wins} /> : null}
+
+      {goal.contextLine ? (
+        <p className="text-xs leading-snug text-muted-foreground">{goal.contextLine}</p>
+      ) : null}
+
+      {config.note ? <InfoBar text={config.note} /> : null}
+
+      <LikelyDrivers diagnoses={diagnosesToRender} />
+
+      {goal.topContributors.length > 0 ? (
+        <div>
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <Target className="h-3.5 w-3.5" />
+            Top contributors
+          </div>
+          <div className="space-y-2">
+            {goal.topContributors.map((contributor, idx) => (
+              <ChannelBlock
+                key={`${idx}-${contributor.key || ""}`}
+                channelName={contributor.key || "Unknown contributor"}
+                anchorDelta={contributor.delta_goals ?? contributor.delta_conversions ?? 0}
+                anchorUnit="conversions"
+                deltaGoals={contributor.delta_goals}
+                deltaSessions={contributor.delta_sessions}
+                sources={contributor.sources}
+                pages={contributor.pages as PageBreakdown[] | undefined}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function GoalCard({ goal, open, onToggle }: GoalCardProps) {
+  const config = getAnomalyConfig(goal.direction, goal.trackingQuality);
   const isPartial = goal.baselineStatus === "PARTIAL";
 
   return (
-    <div className="min-w-0 space-y-4 pb-6">
-      <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="mb-3 -ml-2 h-7 text-xs"
-          >
-            <ChevronLeft className="h-3 w-3 mr-1" />
-            Back
-          </Button>
-
-          <div className="mb-3 space-y-2">
-            {isNegative && goal.largePositionDrop && (
-              <AmberNoticeBar message="Pages moved far down in search results this week — worth checking for technical issues." />
-            )}
-            {goal.anomalousComparisonPeriod && (
-              <AmberNoticeBar message="Prior period was unusually high/low — this anomaly score may be inflated." />
-            )}
-            {isPartial && (
-              <AmberNoticeBar message={`Analysis based on ${Math.floor(goal.historyDays / 7)} weeks of history — results may be less reliable than usual.`} />
-            )}
-          </div>
-
-          <div
-            className={cn(
-              "min-w-0 rounded-xl border p-4",
-              config.borderColor,
-              config.cardClass
-            )}
-          >
-            {/* CHANGE 12: Severity badge removed */}
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
-                {config.sentimentLabel}
-              </Badge>
-              {/* CHANGE 02: Positive cards show raw %; negative cards show plain English severity */}
-              {isNegative ? (
-                <span className={cn("text-xs font-semibold flex items-center gap-1", config.textColor)}>
-                  <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
-                  {formatSeverityText(goal.deltaPct)}
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-shadow duration-200 ease-out">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full px-3 py-2.5 text-left transition-colors duration-150 ease-out hover:bg-secondary/20 sm:px-4"
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={cn("mt-0.5 h-6 w-[3px] shrink-0 rounded-full", config.accentClass)} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <span className="truncate font-mono text-[14px] font-medium">{goal.title}</span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", config.chipClass)}>
+                  {config.label}
                 </span>
-              ) : (
-                <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold", config.bgColor)}>
-                  <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
-                  <span className={config.iconColor}>{goal.percentage}</span>
-                </div>
-              )}
-              {/* NEW 02: Partial baseline chip in detail view */}
-              {isPartial && <PartialBaselineChip historyDays={goal.historyDays} />}
+                <DeltaPill value={goal.delta} percent={goal.deltaPct} />
+              </div>
             </div>
-
-            <h2 className="break-words text-sm font-bold text-foreground leading-tight mb-2">
-              {goal.title}
-            </h2>
-
-            {/* CHANGE 02: Headline reels in detail view */}
-            <HeadlineReels reels={goal.headlineReels} fallback={goal.primaryCause} />
+            {isPartial ? (
+              <div className="mt-1.5">
+                <PartialBaselineChip historyDays={goal.historyDays} />
+              </div>
+            ) : null}
+            <div className="mt-1.5">
+              <HeadlinePanel
+                reels={goal.headlineReels}
+                fallback={goal.primaryCause}
+                bottomLine={goal.bottomLine}
+              />
+            </div>
             <DailyPeakChips peaks={goal.dailyPeaks} unit="conversions" />
-            {config.note && (
-              <p className={cn(
-                "mt-2 text-[11px] font-medium flex items-center gap-1",
-                "text-emerald-700"
-              )}>
-                <Icon className="h-3 w-3" />
-                {config.note}
-              </p>
-            )}
+          </div>
+          <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+        </div>
+      </button>
+      <div className={cn(
+        "grid transition-[grid-template-rows] duration-200 ease-out",
+        open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      )}>
+        <div className="min-h-0 overflow-hidden">
+          <div className={cn(
+            "min-w-0 max-w-full space-y-4 overflow-hidden border-t border-border/50 bg-background/45 px-3 py-3 transition-opacity duration-150 ease-out sm:px-4",
+            open ? "opacity-100" : "opacity-0",
+          )}>
+            <GoalExpandedContent goal={goal} />
           </div>
         </div>
-
-        {/* BUG 08: Absolute numbers line — negative cards only */}
-        {isNegative && goal.actual !== undefined && goal.expected !== undefined && (
-          <p className="text-xs text-muted-foreground leading-snug">
-            <span className="font-medium text-foreground">{Math.round(goal.actual).toLocaleString()}</span> conversions this week, compared to an average of <span className="font-medium text-foreground">{Math.round(goal.expected).toLocaleString()}</span> over the past 8 weeks.
-          </p>
-        )}
-
-        {/* CHANGE 14: Cross-event context line — negative cards only, gated by backend */}
-        {isNegative && goal.crossEventContext && (
-          <p className="text-[11px] text-muted-foreground italic leading-snug">{goal.crossEventContext}</p>
-        )}
-
-        {/* CHANGE 13: Wins bar only for positive cards with >= 2 genuine wins */}
-        {goal.direction === 'up' && goal.wins.filter((win) => Number(win.delta || 0) > 0).length >= 2 && (
-          <div>
-            <div className="flex flex-wrap gap-1.5">
-              {goal.wins.filter((win) => Number(win.delta || 0) > 0).slice(0, 3).map((win, idx) => (
-                <span key={idx} className="inline-flex min-w-0 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">
-                  <CheckCircle className="h-3 w-3 shrink-0" />
-                  <span className="break-words">{win.text}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* CHANGE 04: Single context_line paragraph replaces Key Insights numbered list */}
-        {goal.contextLine && (
-          <p className="text-xs text-muted-foreground leading-snug">{goal.contextLine}</p>
-        )}
-
-        {/* CHANGE 05+06: Likely Drivers — max 2, numbered, plain_text only, no Primary: label, no actions */}
-        {diagnosesToRender.length > 0 && (
-          <div>
-            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <Lightbulb className="h-3 w-3 text-amber-500" />
-              Likely Drivers
-            </h3>
-            <div className="space-y-2">
-              {diagnosesToRender.map((diagnosis, idx) => (
-                <div key={idx} className="min-w-0 flex items-center gap-2.5">
-                  <span className="h-5 w-5 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 text-[10px] font-bold text-amber-700">
-                    {idx + 1}
-                  </span>
-                  <p className="min-w-0 break-words text-xs text-muted-foreground leading-snug">
-                    {fallbackDriverText(diagnosis)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* CHANGE 07: Top Contributors with expanded ChannelBlock */}
-        {goal.topContributors.length > 0 && (
-          <div>
-            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <BarChart3 className="h-3 w-3 text-primary" />
-              Top Contributors
-            </h3>
-            {goal.bottomLine && (
-              <p className="mb-2 text-[11px] text-muted-foreground leading-snug">{goal.bottomLine}</p>
-            )}
-            <div className="space-y-1.5">
-              {goal.topContributors.map((contributor, idx) => (
-                <ChannelBlock
-                  key={`${idx}-${contributor.key || ""}`}
-                  channelName={contributor.key || "Unknown contributor"}
-                  anchorDelta={contributor.delta_goals ?? contributor.delta_conversions ?? 0}
-                  anchorUnit="conversions"
-                  deltaGoals={contributor.delta_goals}
-                  deltaSessions={contributor.delta_sessions}
-                  sources={contributor.sources}
-                  pages={contributor.pages as PageBreakdown[] | undefined}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+      </div>
     </div>
   );
 }
 
 interface TrafficCardProps {
   traffic: TrafficData;
-  onClick: () => void;
+  open: boolean;
+  onToggle: () => void;
 }
 
-function TrafficCard({ traffic, onClick }: TrafficCardProps) {
+function TrafficExpandedContent({ traffic }: { traffic: TrafficData }) {
   const config = getAnomalyConfig(
     traffic.direction,
     traffic.tracking_quality || "stable",
   );
-  const Icon = config.icon;
   const isNegative = traffic.direction === "down";
-  const TrendIcon = isNegative ? TrendingDown : TrendingUp;
-  const dailyPeaks = (traffic.detection?.daily_peaks || []) as DailyPeak[];
-  const isPartial = (traffic.baseline_status || traffic.baseline?.status) === "PARTIAL";
-  const historyDays = traffic.history_days || traffic.baseline?.history_days || 0;
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "group w-full min-w-0 text-left rounded-xl border p-3 transition-all hover:shadow-md",
-        config.borderColor,
-        config.cardClass
-      )}
-    >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="flex-1 min-w-0 space-y-2">
-          {/* CHANGE 12: severity badge removed */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {config.sentimentLabel}
-            </Badge>
-            {/* CHANGE 02: Positive cards show raw %; negative cards show plain English severity */}
-            {isNegative ? (
-              <span className={cn("text-xs font-semibold flex items-center gap-1", config.textColor)}>
-                <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
-                {formatSeverityText(traffic.delta_pct)}
-              </span>
-            ) : (
-              <div className={cn("flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold", config.bgColor)}>
-                <TrendIcon className={cn("h-3 w-3", config.iconColor)} />
-                <span className={config.iconColor}>
-                  +{formatPercent(traffic.delta_pct)}
-                </span>
-              </div>
-            )}
-            {/* NEW 02: Partial baseline chip */}
-            {isPartial && <PartialBaselineChip historyDays={historyDays} />}
-          </div>
-
-          {/* CHANGE 02: Headline reels for traffic */}
-          <HeadlineReels reels={traffic.narrative?.headline_reels} fallback={traffic.narrative?.headline || "Traffic Anomaly"} />
-          <DailyPeakChips peaks={dailyPeaks} unit="clicks" />
-          {config.note && (
-            <p className={cn(
-              "text-[11px] font-medium flex items-center gap-1",
-              "text-emerald-700"
-            )}>
-              <Icon className="h-3 w-3" />
-              {config.note}
-            </p>
-          )}
-        </div>
-
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 transition-transform group-hover:translate-x-0.5" />
-      </div>
-    </button>
-  );
-}
-
-interface TrafficDetailViewProps {
-  traffic: TrafficData;
-  onBack: () => void;
-}
-
-function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
-  const config = getAnomalyConfig(
-    traffic.direction,
-    traffic.tracking_quality || "stable",
-  );
-  const Icon = config.icon;
-  const isNegative = traffic.direction === "down";
-  const TrendIcon = isNegative ? TrendingDown : TrendingUp;
   const isPartial = (traffic.baseline_status || traffic.baseline?.status) === "PARTIAL";
   const historyDays = traffic.history_days || traffic.baseline?.history_days || 0;
   const anomalousComparisonPeriod = traffic.baseline?.anomalous_comparison_period ?? false;
-  const dailyPeaks = (traffic.detection?.daily_peaks || []) as DailyPeak[];
   const diagnosesToRender = compactDiagnoses(
     traffic.narrative?.primary_diagnosis,
     traffic.narrative?.contributing_diagnoses,
@@ -888,174 +783,160 @@ function TrafficDetailView({ traffic, onBack }: TrafficDetailViewProps) {
   const attributionCopy = attributionMessage(traffic);
 
   return (
-    <div className="min-w-0 space-y-4 pb-6">
-      <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="mb-3 -ml-2 h-7 text-xs"
-          >
-            <ChevronLeft className="h-3 w-3 mr-1" />
-            Back
-          </Button>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        {anomalousComparisonPeriod ? (
+          <NoticeBar text="Prior period was unusually high/low — this anomaly score may be inflated." />
+        ) : null}
+        {isPartial ? (
+          <NoticeBar text={`Analysis based on ${Math.floor(historyDays / 7)} weeks of history — results may be less reliable than usual.`} />
+        ) : null}
+        {isNegative && (traffic.large_position_drop || traffic.narrative?.large_position_drop) ? (
+          <NoticeBar text="Pages moved far down in search results this week — worth checking for technical issues." />
+        ) : null}
+      </div>
 
-          <div className="mb-3 space-y-2">
-            {anomalousComparisonPeriod && (
-              <AmberNoticeBar message="Prior period was unusually high/low — this anomaly score may be inflated." />
-            )}
-            {isPartial && (
-              <AmberNoticeBar message={`Analysis based on ${Math.floor(historyDays / 7)} weeks of history — results may be less reliable than usual.`} />
-            )}
-            {isNegative && (traffic.large_position_drop || traffic.narrative?.large_position_drop) && (
-              <AmberNoticeBar message="Pages moved far down in search results this week — worth checking for technical issues." />
-            )}
+      {traffic.narrative?.context_line ? (
+        <p className="text-xs leading-snug text-muted-foreground">{traffic.narrative.context_line}</p>
+      ) : null}
+
+      {attributionCopy ? <InfoBar text={attributionCopy} /> : null}
+
+      {config.note ? <InfoBar text={config.note} /> : null}
+
+      <LikelyDrivers diagnoses={diagnosesToRender.slice(0, 2) as Diagnosis[]} />
+
+      {trafficSplit ? (
+        <div>
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <Search className="h-3.5 w-3.5" />
+            Traffic split
           </div>
-
-          <div
-            className={cn(
-              "min-w-0 rounded-xl border p-4",
-              config.borderColor,
-              config.cardClass
-            )}
-          >
-            {/* CHANGE 12: Severity badge removed */}
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
-                {config.sentimentLabel}
-              </Badge>
-              {/* CHANGE 02: Positive cards show raw %; negative cards show plain English severity */}
-              {isNegative ? (
-                <span className={cn("text-xs font-semibold flex items-center gap-1", config.textColor)}>
-                  <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
-                  {formatSeverityText(traffic.delta_pct)}
-                </span>
-              ) : (
-                <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold", config.bgColor)}>
-                  <TrendIcon className={cn("h-3.5 w-3.5", config.iconColor)} />
-                  <span className={config.iconColor}>
-                    +{formatPercent(traffic.delta_pct)}
-                  </span>
-                </div>
-              )}
-              {/* NEW 02: Partial baseline chip in detail */}
-              {isPartial && <PartialBaselineChip historyDays={historyDays} />}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-border/50 bg-white p-2.5">
+              <p className="mb-0.5 text-[10px] text-muted-foreground">Brand</p>
+              <p className="text-lg font-bold text-foreground">{trafficSplit.brand_pct}%</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{fmtAbsolute(trafficSplit.brand_delta)} clicks</p>
             </div>
-
-            {/* CHANGE 02: Headline reels */}
-            <HeadlineReels reels={traffic.narrative?.headline_reels} fallback={traffic.narrative?.headline || "Traffic Anomaly"} />
-            <DailyPeakChips peaks={dailyPeaks} unit="clicks" />
-            {config.note && (
-              <p className={cn(
-                "mt-2 text-[11px] font-medium flex items-center gap-1",
-                "text-emerald-700"
-              )}>
-                <Icon className="h-3 w-3" />
-                {config.note}
-              </p>
-            )}
+            <div className="rounded-lg border border-border/50 bg-white p-2.5">
+              <p className="mb-0.5 text-[10px] text-muted-foreground">Non-Brand</p>
+              <p className="text-lg font-bold text-foreground">{100 - trafficSplit.brand_pct}%</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{fmtAbsolute(trafficSplit.nonbrand_delta)} clicks</p>
+            </div>
           </div>
         </div>
+      ) : null}
 
-        {/* CHANGE 04: Single context_line paragraph replaces Key Insights numbered list */}
-        {traffic.narrative?.context_line && (
-          <p className="text-xs text-muted-foreground leading-snug">{traffic.narrative.context_line}</p>
-        )}
-
-        {/* bottom_line context phrase */}
-        {traffic.narrative?.bottom_line && (
-          <p className="text-[11px] text-muted-foreground leading-snug">{traffic.narrative.bottom_line}</p>
-        )}
-
-        {attributionCopy && (
-          <div className="rounded-lg border bg-muted/30 p-3">
-            <p className="break-words text-xs text-muted-foreground leading-snug">
-              {attributionCopy}
-            </p>
+      {topContributors.length > 0 ? (
+        <div>
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <Search className="h-3.5 w-3.5" />
+            Top pages
           </div>
-        )}
-
-        {/* CHANGE 05+06: Likely Drivers — max 2, numbered, plain_text only, no Primary: label, no actions */}
-        {diagnosesToRender.length > 0 && (
-          <div>
-            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <Lightbulb className="h-3 w-3 text-amber-500" />
-              Likely Drivers
-            </h3>
-            <div className="space-y-2">
-              {diagnosesToRender.slice(0, 2).map((diagnosis, idx) => (
-                <div key={`${diagnosis.cause_code}-${idx}`} className="min-w-0 flex items-center gap-2.5">
-                  <span className="h-5 w-5 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 text-[10px] font-bold text-amber-700">
-                    {idx + 1}
-                  </span>
-                  <p className="min-w-0 break-words text-xs text-muted-foreground leading-snug">
-                    {fallbackDriverText(diagnosis as Diagnosis)}
-                  </p>
-                </div>
-              ))}
-            </div>
+          <div className="space-y-2">
+            {topContributors.map((contributor, idx) => (
+              <ChannelBlock
+                key={`${contributor.key || "page"}-${idx}`}
+                channelName={contributor.key || "Unknown page"}
+                anchorDelta={contributor.delta_clicks ?? 0}
+                anchorUnit="clicks"
+                deltaGoals={contributor.delta_clicks}
+                deltaSessions={(contributor as { delta_impressions?: number }).delta_impressions}
+                pages={(contributor as { queries?: string[] }).queries?.map((query) => ({
+                  page: contributor.key || "",
+                  delta_goals: 0,
+                  delta_sessions: 0,
+                  queries: [query],
+                })) || undefined}
+                isTraffic={true}
+              />
+            ))}
           </div>
-        )}
+        </div>
+      ) : null}
 
-        {trafficSplit && (
-          <div>
-            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-              <BarChart3 className="h-3 w-3 text-primary" />
-              Traffic Split
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg border bg-card p-2.5">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Brand</p>
-                <p className="text-lg font-bold text-foreground">{trafficSplit.brand_pct}%</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">{formatImpact(trafficSplit.brand_delta, "clicks")}</p>
+      {topQueries.length > 0 ? (
+        <div>
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <Search className="h-3.5 w-3.5" />
+            Top queries
+          </div>
+          <div className="space-y-2">
+            {topQueries.map((contributor, idx) => (
+              <ChannelBlock
+                key={`${contributor.key || "query"}-${idx}`}
+                channelName={contributor.key || "Unknown query"}
+                anchorDelta={contributor.delta_clicks ?? 0}
+                anchorUnit="clicks"
+                isTraffic={true}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TrafficCard({ traffic, open, onToggle }: TrafficCardProps) {
+  const config = getAnomalyConfig(
+    traffic.direction,
+    traffic.tracking_quality || "stable",
+  );
+  const isPartial = (traffic.baseline_status || traffic.baseline?.status) === "PARTIAL";
+  const historyDays = traffic.history_days || traffic.baseline?.history_days || 0;
+  const dailyPeaks = (traffic.detection?.daily_peaks || []) as DailyPeak[];
+
+  return (
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-shadow duration-200 ease-out">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full px-3 py-2.5 text-left transition-colors duration-150 ease-out hover:bg-secondary/20 sm:px-4"
+      >
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={cn("mt-0.5 h-6 w-[3px] shrink-0 rounded-full", config.accentClass)} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <span className="truncate font-mono text-[14px] font-medium">Organic traffic</span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", config.chipClass)}>
+                  {config.label}
+                </span>
+                <DeltaPill value={traffic.delta_clicks} percent={traffic.delta_pct} />
               </div>
-              <div className="rounded-lg border bg-card p-2.5">
-                <p className="text-[10px] text-muted-foreground mb-0.5">Non-Brand</p>
-                <p className="text-lg font-bold text-foreground">{100 - trafficSplit.brand_pct}%</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">{formatImpact(trafficSplit.nonbrand_delta, "clicks")}</p>
+            </div>
+            {isPartial ? (
+              <div className="mt-1.5">
+                <PartialBaselineChip historyDays={historyDays} />
               </div>
+            ) : null}
+            <div className="mt-1.5">
+              <HeadlinePanel
+                reels={traffic.narrative?.headline_reels}
+                fallback={traffic.narrative?.headline || "Traffic Anomaly"}
+                bottomLine={traffic.narrative?.bottom_line}
+              />
             </div>
+            <DailyPeakChips peaks={dailyPeaks} unit="clicks" />
           </div>
-        )}
-
-        {/* CHANGE 07: Top Pages with expanded ChannelBlock (clicks + impressions + query chips) */}
-        {topContributors.length > 0 && (
-          <div>
-            <h3 className="text-xs font-semibold text-foreground mb-2">Top Pages</h3>
-            <div className="space-y-1.5">
-              {topContributors.map((contributor, idx) => (
-                <ChannelBlock
-                  key={idx}
-                  channelName={contributor.key || "Unknown page"}
-                  anchorDelta={contributor.delta_clicks ?? 0}
-                  anchorUnit="clicks"
-                  deltaGoals={contributor.delta_clicks}
-                  deltaSessions={(contributor as { delta_impressions?: number }).delta_impressions}
-                  pages={(contributor as { queries?: string[] }).queries?.map(q => ({ page: '', delta_goals: 0, delta_sessions: 0, queries: [q] })) || undefined}
-                  isTraffic={true}
-                />
-              ))}
-            </div>
+          <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+        </div>
+      </button>
+      <div className={cn(
+        "grid transition-[grid-template-rows] duration-200 ease-out",
+        open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+      )}>
+        <div className="min-h-0 overflow-hidden">
+          <div className={cn(
+            "min-w-0 max-w-full space-y-4 overflow-hidden border-t border-border/50 bg-background/45 px-3 py-3 transition-opacity duration-150 ease-out sm:px-4",
+            open ? "opacity-100" : "opacity-0",
+          )}>
+            <TrafficExpandedContent traffic={traffic} />
           </div>
-        )}
-
-        {topQueries.length > 0 && (
-          <div>
-            <h3 className="text-xs font-semibold text-foreground mb-2">Top Queries</h3>
-            <div className="space-y-1.5">
-              {topQueries.map((contributor, idx) => (
-                <ChannelBlock
-                  key={`${contributor.key}-${idx}`}
-                  channelName={contributor.key || "Unknown query"}
-                  anchorDelta={contributor.delta_clicks ?? 0}
-                  anchorUnit="clicks"
-                  isTraffic={true}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
+        </div>
+      </div>
     </div>
   );
 }
@@ -1080,8 +961,8 @@ export function AnomaliesSheet({
     "goals"
   );
   const [localDate, setLocalDate] = React.useState<Date | null>(null);
-  const [selectedGoal, setSelectedGoal] = React.useState<GoalData | null>(null);
-  const [showTrafficDetail, setShowTrafficDetail] = React.useState(false);
+  const [expandedGoalId, setExpandedGoalId] = React.useState<string | null>(null);
+  const [trafficExpanded, setTrafficExpanded] = React.useState(false);
   const [localSelectedDate, setLocalSelectedDate] = React.useState<
     string | null
   >(null);
@@ -1148,8 +1029,8 @@ export function AnomaliesSheet({
     setLocalDate(date);
     if (date) {
       setLocalSelectedDate(format(date, "yyyy-MM-dd"));
-      setSelectedGoal(null);
-      setShowTrafficDetail(false);
+      setExpandedGoalId(null);
+      setTrafficExpanded(false);
     } else {
       setLocalSelectedDate(null);
     }
@@ -1158,15 +1039,15 @@ export function AnomaliesSheet({
   const handleClose = () => {
     setLocalDate(null);
     setLocalSelectedDate(null);
-    setSelectedGoal(null);
-    setShowTrafficDetail(false);
+    setExpandedGoalId(null);
+    setTrafficExpanded(false);
     onOpenChange(false);
   };
 
   React.useEffect(() => {
     if (!open) {
-      setSelectedGoal(null);
-      setShowTrafficDetail(false);
+      setExpandedGoalId(null);
+      setTrafficExpanded(false);
       setLocalDate(null);
       setLocalSelectedDate(null);
     }
@@ -1174,20 +1055,19 @@ export function AnomaliesSheet({
 
   React.useEffect(() => {
     if (localSelectedDate && open) {
-      setSelectedGoal(null);
-      setShowTrafficDetail(false);
+      setExpandedGoalId(null);
+      setTrafficExpanded(false);
     }
   }, [activeTab, localSelectedDate, open]);
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent className="!right-0 !w-[min(44rem,calc(100vw-2rem))] !max-w-[min(44rem,calc(100vw-2rem))] gap-0 overflow-hidden border-l p-0">
-        <SheetTitle className="sr-only">Anomalies Detected</SheetTitle>
-        <div className="shrink-0 border-b border-general-border pl-6 pb-4 pt-10 pr-14 sm:pl-8">
+      <SheetContent className="w-full gap-0 overflow-hidden border-l border-general-border p-0 pt-8 sm:max-w-2xl">
+        <SheetHeader className="shrink-0 border-b border-general-border bg-background px-6 py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <Typography variant="h2" className="min-w-0 flex-1 text-general-foreground">
+            <SheetTitle className="min-w-0 flex-1 text-base font-semibold tracking-tight">
               Anomalies Detected
-            </Typography>
+            </SheetTitle>
             <div className="shrink-0 w-[200px] sm:w-[230px]">
               <AlertDateSelector
                 selectedDate={localDate}
@@ -1258,9 +1138,9 @@ export function AnomaliesSheet({
               </TabsTrigger>
             </TabsList>
           </Tabs>
-        </div>
+        </SheetHeader>
 
-        <div className="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden pl-6 py-5 pr-8 sm:pl-8 sm:pr-10">
+        <div className="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6">
           <Tabs
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as "goals" | "traffic")}
@@ -1269,21 +1149,16 @@ export function AnomaliesSheet({
               {displayIsLoadingGoals ? (
                 <div className="flex items-center justify-center py-16">
                   <div className="text-center space-y-2">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
-                    <p className="text-xs text-muted-foreground">Loading...</p>
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Loading insights...</p>
                   </div>
                 </div>
-              ) : selectedGoal ? (
-                <GoalDetailView
-                  goal={selectedGoal}
-                  onBack={() => setSelectedGoal(null)}
-                />
               ) : activeGoalRawState === "insufficient_history" ? (
                 /* NEW 03: NONE baseline — Building-your-baseline empty state */
                 <div className="flex items-center justify-center py-16 px-4">
                   <div className="text-center space-y-3 max-w-xs">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
-                      <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                      <Info className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <p className="text-sm font-semibold text-foreground">Building your baseline</p>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
@@ -1294,12 +1169,7 @@ export function AnomaliesSheet({
               ) : activeGoalRawState === "no_goal_tracking" ? (
                 /* CHANGE 10: Distinct no-goal-tracking empty state */
                 <div className="space-y-3">
-                  <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-                    <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-blue-700 leading-snug">
-                      Goal tracking not configured — showing organic traffic only
-                    </p>
-                  </div>
+                  <InfoBar text="Goal tracking not configured — showing organic traffic only" />
                   <div className="flex items-center justify-center py-12 px-4">
                     <div className="text-center space-y-3 max-w-xs">
                       <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
@@ -1319,7 +1189,8 @@ export function AnomaliesSheet({
                     <GoalCard
                       key={goal.id}
                       goal={goal}
-                      onClick={() => setSelectedGoal(goal)}
+                      open={expandedGoalId === goal.id}
+                      onToggle={() => setExpandedGoalId((current) => current === goal.id ? null : goal.id)}
                     />
                   ))}
                 </div>
@@ -1328,7 +1199,7 @@ export function AnomaliesSheet({
                 <div className="flex items-center justify-center py-16 px-4">
                   <div className="text-center space-y-2 max-w-xs">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
-                      <CheckCircle className="h-5 w-5 text-emerald-500" />
+                      <Target className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <p className="text-xs font-medium text-foreground">
                       No anomalies detected
@@ -1347,21 +1218,17 @@ export function AnomaliesSheet({
               {displayIsLoadingTraffic ? (
                 <div className="flex items-center justify-center py-16">
                   <div className="text-center space-y-2">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
-                    <p className="text-xs text-muted-foreground">Loading...</p>
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Loading insights...</p>
                   </div>
                 </div>
-              ) : showTrafficDetail && displayTrafficData ? (
-                <TrafficDetailView
-                  traffic={displayTrafficData}
-                  onBack={() => setShowTrafficDetail(false)}
-                />
               ) : displayTrafficData && trafficTier === "anomaly" ? (
                 /* CHANGE 13: Only render TrafficCard for tier === 'anomaly' */
                 <div className="min-w-0">
                   <TrafficCard
                     traffic={displayTrafficData}
-                    onClick={() => setShowTrafficDetail(true)}
+                    open={trafficExpanded}
+                    onToggle={() => setTrafficExpanded((current) => !current)}
                   />
                 </div>
               ) : (
@@ -1369,7 +1236,7 @@ export function AnomaliesSheet({
                 <div className="flex items-center justify-center py-16 px-4">
                   <div className="text-center space-y-2 max-w-xs">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto">
-                      <CheckCircle className="h-5 w-5 text-emerald-500" />
+                      <Search className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <p className="text-xs font-medium text-foreground">
                       No anomalies detected

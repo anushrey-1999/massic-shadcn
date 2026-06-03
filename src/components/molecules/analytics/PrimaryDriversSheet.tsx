@@ -4,7 +4,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { format, differenceInCalendarDays, startOfDay, subDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
-import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown, ChevronLeft, ChevronRight, History, Info, LinkIcon, Loader2, Search, Target } from "lucide-react"
+import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown, ChevronLeft, ChevronRight, History, Info, Loader2, Search, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -47,6 +47,7 @@ import {
 import { useCallPrepBrief } from "@/hooks/use-call-prep-brief"
 import { useCallPrepRunDetail, useCallPrepRuns } from "@/hooks/use-call-prep-runs"
 import { CallPrepBriefView } from "./CallPrepBriefView"
+import { SourceFavicon } from "./SourceFavicon"
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────
 
@@ -979,9 +980,9 @@ function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; orga
   return (
     <div className="min-w-0 max-w-full overflow-hidden border-t border-border/40 px-3 py-2.5 sm:px-4">
       <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
-        <div className="flex min-w-0 items-start gap-2">
-          {organic ? <Search className="h-3.5 w-3.5 text-muted-foreground" /> : <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-          <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere]">{source.source_name}</span>
+        <div className="flex min-w-0 items-start gap-2 sm:items-center">
+          <SourceFavicon sourceName={source.source_name} fallback={organic ? "search" : "auto"} className="mt-0.5 sm:mt-0" />
+          <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere] sm:truncate">{source.source_name}</span>
         </div>
         <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[11px] text-right sm:justify-end sm:text-[12px]">
           <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.goals_delta))}>{fmtAbsolute(source.goals_delta)}</span>

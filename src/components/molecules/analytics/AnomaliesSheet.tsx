@@ -1061,8 +1061,8 @@ export function AnomaliesSheet({
     if (!open) return;
 
     setActiveTab(initialTab);
-    setSelectedGoal(null);
-    setShowTrafficDetail(false);
+    setExpandedGoalId(null);
+    setTrafficExpanded(false);
 
     if (initialSelectedDate) {
       setLocalSelectedDate(initialSelectedDate);

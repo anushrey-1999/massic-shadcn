@@ -93,8 +93,13 @@ export function getTvRadioAdsTableColumns({ offeringOptions = [] }: GetTvRadioAd
       ),
       meta: {
         label: "Relevance",
-        variant: "range",
-        range: [0, 100],
+        variant: "multiSelect",
+        options: [
+          { label: "High", value: "high" },
+          { label: "Medium", value: "medium" },
+          { label: "Low", value: "low" },
+        ],
+        operators: [{ label: "Is any of", value: "inArray" as const }],
         apiField: "avg_business_relevance",
       },
       enableColumnFilter: true,
@@ -139,6 +144,12 @@ export function getTvRadioAdsTableColumns({ offeringOptions = [] }: GetTvRadioAd
         label: "Volume",
         variant: "range",
         range: [0, 10000000],
+        placeholder: "e.g. 10K or 1M",
+        operators: [
+          { label: "Is between", value: "isBetween" as const },
+          { label: "Is at least", value: "gte" as const },
+          { label: "Is at most", value: "lte" as const },
+        ],
         apiField: "supporting_data.totals.total_search_volume",
       },
       enableColumnFilter: true,

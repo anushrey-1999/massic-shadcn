@@ -416,9 +416,6 @@ export function StrategyTableClient({
           onSearchChange={setSplitViewSearch}
           onBack={handleBackToMain}
           pageCount={strategyData?.pageCount || 0}
-          businessRelevanceRange={
-            countsData?.businessRelevanceRange || { min: 0, max: 1 }
-          }
         />
       </div>
     );
@@ -430,15 +427,6 @@ export function StrategyTableClient({
         data={strategyData?.data || []}
         pageCount={strategyData?.pageCount || 0}
         offeringCounts={offeringCounts}
-        businessRelevanceRange={
-          countsData?.businessRelevanceRange || { min: 0, max: 1 }
-        }
-        topicCoverageRange={
-          countsData?.topicCoverageRange || { min: 0, max: 1 }
-        }
-        searchVolumeRange={
-          countsData?.searchVolumeRange || { min: 0, max: 10000 }
-        }
         isLoading={strategyLoading && !strategyData}
         isFetching={strategyFetching}
         search={search}

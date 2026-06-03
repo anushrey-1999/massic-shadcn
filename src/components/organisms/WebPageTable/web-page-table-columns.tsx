@@ -10,6 +10,13 @@ import { Typography } from "@/components/ui/typography";
 import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
 import { formatVolume } from "@/lib/format";
 
+const BUSINESS_RELEVANCE_OPTIONS = [
+  { label: "High", value: "high" },
+  { label: "Medium", value: "medium" },
+  { label: "Low", value: "low" },
+];
+
+
 interface GetWebPageTableColumnsProps {
   businessId: string;
   offeringCounts?: Record<string, number>;
@@ -131,9 +138,10 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         );
       },
       meta: {
-        label: "Business Relevance",
-        variant: "range",
-        range: [0, 100],
+        label: "Relevance",
+        variant: "multiSelect",
+        options: BUSINESS_RELEVANCE_OPTIONS,
+        operators: [{ label: "Is any of", value: "inArray" as const }],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -174,8 +182,15 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         return <Typography variant="p">{formatVolume(volume || 0)}</Typography>;
       },
       meta: {
-        label: "Search Volume",
-        variant: "number",
+        label: "Volume",
+        variant: "range",
+        range: [0, 10000000],
+        placeholder: "e.g. 10K or 1M",
+        operators: [
+          { label: "Is between", value: "isBetween" as const },
+          { label: "Is at least", value: "gte" as const },
+          { label: "Is at most", value: "lte" as const },
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -224,10 +239,9 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       meta: {
         label: "Status",
-        variant: "text",
         icon: Tag,
       },
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       enableSorting: true,
       size: 120,
       minSize: 100,

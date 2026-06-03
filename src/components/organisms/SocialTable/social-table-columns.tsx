@@ -92,6 +92,7 @@ export function getSocialTableColumns({ offeringCounts = {}, offeringOptions }: 
         label: "Campaign Name",
         placeholder: "Search campaign names...",
         variant: "text",
+        operators: [{ label: "Contains", value: "iLike" as const }],
         icon: Megaphone,
       },
       enableColumnFilter: true,
@@ -115,9 +116,14 @@ export function getSocialTableColumns({ offeringCounts = {}, offeringOptions }: 
         );
       },
       meta: {
-        label: "Campaign Relevance",
-        variant: "range",
-        range: [0, 100],
+        label: "Relevance",
+        variant: "multiSelect",
+        options: [
+          { label: "High", value: "high" },
+          { label: "Medium", value: "medium" },
+          { label: "Low", value: "low" },
+        ],
+        operators: [{ label: "Is any of", value: "inArray" as const }],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

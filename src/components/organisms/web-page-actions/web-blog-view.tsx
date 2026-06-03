@@ -60,7 +60,7 @@ import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 import { ContentConverter } from "@/utils/content-converter";
-import { buildStyledMassicHtml, getMassicCssText } from "@/utils/massic-html-copy";
+import { buildStyledMassicHtml, getMassicBlogPageCssText } from "@/utils/massic-html-copy";
 import { detectPageContentFormat } from "@/utils/page-content-format";
 import { normalizeWordpressBlogEditableSlug, normalizeWordpressSlugPath, wordpressSlugToDisplay } from "@/utils/wordpress-slug";
 import { cn } from "@/lib/utils";
@@ -823,7 +823,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       return;
     }
     const payload = buildPublishPayload("draft");
-    const baseCss = await getMassicCssText();
+    const baseCss = await getMassicBlogPageCssText();
     payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
       baseCss,
       cssVarOverrides,
@@ -866,7 +866,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
     try {
       const payload = buildPublishPayload("draft");
-      const baseCss = await getMassicCssText();
+      const baseCss = await getMassicBlogPageCssText();
       payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
         baseCss,
         cssVarOverrides,
@@ -965,7 +965,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         customDomainIds: selectedWebflowCustomDomainIds,
       },
     };
-    const baseCss = await getMassicCssText();
+    const baseCss = await getMassicBlogPageCssText();
     payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
       baseCss,
       cssVarOverrides,
@@ -1277,7 +1277,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       return;
     }
 
-    const baseCss = await getMassicCssText();
+    const baseCss = await getMassicBlogPageCssText();
     const styledHtml = buildStyledMassicHtml(htmlContent, {
       baseCss,
       cssVarOverrides,

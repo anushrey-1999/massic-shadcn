@@ -11,6 +11,7 @@ import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface StrategySplitViewProps {
+  businessId?: string;
   leftTableData: StrategyRow[];
   clustersData: StrategyClusterRow[];
   selectedTopicId: string | null;
@@ -23,6 +24,7 @@ interface StrategySplitViewProps {
 }
 
 export const StrategySplitView = React.memo(function StrategySplitView({
+  businessId,
   leftTableData,
   clustersData,
   selectedTopicId,
@@ -38,8 +40,8 @@ export const StrategySplitView = React.memo(function StrategySplitView({
   const [expandedClusterRowId, setExpandedClusterRowId] = React.useState<string | null>(null);
 
   const leftColumns = React.useMemo(
-    () => getStrategySplitTableColumns(),
-    []
+    () => getStrategySplitTableColumns({ businessId }),
+    [businessId]
   );
 
   const clustersColumns = React.useMemo(

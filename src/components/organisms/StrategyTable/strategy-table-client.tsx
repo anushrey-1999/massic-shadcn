@@ -425,6 +425,7 @@ export function StrategyTableClient({
     return (
       <div className="relative h-full flex flex-col">
         <StrategySplitView
+          businessId={businessId}
           leftTableData={strategyData?.data || []}
           clustersData={clustersData}
           selectedTopicId={selectedTopicId}
@@ -444,6 +445,7 @@ export function StrategyTableClient({
   return (
     <div className="relative h-full flex flex-col">
       <StrategyTable
+        businessId={businessId}
         data={strategyData?.data || []}
         pageCount={strategyData?.pageCount || 0}
         offeringCounts={offeringCounts}

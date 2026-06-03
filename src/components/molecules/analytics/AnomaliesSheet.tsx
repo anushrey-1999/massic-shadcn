@@ -1199,6 +1199,8 @@ export function AnomaliesSheet({
     }
   }, [activeTab, localSelectedDate, open]);
 
+  const isShowingDefaultWindow = localSelectedDate === null;
+
   return (
     <Sheet open={open} onOpenChange={handleClose}>
       <SheetContent className="!right-0 !w-[min(44rem,calc(100vw-2rem))] !max-w-[min(44rem,calc(100vw-2rem))] gap-0 overflow-hidden border-l p-0">
@@ -1226,7 +1228,7 @@ export function AnomaliesSheet({
                 value="goals"
                 className={cn(
                   "min-h-8 px-3 py-1.5 text-center",
-                  localSelectedDate && activeTab === "goals"
+                  isShowingDefaultWindow && activeTab === "goals"
                     ? "flex flex-col items-center justify-center gap-0.5"
                     : "flex items-center justify-center gap-1.5 self-center"
                 )}
@@ -1243,7 +1245,7 @@ export function AnomaliesSheet({
                     </Badge>
                   )}
                 </div>
-                {localSelectedDate && activeTab === "goals" && (
+                {isShowingDefaultWindow && activeTab === "goals" && (
                   <span className="text-[9px] font-normal leading-none text-muted-foreground">
                     Showing default window
                   </span>
@@ -1253,7 +1255,7 @@ export function AnomaliesSheet({
                 value="traffic"
                 className={cn(
                   "min-h-8 px-3 py-1.5 text-center",
-                  localSelectedDate && activeTab === "traffic"
+                  isShowingDefaultWindow && activeTab === "traffic"
                     ? "flex flex-col items-center justify-center gap-0.5"
                     : "flex items-center justify-center gap-1.5 self-center"
                 )}
@@ -1270,7 +1272,7 @@ export function AnomaliesSheet({
                     </Badge>
                   )}
                 </div>
-                {localSelectedDate && activeTab === "traffic" && (
+                {isShowingDefaultWindow && activeTab === "traffic" && (
                   <span className="text-[9px] font-normal leading-none text-muted-foreground">
                     Showing default window
                   </span>

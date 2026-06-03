@@ -144,7 +144,7 @@ import {
   type LayoutValidationResult,
   type MediaElementInfo,
 } from "@/utils/page-html-editor";
-import { buildStyledMassicHtml, getMassicBlogCssText, getMassicCssText } from "@/utils/massic-html-copy";
+import { buildStyledMassicHtml, getMassicBlogPageCssText } from "@/utils/massic-html-copy";
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 import {
   type WordpressSlugConflictInfo,
@@ -946,7 +946,7 @@ export function WebPageHtmlView({
     let cancelled = false;
 
     const loadCss = async () => {
-      const cssText = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
+      const cssText = await getMassicBlogPageCssText();
       if (!cancelled) {
         setEditorBaseCss(cssText);
       }
@@ -1813,7 +1813,7 @@ export function WebPageHtmlView({
       }
       const payload = buildPublishPayload("draft");
       if (activePlatform === "webflow") {
-        const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
+        const baseCss = await getMassicBlogPageCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
           cssVarOverrides,
@@ -1882,7 +1882,7 @@ export function WebPageHtmlView({
         await saveAllWebflowFieldImageAltText();
       }
       const payload = buildPublishPayload("draft");
-      const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
+      const baseCss = await getMassicBlogPageCssText();
       payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
         baseCss,
         cssVarOverrides,
@@ -2028,7 +2028,7 @@ export function WebPageHtmlView({
           : {}),
       };
       if (activePlatform === "webflow") {
-        const baseCss = isBlogContent ? await getMassicBlogCssText() : await getMassicCssText();
+        const baseCss = await getMassicBlogPageCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
           cssVarOverrides,
@@ -2262,7 +2262,7 @@ export function WebPageHtmlView({
 
   const handleCopyHtml = async () => {
     const safeHtml = composeCurrentHtml();
-    const baseCss = editorBaseCss || (await (isBlogContent ? getMassicBlogCssText() : getMassicCssText()));
+    const baseCss = editorBaseCss || (await getMassicBlogPageCssText());
     const styledHtml = buildStyledMassicHtml(safeHtml, {
       baseCss,
       cssVarOverrides,

@@ -17,7 +17,6 @@ interface StrategySplitViewProps {
   onSearchChange: (value: string) => void;
   onBack?: () => void;
   pageCount?: number;
-  businessRelevanceRange?: { min: number; max: number };
 }
 
 export const StrategySplitView = React.memo(function StrategySplitView({
@@ -29,7 +28,6 @@ export const StrategySplitView = React.memo(function StrategySplitView({
   onSearchChange,
   onBack,
   pageCount = 1,
-  businessRelevanceRange: _businessRelevanceRange = { min: 0, max: 1 },
 }: StrategySplitViewProps) {
   const enableAdvancedFilter = true;
 

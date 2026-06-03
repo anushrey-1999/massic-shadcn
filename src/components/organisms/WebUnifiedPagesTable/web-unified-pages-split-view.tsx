@@ -16,8 +16,6 @@ import {
   getWebOptimizationSuggestionsColumns,
   type WebOptimizationSuggestionRow,
 } from "@/components/organisms/WebOptimizationAnalysisTable/suggestions-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface WebUnifiedPagesSplitViewProps {
   leftTableData: UnifiedPageRow[];
@@ -198,16 +196,6 @@ export const WebUnifiedPagesSplitView = React.memo(function WebUnifiedPagesSplit
     return toExistingSuggestions(selectedRow);
   }, [selectedRow]);
 
-  const detailRows = React.useMemo(() => {
-    if (!selectedRow) return [];
-    if (selectedRow.label === "Existing") return existingDetailsRows;
-    return keywords.map((keyword) => ({ keyword, page: selectedRow.page }));
-  }, [existingDetailsRows, keywords, selectedRow]);
-
-  const handleDownloadCsv = React.useCallback(() => {
-    downloadRowsAsCsv(detailRows, "web-unified-page-details.csv");
-  }, [detailRows]);
-
   const { table: existingDetailsTable } = useLocalDataTable({
     data: existingDetailsRows,
     columns: existingColumns,
@@ -260,9 +248,6 @@ export const WebUnifiedPagesSplitView = React.memo(function WebUnifiedPagesSplit
               onChange={onSearchChange}
               placeholder="Search pages..."
             />
-          </div>
-          <div className="flex items-center gap-2">
-            <DownloadCsvButton onDownload={handleDownloadCsv} disabled={detailRows.length === 0} />
           </div>
         </div>
       </div>

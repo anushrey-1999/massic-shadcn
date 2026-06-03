@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableElement, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   ChartSpline,
@@ -15,10 +14,7 @@ import {
   Target,
   Zap,
 } from "lucide-react";
-import type {
-  BillingReconciliationPlanBreakdown,
-  BillingReconciliationReport as BillingReconciliationReportData,
-} from "@/types/billing-reconciliation-types";
+import type { BillingReconciliationReport as BillingReconciliationReportData } from "@/types/billing-reconciliation-types";
 import { cn } from "@/lib/utils";
 
 interface BillingReconciliationReportProps {
@@ -66,22 +62,9 @@ function formatAmount(amount: number, currency: string) {
   }).format(amount || 0);
 }
 
-function formatPlanBreakdownLabel(entry: BillingReconciliationPlanBreakdown, currency: string) {
-  const tiers = entry.amountBreakdown?.length
-    ? entry.amountBreakdown
-    : [{
-        unitAmount: entry.count > 0 ? entry.amount / entry.count : entry.amount,
-        count: entry.count,
-      }];
-
-  if (tiers.length === 1 && tiers[0].count === 1) {
-    return formatAmount(tiers[0].unitAmount, currency);
-  }
-
-  return [...tiers]
-    .sort((left, right) => right.unitAmount - left.unitAmount)
-    .map((tier) => `${tier.count} × ${formatAmount(tier.unitAmount, currency)}`)
-    .join(", ");
+function formatPlanAmount(amount: number, count: number, currency: string) {
+  const perChargeAmount = count > 1 ? amount / count : amount;
+  return `${formatAmount(perChargeAmount, currency)}${count > 1 ? " ea" : ""}`;
 }
 
 function getReportLabel(report: BillingReconciliationReportData) {
@@ -113,14 +96,6 @@ function getBillingDocumentDisplay(row: BillingReconciliationReportData["rows"][
         : hasDocumentUrl
           ? "Execution credits invoice"
           : "Execution credits payment",
-      secondaryLabel: isReceipt ? null : rawLabel,
-    };
-  }
-
-  if (row.chargeType === "upgrade") {
-    const isReceipt = normalizedLabel.includes("receipt");
-    return {
-      primaryLabel: isReceipt ? "Upgrade receipt" : "Upgrade payment",
       secondaryLabel: isReceipt ? null : rawLabel,
     };
   }
@@ -257,12 +232,12 @@ export function BillingReconciliationReport({
                 {report.summary.planBreakdown.length > 0 ? (
                   report.summary.planBreakdown.map((entry) => (
                     <div key={entry.planName} className="min-w-0 space-y-1">
-                      <div className="flex items-end gap-1.5">
-                        <span className="shrink-0 text-2xl font-semibold leading-[1.2] tracking-[-0.48px] text-foreground">
+                      <div className="flex items-end gap-1">
+                        <span className="text-2xl font-semibold leading-[1.2] tracking-[-0.48px] text-foreground">
                           {entry.count}
                         </span>
-                        <span className="min-w-0 pb-0.5 text-[10px] font-normal leading-snug tracking-[0.15px] text-[#A3A3A3]">
-                          {formatPlanBreakdownLabel(entry, primaryCurrency)}
+                        <span className="pb-0.5 text-[10px] font-normal leading-normal tracking-[0.15px] text-[#A3A3A3]">
+                          {formatPlanAmount(entry.amount, entry.count, primaryCurrency)}
                         </span>
                       </div>
                       <PlanBadge planName={entry.planName} tinted className="w-full justify-center" />
@@ -310,25 +285,7 @@ export function BillingReconciliationReport({
                             <div className="truncate">{row.businessName}</div>
                           </TableCell>
                           <TableCell className="px-2 py-1.5">
-                            <div className="min-w-0 space-y-0.5">
-                              <PlanBadge planName={row.planName} />
-                              {row.chargeType === "upgrade" && row.detailLabel ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <p className="cursor-default truncate text-[10px] font-normal leading-normal tracking-[0.15px] text-muted-foreground">
-                                      {row.detailLabel}
-                                    </p>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-xs text-xs">
-                                    {row.detailLabel}
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : row.detailLabel && row.detailLabel !== "Recurring subscription" ? (
-                                <p className="truncate text-[10px] font-normal leading-normal tracking-[0.15px] text-muted-foreground">
-                                  {row.detailLabel}
-                                </p>
-                              ) : null}
-                            </div>
+                            <PlanBadge planName={row.planName} />
                           </TableCell>
                           <TableCell className="px-2 py-1.5 text-xs font-normal leading-normal tracking-[0.18px] text-muted-foreground">
                             <div className="truncate">{formatBillingPeriod(row.billingPeriodStart, row.billingPeriodEnd)}</div>

@@ -11,7 +11,6 @@ import type {
   CallPrepBriefHighlight,
   CallPrepBriefResponse,
   CallPrepHighlightTone,
-  CallPrepOtherCtaSummary,
   PrimaryDriversWin,
 } from "@/hooks/use-primary-drivers"
 
@@ -95,70 +94,6 @@ const HIGHLIGHT_STYLES: Record<CallPrepHighlightTone, { item: string; dot: strin
   },
 }
 
-function formatSignedNumber(value: number | null): string {
-  const numericValue = Number(value || 0)
-  return `${numericValue >= 0 ? "+" : ""}${numericValue}`
-}
-
-function formatPercent(value: number | null): string {
-  const pct = Math.round(Number(value || 0) * 100)
-  return `${pct >= 0 ? "+" : ""}${pct}%`
-}
-
-function getOtherCtaBadgeClass(direction: CallPrepOtherCtaSummary["direction"]) {
-  if (direction === "up") {
-    return "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
-  }
-  if (direction === "down") {
-    return "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
-  }
-  return "border-border/60 bg-secondary text-muted-foreground"
-}
-
-function getOtherCtaDirectionLabel(direction: CallPrepOtherCtaSummary["direction"]) {
-  if (direction === "up") return "Up"
-  if (direction === "down") return "Down"
-  return "Steady"
-}
-
-function OtherCtasSection({ items }: { items?: CallPrepOtherCtaSummary[] }) {
-  if (!items || items.length === 0) return null
-
-  return (
-    <section className="min-w-0 max-w-full space-y-2 overflow-hidden">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
-        Other CTAs
-      </p>
-      <div className="space-y-1.5">
-        {items.map((cta, index) => (
-          <div
-            key={`${cta.display_name}-${index}`}
-            className="min-w-0 max-w-full rounded-lg border border-border/60 bg-white px-3 py-2.5"
-          >
-            <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-              <p className="min-w-0 break-words text-[13px] font-medium text-foreground [overflow-wrap:anywhere]">
-                {cta.display_name}
-              </p>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "w-fit max-w-full shrink-0 whitespace-normal rounded-full px-2 py-0.5 text-left text-[11px] font-semibold tabular-nums [overflow-wrap:anywhere]",
-                  getOtherCtaBadgeClass(cta.direction),
-                )}
-              >
-                {getOtherCtaDirectionLabel(cta.direction)} {formatSignedNumber(cta.absolute_delta)} ({formatPercent(cta.pct_change)})
-              </Badge>
-            </div>
-            <p className="mt-1 min-w-0 break-words text-[13px] leading-5 text-muted-foreground [overflow-wrap:anywhere]">
-              {cta.one_liner}
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
-  )
-}
-
 interface CallPrepBriefViewProps {
   callBrief: CallPrepBriefResponse
   wins?: PrimaryDriversWin[]
@@ -172,19 +107,18 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
   ].join(" · ")
 
   const showCurveballs = !callBrief.all_positive && callBrief.brief.curveballs.length > 0
-  const otherCtas = callBrief.brief.other_ctas_summary ?? []
 
   return (
-    <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-        <div className="min-w-0 space-y-1">
-          <p className="break-words text-[15px] font-medium text-foreground">
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-[15px] font-medium text-foreground">
             {callBrief.business_name} — Meeting Prep Notes
           </p>
-          <p className="break-words text-[11px] text-muted-foreground">{comparisonLabel}</p>
+          <p className="text-[11px] text-muted-foreground">{comparisonLabel}</p>
         </div>
         {callBrief.all_positive ? (
-          <Badge className="w-fit shrink-0 rounded-md border-[#9FE1CB] bg-[#F0FDFA] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#085041] hover:bg-[#F0FDFA]">
+          <Badge className="rounded-md border-[#9FE1CB] bg-[#F0FDFA] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#085041] hover:bg-[#F0FDFA]">
             All Positive
           </Badge>
         ) : null}
@@ -194,27 +128,27 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
         <Alert variant="warning" className="border-[#FAC775] bg-[#FFFBEB] text-[#633806]">
           <AlertDescription className="flex items-start gap-2 text-[12px] leading-6">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#B45309]" />
-            <span className="min-w-0 break-words">{callBrief.brief.confidence_note}</span>
+            <span>{callBrief.brief.confidence_note}</span>
           </AlertDescription>
         </Alert>
       ) : null}
 
       <Card className="gap-0 rounded-xl border-border/60 bg-secondary/40 py-0 shadow-none">
-        <CardContent className="break-words px-4 py-3.5 text-[13px] leading-7 text-foreground">
+        <CardContent className="px-4 py-3.5 text-[13px] leading-7 text-foreground">
           {callBrief.brief.open_with}
         </CardContent>
       </Card>
 
       {wins.length > 0 ? (
-        <div className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-lg border border-[#9FE1CB] bg-[#F0FDFA] px-3 py-2.5">
+        <div className="flex items-start gap-2 rounded-lg border border-[#9FE1CB] bg-[#F0FDFA] px-3 py-2.5">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#0F6E56]" />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#0F6E56]">
               Wins
             </p>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
               {wins.map((win, index) => (
-                <span key={`${win.label}-${index}`} className="min-w-0 break-words text-[12px] text-[#085041]">
+                <span key={`${win.label}-${index}`} className="text-[12px] text-[#085041]">
                   · {win.label} {win.value}
                 </span>
               ))}
@@ -222,8 +156,6 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
           </div>
         </div>
       ) : null}
-
-      {!showCurveballs ? <OtherCtasSection items={otherCtas} /> : null}
 
       {callBrief.brief.highlights.length > 0 ? (
         <section className="space-y-2">
@@ -243,7 +175,7 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
                   )}
                 >
                   <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", styles.dot)} />
-                  <p className="min-w-0 break-words">{getHighlightText(highlight)}</p>
+                  <p>{getHighlightText(highlight)}</p>
                 </div>
               )
             })}
@@ -257,17 +189,17 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
         </p>
         <Card className="gap-0 overflow-hidden rounded-xl border-border/60 py-0 shadow-none">
           <CardContent className="px-0">
-            <div className="break-words border-b border-border/60 px-4 py-3 text-[12px] leading-6 text-muted-foreground">
+            <div className="border-b border-border/60 px-4 py-3 text-[12px] leading-6 text-muted-foreground">
               {callBrief.brief.where_this_is_happening.summary}
             </div>
             <div className="divide-y divide-border/60">
               {callBrief.brief.where_this_is_happening.locations.slice(0, 3).map((location, index) => (
                 <div
                   key={`${location.label}-${index}`}
-                  className="grid min-w-0 gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,220px)] sm:items-start sm:gap-4"
+                  className="flex items-start justify-between gap-4 px-4 py-3"
                 >
-                  <p className="min-w-0 break-words text-[12px] font-medium text-foreground">{location.label}</p>
-                  <p className="min-w-0 break-words text-[11px] leading-5 text-muted-foreground sm:text-right">
+                  <p className="min-w-0 text-[12px] font-medium text-foreground">{location.label}</p>
+                  <p className="max-w-[220px] text-right text-[11px] leading-5 text-muted-foreground">
                     {location.detail}
                   </p>
                 </div>
@@ -284,16 +216,16 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
           </p>
           <div className="space-y-3">
             {callBrief.brief.curveballs.map((curveball, index) => (
-              <Card key={`${curveball.question}-${index}`} className="min-w-0 max-w-full gap-0 overflow-hidden rounded-xl border-border/60 py-0 shadow-none">
+              <Card key={`${curveball.question}-${index}`} className="gap-0 overflow-hidden rounded-xl border-border/60 py-0 shadow-none">
                 <div className="flex items-start gap-3 border-b border-[#FAC775] bg-[#FFFBEB] px-4 py-3">
                   <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#854F0B]" />
-                  <p className="min-w-0 break-words text-[13px] font-medium leading-6 text-[#633806]">
+                  <p className="text-[13px] font-medium leading-6 text-[#633806]">
                     {curveball.question}
                   </p>
                 </div>
                 <CardContent className="space-y-3 px-4 py-3.5">
-                  <p className="min-w-0 break-words text-[12px] leading-6 text-foreground">{curveball.short_answer}</p>
-                  <div className="min-w-0 break-words rounded-lg border border-border/60 bg-secondary/40 px-3 py-2.5 text-[12px] leading-6 text-muted-foreground">
+                  <p className="text-[12px] leading-6 text-foreground">{curveball.short_answer}</p>
+                  <div className="rounded-lg border border-border/60 bg-secondary/40 px-3 py-2.5 text-[12px] leading-6 text-muted-foreground">
                     {curveball.deeper_explanation}
                   </div>
                   {curveball.evaluation_areas.length > 0 ? (
@@ -306,7 +238,7 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
                           <Badge
                             key={area}
                             variant="outline"
-                            className="max-w-full whitespace-normal break-words rounded-full border-border/70 bg-secondary/40 px-2.5 py-1 text-left text-[11px] font-medium text-muted-foreground"
+                            className="rounded-full border-border/70 bg-secondary/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
                           >
                             {area}
                           </Badge>
@@ -320,8 +252,6 @@ export function CallPrepBriefView({ callBrief, wins = [] }: CallPrepBriefViewPro
           </div>
         </section>
       ) : null}
-
-      {showCurveballs ? <OtherCtasSection items={otherCtas} /> : null}
     </div>
   )
 }

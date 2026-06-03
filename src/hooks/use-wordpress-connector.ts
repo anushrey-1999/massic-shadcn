@@ -207,8 +207,6 @@ export function useConnectWordpress() {
     onSuccess: (_data, variables) => {
       toast.success("WordPress connected successfully");
       queryClient.invalidateQueries({ queryKey: ["wordpress-connection", variables.businessId] });
-      queryClient.invalidateQueries({ queryKey: ["webflow-connection", variables.businessId] });
-      queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", variables.businessId] });
     },
     onError: (error) => {
       toast.error("Failed to connect WordPress", {
@@ -236,7 +234,6 @@ export function useDisconnectWordpress(businessId: string | null) {
     onSuccess: () => {
       toast.success("WordPress disconnected successfully");
       queryClient.invalidateQueries({ queryKey: ["wordpress-connection", businessId] });
-      queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", businessId] });
     },
     onError: (error) => {
       toast.error("Failed to disconnect WordPress", {

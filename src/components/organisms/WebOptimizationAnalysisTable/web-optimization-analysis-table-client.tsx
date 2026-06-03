@@ -17,7 +17,6 @@ import { getFiltersStateParser } from "@/components/filter-table/parsers";
 import { getValidFilters, tableApplyAdvancedFilters } from "@/utils/data-table-utils";
 import { getWebOptimizationAnalysisTableColumns } from "./web-optimization-analysis-table-columns";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
-import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface WebOptimizationAnalysisTableClientProps {
   businessId: string;
@@ -263,10 +262,6 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
 
   const suggestions = React.useMemo(() => toSuggestionRows(selectedRow), [selectedRow]);
 
-  const handleDownloadCsv = React.useCallback(() => {
-    downloadRowsAsCsv(filteredRows || [], "web-optimization-analysis.csv");
-  }, [filteredRows]);
-
   if (isError) {
     if (isGoogleNotConnected(error)) {
       return (
@@ -359,7 +354,6 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
         search={search}
         onSearchChange={setSearch}
         onRowClick={handleRowClick}
-        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

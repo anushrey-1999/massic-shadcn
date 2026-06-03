@@ -211,11 +211,20 @@ export default function BusinessWebPage({ params }: PageProps) {
               </EntitlementsGuard>
             </TabsContent>
             <TabsContent value="settings" className={cn("flex-1 min-h-0 overflow-hidden", !hideTabs && "mt-4")}>
-              <WebChannelsTab
-                businessId={businessId}
-                defaultSiteUrl={profileData?.Website || ""}
-                isActive={activeTab === "settings"}
-              />
+              <div className="flex h-full flex-col gap-6 overflow-auto px-1">
+                <header className="space-y-1">
+                  <h2 className="text-lg font-semibold tracking-tight text-general-foreground">Integrations</h2>
+                  <p className="text-sm text-general-muted-foreground">
+                    Connect your sites to publish and manage content from Massic.
+                  </p>
+                </header>
+                <WebChannelsTab
+                  businessId={businessId}
+                  defaultSiteUrl={profileData?.Website || ""}
+                  isActive={activeTab === "settings"}
+                  showHeader={false}
+                />
+              </div>
             </TabsContent>
             <TabsContent value="all-pages" className={cn("flex-1 min-h-0 overflow-hidden flex flex-col", !isOptimizeSplitView && "mt-4")}>
               <EntitlementsGuard entitlement="webOptimize" businessId={businessId}>

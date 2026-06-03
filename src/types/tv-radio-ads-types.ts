@@ -42,7 +42,6 @@ export interface TvRadioAdConceptRow {
     avg_business_relevance: number;
     avg_competition: number;
   };
-  [key: string]: any;
 }
 
 export interface TvRadioAdsApiItem {

@@ -309,39 +309,14 @@ function includeTimescaleRow(row: TimescaleTableInternal, filter: TableFilterTyp
   return row.sessionsChange < 0 || row.goalsChange < 0
 }
 
-function compareSortValues(aValue: number, bValue: number, direction: SortDirection): number {
-  if (aValue === bValue) return 0
-  if (direction === "desc") {
-    return aValue > bValue ? -1 : 1
-  }
-
-  return aValue < bValue ? -1 : 1
-}
-
-function getTimescaleSortValue(
-  row: TimescaleTableInternal,
-  column: GA4SortColumn,
-  useDifference: boolean
-): number {
-  if (column === "sessions") {
-    return useDifference ? row.sessions - row.previousSessions : row.sessions
-  }
-
-  return useDifference ? row.goals - row.previousGoals : row.goals
-}
-
 function sortTimescaleRows(
   rows: TimescaleTableInternal[],
-  sort: { column: GA4SortColumn; direction: SortDirection },
-  filter: TableFilterType
+  sort: { column: GA4SortColumn; direction: SortDirection }
 ): TimescaleTableInternal[] {
   return [...rows].sort((a, b) => {
-    const useDifference = filter !== "popular"
-    return compareSortValues(
-      getTimescaleSortValue(a, sort.column, useDifference),
-      getTimescaleSortValue(b, sort.column, useDifference),
-      sort.direction
-    )
+    const aValue = sort.column === "sessions" ? a.sessions : a.goals
+    const bValue = sort.column === "sessions" ? b.sessions : b.goals
+    return sort.direction === "desc" ? bValue - aValue : aValue - bValue
   })
 }
 
@@ -355,41 +330,26 @@ function includeTrackedCtaRow(row: TrackedCtaTableInternal, filter: TableFilterT
   return row.usersChange < 0 || row.goalsChange < 0 || row.conversionRateChange < 0
 }
 
-function getTrackedCtaSortValue(
-  row: TrackedCtaTableInternal,
-  column: TrackedCtaSortColumn,
-  useDifference: boolean
-): number {
-  if (column === "users") {
-    return useDifference ? row.users - row.previousUsers : row.users
-  }
-
-  if (column === "conversionRate") {
-    return useDifference ? row.conversionRate - row.previousConversionRate : row.conversionRate
-  }
-
-  return useDifference ? row.goals - row.previousGoals : row.goals
-}
-
 function sortTrackedCtaRows(
   rows: TrackedCtaTableInternal[],
-  sort: { column: TrackedCtaSortColumn; direction: SortDirection },
-  filter: TableFilterType
+  sort: { column: TrackedCtaSortColumn; direction: SortDirection }
 ): TrackedCtaTableInternal[] {
   return [...rows].sort((a, b) => {
-    const useDifference = filter !== "popular"
-    return compareSortValues(
-      getTrackedCtaSortValue(a, sort.column, useDifference),
-      getTrackedCtaSortValue(b, sort.column, useDifference),
-      sort.direction
-    )
-  })
-}
+    const aValue =
+      sort.column === "users"
+        ? a.users
+        : sort.column === "conversionRate"
+          ? a.conversionRate
+          : a.goals
+    const bValue =
+      sort.column === "users"
+        ? b.users
+        : sort.column === "conversionRate"
+          ? b.conversionRate
+          : b.goals
 
-function getDefaultSortDirectionForFilter(filter: TableFilterType): SortDirection | null {
-  if (filter === "growing") return "desc"
-  if (filter === "decaying") return "asc"
-  return null
+    return sort.direction === "desc" ? bValue - aValue : aValue - bValue
+  })
 }
 
 export type GA4TrafficScope = "all" | "organic"
@@ -627,8 +587,7 @@ export function useGA4Analytics(
   const goalsData = useMemo<GA4TrackedCtaDataFormatted[]>(() => {
     return sortTrackedCtaRows(
       goalsRows.filter((row) => includeTrackedCtaRow(row, goalsFilter)),
-      goalsSort,
-      goalsFilter
+      goalsSort
     ).map((row) => ({
       trackedCta: row.key,
       users: {
@@ -655,8 +614,7 @@ export function useGA4Analytics(
   const topSourcesData = useMemo<GA4TableDataFormatted[]>(() => {
     return sortTimescaleRows(
       sourceMediumRows.filter((row) => includeTimescaleRow(row, topSourcesFilter)),
-      topSourcesSort,
-      topSourcesFilter
+      topSourcesSort
     ).map((row) => ({
       key: row.key,
       rawKey: row.rawKey,
@@ -679,8 +637,7 @@ export function useGA4Analytics(
   const contentGroupsData = useMemo<GA4TableDataFormatted[]>(() => {
     return sortTimescaleRows(
       contentGroupRows.filter((row) => includeTimescaleRow(row, contentGroupsFilter)),
-      contentGroupsSort,
-      contentGroupsFilter
+      contentGroupsSort
     ).map((row) => ({
       key: row.key,
       sessions: {
@@ -701,8 +658,7 @@ export function useGA4Analytics(
   const topPagesData = useMemo<GA4TableDataFormatted[]>(() => {
     return sortTimescaleRows(
       topPageRows.filter((row) => includeTimescaleRow(row, topPagesFilter)),
-      topPagesSort,
-      topPagesFilter
+      topPagesSort
     ).map((row) => ({
       key: normalizePageForDisplay(row.key),
       rawKey: row.rawKey,
@@ -783,34 +739,18 @@ export function useGA4Analytics(
 
   const handleGoalsFilterChange = useCallback((filter: TableFilterType) => {
     setGoalsFilter(filter)
-    const direction = getDefaultSortDirectionForFilter(filter)
-    if (direction) {
-      setGoalsSort((prev) => ({ ...prev, direction }))
-    }
   }, [])
 
   const handleTopSourcesFilterChange = useCallback((filter: TableFilterType) => {
     setTopSourcesFilter(filter)
-    const direction = getDefaultSortDirectionForFilter(filter)
-    if (direction) {
-      setTopSourcesSort((prev) => ({ ...prev, direction }))
-    }
   }, [])
 
   const handleContentGroupsFilterChange = useCallback((filter: TableFilterType) => {
     setContentGroupsFilter(filter)
-    const direction = getDefaultSortDirectionForFilter(filter)
-    if (direction) {
-      setContentGroupsSort((prev) => ({ ...prev, direction }))
-    }
   }, [])
 
   const handleTopPagesFilterChange = useCallback((filter: TableFilterType) => {
     setTopPagesFilter(filter)
-    const direction = getDefaultSortDirectionForFilter(filter)
-    if (direction) {
-      setTopPagesSort((prev) => ({ ...prev, direction }))
-    }
   }, [])
 
   const handleGoalsSort = useCallback((column: TrackedCtaSortColumn) => {

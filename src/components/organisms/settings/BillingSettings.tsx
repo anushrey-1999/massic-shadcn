@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -56,7 +57,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useBusinessStore, BusinessProfile } from "@/store/business-store";
 import { useSubscription } from "@/hooks/use-subscription";
-import { format } from "date-fns";
 import { ChartLine, ChevronRight, Loader2, Puzzle, Zap } from "lucide-react";
 import { Typography } from "@/components/ui/typography";
 import { useMassicOpportunitiesStatus, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
@@ -334,35 +334,6 @@ const getCurrentMonthValue = () => {
   return `${year}-${month}`;
 };
 
-const RECONCILIATION_START_YEAR = 2020;
-
-const RECONCILIATION_MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => {
-  const value = String(index + 1).padStart(2, "0");
-  return {
-    value,
-    label: format(new Date(2000, index, 1), "MMMM"),
-  };
-});
-
-const getReconciliationYearOptions = () => {
-  const currentYear = new Date().getFullYear();
-  return Array.from(
-    { length: currentYear - RECONCILIATION_START_YEAR + 1 },
-    (_, index) => String(currentYear - index)
-  );
-};
-
-const isReconciliationMonthDisabled = (month: string, year: string) => {
-  if (!year || !month) return false;
-  return `${year}-${month.padStart(2, "0")}` > getCurrentMonthValue();
-};
-
-const buildReconciliationMonthValue = (year: string, month: string) => {
-  const normalizedMonth = month.padStart(2, "0");
-  const candidate = `${year}-${normalizedMonth}`;
-  return candidate > getCurrentMonthValue() ? getCurrentMonthValue() : candidate;
-};
-
 const RECONCILIATION_PERIOD_OPTIONS: Array<{
   value: BillingReconciliationPeriod;
   label: string;
@@ -539,21 +510,6 @@ export function BillingSettings() {
   const reactivateMassicOpportunities = useReactivateMassicOpportunities();
   const queryClient = useQueryClient();
   const billingReconciliation = useBillingReconciliation();
-  const reconciliationMonthParts = useMemo(() => {
-    const [year = "", month = ""] = selectedReportMonth.split("-");
-    return { year, month };
-  }, [selectedReportMonth]);
-  const reconciliationYearOptions = useMemo(() => getReconciliationYearOptions(), []);
-
-  const handleReconciliationMonthChange = useCallback((month: string) => {
-    const year = reconciliationMonthParts.year || String(new Date().getFullYear());
-    setSelectedReportMonth(buildReconciliationMonthValue(year, month));
-  }, [reconciliationMonthParts.year]);
-
-  const handleReconciliationYearChange = useCallback((year: string) => {
-    const month = reconciliationMonthParts.month || "01";
-    setSelectedReportMonth(buildReconciliationMonthValue(year, month));
-  }, [reconciliationMonthParts.month]);
   const headerClassName =
     "h-11 justify-start gap-1.5 bg-transparent px-0 text-[14px] font-medium text-[#181D27] hover:bg-transparent focus-visible:ring-0 [&_svg]:size-3.5 [&_svg]:text-[#98A2B3] [&>span:last-child]:opacity-100";
   const actionButtonClassName =
@@ -607,8 +563,6 @@ export function BillingSettings() {
     const header = [
       "Business",
       "Plan",
-      "Charge Type",
-      "Details",
       "Billing Period Start",
       "Billing Period End",
       "Last Billed",
@@ -623,8 +577,6 @@ export function BillingSettings() {
     const rows = reconciliationReport.rows.map((row) => [
       row.businessName,
       row.planName,
-      row.chargeType || "",
-      row.detailLabel || "",
       row.billingPeriodStart || "",
       row.billingPeriodEnd || "",
       row.lastBilledAt || "",
@@ -1329,7 +1281,8 @@ export function BillingSettings() {
                 </SheetDescription>
 
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="min-w-0 w-full sm:max-w-[260px]">
+                  <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-[minmax(220px,260px)_minmax(180px,220px)]">
+                    <div className="min-w-0">
                       <label
                         htmlFor="reconciliation-period-sheet"
                         className="mb-1.5 block text-xs font-medium text-muted-foreground"
@@ -1345,8 +1298,8 @@ export function BillingSettings() {
                         </SelectTrigger>
                         <SelectContent>
                           {RECONCILIATION_PERIOD_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value} textValue={option.label}>
-                              <div className="flex flex-col items-start">
+                            <SelectItem key={option.value} value={option.value}>
+                              <div className="flex flex-col">
                                 <span>{option.label}</span>
                                 <span className="text-xs text-muted-foreground">{option.description}</span>
                               </div>
@@ -1356,63 +1309,29 @@ export function BillingSettings() {
                       </Select>
                     </div>
 
-                  {selectedReportPeriod === "month" ? (
-                    <div className="min-w-0 w-full sm:max-w-[300px]">
-                      <p className="mb-1.5 block text-xs font-medium text-muted-foreground">Month</p>
-                      <div className="flex gap-2">
-                        <Select
-                          value={reconciliationMonthParts.month}
-                          onValueChange={handleReconciliationMonthChange}
+                    {selectedReportPeriod === "month" ? (
+                      <div className="min-w-0">
+                        <label
+                          htmlFor="reconciliation-month-sheet"
+                          className="mb-1.5 block text-xs font-medium text-muted-foreground"
                         >
-                          <SelectTrigger
-                            id="reconciliation-month-sheet"
-                            className="min-w-0 flex-1"
-                            aria-label="Select reconciliation month"
-                          >
-                            <SelectValue placeholder="Month" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {RECONCILIATION_MONTH_OPTIONS.map((option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
-                                disabled={isReconciliationMonthDisabled(
-                                  option.value,
-                                  reconciliationMonthParts.year
-                                )}
-                              >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={reconciliationMonthParts.year}
-                          onValueChange={handleReconciliationYearChange}
-                        >
-                          <SelectTrigger
-                            id="reconciliation-year-sheet"
-                            className="w-[108px] shrink-0"
-                            aria-label="Select reconciliation year"
-                          >
-                            <SelectValue placeholder="Year" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {reconciliationYearOptions.map((year) => (
-                              <SelectItem key={year} value={year}>
-                                {year}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          Month
+                        </label>
+                        <Input
+                          id="reconciliation-month-sheet"
+                          type="month"
+                          value={selectedReportMonth}
+                          onChange={(event) => setSelectedReportMonth(event.target.value)}
+                          max={getCurrentMonthValue()}
+                          aria-label="Select reconciliation month"
+                        />
                       </div>
-                    </div>
-                  ) : null}
-
+                    ) : null}
+                  </div>
                   <Button
                     onClick={handleGenerateReconciliationReport}
                     disabled={(selectedReportPeriod === "month" && !selectedReportMonth) || billingReconciliation.isPending}
-                    className="shrink-0"
+                    className="sm:self-end"
                   >
                     {billingReconciliation.isPending ? "Loading..." : "Load report"}
                   </Button>

@@ -11,7 +11,6 @@ import type { WebPageRow } from "@/types/web-page-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getWebPageTableColumns } from "./web-page-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface WebPageTableProps {
   businessId: string;
@@ -24,7 +23,6 @@ interface WebPageTableProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   hideActions?: boolean;
-  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function WebPageTable({
@@ -38,7 +36,6 @@ export function WebPageTable({
   search = "",
   onSearchChange,
   hideActions = false,
-  onDownloadCsv,
 }: WebPageTableProps) {
   const enableAdvancedFilter = true;
 
@@ -210,9 +207,6 @@ export function WebPageTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
-            {onDownloadCsv && (
-              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
-            )}
           </div>
         </div>
       </DataTable>

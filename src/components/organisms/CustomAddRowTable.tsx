@@ -20,34 +20,21 @@ import { isValidWebsiteUrl } from "@/utils/utils";
 export interface ColumnValidation {
   required?: boolean;
   url?: boolean;
-  customValidator?: (value: any, row?: any) => string | undefined;
+  customValidator?: (value: any) => string | undefined;
 }
 
 export interface Column<T = any> {
   key: string;
   label: string;
-  render?: (
-    value: any,
-    row: T,
-    index: number,
-    helpers: {
-      disabled: boolean;
-      error?: string;
-      touched?: boolean;
-      setValue: (value: any) => void;
-      setRowValue: (field: string, value: any, rowData?: T) => void;
-      onBlur: (value: any, rowData?: T) => void;
-    }
-  ) => React.ReactNode;
+  render?: (value: any, row: T, index: number) => React.ReactNode;
   validation?: ColumnValidation;
-  width?: string;
 }
 
 export interface CustomAddRowTableProps<T = Record<string, any>> {
   columns: Column<T>[];
   data: T[];
   onAddRow: () => void;
-  onRowChange?: (rowIndex: number, field: string, value: any, currentRowData?: T) => void;
+  onRowChange?: (rowIndex: number, field: string, value: any) => void;
   onDeleteRow?: (rowIndex: number) => void;
   addButtonText?: string;
   className?: string;
@@ -61,8 +48,7 @@ export interface CustomAddRowTableProps<T = Record<string, any>> {
 // Validation helper
 const validateField = (
   value: any,
-  validation?: ColumnValidation,
-  row?: any
+  validation?: ColumnValidation
 ): string | undefined => {
   if (!validation) return undefined;
 
@@ -85,7 +71,7 @@ const validateField = (
 
   // Custom validator
   if (validation.customValidator) {
-    return validation.customValidator(value, row);
+    return validation.customValidator(value);
   }
 
   return undefined;
@@ -164,7 +150,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
 
       const rowErrors: Record<string, string> = {};
       columns.forEach((column) => {
-        const error = validateField(row[column.key], column.validation, row);
+        const error = validateField(row[column.key], column.validation);
         if (error) {
           rowErrors[column.key] = error;
         }
@@ -198,7 +184,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   const validateRow = (rowIndex: number, row: T) => {
     const rowErrors: Record<string, string> = {};
     columns.forEach((column) => {
-      const error = validateField(row[column.key], column.validation, row);
+      const error = validateField(row[column.key], column.validation);
       if (error) {
         rowErrors[column.key] = error;
       }
@@ -220,35 +206,52 @@ export function CustomAddRowTable<T extends Record<string, any>>({
   const handleRowChange = (
     rowIndex: number,
     field: string,
-    value: any,
-    currentRowData?: T
+    value: any
   ) => {
     if (disabled) return;
-    const baseRow = (currentRowData ?? data[rowIndex] ?? ({} as T)) as T;
-    const nextRow = {
-      ...baseRow,
-      [field]: value,
-    } as T;
-
-    onRowChange?.(rowIndex, field, value, nextRow);
+    // Update the value
+    if (onRowChange) {
+      onRowChange(rowIndex, field, value);
+    }
 
     // Mark field as touched when user starts typing and validate
     setTouched((prev) => {
       const newTouched = { ...prev };
-      if (!newTouched[rowIndex]) newTouched[rowIndex] = {};
+      if (!newTouched[rowIndex]) {
+        newTouched[rowIndex] = {};
+      }
       newTouched[rowIndex][field] = true;
+      
+      const nextRow = {
+        ...(data[rowIndex] || ({} as T)),
+        [field]: value,
+      } as T;
+
+      // Validate immediately after marking as touched
+      const column = columns.find((col) => col.key === field);
+      const error = validateField(value, column?.validation);
+
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        if (!newErrors[rowIndex]) {
+          newErrors[rowIndex] = {};
+        }
+        if (error) {
+          newErrors[rowIndex][field] = error;
+        } else {
+          delete newErrors[rowIndex][field];
+          if (Object.keys(newErrors[rowIndex]).length === 0) {
+            delete newErrors[rowIndex];
+          }
+        }
+        return newErrors;
+      });
+      
       return newTouched;
     });
-
-    validateRow(rowIndex, nextRow);
   };
 
-  const handleBlur = (
-    rowIndex: number,
-    field: string,
-    value: any,
-    currentRowData?: T
-  ) => {
+  const handleBlur = (rowIndex: number, field: string, value: any) => {
     if (disabled) return;
     // Mark field as touched when user leaves the field
     setTouched((prev) => {
@@ -260,13 +263,29 @@ export function CustomAddRowTable<T extends Record<string, any>>({
       return newTouched;
     });
 
-    const baseRow = (currentRowData ?? data[rowIndex] ?? ({} as T)) as T;
+    // Validate on blur
+    const column = columns.find((col) => col.key === field);
     const nextRow = {
-      ...baseRow,
+      ...(data[rowIndex] || ({} as T)),
       [field]: value,
     } as T;
+    const error = validateField(value, column?.validation);
 
-    validateRow(rowIndex, nextRow);
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      if (!newErrors[rowIndex]) {
+        newErrors[rowIndex] = {};
+      }
+      if (error) {
+        newErrors[rowIndex][field] = error;
+      } else {
+        delete newErrors[rowIndex][field];
+        if (Object.keys(newErrors[rowIndex]).length === 0) {
+          delete newErrors[rowIndex];
+        }
+      }
+      return newErrors;
+    });
   };
 
   const handleDeleteRow = (rowIndex: number) => {
@@ -298,93 +317,80 @@ export function CustomAddRowTable<T extends Record<string, any>>({
     return (
       <div className={cn("flex flex-col gap-1.5", className)}>
         <div className="flex flex-col gap-2">
-          {data.map((row, rowIndex) => {
-            const rowHasAnyValue = columns.some((c) =>
-              Boolean(String(row[c.key] ?? "").trim())
-            );
-            const isFocusedRow = focusedRowIndex === rowIndex;
-            const blendRow = !isFocusedRow && rowHasAnyValue;
-            const rowId = `table-row-${tableId}-${rowIndex}`;
+          {data.length > 0 ? (
+            data.map((row, rowIndex) => (
+              (() => {
+                const rowHasAnyValue = columns.some((c) =>
+                  Boolean(String(row[c.key] ?? "").trim())
+                );
+                const isFocusedRow = focusedRowIndex === rowIndex;
+                const blendRow = !isFocusedRow && rowHasAnyValue;
+                const rowId = `table-row-${tableId}-${rowIndex}`;
 
-            return (
+                return (
               <div
                 key={rowIndex}
                 id={rowId}
                 className="group flex gap-2 items-start rounded-lg bg-[#f5f5f5] p-1 transition-colors"
               >
                 {columns.map((column) => {
-                  const fieldError = (errors[rowIndex] || {})[column.key];
-                  const isTouched = touched[rowIndex]?.[column.key] || false;
-
                   return (
-                    <div key={column.key} className="flex flex-1 min-w-0">
-                      {column.render ? (
-                        column.render(row[column.key], row, rowIndex, {
-                          disabled,
-                          error: fieldError,
-                          touched: isTouched,
-                          setValue: (value) =>
-                            handleRowChange(rowIndex, column.key, value),
-                          setRowValue: (field, value, rowData) =>
-                            handleRowChange(rowIndex, field, value, rowData),
-                          onBlur: (value, rowData) =>
-                            handleBlur(rowIndex, column.key, value, rowData),
-                        })
-                      ) : onRowChange ? (
-                        <div className="flex flex-1 min-w-0 flex-col gap-1">
-                          <Input
-                            id={`table-input-${tableId}-${rowIndex}-${column.key}`}
-                            type={column.validation?.url ? "url" : "text"}
-                            variant="default"
-                            value={row[column.key] || ""}
-                            disabled={disabled}
-                            onChange={(e) =>
-                              handleRowChange(rowIndex, column.key, e.target.value)
-                            }
-                            onFocus={() => setFocusedRowIndex(rowIndex)}
-                            onBlur={(e) => {
-                              handleBlur(rowIndex, column.key, e.target.value);
-                              setTimeout(() => {
-                                const container = document.getElementById(rowId);
-                                const active = document.activeElement;
-                                if (!container || !active || !container.contains(active)) {
-                                  setFocusedRowIndex((prev) =>
-                                    prev === rowIndex ? null : prev
-                                  );
-                                }
-                              }, 0);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                if (!disabled) onAddRow();
+                  <div key={column.key} className="flex flex-1 min-w-0">
+                    {column.render ? (
+                      column.render(row[column.key], row, rowIndex)
+                    ) : onRowChange ? (
+                      <div className="flex flex-1 min-w-0 flex-col gap-1">
+                        <Input
+                          id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                          type={column.validation?.url ? "url" : "text"}
+                          variant="default"
+                          value={row[column.key] || ""}
+                          disabled={disabled}
+                          onChange={(e) =>
+                            handleRowChange(rowIndex, column.key, e.target.value)
+                          }
+                          onFocus={() => setFocusedRowIndex(rowIndex)}
+                          onBlur={(e) => {
+                            handleBlur(rowIndex, column.key, e.target.value);
+                            setTimeout(() => {
+                              const container = document.getElementById(rowId);
+                              const active = document.activeElement;
+                              if (!container || !active || !container.contains(active)) {
+                                setFocusedRowIndex((prev) =>
+                                  prev === rowIndex ? null : prev
+                                );
                               }
-                            }}
-                            placeholder={column.label || "Enter value"}
-                            className={cn(
-                              "h-10 min-h-[36px] flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
-                              blendRow
-                                ? "bg-transparent placeholder:text-general-border-four"
-                                : "bg-white placeholder:text-general-border-four",
-                              isTouched && fieldError && "border border-destructive"
-                            )}
-                            aria-invalid={isTouched && !!fieldError}
-                          />
-                          {isTouched && fieldError ? (
-                            <FieldError className="text-xs mt-0.5">
-                              {fieldError}
-                            </FieldError>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span className="text-sm text-general-foreground">
-                          {String(row[column.key] ?? "")}
-                        </span>
-                      )}
-                    </div>
+                            }, 0);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (!disabled) onAddRow();
+                            }
+                          }}
+                          placeholder={column.label || "Enter value"}
+                          className={cn(
+                            "h-10 min-h-[36px] flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
+                            blendRow
+                              ? "bg-transparent placeholder:text-general-border-four"
+                              : "bg-white placeholder:text-general-border-four",
+                            (errors[rowIndex] || {})[column.key] && touched[rowIndex]?.[column.key] && "aria-invalid border border-destructive"
+                          )}
+                          aria-invalid={touched[rowIndex]?.[column.key] && !!(errors[rowIndex] || {})[column.key]}
+                        />
+                        {touched[rowIndex]?.[column.key] && (errors[rowIndex] || {})[column.key] ? (
+                          <FieldError className="text-xs mt-0.5">
+                            {(errors[rowIndex] || {})[column.key]}
+                          </FieldError>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-general-foreground">{String(row[column.key] ?? "")}</span>
+                    )}
+                  </div>
                   );
                 })}
-                {onDeleteRow ? (
+                {onDeleteRow && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -396,10 +402,12 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                ) : null}
+                )}
               </div>
-            );
-          })}
+                );
+              })()
+            ))
+          ) : null}
         </div>
         <Button
           type="button"
@@ -427,7 +435,6 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                 <TableHead
                   key={column.key}
                   className="text-general-muted-foreground font-medium text-sm h-12 px-2 bg-general-primary-foreground"
-                  style={column.width ? { width: column.width } : undefined}
                 >
                   {column.label}
                   {column.validation?.required && (
@@ -460,17 +467,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                           <TableCell key={column.key} className="p-2 align-top">
                             <div className="flex flex-col">
                               {column.render ? (
-                                column.render(row[column.key], row, rowIndex, {
-                                  disabled,
-                                  error: fieldError,
-                                  touched: isTouched,
-                                  setValue: (value) =>
-                                    handleRowChange(rowIndex, column.key, value),
-                                  setRowValue: (field, value, rowData) =>
-                                    handleRowChange(rowIndex, field, value, rowData),
-                                  onBlur: (value, rowData) =>
-                                    handleBlur(rowIndex, column.key, value, rowData),
-                                })
+                                column.render(row[column.key], row, rowIndex)
                               ) : onRowChange ? (
                                     <Input
                                       id={`table-input-${tableId}-${rowIndex}-${column.key}`}

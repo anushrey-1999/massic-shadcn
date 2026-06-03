@@ -329,9 +329,9 @@ export function DataTable({
                                   <TabsTrigger
                                     key={i}
                                     value={tab.value || `tab-${i}`}
-                                    className="px-1.5 py-0.5 cursor-pointer text-[#525252] data-[state=active]:text-foreground data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-general-border-three/70"
+                                    className="px-1.5 py-0.5 cursor-pointer"
                                   >
-                                    {tab.icon && <span className="text-current">{tab.icon}</span>}
+                                    {tab.icon && <span className="text-[#525252]">{tab.icon}</span>}
                                   </TabsTrigger>
                                 ))}
                               </TabsList>
@@ -541,9 +541,9 @@ export function DataTable({
                     <TabsTrigger
                       key={index}
                       value={tab.value || `tab-${index}`}
-                      className="px-1.5 py-0.5 cursor-pointer text-[#525252] data-[state=active]:text-foreground data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-general-border-three/70"
+                      className="px-1.5 py-0.5 cursor-pointer"
                     >
-                      {tab.icon && <span className="text-current">{tab.icon}</span>}
+                      {tab.icon && <span className="text-[#525252]">{tab.icon}</span>}
                     </TabsTrigger>
                   ))}
                 </TabsList>

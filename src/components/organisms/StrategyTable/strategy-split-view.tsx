@@ -7,11 +7,8 @@ import { useDataTable } from "@/hooks/use-data-table";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { getStrategySplitTableColumns } from "./strategy-split-table-columns";
 import { getStrategyClustersTableColumns, type StrategyClusterRow } from "./strategy-clusters-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface StrategySplitViewProps {
-  businessId?: string;
   leftTableData: StrategyRow[];
   clustersData: StrategyClusterRow[];
   selectedTopicId: string | null;
@@ -20,11 +17,9 @@ interface StrategySplitViewProps {
   onSearchChange: (value: string) => void;
   onBack?: () => void;
   pageCount?: number;
-  businessRelevanceRange?: { min: number; max: number };
 }
 
 export const StrategySplitView = React.memo(function StrategySplitView({
-  businessId,
   leftTableData,
   clustersData,
   selectedTopicId,
@@ -33,15 +28,14 @@ export const StrategySplitView = React.memo(function StrategySplitView({
   onSearchChange,
   onBack,
   pageCount = 1,
-  businessRelevanceRange: _businessRelevanceRange = { min: 0, max: 1 },
 }: StrategySplitViewProps) {
   const enableAdvancedFilter = true;
 
   const [expandedClusterRowId, setExpandedClusterRowId] = React.useState<string | null>(null);
 
   const leftColumns = React.useMemo(
-    () => getStrategySplitTableColumns({ businessId }),
-    [businessId]
+    () => getStrategySplitTableColumns(),
+    []
   );
 
   const clustersColumns = React.useMemo(
@@ -106,9 +100,6 @@ export const StrategySplitView = React.memo(function StrategySplitView({
   );
 
   const pageSizeOptions = React.useMemo(() => [10, 30, 50, 100, 200], []);
-  const handleDownloadCsv = React.useCallback(() => {
-    downloadRowsAsCsv(filteredClustersData, "strategy-clusters.csv");
-  }, [filteredClustersData]);
 
   const leftTableProps = React.useMemo(
     () => ({
@@ -203,12 +194,6 @@ export const StrategySplitView = React.memo(function StrategySplitView({
         leftTableWidth="35%"
         rightTableWidth="65%"
         onBack={onBack}
-        toolbarActions={
-          <DownloadCsvButton
-            onDownload={handleDownloadCsv}
-            disabled={filteredClustersData.length === 0}
-          />
-        }
       />
     </div>
   );

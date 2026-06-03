@@ -14,28 +14,25 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { StrategyRow } from "@/types/strategy-types";
 import { Typography } from "@/components/ui/typography";
 import { formatVolume } from "@/lib/format";
-import { StrategyTopicCtas } from "./strategy-topic-ctas";
 
 // Helper to format percentage
 function formatPercentage(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
+const BUSINESS_RELEVANCE_OPTIONS = [
+  { label: "High", value: "high" },
+  { label: "Medium", value: "medium" },
+  { label: "Low", value: "low" },
+];
+
 interface GetStrategyTableColumnsProps {
-  businessId?: string;
   offeringCounts?: Record<string, number>;
-  businessRelevanceRange?: { min: number; max: number };
-  topicCoverageRange?: { min: number; max: number };
-  searchVolumeRange?: { min: number; max: number };
 }
 
 export function getStrategyTableColumns({
-  businessId,
   offeringCounts = {},
-  businessRelevanceRange = { min: 0, max: 1 },
-  topicCoverageRange = { min: 0, max: 1 },
-  searchVolumeRange = { min: 0, max: 10000 },
-}: GetStrategyTableColumnsProps): ColumnDef<StrategyRow>[] {
+}: GetStrategyTableColumnsProps = {}): ColumnDef<StrategyRow>[] {
   return [
     {
       id: "topic",
@@ -44,12 +41,9 @@ export function getStrategyTableColumns({
         <DataTableColumnHeader column={column} label="Topic" />
       ),
       cell: ({ row }) => (
-        <div className="flex w-full min-w-0 items-center justify-between gap-2">
-          <Typography variant="p" className="min-w-0 flex-1 truncate">
-            {row.getValue("topic")}
-          </Typography>
-          <StrategyTopicCtas businessId={businessId} row={row.original} className="ml-0" />
-        </div>
+        <Typography variant="p" className="truncate">
+          {row.getValue("topic")}
+        </Typography>
       ),
       meta: {
         label: "Topic",
@@ -78,12 +72,10 @@ export function getStrategyTableColumns({
         );
       },
       meta: {
-        label: "Business Relevance",
-        variant: "range",
-        range: [
-          Math.round(businessRelevanceRange.min * 100),
-          Math.round(businessRelevanceRange.max * 100),
-        ],
+        label: "Relevance",
+        variant: "multiSelect",
+        options: BUSINESS_RELEVANCE_OPTIONS,
+        operators: [{ label: "Is any of", value: "inArray" as const }],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -105,11 +97,14 @@ export function getStrategyTableColumns({
         );
       },
       meta: {
-        label: "Topic Coverage",
+        label: "Coverage",
         variant: "range",
-        range: [
-          Math.round(topicCoverageRange.min * 100),
-          Math.round(topicCoverageRange.max * 100),
+        range: [0, 100],
+        unit: "%",
+        operators: [
+          { label: "Is between", value: "isBetween" as const },
+          { label: "Is at least", value: "gte" as const },
+          { label: "Is at most", value: "lte" as const },
         ],
         icon: CalendarIcon,
       },
@@ -134,7 +129,13 @@ export function getStrategyTableColumns({
       meta: {
         label: "Volume",
         variant: "range",
-        range: [searchVolumeRange.min, searchVolumeRange.max],
+        range: [0, 10000000],
+        placeholder: "e.g. 10K or 1M",
+        operators: [
+          { label: "Is between", value: "isBetween" as const },
+          { label: "Is at least", value: "gte" as const },
+          { label: "Is at most", value: "lte" as const },
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -161,7 +162,7 @@ export function getStrategyTableColumns({
         variant: "text",
         icon: Building2,
       },
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       enableSorting: false,
       size: 100,
       minSize: 80,

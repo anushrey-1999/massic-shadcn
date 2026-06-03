@@ -18,20 +18,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BUSINESS_RELEVANCE_PALETTE,
   StrategyBubbleChart,
-  type StrategyBubbleColorMetric,
 } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
+import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
-import { CircleDot, List, ListFilter, Loader2 } from "lucide-react";
+import { CircleDot, List, Loader2 } from "lucide-react";
 import type { StrategyMetrics } from "@/types/strategy-types";
 import type { AudienceMetrics } from "@/types/audience-types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -48,160 +40,6 @@ interface PageProps {
   skipEntitlements?: boolean;
 }
 
-type RelevanceFilter = "high" | "medium" | "low";
-
-const RELEVANCE_FILTER_OPTIONS: Array<{
-  value: RelevanceFilter;
-  label: string;
-  description: string;
-}> = [
-  { value: "high", label: "High", description: "More than 70%" },
-  { value: "medium", label: "Medium", description: "40% to 70%" },
-  { value: "low", label: "Low", description: "Less than 40%" },
-];
-
-function getRelevancePercent(score?: number) {
-  if (score === undefined || score === null || !Number.isFinite(score)) return null;
-  return score <= 1 ? score * 100 : score;
-}
-
-function matchesRelevanceFilter(score: number, filters: RelevanceFilter[]) {
-  if (filters.length === 0) return true;
-
-  const percent = getRelevancePercent(score);
-  if (percent === null) return false;
-
-  return filters.some((filter) => {
-    if (filter === "high") return percent > 70;
-    if (filter === "medium") return percent >= 40 && percent <= 70;
-    return percent < 40;
-  });
-}
-
-function StrategyMapRelevanceFilter({
-  selectedFilters,
-  onToggle,
-  onReset,
-  offeringOptions,
-  selectedOffering,
-  onOfferingChange,
-  formatOfferingLabel,
-}: {
-  selectedFilters: RelevanceFilter[];
-  onToggle: (value: RelevanceFilter) => void;
-  onReset: () => void;
-  offeringOptions: string[];
-  selectedOffering: string;
-  onOfferingChange: (value: string) => void;
-  formatOfferingLabel: (value: string) => string;
-}) {
-  const selectedSet = React.useMemo(
-    () => new Set(selectedFilters),
-    [selectedFilters]
-  );
-  const activeFilterCount =
-    selectedFilters.length + (selectedOffering === "all" ? 0 : 1);
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          aria-label="Filter relevance"
-          className={`h-10 font-normal ${activeFilterCount > 0
-            ? "min-w-10 px-2 gap-1.5"
-            : "w-10 p-0"
-            }`}
-        >
-          <ListFilter className="text-muted-foreground h-4 w-4" />
-          {activeFilterCount > 0 && (
-            <Badge
-              variant="secondary"
-              className="h-[18.24px] rounded-[3.2px] px-[5.12px] font-mono font-normal text-[10.4px]"
-            >
-              {activeFilterCount}
-            </Badge>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="flex w-full max-w-(--radix-popover-content-available-width) flex-col gap-3.5 p-4 sm:min-w-[320px]"
-      >
-        <div className="flex flex-col gap-1">
-          <h4 className="font-medium leading-none">
-            {activeFilterCount > 0 ? "Filters" : "No filters applied"}
-          </h4>
-          <p className="text-muted-foreground text-sm">
-            Filter topics by offering and business relevance.
-          </p>
-        </div>
-
-        {offeringOptions.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <Typography
-              variant="p"
-              className="text-sm font-medium text-general-muted-foreground"
-            >
-              Offerings
-            </Typography>
-            <Select value={selectedOffering} onValueChange={onOfferingChange}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All offerings" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All offerings</SelectItem>
-                {offeringOptions.map((offering) => (
-                  <SelectItem key={offering} value={offering}>
-                    {formatOfferingLabel(offering)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : null}
-
-        <div className="flex flex-col gap-2">
-          <Typography
-            variant="p"
-            className="text-sm font-medium text-general-muted-foreground"
-          >
-            Relevance
-          </Typography>
-          {RELEVANCE_FILTER_OPTIONS.map((option) => (
-            <label
-              key={option.value}
-              className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 hover:bg-accent"
-            >
-              <Checkbox
-                checked={selectedSet.has(option.value)}
-                onCheckedChange={() => onToggle(option.value)}
-              />
-              <span className="flex flex-col">
-                <span className="text-sm font-medium">{option.label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {option.description}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
-
-        {activeFilterCount > 0 ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-fit rounded"
-            onClick={onReset}
-          >
-            Reset filters
-          </Button>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [primaryTab, setPrimaryTab] = React.useState<
     "strategy" | "audience" | "landscape"
@@ -216,10 +54,6 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     "list"
   );
   const [selectedOffering, setSelectedOffering] = React.useState<string>("all");
-  const [bubbleColorMetric, setBubbleColorMetric] =
-    React.useState<StrategyBubbleColorMetric>("topicCoverage");
-  const [selectedRelevanceFilters, setSelectedRelevanceFilters] =
-    React.useState<RelevanceFilter[]>([]);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -275,39 +109,17 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     setSelectedOffering("all");
   }, [offeringOptions, selectedOffering]);
 
-  const toggleRelevanceFilter = React.useCallback((value: RelevanceFilter) => {
-    setSelectedRelevanceFilters((current) =>
-      current.includes(value)
-        ? current.filter((filter) => filter !== value)
-        : [...current, value]
-    );
-  }, []);
-
-  const resetRelevanceFilters = React.useCallback(() => {
-    setSelectedRelevanceFilters([]);
-    setSelectedOffering("all");
-  }, []);
-
   const filteredBubbleData = React.useMemo(() => {
     const rows = fullData?.data ?? [];
+    if (selectedOffering === "all") return rows;
 
     return rows.filter((row) => {
       const offerings = Array.isArray(row.offerings) ? row.offerings : [];
-      const matchesOffering =
-        selectedOffering === "all" ||
-        offerings.some(
-          (o) => typeof o === "string" && o.trim() === selectedOffering
-        );
-
-      return (
-        matchesOffering &&
-        matchesRelevanceFilter(
-          row.business_relevance_score,
-          selectedRelevanceFilters
-        )
+      return offerings.some(
+        (o) => typeof o === "string" && o.trim() === selectedOffering
       );
     });
-  }, [fullData?.data, selectedOffering, selectedRelevanceFilters]);
+  }, [fullData?.data, selectedOffering]);
 
   const headerMetricsText = React.useMemo(() => {
     if (primaryTab === "strategy") {
@@ -416,27 +228,15 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                   </div>
                 ) : (
                   <div className="flex-1 min-h-0 overflow-hidden">
-                    <div className="bg-white rounded-lg p-4 h-full flex flex-col gap-2.5 overflow-hidden">
-                      <div className="flex w-full items-start justify-between gap-2 p-1">
+                    <Card className="h-full w-full p-4 rounded-lg border-none shadow-none flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
                         <div>
-                          <Select
-                            value={bubbleColorMetric}
-                            onValueChange={(value) =>
-                              setBubbleColorMetric(value as StrategyBubbleColorMetric)
-                            }
+                          <Typography
+                            variant="p"
+                            className="font-mono mb-2 text-base text-general-muted-foreground"
                           >
-                            <SelectTrigger className="mb-2 w-[220px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="topicCoverage">
-                                Topic Coverage
-                              </SelectItem>
-                              <SelectItem value="businessRelevance">
-                                Business Relevance
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                            Topic Coverage
+                          </Typography>
                           <div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
                             <div className="absolute inset-0 flex">
                               {BUSINESS_RELEVANCE_PALETTE.map((color) => (
@@ -459,15 +259,38 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                         </div>
 
                         <div className="flex items-center gap-4">
-                          <StrategyMapRelevanceFilter
-                            selectedFilters={selectedRelevanceFilters}
-                            onToggle={toggleRelevanceFilter}
-                            onReset={resetRelevanceFilters}
-                            offeringOptions={offeringOptions}
-                            selectedOffering={selectedOffering}
-                            onOfferingChange={setSelectedOffering}
-                            formatOfferingLabel={formatOfferingLabel}
-                          />
+                          <Typography
+                            variant="p"
+                            className="text-base font-mono text-general-muted-foreground"
+                          >
+                            {fullData?.data
+                              ? `${filteredBubbleData.length} topic${filteredBubbleData.length === 1 ? "" : "s"
+                              }${selectedOffering === "all"
+                                ? ""
+                                : ` (of ${fullData.data.length})`
+                              }`
+                              : isLoadingFullData
+                                ? "Loading.."
+                                : "No data"}
+                          </Typography>
+                          {offeringOptions.length > 0 ? (
+                            <Select
+                              value={selectedOffering}
+                              onValueChange={setSelectedOffering}
+                            >
+                              <SelectTrigger className="w-[240px] max-w-[45vw]">
+                                <SelectValue placeholder="All offerings" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All offerings</SelectItem>
+                                {offeringOptions.map((offering) => (
+                                  <SelectItem key={offering} value={offering}>
+                                    {formatOfferingLabel(offering)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : null}
                           {strategyViewTabs}
                         </div>
                       </div>
@@ -486,10 +309,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                             </p>
                           </div>
                         ) : fullData?.data ? (
-                          <StrategyBubbleChart
-                            data={filteredBubbleData}
-                            colorMetric={bubbleColorMetric}
-                          />
+                          <StrategyBubbleChart data={filteredBubbleData} />
                         ) : (
                           <div className="flex items-center justify-center h-full">
                             <p className="text-muted-foreground">
@@ -498,7 +318,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </Card>
                   </div>
                 )
               ) : (

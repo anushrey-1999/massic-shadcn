@@ -251,18 +251,18 @@ function WindowTag({ bucket, baseline }: { bucket: string; baseline: PrimaryDriv
 
 function NoticeBar({ icon, text }: { icon?: React.ReactNode; text: string }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#FFFBEB] border border-[#FAC775] text-[#633806] text-[12px]">
+    <div className="flex min-w-0 max-w-full items-start gap-2 rounded-md border border-[#FAC775] bg-[#FFFBEB] px-3 py-2 text-[12px] text-[#633806]">
       {icon ?? <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-[#B45309]" />}
-      <span>{text}</span>
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{text}</span>
     </div>
   )
 }
 
 function InfoBar({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-[12px]">
+    <div className="flex min-w-0 max-w-full items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-[12px] text-blue-800">
       <Info className="h-3.5 w-3.5 flex-shrink-0 text-blue-500" />
-      <span>{text}</span>
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{text}</span>
     </div>
   )
 }
@@ -288,9 +288,9 @@ function HeadlinePanel({ data }: { data: PrimaryDriversLegacyResponse }) {
   )
 
   return (
-    <div className="px-3.5 py-3 rounded-lg bg-secondary/60 mb-3.5">
+    <div className="mb-3.5 min-w-0 max-w-full overflow-hidden rounded-lg bg-secondary/60 px-3.5 py-3">
       {/* Top line */}
-      <p className="text-[15px] leading-[1.5] mb-1">
+      <p className="mb-1 min-w-0 break-words text-[15px] leading-[1.5] [overflow-wrap:anywhere]">
         {reels.map((reel, i) => (
           <React.Fragment key={i}>
             {i > 0 && <span className="text-foreground/70 mx-[6px] text-[18px] leading-none">·</span>}
@@ -301,7 +301,7 @@ function HeadlinePanel({ data }: { data: PrimaryDriversLegacyResponse }) {
 
       {/* Bottom line */}
       {bottomParts.length > 0 && (
-        <p className="text-[12px] leading-[1.6] text-muted-foreground">
+        <p className="min-w-0 break-words text-[12px] leading-[1.6] text-muted-foreground [overflow-wrap:anywhere]">
           {bottomParts.map((part, i) => (
             <React.Fragment key={i}>
               {i > 0 && <span className="mx-1 text-foreground/60 text-[14px] leading-none">·</span>}
@@ -326,13 +326,13 @@ function WinsBar({ wins }: { wins: PrimaryDriversWin[] }) {
   if (!wins || wins.length === 0) return null
 
   return (
-    <div className="flex items-baseline gap-2 px-3 py-2 bg-[#F0FDFA] rounded-lg border border-[#9FE1CB] mb-4">
+    <div className="mb-4 flex min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-lg border border-[#9FE1CB] bg-[#F0FDFA] px-3 py-2">
       <span className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.08em] text-[#0F6E56]">
         Wins
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
         {wins.map((win, i) => (
-          <span key={i} className="text-[12px] leading-snug text-[#085041]">
+          <span key={i} className="min-w-0 break-words text-[12px] leading-snug text-[#085041] [overflow-wrap:anywhere]">
             <span className="text-[#9FE1CB] mr-1">·</span>
             {win.label} {win.value}
           </span>
@@ -463,7 +463,7 @@ function buildQuerySummary(queries: PrimaryDriversQuery[]) {
 function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d: boolean }) {
   if (is7d) {
     return (
-      <div className="pl-8 pr-4 py-2 text-[11px] text-muted-foreground bg-secondary/40 border-t border-dashed border-border/50">
+    <div className="min-w-0 break-words border-t border-dashed border-border/50 bg-secondary/40 py-2 pl-8 pr-4 text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
         Query data unavailable for 7-day windows
       </div>
     )
@@ -480,9 +480,9 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
     : avgPos > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
 
   return (
-    <div className="pl-8 pr-4 py-2.5 bg-secondary/30 border-t border-dashed border-border/50">
+    <div className="min-w-0 max-w-full overflow-hidden border-t border-dashed border-border/50 bg-secondary/30 py-2.5 pl-8 pr-4">
       {/* Summary numbers */}
-      <div className="flex gap-3 mb-1.5">
+      <div className="mb-1.5 flex flex-wrap gap-3">
         <span className={cn("text-[11px] font-medium", clicksColor)}>
           <span className="text-[9px] font-normal text-muted-foreground mr-0.5">clicks</span>
           {fmtAbsolute(totalClicks)}
@@ -498,11 +498,11 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
       </div>
 
       {/* Query pills */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex min-w-0 max-w-full flex-wrap gap-1.5">
         {queries.map((q, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
-              <span className="text-[11px] px-2 py-[3px] rounded-full bg-background border border-border/60 text-muted-foreground max-w-[240px] truncate cursor-default">
+              <span className="max-w-full cursor-default rounded-full border border-border/60 bg-background px-2 py-[3px] text-[11px] text-muted-foreground sm:max-w-[240px] whitespace-normal break-words [overflow-wrap:anywhere]">
                 {q.query}
               </span>
             </TooltipTrigger>
@@ -536,20 +536,20 @@ function PageRow({
   const showQuerySection = isOrganic  // organic shows query section (7d shows "unavailable")
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full overflow-hidden">
       {/* Page row */}
-      <div className="flex items-center justify-between pl-8 pr-4 py-2 gap-3 hover:bg-secondary/40 transition-colors">
-        <div className="min-w-0 flex-1 overflow-hidden">
+      <div className="grid min-w-0 gap-2 py-2 pl-8 pr-4 transition-colors hover:bg-secondary/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+        <div className="min-w-0 overflow-hidden">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="block truncate text-[11px] font-mono text-muted-foreground cursor-default max-w-[220px]">
+              <span className="block min-w-0 cursor-default break-all font-mono text-[11px] text-muted-foreground sm:max-w-[220px] sm:truncate">
                 {page.value}
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[400px] break-all text-xs">{page.value}</TooltipContent>
           </Tooltip>
         </div>
-        <div className="flex gap-3 flex-shrink-0">
+        <div className="flex min-w-0 flex-wrap gap-3 sm:flex-shrink-0 sm:justify-end">
           {stats.map((def, i) => (
             <div key={i} className="text-right">
               <p className="text-[9px] uppercase tracking-[0.06em] text-muted-foreground/60 mb-px">
@@ -624,19 +624,19 @@ function ChannelBlock({
   const shownPct = lastPage?.coverage_pct ?? ch.coverage_pct
 
   return (
-    <div className="rounded-xl overflow-hidden border border-border/40">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/40">
       {/* Channel header */}
       <div className={cn(
-        "flex items-center justify-between px-4 py-3 gap-3",
+        "grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center",
         isPos
           ? "bg-[#F0FDFA] border-b border-[#9FE1CB]"
           : "bg-[#FEF2F2] border-b border-[#F7C1C1]",
       )}>
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-start gap-2.5">
           <div className={cn("w-1 h-[22px] rounded-sm flex-shrink-0", isPos ? "bg-[#1D9E75]" : "bg-[#E24B4A]")} />
-          <span className="text-[13px] font-medium">{ch.value}</span>
+          <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere]">{ch.value}</span>
         </div>
-        <div className="flex gap-4 flex-wrap justify-end">
+        <div className="flex min-w-0 flex-wrap gap-4 sm:justify-end">
           {stats.map((def, i) => (
             <ChStat key={i} def={def} />
           ))}
@@ -865,11 +865,11 @@ function LegacyPrimaryDriversSnapshotView({
   businessName: string
 }) {
   return (
-    <div className="space-y-3.5">
-      <div>
-        <p className="mb-1 text-[15px] font-medium text-foreground">{businessName}</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] text-muted-foreground">
+    <div className="min-w-0 max-w-full space-y-3.5 overflow-hidden">
+      <div className="min-w-0">
+        <p className="mb-1 break-words text-[15px] font-medium text-foreground [overflow-wrap:anywhere]">{businessName}</p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
             {fmtDateRange(data.date_range.start, data.date_range.end)}
             <span className="mx-1.5">·</span>
             vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
@@ -933,7 +933,7 @@ function flagCopy(flag: string): string {
 
 function CtaPills({ channels }: { channels: PrimaryDriversV2Channel[] }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex min-w-0 max-w-full flex-wrap gap-1.5 overflow-hidden">
       {channels.map((channel) => {
         const delta = channel.goals_delta ?? 0
         const cls = delta > 0
@@ -942,7 +942,7 @@ function CtaPills({ channels }: { channels: PrimaryDriversV2Channel[] }) {
             ? "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
             : "border-border/60 bg-secondary/30 text-muted-foreground"
         return (
-          <span key={channel.channel_name} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", cls)}>
+          <span key={channel.channel_name} className={cn("max-w-full whitespace-normal break-words rounded-full border px-2 py-0.5 text-[11px] font-medium [overflow-wrap:anywhere]", cls)}>
             {channel.channel_name} {fmtAbsolute(delta)}
           </span>
         )
@@ -959,7 +959,7 @@ function V2QueryChips({ page }: { page: PrimaryDriversV2Page }) {
         <Tooltip key={`${query.full_query_text}-${index}`}>
           <TooltipTrigger asChild>
             <span className={cn(
-              "max-w-full truncate rounded-full border px-2 py-[3px] text-[11px] sm:max-w-[220px]",
+              "max-w-full whitespace-normal break-words rounded-full border px-2 py-[3px] text-[11px] [overflow-wrap:anywhere] sm:max-w-[220px]",
               query.is_branded
                 ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
                 : "border-border/60 bg-background text-muted-foreground",
@@ -979,12 +979,12 @@ function V2QueryChips({ page }: { page: PrimaryDriversV2Page }) {
 function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; organic: boolean }) {
   return (
     <div className="min-w-0 max-w-full overflow-hidden border-t border-border/40 px-3 py-2.5 sm:px-4">
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <SourceFavicon sourceName={source.source_name} fallback={organic ? "search" : "auto"} />
-          <span className="truncate text-[13px] font-medium">{source.source_name}</span>
+      <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+        <div className="flex min-w-0 items-start gap-2 sm:items-center">
+          <SourceFavicon sourceName={source.source_name} fallback={organic ? "search" : "auto"} className="mt-0.5 sm:mt-0" />
+          <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere] sm:truncate">{source.source_name}</span>
         </div>
-        <div className="flex min-w-0 flex-wrap justify-end gap-x-3 gap-y-1 text-right">
+        <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[11px] text-right sm:justify-end sm:text-[12px]">
           <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.goals_delta))}>{fmtAbsolute(source.goals_delta)}</span>
           <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.sessions_delta))}>{fmtAbsolute(source.sessions_delta)}</span>
         </div>
@@ -993,7 +993,7 @@ function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; orga
         {source.pages.map((page, index) => (
           <div key={`${page.page_path}-${index}`} className="min-w-0 max-w-full overflow-hidden rounded-md bg-secondary/30 px-3 py-2">
             <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
-              <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground">{page.page_path}</span>
+              <span className="min-w-0 break-all font-mono text-[11px] text-muted-foreground sm:truncate">{page.page_path}</span>
               <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[11px] tabular-nums sm:justify-end">
                 <span className={deltaColor(page.goals_delta)}>goals {fmtAbsolute(page.goals_delta)}</span>
                 <span className={deltaColor(page.sessions_delta)}>sessions {fmtAbsolute(page.sessions_delta)}</span>
@@ -1015,12 +1015,12 @@ function V2ChannelBlock({ channel }: { channel: PrimaryDriversV2Channel }) {
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border/50 bg-white">
-      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-left sm:px-4">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <div className="grid w-full min-w-0 gap-3 px-3 py-3 text-left sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
+        <div className="flex min-w-0 items-start gap-2.5">
           <div className={cn("h-6 w-[3px] rounded-full", bar)} />
-          <span className="truncate text-[13px] font-medium">{channel.channel_name}</span>
+          <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere]">{channel.channel_name}</span>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 sm:justify-end">
           <ChStat def={{ key: "goals", value: channel.goals_delta }} />
           <ChStat def={{ key: "sessions", value: channel.sessions_delta }} />
           {organic ? <ChStat def={{ key: "clicks", value: channel.clicks_delta }} /> : null}
@@ -1062,18 +1062,18 @@ function CtaCard({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="w-full px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/20"
+        className="w-full min-w-0 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/20"
       >
         <div className="flex min-w-0 items-start gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <span className="truncate font-mono text-[14px] font-medium">{cta.display_name}</span>
-              <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[12px] font-semibold tabular-nums", badgeCls)}>
+            <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
+              <span className="min-w-0 break-words font-mono text-[14px] font-medium [overflow-wrap:anywhere]">{cta.display_name}</span>
+              <span className={cn("w-fit max-w-full shrink-0 whitespace-normal break-words rounded-full border px-2 py-0.5 text-left text-[12px] font-semibold tabular-nums [overflow-wrap:anywhere]", badgeCls)}>
                 {fmtAbsolute(cta.absolute_delta)} ({pctDisplay(cta.pct_change)})
               </span>
             </div>
             {cta.why_sentence ? (
-              <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">{cta.why_sentence}</p>
+              <p className="mt-1.5 min-w-0 break-words text-[13px] leading-5 text-muted-foreground [overflow-wrap:anywhere]">{cta.why_sentence}</p>
             ) : null}
             <div className="mt-2">
               <CtaPills channels={cta.channels} />
@@ -1123,9 +1123,9 @@ function V2PrimaryDriversSnapshotView({
 
   return (
     <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
-      <div>
-        <p className="text-[15px] font-medium text-foreground">{businessName}</p>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+      <div className="min-w-0">
+        <p className="break-words text-[15px] font-medium text-foreground [overflow-wrap:anywhere]">{businessName}</p>
+        <p className="mt-1 break-words text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
           {fmtDateRange(data.date_range.start, data.date_range.end)}
           <span className="mx-1.5">·</span>
           vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
@@ -1216,20 +1216,20 @@ function CallPrepHistoryList({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-end justify-between gap-3">
-        <div>
+    <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">Meeting Prep Notes History</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="break-words text-xs text-muted-foreground">
             Open any saved run to review the generated notes and the matching Primary Drivers snapshot.
           </p>
         </div>
-        <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+        <span className="w-fit shrink-0 rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
           {items.length} saved
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-general-border bg-card">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-general-border bg-card">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-general-border/70 px-5 py-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           <span>Period</span>
           <span>Generated</span>
@@ -1245,7 +1245,7 @@ function CallPrepHistoryList({
             >
               <div className="min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-[15px] font-medium text-foreground transition-colors group-hover:text-foreground/90">
+                  <p className="min-w-0 break-words text-[15px] font-medium text-foreground transition-colors group-hover:text-foreground/90">
                     {item.period_start && item.period_end
                       ? fmtDateRange(item.period_start, item.period_end)
                       : "Period unavailable"}
@@ -1254,7 +1254,7 @@ function CallPrepHistoryList({
                     {getHistoryWindowBucketLabel(item.window_bucket)}
                   </span>
                 </div>
-                <p className="text-[12px] text-muted-foreground">
+                <p className="min-w-0 break-words text-[12px] text-muted-foreground">
                   {item.comparison_start && item.comparison_end
                     ? `Compared with ${fmtDateRange(item.comparison_start, item.comparison_end)}`
                     : "Comparison period unavailable"}
@@ -1462,7 +1462,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full border-l border-general-border p-0 pt-8 sm:max-w-2xl">
+      <SheetContent className="w-full max-w-full overflow-hidden border-l border-general-border p-0 pt-8 sm:max-w-2xl">
 
         {/* Sheet header — sticky */}
         <SheetHeader className="border-b border-general-border bg-background px-6 py-4">
@@ -1522,7 +1522,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
         </SheetHeader>
 
         {/* Body */}
-        <div className="flex-1 overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-hidden">
           {mode === "current" ? (
             <>
               {isLoading ? (
@@ -1544,8 +1544,8 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
             </div>
           ) : data ? (
             <div className="relative flex h-full flex-col">
-              <ScrollArea className="flex-1">
-                <div className="min-w-0 max-w-full px-4 py-5 sm:px-6">
+              <ScrollArea className="min-w-0 flex-1 overflow-x-hidden">
+                <div className="w-full min-w-0 max-w-full overflow-hidden px-4 py-5 sm:px-6">
                   {view === "call-brief" && currentCallBrief ? (
                     <CallPrepBriefView callBrief={currentCallBrief} wins={getPrimaryDriversWins(data)} />
                   ) : (
@@ -1615,8 +1615,8 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
             </>
           ) : (
               <div className="flex h-full flex-col">
-                <ScrollArea className="flex-1">
-                  <div className="min-w-0 max-w-full px-4 py-5 sm:px-6">
+                <ScrollArea className="min-w-0 flex-1 overflow-x-hidden">
+                  <div className="w-full min-w-0 max-w-full overflow-hidden px-4 py-5 sm:px-6">
                     {selectedHistoryRunId ? (
                       historyDetailQuery.isLoading ? (
                         <div className="flex h-full min-h-[320px] items-center justify-center">
@@ -1636,10 +1636,10 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                           </p>
                         </div>
                       ) : historyDetail ? (
-                        <div className="space-y-4">
+                        <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
                           <div>
-                            <p className="text-[15px] font-medium text-foreground">{historyCallBriefSnapshot?.business_name || businessName}</p>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
+                            <p className="break-words text-[15px] font-medium text-foreground">{historyCallBriefSnapshot?.business_name || businessName}</p>
+                            <p className="mt-1 break-words text-[11px] text-muted-foreground">
                               Saved {historyDetail.date_generated || "Unknown date"} at {historyDetail.time_generated || "Unknown time"}
                             </p>
                           </div>
@@ -1647,18 +1647,18 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                           <Tabs
                             value={historyDetailTab}
                             onValueChange={(nextValue) => setHistoryDetailTab(nextValue as HistoryDetailTab)}
-                            className="space-y-4"
+                            className="min-w-0 max-w-full space-y-4 overflow-hidden"
                           >
-                            <TabsList className="grid w-full grid-cols-2">
-                              <TabsTrigger value="call-brief" className="w-full">
+                            <TabsList className="grid w-full min-w-0 grid-cols-2">
+                              <TabsTrigger value="call-brief" className="min-w-0 w-full px-2 text-xs sm:text-sm">
                                 Meeting Prep Notes
                               </TabsTrigger>
-                              <TabsTrigger value="primary-drivers" className="w-full">
+                              <TabsTrigger value="primary-drivers" className="min-w-0 w-full px-2 text-xs sm:text-sm">
                                 Primary Drivers Snapshot
                               </TabsTrigger>
                             </TabsList>
 
-                            <TabsContent value="call-brief" className="mt-0">
+                            <TabsContent value="call-brief" className="mt-0 min-w-0 max-w-full overflow-hidden">
                               {historyCallBriefSnapshot ? (
                                 <CallPrepBriefView
                                   callBrief={historyCallBriefSnapshot}
@@ -1674,7 +1674,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                               )}
                             </TabsContent>
 
-                            <TabsContent value="primary-drivers" className="mt-0">
+                            <TabsContent value="primary-drivers" className="mt-0 min-w-0 max-w-full overflow-hidden">
                               {historyPrimaryDriversSnapshot ? (
                                 <PrimaryDriversSnapshotView
                                   data={historyPrimaryDriversSnapshot}

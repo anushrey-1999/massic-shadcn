@@ -712,46 +712,44 @@ function PrimaryDriversRangePicker({
           {formatDisplayRange(value)}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto max-w-[min(100vw-1rem,720px)] min-w-[260px] p-0">
+      <PopoverContent align="end" className="w-auto max-w-[min(100vw-1rem,720px)] min-w-[260px] max-h-[calc(100vh-5rem)] overflow-y-auto p-0">
         <div className="border-b bg-muted/20 px-4 py-3">
           <p className="text-sm font-semibold">Select date range</p>
           <p className="text-xs text-muted-foreground">Minimum 7 days. Previous period compared automatically.</p>
           {validationMessage && <p className="mt-1.5 text-xs font-medium text-red-600">{validationMessage}</p>}
         </div>
 
-        <div className="max-h-[min(40vh,320px)] overflow-y-auto">
-          {PERIOD_SELECTOR_GROUPS.map((group, index) => (
-            <div key={group.id}>
-              {index > 0 ? <Separator /> : null}
-              <div className="p-1">
-                {group.options.map((period) => {
-                  const isActive = rangeMatchesPreset(value, period.value)
-                  return (
-                    <button
-                      key={period.id}
-                      type="button"
-                      onClick={() => handlePresetSelect(period.value)}
-                      className={cn(
-                        "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
-                        isActive && "bg-muted",
-                      )}
-                    >
-                      <span className="flex flex-col">
-                        <span className="text-sm font-medium text-foreground">{period.label}</span>
-                        {isActive ? (
-                          <span className="text-xs text-muted-foreground">
-                            {formatTimePeriodSummary(period.value)}
-                          </span>
-                        ) : null}
-                      </span>
-                      {isActive ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : null}
-                    </button>
-                  )
-                })}
-              </div>
+        {PERIOD_SELECTOR_GROUPS.map((group, index) => (
+          <div key={group.id}>
+            {index > 0 ? <Separator /> : null}
+            <div className="p-1">
+              {group.options.map((period) => {
+                const isActive = rangeMatchesPreset(value, period.value)
+                return (
+                  <button
+                    key={period.id}
+                    type="button"
+                    onClick={() => handlePresetSelect(period.value)}
+                    className={cn(
+                      "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
+                      isActive && "bg-muted",
+                    )}
+                  >
+                    <span className="flex flex-col">
+                      <span className="text-sm font-medium text-foreground">{period.label}</span>
+                      {isActive ? (
+                        <span className="text-xs text-muted-foreground">
+                          {formatTimePeriodSummary(period.value)}
+                        </span>
+                      ) : null}
+                    </span>
+                    {isActive ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : null}
+                  </button>
+                )
+              })}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
 
         <Separator />
 

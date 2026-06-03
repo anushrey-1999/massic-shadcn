@@ -715,25 +715,26 @@ export function useGA4Analytics(
   const normalizedChannelsData = useMemo(() => {
     if (channelsData.length === 0) return []
 
-    const sessionsValues = channelsData.map((d) => d.sessions || 0)
-    const goalsValues = channelsData.map((d) => d.goals || 0)
-
-    const minSessions = Math.min(...sessionsValues)
-    const maxSessions = Math.max(...sessionsValues)
-    const minGoals = Math.min(...goalsValues)
-    const maxGoals = Math.max(...goalsValues)
-
-    const scaleValueToBand = (value: number, min: number, max: number, bandStart: number, bandEnd: number): number => {
-      if (max === min) return (bandStart + bandEnd) / 2
-      const normalized = (value - min) / (max - min)
-      return bandStart + normalized * (bandEnd - bandStart)
+    const maxSessions = Math.max(...channelsData.map((item) => item.sessions || 0))
+    const maxGoals = Math.max(...channelsData.map((item) => item.goals || 0))
+    const scaleNonZeroValue = (value: number, max: number, maxWidth: number) => {
+      if (value <= 0 || max <= 0) return 0
+      return 4 + (Math.log1p(value) / Math.log1p(max)) * (maxWidth - 4)
     }
 
-    return channelsData.map((item) => ({
-      ...item,
-      goalsNorm: scaleValueToBand(item.goals, minGoals, maxGoals, 0, 50),
-      sessionsNorm: scaleValueToBand(item.sessions, minSessions, maxSessions, 50, 100),
-    }))
+    return channelsData.map((item) => {
+      const sessions = item.sessions || 0
+      const goals = item.goals || 0
+      const sessionsNorm = scaleNonZeroValue(sessions, maxSessions, 100)
+      const goalsNorm = scaleNonZeroValue(goals, maxGoals, 85)
+      const visibleSessionsNorm = sessions > 0 ? Math.min(Math.max(sessionsNorm, goalsNorm + 10), 100) : 0
+
+      return {
+        ...item,
+        sessionsNorm: visibleSessionsNorm,
+        goalsNorm: Math.min(goalsNorm, visibleSessionsNorm * 0.85),
+      }
+    })
   }, [channelsData])
 
   const handleGoalsFilterChange = useCallback((filter: TableFilterType) => {

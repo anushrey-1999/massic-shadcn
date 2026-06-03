@@ -32,9 +32,11 @@ function getChannelIcon(channelName: string): string | null {
 
 interface GetSocialTableColumnsProps {
   offeringCounts?: Record<string, number>;
+  offeringOptions?: string[];
 }
 
-export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableColumnsProps = {}): ColumnDef<SocialRow>[] {
+export function getSocialTableColumns({ offeringCounts = {}, offeringOptions }: GetSocialTableColumnsProps = {}): ColumnDef<SocialRow>[] {
+  const resolvedOptions = offeringOptions ?? Object.keys(offeringCounts);
   return [
     {
       id: "channel_name",
@@ -167,14 +169,12 @@ export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableCol
       },
       meta: {
         label: "Offerings",
-        variant: "multiSelect",
-        options: Object.keys(offeringCounts).map((offering) => ({
+        variant: "multiSelect" as const,
+        options: resolvedOptions.map((offering) => ({
           label: offering,
           value: offering,
         })),
-        operators: [
-          { label: "Has any of", value: "inArray" as const },
-        ],
+        operators: [{ label: "Has any of", value: "inArray" as const }],
         icon: Building2,
         closeOnSelect: true,
       },

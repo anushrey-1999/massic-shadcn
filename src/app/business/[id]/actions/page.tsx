@@ -30,7 +30,7 @@ export default function BusinessActionsPage({ params }: PageProps) {
   const showActionsContent =
     !jobDetailsLoading &&
     coreStatus === "success" &&
-    isWorkflowSuccess(jobDetails, "blogs_and_pages_planner")
+    isWorkflowSuccess(jobDetails, "webpages")
 
   const businessName = profileData?.Name || profileData?.DisplayName || "Business"
 
@@ -93,7 +93,7 @@ export default function BusinessActionsPage({ params }: PageProps) {
           <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="blogs_and_pages_planner"
+              workflowKey="webpages"
               emptyStateHeight="min-h-[calc(100vh-12rem)]"
             />
           </div>

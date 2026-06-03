@@ -72,8 +72,8 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
   const { data: jobDetails } = useJobByBusinessId(businessId || null)
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
   const isCoreSuccess = coreStatus === "success"
-  const isDigitalReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "digital_ads_opportunity_scorer")
-  const isTvRadioReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "ad_concept_generator")
+  const isDigitalReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "digital_ads_opportunities")
+  const isTvRadioReady = isCoreSuccess && isWorkflowSuccess(jobDetails, "ad_concepts")
 
   return (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
@@ -99,7 +99,7 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="digital_ads_opportunity_scorer"
+              workflowKey="digital_ads_opportunities"
               emptyStateHeight="min-h-[calc(100vh-12rem)]"
             />
           )}
@@ -110,7 +110,7 @@ function AdsEntitledContent({ businessId }: { businessId: string }) {
           ) : (
             <WorkflowStatusBanner
               businessId={businessId}
-              workflowKey="ad_concept_generator"
+              workflowKey="ad_concepts"
               emptyStateHeight="min-h-[calc(100vh-12rem)]"
             />
           )}

@@ -29,6 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { TIME_PERIODS } from "@/hooks/use-gsc-analytics";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { useGenerateReportV2 } from "@/hooks/use-report-runs";
+import { getWorkflowStatus } from "@/lib/workflow-status";
 import { getAnalyticsPeriodBounds, resolveTimePeriodRange, type TimePeriodValue } from "@/utils/analytics-period";
 
 interface GenerateReportDialogProps {
@@ -72,6 +73,8 @@ export function GenerateReportDialog({
   const [customRange, setCustomRange] = React.useState<DateRange | undefined>(() =>
     buildInitialCustomRange("3 months", periodReferenceDate)
   );
+  const [reportScope, setReportScope] = React.useState<"organic" | "all_channels">("organic");
+  const [reportPerspective, setReportPerspective] = React.useState<"wins" | "full_picture">("full_picture");
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [customInstructions, setCustomInstructions] = React.useState("");
   const { minSelectableDate } = React.useMemo(
@@ -82,9 +85,13 @@ export function GenerateReportDialog({
   const { data: jobData, isLoading: isJobLoading } = useJobByBusinessId(businessId);
   const generateReport = useGenerateReportV2();
 
-  const workflowStatus = jobData?.workflow_status?.status;
-  const canGenerate = workflowStatus === "success";
-  const isJobProcessing = workflowStatus === "processing" || workflowStatus === "pending";
+  const coreStatus = getWorkflowStatus(jobData, "core") ?? jobData?.workflow_status?.status;
+  const canGenerate = coreStatus === "success";
+  const isJobProcessing =
+    coreStatus === "processing" ||
+    coreStatus === "pending" ||
+    (Boolean(jobData) && jobData?.workflow_status?.status === null && coreStatus !== "success" && coreStatus !== "error");
+  const hasJobError = coreStatus === "error";
   const hasNoJob = !jobData && !isJobLoading;
 
   // Show toast when dialog opens based on job status
@@ -177,6 +184,10 @@ export function GenerateReportDialog({
         startDate: formatDate(effectiveRange.from, "yyyy-MM-dd"),
         endDate: formatDate(effectiveRange.to, "yyyy-MM-dd"),
         custom_instructions: customInstructions.trim(),
+        report_options: {
+          scope: reportScope,
+          perspective: reportPerspective,
+        },
       });
 
       if (result?.id) {
@@ -317,6 +328,60 @@ export function GenerateReportDialog({
               </p>
             </div>
 
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="report-scope"
+                  className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
+                >
+                  Scope
+                </label>
+                <Select
+                  value={reportScope}
+                  onValueChange={(value) => setReportScope(value as "organic" | "all_channels")}
+                  disabled={!canGenerate || isGenerating}
+                >
+                  <SelectTrigger
+                    id="report-scope"
+                    className="w-full h-10 min-h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pl-3 pr-2 py-[7.5px] gap-2 border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground"
+                    variant="noBorder"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="organic">Organic</SelectItem>
+                    <SelectItem value="all_channels">All channels</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="report-perspective"
+                  className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
+                >
+                  Perspective
+                </label>
+                <Select
+                  value={reportPerspective}
+                  onValueChange={(value) => setReportPerspective(value as "wins" | "full_picture")}
+                  disabled={!canGenerate || isGenerating}
+                >
+                  <SelectTrigger
+                    id="report-perspective"
+                    className="w-full h-10 min-h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pl-3 pr-2 py-[7.5px] gap-2 border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground"
+                    variant="noBorder"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="wins">Wins</SelectItem>
+                    <SelectItem value="full_picture">Full picture</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <label
                 htmlFor="custom-instructions"
@@ -342,7 +407,9 @@ export function GenerateReportDialog({
                 ? "A job is required to generate reports."
                 : isJobProcessing
                   ? "Job is still processing. Please wait for it to complete."
-                  : "Unable to generate report at this time."}
+                  : hasJobError
+                    ? "Job workflow failed. Re-run workflows from the business profile, then try again."
+                    : "Unable to generate report at this time."}
             </p>
           )}
         </div>

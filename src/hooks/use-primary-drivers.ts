@@ -102,7 +102,7 @@ export interface PrimaryDriversBaseline {
 
 // Wins bar entry
 export interface PrimaryDriversWin {
-  type: "driver" | "channel" | "query"
+  type: "driver" | "channel" | "query" | "other_cta"
   label: string
   value: string
 }
@@ -120,8 +120,8 @@ export interface PrimaryDriversOtherGoals {
   direction: PrimaryDriversDirection | null
 }
 
-// Full response
-export interface PrimaryDriversResponse {
+// Legacy v1.3 response, kept for saved snapshots.
+export interface PrimaryDriversLegacyResponse {
   window_bucket: PrimaryDriversWindowBucket
   date_range: {
     start: string
@@ -145,6 +145,88 @@ export interface PrimaryDriversResponse {
   error?: string
   message?: string
 }
+
+export interface PrimaryDriversV2Query {
+  query_text: string
+  full_query_text: string
+  is_branded: boolean
+  clicks_delta: number
+  impressions_delta: number
+  ctr_pp_delta: number
+  position_delta: number
+}
+
+export interface PrimaryDriversV2Page {
+  page_path: string
+  goals_delta: number | null
+  sessions_delta: number | null
+  clicks_delta: number | null
+  impressions_delta: number | null
+  position_delta: number | null
+  queries: PrimaryDriversV2Query[]
+}
+
+export interface PrimaryDriversV2Source {
+  source_name: string
+  goals_delta: number | null
+  sessions_delta: number | null
+  contribution_share?: number
+  pages: PrimaryDriversV2Page[]
+}
+
+export interface PrimaryDriversV2Channel {
+  channel_name: string
+  goals_delta: number | null
+  sessions_delta: number | null
+  clicks_delta: number | null
+  contribution_share: number
+  coverage_pct: number
+  sources: PrimaryDriversV2Source[]
+}
+
+export interface PrimaryDriversV2Cta {
+  event_name: string
+  display_name: string
+  direction: "up" | "down" | "steady"
+  absolute_delta: number
+  pct_change: number | null
+  current_total: number
+  previous_total: number
+  why_sentence: string | null
+  edge_case_flags: string[]
+  cvr_decomposition: {
+    traffic_effect: number
+    cvr_effect: number
+    cvr_share: number
+  }
+  channels: PrimaryDriversV2Channel[]
+  baseline: {
+    mean: number | null
+    std_dev: number | null
+    pct_vs_baseline: number | null
+    yoy_pct: number | null
+  }
+  wins?: PrimaryDriversWin[]
+  is_primary?: boolean
+  coverage?: PrimaryDriversCoverage
+}
+
+export interface PrimaryDriversV2Response {
+  window_bucket: PrimaryDriversWindowBucket
+  date_range: {
+    start: string
+    end: string
+    comparison_start: string
+    comparison_end: string
+  }
+  ctas: PrimaryDriversV2Cta[]
+  has_more_ctas: boolean
+  total_cta_count: number
+  error?: string
+  message?: string
+}
+
+export type PrimaryDriversResponse = PrimaryDriversLegacyResponse | PrimaryDriversV2Response
 
 export interface CallPrepDateRange {
   start: string
@@ -180,6 +262,14 @@ export interface CallPrepBriefCurveball {
   evaluation_areas: string[]
 }
 
+export interface CallPrepOtherCtaSummary {
+  display_name: string
+  direction: "up" | "down" | "steady"
+  absolute_delta: number
+  pct_change: number | null
+  one_liner: string
+}
+
 export interface CallPrepBriefResponse {
   business_name: string
   date_range: CallPrepDateRange
@@ -199,6 +289,7 @@ export interface CallPrepBriefResponse {
       locations: CallPrepBriefLocation[]
     }
     curveballs: CallPrepBriefCurveball[]
+    other_ctas_summary: CallPrepOtherCtaSummary[]
     confidence_note: string | null
   }
   validation: {
@@ -250,6 +341,7 @@ interface UsePrimaryDriversOptions {
   businessId: string | null
   startDate: string | null
   endDate: string | null
+  includeAllCtas?: boolean
   enabled?: boolean
 }
 
@@ -274,10 +366,11 @@ export function usePrimaryDrivers({
   businessId,
   startDate,
   endDate,
+  includeAllCtas = false,
   enabled = true,
 }: UsePrimaryDriversOptions): UsePrimaryDriversReturn {
   const query = useQuery({
-    queryKey: ["primary-drivers", businessId, startDate, endDate],
+    queryKey: ["primary-drivers", businessId, startDate, endDate, includeAllCtas],
     queryFn: async () => {
       if (!businessId || !startDate || !endDate) return null
 
@@ -288,6 +381,7 @@ export function usePrimaryDrivers({
           business_id: businessId,
           start_date: startDate,
           end_date: endDate,
+          include_all_ctas: includeAllCtas,
         }
       )
 

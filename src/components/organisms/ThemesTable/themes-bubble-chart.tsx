@@ -28,14 +28,18 @@ interface BubbleNode {
 
 type PackedNode = d3.HierarchyCircularNode<BubbleNode>;
 
+export type ThemesBubbleColorMetric = "topicCoverage" | "businessRelevance";
+
 interface ThemesBubbleChartProps {
   data: ThemeRow[];
+  colorMetric?: ThemesBubbleColorMetric;
   width?: number;
   height?: number;
 }
 
 export function ThemesBubbleChart({
   data,
+  colorMetric = "topicCoverage",
   width = 1200,
   height = 800,
 }: ThemesBubbleChartProps) {
@@ -115,10 +119,11 @@ export function ThemesBubbleChart({
         ? node
         : node.ancestors().find((a): a is PackedNode => a.data.type === "theme") ?? null;
     const score = normalizeScore(
-      node.data.data?.coverage ??
-        themeAncestor?.data.data?.coverage ??
-        node.data.data?.relevanceScore ??
-        themeAncestor?.data.data?.relevanceScore
+      colorMetric === "businessRelevance"
+        ? node.data.data?.relevanceScore ??
+            themeAncestor?.data.data?.relevanceScore
+        : node.data.data?.coverage ??
+            themeAncestor?.data.data?.coverage
     );
     const index = Math.max(
       0,
@@ -128,7 +133,7 @@ export function ThemesBubbleChart({
       )
     );
     return BUSINESS_RELEVANCE_PALETTE[index];
-  }, []);
+  }, [colorMetric]);
 
   const formatPercent = useCallback((value?: number) => {
     if (value === undefined || value === null) return "-";

@@ -5,8 +5,6 @@ import { format } from "date-fns";
 import {
   Target,
   MousePointerClick,
-  TrendingUp,
-  TrendingDown,
   ChevronDown,
   AlertTriangle,
   Loader2,
@@ -434,12 +432,11 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
       {triggered.slice(0, 5).map((peak) => {
         const isUp = peak.direction === "up";
         const isAnomaly = peak.tier === "anomaly";
-        const Icon = isUp ? TrendingUp : TrendingDown;
         return (
           <div
             key={peak.date}
             className={cn(
-              "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+              "inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-[3px] text-[11px] font-medium sm:max-w-[220px]",
               isAnomaly
                 ? isUp
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -449,7 +446,6 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
                   : "border-amber-200 bg-amber-50 text-amber-700"
             )}
           >
-            <Icon className="h-3 w-3" />
             <span>{formatPeakDate(peak.date)}</span>
             <span className="font-semibold">{formatPeakDeltaPct(peak.delta_pct)}</span>
             <span className="text-muted-foreground/80">{unit}</span>

@@ -17,9 +17,8 @@ export type DeepdiveApiOperator =
 
 export interface DeepdiveFilter {
   dimension: FilterDimension;
-  expression: string | string[];
-  operator: DeepdiveApiOperator;
-  label?: string;
+  expression: string;
+  operator: "equals" | "contains";
   source?: ContentGroupFilterSource;
 }
 
@@ -50,21 +49,6 @@ function normalizeBrandTerms(brandTerms?: string[] | null): string[] {
     .filter(Boolean);
 }
 
-function normalizeQueryTerms(terms: string[]): string[] {
-  const seen = new Set<string>();
-  const normalizedTerms: string[] = [];
-
-  for (const term of terms) {
-    const normalized = String(term || "").trim();
-    const key = normalized.toLowerCase();
-    if (!normalized || seen.has(key)) continue;
-    seen.add(key);
-    normalizedTerms.push(normalized);
-  }
-
-  return normalizedTerms;
-}
-
 export function useOrganicDeepdiveFilters(
   brandTerms?: string[] | null
 ): UseOrganicDeepdiveFiltersReturn {
@@ -80,21 +64,12 @@ export function useOrganicDeepdiveFilters(
     const result: DeepdiveFilter[] = [];
 
     const query = searchParams.get("query");
-    const queryTerms = normalizeQueryTerms(searchParams.getAll("query_term"));
-    const queryLabel = searchParams.get("query_label")?.trim();
     const page = searchParams.get("page");
     const contentGroup = searchParams.get("content_group");
     const contentGroupType = searchParams.get("content_group_type");
     const keywordScope = searchParams.get("keyword_scope");
 
-    if (queryTerms.length > 0) {
-      result.push({
-        dimension: "query",
-        expression: queryTerms,
-        operator: "contains_any",
-        label: queryLabel || undefined,
-      });
-    } else if (query) {
+    if (query) {
       result.push({ dimension: "query", expression: query, operator: "equals" });
     }
     if (page) {
@@ -144,38 +119,19 @@ export function useOrganicDeepdiveFilters(
       const params = new URLSearchParams(searchParams.toString());
 
       params.delete("query");
-      params.delete("query_term");
-      params.delete("query_label");
       params.delete("page");
       params.delete("content_group");
       params.delete("content_group_type");
       params.delete("keyword_scope");
 
       for (const filter of newFilters) {
-        if (filter.dimension === "query") {
-          if (Array.isArray(filter.expression)) {
-            for (const term of normalizeQueryTerms(filter.expression)) {
-              params.append("query_term", term);
-            }
-            if (filter.label) {
-              params.set("query_label", filter.label);
-            }
-          } else {
-            params.set("query", filter.expression);
-          }
-          continue;
-        }
-
-        if (Array.isArray(filter.expression)) continue;
-
         params.set(filter.dimension, filter.expression);
         if (filter.dimension === "content_group" && filter.source) {
           params.set("content_group_type", filter.source);
         }
       }
 
-      const queryString = params.toString();
-      router.push(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
     },
     [searchParams, router, pathname]
   );
@@ -226,7 +182,6 @@ export function useOrganicDeepdiveFilters(
           dimension: filter.dimension as ApiFilterDimension,
           expression: filter.expression,
           operator: filter.operator,
-          ...(filter.label ? { label: filter.label } : {}),
           ...(filter.dimension === "content_group" && filter.source ? { source: filter.source } : {}),
         },
       ];

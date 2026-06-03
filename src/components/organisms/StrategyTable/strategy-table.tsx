@@ -10,10 +10,8 @@ import type { StrategyRow } from "@/types/strategy-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getStrategyTableColumns } from "./strategy-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface StrategyTableProps {
-  businessId?: string;
   data: StrategyRow[];
   pageCount: number;
   offeringCounts?: Record<string, number>;
@@ -25,11 +23,9 @@ interface StrategyTableProps {
   onRowClick?: (row: StrategyRow) => void;
   toolbarRightPrefix?: React.ReactNode;
   columnVisibilityKey?: string;
-  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function StrategyTable({
-  businessId,
   data,
   pageCount,
   offeringCounts = {},
@@ -41,18 +37,13 @@ export function StrategyTable({
   onRowClick,
   toolbarRightPrefix,
   columnVisibilityKey,
-  onDownloadCsv,
 }: StrategyTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
 
   const columns = React.useMemo(
-    () =>
-      getStrategyTableColumns({
-        businessId,
-        offeringCounts,
-      }),
-    [businessId, offeringCounts]
+    () => getStrategyTableColumns({ offeringCounts }),
+    [offeringCounts]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -114,10 +105,7 @@ export function StrategyTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
-            {onDownloadCsv && (
-              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
-            )}
-            {toolbarRightPrefix}
+               {toolbarRightPrefix}
           </div>
         </div>
       </DataTable>

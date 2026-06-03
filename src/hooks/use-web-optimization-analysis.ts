@@ -66,7 +66,6 @@ function normalizeRow(item: WebOptimizationAnalysisItem, index: number): WebOpti
   const ops = ups > 0 ? ups : scoreFinal > 0 ? scoreFinal * 100 : finalOps * 100;
 
   return {
-    ...item,
     id: `${pageUrl || "page"}-${opportunity || "opp"}-${index}`,
     page_url: pageUrl,
     opportunity,

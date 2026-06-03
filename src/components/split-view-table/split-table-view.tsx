@@ -61,7 +61,6 @@ interface SplitTableViewProps<TLeftData, TRightData> {
 
   // Back button
   onBack?: () => void;
-  toolbarActions?: React.ReactNode;
 
   // Whether to show filter list (FilterList writes to URL params)
   showFilters?: boolean;
@@ -85,7 +84,6 @@ export function SplitTableView<TLeftData, TRightData>({
   rightTableWidth = "65%",
   gap = "1rem",
   onBack,
-  toolbarActions,
   showFilters: _showFilters = true,
 }: SplitTableViewProps<TLeftData, TRightData>) {
   // Memoize searchable columns to avoid finding them on every render
@@ -293,11 +291,6 @@ export function SplitTableView<TLeftData, TRightData>({
               />
             )}
           </div>
-          {toolbarActions && (
-            <div className="flex items-center gap-2">
-              {toolbarActions}
-            </div>
-          )}
         </div>
       </div>
 

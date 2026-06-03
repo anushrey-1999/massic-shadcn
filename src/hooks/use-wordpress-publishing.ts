@@ -80,14 +80,6 @@ interface PublishPayload {
   contentMarkdown?: string;
   excerpt?: string | null;
   head?: Record<string, any>;
-  featuredImage?: {
-    assetId: string;
-    cdnUrl: string;
-    altText?: string | null;
-    mimeType?: string | null;
-    width?: number | null;
-    height?: number | null;
-  } | null;
   workflowSource?: "infer_ai";
   workflowPayload?: Record<string, any>;
 }

@@ -7,8 +7,6 @@ import { useDataTable } from "@/hooks/use-data-table";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { getPersonaSplitTableColumns } from "./persona-split-table-columns";
 import { getAudienceKeywordsTableColumns } from "./audience-keywords-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface AudienceSplitViewProps {
   leftTableData: AudienceRow[];
@@ -105,9 +103,6 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
   );
 
   const pageSizeOptions = React.useMemo(() => [10, 30, 50, 100, 200], []);
-  const handleDownloadCsv = React.useCallback(() => {
-    downloadRowsAsCsv(filteredUseCasesData, "audience-use-cases.csv");
-  }, [filteredUseCasesData]);
 
   const leftTableProps = React.useMemo(
     () => ({
@@ -202,12 +197,6 @@ export const AudienceSplitView = React.memo(function AudienceSplitView({
         leftTableWidth="35%"
         rightTableWidth="65%"
         onBack={onBack}
-        toolbarActions={
-          <DownloadCsvButton
-            onDownload={handleDownloadCsv}
-            disabled={filteredUseCasesData.length === 0}
-          />
-        }
       />
     </div>
   );

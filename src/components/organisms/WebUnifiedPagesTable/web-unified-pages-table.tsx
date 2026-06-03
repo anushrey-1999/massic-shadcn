@@ -11,7 +11,6 @@ import { cn } from "@/lib/utils";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import type { UnifiedPageRow } from "@/hooks/use-unified-web-optimization";
 import { getWebUnifiedPagesTableColumns } from "./web-unified-pages-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 const WEB_UNIFIED_QUERY_KEYS = {
   filters: "webUnifiedFilters",
@@ -28,7 +27,6 @@ interface WebUnifiedPagesTableProps {
   onGenerate?: () => void;
   isGenerating?: boolean;
   onRowClick?: (row: UnifiedPageRow) => void;
-  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function WebUnifiedPagesTable({
@@ -41,7 +39,6 @@ export function WebUnifiedPagesTable({
   onGenerate,
   isGenerating = false,
   onRowClick,
-  onDownloadCsv,
 }: WebUnifiedPagesTableProps) {
   const columns = React.useMemo(
     () => getWebUnifiedPagesTableColumns({ businessId }),
@@ -109,9 +106,6 @@ export function WebUnifiedPagesTable({
               </Button>
             )}
             <DataTableViewOptions table={table} align="end" />
-            {onDownloadCsv && (
-              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
-            )}
           </div>
         </div>
       </div>

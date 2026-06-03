@@ -15,7 +15,6 @@ interface MetricCardProps {
   isLoading?: boolean
   error?: string | null
   emptyMessage?: string
-  tooltipContent?: string
   className?: string
   disableTooltip?: boolean
   showArrowButton?: boolean
@@ -31,7 +30,6 @@ export function MetricCard({
   isLoading = false,
   error = null,
   emptyMessage = "No data available",
-  tooltipContent,
   className,
   disableTooltip = false,
   showArrowButton = false,
@@ -99,16 +97,14 @@ export function MetricCard({
             {emptyStateContent}
           </div>
         </TooltipTrigger>
-        <TooltipContent className="max-w-sm leading-relaxed">
-          {tooltipContent || emptyMessage}
-        </TooltipContent>
+        <TooltipContent>{emptyMessage}</TooltipContent>
       </Tooltip>
     )
   }
 
   const isPositive = change !== undefined ? change >= 0 : true
 
-  const cardContent = (
+  return (
     <div
       className={cn(
         "flex items-center gap-10 bg-card p-3 flex-1 relative group transition-colors",
@@ -158,19 +154,6 @@ export function MetricCard({
         </div>
       )} */}
     </div>
-  )
-
-  if (!tooltipContent || disableTooltip) {
-    return cardContent
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{cardContent}</TooltipTrigger>
-      <TooltipContent className="max-w-sm leading-relaxed">
-        {tooltipContent}
-      </TooltipContent>
-    </Tooltip>
   )
 }
 

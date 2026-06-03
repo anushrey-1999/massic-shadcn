@@ -10,7 +10,6 @@ import type { AudienceRow } from "@/types/audience-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getAudienceTableColumns } from "./audience-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface AudienceTableProps {
   data: AudienceRow[];
@@ -25,7 +24,6 @@ interface AudienceTableProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   onRowClick?: (row: AudienceRow) => void;
-  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function AudienceTable({
@@ -41,7 +39,6 @@ export function AudienceTable({
   search = "",
   onSearchChange,
   onRowClick,
-  onDownloadCsv,
 }: AudienceTableProps) {
   const enableAdvancedFilter = true;
 
@@ -111,9 +108,6 @@ export function AudienceTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
-            {onDownloadCsv && (
-              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
-            )}
           </div>
         </div>
       </DataTable>

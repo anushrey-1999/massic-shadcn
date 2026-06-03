@@ -8,7 +8,6 @@ import { DataTableViewOptions } from "../../filter-table/data-table-view-options
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import type { WebOptimizationAnalysisRow } from "@/types/web-optimization-analysis-types";
 import { getWebOptimizationAnalysisTableColumns } from "./web-optimization-analysis-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 const WEB_OPTIMIZE_QUERY_KEYS = {
   filters: "webOptimizeFilters",
@@ -22,7 +21,6 @@ interface WebOptimizationAnalysisTableProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   onRowClick?: (row: WebOptimizationAnalysisRow) => void;
-  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function WebOptimizationAnalysisTable({
@@ -32,7 +30,6 @@ export function WebOptimizationAnalysisTable({
   search = "",
   onSearchChange,
   onRowClick,
-  onDownloadCsv,
 }: WebOptimizationAnalysisTableProps) {
   const columns = React.useMemo(() => getWebOptimizationAnalysisTableColumns(), []);
 
@@ -77,9 +74,6 @@ export function WebOptimizationAnalysisTable({
           </div>
           <div className="flex items-center gap-2">
             <DataTableViewOptions table={table} align="end" />
-            {onDownloadCsv && (
-              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
-            )}
           </div>
         </div>
       </div>

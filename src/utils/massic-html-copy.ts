@@ -1,4 +1,5 @@
-const MASSIC_BLOG_PAGE_CSS_PUBLIC_PATH = "/massic-blog-page.css";
+const MASSIC_CSS_PUBLIC_PATH = "/wp-massic-page-v2-library.css";
+const MASSIC_BLOG_CSS_PUBLIC_PATH = "/wp-massic-blog-library.css";
 
 const cssTextCache = new Map<string, string>();
 const cssTextPromiseCache = new Map<string, Promise<string>>();
@@ -36,16 +37,12 @@ async function getPublicCssText(path: string): Promise<string> {
   return nextPromise;
 }
 
-export async function getMassicBlogPageCssText(): Promise<string> {
-  return getPublicCssText(MASSIC_BLOG_PAGE_CSS_PUBLIC_PATH);
-}
-
 export async function getMassicCssText(): Promise<string> {
-  return getMassicBlogPageCssText();
+  return getPublicCssText(MASSIC_CSS_PUBLIC_PATH);
 }
 
 export async function getMassicBlogCssText(): Promise<string> {
-  return getMassicBlogPageCssText();
+  return getPublicCssText(MASSIC_BLOG_CSS_PUBLIC_PATH);
 }
 
 function buildCssVarOverrideBlock(cssVarOverrides?: Record<string, string>): string {

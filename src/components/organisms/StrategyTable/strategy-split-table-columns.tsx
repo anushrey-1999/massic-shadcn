@@ -6,13 +6,8 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { StrategyRow } from "@/types/strategy-types";
 import { Typography } from "@/components/ui/typography";
 import { Tag, TrendingUp } from "lucide-react";
-import { StrategyTopicCtas } from "./strategy-topic-ctas";
 
-export function getStrategySplitTableColumns({
-  businessId,
-}: {
-  businessId?: string;
-} = {}): ColumnDef<StrategyRow>[] {
+export function getStrategySplitTableColumns(): ColumnDef<StrategyRow>[] {
   return [
     {
       id: "topic",
@@ -21,12 +16,9 @@ export function getStrategySplitTableColumns({
         <DataTableColumnHeader column={column} label="Topic" />
       ),
       cell: ({ row }) => (
-        <div className="flex w-full min-w-0 items-center justify-between gap-2">
-          <Typography variant="p" className="min-w-0 flex-1 truncate" title={row.getValue("topic") as string}>
-            {row.getValue("topic")}
-          </Typography>
-          <StrategyTopicCtas businessId={businessId} row={row.original} className="ml-0" />
-        </div>
+        <Typography variant="p" className="truncate max-w-[150px]" title={row.getValue("topic") as string}>
+          {row.getValue("topic")}
+        </Typography>
       ),
       meta: {
         label: "Topic",

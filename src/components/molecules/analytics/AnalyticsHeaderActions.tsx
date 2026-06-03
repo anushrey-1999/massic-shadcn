@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Flag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,8 +34,6 @@ interface AnalyticsFilterControlsProps {
   onKeywordScopeChange: (value: AnalyticsKeywordScope) => void;
   showKeywordScope?: boolean;
   hasActiveKeywordScope?: boolean;
-  anomalyHighlightsEnabled?: boolean;
-  onAnomalyHighlightsChange?: (enabled: boolean) => void;
 }
 
 interface AnalyticsReportsActionsProps {
@@ -159,11 +156,7 @@ export function AnalyticsFilterControls({
   onKeywordScopeChange,
   showKeywordScope = true,
   hasActiveKeywordScope = false,
-  anomalyHighlightsEnabled,
-  onAnomalyHighlightsChange,
 }: AnalyticsFilterControlsProps) {
-  const showAnomalyToggle = typeof anomalyHighlightsEnabled === "boolean" && Boolean(onAnomalyHighlightsChange);
-
   return (
     <div className="flex items-center gap-2">
       <Tooltip>
@@ -174,30 +167,6 @@ export function AnalyticsFilterControls({
           Select Period
         </TooltipContent>
       </Tooltip>
-
-      {showAnomalyToggle ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className={cn(
-                "h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40",
-                anomalyHighlightsEnabled &&
-                  "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-              )}
-              onClick={() => onAnomalyHighlightsChange?.(!anomalyHighlightsEnabled)}
-              aria-label={anomalyHighlightsEnabled ? "Hide anomaly highlights" : "Show anomaly highlights"}
-              aria-pressed={anomalyHighlightsEnabled}
-            >
-              <Flag className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={8}>
-            {anomalyHighlightsEnabled ? "Hide anomaly highlights" : "Show anomaly highlights"}
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
 
       {showKeywordScope ? (
         <Popover>

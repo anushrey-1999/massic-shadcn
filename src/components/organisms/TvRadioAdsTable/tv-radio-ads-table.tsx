@@ -12,7 +12,6 @@ import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import type { TvRadioAdConceptRow } from "@/types/tv-radio-ads-types";
 import { getTvRadioAdsTableColumns } from "./tv-radio-ads-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface TvRadioAdsTableProps {
   data: TvRadioAdConceptRow[];
@@ -24,7 +23,6 @@ interface TvRadioAdsTableProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   onRowClick?: (row: TvRadioAdConceptRow) => void;
-  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function TvRadioAdsTable({
@@ -37,7 +35,6 @@ export function TvRadioAdsTable({
   search = "",
   onSearchChange,
   onRowClick,
-  onDownloadCsv,
 }: TvRadioAdsTableProps) {
   const enableAdvancedFilter = true;
 
@@ -97,9 +94,6 @@ export function TvRadioAdsTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
-            {onDownloadCsv && (
-              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
-            )}
           </div>
         </div>
       </DataTable>

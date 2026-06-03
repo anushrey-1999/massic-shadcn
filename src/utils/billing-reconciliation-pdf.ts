@@ -1,7 +1,4 @@
-import type {
-  BillingReconciliationPlanBreakdown,
-  BillingReconciliationReport,
-} from "@/types/billing-reconciliation-types";
+import type { BillingReconciliationReport } from "@/types/billing-reconciliation-types";
 
 export const BILLING_RECONCILIATION_CSS = `
   * {
@@ -67,7 +64,7 @@ export const BILLING_RECONCILIATION_CSS = `
     font-weight: 600;
     letter-spacing: -0.48px;
     color: #0a0a0a;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
   }
 
   .agencyBadge {
@@ -88,7 +85,7 @@ export const BILLING_RECONCILIATION_CSS = `
 
   .summaryGrid {
     display: grid;
-    grid-template-columns: minmax(220px, 294px) minmax(0, 1fr);
+    grid-template-columns: 294px 1fr;
     gap: 10px;
     break-inside: avoid;
     page-break-inside: avoid;
@@ -142,18 +139,15 @@ export const BILLING_RECONCILIATION_CSS = `
 
   .planMetric {
     min-width: 0;
-    break-inside: avoid;
-    page-break-inside: avoid;
   }
 
   .planMetricTop {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
+    gap: 4px;
   }
 
   .planCount {
-    flex-shrink: 0;
     font-size: 24px;
     line-height: 1.2;
     font-weight: 600;
@@ -162,28 +156,20 @@ export const BILLING_RECONCILIATION_CSS = `
   }
 
   .planAmount {
-    min-width: 0;
     padding-bottom: 2px;
     font-size: 10px;
-    line-height: 1.4;
+    line-height: 1.5;
     font-weight: 400;
     letter-spacing: 0.15px;
     color: #a3a3a3;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .planDetail {
-    margin-top: 4px;
-    font-size: 10px;
-    line-height: 1.4;
-    color: #737373;
+    white-space: nowrap;
   }
 
   .planPill {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-top: 4px;
     min-height: 24px;
     width: 100%;
     padding: 3px 8px;
@@ -194,9 +180,9 @@ export const BILLING_RECONCILIATION_CSS = `
     line-height: 1.5;
     font-weight: 500;
     letter-spacing: 0.15px;
-    text-align: center;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .tableWrap {
@@ -376,14 +362,6 @@ function getBillingDocumentDisplay(row: BillingReconciliationReport["rows"][numb
     };
   }
 
-  if (row.chargeType === "upgrade") {
-    const isReceipt = normalizedLabel.includes("receipt");
-    return {
-      primaryLabel: isReceipt ? "Upgrade receipt" : "Upgrade payment",
-      secondaryLabel: isReceipt ? null : rawLabel,
-    };
-  }
-
   return {
     primaryLabel: rawLabel,
     secondaryLabel: null,
@@ -436,22 +414,9 @@ function formatAmount(amount: number, currency: string) {
   }).format(amount || 0);
 }
 
-function formatPlanBreakdownLabel(entry: BillingReconciliationPlanBreakdown, currency: string) {
-  const tiers = entry.amountBreakdown?.length
-    ? entry.amountBreakdown
-    : [{
-        unitAmount: entry.count > 0 ? entry.amount / entry.count : entry.amount,
-        count: entry.count,
-      }];
-
-  if (tiers.length === 1 && tiers[0].count === 1) {
-    return formatAmount(tiers[0].unitAmount, currency);
-  }
-
-  return [...tiers]
-    .sort((left, right) => right.unitAmount - left.unitAmount)
-    .map((tier) => `${tier.count} × ${formatAmount(tier.unitAmount, currency)}`)
-    .join(", ");
+function formatPlanAmount(amount: number, count: number, currency: string) {
+  const perChargeAmount = count > 1 ? amount / count : amount;
+  return `${formatAmount(perChargeAmount, currency)}${count > 1 ? " ea" : ""}`;
 }
 
 function getReportLabel(report: BillingReconciliationReport) {
@@ -475,7 +440,7 @@ function buildPlanBreakdownHtml(report: BillingReconciliationReport, currency: s
     <div class="planMetric">
       <div class="planMetricTop">
         <span class="planCount">${escapeHtml(String(entry.count))}</span>
-        <span class="planAmount">${escapeHtml(formatPlanBreakdownLabel(entry, currency))}</span>
+        <span class="planAmount">${escapeHtml(formatPlanAmount(entry.amount, entry.count, currency))}</span>
       </div>
       ${buildPlanBadge(entry.planName, true)}
     </div>
@@ -497,12 +462,7 @@ export function buildBillingReconciliationBodyHtml(report: BillingReconciliation
             <div class="business">${escapeHtml(row.businessName)}</div>
             ${row.matchStatus === "unmatched" ? '<span class="badge badgeWarning">Unmatched</span>' : ""}
           </td>
-          <td>
-            ${buildPlanBadge(row.planName)}
-            ${row.detailLabel && row.detailLabel !== "Recurring subscription"
-              ? `<div class="planDetail">${escapeHtml(row.detailLabel)}</div>`
-              : ""}
-          </td>
+          <td>${buildPlanBadge(row.planName)}</td>
           <td>${escapeHtml(formatBillingPeriod(row.billingPeriodStart, row.billingPeriodEnd))}</td>
           <td>${escapeHtml(formatDate(row.lastBilledAt))}</td>
           <td>${escapeHtml(formatDate(row.nextBillingAt))}</td>
@@ -535,12 +495,12 @@ export function buildBillingReconciliationBodyHtml(report: BillingReconciliation
 
       <div class="summaryGrid">
         <div class="summaryCard">
-          <div class="summaryLabel">TOTAL BILLED</div>
+          <div class="summaryLabel">Total billed</div>
           <div class="summaryValue">${escapeHtml(formatAmount(report.summary.totalBilledAmount, primaryCurrency))}</div>
           <div class="summarySubtext">${report.summary.totalRows} charge${report.summary.totalRows === 1 ? "" : "s"} included in this reconciliation</div>
         </div>
         <div class="summaryCard">
-          <div class="summaryLabel">PLANS BILLED</div>
+          <div class="summaryLabel">Plans billed</div>
           <div class="planGrid">${planBreakdownHtml}</div>
         </div>
       </div>

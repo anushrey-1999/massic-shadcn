@@ -5,14 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "scan": "dotenv -e .env.dev -- next dev & npx react-scan@latest localhost:3000",
-    "dev:qa": "NEXT_PUBLIC_APP_ENV=qa dotenv -e .env.qa -- next dev",
-    "dev:prod": "NEXT_PUBLIC_APP_ENV=prod dotenv -e .env.prod -- next dev",
+    "dev:qa": "dotenv -e .env.qa -- next dev",
+    "dev:prod": "dotenv -e .env.prod -- next dev",
     "build": "next build",
-    "build:qa": "NEXT_PUBLIC_APP_ENV=qa dotenv -e .env.qa -- next build",
-    "build:prod": "NEXT_PUBLIC_APP_ENV=prod dotenv -e .env.prod -- next build",
+    "build:qa": "dotenv -e .env.qa -- next build",
+    "build:prod": "dotenv -e .env.prod -- next build",
     "start": "next start",
-    "start:qa": "NEXT_PUBLIC_APP_ENV=qa dotenv -e .env.qa -- next start",
-    "start:prod": "NEXT_PUBLIC_APP_ENV=prod dotenv -e .env.prod -- next start"
+    "start:qa": "dotenv -e .env.qa -- next start",
+    "start:prod": "dotenv -e .env.prod -- next start"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

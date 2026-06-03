@@ -10,8 +10,6 @@ import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { getTacticsTableColumns } from "./tactics-table-columns";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface TacticsTableProps {
   data: TacticRow[];
@@ -111,10 +109,6 @@ export function TacticsTable({
     getRowId: (originalRow: TacticRow) => originalRow.id,
   });
 
-  const handleDownloadCsv = React.useCallback(() => {
-    downloadRowsAsCsv(data, `${strategyType}-social-tactics.csv`);
-  }, [data, strategyType]);
-
   return (
     <div ref={tableContainerRef} className="bg-white rounded-lg p-4 flex flex-col h-full w-full overflow-hidden">
       <div className="shrink-0 mb-4">
@@ -144,7 +138,6 @@ export function TacticsTable({
           </div>
           <div className="flex items-center gap-2">
             <DataTableViewOptions table={table} align="end" />
-            <DownloadCsvButton onDownload={handleDownloadCsv} disabled={data.length === 0} />
           </div>
         </div>
       </div>

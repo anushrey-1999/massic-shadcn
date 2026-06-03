@@ -8,8 +8,6 @@ import { useDataTable } from "@/hooks/use-data-table";
 import type { TvRadioAdConceptRow } from "@/types/tv-radio-ads-types";
 import { TvRadioAdExampleCard } from "./tv-radio-ad-example-card";
 import { getTvRadioAdsSplitViewColumns } from "./tv-radio-ads-table-columns";
-import { DownloadCsvButton } from "@/components/ui/download-csv-button";
-import { downloadRowsAsCsv } from "@/lib/csv-export";
 
 interface TvRadioAdsSplitViewProps {
   businessId: string;
@@ -55,10 +53,6 @@ export const TvRadioAdsSplitView = React.memo(function TvRadioAdsSplitView({
     if (!selectedRowId) return null;
     return leftTableData.find((row) => row.id === selectedRowId) || null;
   }, [leftTableData, selectedRowId]);
-
-  const handleDownloadCsv = React.useCallback(() => {
-    downloadRowsAsCsv(selectedRow ? [selectedRow] : [], "tv-radio-ad-concept-details.csv");
-  }, [selectedRow]);
 
   // Auto-scroll to selected row
   const leftTableContainerRef = React.useRef<HTMLDivElement>(null);
@@ -109,9 +103,6 @@ export const TvRadioAdsSplitView = React.memo(function TvRadioAdsSplitView({
             <Button variant="outline" size="sm" onClick={onBack} className="h-9 w-9 p-0" aria-label="Back">
               <ArrowLeft className="h-4 w-4" />
             </Button>
-          </div>
-          <div className="flex items-center gap-2">
-            <DownloadCsvButton onDownload={handleDownloadCsv} disabled={!selectedRow} />
           </div>
         </div>
       </div>

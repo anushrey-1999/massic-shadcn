@@ -61,7 +61,6 @@ export function useStrategy(businessId: string) {
         .join(", ");
 
       rows.push({
-        ...topic,
         id: topic.topic_name || topic.topic,
         topic: topic.topic_name || topic.topic,
         business_relevance_score: topic.business_relevance_score || 0,

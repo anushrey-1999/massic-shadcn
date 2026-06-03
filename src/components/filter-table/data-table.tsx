@@ -195,11 +195,9 @@ export function DataTable<TData>({
                         if (
                           e.target instanceof HTMLElement &&
                           (e.target.closest('button') ||
-                            e.target.closest('a') ||
                             e.target.closest('input') ||
                             e.target.closest('[role="combobox"]') ||
-                            e.target.tagName === 'BUTTON' ||
-                            e.target.tagName === 'A')
+                            e.target.tagName === 'BUTTON')
                         ) {
                           return;
                         }

@@ -8,18 +8,13 @@ import { BUSINESS_RELEVANCE_PALETTE } from "@/components/organisms/StrategyBubbl
 export type SocialBubbleDatum = {
 	channel_name: string;
 	channel_relevance?: number;
-	channel_coverage?: number;
 	campaign_name: string;
 	campaign_relevance?: number;
-	campaign_coverage?: number;
 	campaign_offerings?: string[];
 };
 
-export type SocialBubbleColorMetric = "topicCoverage" | "businessRelevance";
-
 interface SocialBubbleChartProps {
 	data: SocialBubbleDatum[];
-	colorMetric?: SocialBubbleColorMetric;
 	width?: number;
 	height?: number;
 }
@@ -31,7 +26,6 @@ interface HierarchyNode {
 	type: "root" | "channel" | "tactic" | "keyword";
 	data?: {
 		relevanceScore?: number;
-		coverage?: number;
 	};
 }
 
@@ -54,7 +48,6 @@ function formatScorePercent(scoreRaw?: number) {
 
 export function SocialBubbleChart({
 	data,
-	colorMetric = "topicCoverage",
 	width = 1200,
 	height = 800,
 }: SocialBubbleChartProps) {
@@ -101,12 +94,10 @@ export function SocialBubbleChart({
 			string,
 			{
 				channel_relevance?: number;
-				channel_coverage?: number;
 				tactics: Map<
 					string,
 					{
 						tactic_relevance?: number;
-						tactic_coverage?: number;
 						keywords: Set<string>;
 					}
 				>;
@@ -125,7 +116,6 @@ export function SocialBubbleChart({
 			if (!byChannel.has(channel)) {
 				byChannel.set(channel, {
 					channel_relevance: row.channel_relevance,
-					channel_coverage: row.channel_coverage,
 					tactics: new Map(),
 				});
 			}
@@ -134,14 +124,10 @@ export function SocialBubbleChart({
 			if (channelData.channel_relevance === undefined && row.channel_relevance !== undefined) {
 				channelData.channel_relevance = row.channel_relevance;
 			}
-			if (channelData.channel_coverage === undefined && row.channel_coverage !== undefined) {
-				channelData.channel_coverage = row.channel_coverage;
-			}
 
 			if (!channelData.tactics.has(tactic)) {
 				channelData.tactics.set(tactic, {
 					tactic_relevance: row.campaign_relevance,
-					tactic_coverage: row.campaign_coverage,
 					keywords: new Set(keywords),
 				});
 			} else {
@@ -149,9 +135,6 @@ export function SocialBubbleChart({
 				keywords.forEach((k) => tacticData.keywords.add(k));
 				if (tacticData.tactic_relevance === undefined && row.campaign_relevance !== undefined) {
 					tacticData.tactic_relevance = row.campaign_relevance;
-				}
-				if (tacticData.tactic_coverage === undefined && row.campaign_coverage !== undefined) {
-					tacticData.tactic_coverage = row.campaign_coverage;
 				}
 			}
 		}
@@ -168,10 +151,7 @@ export function SocialBubbleChart({
 								name: keyword,
 								type: "keyword" as const,
 								value: 1,
-								data: {
-									relevanceScore: tacticData.tactic_relevance,
-									coverage: tacticData.tactic_coverage,
-								},
+								data: { relevanceScore: tacticData.tactic_relevance },
 							}));
 
 						if (!keywords.length) {
@@ -179,20 +159,14 @@ export function SocialBubbleChart({
 								name: tacticName,
 								type: "tactic" as const,
 								value: 1,
-								data: {
-									relevanceScore: tacticData.tactic_relevance,
-									coverage: tacticData.tactic_coverage,
-								},
+								data: { relevanceScore: tacticData.tactic_relevance },
 							};
 						}
 
 						return {
 							name: tacticName,
 							type: "tactic" as const,
-							data: {
-								relevanceScore: tacticData.tactic_relevance,
-								coverage: tacticData.tactic_coverage,
-							},
+							data: { relevanceScore: tacticData.tactic_relevance },
 							children: keywords,
 						};
 					});
@@ -200,10 +174,7 @@ export function SocialBubbleChart({
 				return {
 					name: channelName,
 					type: "channel" as const,
-					data: {
-						relevanceScore: channelData.channel_relevance,
-						coverage: channelData.channel_coverage,
-					},
+					data: { relevanceScore: channelData.channel_relevance },
 					children: tactics,
 				};
 			});
@@ -226,13 +197,13 @@ export function SocialBubbleChart({
 				: node.ancestors().find((a): a is PackedNode => a.data.type === "channel") ?? null;
 
 		const scoreRaw =
-			colorMetric === "businessRelevance"
-				? node.data.type === "channel"
-					? node.data.data?.relevanceScore
-					: node.data.data?.relevanceScore ?? channelAncestor?.data.data?.relevanceScore
-				: node.data.type === "channel"
-					? node.data.data?.coverage
-					: node.data.data?.coverage ?? channelAncestor?.data.data?.coverage;
+			node.data.type === "channel"
+				? node.data.data?.relevanceScore
+				: node.data.type === "tactic"
+					? node.data.data?.relevanceScore ?? channelAncestor?.data.data?.relevanceScore
+					: node.data.type === "keyword"
+						? node.data.data?.relevanceScore ?? channelAncestor?.data.data?.relevanceScore
+						: channelAncestor?.data.data?.relevanceScore;
 
 		const score = normalizeScore(scoreRaw);
 		const index = Math.max(
@@ -240,7 +211,7 @@ export function SocialBubbleChart({
 			Math.min(palette.length - 1, Math.round(score * (palette.length - 1)))
 		);
 		return palette[index];
-	}, [colorMetric]);
+	}, []);
 
 	useEffect(() => {
 		if (!canvasRef.current || !hierarchyData.children?.length) return;
@@ -482,7 +453,6 @@ export function SocialBubbleChart({
 					? "Keyword"
 					: null;
 	const tooltipRelevance = formatScorePercent(tooltipNode?.data.data?.relevanceScore);
-	const tooltipCoverage = formatScorePercent(tooltipNode?.data.data?.coverage);
 
 	return (
 		<div
@@ -499,10 +469,7 @@ export function SocialBubbleChart({
 					<ChartHoverTooltip
 						typeLabel={tooltipTypeLabel}
 						title={tooltipTitle}
-						metrics={[
-							{ label: "Topic Coverage", value: tooltipCoverage },
-							{ label: "Relevance", value: tooltipRelevance },
-						]}
+						metrics={[{ label: "Relevance", value: tooltipRelevance }]}
 					/>
 				) : null}
 			</div>

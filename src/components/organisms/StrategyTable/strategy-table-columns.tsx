@@ -14,6 +14,7 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { StrategyRow } from "@/types/strategy-types";
 import { Typography } from "@/components/ui/typography";
 import { formatVolume } from "@/lib/format";
+import { StrategyTopicCtas } from "./strategy-topic-ctas";
 
 // Helper to format percentage
 function formatPercentage(value: number): string {
@@ -21,6 +22,7 @@ function formatPercentage(value: number): string {
 }
 
 interface GetStrategyTableColumnsProps {
+  businessId?: string;
   offeringCounts?: Record<string, number>;
   businessRelevanceRange?: { min: number; max: number };
   topicCoverageRange?: { min: number; max: number };
@@ -28,6 +30,7 @@ interface GetStrategyTableColumnsProps {
 }
 
 export function getStrategyTableColumns({
+  businessId,
   offeringCounts = {},
   businessRelevanceRange = { min: 0, max: 1 },
   topicCoverageRange = { min: 0, max: 1 },
@@ -41,9 +44,12 @@ export function getStrategyTableColumns({
         <DataTableColumnHeader column={column} label="Topic" />
       ),
       cell: ({ row }) => (
-        <Typography variant="p" className="truncate">
-          {row.getValue("topic")}
-        </Typography>
+        <div className="flex w-full min-w-0 items-center justify-between gap-2">
+          <Typography variant="p" className="min-w-0 flex-1 truncate">
+            {row.getValue("topic")}
+          </Typography>
+          <StrategyTopicCtas businessId={businessId} row={row.original} className="ml-0" />
+        </div>
       ),
       meta: {
         label: "Topic",

@@ -5,8 +5,6 @@ import { format } from "date-fns";
 import {
   Target,
   MousePointerClick,
-  TrendingUp,
-  TrendingDown,
   ChevronDown,
   AlertTriangle,
   Loader2,
@@ -198,6 +196,27 @@ function ChStat({ label, value }: { label: string; value: number | null | undefi
   );
 }
 
+function TruncatedTooltipText({
+  text,
+  className,
+  tooltipClassName = "max-w-[360px] break-words text-xs",
+}: {
+  text: string;
+  className?: string;
+  tooltipClassName?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn("cursor-default", className)}>{text}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className={tooltipClassName}>
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function QueryChips({ queries }: { queries?: string[] }) {
   if (!queries?.length) return null;
 
@@ -208,19 +227,14 @@ function QueryChips({ queries }: { queries?: string[] }) {
   return (
     <div className="mt-1.5 flex min-w-0 max-w-full flex-wrap gap-1.5">
       {queries.slice(0, 6).map((query, idx) => (
-        <Tooltip key={`${query}-${idx}`}>
-          <TooltipTrigger asChild>
-            <span className={cn(
-              "max-w-full truncate rounded-full border px-2 py-[3px] text-[11px] sm:max-w-[220px]",
-              colorMap.default,
-            )}>
-              {query}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
-            {query}
-          </TooltipContent>
-        </Tooltip>
+        <TruncatedTooltipText
+          key={`${query}-${idx}`}
+          text={query}
+          className={cn(
+            "max-w-full truncate rounded-full border px-2 py-[3px] text-[11px] sm:max-w-[220px]",
+            colorMap.default,
+          )}
+        />
       ))}
     </div>
   );
@@ -293,9 +307,11 @@ function ContributorPageRows({ pages, isTraffic = false }: { pages: PageBreakdow
         <div key={idx} className="min-w-0 px-3 py-2.5 sm:px-4">
           <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
             <div className="min-w-0 flex-1 overflow-hidden">
-              <span className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground">
-                {getPageLabel(p.page)}
-              </span>
+              <TruncatedTooltipText
+                text={getPageLabel(p.page)}
+                className="block max-w-[320px] truncate font-mono text-[11px] text-muted-foreground"
+                tooltipClassName="max-w-[400px] break-all text-xs"
+              />
             </div>
             <div className="flex shrink-0 flex-wrap gap-x-2 gap-y-1 text-[11px] tabular-nums sm:justify-end">
               {!isTraffic && p.delta_goals !== null && p.delta_goals !== undefined && (
@@ -353,7 +369,11 @@ function ChannelBlock({
       <div className={cn("flex items-center justify-between gap-3 px-4 py-3", headerClass)}>
         <div className="flex min-w-0 items-center gap-2.5">
           <div className={cn("h-[22px] w-1 shrink-0 rounded-sm", accentBar)} />
-          <span className="min-w-0 truncate text-[13px] font-medium text-foreground">{channelName}</span>
+          <TruncatedTooltipText
+            text={channelName}
+            className="min-w-0 truncate text-[13px] font-medium text-foreground"
+            tooltipClassName="max-w-[400px] break-all text-xs"
+          />
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-4">
           <ChStat label={metricLabel(anchorUnit === "clicks" ? "clicks" : "goals", anchorDelta)} value={anchorDelta} />
@@ -373,9 +393,11 @@ function ChannelBlock({
               <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:px-4">
                 <div className="flex min-w-0 items-center gap-2">
                   <SourceFavicon sourceName={source.source || source.key || ""} fallback={isTraffic ? "search" : "auto"} />
-                  <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
-                    {source.source || source.key || "Unknown source"}
-                  </span>
+                  <TruncatedTooltipText
+                    text={source.source || source.key || "Unknown source"}
+                    className="min-w-0 truncate text-[13px] font-medium text-foreground"
+                    tooltipClassName="max-w-[400px] break-all text-xs"
+                  />
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-3">
                   {source.delta_goals !== undefined && (
@@ -436,12 +458,11 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
       {triggered.slice(0, 5).map((peak) => {
         const isUp = peak.direction === "up";
         const isAnomaly = peak.tier === "anomaly";
-        const Icon = isUp ? TrendingUp : TrendingDown;
         return (
           <div
             key={peak.date}
             className={cn(
-              "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+              "inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-[3px] text-[11px] font-medium sm:max-w-[220px]",
               isAnomaly
                 ? isUp
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -451,7 +472,6 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
                   : "border-amber-200 bg-amber-50 text-amber-700"
             )}
           >
-            <Icon className="h-3 w-3" />
             <span>{formatPeakDate(peak.date)}</span>
             <span className="font-semibold">{formatPeakDeltaPct(peak.delta_pct)}</span>
             <span className="text-muted-foreground/80">{unit}</span>

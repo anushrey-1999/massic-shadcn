@@ -1061,8 +1061,8 @@ export function AnomaliesSheet({
     if (!open) return;
 
     setActiveTab(initialTab);
-    setSelectedGoal(null);
-    setShowTrafficDetail(false);
+    setExpandedGoalId(null);
+    setTrafficExpanded(false);
 
     if (initialSelectedDate) {
       setLocalSelectedDate(initialSelectedDate);
@@ -1079,6 +1079,8 @@ export function AnomaliesSheet({
       setTrafficExpanded(false);
     }
   }, [activeTab, localSelectedDate, open]);
+
+  const isShowingDefaultWindow = localSelectedDate === null;
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
@@ -1106,7 +1108,7 @@ export function AnomaliesSheet({
                 value="goals"
                 className={cn(
                   "min-h-8 px-3 py-1.5 text-center",
-                  localSelectedDate && activeTab === "goals"
+                  isShowingDefaultWindow && activeTab === "goals"
                     ? "flex flex-col items-center justify-center gap-0.5"
                     : "flex items-center justify-center gap-1.5 self-center"
                 )}
@@ -1123,7 +1125,7 @@ export function AnomaliesSheet({
                     </Badge>
                   )}
                 </div>
-                {localSelectedDate && activeTab === "goals" && (
+                {isShowingDefaultWindow && activeTab === "goals" && (
                   <span className="text-[9px] font-normal leading-none text-muted-foreground">
                     Showing default window
                   </span>
@@ -1133,7 +1135,7 @@ export function AnomaliesSheet({
                 value="traffic"
                 className={cn(
                   "min-h-8 px-3 py-1.5 text-center",
-                  localSelectedDate && activeTab === "traffic"
+                  isShowingDefaultWindow && activeTab === "traffic"
                     ? "flex flex-col items-center justify-center gap-0.5"
                     : "flex items-center justify-center gap-1.5 self-center"
                 )}
@@ -1150,7 +1152,7 @@ export function AnomaliesSheet({
                     </Badge>
                   )}
                 </div>
-                {localSelectedDate && activeTab === "traffic" && (
+                {isShowingDefaultWindow && activeTab === "traffic" && (
                   <span className="text-[9px] font-normal leading-none text-muted-foreground">
                     Showing default window
                   </span>

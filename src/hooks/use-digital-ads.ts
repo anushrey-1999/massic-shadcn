@@ -18,6 +18,7 @@ export function useDigitalAds(businessId: string) {
 
   const transformToTableRows = useCallback((items: any[]): DigitalAdsRow[] => {
     return items.map((item, index) => ({
+      ...item,
       id: `${item.cluster_name || item.cluster}-${index}`,
       cluster_name: item.cluster_name || item.cluster || "",
       opportunity_score: item.opportunity_score ?? item.intent_cluster_opportunity_score ?? 0,

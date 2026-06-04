@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, startTransition } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Eye, MousePointerClick, Target, BarChart3 } from "lucide-react";
 import {
   OrganicPerformanceSection,
@@ -75,10 +75,14 @@ function normalizeBrandTerms(raw: unknown): string[] {
 }
 
 export function AnalyticsTemplate() {
+  const searchParams = useSearchParams();
   const [selectedPeriod, setSelectedPeriod] =
     useState<TimePeriodValue>("3 months");
-  const [selectedTab, setSelectedTab] = useState<"all" | "organic">("all");
+  const [selectedTab, setSelectedTab] = useState<"all" | "organic">(
+    searchParams.get("tab") === "organic" ? "organic" : "all"
+  );
   const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
+  const [showAnomalyHighlights, setShowAnomalyHighlights] = useState(false);
   const [availableGroupByOptions, setAvailableGroupByOptions] =
     useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -216,6 +220,12 @@ export function AnalyticsTemplate() {
     selectedTab === "all"
       ? (["sessions", "goals"] as const)
       : CHART_LINE_KEYS;
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "organic") {
+      setSelectedTab("organic");
+    }
+  }, [searchParams]);
 
   const handleOverviewFilterSelect = useCallback((filter: DeepdiveFilter) => {
     addFilter(filter);
@@ -427,6 +437,8 @@ export function AnalyticsTemplate() {
               onKeywordScopeChange={handleKeywordScopeChange}
               showKeywordScope={selectedTab === "organic"}
               hasActiveKeywordScope={keywordScope !== "all"}
+              anomalyHighlightsEnabled={showAnomalyHighlights}
+              onAnomalyHighlightsChange={setShowAnomalyHighlights}
             />
           </div>
         </div>
@@ -452,6 +464,7 @@ export function AnalyticsTemplate() {
             ga4TrafficScope={selectedTab}
             groupBy={groupBy}
             onAvailableGroupingsChange={setAvailableGroupByOptions}
+            showAnomalyHighlights={showAnomalyHighlights}
           />
         </div>
         <DiscoveryPerformanceSection

@@ -30,6 +30,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   ReferenceDot,
+  ReferenceArea,
 } from "recharts";
 import {
   ChartContainer,
@@ -61,6 +62,13 @@ import {
   type AnalyticsGroupBy,
   type GroupedAnalyticsChartPoint,
 } from "@/utils/analytics-chart-grouping";
+import {
+  groupConsecutiveAnomalyDays,
+  formatAnomalyBandTitle,
+  type AnomalyDay,
+  type AnomalyRun,
+} from "@/utils/analytics-anomaly-bands";
+import { AnomalyBandShape } from "@/components/molecules/analytics/AnomalyBand";
 
 const METRIC_ICONS: Record<string, React.ReactNode> = {
   "topic-coverage": <Target className="h-5 w-5" />,
@@ -72,10 +80,6 @@ const METRIC_ICONS: Record<string, React.ReactNode> = {
 const CHART_METRIC_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
 type AnomalySheetTab = "goals" | "traffic";
 type AnomalyMetricKey = "goal" | "traffic";
-type AnomalyMarkerAnchor = {
-  xDate: string;
-  asOfDate: string;
-};
 
 const CHART_SERIES_COLORS = {
   impressions: "#6b7280",
@@ -150,14 +154,12 @@ function getMetricDailyPeaks(payload: AnalyticsAnomalyMetricPayload | null) {
   return [...byDate.values()];
 }
 
-function buildAnomalyMarkerAnchors(
+function buildAnomalyDays(
   anomalyDates: AnalyticsAnomalyDate[],
   metric: AnomalyMetricKey
-) {
-  const anomalyDateMap = new Map(anomalyDates.map((item) => [item.date, item]));
+): AnomalyDay[] {
   const dailyPeakDateMap = new Map<string, { tier?: AnalyticsAnomalyTier; asOfDate: string }>();
-  const anchors: AnomalyMarkerAnchor[] = [];
-  const anchorDateSet = new Set<string>();
+  const anomalyDayMap = new Map<string, AnomalyDay>();
 
   for (const item of [...anomalyDates].sort((a, b) => a.date.localeCompare(b.date))) {
     if (getWeeklyTier(item, metric) !== "anomaly") continue;
@@ -172,29 +174,20 @@ function buildAnomalyMarkerAnchors(
   }
 
   for (const [date, peak] of [...dailyPeakDateMap.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    const previousDate = shiftDateKey(date, -1);
-    const previousDailyPeakTier = previousDate ? dailyPeakDateMap.get(previousDate)?.tier : null;
-    if (peak.tier === "anomaly" && previousDailyPeakTier !== "anomaly") {
-      anchors.push({ xDate: date, asOfDate: peak.asOfDate });
-      anchorDateSet.add(date);
-    }
+    if (peak.tier !== "anomaly") continue;
+    anomalyDayMap.set(date, { date, asOfDate: peak.asOfDate });
   }
 
   for (const item of [...anomalyDates].sort((a, b) => a.date.localeCompare(b.date))) {
-    if (dailyPeakDateMap.has(item.date) || anchorDateSet.has(item.date)) continue;
+    if (dailyPeakDateMap.get(item.date)?.tier === "anomaly") continue;
 
     const weeklyTier = getWeeklyTier(item, metric);
     if (weeklyTier !== "anomaly") continue;
 
-    const previousDate = shiftDateKey(item.date, -1);
-    const previousItem = previousDate ? anomalyDateMap.get(previousDate) : undefined;
-    const previousWeeklyTier = getWeeklyTier(previousItem, metric);
-    if (previousWeeklyTier !== "anomaly") {
-      anchors.push({ xDate: item.date, asOfDate: item.date });
-    }
+    anomalyDayMap.set(item.date, { date: item.date, asOfDate: item.date });
   }
 
-  return anchors;
+  return [...anomalyDayMap.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function AnomalyCircleMarker(props: {
@@ -548,12 +541,98 @@ export function OrganicPerformanceSection({
   const hasFunnelDataToRender = funnelChartData.some((item) => item.value > 0);
   const showFunnelLoader = loadingState.funnel && !hasFunnelDataToRender;
 
-  const anomalyMarkerAnchors = useMemo(() => {
+  const anomalyDaysByMetric = useMemo(() => {
     return {
-      goals: buildAnomalyMarkerAnchors(anomalyDates, "goal"),
-      traffic: buildAnomalyMarkerAnchors(anomalyDates, "traffic"),
+      goals: buildAnomalyDays(anomalyDates, "goal"),
+      traffic: buildAnomalyDays(anomalyDates, "traffic"),
     };
   }, [anomalyDates]);
+
+  // Continuous (2+ consecutive day) anomaly runs render as bands instead of
+  // circles. Bands only apply in day view; week/month grouping keeps circles.
+  const anomalyBandData = useMemo(() => {
+    const result = {
+      bands: [] as Array<{
+        key: string;
+        x1: string;
+        x2: string;
+        color: string;
+        tab: AnomalySheetTab;
+        title: string;
+        lastAsOfDate: string;
+      }>,
+    };
+
+    if (!showAnomalyHighlights || groupBy !== "day") return result;
+    if (chartDataToRender.length === 0 || anomalyDates.length === 0) return result;
+
+    const findBucketKey = (date: string): string | null => {
+      for (const point of chartDataToRender) {
+        const bucketStart = point.bucketStart || point.dateKey;
+        const bucketEnd = point.bucketEnd || point.dateKey;
+        if (bucketStart && bucketEnd && date >= bucketStart && date <= bucketEnd) {
+          return point.bucketKey || point.dateKey || point.date;
+        }
+      }
+      return null;
+    };
+
+    const process = (
+      tab: AnomalySheetTab,
+      color: string,
+      seriesLabel: string,
+      enabled: boolean,
+      anomalyDays: AnomalyDay[]
+    ) => {
+      if (!enabled) return;
+      const runs = groupConsecutiveAnomalyDays(anomalyDays).filter((run) => run.length >= 2);
+      for (const run of runs) {
+        const x1 = findBucketKey(run.startDate);
+        const x2 = findBucketKey(run.endDate);
+        if (!x1 || !x2) continue;
+        result.bands.push({
+          key: `${tab}-${run.startDate}-${run.endDate}`,
+          x1,
+          x2,
+          color,
+          tab,
+          title: formatAnomalyBandTitle(run, seriesLabel),
+          lastAsOfDate: run.lastAsOfDate,
+        });
+      }
+    };
+
+    process(
+      "goals",
+      CHART_SERIES_COLORS.goals,
+      "Goal anomaly",
+      visibleLines.goals,
+      anomalyDaysByMetric.goals
+    );
+
+    process(
+      "traffic",
+      visibleLines.clicks ? CHART_SERIES_COLORS.clicks : CHART_SERIES_COLORS.impressions,
+      "Traffic anomaly",
+      ga4TrafficScope === "organic" && (visibleLines.clicks || visibleLines.impressions),
+      anomalyDaysByMetric.traffic
+    );
+
+    return result;
+  }, [anomalyDates.length, anomalyDaysByMetric, chartDataToRender, ga4TrafficScope, groupBy, showAnomalyHighlights, visibleLines]);
+
+  const findAnomalyRunForBucket = useCallback((
+    anomalyDays: AnomalyDay[],
+    bucketStart: string,
+    bucketEnd: string
+  ): AnomalyRun | undefined => {
+    const runs = groupConsecutiveAnomalyDays(anomalyDays);
+    const eligibleRuns = groupBy === "day"
+      ? runs.filter((run) => run.length === 1)
+      : runs;
+
+    return eligibleRuns.find((run) => run.startDate <= bucketEnd && run.endDate >= bucketStart);
+  }, [groupBy]);
 
   const chartAnomalyMarkers = useMemo(() => {
     if (!showAnomalyHighlights) return [];
@@ -577,24 +656,24 @@ export function OrganicPerformanceSection({
       const bucketEnd = point.bucketEnd || point.dateKey;
       if (!bucketStart || !bucketEnd) continue;
 
-      const goalMatch = anomalyMarkerAnchors.goals.find((marker) => marker.xDate >= bucketStart && marker.xDate <= bucketEnd);
+      const goalMatch = findAnomalyRunForBucket(anomalyDaysByMetric.goals, bucketStart, bucketEnd);
       const trafficMatch = ga4TrafficScope === "organic"
-        ? anomalyMarkerAnchors.traffic.find((marker) => marker.xDate >= bucketStart && marker.xDate <= bucketEnd)
+        ? findAnomalyRunForBucket(anomalyDaysByMetric.traffic, bucketStart, bucketEnd)
         : null;
 
       if (goalMatch && visibleLines.goals) {
         const y = Number(pointValues[useNormalizedKeys ? "goalsNorm" : "goals"]);
         if (Number.isFinite(y)) {
           markers.push({
-            key: `goal-${goalMatch.xDate}-${goalMatch.asOfDate}-${point.bucketKey || point.dateKey || point.date}`,
+            key: `goal-${goalMatch.startDate}-${goalMatch.lastAsOfDate}-${point.bucketKey || point.dateKey || point.date}`,
             x: point.bucketKey || point.dateKey || point.date,
             y,
             yAxisId: "left",
-            date: goalMatch.asOfDate,
+            date: goalMatch.lastAsOfDate,
             tab: "goals",
             label: "Goal anomaly",
             color: CHART_SERIES_COLORS.goals,
-            xDate: goalMatch.xDate,
+            xDate: goalMatch.startDate,
           });
         }
       }
@@ -609,22 +688,22 @@ export function OrganicPerformanceSection({
 
         if (Number.isFinite(y)) {
           markers.push({
-            key: `traffic-${trafficMatch.xDate}-${trafficMatch.asOfDate}-${point.bucketKey || point.dateKey || point.date}`,
+            key: `traffic-${trafficMatch.startDate}-${trafficMatch.lastAsOfDate}-${point.bucketKey || point.dateKey || point.date}`,
             x: point.bucketKey || point.dateKey || point.date,
             y,
             yAxisId,
-            date: trafficMatch.asOfDate,
+            date: trafficMatch.lastAsOfDate,
             tab: "traffic",
             label: "Traffic anomaly",
             color: CHART_SERIES_COLORS[metricKey],
-            xDate: trafficMatch.xDate,
+            xDate: trafficMatch.startDate,
           });
         }
       }
     }
 
     return markers;
-  }, [anomalyDates.length, anomalyMarkerAnchors, chartDataToRender, ga4TrafficScope, showAnomalyHighlights, singleMetricMode, useNormalizedKeys, visibleLines]);
+  }, [anomalyDates.length, anomalyDaysByMetric, chartDataToRender, findAnomalyRunForBucket, ga4TrafficScope, showAnomalyHighlights, singleMetricMode, useNormalizedKeys, visibleLines]);
 
   const openAnomalyMarker = useCallback((tab: AnomalySheetTab, date: string) => {
     setAnomaliesSheetTab(tab);
@@ -1004,13 +1083,13 @@ export function OrganicPerformanceSection({
                               showAnomalyHighlights &&
                               bucketStart &&
                               bucketEnd &&
-                              anomalyMarkerAnchors.goals.some((marker) => marker.xDate >= bucketStart && marker.xDate <= bucketEnd)
+                              findAnomalyRunForBucket(anomalyDaysByMetric.goals, bucketStart, bucketEnd)
                             );
                             const hasTrafficAnomalyStart = Boolean(
                               showAnomalyHighlights &&
                               bucketStart &&
                               bucketEnd &&
-                              anomalyMarkerAnchors.traffic.some((marker) => marker.xDate >= bucketStart && marker.xDate <= bucketEnd)
+                              findAnomalyRunForBucket(anomalyDaysByMetric.traffic, bucketStart, bucketEnd)
                             );
                             const showAnomalyHint = Boolean(
                               (visibleLines.goals && hasGoalAnomalyStart) ||
@@ -1133,6 +1212,23 @@ export function OrganicPerformanceSection({
                             name="Sessions"
                           />
                         )}
+                        {anomalyBandData.bands.map((band) => (
+                          <ReferenceArea
+                            key={band.key}
+                            x1={band.x1}
+                            x2={band.x2}
+                            yAxisId="left"
+                            ifOverflow="extendDomain"
+                            shape={(props) => (
+                              <AnomalyBandShape
+                                {...props}
+                                color={band.color}
+                                title={band.title}
+                                onClick={() => openAnomalyMarker(band.tab, band.lastAsOfDate)}
+                              />
+                            )}
+                          />
+                        ))}
                         {chartAnomalyMarkers.map((marker) => (
                           <ReferenceDot
                             key={marker.key}

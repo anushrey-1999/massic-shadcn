@@ -4,7 +4,7 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { format, differenceInCalendarDays, startOfDay, subDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
-import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown, ChevronLeft, ChevronRight, History, Info, LinkIcon, Loader2, Search, Target } from "lucide-react"
+import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown, ChevronLeft, ChevronRight, History, Info, Loader2, Search, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -47,8 +47,17 @@ import {
 import { useCallPrepBrief } from "@/hooks/use-call-prep-brief"
 import { useCallPrepRunDetail, useCallPrepRuns } from "@/hooks/use-call-prep-runs"
 import { CallPrepBriefView } from "./CallPrepBriefView"
+import { SourceFavicon } from "./SourceFavicon"
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────
+
+const POSITIVE_TEXT_CLASS = "text-[#0F6E56]"
+const POSITIVE_ACCENT_CLASS = "bg-[#1D9E75]"
+const POSITIVE_PILL_CLASS = "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+const WARNING_PILL_CLASS = "border-[#FAC775] bg-[#FFFBEB] text-[#854F0B]"
+const NEUTRAL_QUERY_PILL_CLASS = "border-border/60 bg-background text-muted-foreground"
+const SINGLE_LINE_PILL_CLASS = "inline-flex h-6 min-w-0 max-w-full items-center overflow-hidden whitespace-nowrap rounded-full border px-2 text-[11px] leading-none"
+const PILL_TEXT_CLASS = "block min-w-0 truncate"
 
 function toIsoDate(date: Date) { return format(date, "yyyy-MM-dd") }
 
@@ -120,7 +129,7 @@ function fmtPosDelta(delta: number): string {
 
 function deltaColor(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return "text-muted-foreground"
-  return value > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
+  return value > 0 ? POSITIVE_TEXT_CLASS : "text-[#A32D2D]"
 }
 
 // ─── Baseline phrase ─────────────────────────────────────────────────────────────
@@ -165,7 +174,7 @@ const DIRECTION_TO_COLOR: Record<PrimaryDriversHeadlineReel["direction"], ReelCo
 
 const REEL_COLOR_CLS: Record<ReelColor, string> = {
   neg:     "text-[#A32D2D] font-medium",
-  pos:     "text-[#0F6E56] font-medium",
+  pos:     cn(POSITIVE_TEXT_CLASS, "font-medium"),
   flat:    "text-muted-foreground font-medium",
   neutral: "text-muted-foreground",
 }
@@ -236,9 +245,9 @@ function WindowTag({ bucket, baseline }: { bucket: string; baseline: PrimaryDriv
 
   return (
     <span className={cn(
-      "text-[10px] px-2 py-0.5 rounded border",
+      "inline-flex h-6 items-center rounded border px-2 text-[10px] leading-none",
       noisy
-        ? "bg-[#FFFBEB] border-[#FAC775] text-[#854F0B]"
+        ? WARNING_PILL_CLASS
         : "border-border/50 text-muted-foreground",
     )}>
       {label}
@@ -250,18 +259,18 @@ function WindowTag({ bucket, baseline }: { bucket: string; baseline: PrimaryDriv
 
 function NoticeBar({ icon, text }: { icon?: React.ReactNode; text: string }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[#FFFBEB] border border-[#FAC775] text-[#633806] text-[12px]">
+    <div className="flex min-w-0 max-w-full items-start gap-2 rounded-md border border-[#FAC775] bg-[#FFFBEB] px-3 py-2 text-[12px] text-[#633806]">
       {icon ?? <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-[#B45309]" />}
-      <span>{text}</span>
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{text}</span>
     </div>
   )
 }
 
 function InfoBar({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-[12px]">
+    <div className="flex min-w-0 max-w-full items-start gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-[12px] text-blue-800">
       <Info className="h-3.5 w-3.5 flex-shrink-0 text-blue-500" />
-      <span>{text}</span>
+      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{text}</span>
     </div>
   )
 }
@@ -287,9 +296,9 @@ function HeadlinePanel({ data }: { data: PrimaryDriversLegacyResponse }) {
   )
 
   return (
-    <div className="px-3.5 py-3 rounded-lg bg-secondary/60 mb-3.5">
+    <div className="mb-3.5 min-w-0 max-w-full overflow-hidden rounded-lg bg-secondary/60 px-3.5 py-3">
       {/* Top line */}
-      <p className="text-[15px] leading-[1.5] mb-1">
+      <p className="mb-1 min-w-0 break-words text-[15px] leading-[1.5] [overflow-wrap:anywhere]">
         {reels.map((reel, i) => (
           <React.Fragment key={i}>
             {i > 0 && <span className="text-foreground/70 mx-[6px] text-[18px] leading-none">·</span>}
@@ -300,13 +309,13 @@ function HeadlinePanel({ data }: { data: PrimaryDriversLegacyResponse }) {
 
       {/* Bottom line */}
       {bottomParts.length > 0 && (
-        <p className="text-[12px] leading-[1.6] text-muted-foreground">
+        <p className="min-w-0 break-words text-[12px] leading-[1.6] text-muted-foreground [overflow-wrap:anywhere]">
           {bottomParts.map((part, i) => (
             <React.Fragment key={i}>
               {i > 0 && <span className="mx-1 text-foreground/60 text-[14px] leading-none">·</span>}
               <span className={cn(
                 part.color === "neg" ? "text-[#E24B4A]"
-                : part.color === "pos" ? "text-[#1D9E75]"
+                : part.color === "pos" ? POSITIVE_TEXT_CLASS
                 : undefined,
               )}>
                 {part.text}
@@ -325,13 +334,13 @@ function WinsBar({ wins }: { wins: PrimaryDriversWin[] }) {
   if (!wins || wins.length === 0) return null
 
   return (
-    <div className="flex items-baseline gap-2 px-3 py-2 bg-[#F0FDFA] rounded-lg border border-[#9FE1CB] mb-4">
+    <div className="mb-4 flex min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-lg border border-[#9FE1CB] bg-[#F0FDFA] px-3 py-2">
       <span className="shrink-0 text-[10px] font-semibold uppercase leading-none tracking-[0.08em] text-[#0F6E56]">
         Wins
       </span>
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
         {wins.map((win, i) => (
-          <span key={i} className="text-[12px] leading-snug text-[#085041]">
+          <span key={i} className="min-w-0 break-words text-[12px] leading-snug text-[#085041] [overflow-wrap:anywhere]">
             <span className="text-[#9FE1CB] mr-1">·</span>
             {win.label} {win.value}
           </span>
@@ -433,7 +442,7 @@ function statDisplay(key: StatDef["key"], value: number | null): string {
 function ChStat({ def }: { def: StatDef }) {
   const val = def.value
   const cls = val === null ? "text-muted-foreground"
-    : def.key === "cvr" ? (val > 0 ? "text-[#0F6E56]" : val < 0 ? "text-[#A32D2D]" : "text-muted-foreground")
+    : def.key === "cvr" ? (val > 0 ? POSITIVE_TEXT_CLASS : val < 0 ? "text-[#A32D2D]" : "text-muted-foreground")
     : deltaColor(val)
 
   return (
@@ -462,7 +471,7 @@ function buildQuerySummary(queries: PrimaryDriversQuery[]) {
 function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d: boolean }) {
   if (is7d) {
     return (
-      <div className="pl-8 pr-4 py-2 text-[11px] text-muted-foreground bg-secondary/40 border-t border-dashed border-border/50">
+    <div className="min-w-0 break-words border-t border-dashed border-border/50 bg-secondary/40 py-2 pl-8 pr-4 text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
         Query data unavailable for 7-day windows
       </div>
     )
@@ -476,12 +485,12 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
   const imprColor   = deltaColor(totalImpr)
   const posColor    = Math.abs(avgPos) < 0.1
     ? "text-muted-foreground"
-    : avgPos > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
+    : avgPos > 0 ? POSITIVE_TEXT_CLASS : "text-[#A32D2D]"
 
   return (
-    <div className="pl-8 pr-4 py-2.5 bg-secondary/30 border-t border-dashed border-border/50">
+    <div className="min-w-0 max-w-full overflow-hidden border-t border-dashed border-border/50 bg-secondary/30 py-2.5 pl-8 pr-4">
       {/* Summary numbers */}
-      <div className="flex gap-3 mb-1.5">
+      <div className="mb-1.5 flex flex-wrap gap-3">
         <span className={cn("text-[11px] font-medium", clicksColor)}>
           <span className="text-[9px] font-normal text-muted-foreground mr-0.5">clicks</span>
           {fmtAbsolute(totalClicks)}
@@ -497,12 +506,12 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
       </div>
 
       {/* Query pills */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex min-w-0 max-w-full flex-wrap gap-1.5">
         {queries.map((q, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
-              <span className="text-[11px] px-2 py-[3px] rounded-full bg-background border border-border/60 text-muted-foreground max-w-[240px] truncate cursor-default">
-                {q.query}
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default sm:max-w-[240px]", NEUTRAL_QUERY_PILL_CLASS)}>
+                <span className={PILL_TEXT_CLASS}>{q.query_full || q.query}</span>
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
@@ -535,20 +544,20 @@ function PageRow({
   const showQuerySection = isOrganic  // organic shows query section (7d shows "unavailable")
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full overflow-hidden">
       {/* Page row */}
-      <div className="flex items-center justify-between pl-8 pr-4 py-2 gap-3 hover:bg-secondary/40 transition-colors">
-        <div className="min-w-0 flex-1 overflow-hidden">
+      <div className="grid min-w-0 gap-2 py-2 pl-8 pr-4 transition-colors hover:bg-secondary/40 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+        <div className="min-w-0 overflow-hidden">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="block truncate text-[11px] font-mono text-muted-foreground cursor-default max-w-[220px]">
+              <span className="block min-w-0 cursor-default break-all font-mono text-[11px] text-muted-foreground sm:max-w-[220px] sm:truncate">
                 {page.value}
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[400px] break-all text-xs">{page.value}</TooltipContent>
           </Tooltip>
         </div>
-        <div className="flex gap-3 flex-shrink-0">
+        <div className="flex min-w-0 flex-wrap gap-3 sm:flex-shrink-0 sm:justify-end">
           {stats.map((def, i) => (
             <div key={i} className="text-right">
               <p className="text-[9px] uppercase tracking-[0.06em] text-muted-foreground/60 mb-px">
@@ -623,19 +632,19 @@ function ChannelBlock({
   const shownPct = lastPage?.coverage_pct ?? ch.coverage_pct
 
   return (
-    <div className="rounded-xl overflow-hidden border border-border/40">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/40">
       {/* Channel header */}
       <div className={cn(
-        "flex items-center justify-between px-4 py-3 gap-3",
+        "grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center",
         isPos
           ? "bg-[#F0FDFA] border-b border-[#9FE1CB]"
           : "bg-[#FEF2F2] border-b border-[#F7C1C1]",
       )}>
-        <div className="flex items-center gap-2.5">
-          <div className={cn("w-1 h-[22px] rounded-sm flex-shrink-0", isPos ? "bg-[#1D9E75]" : "bg-[#E24B4A]")} />
-          <span className="text-[13px] font-medium">{ch.value}</span>
+        <div className="flex min-w-0 items-start gap-2.5">
+          <div className={cn("w-1 h-[22px] rounded-sm flex-shrink-0", isPos ? POSITIVE_ACCENT_CLASS : "bg-[#E24B4A]")} />
+          <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere]">{ch.value}</span>
         </div>
-        <div className="flex gap-4 flex-wrap justify-end">
+        <div className="flex min-w-0 flex-wrap gap-4 sm:justify-end">
           {stats.map((def, i) => (
             <ChStat key={i} def={def} />
           ))}
@@ -711,46 +720,44 @@ function PrimaryDriversRangePicker({
           {formatDisplayRange(value)}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto max-w-[min(100vw-1rem,720px)] min-w-[260px] p-0">
+      <PopoverContent align="end" className="w-auto max-w-[min(100vw-1rem,720px)] min-w-[260px] max-h-[calc(100vh-5rem)] overflow-y-auto p-0">
         <div className="border-b bg-muted/20 px-4 py-3">
           <p className="text-sm font-semibold">Select date range</p>
           <p className="text-xs text-muted-foreground">Minimum 7 days. Previous period compared automatically.</p>
           {validationMessage && <p className="mt-1.5 text-xs font-medium text-red-600">{validationMessage}</p>}
         </div>
 
-        <div className="max-h-[min(40vh,320px)] overflow-y-auto">
-          {PERIOD_SELECTOR_GROUPS.map((group, index) => (
-            <div key={group.id}>
-              {index > 0 ? <Separator /> : null}
-              <div className="p-1">
-                {group.options.map((period) => {
-                  const isActive = rangeMatchesPreset(value, period.value)
-                  return (
-                    <button
-                      key={period.id}
-                      type="button"
-                      onClick={() => handlePresetSelect(period.value)}
-                      className={cn(
-                        "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
-                        isActive && "bg-muted",
-                      )}
-                    >
-                      <span className="flex flex-col">
-                        <span className="text-sm font-medium text-foreground">{period.label}</span>
-                        {isActive ? (
-                          <span className="text-xs text-muted-foreground">
-                            {formatTimePeriodSummary(period.value)}
-                          </span>
-                        ) : null}
-                      </span>
-                      {isActive ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : null}
-                    </button>
-                  )
-                })}
-              </div>
+        {PERIOD_SELECTOR_GROUPS.map((group, index) => (
+          <div key={group.id}>
+            {index > 0 ? <Separator /> : null}
+            <div className="p-1">
+              {group.options.map((period) => {
+                const isActive = rangeMatchesPreset(value, period.value)
+                return (
+                  <button
+                    key={period.id}
+                    type="button"
+                    onClick={() => handlePresetSelect(period.value)}
+                    className={cn(
+                      "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
+                      isActive && "bg-muted",
+                    )}
+                  >
+                    <span className="flex flex-col">
+                      <span className="text-sm font-medium text-foreground">{period.label}</span>
+                      {isActive ? (
+                        <span className="text-xs text-muted-foreground">
+                          {formatTimePeriodSummary(period.value)}
+                        </span>
+                      ) : null}
+                    </span>
+                    {isActive ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : null}
+                  </button>
+                )
+              })}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
 
         <Separator />
 
@@ -827,7 +834,24 @@ function isPrimaryDriversSnapshot(value: unknown): value is PrimaryDriversRespon
 
 function getPrimaryDriversWins(data: PrimaryDriversResponse | null | undefined): PrimaryDriversWin[] {
   if (!data) return []
-  if (isPrimaryDriversV2Response(data)) return data.ctas[0]?.wins ?? []
+  if (isPrimaryDriversV2Response(data)) {
+    const [primaryCta, ...secondaryCtas] = data.ctas
+    const wins = [...(primaryCta?.wins ?? [])]
+
+    if (primaryCta?.direction === "down") {
+      secondaryCtas
+        .filter((cta) => cta.direction === "up")
+        .forEach((cta) => {
+          wins.push({
+            type: "other_cta",
+            label: cta.display_name,
+            value: `${fmtAbsolute(cta.absolute_delta)} (${pctDisplay(cta.pct_change)})`,
+          })
+        })
+    }
+
+    return wins.slice(0, 3)
+  }
   return data.wins ?? []
 }
 
@@ -847,11 +871,11 @@ function LegacyPrimaryDriversSnapshotView({
   businessName: string
 }) {
   return (
-    <div className="space-y-3.5">
-      <div>
-        <p className="mb-1 text-[15px] font-medium text-foreground">{businessName}</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[11px] text-muted-foreground">
+    <div className="min-w-0 max-w-full space-y-3.5 overflow-hidden">
+      <div className="min-w-0">
+        <p className="mb-1 break-words text-[15px] font-medium text-foreground [overflow-wrap:anywhere]">{businessName}</p>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
             {fmtDateRange(data.date_range.start, data.date_range.end)}
             <span className="mx-1.5">·</span>
             vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
@@ -915,18 +939,25 @@ function flagCopy(flag: string): string {
 
 function CtaPills({ channels }: { channels: PrimaryDriversV2Channel[] }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex min-w-0 max-w-full flex-wrap gap-1.5 overflow-hidden">
       {channels.map((channel) => {
         const delta = channel.goals_delta ?? 0
         const cls = delta > 0
-          ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+          ? POSITIVE_PILL_CLASS
           : delta < 0
             ? "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
             : "border-border/60 bg-secondary/30 text-muted-foreground"
         return (
-          <span key={channel.channel_name} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", cls)}>
-            {channel.channel_name} {fmtAbsolute(delta)}
-          </span>
+          <Tooltip key={channel.channel_name}>
+            <TooltipTrigger asChild>
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default font-medium sm:max-w-[220px]", cls)}>
+                <span className={PILL_TEXT_CLASS}>{channel.channel_name} {fmtAbsolute(delta)}</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
+              {channel.channel_name} {fmtAbsolute(delta)}
+            </TooltipContent>
+          </Tooltip>
         )
       })}
     </div>
@@ -940,13 +971,8 @@ function V2QueryChips({ page }: { page: PrimaryDriversV2Page }) {
       {page.queries.map((query, index) => (
         <Tooltip key={`${query.full_query_text}-${index}`}>
           <TooltipTrigger asChild>
-            <span className={cn(
-              "max-w-full truncate rounded-full border px-2 py-[3px] text-[11px] sm:max-w-[220px]",
-              query.is_branded
-                ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
-                : "border-border/60 bg-background text-muted-foreground",
-            )}>
-              {query.query_text}
+            <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default sm:max-w-[220px]", NEUTRAL_QUERY_PILL_CLASS)}>
+              <span className={PILL_TEXT_CLASS}>{query.full_query_text || query.query_text}</span>
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
@@ -961,12 +987,12 @@ function V2QueryChips({ page }: { page: PrimaryDriversV2Page }) {
 function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; organic: boolean }) {
   return (
     <div className="min-w-0 max-w-full overflow-hidden border-t border-border/40 px-3 py-2.5 sm:px-4">
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          {organic ? <Search className="h-3.5 w-3.5 text-muted-foreground" /> : <LinkIcon className="h-3.5 w-3.5 text-muted-foreground" />}
-          <span className="truncate text-[13px] font-medium">{source.source_name}</span>
+      <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+        <div className="flex min-w-0 items-start gap-2 sm:items-center">
+          <SourceFavicon sourceName={source.source_name} fallback={organic ? "search" : "auto"} className="mt-0.5 sm:mt-0" />
+          <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere] sm:truncate">{source.source_name}</span>
         </div>
-        <div className="flex min-w-0 flex-wrap justify-end gap-x-3 gap-y-1 text-right">
+        <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-[11px] text-right sm:justify-end sm:text-[12px]">
           <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.goals_delta))}>{fmtAbsolute(source.goals_delta)}</span>
           <span className={cn("text-[12px] font-medium tabular-nums", deltaColor(source.sessions_delta))}>{fmtAbsolute(source.sessions_delta)}</span>
         </div>
@@ -975,7 +1001,7 @@ function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; orga
         {source.pages.map((page, index) => (
           <div key={`${page.page_path}-${index}`} className="min-w-0 max-w-full overflow-hidden rounded-md bg-secondary/30 px-3 py-2">
             <div className="grid min-w-0 gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
-              <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground">{page.page_path}</span>
+              <span className="min-w-0 break-all font-mono text-[11px] text-muted-foreground sm:truncate">{page.page_path}</span>
               <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-[11px] tabular-nums sm:justify-end">
                 <span className={deltaColor(page.goals_delta)}>goals {fmtAbsolute(page.goals_delta)}</span>
                 <span className={deltaColor(page.sessions_delta)}>sessions {fmtAbsolute(page.sessions_delta)}</span>
@@ -993,16 +1019,16 @@ function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; orga
 function V2ChannelBlock({ channel }: { channel: PrimaryDriversV2Channel }) {
   const organic = channel.channel_name.toLowerCase().includes("organic")
   const net = channel.goals_delta ?? 0
-  const bar = net > 0 ? "bg-[#1D9E75]" : net < 0 ? "bg-[#E24B4A]" : "bg-muted-foreground/40"
+  const bar = net > 0 ? POSITIVE_ACCENT_CLASS : net < 0 ? "bg-[#E24B4A]" : "bg-muted-foreground/40"
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border/50 bg-white">
-      <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-left sm:px-4">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <div className="grid w-full min-w-0 gap-3 px-3 py-3 text-left sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
+        <div className="flex min-w-0 items-start gap-2.5">
           <div className={cn("h-6 w-[3px] rounded-full", bar)} />
-          <span className="truncate text-[13px] font-medium">{channel.channel_name}</span>
+          <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere]">{channel.channel_name}</span>
         </div>
-        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 sm:justify-end">
           <ChStat def={{ key: "goals", value: channel.goals_delta }} />
           <ChStat def={{ key: "sessions", value: channel.sessions_delta }} />
           {organic ? <ChStat def={{ key: "clicks", value: channel.clicks_delta }} /> : null}
@@ -1034,7 +1060,7 @@ function CtaCard({
   const badgeCls = neutral
     ? "bg-secondary text-muted-foreground"
     : positive
-      ? "bg-[#F0FDFA] text-[#0F6E56] border-[#9FE1CB]"
+      ? POSITIVE_PILL_CLASS
       : "bg-[#FEF2F2] text-[#A32D2D] border-[#F7C1C1]"
   const warning = cta.edge_case_flags.find((flag) => !["low_volume"].includes(flag))
 
@@ -1044,18 +1070,18 @@ function CtaCard({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="w-full px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/20"
+        className="w-full min-w-0 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/20"
       >
         <div className="flex min-w-0 items-start gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <span className="truncate font-mono text-[14px] font-medium">{cta.display_name}</span>
-              <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[12px] font-semibold tabular-nums", badgeCls)}>
-                {fmtAbsolute(cta.absolute_delta)} ({pctDisplay(cta.pct_change)})
+            <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
+              <span className="min-w-0 break-words font-mono text-[14px] font-medium [overflow-wrap:anywhere]">{cta.display_name}</span>
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "w-fit shrink-0 text-[12px] font-semibold tabular-nums", badgeCls)}>
+                <span className={PILL_TEXT_CLASS}>{fmtAbsolute(cta.absolute_delta)} ({pctDisplay(cta.pct_change)})</span>
               </span>
             </div>
             {cta.why_sentence ? (
-              <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">{cta.why_sentence}</p>
+              <p className="mt-1.5 min-w-0 break-words text-[13px] leading-5 text-muted-foreground [overflow-wrap:anywhere]">{cta.why_sentence}</p>
             ) : null}
             <div className="mt-2">
               <CtaPills channels={cta.channels} />
@@ -1105,9 +1131,9 @@ function V2PrimaryDriversSnapshotView({
 
   return (
     <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
-      <div>
-        <p className="text-[15px] font-medium text-foreground">{businessName}</p>
-        <p className="mt-1 text-[13px] text-muted-foreground">
+      <div className="min-w-0">
+        <p className="break-words text-[15px] font-medium text-foreground [overflow-wrap:anywhere]">{businessName}</p>
+        <p className="mt-1 break-words text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
           {fmtDateRange(data.date_range.start, data.date_range.end)}
           <span className="mx-1.5">·</span>
           vs {fmtDateRange(data.date_range.comparison_start, data.date_range.comparison_end)}
@@ -1198,20 +1224,20 @@ function CallPrepHistoryList({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-end justify-between gap-3">
-        <div>
+    <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">Meeting Prep Notes History</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="break-words text-xs text-muted-foreground">
             Open any saved run to review the generated notes and the matching Primary Drivers snapshot.
           </p>
         </div>
-        <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+        <span className="w-fit shrink-0 rounded-full border border-border/60 bg-secondary/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
           {items.length} saved
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-general-border bg-card">
+      <div className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-general-border bg-card">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 border-b border-general-border/70 px-5 py-3 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
           <span>Period</span>
           <span>Generated</span>
@@ -1227,7 +1253,7 @@ function CallPrepHistoryList({
             >
               <div className="min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-[15px] font-medium text-foreground transition-colors group-hover:text-foreground/90">
+                  <p className="min-w-0 break-words text-[15px] font-medium text-foreground transition-colors group-hover:text-foreground/90">
                     {item.period_start && item.period_end
                       ? fmtDateRange(item.period_start, item.period_end)
                       : "Period unavailable"}
@@ -1236,7 +1262,7 @@ function CallPrepHistoryList({
                     {getHistoryWindowBucketLabel(item.window_bucket)}
                   </span>
                 </div>
-                <p className="text-[12px] text-muted-foreground">
+                <p className="min-w-0 break-words text-[12px] text-muted-foreground">
                   {item.comparison_start && item.comparison_end
                     ? `Compared with ${fmtDateRange(item.comparison_start, item.comparison_end)}`
                     : "Comparison period unavailable"}
@@ -1444,7 +1470,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full border-l border-general-border p-0 pt-8 sm:max-w-2xl">
+      <SheetContent className="w-full max-w-full overflow-hidden border-l border-general-border p-0 pt-8 sm:max-w-2xl">
 
         {/* Sheet header — sticky */}
         <SheetHeader className="border-b border-general-border bg-background px-6 py-4">
@@ -1504,7 +1530,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
         </SheetHeader>
 
         {/* Body */}
-        <div className="flex-1 overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-hidden">
           {mode === "current" ? (
             <>
               {isLoading ? (
@@ -1526,8 +1552,8 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
             </div>
           ) : data ? (
             <div className="relative flex h-full flex-col">
-              <ScrollArea className="flex-1">
-                <div className="min-w-0 max-w-full px-4 py-5 sm:px-6">
+              <ScrollArea className="min-w-0 flex-1 overflow-x-hidden">
+                <div className="w-full min-w-0 max-w-full overflow-hidden px-4 py-5 sm:px-6">
                   {view === "call-brief" && currentCallBrief ? (
                     <CallPrepBriefView callBrief={currentCallBrief} wins={getPrimaryDriversWins(data)} />
                   ) : (
@@ -1597,8 +1623,8 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
             </>
           ) : (
               <div className="flex h-full flex-col">
-                <ScrollArea className="flex-1">
-                  <div className="min-w-0 max-w-full px-4 py-5 sm:px-6">
+                <ScrollArea className="min-w-0 flex-1 overflow-x-hidden">
+                  <div className="w-full min-w-0 max-w-full overflow-hidden px-4 py-5 sm:px-6">
                     {selectedHistoryRunId ? (
                       historyDetailQuery.isLoading ? (
                         <div className="flex h-full min-h-[320px] items-center justify-center">
@@ -1618,10 +1644,10 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                           </p>
                         </div>
                       ) : historyDetail ? (
-                        <div className="space-y-4">
+                        <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
                           <div>
-                            <p className="text-[15px] font-medium text-foreground">{historyCallBriefSnapshot?.business_name || businessName}</p>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
+                            <p className="break-words text-[15px] font-medium text-foreground">{historyCallBriefSnapshot?.business_name || businessName}</p>
+                            <p className="mt-1 break-words text-[11px] text-muted-foreground">
                               Saved {historyDetail.date_generated || "Unknown date"} at {historyDetail.time_generated || "Unknown time"}
                             </p>
                           </div>
@@ -1629,18 +1655,18 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                           <Tabs
                             value={historyDetailTab}
                             onValueChange={(nextValue) => setHistoryDetailTab(nextValue as HistoryDetailTab)}
-                            className="space-y-4"
+                            className="min-w-0 max-w-full space-y-4 overflow-hidden"
                           >
-                            <TabsList className="grid w-full grid-cols-2">
-                              <TabsTrigger value="call-brief" className="w-full">
+                            <TabsList className="grid w-full min-w-0 grid-cols-2">
+                              <TabsTrigger value="call-brief" className="min-w-0 w-full px-2 text-xs sm:text-sm">
                                 Meeting Prep Notes
                               </TabsTrigger>
-                              <TabsTrigger value="primary-drivers" className="w-full">
+                              <TabsTrigger value="primary-drivers" className="min-w-0 w-full px-2 text-xs sm:text-sm">
                                 Primary Drivers Snapshot
                               </TabsTrigger>
                             </TabsList>
 
-                            <TabsContent value="call-brief" className="mt-0">
+                            <TabsContent value="call-brief" className="mt-0 min-w-0 max-w-full overflow-hidden">
                               {historyCallBriefSnapshot ? (
                                 <CallPrepBriefView
                                   callBrief={historyCallBriefSnapshot}
@@ -1656,7 +1682,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                               )}
                             </TabsContent>
 
-                            <TabsContent value="primary-drivers" className="mt-0">
+                            <TabsContent value="primary-drivers" className="mt-0 min-w-0 max-w-full overflow-hidden">
                               {historyPrimaryDriversSnapshot ? (
                                 <PrimaryDriversSnapshotView
                                   data={historyPrimaryDriversSnapshot}

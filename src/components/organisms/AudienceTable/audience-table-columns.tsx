@@ -13,12 +13,6 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import type { AudienceRow } from "@/types/audience-types";
 import { Typography } from "@/components/ui/typography";
 
-const RELEVANCE_OPTIONS = [
-  { label: "High", value: "high" },
-  { label: "Medium", value: "medium" },
-  { label: "Low", value: "low" },
-];
-
 interface GetAudienceTableColumnsProps {
   personaCounts?: Record<string, number>;
   arsRange?: { min: number; max: number };
@@ -103,9 +97,13 @@ export function getAudienceTableColumns({
       },
       meta: {
         label: "Relevance",
-        variant: "multiSelect",
-        options: RELEVANCE_OPTIONS,
-        operators: [{ label: "Is any of", value: "inArray" as const }],
+        variant: "range",
+        range: [0, 100],
+        operators: [
+          { label: "Is", value: "eq" as const },
+          { label: "Is less than", value: "lte" as const },
+          { label: "Is greater than", value: "gte" as const },
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

@@ -10,13 +10,6 @@ import { Typography } from "@/components/ui/typography";
 import { WebPageActionCell } from "@/components/organisms/web-page-actions/web-page-action-cell";
 import { formatVolume } from "@/lib/format";
 
-const BUSINESS_RELEVANCE_OPTIONS = [
-  { label: "High", value: "high" },
-  { label: "Medium", value: "medium" },
-  { label: "Low", value: "low" },
-];
-
-
 interface GetWebPageTableColumnsProps {
   businessId: string;
   offeringCounts?: Record<string, number>;
@@ -139,9 +132,13 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       meta: {
         label: "Relevance",
-        variant: "multiSelect",
-        options: BUSINESS_RELEVANCE_OPTIONS,
-        operators: [{ label: "Is any of", value: "inArray" as const }],
+        variant: "range",
+        range: [0, 100],
+        operators: [
+          { label: "Is", value: "eq" as const },
+          { label: "Is less than", value: "lte" as const },
+          { label: "Is greater than", value: "gte" as const },
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

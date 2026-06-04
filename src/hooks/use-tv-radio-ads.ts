@@ -56,12 +56,15 @@ function mapTvRadioApiField(field: string): string {
     case "type":
       return "channel";
     case "relevance":
-      return "avg_business_relevance";
+    case "business_relevance_score":
+    case "br_score":
+    case "avg_business_relevance":
+      return "supporting_data.totals.avg_business_relevance";
     case "opp_score":
       return "cas_score";
     case "volume":
-      return "supporting_data.totals.total_search_volume";
     case "total_search_volume":
+    case "search_volume":
       return "supporting_data.totals.total_search_volume";
     default:
       return field;
@@ -121,33 +124,45 @@ export function useTvRadioAds(_businessId: string) {
       if (params.search) queryParams.append("search", params.search);
 
       const percentageFields = new Set([
+        "supporting_data.totals.avg_business_relevance",
         "avg_business_relevance",
         "cas_score",
       ]);
       const clamp = (v: number) => Math.max(0, Math.min(1, v));
       const toDecimal = (pct: string) => parseFloat(pct) / 100;
 
-      const RELEVANCE_BANDS: Record<string, { min: number; max: number }> = {
-        low: { min: 0, max: 25 },
-        medium: { min: 26, max: 50 },
-        high: { min: 51, max: 100 },
-      };
+      const relevanceFilter = params.filters.find((filter) => {
+        const apiField = mapTvRadioApiField(filter.field);
+        return apiField === "supporting_data.totals.avg_business_relevance";
+      });
 
-      const expandRelevanceFilter = (filter: {
-        field: string;
-        value: string | string[];
-        operator: string;
-      }) => {
-        const levels = (Array.isArray(filter.value) ? filter.value : [filter.value])
-          .map((v) => String(v).toLowerCase())
-          .filter((v) => v in RELEVANCE_BANDS);
-        if (levels.length === 0 || levels.length === Object.keys(RELEVANCE_BANDS).length) return [];
-        const minPct = Math.min(...levels.map((l) => RELEVANCE_BANDS[l].min));
-        const maxPct = Math.max(...levels.map((l) => RELEVANCE_BANDS[l].max));
-        const result: { field: string; value: string | string[]; operator: string }[] = [];
-        if (minPct > 0) result.push({ ...filter, operator: "gte", value: String(clamp(toDecimal(String(minPct)) - 0.005)) });
-        if (maxPct < 100) result.push({ ...filter, operator: "lte", value: String(clamp(toDecimal(String(maxPct)) + 0.005)) });
-        return result;
+      const volumeFilter = params.filters.find((filter) => {
+        const apiField = mapTvRadioApiField(filter.field);
+        return apiField === "supporting_data.totals.total_search_volume";
+      });
+
+      const applyLocalRelevanceFilter = (rows: TvRadioAdConceptRow[]) => {
+        if (!relevanceFilter) return rows;
+        if (Array.isArray(relevanceFilter.value)) return rows;
+
+        const parsed = toDecimal(relevanceFilter.value);
+        if (Number.isNaN(parsed)) return rows;
+
+        if (relevanceFilter.operator === "eq") {
+          const min = clamp(parsed - 0.005);
+          const max = clamp(parsed + 0.005);
+          return rows.filter((row) => row.relevance >= min && row.relevance <= max);
+        }
+
+        if (relevanceFilter.operator === "gte") {
+          return rows.filter((row) => row.relevance >= clamp(parsed - 0.005));
+        }
+
+        if (relevanceFilter.operator === "lte") {
+          return rows.filter((row) => row.relevance <= clamp(parsed + 0.005));
+        }
+
+        return rows;
       };
 
       const volumeFields = new Set([
@@ -159,6 +174,12 @@ export function useTvRadioAds(_businessId: string) {
         if (s.endsWith("m")) return parseFloat(s) * 1_000_000;
         if (s.endsWith("k")) return parseFloat(s) * 1_000;
         return parseFloat(s);
+      };
+
+      const getParsedVolumeValue = (value: string | undefined) => {
+        if (!value) return null;
+        const parsed = parseVolumeValue(value);
+        return Number.isNaN(parsed) ? null : Math.round(parsed);
       };
 
       const normalizeVolumeFilter = (filter: {
@@ -186,6 +207,44 @@ export function useTvRadioAds(_businessId: string) {
           return parsed ? [{ ...filter, value: parsed }] : [filter];
         }
         return [filter];
+      };
+
+      const applyLocalVolumeFilter = (rows: TvRadioAdConceptRow[]) => {
+        if (!volumeFilter) return rows;
+
+        const { operator, value } = volumeFilter;
+
+        if (operator === "isBetween" && Array.isArray(value)) {
+          const min = getParsedVolumeValue(value[0]);
+          const max = getParsedVolumeValue(value[1]);
+
+          if (min === null && max === null) return rows;
+
+          return rows.filter((row) => {
+            if (min !== null && row.volume < min) return false;
+            if (max !== null && row.volume > max) return false;
+            return true;
+          });
+        }
+
+        if (Array.isArray(value)) return rows;
+
+        const parsed = getParsedVolumeValue(value);
+        if (parsed === null) return rows;
+
+        if (operator === "gte") {
+          return rows.filter((row) => row.volume >= parsed);
+        }
+
+        if (operator === "lte") {
+          return rows.filter((row) => row.volume <= parsed);
+        }
+
+        if (operator === "eq") {
+          return rows.filter((row) => row.volume === parsed);
+        }
+
+        return rows;
       };
 
       const normalizePercentageFilter = (filter: {
@@ -283,9 +342,6 @@ export function useTvRadioAds(_businessId: string) {
             operator: filter.operator,
           };
 
-          if (percentageFields.has(apiField) && mappedFilter.operator === "inArray") {
-            return expandRelevanceFilter(mappedFilter);
-          }
           if (percentageFields.has(apiField)) {
             return normalizePercentageFilter(mappedFilter);
           }
@@ -309,7 +365,7 @@ export function useTvRadioAds(_businessId: string) {
       const response = await api.execute(endpoint, { method: "GET" });
 
       const items = response?.output_data?.items || [];
-      const rows = transformToTableRows(items);
+      const rows = applyLocalVolumeFilter(applyLocalRelevanceFilter(transformToTableRows(items)));
       const pagination = response?.output_data?.pagination;
       const pageCount = Number(pagination?.total_pages || 0);
 

@@ -77,13 +77,13 @@ export function getDigitalAdsTableColumns({ offeringCounts = {} }: GetDigitalAds
       },
       meta: {
         label: "Relevance",
-        variant: "multiSelect",
-        options: [
-          { label: "High", value: "high" },
-          { label: "Medium", value: "medium" },
-          { label: "Low", value: "low" },
+        variant: "range",
+        range: [0, 100],
+        operators: [
+          { label: "Is", value: "eq" as const },
+          { label: "Is less than", value: "lte" as const },
+          { label: "Is greater than", value: "gte" as const },
         ],
-        operators: [{ label: "Is any of", value: "inArray" as const }],
       },
       enableColumnFilter: true,
       enableSorting: true,

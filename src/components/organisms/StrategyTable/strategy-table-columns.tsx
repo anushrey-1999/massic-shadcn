@@ -20,12 +20,6 @@ function formatPercentage(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-const BUSINESS_RELEVANCE_OPTIONS = [
-  { label: "High", value: "high" },
-  { label: "Medium", value: "medium" },
-  { label: "Low", value: "low" },
-];
-
 interface GetStrategyTableColumnsProps {
   offeringCounts?: Record<string, number>;
 }
@@ -73,9 +67,13 @@ export function getStrategyTableColumns({
       },
       meta: {
         label: "Relevance",
-        variant: "multiSelect",
-        options: BUSINESS_RELEVANCE_OPTIONS,
-        operators: [{ label: "Is any of", value: "inArray" as const }],
+        variant: "range",
+        range: [0, 100],
+        operators: [
+          { label: "Is", value: "eq" as const },
+          { label: "Is less than", value: "lte" as const },
+          { label: "Is greater than", value: "gte" as const },
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

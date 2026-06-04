@@ -414,6 +414,25 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     return counts;
   }, [offeringOptions]);
 
+  const clientFilteredSocialData = React.useMemo(() => {
+    const rows = socialData?.data || [];
+    if (!Array.isArray(filters) || filters.length === 0) return rows;
+
+    return filters.reduce((data, filter) => {
+      const field = filter.id || (filter as any).field || filter.filterId;
+      const value = typeof filter.value === "string" ? filter.value.toLowerCase().trim() : "";
+      if (!field || !value) return data;
+
+      if (field === "campaign_name" && (filter.operator === "iLike" || filter.operator === "eq")) {
+        return data.filter((row) =>
+          (row.campaign_name || "").toLowerCase().includes(value)
+        );
+      }
+
+      return data;
+    }, rows);
+  }, [socialData?.data, filters]);
+
   // Use selectedRowChannel for tactics if available, otherwise use channelName from URL
   const tacticsChannel = selectedRowChannel || channelName;
 
@@ -619,7 +638,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   return (
     <div className="relative h-full flex flex-col">
       <SocialTable
-        data={socialData?.data || []}
+        data={clientFilteredSocialData}
         pageCount={socialData?.pageCount || 0}
         offeringCounts={offeringCounts}
         offeringOptions={offeringOptions}

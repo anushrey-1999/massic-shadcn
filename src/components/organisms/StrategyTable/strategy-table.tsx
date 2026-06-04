@@ -17,9 +17,6 @@ interface StrategyTableProps {
   data: StrategyRow[];
   pageCount: number;
   offeringCounts?: Record<string, number>;
-  businessRelevanceRange?: { min: number; max: number };
-  topicCoverageRange?: { min: number; max: number };
-  searchVolumeRange?: { min: number; max: number };
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -36,9 +33,6 @@ export function StrategyTable({
   data,
   pageCount,
   offeringCounts = {},
-  businessRelevanceRange = { min: 0, max: 1 },
-  topicCoverageRange = { min: 0, max: 1 },
-  searchVolumeRange = { min: 0, max: 10000 },
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -57,11 +51,8 @@ export function StrategyTable({
       getStrategyTableColumns({
         businessId,
         offeringCounts,
-        businessRelevanceRange,
-        topicCoverageRange,
-        searchVolumeRange,
       }),
-    [businessId, offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange]
+    [businessId, offeringCounts]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({

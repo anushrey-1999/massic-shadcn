@@ -236,7 +236,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
           selected_pages,
           user_prompt: text,
           calendar_events: [],
-          page_ideas_required: 30,
+          page_ideas_required: 20,
         })
       } catch (err: any) {
         const status = err?.response?.status

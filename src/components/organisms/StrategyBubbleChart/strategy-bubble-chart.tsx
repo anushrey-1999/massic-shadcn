@@ -21,8 +21,11 @@ export const BUSINESS_RELEVANCE_PALETTE = [
   "#B1DE6A",
 ];
 
+export type StrategyBubbleColorMetric = "topicCoverage" | "businessRelevance";
+
 interface StrategyBubbleChartProps {
   data: StrategyRow[];
+  colorMetric?: StrategyBubbleColorMetric;
   width?: number;
   height?: number;
 }
@@ -44,6 +47,7 @@ type PackedNode = d3.HierarchyCircularNode<HierarchyNode>;
 
 export function StrategyBubbleChart({
   data,
+  colorMetric = "topicCoverage",
   width = 1200,
   height = 800,
 }: StrategyBubbleChartProps) {
@@ -104,6 +108,7 @@ export function StrategyBubbleChart({
           name: cluster.cluster_name || cluster.cluster || "",
           type: "cluster" as const,
           data: {
+            relevanceScore: topic.business_relevance_score,
             searchVolume: cluster.total_search_volume,
             coverage: cluster.topic_coverage ?? cluster.intent_cluster_topic_coverage,
             keywordsCount: cluster.keywords.length,
@@ -113,6 +118,7 @@ export function StrategyBubbleChart({
             type: "keyword" as const,
             value: 1,
             data: {
+              relevanceScore: topic.business_relevance_score,
               coverage: cluster.topic_coverage ?? cluster.intent_cluster_topic_coverage,
               keywordsCount: 1,
             },
@@ -126,11 +132,11 @@ export function StrategyBubbleChart({
   const getColor = useCallback((node: PackedNode) => {
     const palette = BUSINESS_RELEVANCE_PALETTE;
 
-    const normalizeCoverage = (coverageRaw?: number) => {
-      const coverage = coverageRaw ?? 0;
-      if (!Number.isFinite(coverage)) return 0;
-      if (coverage <= 1) return Math.max(0, Math.min(1, coverage));
-      if (coverage <= 100) return Math.max(0, Math.min(1, coverage / 100));
+    const normalizeScore = (scoreRaw?: number) => {
+      const score = scoreRaw ?? 0;
+      if (!Number.isFinite(score)) return 0;
+      if (score <= 1) return Math.max(0, Math.min(1, score));
+      if (score <= 100) return Math.max(0, Math.min(1, score / 100));
       return 1;
     };
 
@@ -146,20 +152,22 @@ export function StrategyBubbleChart({
         : node.ancestors().find((a): a is PackedNode => a.data.type === "topic") ??
           null;
 
-    const coverageRaw =
-      node.data.type === "topic"
-        ? node.data.data?.coverage
-        : node.data.type === "cluster"
+    const metricRaw =
+      colorMetric === "businessRelevance"
+        ? node.data.data?.relevanceScore ?? topicAncestor?.data.data?.relevanceScore
+        : node.data.type === "topic"
           ? node.data.data?.coverage
-          : node.data.type === "keyword"
-            ? node.data.data?.coverage ?? clusterAncestor?.data.data?.coverage
-            : topicAncestor?.data.data?.coverage;
+          : node.data.type === "cluster"
+            ? node.data.data?.coverage
+            : node.data.type === "keyword"
+              ? node.data.data?.coverage ?? clusterAncestor?.data.data?.coverage
+              : topicAncestor?.data.data?.coverage;
 
-    const coverage = normalizeCoverage(coverageRaw);
-    const index = Math.max(0, Math.min(palette.length - 1, Math.round(coverage * (palette.length - 1))));
+    const score = normalizeScore(metricRaw);
+    const index = Math.max(0, Math.min(palette.length - 1, Math.round(score * (palette.length - 1))));
 
     return palette[index];
-  }, []);
+  }, [colorMetric]);
 
   const formatCompactNumber = useCallback((value?: number) => {
     if (value === undefined || value === null) return "-";
@@ -426,6 +434,7 @@ export function StrategyBubbleChart({
         : tooltipType === "keyword"
           ? "Keyword"
           : null;
+  const tooltipRelevance = formatCoveragePercent(tooltipNode?.data.data?.relevanceScore);
   const tooltipCoverage = formatCoveragePercent(tooltipNode?.data.data?.coverage);
   const tooltipKeywords = tooltipNode?.data.data?.keywordsCount;
   const tooltipVolume = tooltipNode?.data.data?.searchVolume;
@@ -446,6 +455,7 @@ export function StrategyBubbleChart({
             typeLabel={tooltipTypeLabel}
             title={tooltipTitle}
             metrics={[
+              { label: "Business Relevance", value: tooltipRelevance },
               { label: "Topic Coverage", value: tooltipCoverage },
               { label: "Keywords", value: tooltipKeywords ?? 0 },
               ...(tooltipVolume !== undefined

@@ -77,6 +77,15 @@ const METRIC_ICONS: Record<string, React.ReactNode> = {
   branded: <Star className="h-5 w-5" />,
   "non-branded": <TrendingUp className="h-5 w-5" />,
 };
+
+const METRIC_TOOLTIPS: Record<string, string> = {
+  "topic-coverage":
+    "Measures how much of your relevant search universe you currently cover. We calculate the percentage of important topics your website is receiving Search impressions for, compared to the total relevant topics for your business. Higher coverage means stronger topical authority and a broader organic presence.",
+  "visibility-relevance":
+    "Measures the quality of your search visibility. Specifically, the percentage of Google Search impressions coming from searches that are highly relevant to your business, products, or services — not just broad or loosely related traffic.",
+  "engagement-relevance":
+    "Measures the quality of the traffic engaging with your site. Specifically, the percentage of Google Search clicks coming from highly relevant searches tied closely to your business offerings and ideal customers.",
+};
 const CHART_METRIC_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
 type AnomalySheetTab = "goals" | "traffic";
 type AnomalyMetricKey = "goal" | "traffic";
@@ -788,6 +797,7 @@ export function OrganicPerformanceSection({
                 change={card.change}
                 sparklineData={card.sparklineData}
                 isLoading={isLoadingMetrics}
+                tooltipContent={METRIC_TOOLTIPS[card.key]}
               />
             ))
           ) : metricsStatus === "loading" ? (
@@ -820,6 +830,7 @@ export function OrganicPerformanceSection({
                   change={undefined}
                   sparklineData={undefined}
                   isLoading={false}
+                  tooltipContent={METRIC_TOOLTIPS[key]}
                   emptyMessage={
                     key === "topic-coverage"
                       ? "Add more topics to your business profile to see this metric."

@@ -11,6 +11,16 @@ import { ChannelsSidebar } from "./channels-sidebar";
 import { useSocial } from "@/hooks/use-social";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { SocialRow, SocialStrategyType } from "@/types/social-types";
+import type { QueryKeys } from "@/types/data-table-types";
+
+type SocialTableFilter = {
+  id: string;
+  value: string | string[];
+  variant: string;
+  operator: string;
+  filterId: string;
+  field?: string;
+};
 import { downloadRowsAsCsv } from "@/lib/csv-export";
 import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 
@@ -20,16 +30,45 @@ interface SocialTableClientProps {
   toolbarRightPrefix?: React.ReactNode;
   isReadOnly?: boolean;
   strategyType?: SocialStrategyType;
+  queryKeys?: Partial<QueryKeys>;
+  searchKey?: string;
+  channelNameKey?: string;
+  campaignNameKey?: string;
+  defaultPerPage?: number;
+  defaultJoinOperator?: "and" | "or";
+  pageSizeOptions?: number[];
+  baseFilters?: SocialTableFilter[];
+  tacticsBaseFilters?: SocialTableFilter[];
 }
 
-export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPrefix, isReadOnly = false, strategyType = "publish" }: SocialTableClientProps) {
+export function SocialTableClient({
+  businessId,
+  channelsSidebar,
+  toolbarRightPrefix,
+  isReadOnly = false,
+  strategyType = "publish",
+  queryKeys,
+  searchKey = "search",
+  channelNameKey = "channel_name",
+  campaignNameKey = "campaign_name",
+  defaultPerPage = 100,
+  defaultJoinOperator = "and",
+  pageSizeOptions,
+  baseFilters = [],
+  tacticsBaseFilters = baseFilters,
+}: SocialTableClientProps) {
+  const pageKey = queryKeys?.page ?? "page";
+  const perPageKey = queryKeys?.perPage ?? "perPage";
+  const sortKey = queryKeys?.sort ?? "sort";
+  const filtersKey = queryKeys?.filters ?? "filters";
+  const joinOperatorKey = queryKeys?.joinOperator ?? "joinOperator";
   const [tacticsSearch, setTacticsSearch] = React.useState("");
   const [suppressTacticsFetching, setSuppressTacticsFetching] = React.useState(false);
-  const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
-  const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
-  const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
+  const [page, setPage] = useQueryState(pageKey, parseAsInteger.withDefault(1));
+  const [perPage] = useQueryState(perPageKey, parseAsInteger.withDefault(defaultPerPage));
+  const [search, setSearch] = useQueryState(searchKey, parseAsString.withDefault(""));
   const [sort] = useQueryState(
-    "sort",
+    sortKey,
     parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
       if (Array.isArray(value)) {
         return value as Array<{ field: string; desc: boolean }>;
@@ -38,40 +77,34 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     }).withDefault([])
   );
   const [filters] = useQueryState(
-    "filters",
-    parseAsJson<
-      Array<{
-        id: string;
-        value: string | string[];
-        variant: string;
-        operator: string;
-        filterId: string;
-      }>
-    >((value) => {
+    filtersKey,
+    parseAsJson<SocialTableFilter[]>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{
-          id: string;
-          value: string | string[];
-          variant: string;
-          operator: string;
-          filterId: string;
-        }>;
+        return value as SocialTableFilter[];
       }
       return null;
     }).withDefault([])
   );
   const [joinOperator] = useQueryState(
-    "joinOperator",
-    parseAsString.withDefault("and")
+    joinOperatorKey,
+    parseAsString.withDefault(defaultJoinOperator)
   );
   const [channelName, setChannelName] = useQueryState(
-    "channel_name",
+    channelNameKey,
     parseAsString
   );
   const [campaignName, setCampaignName] = useQueryState(
-    "campaign_name",
+    campaignNameKey,
     parseAsString
   );
+
+  const effectiveBaseFilters = React.useMemo(() => baseFilters || [], [baseFilters]);
+  const effectiveTacticsBaseFilters = React.useMemo(() => tacticsBaseFilters || [], [tacticsBaseFilters]);
+  const apiFilters = React.useMemo(
+    () => [...effectiveBaseFilters, ...(filters || [])],
+    [effectiveBaseFilters, filters]
+  );
+  const apiJoinOperator = joinOperator || defaultJoinOperator;
 
   // Store the channel from the clicked row (for tactics view) without changing URL state
   const [selectedRowChannel, setSelectedRowChannel] = React.useState<string | null>(null);
@@ -85,9 +118,10 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   const hasActiveSearchOrFilters = React.useMemo(() => {
     const hasSearch = (search || "").trim().length > 0;
     const hasFilters = Array.isArray(filters) && filters.length > 0;
+    const hasBaseFilters = effectiveBaseFilters.length > 0;
     const hasChannel = (channelName || "").trim().length > 0;
-    return hasSearch || hasFilters || hasChannel;
-  }, [search, filters, channelName]);
+    return hasSearch || hasFilters || hasBaseFilters || hasChannel;
+  }, [search, filters, effectiveBaseFilters, channelName]);
 
   const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
@@ -140,11 +174,11 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
       perPage,
       search || "",
       JSON.stringify(sort),
-      JSON.stringify(filters),
-      joinOperator,
+      JSON.stringify(apiFilters),
+      apiJoinOperator,
       effectiveChannelName,
     ],
-    [strategyType, businessId, page, perPage, search, sort, filters, joinOperator, effectiveChannelName]
+    [strategyType, businessId, page, perPage, search, sort, apiFilters, apiJoinOperator, effectiveChannelName]
   );
 
   const {
@@ -163,8 +197,8 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         perPage,
         search: search || undefined,
         sort: sort || [],
-        filters: filters || [],
-        joinOperator: (joinOperator || "and") as "and" | "or",
+        filters: apiFilters,
+        joinOperator: apiJoinOperator as "and" | "or",
         channel_name: effectiveChannelName,
       });
     },
@@ -178,7 +212,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   });
 
   const { data: channelsData } = useQuery({
-    queryKey: ["social-channels-list", strategyType, businessId],
+    queryKey: ["social-channels-list", strategyType, businessId, JSON.stringify(effectiveBaseFilters)],
     queryFn: async () => {
       return fetchSocial({
         business_id: businessId,
@@ -186,8 +220,8 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         perPage: 100,
         search: undefined,
         sort: [],
-        filters: [],
-        joinOperator: "and",
+        filters: effectiveBaseFilters,
+        joinOperator: defaultJoinOperator,
         channel_name: undefined,
       });
     },
@@ -414,6 +448,25 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     return counts;
   }, [offeringOptions]);
 
+  const clientFilteredSocialData = React.useMemo(() => {
+    const rows = socialData?.data || [];
+    if (!Array.isArray(filters) || filters.length === 0) return rows;
+
+    return filters.reduce((data, filter) => {
+      const field = filter.id || (filter as any).field || filter.filterId;
+      const value = typeof filter.value === "string" ? filter.value.toLowerCase().trim() : "";
+      if (!field || !value) return data;
+
+      if (field === "campaign_name" && (filter.operator === "iLike" || filter.operator === "eq")) {
+        return data.filter((row) =>
+          (row.campaign_name || "").toLowerCase().includes(value)
+        );
+      }
+
+      return data;
+    }, rows);
+  }, [socialData?.data, filters]);
+
   // Use selectedRowChannel for tactics if available, otherwise use channelName from URL
   const tacticsChannel = selectedRowChannel || channelName;
 
@@ -424,8 +477,9 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
       businessId,
       tacticsChannel || null,
       campaignName || null,
+      JSON.stringify(effectiveTacticsBaseFilters),
     ],
-    [strategyType, businessId, tacticsChannel, campaignName]
+    [strategyType, businessId, tacticsChannel, campaignName, effectiveTacticsBaseFilters]
   );
 
   const {
@@ -447,8 +501,8 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         perPage: 500,
         search: undefined,
         sort: [],
-        filters: [],
-        joinOperator: "and",
+        filters: effectiveTacticsBaseFilters,
+        joinOperator: defaultJoinOperator,
         channel_name: tacticsChannel || undefined,
         campaign_name: campaignName || undefined,
       });
@@ -619,7 +673,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   return (
     <div className="relative h-full flex flex-col">
       <SocialTable
-        data={socialData?.data || []}
+        data={clientFilteredSocialData}
         pageCount={socialData?.pageCount || 0}
         offeringCounts={offeringCounts}
         offeringOptions={offeringOptions}
@@ -630,6 +684,15 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         channelsSidebar={sidebarNode}
         onRowClick={handleRowClick}
         toolbarRightPrefix={toolbarRightPrefix}
+        queryKeys={{
+          page: pageKey,
+          perPage: perPageKey,
+          sort: sortKey,
+          filters: filtersKey,
+          joinOperator: joinOperatorKey,
+        }}
+        pageSize={defaultPerPage}
+        pageSizeOptions={pageSizeOptions}
         onDownloadCsv={handleDownloadCsv}
       />
     </div>

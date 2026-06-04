@@ -62,6 +62,57 @@ export function useDigitalAds(businessId: string) {
       const clamp = (v: number) => Math.max(0, Math.min(1, v));
       const toDecimal = (pct: string) => parseFloat(pct) / 100;
 
+      const RELEVANCE_BANDS: Record<string, { min: number; max: number }> = {
+        low: { min: 0, max: 25 },
+        medium: { min: 26, max: 50 },
+        high: { min: 51, max: 100 },
+      };
+
+      const expandRelevanceFilter = (filter: { field: string; value: string | string[]; operator: string }) => {
+        const levels = (Array.isArray(filter.value) ? filter.value : [filter.value])
+          .map((v) => String(v).toLowerCase())
+          .filter((v) => v in RELEVANCE_BANDS);
+        if (levels.length === 0 || levels.length === Object.keys(RELEVANCE_BANDS).length) return [];
+        const minPct = Math.min(...levels.map((l) => RELEVANCE_BANDS[l].min));
+        const maxPct = Math.max(...levels.map((l) => RELEVANCE_BANDS[l].max));
+        const result: { field: string; value: string | string[]; operator: string }[] = [];
+        if (minPct > 0) result.push({ ...filter, operator: "gte", value: String(clamp(toDecimal(String(minPct)) - 0.005)) });
+        if (maxPct < 100) result.push({ ...filter, operator: "lte", value: String(clamp(toDecimal(String(maxPct)) + 0.005)) });
+        return result;
+      };
+
+      const volumeFields = new Set(["total_search_volume"]);
+
+      const parseVolumeValue = (raw: string): number => {
+        const s = raw.trim().toLowerCase();
+        if (s.endsWith("m")) return parseFloat(s) * 1_000_000;
+        if (s.endsWith("k")) return parseFloat(s) * 1_000;
+        return parseFloat(s);
+      };
+
+      const normalizeVolumeFilter = (filter: { field: string; value: string | string[]; operator: string }) => {
+        const { value, operator } = filter;
+        const parseOne = (v: string) => {
+          const n = parseVolumeValue(v);
+          return Number.isNaN(n) ? null : String(Math.round(n));
+        };
+        if (operator === "isBetween" && Array.isArray(value)) {
+          const [minVal, maxVal] = value;
+          const result: { field: string; value: string | string[]; operator: string }[] = [];
+          const parsedMin = minVal !== "" && minVal !== undefined ? parseOne(minVal) : null;
+          const parsedMax = maxVal !== "" && maxVal !== undefined ? parseOne(maxVal) : null;
+          if (!parsedMin && !parsedMax) return [filter];
+          if (parsedMin) result.push({ ...filter, operator: "gte", value: parsedMin });
+          if (parsedMax) result.push({ ...filter, operator: "lte", value: parsedMax });
+          return result;
+        }
+        if (!Array.isArray(value) && value !== "") {
+          const parsed = parseOne(value);
+          return parsed ? [{ ...filter, value: parsed }] : [filter];
+        }
+        return [filter];
+      };
+
       const normalizePercentageFilter = (filter: { field: string; value: string | string[]; operator: string }) => {
         const { value, operator } = filter;
 
@@ -146,9 +197,16 @@ export function useDigitalAds(businessId: string) {
             operator: filter.operator,
           };
 
-          return percentageFields.has(mappedFilter.field)
-            ? normalizePercentageFilter(mappedFilter)
-            : [mappedFilter];
+          if (percentageFields.has(mappedFilter.field) && mappedFilter.operator === "inArray") {
+            return expandRelevanceFilter(mappedFilter);
+          }
+          if (percentageFields.has(mappedFilter.field)) {
+            return normalizePercentageFilter(mappedFilter);
+          }
+          if (volumeFields.has(mappedFilter.field)) {
+            return normalizeVolumeFilter(mappedFilter);
+          }
+          return [mappedFilter];
         });
 
         if (modifiedFilters.length > 0) {

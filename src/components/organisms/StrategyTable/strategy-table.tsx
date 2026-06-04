@@ -13,12 +13,10 @@ import { getStrategyTableColumns } from "./strategy-table-columns";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface StrategyTableProps {
+  businessId?: string;
   data: StrategyRow[];
   pageCount: number;
   offeringCounts?: Record<string, number>;
-  businessRelevanceRange?: { min: number; max: number };
-  topicCoverageRange?: { min: number; max: number };
-  searchVolumeRange?: { min: number; max: number };
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -31,12 +29,10 @@ interface StrategyTableProps {
 }
 
 export function StrategyTable({
+  businessId,
   data,
   pageCount,
   offeringCounts = {},
-  businessRelevanceRange = { min: 0, max: 1 },
-  topicCoverageRange = { min: 0, max: 1 },
-  searchVolumeRange = { min: 0, max: 10000 },
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -53,12 +49,10 @@ export function StrategyTable({
   const columns = React.useMemo(
     () =>
       getStrategyTableColumns({
+        businessId,
         offeringCounts,
-        businessRelevanceRange,
-        topicCoverageRange,
-        searchVolumeRange,
       }),
-    [offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange]
+    [businessId, offeringCounts]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({

@@ -24,6 +24,8 @@ interface TacticsTableProps {
   channelName?: string;
   hideActions?: boolean;
   strategyType?: SocialStrategyType;
+  includeCampaignContext?: boolean;
+  pageSize?: number;
 }
 
 export function TacticsTable({
@@ -37,6 +39,8 @@ export function TacticsTable({
   channelName,
   hideActions = false,
   strategyType = "publish",
+  includeCampaignContext = false,
+  pageSize = 500,
 }: TacticsTableProps) {
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
 
@@ -91,9 +95,10 @@ export function TacticsTable({
       expandedRowId, 
       onExpandedRowChange: handleExpandedRowChange,
       hideActions,
-      strategyType
+      strategyType,
+      includeCampaignContext,
     }),
-    [channelName, businessId, expandedRowId, handleExpandedRowChange, hideActions, strategyType]
+    [channelName, businessId, expandedRowId, handleExpandedRowChange, hideActions, strategyType, includeCampaignContext]
   );
 
   const { table } = useLocalDataTable({
@@ -102,7 +107,7 @@ export function TacticsTable({
     initialState: {
       pagination: {
         pageIndex: 0,
-        pageSize: 500,
+        pageSize,
       },
       columnVisibility: {
         status: false,

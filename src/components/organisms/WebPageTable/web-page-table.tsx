@@ -24,6 +24,10 @@ interface WebPageTableProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   hideActions?: boolean;
+  pageSize?: number;
+  pageSizeOptions?: number[];
+  showPagination?: boolean;
+  hideRowsPerPage?: boolean;
   onDownloadCsv?: () => void | Promise<void>;
 }
 
@@ -38,6 +42,10 @@ export function WebPageTable({
   search = "",
   onSearchChange,
   hideActions = false,
+  pageSize = 100,
+  pageSizeOptions = [10, 30, 50, 100, 200],
+  showPagination = true,
+  hideRowsPerPage = false,
   onDownloadCsv,
 }: WebPageTableProps) {
   const enableAdvancedFilter = true;
@@ -113,7 +121,7 @@ export function WebPageTable({
     initialState: {
       pagination: {
         pageIndex: 0,
-        pageSize: 100,
+        pageSize,
       },
       columnVisibility: {
         offerings: false,
@@ -176,7 +184,9 @@ export function WebPageTable({
         table={table}
         isLoading={isLoading}
         isFetching={isFetching}
-        pageSizeOptions={[10, 30, 50, 100, 200]}
+        pageSizeOptions={pageSizeOptions}
+        showPagination={showPagination}
+        hideRowsPerPage={hideRowsPerPage}
         emptyMessage="No web pages found. Try adjusting your filters or check back later."
         onRowClick={(row) => {
           const rowId = (row as any).id;

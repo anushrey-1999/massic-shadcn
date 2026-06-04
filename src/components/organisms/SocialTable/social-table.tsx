@@ -25,6 +25,8 @@ interface SocialTableProps {
   channelsSidebar?: React.ReactNode;
   onRowClick?: (row: SocialRow) => void;
   toolbarRightPrefix?: React.ReactNode;
+  pageSize?: number;
+  pageSizeOptions?: number[];
   onDownloadCsv?: () => void | Promise<void>;
 }
 
@@ -41,6 +43,8 @@ export function SocialTable({
   channelsSidebar,
   onRowClick,
   toolbarRightPrefix,
+  pageSize = 100,
+  pageSizeOptions = [10, 30, 50, 100, 200],
   onDownloadCsv,
 }: SocialTableProps) {
   const enableAdvancedFilter = true;
@@ -58,7 +62,7 @@ export function SocialTable({
     initialState: {
       pagination: {
         pageIndex: 0,
-        pageSize: 100,
+        pageSize,
       },
       columnVisibility: {
         offerings: false,
@@ -116,7 +120,7 @@ export function SocialTable({
               table={table}
               isLoading={isLoading}
               isFetching={isFetching}
-              pageSizeOptions={[10, 30, 50, 100, 200]}
+              pageSizeOptions={pageSizeOptions}
               emptyMessage="No social campaigns found. Try adjusting your filters or check back later."
               className="h-full"
               onRowClick={onRowClick}

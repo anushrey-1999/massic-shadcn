@@ -20,13 +20,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { AgentConversation } from "./types";
+import type { AgentConversation, SpecialistState } from "./types";
 
 type Props = {
   conversations: AgentConversation[];
   activeId: string | null;
   activeView?: "chat" | "chats";
   isCollapsed?: boolean;
+  specialistState?: SpecialistState;
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onDelete: (id: string) => void;
@@ -48,6 +49,7 @@ export function AgentHistorySidebar({
   activeId,
   activeView = "chat",
   isCollapsed = false,
+  specialistState,
   onSelect,
   onNewChat,
   onDelete,

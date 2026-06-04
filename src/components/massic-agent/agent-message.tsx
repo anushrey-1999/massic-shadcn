@@ -1,22 +1,38 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, Copy, RefreshCw, Table2, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MassicLoader } from "@/components/ui/massic-loader";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { renderLightMarkdown } from "@/components/chatbot/markdown";
 import { cn } from "@/lib/utils";
 import { AgentThinking } from "./agent-thinking";
-import type { AgentAction, AgentMessage, StreamPhase } from "./types";
+import type { AgentMessage, StreamPhase, WidgetPart } from "./types";
 
-function AgentActionRow({ action }: { action: AgentAction }) {
-  if (action.status !== "running") return null;
+const TOOL_LABELS: Record<string, string> = {
+  search_knowledge: "Searching knowledge base…",
+  get_business_profile: "Loading business profile…",
+  get_strategy_statuses: "Checking strategy status…",
+  get_pages_details: "Fetching page details…",
+  get_webpage_plan: "Reading content plan…",
+  recall_memory: "Retrieving memories…",
+  write_memory: "Saving memory…",
+  forget_memory: "Removing memory…",
+  save_plan: "Saving plan…",
+  activate_plan: "Activating plan…",
+};
+
+function toolLabel(toolName: string): string {
+  return TOOL_LABELS[toolName] ?? `Running ${toolName.replace(/_/g, " ")}…`;
+}
+
+function ToolIndicatorRow({ toolName }: { toolName: string }) {
   return (
     <div className="flex items-center gap-2.5 text-sm">
       <MassicLoader size={18} animate />
       <span className="italic font-medium bg-linear-to-r from-muted-foreground via-foreground to-muted-foreground bg-size-[200%_100%] bg-clip-text text-transparent animate-[shimmer_2s_linear_infinite]">
-        {action.label}
+        {toolLabel(toolName)}
       </span>
     </div>
   );
@@ -42,14 +58,87 @@ const proseClasses = cn(
   "[&_hr]:my-6 [&_hr]:border-border"
 );
 
+function formatAgentContent(content: string): string {
+  const match = content.match(/(^|\n)(Plan highlights):\s*/i);
+  if (!match || match.index === undefined) return content;
+
+  const prefix = match[1] ?? "";
+  const markerStart = match.index + prefix.length;
+  const markerEnd = match.index + match[0].length;
+  const before = content.slice(0, markerStart);
+  const afterMarker = content.slice(markerEnd);
+  const sectionBreak = afterMarker.search(/\n{2,}/);
+  const bulletSection = sectionBreak === -1 ? afterMarker : afterMarker.slice(0, sectionBreak);
+  const rest = sectionBreak === -1 ? "" : afterMarker.slice(sectionBreak);
+  const trimmedSection = bulletSection.trim();
+
+  if (!trimmedSection.startsWith("-")) return content;
+
+  const bullets = trimmedSection
+    .replace(/^-\s*/, "")
+    .split(/\s+-\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (bullets.length === 0) return content;
+
+  return [
+    before.trimEnd(),
+    "### Plan highlights",
+    bullets.map((item) => `- ${item}`).join("\n"),
+    rest.trimStart(),
+  ].filter(Boolean).join("\n\n");
+}
+
 type Props = {
   message: AgentMessage;
   isLast: boolean;
   streamPhase: StreamPhase;
+  activeToolName?: string | null;
+  onOpenWidget?: (part: WidgetPart) => void;
   onRegenerate?: () => void;
 };
 
-export function AgentMessageView({ message, isLast, streamPhase, onRegenerate }: Props) {
+function AgentWidgetPartView({
+  part,
+  onOpenWidget,
+}: {
+  part: WidgetPart;
+  onOpenWidget?: (part: WidgetPart) => void;
+}) {
+  const isPlan = part.resource.type === "webpage_plan";
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenWidget?.(part)}
+      className="mt-1 flex w-full max-w-md items-center gap-3 rounded-xl border border-border bg-card px-3 py-3 text-left shadow-xs transition-colors hover:border-general-primary/30 hover:bg-general-primary/5"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-general-primary/10 text-general-primary">
+        <Table2 className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-foreground">
+          {isPlan ? `Plan #${String(part.resource.id)}` : `${part.widget || "Artifact"} #${String(part.resource.id)}`}
+        </span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          Click to open {isPlan ? "the detailed plan table" : "artifact"} in split view
+        </span>
+      </span>
+      <span className="shrink-0 text-xs font-medium text-general-primary">
+        Open
+      </span>
+    </button>
+  );
+}
+
+export function AgentMessageView({
+  message,
+  isLast,
+  streamPhase,
+  activeToolName,
+  onOpenWidget,
+  onRegenerate,
+}: Props) {
   const [copied, setCopied] = React.useState(false);
   const [feedback, setFeedback] = React.useState<"up" | "down" | null>(null);
 
@@ -65,9 +154,29 @@ export function AgentMessageView({ message, isLast, streamPhase, onRegenerate }:
 
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-3 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-          {message.content}
+      <div className="group flex justify-end">
+        <div className="flex max-w-[85%] items-start gap-1.5">
+          <TooltipProvider delayDuration={400}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleCopy}
+                  aria-label="Copy message"
+                  className="mt-1 h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{copied ? "Copied!" : "Copy"}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <div className="rounded-2xl bg-muted px-4 py-3 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+            {message.content}
+          </div>
         </div>
       </div>
     );
@@ -75,29 +184,53 @@ export function AgentMessageView({ message, isLast, streamPhase, onRegenerate }:
 
   const thinkingActive = isLast && streamPhase === "thinking";
   const respondingActive = isLast && streamPhase === "responding";
-  const isStreaming =
-    isLast && (streamPhase === "thinking" || streamPhase === "searching" || streamPhase === "responding");
+  const showToolIndicator = isLast && streamPhase === "tool" && !!activeToolName;
+  const isStreaming = isLast && streamPhase !== null;
+  // Show thinking block whenever:
+  // - the thinking phase is actively running (even before text accumulates), OR
+  // - there's committed thinking text to display
   const showThinkingBlock = thinkingActive || Boolean(message.thinking);
-
-  const actions = message.actions || [];
+  const isInterrupted = message.partial === true;
 
   return (
     <div className="group flex flex-col gap-3">
       {showThinkingBlock ? (
-        <AgentThinking text={message.thinking || ""} isActive={thinkingActive} />
+        <AgentThinking
+          text={message.thinking || ""}
+          isActive={thinkingActive}
+        />
       ) : null}
 
-      {actions.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          {actions.map((a) => (
-            <AgentActionRow key={a.id} action={a} />
-          ))}
-        </div>
+      {showToolIndicator ? (
+        <ToolIndicatorRow toolName={activeToolName!} />
       ) : null}
 
       {message.content || respondingActive ? (
         <div className={proseClasses}>
-          {renderLightMarkdown(message.content)}
+          {renderLightMarkdown(formatAgentContent(message.content))}
+        </div>
+      ) : thinkingActive && !message.thinking ? (
+        // Agent has started but no tokens yet — show a pulsing placeholder
+        <div className="flex items-center gap-1.5 py-1">
+          <span className="h-2 w-2 rounded-full bg-general-primary/60 animate-bounce [animation-delay:0ms]" />
+          <span className="h-2 w-2 rounded-full bg-general-primary/60 animate-bounce [animation-delay:150ms]" />
+          <span className="h-2 w-2 rounded-full bg-general-primary/60 animate-bounce [animation-delay:300ms]" />
+        </div>
+      ) : null}
+
+      {isInterrupted ? (
+        <p className="text-xs text-muted-foreground italic">Response interrupted</p>
+      ) : null}
+
+      {message.widgetParts?.length ? (
+        <div className="space-y-3">
+          {message.widgetParts.map((part) => (
+            <AgentWidgetPartView
+              key={`${part.source.tool_call_id}-${part.resource.type}-${String(part.resource.id)}`}
+              part={part}
+              onOpenWidget={onOpenWidget}
+            />
+          ))}
         </div>
       ) : null}
 

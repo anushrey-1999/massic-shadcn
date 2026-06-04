@@ -40,6 +40,17 @@ function buildWhatIsCoveredHref(businessId: string, row: StrategyRow): string {
   return `/business/${encodeURIComponent(businessId)}/analytics?${params.toString()}`;
 }
 
+function buildActionsToCoverHref(businessId: string, row: StrategyRow): string {
+  const params = new URLSearchParams();
+  params.set("topicName", row.topic);
+
+  for (const keyword of getTopicKeywords(row)) {
+    params.append("keyword", keyword);
+  }
+
+  return `/business/${encodeURIComponent(businessId)}/strategy/topic?${params.toString()}`;
+}
+
 interface StrategyTopicCtasProps {
   businessId?: string;
   row: StrategyRow;
@@ -52,9 +63,10 @@ export function StrategyTopicCtas({
   className,
 }: StrategyTopicCtasProps) {
   const hasCoverage = Number(row.topic_cluster_topic_coverage || 0) > 0;
-  if (!businessId || !hasCoverage) return null;
+  if (!businessId) return null;
 
   const whatIsCoveredHref = buildWhatIsCoveredHref(businessId, row);
+  const actionsToCoverHref = buildActionsToCoverHref(businessId, row);
 
   return (
     <div
@@ -63,6 +75,30 @@ export function StrategyTopicCtas({
         className
       )}
     >
+      {hasCoverage ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-sm"
+              className="h-7 w-7 rounded-[8px] text-muted-foreground hover:text-general-foreground"
+            >
+              <Link
+                href={whatIsCoveredHref}
+                aria-label="What is covered"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>
+            What is covered
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -72,33 +108,12 @@ export function StrategyTopicCtas({
             className="h-7 w-7 rounded-[8px] text-muted-foreground hover:text-general-foreground"
           >
             <Link
-              href={whatIsCoveredHref}
-              aria-label="What is covered"
+              href={actionsToCoverHref}
+              aria-label="Actions to cover"
               onClick={(event) => event.stopPropagation()}
             >
-              <ExternalLink className="h-4 w-4" />
+              <ListTodo className="h-4 w-4" />
             </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={8}>
-          What is covered
-        </TooltipContent>
-      </Tooltip>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="h-7 w-7 rounded-[8px] text-muted-foreground hover:text-general-foreground"
-            aria-label="Actions to cover"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          >
-            <ListTodo className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={8}>

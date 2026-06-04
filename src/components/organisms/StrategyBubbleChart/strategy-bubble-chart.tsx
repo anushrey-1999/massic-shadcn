@@ -3,8 +3,7 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import * as d3 from "d3";
 import type { StrategyRow } from "@/types/strategy-types";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { ChartHoverTooltip } from "@/components/ui/chart-hover-tooltip";
 
 export const BUSINESS_RELEVANCE_PALETTE = [
   "#F58787",
@@ -364,7 +363,7 @@ export function StrategyBubbleChart({
       const y = clientY - containerRect.top;
 
       const offset = 12;
-      const tooltipWidth = 260;
+      const tooltipWidth = 280;
       const tooltipHeight = 120;
 
       const left = Math.max(0, Math.min(x + offset, containerRect.width - tooltipWidth));
@@ -440,28 +439,25 @@ export function StrategyBubbleChart({
 
       <div
         ref={tooltipRef}
-        className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity"
+        className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity duration-150"
       >
         {tooltipNode ? (
-          <Card variant="profileCard" className="w-[260px] p-3 bg-foreground-light border-none rounded-xl">
-            {tooltipTypeLabel ? (
-              <div className="mb-1">
-                <Badge variant="outline" className="border border-general-border">{tooltipTypeLabel}</Badge>
-              </div>
-            ) : null}
-            <CardTitle className="text-sm font-medium text-general-primary">
-              {tooltipTitle}
-            </CardTitle>
-            <div className="mt-2 flex flex-col items-start flex-wrap gap-2">
-              <Badge variant="outline">Topic Coverage&nbsp;<span className="text-general-foreground">{tooltipCoverage}</span></Badge>
-              <Badge variant="outline">Keywords&nbsp;<span className="text-general-foreground"> {tooltipKeywords ?? 0}</span></Badge>
-              {tooltipVolume !== undefined ? (
-                <Badge variant="outline">
-                  Sub Topic Vol&nbsp;<span className="text-general-foreground">{formatCompactNumber(tooltipVolume)}</span>
-                </Badge>
-              ) : null}
-            </div>
-          </Card>
+          <ChartHoverTooltip
+            typeLabel={tooltipTypeLabel}
+            title={tooltipTitle}
+            metrics={[
+              { label: "Topic Coverage", value: tooltipCoverage },
+              { label: "Keywords", value: tooltipKeywords ?? 0 },
+              ...(tooltipVolume !== undefined
+                ? [
+                    {
+                      label: "Sub Topic Vol",
+                      value: formatCompactNumber(tooltipVolume),
+                    },
+                  ]
+                : []),
+            ]}
+          />
         ) : null}
       </div>
     </div>

@@ -380,21 +380,37 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     enabled: false,
   });
 
-  const offerings = React.useMemo(() => {
-    if (!jobDetails?.offerings) return [] as string[];
+  const offeringOptions = React.useMemo(() => {
+    const set = new Set<string>();
 
-    return jobDetails.offerings
-      .map((offering: any) => offering.name || offering.offering || "")
-      .filter((name: string) => name.length > 0);
-  }, [jobDetails]);
+    // Primary source: job-level offerings (covers all pages)
+    if (jobDetails?.offerings) {
+      (jobDetails.offerings as Array<{ name?: string; offering?: string }>).forEach((o) => {
+        const name = (o.name || o.offering || "").trim();
+        if (name) set.add(name);
+      });
+    }
+
+    // Supplement with offerings from loaded row data
+    const rows = [
+      ...(channelsData?.data ?? []),
+      ...(socialData?.data ?? []),
+    ];
+    rows.forEach((row) => {
+      (Array.isArray(row.offerings) ? row.offerings : []).forEach((o: string) => {
+        const trimmed = typeof o === "string" ? o.trim() : "";
+        if (trimmed) set.add(trimmed);
+      });
+    });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [jobDetails?.offerings, channelsData?.data, socialData?.data]);
 
   const offeringCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
-    offerings.forEach((offering: string) => {
-      counts[offering] = 0;
-    });
+    offeringOptions.forEach((o) => { counts[o] = 0; });
     return counts;
-  }, [offerings]);
+  }, [offeringOptions]);
 
   // Use selectedRowChannel for tactics if available, otherwise use channelName from URL
   const tacticsChannel = selectedRowChannel || channelName;
@@ -588,6 +604,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         data={socialData?.data || []}
         pageCount={socialData?.pageCount || 0}
         offeringCounts={offeringCounts}
+        offeringOptions={offeringOptions}
         isLoading={socialLoading && !socialData}
         isFetching={socialFetching}
         search={search}

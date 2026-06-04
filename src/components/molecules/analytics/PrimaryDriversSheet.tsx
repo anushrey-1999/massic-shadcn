@@ -51,6 +51,14 @@ import { SourceFavicon } from "./SourceFavicon"
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────
 
+const POSITIVE_TEXT_CLASS = "text-[#0F6E56]"
+const POSITIVE_ACCENT_CLASS = "bg-[#1D9E75]"
+const POSITIVE_PILL_CLASS = "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+const WARNING_PILL_CLASS = "border-[#FAC775] bg-[#FFFBEB] text-[#854F0B]"
+const NEUTRAL_QUERY_PILL_CLASS = "border-border/60 bg-background text-muted-foreground"
+const SINGLE_LINE_PILL_CLASS = "inline-flex h-6 min-w-0 max-w-full items-center overflow-hidden whitespace-nowrap rounded-full border px-2 text-[11px] leading-none"
+const PILL_TEXT_CLASS = "block min-w-0 truncate"
+
 function toIsoDate(date: Date) { return format(date, "yyyy-MM-dd") }
 
 function createDefaultRange() {
@@ -121,7 +129,7 @@ function fmtPosDelta(delta: number): string {
 
 function deltaColor(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return "text-muted-foreground"
-  return value > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
+  return value > 0 ? POSITIVE_TEXT_CLASS : "text-[#A32D2D]"
 }
 
 // ─── Baseline phrase ─────────────────────────────────────────────────────────────
@@ -166,7 +174,7 @@ const DIRECTION_TO_COLOR: Record<PrimaryDriversHeadlineReel["direction"], ReelCo
 
 const REEL_COLOR_CLS: Record<ReelColor, string> = {
   neg:     "text-[#A32D2D] font-medium",
-  pos:     "text-[#0F6E56] font-medium",
+  pos:     cn(POSITIVE_TEXT_CLASS, "font-medium"),
   flat:    "text-muted-foreground font-medium",
   neutral: "text-muted-foreground",
 }
@@ -237,9 +245,9 @@ function WindowTag({ bucket, baseline }: { bucket: string; baseline: PrimaryDriv
 
   return (
     <span className={cn(
-      "text-[10px] px-2 py-0.5 rounded border",
+      "inline-flex h-6 items-center rounded border px-2 text-[10px] leading-none",
       noisy
-        ? "bg-[#FFFBEB] border-[#FAC775] text-[#854F0B]"
+        ? WARNING_PILL_CLASS
         : "border-border/50 text-muted-foreground",
     )}>
       {label}
@@ -307,7 +315,7 @@ function HeadlinePanel({ data }: { data: PrimaryDriversLegacyResponse }) {
               {i > 0 && <span className="mx-1 text-foreground/60 text-[14px] leading-none">·</span>}
               <span className={cn(
                 part.color === "neg" ? "text-[#E24B4A]"
-                : part.color === "pos" ? "text-[#1D9E75]"
+                : part.color === "pos" ? POSITIVE_TEXT_CLASS
                 : undefined,
               )}>
                 {part.text}
@@ -434,7 +442,7 @@ function statDisplay(key: StatDef["key"], value: number | null): string {
 function ChStat({ def }: { def: StatDef }) {
   const val = def.value
   const cls = val === null ? "text-muted-foreground"
-    : def.key === "cvr" ? (val > 0 ? "text-[#0F6E56]" : val < 0 ? "text-[#A32D2D]" : "text-muted-foreground")
+    : def.key === "cvr" ? (val > 0 ? POSITIVE_TEXT_CLASS : val < 0 ? "text-[#A32D2D]" : "text-muted-foreground")
     : deltaColor(val)
 
   return (
@@ -477,7 +485,7 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
   const imprColor   = deltaColor(totalImpr)
   const posColor    = Math.abs(avgPos) < 0.1
     ? "text-muted-foreground"
-    : avgPos > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
+    : avgPos > 0 ? POSITIVE_TEXT_CLASS : "text-[#A32D2D]"
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden border-t border-dashed border-border/50 bg-secondary/30 py-2.5 pl-8 pr-4">
@@ -502,8 +510,8 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
         {queries.map((q, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
-              <span className="max-w-full cursor-default rounded-full border border-border/60 bg-background px-2 py-[3px] text-[11px] text-muted-foreground sm:max-w-[240px] whitespace-normal break-words [overflow-wrap:anywhere]">
-                {q.query}
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default sm:max-w-[240px]", NEUTRAL_QUERY_PILL_CLASS)}>
+                <span className={PILL_TEXT_CLASS}>{q.query_full || q.query}</span>
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
@@ -633,7 +641,7 @@ function ChannelBlock({
           : "bg-[#FEF2F2] border-b border-[#F7C1C1]",
       )}>
         <div className="flex min-w-0 items-start gap-2.5">
-          <div className={cn("w-1 h-[22px] rounded-sm flex-shrink-0", isPos ? "bg-[#1D9E75]" : "bg-[#E24B4A]")} />
+          <div className={cn("w-1 h-[22px] rounded-sm flex-shrink-0", isPos ? POSITIVE_ACCENT_CLASS : "bg-[#E24B4A]")} />
           <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere]">{ch.value}</span>
         </div>
         <div className="flex min-w-0 flex-wrap gap-4 sm:justify-end">
@@ -935,14 +943,21 @@ function CtaPills({ channels }: { channels: PrimaryDriversV2Channel[] }) {
       {channels.map((channel) => {
         const delta = channel.goals_delta ?? 0
         const cls = delta > 0
-          ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+          ? POSITIVE_PILL_CLASS
           : delta < 0
             ? "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
             : "border-border/60 bg-secondary/30 text-muted-foreground"
         return (
-          <span key={channel.channel_name} className={cn("max-w-full whitespace-normal break-words rounded-full border px-2 py-0.5 text-[11px] font-medium [overflow-wrap:anywhere]", cls)}>
-            {channel.channel_name} {fmtAbsolute(delta)}
-          </span>
+          <Tooltip key={channel.channel_name}>
+            <TooltipTrigger asChild>
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default font-medium sm:max-w-[220px]", cls)}>
+                <span className={PILL_TEXT_CLASS}>{channel.channel_name} {fmtAbsolute(delta)}</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
+              {channel.channel_name} {fmtAbsolute(delta)}
+            </TooltipContent>
+          </Tooltip>
         )
       })}
     </div>
@@ -956,13 +971,8 @@ function V2QueryChips({ page }: { page: PrimaryDriversV2Page }) {
       {page.queries.map((query, index) => (
         <Tooltip key={`${query.full_query_text}-${index}`}>
           <TooltipTrigger asChild>
-            <span className={cn(
-              "max-w-full whitespace-normal break-words rounded-full border px-2 py-[3px] text-[11px] [overflow-wrap:anywhere] sm:max-w-[220px]",
-              query.is_branded
-                ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
-                : "border-border/60 bg-background text-muted-foreground",
-            )}>
-              {query.query_text}
+            <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default sm:max-w-[220px]", NEUTRAL_QUERY_PILL_CLASS)}>
+              <span className={PILL_TEXT_CLASS}>{query.full_query_text || query.query_text}</span>
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
@@ -1009,7 +1019,7 @@ function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; orga
 function V2ChannelBlock({ channel }: { channel: PrimaryDriversV2Channel }) {
   const organic = channel.channel_name.toLowerCase().includes("organic")
   const net = channel.goals_delta ?? 0
-  const bar = net > 0 ? "bg-[#1D9E75]" : net < 0 ? "bg-[#E24B4A]" : "bg-muted-foreground/40"
+  const bar = net > 0 ? POSITIVE_ACCENT_CLASS : net < 0 ? "bg-[#E24B4A]" : "bg-muted-foreground/40"
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border/50 bg-white">
@@ -1050,7 +1060,7 @@ function CtaCard({
   const badgeCls = neutral
     ? "bg-secondary text-muted-foreground"
     : positive
-      ? "bg-[#F0FDFA] text-[#0F6E56] border-[#9FE1CB]"
+      ? POSITIVE_PILL_CLASS
       : "bg-[#FEF2F2] text-[#A32D2D] border-[#F7C1C1]"
   const warning = cta.edge_case_flags.find((flag) => !["low_volume"].includes(flag))
 
@@ -1066,8 +1076,8 @@ function CtaCard({
           <div className="min-w-0 flex-1">
             <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
               <span className="min-w-0 break-words font-mono text-[14px] font-medium [overflow-wrap:anywhere]">{cta.display_name}</span>
-              <span className={cn("w-fit max-w-full shrink-0 whitespace-normal break-words rounded-full border px-2 py-0.5 text-left text-[12px] font-semibold tabular-nums [overflow-wrap:anywhere]", badgeCls)}>
-                {fmtAbsolute(cta.absolute_delta)} ({pctDisplay(cta.pct_change)})
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "w-fit shrink-0 text-[12px] font-semibold tabular-nums", badgeCls)}>
+                <span className={PILL_TEXT_CLASS}>{fmtAbsolute(cta.absolute_delta)} ({pctDisplay(cta.pct_change)})</span>
               </span>
             </div>
             {cta.why_sentence ? (

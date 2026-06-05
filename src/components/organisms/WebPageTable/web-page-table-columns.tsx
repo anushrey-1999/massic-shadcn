@@ -131,9 +131,14 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         );
       },
       meta: {
-        label: "Business Relevance",
+        label: "Relevance",
         variant: "range",
         range: [0, 100],
+        operators: [
+          { label: "Is", value: "eq" as const },
+          { label: "Is less than", value: "lte" as const },
+          { label: "Is greater than", value: "gte" as const },
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -174,8 +179,15 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         return <Typography variant="p">{formatVolume(volume || 0)}</Typography>;
       },
       meta: {
-        label: "Search Volume",
-        variant: "number",
+        label: "Volume",
+        variant: "range",
+        range: [0, 10000000],
+        placeholder: "e.g. 10K or 1M",
+        operators: [
+          { label: "Is between", value: "isBetween" as const },
+          { label: "Is at least", value: "gte" as const },
+          { label: "Is at most", value: "lte" as const },
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -224,10 +236,9 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       },
       meta: {
         label: "Status",
-        variant: "text",
         icon: Tag,
       },
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       enableSorting: true,
       size: 120,
       minSize: 100,

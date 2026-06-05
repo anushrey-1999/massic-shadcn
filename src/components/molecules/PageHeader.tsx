@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, Download, Settings } from "lucide-react";
+import { Bot, Download, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import Link from "next/link";
 import { Typography } from "../ui/typography";
 import { useAskMassicOverlayOptional } from "@/components/chatbot/ask-massic-overlay-provider";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 
 interface BreadcrumbItem {
@@ -40,10 +40,12 @@ export function PageHeader({
   const askMassicButtonRef = React.useRef<HTMLButtonElement | null>(null);
 
   const params = useParams();
+  const pathname = usePathname();
   const rawBusinessId = (params as any)?.id as string | string[] | undefined;
   const businessId = Array.isArray(rawBusinessId)
     ? rawBusinessId[0]
     : rawBusinessId || null;
+  const isBusinessPage = pathname.startsWith("/business/");
 
   const { data: jobDetails } = useJobByBusinessId(
     showAskMassic === undefined ? businessId : null
@@ -150,6 +152,22 @@ export function PageHeader({
               <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">
                 Ask Massic
               </span>
+            </Button>
+          ) : null}
+
+          {isBusinessPage && businessId ? (
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <Link href={`/business/${businessId}/agent`}>
+                <Bot className="h-4 w-4 text-general-primary" />
+                <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">
+                  Agent
+                </span>
+              </Link>
             </Button>
           ) : null}
 

@@ -132,11 +132,11 @@ export function FacetedItem({ value, children, ...props }: React.ComponentProps<
     <CommandItem value={value} onSelect={handleSelect} {...props}>
       <div
         className={cn(
-          "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-          isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible"
+          "mr-2 flex h-4 w-4 items-center justify-center rounded-[3px] border border-primary",
+          isSelected ? "bg-primary" : "opacity-50 [&_svg]:invisible"
         )}
       >
-        <Check className="h-4 w-4" />
+        <Check className={cn("h-4 w-4", isSelected && "stroke-white text-white")} />
       </div>
       {children}
     </CommandItem>
@@ -162,10 +162,10 @@ export function FacetedBadgeList({
   }
 
   return (
-    <div className="flex flex-wrap gap-1" {...props}>
+    <div className="flex w-full flex-wrap gap-1" {...props}>
       {selectedOptions.map((option) => (
-        <Badge key={option.value} variant="secondary" className="mr-1">
-          {option.label}
+        <Badge key={option.value} variant="secondary" className="min-w-0 max-w-full overflow-hidden">
+          <span className="block truncate">{option.label}</span>
         </Badge>
       ))}
     </div>

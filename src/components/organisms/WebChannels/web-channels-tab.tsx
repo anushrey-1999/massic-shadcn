@@ -924,7 +924,7 @@ export function WebChannelsTab({
               />
             </div>
             <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
-              In WordPress, open <strong className="text-general-foreground">Settings → Massic Connector</strong> and
+              In WordPress, open <strong className="text-general-foreground">Settings → Massic Integration</strong> and
               click <strong className="text-general-foreground">Connect to Massic</strong>.
             </p>
             <Button
@@ -958,7 +958,7 @@ export function WebChannelsTab({
           <ol className="list-decimal space-y-2.5 py-1 pl-5 text-sm text-general-foreground">
             <li>Download and install the Massic connector plugin.</li>
             <li>In WP admin: <strong>Plugins → Add New → Upload</strong>, then activate.</li>
-            <li>Open <strong>Settings → Massic Connector</strong>.</li>
+            <li>Open <strong>Settings → Massic Integration</strong>.</li>
             <li>Here, click <strong>Connect</strong>, enter your site URL, and approve in WordPress.</li>
           </ol>
           <DialogFooter className="sm:justify-between">

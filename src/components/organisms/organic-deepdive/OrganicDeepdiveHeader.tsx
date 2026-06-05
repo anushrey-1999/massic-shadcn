@@ -15,6 +15,12 @@ function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
   const getBadgeParts = () => {
     switch (filter.dimension) {
       case "query":
+        if (filter.label) {
+          return { label: "Topic", value: filter.label };
+        }
+        if (Array.isArray(filter.expression)) {
+          return { label: "Queries", value: `${filter.expression.length} terms` };
+        }
         return { label: "Query", value: filter.expression };
       case "page":
         return { label: "Page", value: filter.expression };

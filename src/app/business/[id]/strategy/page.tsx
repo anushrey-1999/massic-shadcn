@@ -21,7 +21,7 @@ import {
   type StrategyBubbleColorMetric,
 } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { Typography } from "@/components/ui/typography";
-import { CircleDot, List, ListFilter, Loader2 } from "lucide-react";
+import { ChartScatter, CircleDot, List, ListFilter, Loader2 } from "lucide-react";
 import type { StrategyMetrics } from "@/types/strategy-types";
 import type { AudienceMetrics } from "@/types/audience-types";
 import { Badge } from "@/components/ui/badge";
@@ -215,6 +215,9 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [strategyView, setStrategyView] = React.useState<"list" | "bubble">(
     "list"
   );
+  const [overviewView, setOverviewView] = React.useState<"table" | "bubble" | "scatter">(
+    "table"
+  );
   const [selectedOffering, setSelectedOffering] = React.useState<string>("all");
   const [bubbleColorMetric, setBubbleColorMetric] =
     React.useState<StrategyBubbleColorMetric>("topicCoverage");
@@ -334,23 +337,129 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     [router, pathname]
   );
 
-  const strategyViewTabs = (
-    <Tabs
-      value={strategyView}
-      onValueChange={(value) => setStrategyView(value as "list" | "bubble")}
-      className="shrink-0"
+  const subtabLabelClass =
+    "flex h-8 cursor-pointer items-center rounded-[10px] px-4 text-sm font-semibold text-foreground transition-colors hover:bg-white/40";
+  const activeSubtabGroupClass =
+    "inline-flex h-8 items-center gap-1 rounded-[10px] bg-white pr-1 shadow-[0_1px_4px_rgba(0,0,0,0.2)]";
+  const activeSubtabLabelClass =
+    "flex h-8 cursor-pointer items-center rounded-[10px] px-4 text-sm font-semibold text-foreground";
+  const subtabIconClass =
+    "flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors";
+  const activeSubtabIconClass =
+    "bg-general-primary text-general-primary-foreground";
+  const inactiveSubtabIconClass =
+    "text-foreground hover:bg-general-border";
+
+  const strategyViewControls = (
+    <div
+      role="group"
+      aria-label="Strategy detail and view controls"
+      className="inline-flex h-[40px] shrink-0 items-center rounded-[14px] bg-general-border p-1 text-foreground"
     >
-      <TabsList className="">
-        <TabsTrigger value="list">
-          <List />
-          List
-        </TabsTrigger>
-        <TabsTrigger value="bubble">
-          <CircleDot />
-          Map
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+      {topicTab === "detailed" ? (
+        <div className={activeSubtabGroupClass}>
+          <button
+            type="button"
+            onClick={() => setTopicTab("detailed")}
+            className={activeSubtabLabelClass}
+          >
+            Detailed
+          </button>
+          <button
+            type="button"
+            aria-label="Show detailed list"
+            onClick={() => setStrategyView("list")}
+            className={cn(
+              subtabIconClass,
+              strategyView === "list"
+                ? activeSubtabIconClass
+                : inactiveSubtabIconClass
+            )}
+          >
+            <List className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Show detailed map"
+            onClick={() => setStrategyView("bubble")}
+            className={cn(
+              subtabIconClass,
+              strategyView === "bubble"
+                ? activeSubtabIconClass
+                : inactiveSubtabIconClass
+            )}
+          >
+            <CircleDot className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setTopicTab("detailed")}
+          className={subtabLabelClass}
+        >
+          Detailed
+        </button>
+      )}
+      {topicTab === "overview" ? (
+        <div className={activeSubtabGroupClass}>
+          <button
+            type="button"
+            onClick={() => setTopicTab("overview")}
+            className={activeSubtabLabelClass}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            aria-label="Show overview list"
+            onClick={() => setOverviewView("table")}
+            className={cn(
+              subtabIconClass,
+              overviewView === "table"
+                ? activeSubtabIconClass
+                : inactiveSubtabIconClass
+            )}
+          >
+            <List className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Show overview map"
+            onClick={() => setOverviewView("bubble")}
+            className={cn(
+              subtabIconClass,
+              overviewView === "bubble"
+                ? activeSubtabIconClass
+                : inactiveSubtabIconClass
+            )}
+          >
+            <CircleDot className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Show overview scatter"
+            onClick={() => setOverviewView("scatter")}
+            className={cn(
+              subtabIconClass,
+              overviewView === "scatter"
+                ? activeSubtabIconClass
+                : inactiveSubtabIconClass
+            )}
+          >
+            <ChartScatter className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setTopicTab("overview")}
+          className={subtabLabelClass}
+        >
+          Overview
+        </button>
+      )}
+    </div>
   );
 
   const isAnySplitView = isStrategySplitView || isAudienceSplitView || isThemesSplitView;
@@ -391,7 +500,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
             }
             className="flex flex-col flex-1 min-h-0"
           >
-            {!isStrategySplitView && !isThemesSplitView && (
+            {!isStrategySplitView && !isThemesSplitView && !isStrategyReady && (
               <TabsList className="shrink-0">
                 <TabsTrigger value="detailed">Detailed</TabsTrigger>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -401,7 +510,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
               value="detailed"
               className={cn(
                 "flex-1 min-h-0 overflow-hidden flex flex-col",
-                !isStrategySplitView && !isThemesSplitView && "mt-4"
+                !isStrategySplitView && !isThemesSplitView && !isStrategyReady && "mt-4"
               )}
             >
               {isStrategyReady ? (
@@ -410,7 +519,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                     <StrategyTableClient
                       businessId={businessId}
                       onSplitViewChange={setIsStrategySplitView}
-                      toolbarRightPrefix={strategyViewTabs}
+                      toolbarRightPrefix={strategyViewControls}
                       onMetricsChange={setStrategyMetrics}
                     />
                   </div>
@@ -458,7 +567,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
                           <StrategyMapRelevanceFilter
                             selectedFilters={selectedRelevanceFilters}
                             onToggle={toggleRelevanceFilter}
@@ -468,7 +577,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                             onOfferingChange={setSelectedOffering}
                             formatOfferingLabel={formatOfferingLabel}
                           />
-                          {strategyViewTabs}
+                          {strategyViewControls}
                         </div>
                       </div>
                       <div className="flex-1 min-h-0">
@@ -513,13 +622,16 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
               value="overview"
               className={cn(
                 "flex-1 min-h-0 overflow-hidden",
-                !isStrategySplitView && !isThemesSplitView && "mt-4"
+                !isStrategySplitView && !isThemesSplitView && !isStrategyReady && "mt-4"
               )}
             >
               <ThemesTableClient
                 businessId={businessId}
                 onSplitViewChange={setIsThemesSplitView}
                 onMetricsTextChange={setThemesMetricsText}
+                toolbarRightPrefix={strategyViewControls}
+                view={overviewView}
+                onViewChange={setOverviewView}
               />
             </TabsContent>
           </Tabs>

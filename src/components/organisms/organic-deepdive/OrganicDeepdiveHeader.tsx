@@ -12,34 +12,39 @@ interface FilterBadgeProps {
 }
 
 function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
-  const getLabel = () => {
+  const getBadgeParts = () => {
     switch (filter.dimension) {
       case "query":
-        return `Query: ${filter.expression}`;
+        return { label: "Query", value: filter.expression };
       case "page":
-        return `Page: ${filter.expression}`;
+        return { label: "Page", value: filter.expression };
       case "content_group":
-        return `Group: ${filter.expression}`;
+        return { label: "Group", value: filter.expression };
       case "keyword_scope":
-        return filter.expression === "branded"
-          ? "Branded queries"
-          : "Non-branded queries";
+        return {
+          label: "Keyword",
+          value: filter.expression === "branded" ? "Branded queries" : "Non-branded queries",
+        };
       default:
-        return filter.expression;
+        return { label: "Filter", value: filter.expression };
     }
   };
+  const badgeParts = getBadgeParts();
 
   return (
     <div className="flex flex-row items-center self-stretch">
       <button
         type="button"
-        className="bg-white border border-general-border rounded-md flex gap-1.5 items-center justify-center h-6 px-2.5 cursor-pointer hover:bg-blue-50 transition-colors"
+        className="flex h-6 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#2E6A56] px-3 transition-colors hover:bg-[#255745]"
         onClick={() => onRemove(filter.dimension)}
       >
-        <span className="font-sans font-medium text-xs text-general-foreground text-center leading-none max-w-[320px] truncate">
-          {getLabel()}
+        <span className="flex min-w-0 items-center gap-1.5 font-sans text-sm leading-none tracking-[0.07px]">
+          <span className="shrink-0 font-medium text-white/65">{badgeParts.label}</span>
+          <span className="max-w-[320px] truncate font-semibold text-white">
+            {badgeParts.value}
+          </span>
         </span>
-        <X className="h-3 w-3 text-neutral-400" strokeWidth={2} />
+        <X className="h-4 w-4 shrink-0 text-white/70" strokeWidth={2} />
       </button>
     </div>
   );
@@ -55,7 +60,7 @@ export function OrganicDeepdiveHeader({
   onRemoveFilter,
 }: OrganicDeepdiveHeaderProps) {
   return (
-    <div className="flex items-center justify-between p-0.5 w-full bg-blue-50 rounded-md border border-blue-100 mb-3">
+    <div className="mb-3 flex w-full items-center justify-between rounded-md border border-[#6EC1A6] bg-[#2E6A561A] p-0.5">
       <div />
 
       {filters.length > 0 && (

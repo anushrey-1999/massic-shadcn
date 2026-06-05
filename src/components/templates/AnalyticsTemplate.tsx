@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, startTransition } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Eye, MousePointerClick, Target, BarChart3 } from "lucide-react";
+import { AlertCircle, Eye, MousePointerClick, Target, BarChart3 } from "lucide-react";
 import {
   OrganicPerformanceSection,
 } from "@/components/organisms/analytics/OrganicPerformanceSection";
@@ -27,6 +28,7 @@ import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 import { usePrefetchAnalyticsPages } from "@/hooks/use-prefetch-analytics-pages";
+import { useStrategy } from "@/hooks/use-strategy";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -123,6 +125,26 @@ export function AnalyticsTemplate() {
 
   const { profileData } = useBusinessProfileById(businessId);
   const { prefetchPage1 } = usePrefetchAnalyticsPages(businessId);
+  const { fetchStrategyTopicKeywords } = useStrategy(businessId || "");
+  const urlTopicName = searchParams.get("topicName")?.trim() || "";
+  const hasLegacyQueryTerms = searchParams.getAll("query_term").length > 0;
+  const shouldResolveTopicKeywords = urlTopicName.length > 0 && !hasLegacyQueryTerms;
+
+  const {
+    data: topicKeywords = [],
+    isLoading: topicKeywordsLoading,
+    isFetching: topicKeywordsFetching,
+    isError: topicKeywordsError,
+    error: topicKeywordsErrorData,
+    refetch: refetchTopicKeywords,
+  } = useQuery({
+    queryKey: ["analytics-topic-keywords", businessId, urlTopicName],
+    queryFn: () => fetchStrategyTopicKeywords(urlTopicName),
+    enabled: !!businessId && shouldResolveTopicKeywords,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
+    retry: 2,
+  });
 
   useEffect(() => {
     if (businessId) {
@@ -205,6 +227,13 @@ export function AnalyticsTemplate() {
       ),
     [profileData, businessProfile?.BrandTerms]
   );
+  const topicQueryFilter = useMemo(
+    () =>
+      shouldResolveTopicKeywords && topicKeywords.length > 0
+        ? { topicName: urlTopicName, keywords: topicKeywords }
+        : null,
+    [shouldResolveTopicKeywords, topicKeywords, urlTopicName]
+  );
   const {
     filters,
     filtersForApi,
@@ -212,13 +241,23 @@ export function AnalyticsTemplate() {
     removeFilter,
     clearAllFilters,
     keywordScopeFilter,
-  } = useOrganicDeepdiveFilters(brandTerms);
+  } = useOrganicDeepdiveFilters(brandTerms, topicQueryFilter);
   const keywordScope = (keywordScopeFilter?.expression ??
     "all") as AnalyticsKeywordScope;
   const headerMetricKeys =
     selectedTab === "all"
       ? (["sessions", "goals"] as const)
       : CHART_LINE_KEYS;
+  const topicKeywordLookupPending =
+    shouldResolveTopicKeywords &&
+    (!businessId ||
+      ((topicKeywordsLoading || topicKeywordsFetching) && topicKeywords.length === 0));
+  const topicKeywordLookupEmpty =
+    shouldResolveTopicKeywords &&
+    !!businessId &&
+    !topicKeywordLookupPending &&
+    !topicKeywordsError &&
+    topicKeywords.length === 0;
 
   useEffect(() => {
     if (searchParams.get("tab") === "organic") {
@@ -451,45 +490,74 @@ export function AnalyticsTemplate() {
 
       {/* Tab Content */}
       <div className="w-full max-w-[1224px] flex flex-col">
-        <div className="p-7 pb-10">
-          <OrganicPerformanceSection
-            period={selectedPeriod}
-            visibleLines={overviewVisibleLines}
-            onLegendToggle={handleChartLineToggle}
-            filters={filtersForApi}
-            funnelVariant={selectedTab === "all" ? "sessions-goals" : "default"}
-            ga4TrafficScope={selectedTab}
-            groupBy={groupBy}
-            onAvailableGroupingsChange={setAvailableGroupByOptions}
-          />
-        </div>
-        <DiscoveryPerformanceSection
-          period={selectedPeriod}
-          visibleMetrics={overviewVisibleLines}
-          filters={filtersForApi}
-          onSelectFilter={handleOverviewFilterSelect}
-          onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}
-          hideTopQueries={selectedTab === "all"}
-          hideHowYouRank={selectedTab === "all"}
-          ga4TrafficScope={selectedTab}
-        />
-        {showDeferredSections ? (
+        {topicKeywordLookupPending ? (
+          <div className="p-7">
+            <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
+              Loading topic keywords...
+            </div>
+          </div>
+        ) : shouldResolveTopicKeywords && topicKeywordsError ? (
+          <div className="p-7">
+            <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-lg bg-white p-6 text-center">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+              <p className="font-medium text-destructive">Failed to load topic keywords</p>
+              <p className="text-sm text-muted-foreground">
+                {topicKeywordsErrorData instanceof Error
+                  ? topicKeywordsErrorData.message
+                  : "An error occurred"}
+              </p>
+              <Button onClick={() => refetchTopicKeywords()}>Try Again</Button>
+            </div>
+          </div>
+        ) : topicKeywordLookupEmpty ? (
+          <div className="p-7">
+            <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
+              No keywords were found for this topic.
+            </div>
+          </div>
+        ) : (
           <>
-            <SourcesSection
+            <div className="p-7 pb-10">
+              <OrganicPerformanceSection
+                period={selectedPeriod}
+                visibleLines={overviewVisibleLines}
+                onLegendToggle={handleChartLineToggle}
+                filters={filtersForApi}
+                funnelVariant={selectedTab === "all" ? "sessions-goals" : "default"}
+                ga4TrafficScope={selectedTab}
+                groupBy={groupBy}
+                onAvailableGroupingsChange={setAvailableGroupByOptions}
+              />
+            </div>
+            <DiscoveryPerformanceSection
               period={selectedPeriod}
-              hideChannelsChart={selectedTab === "organic"}
+              visibleMetrics={overviewVisibleLines}
+              filters={filtersForApi}
+              onSelectFilter={handleOverviewFilterSelect}
+              onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}
+              hideTopQueries={selectedTab === "all"}
+              hideHowYouRank={selectedTab === "all"}
               ga4TrafficScope={selectedTab}
             />
-            {selectedTab === "all" ? (
-              <ConversionOverviewSection period={selectedPeriod} />
+            {showDeferredSections ? (
+              <>
+                <SourcesSection
+                  period={selectedPeriod}
+                  hideChannelsChart={selectedTab === "organic"}
+                  ga4TrafficScope={selectedTab}
+                />
+                {selectedTab === "all" ? (
+                  <ConversionOverviewSection period={selectedPeriod} />
+                ) : null}
+                <ConversionSection
+                  period={selectedPeriod}
+                  ga4TrafficScope={selectedTab}
+                />
+                <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
+              </>
             ) : null}
-            <ConversionSection
-              period={selectedPeriod}
-              ga4TrafficScope={selectedTab}
-            />
-            <LocalSearchSection period={selectedPeriod} locations={localSearchLocations} />
           </>
-        ) : null}
+        )}
       </div>
 
       <CustomContentGroupsModal

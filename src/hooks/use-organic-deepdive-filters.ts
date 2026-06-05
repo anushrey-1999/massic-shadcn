@@ -21,6 +21,7 @@ export interface DeepdiveFilter {
   operator: DeepdiveApiOperator;
   label?: string;
   source?: ContentGroupFilterSource;
+  topicName?: string;
 }
 
 export interface DeepdiveApiFilter {
@@ -42,6 +43,11 @@ export interface UseOrganicDeepdiveFiltersReturn {
   clearAllFilters: () => void;
   hasFilters: boolean;
   filtersForApi: DeepdiveApiFilter[];
+}
+
+export interface TopicQueryFilter {
+  topicName: string;
+  keywords: string[];
 }
 
 function normalizeBrandTerms(brandTerms?: string[] | null): string[] {
@@ -66,7 +72,8 @@ function normalizeQueryTerms(terms: string[]): string[] {
 }
 
 export function useOrganicDeepdiveFilters(
-  brandTerms?: string[] | null
+  brandTerms?: string[] | null,
+  topicQueryFilter?: TopicQueryFilter | null
 ): UseOrganicDeepdiveFiltersReturn {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -82,10 +89,15 @@ export function useOrganicDeepdiveFilters(
     const query = searchParams.get("query");
     const queryTerms = normalizeQueryTerms(searchParams.getAll("query_term"));
     const queryLabel = searchParams.get("query_label")?.trim();
+    const topicName = searchParams.get("topicName")?.trim();
     const page = searchParams.get("page");
     const contentGroup = searchParams.get("content_group");
     const contentGroupType = searchParams.get("content_group_type");
     const keywordScope = searchParams.get("keyword_scope");
+    const topicKeywords =
+      topicName && topicQueryFilter?.topicName === topicName
+        ? normalizeQueryTerms(topicQueryFilter.keywords)
+        : [];
 
     if (queryTerms.length > 0) {
       result.push({
@@ -93,6 +105,14 @@ export function useOrganicDeepdiveFilters(
         expression: queryTerms,
         operator: "contains_any",
         label: queryLabel || undefined,
+      });
+    } else if (topicName && topicKeywords.length > 0) {
+      result.push({
+        dimension: "query",
+        expression: topicKeywords,
+        operator: "contains_any",
+        label: topicName,
+        topicName,
       });
     } else if (query) {
       result.push({ dimension: "query", expression: query, operator: "equals" });
@@ -117,7 +137,7 @@ export function useOrganicDeepdiveFilters(
     }
 
     return result;
-  }, [searchParams]);
+  }, [searchParams, topicQueryFilter]);
 
   const queryFilter = useMemo(
     () => filters.find((f) => f.dimension === "query") || null,
@@ -146,6 +166,7 @@ export function useOrganicDeepdiveFilters(
       params.delete("query");
       params.delete("query_term");
       params.delete("query_label");
+      params.delete("topicName");
       params.delete("page");
       params.delete("content_group");
       params.delete("content_group_type");
@@ -154,11 +175,15 @@ export function useOrganicDeepdiveFilters(
       for (const filter of newFilters) {
         if (filter.dimension === "query") {
           if (Array.isArray(filter.expression)) {
-            for (const term of normalizeQueryTerms(filter.expression)) {
-              params.append("query_term", term);
-            }
-            if (filter.label) {
-              params.set("query_label", filter.label);
+            if (filter.topicName) {
+              params.set("topicName", filter.topicName);
+            } else {
+              for (const term of normalizeQueryTerms(filter.expression)) {
+                params.append("query_term", term);
+              }
+              if (filter.label) {
+                params.set("query_label", filter.label);
+              }
             }
           } else {
             params.set("query", filter.expression);

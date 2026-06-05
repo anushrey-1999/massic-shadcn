@@ -16,6 +16,7 @@ import { Typography } from "@/components/ui/typography";
 import { useBlogPagePlan } from "@/hooks/use-blog-page-plan";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
+import { useStrategy } from "@/hooks/use-strategy";
 import { getWorkflowStatus, isWorkflowSuccess } from "@/lib/workflow-status";
 import type { QueryKeys } from "@/types/data-table-types";
 
@@ -49,21 +50,6 @@ function buildKeywordFilter(field: "supporting_keywords" | "related_keywords", k
     variant: "multiSelect",
     operator: "inArray",
   };
-}
-
-function uniqueKeywords(values: string[]) {
-  const seen = new Set<string>();
-  const keywords: string[] = [];
-
-  for (const value of values) {
-    const normalized = value.trim();
-    const key = normalized.toLowerCase();
-    if (!normalized || seen.has(key)) continue;
-    seen.add(key);
-    keywords.push(normalized);
-  }
-
-  return keywords;
 }
 
 function TopicSection({
@@ -317,22 +303,65 @@ function StrategyTopicContent({
   businessId,
   topicName,
   keywords,
+  keywordsLoading,
+  keywordsError,
+  keywordsErrorMessage,
+  onRetryKeywords,
   isWebReady,
   isSocialReady,
 }: {
   businessId: string;
   topicName: string;
   keywords: string[];
+  keywordsLoading: boolean;
+  keywordsError: boolean;
+  keywordsErrorMessage?: string;
+  onRetryKeywords: () => void;
   isWebReady: boolean;
   isSocialReady: boolean;
 }) {
   const [layout, setLayout] = React.useState<TopicActionsLayout>("tabs");
 
+  if (!topicName.trim()) {
+    return (
+      <div className="w-full max-w-[1224px] flex-1 p-5">
+        <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
+          This topic link is missing a topic name.
+        </div>
+      </div>
+    );
+  }
+
+  if (keywordsLoading) {
+    return (
+      <div className="w-full max-w-[1224px] flex-1 p-5">
+        <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
+          Loading topic keywords...
+        </div>
+      </div>
+    );
+  }
+
+  if (keywordsError) {
+    return (
+      <div className="w-full max-w-[1224px] flex-1 p-5">
+        <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-lg bg-white p-6 text-center">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <p className="font-medium text-destructive">Failed to load topic keywords</p>
+          <p className="text-sm text-muted-foreground">
+            {keywordsErrorMessage || "An error occurred"}
+          </p>
+          <Button onClick={onRetryKeywords}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (keywords.length === 0) {
     return (
       <div className="w-full max-w-[1224px] flex-1 p-5">
         <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
-          This topic link does not include keywords to filter actions.
+          No keywords were found for this topic.
         </div>
       </div>
     );
@@ -440,19 +469,15 @@ function StrategyTopicContent({
 export default function BusinessStrategyTopicPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState("");
   const [topicName] = useQueryState("topicName", parseAsString.withDefault(""));
-  const [keywords, setKeywords] = React.useState<string[]>([]);
+  const normalizedTopicName = topicName.trim();
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id));
   }, [params]);
 
-  React.useEffect(() => {
-    const search = new URLSearchParams(window.location.search);
-    setKeywords(uniqueKeywords(search.getAll("keyword")));
-  }, []);
-
   const { profileData, profileDataLoading } = useBusinessProfileById(businessId || null);
   const { data: jobDetails, isLoading: jobDetailsLoading } = useJobByBusinessId(businessId || null);
+  const { fetchStrategyTopicKeywords } = useStrategy(businessId);
 
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
   const showMainContent = coreStatus === "success";
@@ -470,6 +495,26 @@ export default function BusinessStrategyTopicPage({ params }: PageProps) {
     ],
     [businessName, businessId, displayTopicName]
   );
+
+  const {
+    data: keywords = [],
+    isLoading: keywordsLoading,
+    isFetching: keywordsFetching,
+    isError: keywordsError,
+    error: keywordsErrorData,
+    refetch: refetchKeywords,
+  } = useQuery({
+    queryKey: ["strategy-topic-keywords", businessId, normalizedTopicName],
+    queryFn: () => fetchStrategyTopicKeywords(normalizedTopicName),
+    enabled:
+      !!businessId &&
+      !jobDetailsLoading &&
+      showMainContent &&
+      normalizedTopicName.length > 0,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15,
+    retry: 2,
+  });
 
   if (!businessId) {
     return (
@@ -493,8 +538,14 @@ export default function BusinessStrategyTopicPage({ params }: PageProps) {
   const content = !jobDetailsLoading && showMainContent ? (
     <StrategyTopicContent
       businessId={businessId}
-      topicName={displayTopicName}
+      topicName={normalizedTopicName}
       keywords={keywords}
+      keywordsLoading={keywordsLoading || (keywordsFetching && keywords.length === 0)}
+      keywordsError={keywordsError}
+      keywordsErrorMessage={
+        keywordsErrorData instanceof Error ? keywordsErrorData.message : undefined
+      }
+      onRetryKeywords={() => refetchKeywords()}
       isWebReady={isWebReady}
       isSocialReady={isSocialReady}
     />

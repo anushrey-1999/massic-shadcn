@@ -1,6 +1,3 @@
-
-
-
 /* =========================================================
    ROOT VARIABLES â€” LIGHT THEME DEFAULT
 ========================================================= */
@@ -12,7 +9,7 @@
 
   /* â”€â”€ BRAND COLORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   --massic-brand: #0D0D12;
-  --massic-brand-dark: #2fa87e;
+  --massic-brand-dark: #1c1c22;
   --massic-brand-light: #EEF2FF;
   --massic-accent: #0D9488;
   --massic-accent-hover: #0F766E;
@@ -103,6 +100,7 @@
   /* â”€â”€ PARALLAX â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   --massic-parallax-bg: none;
 }
+
 
 /* =========================================================
  LAYOUT
@@ -432,8 +430,10 @@ h4 {
   border: 1px solid transparent;
 }
 
-/* Gradient text */
-.massic-text-gradient {}
+/* Gradient text — safe fallback: renders as plain text until a brand gradient is applied */
+.massic-text-gradient {
+  color: var(--massic-text-primary);
+}
 
 /* Brand gradient text */
 .massic-text-gradient-brand {
@@ -544,6 +544,13 @@ h4 {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Defensive: prevent invisible text if massic-text-gradient lands on any dark-bg container */
+.massic-bg-invert .massic-text-gradient {
+  background: none;
+  -webkit-text-fill-color: var(--massic-text-invert);
+  color: var(--massic-text-invert);
 }
 
 /* =========================================================
@@ -1401,20 +1408,13 @@ details[open] .massic-faq-summary::after {
 /* â”€â”€ STATS SECTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .section-stats {
   padding: var(--section-padding-md) 0;
-  background: var(--massic-bg-invert);
+  background: var(--massic-bg-secondary);
   position: relative;
   overflow: hidden;
 }
 
 .section-stats::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 48px 48px;
-  pointer-events: none;
+  display: none;
 }
 
 .section-stats__header {
@@ -1423,22 +1423,16 @@ details[open] .massic-faq-summary::after {
   margin: 0 auto var(--massic-space-xl);
 }
 
-.section-stats__header .massic-eyebrow {
-  background: rgba(37, 99, 235, 0.2);
-  border-color: rgba(37, 99, 235, 0.3);
-  color: #93C5FD;
-}
-
 .section-stats__header h2 {
-  color: var(--massic-text-invert);
+  color: var(--massic-text-primary);
 }
 
 .section-stats__grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--massic-border);
+  border: 1px solid var(--massic-border);
   border-radius: var(--massic-radius-lg);
   overflow: hidden;
 }
@@ -1446,12 +1440,12 @@ details[open] .massic-faq-summary::after {
 .section-stats__item {
   padding: var(--massic-space-xl) var(--massic-space-lg);
   text-align: center;
-  background: rgba(255, 255, 255, 0.015);
+  background: var(--massic-bg);
   transition: background 0.25s;
 }
 
 .section-stats__item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--massic-bg-tertiary);
 }
 
 .section-stats__value {
@@ -1460,16 +1454,13 @@ details[open] .massic-faq-summary::after {
   font-weight: 400;
   line-height: 1;
   letter-spacing: -0.04em;
-  background: linear-gradient(135deg, #fff 30%, rgba(255, 255, 255, 0.6) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--massic-text-primary);
   margin-bottom: var(--massic-space-xs);
 }
 
 .section-stats__label {
   font-size: clamp(13px, 1.8vw, 15px);
-  color: rgba(248, 250, 252, 0.55);
+  color: var(--massic-text-secondary);
   font-weight: 500;
   line-height: 1.4;
 }
@@ -1520,7 +1511,7 @@ details[open] .massic-faq-summary::after {
 .section-testimonials__stars {
   display: flex;
   gap: 3px;
-  color: #F59E0B;
+  color: var(--massic-text-muted);
   font-size: 14px;
   letter-spacing: 1px;
 }
@@ -1574,23 +1565,12 @@ details[open] .massic-faq-summary::after {
 }
 
 .section-cta-banner__inner {
-  background: linear-gradient(135deg, var(--massic-brand) 0%, var(--massic-accent) 100%);
+  background: var(--massic-accent);
   border-radius: var(--massic-radius-xl);
   padding: var(--massic-space-3xl) var(--massic-space-2xl);
   text-align: center;
   position: relative;
   overflow: hidden;
-}
-
-.section-cta-banner__inner::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 48px 48px;
-  pointer-events: none;
 }
 
 .section-cta-banner__inner::after {
@@ -1750,7 +1730,7 @@ details[open] .massic-faq-summary::after {
   content: '';
   position: absolute;
   inset: -2px;
-  background: linear-gradient(135deg, var(--massic-brand), var(--massic-accent));
+  background: var(--massic-border-invert);
   border-radius: inherit;
   z-index: -1;
 }
@@ -1858,8 +1838,12 @@ details[open] .massic-faq-summary::after {
 }
 
 .section-pricing__card--featured .section-pricing__feature-check {
-  background: rgba(37, 99, 235, 0.25);
+  background: rgba(255, 255, 255, 0.25);
   color: #93C5FD;
+}
+
+.massic-split-section ul {
+  gap: var(--massic-space-md) !important;
 }
 
 @media (max-width: 992px) {
@@ -2051,10 +2035,10 @@ details[open] .section-faq__icon {
 }
 
 .section-process__step:hover .section-process__step-num {
-  background: var(--massic-brand);
-  border-color: var(--massic-brand);
-  color: #fff;
-  box-shadow: var(--massic-shadow-brand);
+  background: var(--massic-text-primary);
+  border-color: var(--massic-text-primary);
+  color: var(--massic-bg);
+  box-shadow: var(--massic-shadow-md);
 }
 
 .section-process__step-title {

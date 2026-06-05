@@ -11,31 +11,10 @@ import {
 import { cn } from "@/lib/utils";
 import type { StrategyRow } from "@/types/strategy-types";
 
-function getTopicKeywords(row: StrategyRow): string[] {
-  const seen = new Set<string>();
-  const keywords: string[] = [];
-
-  for (const cluster of row.clusters || []) {
-    for (const keyword of cluster.keywords || []) {
-      const normalized = String(keyword || "").trim();
-      const key = normalized.toLowerCase();
-      if (!normalized || seen.has(key)) continue;
-      seen.add(key);
-      keywords.push(normalized);
-    }
-  }
-
-  return keywords;
-}
-
 function buildWhatIsCoveredHref(businessId: string, row: StrategyRow): string {
   const params = new URLSearchParams();
   params.set("tab", "organic");
-  params.set("query_label", row.topic);
-
-  for (const keyword of getTopicKeywords(row)) {
-    params.append("query_term", keyword);
-  }
+  params.set("topicName", row.topic);
 
   return `/business/${encodeURIComponent(businessId)}/analytics?${params.toString()}`;
 }
@@ -43,10 +22,6 @@ function buildWhatIsCoveredHref(businessId: string, row: StrategyRow): string {
 function buildActionsToCoverHref(businessId: string, row: StrategyRow): string {
   const params = new URLSearchParams();
   params.set("topicName", row.topic);
-
-  for (const keyword of getTopicKeywords(row)) {
-    params.append("keyword", keyword);
-  }
 
   return `/business/${encodeURIComponent(businessId)}/strategy/topic?${params.toString()}`;
 }

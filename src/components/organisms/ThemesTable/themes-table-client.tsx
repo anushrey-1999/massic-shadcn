@@ -17,7 +17,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -25,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertCircle, ChartScatter, Layers, List, ListFilter, Loader2, Sparkles } from "lucide-react";
+import { AlertCircle, ChartScatter, CircleDot, List, ListFilter, Loader2, Sparkles } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
 import { BUSINESS_RELEVANCE_PALETTE } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { getThemesTableColumns } from "./themes-table-columns";
@@ -39,11 +38,15 @@ import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
 import type { ExtendedColumnFilter, JoinOperator } from "@/types/data-table-types";
 import { parseAsStringEnum, useQueryState } from "nuqs";
+import { cn } from "@/lib/utils";
 
 interface ThemesTableClientProps {
   businessId: string;
   onSplitViewChange?: (isSplitView: boolean) => void;
   onMetricsTextChange?: (text: string) => void;
+  toolbarRightPrefix?: React.ReactNode;
+  view?: ThemesView;
+  onViewChange?: (view: ThemesView) => void;
 }
 
 type ThemesView = "table" | "bubble" | "scatter";
@@ -257,8 +260,13 @@ export function ThemesTableClient({
   businessId,
   onSplitViewChange,
   onMetricsTextChange,
+  toolbarRightPrefix,
+  view: controlledView,
+  onViewChange,
 }: ThemesTableClientProps) {
-  const [view, setView] = React.useState<ThemesView>("table");
+  const [internalView, setInternalView] = React.useState<ThemesView>("table");
+  const view = controlledView ?? internalView;
+  const setView = onViewChange ?? setInternalView;
   const [search, setSearch] = React.useState("");
   const [selectedOffering, setSelectedOffering] = React.useState("all");
   const [bubbleColorMetric, setBubbleColorMetric] =
@@ -666,22 +674,51 @@ export function ThemesTableClient({
   );
 
   const viewToggle = (
-    <Tabs value={view} onValueChange={(v) => setView(v as ThemesView)} className="shrink-0">
-      <TabsList>
-        <TabsTrigger value="table">
-          <List className="h-4 w-4" />
-          List
-        </TabsTrigger>
-        <TabsTrigger value="bubble">
-          <Layers className="h-4 w-4" />
-          Map
-        </TabsTrigger>
-        <TabsTrigger value="scatter">
-          <ChartScatter className="h-4 w-4" />
-          Scatter
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+    <div
+      role="group"
+      aria-label="Overview view controls"
+      className="inline-flex h-[40px] shrink-0 items-center overflow-hidden rounded-lg border bg-background p-1 shadow-xs"
+    >
+      <button
+        type="button"
+        aria-label="Show overview list"
+        onClick={() => setView("table")}
+        className={cn(
+          "flex h-8 w-8 cursor-pointer items-center justify-center rounded-md transition-colors",
+          view === "table"
+            ? "bg-general-primary text-general-primary-foreground"
+            : "text-general-muted-foreground hover:bg-accent hover:text-foreground"
+        )}
+      >
+        <List className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        aria-label="Show overview map"
+        onClick={() => setView("bubble")}
+        className={cn(
+          "flex h-8 w-8 cursor-pointer items-center justify-center rounded-md transition-colors",
+          view === "bubble"
+            ? "bg-general-primary text-general-primary-foreground"
+            : "text-general-muted-foreground hover:bg-accent hover:text-foreground"
+        )}
+      >
+        <CircleDot className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        aria-label="Show overview scatter"
+        onClick={() => setView("scatter")}
+        className={cn(
+          "flex h-8 w-8 cursor-pointer items-center justify-center rounded-md transition-colors",
+          view === "scatter"
+            ? "bg-general-primary text-general-primary-foreground"
+            : "text-general-muted-foreground hover:bg-accent hover:text-foreground"
+        )}
+      >
+        <ChartScatter className="h-4 w-4" />
+      </button>
+    </div>
   );
 
   if (view === "bubble") {
@@ -732,7 +769,7 @@ export function ThemesTableClient({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <ThemesMapRelevanceFilter
                 selectedFilters={selectedRelevanceFilters}
                 onToggle={toggleRelevanceFilter}
@@ -742,7 +779,8 @@ export function ThemesTableClient({
                 onOfferingChange={setSelectedOffering}
                 formatOfferingLabel={formatOfferingLabel}
               />
-              {viewToggle}
+              {toolbarRightPrefix}
+              {!toolbarRightPrefix && viewToggle}
             </div>
           </div>
           <div className="flex-1 min-h-0">
@@ -793,9 +831,10 @@ export function ThemesTableClient({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             {offeringsFilter}
-            {viewToggle}
+            {toolbarRightPrefix}
+            {!toolbarRightPrefix && viewToggle}
           </div>
         </div>
         <div className="flex-1 min-h-0">
@@ -871,7 +910,8 @@ export function ThemesTableClient({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
-            {viewToggle}
+            {toolbarRightPrefix}
+            {!toolbarRightPrefix && viewToggle}
           </div>
         </div>
       </DataTable>

@@ -70,8 +70,8 @@ interface WebChannelsTabProps {
 
 const EMPTY_WEBFLOW_FIELDS: WebflowCollectionField[] = [];
 const WORDPRESS_PLUGIN_ZIP_PATHS = {
-  qa: "/downloads/massic-wp-connector-qa-1.0.0.zip",
-  prod: "/downloads/massic-wp-connector-prod-1.0.0.zip",
+  qa: "/downloads/massic-integration-qa-1.0.0.zip",
+  prod: "/downloads/massic-integration-prod-1.0.0.zip",
 } as const;
 
 function getWordpressPluginBuildEnv(): keyof typeof WORDPRESS_PLUGIN_ZIP_PATHS {

@@ -58,9 +58,8 @@ export function AgentChatThread({
 
   const lastMessage = messages[messages.length - 1];
   const isStreaming = streamPhase !== null;
-  // Show the M logo below the last assistant message at all times.
-  // Animate it during any active streaming phase (thinking, tool, responding).
-  const showBottomLoader = lastMessage?.role === "assistant";
+  const showBottomLoader =
+    lastMessage?.role === "assistant" && streamPhase !== "thinking";
   const animateBottomLoader = isStreaming;
 
   return (

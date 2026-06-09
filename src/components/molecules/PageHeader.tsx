@@ -113,7 +113,7 @@ export function PageHeader({
               <Link href={`/business/${businessId}/agent`}>
                 <Bot className="h-4 w-4 text-general-primary" />
                 <span className="bg-linear-to-r from-general-primary to-general-primary-gradient-to bg-clip-text text-transparent">
-                  Agent
+                  Ask Massic
                 </span>
               </Link>
             </Button>

@@ -20,6 +20,7 @@ import { useAgentStream } from "./use-agent-stream";
 import {
   getThreads,
   getThreadMessages,
+  getThreadCitations,
   renameThread,
   cancelTurn,
 } from "./agent-api";
@@ -32,6 +33,10 @@ import type {
 } from "./types";
 
 const STORED_ANNOTATION_PREFIX = /\n\[(?:viewing|intent)\] /;
+const DEFAULT_ARTIFACT_PANEL_WIDTH = 520;
+const MIN_ARTIFACT_PANEL_WIDTH = 360;
+const MAX_ARTIFACT_PANEL_WIDTH = 760;
+const MIN_CHAT_PANEL_WIDTH = 420;
 
 function displayUserMessageContent(content: string): string {
   const idx = content.search(STORED_ANNOTATION_PREFIX);
@@ -84,6 +89,7 @@ function threadMessageToAgentMessage(tm: {
   return {
     // turn_id is shared between user + assistant in the same turn — append role for a unique key
     id: `${tm.turn_id}-${tm.role}`,
+    turnId: tm.turn_id,
     role: tm.role,
     content: tm.role === "user" ? displayUserMessageContent(tm.content) : tm.content,
     widgetParts: tm.role === "assistant" ? widgetPartsFromMetadata(tm.metadata) : undefined,
@@ -115,6 +121,8 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
   const [threadCursor, setThreadCursor] = React.useState<string | null>(null);
   const [loadingMoreMessages, setLoadingMoreMessages] = React.useState(false);
   const [activeWidgetPart, setActiveWidgetPart] = React.useState<WidgetPart | null>(null);
+  const [artifactPanelWidth, setArtifactPanelWidth] = React.useState(DEFAULT_ARTIFACT_PANEL_WIDTH);
+  const splitContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   // Rename UI state
   const [renamingTitle, setRenamingTitle] = React.useState<string | null>(null);
@@ -202,6 +210,37 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
     []
   );
 
+  const loadCitationsForMessages = React.useCallback(
+    async (threadId: string, messages: AgentMessage[]) => {
+      if (!businessId) return;
+      const turnIds = Array.from(
+        new Set(
+          messages
+            .filter((message) => message.role === "assistant" && message.turnId)
+            .map((message) => message.turnId!)
+        )
+      );
+      if (turnIds.length === 0) return;
+
+      try {
+        const citationsByTurn = await getThreadCitations(businessId, threadId, turnIds);
+        updateConversation(threadId, (conversation) => ({
+          ...conversation,
+          messages: conversation.messages.map((message) => {
+            if (!message.turnId || !(message.turnId in citationsByTurn)) return message;
+            return {
+              ...message,
+              citations: citationsByTurn[message.turnId] ?? undefined,
+            };
+          }),
+        }));
+      } catch (err) {
+        console.warn("[agent] getThreadCitations failed:", err);
+      }
+    },
+    [businessId, updateConversation]
+  );
+
   const handleNewChat = () => {
     agentStream.cancel();
     setActiveId(null);
@@ -233,6 +272,7 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
         .map(threadMessageToAgentMessage);
       setThreadCursor(res.next_cursor);
       updateConversation(id, (c) => ({ ...c, messages: msgs }));
+      void loadCitationsForMessages(id, msgs);
     } catch (err) {
       const code = err instanceof Error ? err.message : "";
       if (code === "thread_not_found") {
@@ -262,6 +302,7 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
         ...c,
         messages: [...olderMsgs, ...c.messages],
       }));
+      void loadCitationsForMessages(activeId, olderMsgs);
     } catch {
       toast.error("Failed to load older messages");
     } finally {
@@ -341,8 +382,9 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
     agentStream.send(
       { message: text, threadId: activeId },
       {
-        onThreadMeta: (threadId, _turnId, isNew, title) => {
+        onThreadMeta: (threadId, turnId, isNew, title) => {
           const prevTempId = streamingConvIdRef.current;
+          patchStreamingMessage((m) => ({ ...m, turnId }));
           streamingConvIdRef.current = threadId;
 
           if (isNew && prevTempId !== threadId) {
@@ -379,6 +421,14 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
             content,
             partial,
             status: partial ? "cancelled" : "complete",
+          }));
+        },
+
+        onCitations: (turnId, segments) => {
+          patchStreamingMessage((m) => ({
+            ...m,
+            turnId: m.turnId ?? turnId,
+            citations: segments,
           }));
         },
 
@@ -505,6 +555,42 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
   const handleRenameCancel = () => {
     setRenamingTitle(null);
   };
+
+  const handleArtifactResizeStart = React.useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+
+      const containerWidth = splitContainerRef.current?.getBoundingClientRect().width;
+      const maxWidth = containerWidth
+        ? Math.max(
+            MIN_ARTIFACT_PANEL_WIDTH,
+            Math.min(MAX_ARTIFACT_PANEL_WIDTH, containerWidth - MIN_CHAT_PANEL_WIDTH)
+          )
+        : MAX_ARTIFACT_PANEL_WIDTH;
+      const startX = event.clientX;
+      const startWidth = artifactPanelWidth;
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const nextWidth = startWidth - (moveEvent.clientX - startX);
+        setArtifactPanelWidth(
+          Math.min(Math.max(nextWidth, MIN_ARTIFACT_PANEL_WIDTH), maxWidth)
+        );
+      };
+
+      const handlePointerUp = () => {
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+      };
+
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp, { once: true });
+    },
+    [artifactPanelWidth]
+  );
 
   const userName = user?.username || user?.email;
   const isStreaming = agentStream.streamPhase !== null;
@@ -638,7 +724,10 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
           </div>
         </header>
 
-        <div className="mr-auto flex min-h-0 w-full max-w-[1224px] flex-1">
+        <div
+          ref={splitContainerRef}
+          className="mr-auto flex min-h-0 w-full max-w-[1224px] flex-1"
+        >
           <div className={cn("flex min-w-0 flex-1 flex-col")}>
             {view === "chats" ? (
               <AgentChatsListView
@@ -702,6 +791,8 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
               businessId={businessId}
               part={activeWidgetPart}
               onClose={() => setActiveWidgetPart(null)}
+              width={artifactPanelWidth}
+              onResizeStart={handleArtifactResizeStart}
             />
           ) : null}
         </div>

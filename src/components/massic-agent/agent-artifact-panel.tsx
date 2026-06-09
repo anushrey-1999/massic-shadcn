@@ -1,5 +1,6 @@
 "use client";
 
+import type * as React from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AgentPlanWidget } from "./agent-plan-widget";
@@ -9,6 +10,8 @@ type Props = {
   businessId: string;
   part: WidgetPart;
   onClose: () => void;
+  width: number;
+  onResizeStart: (event: React.PointerEvent<HTMLDivElement>) => void;
 };
 
 function artifactTitle(part: WidgetPart): string {
@@ -18,9 +21,26 @@ function artifactTitle(part: WidgetPart): string {
   return `${part.widget || "Artifact"} #${String(part.resource.id)}`;
 }
 
-export function AgentArtifactPanel({ businessId, part, onClose }: Props) {
+export function AgentArtifactPanel({
+  businessId,
+  part,
+  onClose,
+  width,
+  onResizeStart,
+}: Props) {
   return (
-    <aside className="flex h-full min-w-[420px] max-w-[620px] flex-[0_0_45%] flex-col border-l border-border bg-background">
+    <aside
+      className="relative flex h-full min-w-[360px] max-w-[760px] shrink-0 flex-col border-l border-border bg-background"
+      style={{ width }}
+    >
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize artifact panel"
+        tabIndex={0}
+        onPointerDown={onResizeStart}
+        className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize touch-none hover:bg-general-primary/20"
+      />
       <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-4">
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

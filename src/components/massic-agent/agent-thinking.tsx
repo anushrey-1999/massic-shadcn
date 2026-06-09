@@ -94,11 +94,11 @@ export function AgentThinking({ text, isActive, defaultOpen = false }: Props) {
         <span
           className={cn(
             isActive
-              ? "italic bg-linear-to-r from-muted-foreground via-foreground to-muted-foreground bg-size-[200%_100%] bg-clip-text text-transparent animate-[shimmer_2s_linear_infinite]"
-              : ""
+              ? "italic bg-linear-to-r from-muted-foreground/55 via-muted-foreground/80 to-muted-foreground/55 bg-size-[200%_100%] bg-clip-text text-transparent animate-[shimmer_2s_linear_infinite]"
+              : "text-muted-foreground/70"
           )}
         >
-          Thought process
+          Thinking
         </span>
         {open ? (
           <ChevronDown className="h-3.5 w-3.5" />

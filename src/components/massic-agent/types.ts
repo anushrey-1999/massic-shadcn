@@ -12,10 +12,12 @@ export type AgentMessageStatus = "complete" | "cancelled" | "error";
 
 export type AgentMessage = {
   id: string;
+  turnId?: string;
   role: AgentRole;
   content: string;
   thinking?: string;
   actions?: AgentAction[];
+  citations?: CitationSegment[];
   widgetParts?: WidgetPart[];
   createdAt: number;
   status?: AgentMessageStatus;
@@ -77,6 +79,59 @@ export type ThreadMessagesResponse = {
 export type ThreadsResponse = {
   threads: AgentThread[];
   total: number;
+};
+
+export type CitationRefType =
+  | "tool_result"
+  | "learning"
+  | "history"
+  | "context"
+  | "summary"
+  | "general_knowledge"
+  | "assumption"
+  | "reasoning";
+
+export type CitationReference = {
+  ref?: number;
+  ref_id?: number;
+  index?: number;
+  id?: string | number;
+  ref_type?: CitationRefType | string;
+  label?: string | null;
+  detail?: string | null;
+  source_ids?: Array<string | number>;
+  [key: string]: unknown;
+};
+
+export type CitationReasoning = {
+  text?: string | null;
+  tool_name?: string | null;
+  [key: string]: unknown;
+};
+
+export type CitationSource = {
+  id?: string | number;
+  source_id?: string | number;
+  source_type?: string | null;
+  title?: string | null;
+  label?: string | null;
+  detail?: string | null;
+  content?: string | null;
+  url?: string | null;
+  [key: string]: unknown;
+};
+
+export type CitationSegment = {
+  agent?: string | null;
+  label?: string | null;
+  reasoning?: CitationReasoning[];
+  sources?: CitationSource[];
+  references?: CitationReference[];
+  [key: string]: unknown;
+};
+
+export type ThreadCitationsResponse = {
+  items: Record<string, { segments?: CitationSegment[] } | CitationSegment[] | null>;
 };
 
 // ── SSE event types ─────────────────────────────────────────────────────────
@@ -181,6 +236,14 @@ export type SseMessageComplete = SseBase & {
   partial: boolean;
 };
 
+export type SseCitations = SseBase & {
+  type: "citations";
+  agent: string;
+  turn_id: string;
+  thread_id: string;
+  segments: CitationSegment[];
+};
+
 export type SseTurnEnd = SseBase & {
   type: "turn_end";
   turn_id?: string;
@@ -235,6 +298,7 @@ export type SseEvent =
   | SseSummarisingHistory
   | SseMemoryEvent
   | SseMessageComplete
+  | SseCitations
   | SseTurnEnd
   | SseThinkingSummary
   | SseCancelled

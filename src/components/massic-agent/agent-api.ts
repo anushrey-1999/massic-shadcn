@@ -2,7 +2,9 @@ import Cookies from "js-cookie";
 import type {
   AgentThread,
   AgentPlan,
+  CitationSegment,
   ThreadMessagesResponse,
+  ThreadCitationsResponse,
   ThreadsResponse,
   WebpageItem,
   WebpagesCatalogResponse,
@@ -84,6 +86,37 @@ export async function getThreadMessages(
     next_cursor: json.next_cursor ?? json.nextCursor ?? null,
     has_more: json.has_more ?? json.hasMore ?? false,
   };
+}
+
+export async function getThreadCitations(
+  businessId: string,
+  threadId: string,
+  turnIds: string[]
+): Promise<Record<string, CitationSegment[] | null>> {
+  if (turnIds.length === 0) return {};
+
+  const res = await fetch(
+    `${getBaseUrl()}/agent/threads/${threadId}/citations?business_id=${encodeURIComponent(businessId)}`,
+    {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ turn_ids: turnIds.slice(0, 50) }),
+    }
+  );
+  if (!res.ok) {
+    if (res.status === 404) throw new Error("thread_not_found");
+    if (res.status === 503) throw new Error("service_unavailable");
+    throw new Error(`citations_fetch_failed:${res.status}`);
+  }
+
+  const json = (await res.json()) as ThreadCitationsResponse;
+  const items = json.items ?? {};
+  return Object.fromEntries(
+    Object.entries(items).map(([turnId, value]) => [
+      turnId,
+      Array.isArray(value) ? value : value?.segments ?? null,
+    ])
+  );
 }
 
 export async function renameThread(

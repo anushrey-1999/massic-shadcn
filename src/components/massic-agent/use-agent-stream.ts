@@ -4,6 +4,7 @@ import * as React from "react";
 import { startChatStream, type ChatRequestMetadata } from "./agent-api";
 import type {
   AgentMessage,
+  CitationSegment,
   SseEvent,
   SseToolCallEnd,
   SseTurnEnd,
@@ -17,6 +18,7 @@ export type AgentStreamCallbacks = {
   onThreadTitle: (threadId: string, title: string, provisional: boolean) => void;
   onMessagePatch: (patcher: (msg: AgentMessage) => AgentMessage) => void;
   onMessageCommit: (content: string, partial: boolean) => void;
+  onCitations: (turnId: string, segments: CitationSegment[]) => void;
   onToolCall: (toolName: string, widgetPart?: WidgetPart) => void;
   onWidgetParts: (parts: WidgetPart[]) => void;
   onTurnEnd: () => void;
@@ -252,6 +254,11 @@ export function useAgentStream(businessId: string) {
                 if (event.partial) {
                   callbacks.onCancelled();
                 }
+                break;
+              }
+
+              case "citations": {
+                callbacks.onCitations(event.turn_id, event.segments);
                 break;
               }
 

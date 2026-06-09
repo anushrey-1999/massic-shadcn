@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, RefreshCw, Table2, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, Copy, RefreshCw, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MassicLoader } from "@/components/ui/massic-loader";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -140,7 +140,6 @@ export function AgentMessageView({
   onRegenerate,
 }: Props) {
   const [copied, setCopied] = React.useState(false);
-  const [feedback, setFeedback] = React.useState<"up" | "down" | null>(null);
 
   const handleCopy = async () => {
     try {
@@ -258,6 +257,7 @@ export function AgentMessageView({
               <TooltipContent>{copied ? "Copied!" : "Copy"}</TooltipContent>
             </Tooltip>
 
+            {/*
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -291,6 +291,7 @@ export function AgentMessageView({
               </TooltipTrigger>
               <TooltipContent>Bad response</TooltipContent>
             </Tooltip>
+            */}
 
             {onRegenerate ? (
               <Tooltip>

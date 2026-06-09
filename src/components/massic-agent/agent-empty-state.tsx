@@ -3,6 +3,7 @@
 import { MassicLoader } from "@/components/ui/massic-loader";
 import { AgentComposer } from "./agent-composer";
 
+/*
 const categoryChips = [
   { id: "analytics", label: "Analytics", prompt: "Summarize this week's analytics performance" },
   { id: "strategy", label: "Strategy", prompt: "Help me build a content marketing strategy" },
@@ -10,6 +11,7 @@ const categoryChips = [
   { id: "campaigns", label: "Campaigns", prompt: "Draft a launch email for our new feature" },
   { id: "pick", label: "Massic's pick", prompt: "What's the most important thing I should focus on to grow my business?" },
 ];
+*/
 
 type Props = {
   value: string;
@@ -46,6 +48,7 @@ export function AgentEmptyState({
           placeholder="How can I help you today?"
         />
 
+        {/*
         <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
           {categoryChips.map((chip, i) => (
             <button
@@ -59,6 +62,7 @@ export function AgentEmptyState({
             </button>
           ))}
         </div>
+        */}
       </div>
     </div>
   );

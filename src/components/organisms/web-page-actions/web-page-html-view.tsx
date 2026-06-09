@@ -144,7 +144,7 @@ import {
   type LayoutValidationResult,
   type MediaElementInfo,
 } from "@/utils/page-html-editor";
-import { buildStyledMassicHtml, getMassicBlogPageCssText } from "@/utils/massic-html-copy";
+import { buildStyledMassicHtml, getMassicBlogPageCssText, scopeMassicPreviewCss } from "@/utils/massic-html-copy";
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
 import {
   type WordpressSlugConflictInfo,
@@ -929,9 +929,8 @@ export function WebPageHtmlView({
   const previewMassicVarCss = "";
   const previewBaseCss = React.useMemo(() => {
     if (!editorBaseCss) return "";
-    if (!isBlogContent) return editorBaseCss;
-    return editorBaseCss.replace(/:root\b/g, ".massic-html-preview .massic-content");
-  }, [editorBaseCss, isBlogContent]);
+    return scopeMassicPreviewCss(editorBaseCss, ".massic-html-preview");
+  }, [editorBaseCss]);
   const resolveHtmlContent = React.useCallback(
     (responseData: any) => {
       if (isBlogContent) {

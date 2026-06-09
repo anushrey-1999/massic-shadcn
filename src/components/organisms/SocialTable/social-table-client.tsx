@@ -25,6 +25,7 @@ type SocialTableFilter = {
 interface SocialTableClientProps {
   businessId: string;
   channelsSidebar?: React.ReactNode;
+  hideChannelsSidebar?: boolean;
   toolbarRightPrefix?: React.ReactNode;
   isReadOnly?: boolean;
   strategyType?: SocialStrategyType;
@@ -42,6 +43,7 @@ interface SocialTableClientProps {
 export function SocialTableClient({
   businessId,
   channelsSidebar,
+  hideChannelsSidebar = false,
   toolbarRightPrefix,
   isReadOnly = false,
   strategyType = "publish",
@@ -117,9 +119,9 @@ export function SocialTableClient({
     const hasSearch = (search || "").trim().length > 0;
     const hasFilters = Array.isArray(filters) && filters.length > 0;
     const hasBaseFilters = effectiveBaseFilters.length > 0;
-    const hasChannel = (channelName || "").trim().length > 0;
+    const hasChannel = !hideChannelsSidebar && (channelName || "").trim().length > 0;
     return hasSearch || hasFilters || hasBaseFilters || hasChannel;
-  }, [search, filters, effectiveBaseFilters, channelName]);
+  }, [search, filters, effectiveBaseFilters, channelName, hideChannelsSidebar]);
 
   const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
@@ -161,7 +163,7 @@ export function SocialTableClient({
     });
   }, [hasActiveSearchOrFilters, strategyType, businessId, queryClient]);
 
-  const effectiveChannelName = channelName || "all";
+  const effectiveChannelName = hideChannelsSidebar ? "all" : (channelName || "all");
 
   const queryKey = React.useMemo(
     () => [
@@ -623,15 +625,15 @@ export function SocialTableClient({
     );
   }
 
-  const sidebarNode =
-    channelsSidebar ||
-    (
-      <ChannelsSidebar
-        selectedChannel={channelName || null}
-        onChannelSelect={onChannelSelect}
-        channels={channelRows}
-      />
-    );
+  const sidebarNode = hideChannelsSidebar
+    ? undefined
+    : channelsSidebar || (
+        <ChannelsSidebar
+          selectedChannel={channelName || null}
+          onChannelSelect={onChannelSelect}
+          channels={channelRows}
+        />
+      );
 
   return (
     <div className="relative h-full flex flex-col">

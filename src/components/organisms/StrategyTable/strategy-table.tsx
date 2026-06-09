@@ -12,6 +12,7 @@ import type { QueryKeys } from "@/types/data-table-types";
 import { getStrategyTableColumns } from "./strategy-table-columns";
 
 interface StrategyTableProps {
+  businessId?: string;
   data: StrategyRow[];
   pageCount: number;
   offeringCounts?: Record<string, number>;
@@ -29,6 +30,7 @@ interface StrategyTableProps {
 }
 
 export function StrategyTable({
+  businessId,
   data,
   pageCount,
   offeringCounts = {},
@@ -50,12 +52,13 @@ export function StrategyTable({
   const columns = React.useMemo(
     () =>
       getStrategyTableColumns({
+        businessId,
         offeringCounts,
         businessRelevanceRange,
         topicCoverageRange,
         searchVolumeRange,
       }),
-    [offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange]
+    [businessId, offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({

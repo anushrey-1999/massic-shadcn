@@ -22,7 +22,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   getAnalyticsPeriodBounds,
   PERIOD_SELECTOR_GROUPS,
-  formatTimePeriodSummary,
+  getTimePeriodLabel,
   resolveTimePeriodRange,
   type TimePeriodPreset,
 } from "@/utils/analytics-period"
@@ -51,6 +51,15 @@ import { SourceFavicon } from "./SourceFavicon"
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────
 
+const POSITIVE_TEXT_CLASS = "text-[#0F6E56]"
+const POSITIVE_ACCENT_CLASS = "bg-[#1D9E75]"
+const POSITIVE_PILL_CLASS = "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+const WARNING_PILL_CLASS = "border-[#FAC775] bg-[#FFFBEB] text-[#854F0B]"
+const NEUTRAL_QUERY_PILL_CLASS = "border-border/60 bg-background text-muted-foreground"
+const SINGLE_LINE_PILL_CLASS = "inline-flex h-6 min-w-0 max-w-full items-center overflow-hidden whitespace-nowrap rounded-full border px-2 text-[11px] leading-none"
+const PILL_TEXT_CLASS = "block min-w-0 truncate"
+const DEFAULT_RANGE_PRESET: TimePeriodPreset = "14 days"
+
 function toIsoDate(date: Date) { return format(date, "yyyy-MM-dd") }
 
 function createDefaultRange() {
@@ -63,28 +72,14 @@ function formatDisplayRange(range: DateRange | undefined) {
   return `${format(range.from, "MMM d")} – ${format(range.to, "MMM d, yyyy")}`
 }
 
+function formatRangePickerTriggerLabel(range: DateRange | undefined, selectedPreset: TimePeriodPreset | null) {
+  if (selectedPreset) return getTimePeriodLabel(selectedPreset)
+  return formatDisplayRange(range)
+}
+
 function getRangeLength(range: DateRange | undefined) {
   if (!range?.from || !range?.to) return 0
   return differenceInCalendarDays(startOfDay(range.to), startOfDay(range.from)) + 1
-}
-
-function rangeMatchesPreset(value: DateRange | undefined, preset: TimePeriodPreset): boolean {
-  if (!value?.from || !value?.to) return false
-  const r = resolveTimePeriodRange(preset)
-  if (!r) return false
-  return (
-    startOfDay(value.from).getTime() === r.from.getTime()
-    && startOfDay(value.to).getTime() === r.to.getTime()
-  )
-}
-
-function matchesAnyPreset(value: DateRange | undefined): boolean {
-  for (const group of PERIOD_SELECTOR_GROUPS) {
-    for (const period of group.options) {
-      if (rangeMatchesPreset(value, period.value)) return true
-    }
-  }
-  return false
 }
 
 function fmtDateRange(start: string, end: string): string {
@@ -121,7 +116,7 @@ function fmtPosDelta(delta: number): string {
 
 function deltaColor(value: number | null | undefined): string {
   if (value === null || value === undefined || value === 0) return "text-muted-foreground"
-  return value > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
+  return value > 0 ? POSITIVE_TEXT_CLASS : "text-[#A32D2D]"
 }
 
 // ─── Baseline phrase ─────────────────────────────────────────────────────────────
@@ -166,7 +161,7 @@ const DIRECTION_TO_COLOR: Record<PrimaryDriversHeadlineReel["direction"], ReelCo
 
 const REEL_COLOR_CLS: Record<ReelColor, string> = {
   neg:     "text-[#A32D2D] font-medium",
-  pos:     "text-[#0F6E56] font-medium",
+  pos:     cn(POSITIVE_TEXT_CLASS, "font-medium"),
   flat:    "text-muted-foreground font-medium",
   neutral: "text-muted-foreground",
 }
@@ -237,9 +232,9 @@ function WindowTag({ bucket, baseline }: { bucket: string; baseline: PrimaryDriv
 
   return (
     <span className={cn(
-      "text-[10px] px-2 py-0.5 rounded border",
+      "inline-flex h-6 items-center rounded border px-2 text-[10px] leading-none",
       noisy
-        ? "bg-[#FFFBEB] border-[#FAC775] text-[#854F0B]"
+        ? WARNING_PILL_CLASS
         : "border-border/50 text-muted-foreground",
     )}>
       {label}
@@ -307,7 +302,7 @@ function HeadlinePanel({ data }: { data: PrimaryDriversLegacyResponse }) {
               {i > 0 && <span className="mx-1 text-foreground/60 text-[14px] leading-none">·</span>}
               <span className={cn(
                 part.color === "neg" ? "text-[#E24B4A]"
-                : part.color === "pos" ? "text-[#1D9E75]"
+                : part.color === "pos" ? POSITIVE_TEXT_CLASS
                 : undefined,
               )}>
                 {part.text}
@@ -434,7 +429,7 @@ function statDisplay(key: StatDef["key"], value: number | null): string {
 function ChStat({ def }: { def: StatDef }) {
   const val = def.value
   const cls = val === null ? "text-muted-foreground"
-    : def.key === "cvr" ? (val > 0 ? "text-[#0F6E56]" : val < 0 ? "text-[#A32D2D]" : "text-muted-foreground")
+    : def.key === "cvr" ? (val > 0 ? POSITIVE_TEXT_CLASS : val < 0 ? "text-[#A32D2D]" : "text-muted-foreground")
     : deltaColor(val)
 
   return (
@@ -477,7 +472,7 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
   const imprColor   = deltaColor(totalImpr)
   const posColor    = Math.abs(avgPos) < 0.1
     ? "text-muted-foreground"
-    : avgPos > 0 ? "text-[#0F6E56]" : "text-[#A32D2D]"
+    : avgPos > 0 ? POSITIVE_TEXT_CLASS : "text-[#A32D2D]"
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden border-t border-dashed border-border/50 bg-secondary/30 py-2.5 pl-8 pr-4">
@@ -502,8 +497,8 @@ function QuerySection({ queries, is7d }: { queries: PrimaryDriversQuery[]; is7d:
         {queries.map((q, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
-              <span className="max-w-full cursor-default rounded-full border border-border/60 bg-background px-2 py-[3px] text-[11px] text-muted-foreground sm:max-w-[240px] whitespace-normal break-words [overflow-wrap:anywhere]">
-                {q.query}
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default sm:max-w-[240px]", NEUTRAL_QUERY_PILL_CLASS)}>
+                <span className={PILL_TEXT_CLASS}>{q.query_full || q.query}</span>
               </span>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
@@ -633,7 +628,7 @@ function ChannelBlock({
           : "bg-[#FEF2F2] border-b border-[#F7C1C1]",
       )}>
         <div className="flex min-w-0 items-start gap-2.5">
-          <div className={cn("w-1 h-[22px] rounded-sm flex-shrink-0", isPos ? "bg-[#1D9E75]" : "bg-[#E24B4A]")} />
+          <div className={cn("w-1 h-[22px] rounded-sm flex-shrink-0", isPos ? POSITIVE_ACCENT_CLASS : "bg-[#E24B4A]")} />
           <span className="min-w-0 break-words text-[13px] font-medium [overflow-wrap:anywhere]">{ch.value}</span>
         </div>
         <div className="flex min-w-0 flex-wrap gap-4 sm:justify-end">
@@ -671,11 +666,13 @@ function ChannelBlock({
 
 function PrimaryDriversRangePicker({
   value,
+  selectedPreset,
   onChange,
   validationMessage,
 }: {
   value: DateRange | undefined
-  onChange: (range: DateRange | undefined) => void
+  selectedPreset: TimePeriodPreset | null
+  onChange: (range: DateRange | undefined, selectedPreset: TimePeriodPreset | null) => void
   validationMessage: string | null
 }) {
   const [open, setOpen] = React.useState(false)
@@ -684,13 +681,13 @@ function PrimaryDriversRangePicker({
 
   React.useEffect(() => {
     if (!open) return
-    setCustomExpanded(!matchesAnyPreset(value))
-  }, [open, value])
+    setCustomExpanded(!selectedPreset)
+  }, [open, selectedPreset])
 
   const handlePresetSelect = (preset: TimePeriodPreset) => {
     const r = resolveTimePeriodRange(preset)
     if (!r) return
-    onChange({ from: r.from, to: r.to })
+    onChange({ from: r.from, to: r.to }, preset)
     setCustomExpanded(false)
     if (getRangeLength({ from: r.from, to: r.to }) >= 7) {
       setOpen(false)
@@ -698,7 +695,7 @@ function PrimaryDriversRangePicker({
   }
 
   const handleCustomCalendarSelect = (r: DateRange | undefined) => {
-    onChange(r)
+    onChange(r, null)
     if (r?.from && r?.to && getRangeLength(r) >= 7) {
       setOpen(false)
     }
@@ -709,7 +706,7 @@ function PrimaryDriversRangePicker({
       <PopoverTrigger asChild>
         <Button variant="outline" className="h-9 justify-start rounded-[10px] border-general-border bg-white px-3 text-left text-sm font-medium">
           <CalendarIcon className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-          {formatDisplayRange(value)}
+          {formatRangePickerTriggerLabel(value, selectedPreset)}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-auto max-w-[min(100vw-1rem,720px)] min-w-[260px] max-h-[calc(100vh-5rem)] overflow-y-auto p-0">
@@ -724,7 +721,7 @@ function PrimaryDriversRangePicker({
             {index > 0 ? <Separator /> : null}
             <div className="p-1">
               {group.options.map((period) => {
-                const isActive = rangeMatchesPreset(value, period.value)
+                const isActive = selectedPreset === period.value
                 return (
                   <button
                     key={period.id}
@@ -737,11 +734,6 @@ function PrimaryDriversRangePicker({
                   >
                     <span className="flex flex-col">
                       <span className="text-sm font-medium text-foreground">{period.label}</span>
-                      {isActive ? (
-                        <span className="text-xs text-muted-foreground">
-                          {formatTimePeriodSummary(period.value)}
-                        </span>
-                      ) : null}
                     </span>
                     {isActive ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : null}
                   </button>
@@ -759,16 +751,16 @@ function PrimaryDriversRangePicker({
             onClick={() => setCustomExpanded((e) => !e)}
             className={cn(
               "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
-              (customExpanded || !matchesAnyPreset(value)) && "bg-muted",
+              (customExpanded || !selectedPreset) && "bg-muted",
             )}
           >
             <span className="flex flex-col">
               <span className="text-sm font-medium text-foreground">Custom</span>
-              {(customExpanded || !matchesAnyPreset(value)) && value?.from && value?.to ? (
+              {(customExpanded || !selectedPreset) && value?.from && value?.to ? (
                 <span className="text-xs text-muted-foreground">{formatDisplayRange(value)}</span>
               ) : null}
             </span>
-            {!matchesAnyPreset(value) && value?.from && value?.to ? (
+            {!selectedPreset && value?.from && value?.to ? (
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             ) : null}
           </button>
@@ -935,14 +927,21 @@ function CtaPills({ channels }: { channels: PrimaryDriversV2Channel[] }) {
       {channels.map((channel) => {
         const delta = channel.goals_delta ?? 0
         const cls = delta > 0
-          ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
+          ? POSITIVE_PILL_CLASS
           : delta < 0
             ? "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]"
             : "border-border/60 bg-secondary/30 text-muted-foreground"
         return (
-          <span key={channel.channel_name} className={cn("max-w-full whitespace-normal break-words rounded-full border px-2 py-0.5 text-[11px] font-medium [overflow-wrap:anywhere]", cls)}>
-            {channel.channel_name} {fmtAbsolute(delta)}
-          </span>
+          <Tooltip key={channel.channel_name}>
+            <TooltipTrigger asChild>
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default font-medium sm:max-w-[220px]", cls)}>
+                <span className={PILL_TEXT_CLASS}>{channel.channel_name} {fmtAbsolute(delta)}</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
+              {channel.channel_name} {fmtAbsolute(delta)}
+            </TooltipContent>
+          </Tooltip>
         )
       })}
     </div>
@@ -956,13 +955,8 @@ function V2QueryChips({ page }: { page: PrimaryDriversV2Page }) {
       {page.queries.map((query, index) => (
         <Tooltip key={`${query.full_query_text}-${index}`}>
           <TooltipTrigger asChild>
-            <span className={cn(
-              "max-w-full whitespace-normal break-words rounded-full border px-2 py-[3px] text-[11px] [overflow-wrap:anywhere] sm:max-w-[220px]",
-              query.is_branded
-                ? "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]"
-                : "border-border/60 bg-background text-muted-foreground",
-            )}>
-              {query.query_text}
+            <span className={cn(SINGLE_LINE_PILL_CLASS, "cursor-default sm:max-w-[220px]", NEUTRAL_QUERY_PILL_CLASS)}>
+              <span className={PILL_TEXT_CLASS}>{query.full_query_text || query.query_text}</span>
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-[360px] break-words text-xs">
@@ -1009,7 +1003,7 @@ function V2SourceRow({ source, organic }: { source: PrimaryDriversV2Source; orga
 function V2ChannelBlock({ channel }: { channel: PrimaryDriversV2Channel }) {
   const organic = channel.channel_name.toLowerCase().includes("organic")
   const net = channel.goals_delta ?? 0
-  const bar = net > 0 ? "bg-[#1D9E75]" : net < 0 ? "bg-[#E24B4A]" : "bg-muted-foreground/40"
+  const bar = net > 0 ? POSITIVE_ACCENT_CLASS : net < 0 ? "bg-[#E24B4A]" : "bg-muted-foreground/40"
 
   return (
     <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-border/50 bg-white">
@@ -1050,7 +1044,7 @@ function CtaCard({
   const badgeCls = neutral
     ? "bg-secondary text-muted-foreground"
     : positive
-      ? "bg-[#F0FDFA] text-[#0F6E56] border-[#9FE1CB]"
+      ? POSITIVE_PILL_CLASS
       : "bg-[#FEF2F2] text-[#A32D2D] border-[#F7C1C1]"
   const warning = cta.edge_case_flags.find((flag) => !["low_volume"].includes(flag))
 
@@ -1066,8 +1060,8 @@ function CtaCard({
           <div className="min-w-0 flex-1">
             <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
               <span className="min-w-0 break-words font-mono text-[14px] font-medium [overflow-wrap:anywhere]">{cta.display_name}</span>
-              <span className={cn("w-fit max-w-full shrink-0 whitespace-normal break-words rounded-full border px-2 py-0.5 text-left text-[12px] font-semibold tabular-nums [overflow-wrap:anywhere]", badgeCls)}>
-                {fmtAbsolute(cta.absolute_delta)} ({pctDisplay(cta.pct_change)})
+              <span className={cn(SINGLE_LINE_PILL_CLASS, "w-fit shrink-0 text-[12px] font-semibold tabular-nums", badgeCls)}>
+                <span className={PILL_TEXT_CLASS}>{fmtAbsolute(cta.absolute_delta)} ({pctDisplay(cta.pct_change)})</span>
               </span>
             </div>
             {cta.why_sentence ? (
@@ -1312,6 +1306,7 @@ function CallPrepHistoryList({
 export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessName }: PrimaryDriversSheetProps) {
   const defaultRange = React.useMemo(() => createDefaultRange(), [])
   const [draftRange, setDraftRange]         = React.useState<DateRange | undefined>(defaultRange)
+  const [draftRangePreset, setDraftRangePreset] = React.useState<TimePeriodPreset | null>(DEFAULT_RANGE_PRESET)
   const [committedRange, setCommittedRange] = React.useState<DateRange | undefined>(defaultRange)
   const [rangeMsg, setRangeMsg]             = React.useState<string | null>(null)
   const [mode, setMode]                     = React.useState<PrimaryDriversSheetMode>("current")
@@ -1327,6 +1322,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
     if (!open) {
       const d = createDefaultRange()
       setDraftRange(d)
+      setDraftRangePreset(DEFAULT_RANGE_PRESET)
       setCommittedRange(d)
       setRangeMsg(null)
       setMode("current")
@@ -1378,8 +1374,9 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
     enabled: open && mode === "history" && !!selectedHistoryRunId,
   })
 
-  const handleRangeChange = React.useCallback((next: DateRange | undefined) => {
+  const handleRangeChange = React.useCallback((next: DateRange | undefined, selectedPreset: TimePeriodPreset | null) => {
     setDraftRange(next)
+    setDraftRangePreset(selectedPreset)
     if (!next?.from || !next?.to) { setRangeMsg(null); return }
     const len = getRangeLength(next)
     if (len < 7) { setRangeMsg("Select at least 7 days for reliable analysis."); return }
@@ -1472,7 +1469,12 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               {mode === "current" ? (
-                <PrimaryDriversRangePicker value={draftRange} onChange={handleRangeChange} validationMessage={rangeMsg} />
+                <PrimaryDriversRangePicker
+                  value={draftRange}
+                  selectedPreset={draftRangePreset}
+                  onChange={handleRangeChange}
+                  validationMessage={rangeMsg}
+                />
               ) : null}
               <Tooltip>
                 <TooltipTrigger asChild>

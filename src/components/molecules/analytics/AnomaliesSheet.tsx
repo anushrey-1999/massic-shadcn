@@ -44,10 +44,18 @@ interface AnomaliesSheetProps {
   goalRawState?: string | null;
   obsStartDate?: string | null;
   obsEndDate?: string | null;
+  initialTab?: "goals" | "traffic";
+  initialSelectedDate?: string | null;
 }
 
 type TrackingQuality = "stable" | "uncertain";
 type Direction = "up" | "down";
+
+const POSITIVE_PILL_CLASS = "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]";
+const WARNING_PILL_CLASS = "border-[#FAC775] bg-[#FFFBEB] text-[#854F0B]";
+const NEUTRAL_QUERY_PILL_CLASS = "border-border/60 bg-background text-muted-foreground";
+const SINGLE_LINE_PILL_CLASS = "inline-flex h-6 min-w-0 max-w-full items-center overflow-hidden whitespace-nowrap rounded-full border px-2 text-[11px] leading-none";
+const PILL_TEXT_CLASS = "block min-w-0 truncate";
 
 const getAnomalyConfig = (
   direction: Direction,
@@ -56,7 +64,7 @@ const getAnomalyConfig = (
   if (direction === "up") {
     return {
       label: trackingQuality === "uncertain" ? "Positive, verify" : "Positive",
-      chipClass: "border-[#9FE1CB] bg-[#F0FDFA] text-[#0F6E56]",
+      chipClass: POSITIVE_PILL_CLASS,
       accentClass: "bg-[#1D9E75]",
       note: trackingQuality === "uncertain" ? "Looks positive - worth verifying tracking." : null,
     };
@@ -175,8 +183,8 @@ function DeltaPill({ value, percent }: { value: number; percent?: number }) {
       : "border-[#F7C1C1] bg-[#FEF2F2] text-[#A32D2D]";
 
   return (
-    <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[12px] font-semibold tabular-nums", cls)}>
-      {fmtAbsolute(value)} {percent !== undefined ? `(${pctDisplay(percent)})` : null}
+    <span className={cn(SINGLE_LINE_PILL_CLASS, "shrink-0 text-[12px] font-semibold tabular-nums", cls)}>
+      <span className={PILL_TEXT_CLASS}>{fmtAbsolute(value)} {percent !== undefined ? `(${pctDisplay(percent)})` : null}</span>
     </span>
   );
 }
@@ -206,7 +214,9 @@ function TruncatedTooltipText({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={cn("cursor-default", className)}>{text}</span>
+        <span className={cn("cursor-default", className)}>
+          <span className={PILL_TEXT_CLASS}>{text}</span>
+        </span>
       </TooltipTrigger>
       <TooltipContent side="top" className={tooltipClassName}>
         {text}
@@ -219,7 +229,7 @@ function QueryChips({ queries }: { queries?: string[] }) {
   if (!queries?.length) return null;
 
   const colorMap: Record<string, string> = {
-    default: "border-border/60 bg-background text-muted-foreground",
+    default: NEUTRAL_QUERY_PILL_CLASS,
   };
 
   return (
@@ -229,7 +239,8 @@ function QueryChips({ queries }: { queries?: string[] }) {
           key={`${query}-${idx}`}
           text={query}
           className={cn(
-            "max-w-full truncate rounded-full border px-2 py-[3px] text-[11px] sm:max-w-[220px]",
+            SINGLE_LINE_PILL_CLASS,
+            "sm:max-w-[220px]",
             colorMap.default,
           )}
         />
@@ -420,7 +431,7 @@ function ChannelBlock({
 function PartialBaselineChip({ historyDays }: { historyDays: number }) {
   const weeks = Math.floor(historyDays / 7);
   return (
-    <span className="inline-flex items-center gap-1 rounded border border-[#FAC775] bg-[#FFFBEB] px-2 py-0.5 text-[10px] font-medium text-[#854F0B]">
+    <span className={cn("inline-flex h-6 items-center gap-1 rounded border px-2 text-[10px] font-medium leading-none", WARNING_PILL_CLASS)}>
       <Info className="h-3 w-3" />
       Limited history ({weeks} {weeks === 1 ? "week" : "weeks"})
     </span>
@@ -460,19 +471,20 @@ function DailyPeakChips({ peaks, unit }: DailyPeakChipsProps) {
           <div
             key={peak.date}
             className={cn(
-              "inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-[3px] text-[11px] font-medium sm:max-w-[220px]",
+              SINGLE_LINE_PILL_CLASS,
+              "gap-1 font-medium sm:max-w-[220px]",
               isAnomaly
                 ? isUp
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  ? POSITIVE_PILL_CLASS
                   : "border-red-200 bg-red-50 text-red-700"
                 : isUp
-                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                  : "border-amber-200 bg-amber-50 text-amber-700"
+                  ? POSITIVE_PILL_CLASS
+                  : WARNING_PILL_CLASS
             )}
           >
-            <span>{formatPeakDate(peak.date)}</span>
-            <span className="font-semibold">{formatPeakDeltaPct(peak.delta_pct)}</span>
-            <span className="text-muted-foreground/80">{unit}</span>
+            <span className="truncate">{formatPeakDate(peak.date)}</span>
+            <span className="shrink-0 font-semibold">{formatPeakDeltaPct(peak.delta_pct)}</span>
+            <span className="shrink-0 text-muted-foreground/80">{unit}</span>
           </div>
         );
       })}
@@ -572,12 +584,11 @@ function PositivePointCards({ wins }: { wins: Win[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {visiblePoints.map((win, idx) => (
-        <span
+        <TruncatedTooltipText
           key={`${win.text}-${idx}`}
-          className="inline-flex min-w-0 rounded-md border border-[#9FE1CB] bg-[#F0FDFA] px-2 py-1 text-[11px] font-medium leading-snug text-[#0F6E56]"
-        >
-          <span className="break-words">{win.text}</span>
-        </span>
+          text={win.text}
+          className={cn(SINGLE_LINE_PILL_CLASS, "rounded-md font-medium", POSITIVE_PILL_CLASS)}
+        />
       ))}
     </div>
   );
@@ -711,7 +722,7 @@ function GoalCard({ goal, open, onToggle }: GoalCardProps) {
             <div className="flex min-w-0 items-start justify-between gap-3">
               <span className="truncate font-mono text-[14px] font-medium">{goal.title}</span>
               <div className="flex shrink-0 items-center gap-1.5">
-                <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", config.chipClass)}>
+                <span className={cn(SINGLE_LINE_PILL_CLASS, "shrink-0 font-medium", config.chipClass)}>
                   {config.label}
                 </span>
                 <DeltaPill value={goal.delta} percent={goal.deltaPct} />
@@ -901,7 +912,7 @@ function TrafficCard({ traffic, open, onToggle }: TrafficCardProps) {
             <div className="flex min-w-0 items-start justify-between gap-3">
               <span className="truncate font-mono text-[14px] font-medium">Organic traffic</span>
               <div className="flex shrink-0 items-center gap-1.5">
-                <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", config.chipClass)}>
+                <span className={cn(SINGLE_LINE_PILL_CLASS, "shrink-0 font-medium", config.chipClass)}>
                   {config.label}
                 </span>
                 <DeltaPill value={traffic.delta_clicks} percent={traffic.delta_pct} />
@@ -956,6 +967,8 @@ export function AnomaliesSheet({
   goalRawState,
   obsStartDate,
   obsEndDate,
+  initialTab = "goals",
+  initialSelectedDate = null,
 }: AnomaliesSheetProps) {
   const [activeTab, setActiveTab] = React.useState<"goals" | "traffic">(
     "goals"
@@ -1054,11 +1067,29 @@ export function AnomaliesSheet({
   }, [open]);
 
   React.useEffect(() => {
+    if (!open) return;
+
+    setActiveTab(initialTab);
+    setExpandedGoalId(null);
+    setTrafficExpanded(false);
+
+    if (initialSelectedDate) {
+      setLocalSelectedDate(initialSelectedDate);
+      setLocalDate(new Date(`${initialSelectedDate}T00:00:00`));
+    } else {
+      setLocalSelectedDate(null);
+      setLocalDate(null);
+    }
+  }, [initialSelectedDate, initialTab, open]);
+
+  React.useEffect(() => {
     if (localSelectedDate && open) {
       setExpandedGoalId(null);
       setTrafficExpanded(false);
     }
   }, [activeTab, localSelectedDate, open]);
+
+  const isShowingDefaultWindow = localSelectedDate === null;
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
@@ -1086,7 +1117,7 @@ export function AnomaliesSheet({
                 value="goals"
                 className={cn(
                   "min-h-8 px-3 py-1.5 text-center",
-                  localSelectedDate && activeTab === "goals"
+                  isShowingDefaultWindow && activeTab === "goals"
                     ? "flex flex-col items-center justify-center gap-0.5"
                     : "flex items-center justify-center gap-1.5 self-center"
                 )}
@@ -1103,7 +1134,7 @@ export function AnomaliesSheet({
                     </Badge>
                   )}
                 </div>
-                {localSelectedDate && activeTab === "goals" && (
+                {isShowingDefaultWindow && activeTab === "goals" && (
                   <span className="text-[9px] font-normal leading-none text-muted-foreground">
                     Showing default window
                   </span>
@@ -1113,7 +1144,7 @@ export function AnomaliesSheet({
                 value="traffic"
                 className={cn(
                   "min-h-8 px-3 py-1.5 text-center",
-                  localSelectedDate && activeTab === "traffic"
+                  isShowingDefaultWindow && activeTab === "traffic"
                     ? "flex flex-col items-center justify-center gap-0.5"
                     : "flex items-center justify-center gap-1.5 self-center"
                 )}
@@ -1130,7 +1161,7 @@ export function AnomaliesSheet({
                     </Badge>
                   )}
                 </div>
-                {localSelectedDate && activeTab === "traffic" && (
+                {isShowingDefaultWindow && activeTab === "traffic" && (
                   <span className="text-[9px] font-normal leading-none text-muted-foreground">
                     Showing default window
                   </span>

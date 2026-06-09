@@ -22,7 +22,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   getAnalyticsPeriodBounds,
   PERIOD_SELECTOR_GROUPS,
-  formatTimePeriodSummary,
+  getTimePeriodLabel,
   resolveTimePeriodRange,
   type TimePeriodPreset,
 } from "@/utils/analytics-period"
@@ -58,6 +58,7 @@ const WARNING_PILL_CLASS = "border-[#FAC775] bg-[#FFFBEB] text-[#854F0B]"
 const NEUTRAL_QUERY_PILL_CLASS = "border-border/60 bg-background text-muted-foreground"
 const SINGLE_LINE_PILL_CLASS = "inline-flex h-6 min-w-0 max-w-full items-center overflow-hidden whitespace-nowrap rounded-full border px-2 text-[11px] leading-none"
 const PILL_TEXT_CLASS = "block min-w-0 truncate"
+const DEFAULT_RANGE_PRESET: TimePeriodPreset = "14 days"
 
 function toIsoDate(date: Date) { return format(date, "yyyy-MM-dd") }
 
@@ -71,28 +72,14 @@ function formatDisplayRange(range: DateRange | undefined) {
   return `${format(range.from, "MMM d")} – ${format(range.to, "MMM d, yyyy")}`
 }
 
+function formatRangePickerTriggerLabel(range: DateRange | undefined, selectedPreset: TimePeriodPreset | null) {
+  if (selectedPreset) return getTimePeriodLabel(selectedPreset)
+  return formatDisplayRange(range)
+}
+
 function getRangeLength(range: DateRange | undefined) {
   if (!range?.from || !range?.to) return 0
   return differenceInCalendarDays(startOfDay(range.to), startOfDay(range.from)) + 1
-}
-
-function rangeMatchesPreset(value: DateRange | undefined, preset: TimePeriodPreset): boolean {
-  if (!value?.from || !value?.to) return false
-  const r = resolveTimePeriodRange(preset)
-  if (!r) return false
-  return (
-    startOfDay(value.from).getTime() === r.from.getTime()
-    && startOfDay(value.to).getTime() === r.to.getTime()
-  )
-}
-
-function matchesAnyPreset(value: DateRange | undefined): boolean {
-  for (const group of PERIOD_SELECTOR_GROUPS) {
-    for (const period of group.options) {
-      if (rangeMatchesPreset(value, period.value)) return true
-    }
-  }
-  return false
 }
 
 function fmtDateRange(start: string, end: string): string {
@@ -679,11 +666,13 @@ function ChannelBlock({
 
 function PrimaryDriversRangePicker({
   value,
+  selectedPreset,
   onChange,
   validationMessage,
 }: {
   value: DateRange | undefined
-  onChange: (range: DateRange | undefined) => void
+  selectedPreset: TimePeriodPreset | null
+  onChange: (range: DateRange | undefined, selectedPreset: TimePeriodPreset | null) => void
   validationMessage: string | null
 }) {
   const [open, setOpen] = React.useState(false)
@@ -692,13 +681,13 @@ function PrimaryDriversRangePicker({
 
   React.useEffect(() => {
     if (!open) return
-    setCustomExpanded(!matchesAnyPreset(value))
-  }, [open, value])
+    setCustomExpanded(!selectedPreset)
+  }, [open, selectedPreset])
 
   const handlePresetSelect = (preset: TimePeriodPreset) => {
     const r = resolveTimePeriodRange(preset)
     if (!r) return
-    onChange({ from: r.from, to: r.to })
+    onChange({ from: r.from, to: r.to }, preset)
     setCustomExpanded(false)
     if (getRangeLength({ from: r.from, to: r.to }) >= 7) {
       setOpen(false)
@@ -706,7 +695,7 @@ function PrimaryDriversRangePicker({
   }
 
   const handleCustomCalendarSelect = (r: DateRange | undefined) => {
-    onChange(r)
+    onChange(r, null)
     if (r?.from && r?.to && getRangeLength(r) >= 7) {
       setOpen(false)
     }
@@ -717,7 +706,7 @@ function PrimaryDriversRangePicker({
       <PopoverTrigger asChild>
         <Button variant="outline" className="h-9 justify-start rounded-[10px] border-general-border bg-white px-3 text-left text-sm font-medium">
           <CalendarIcon className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-          {formatDisplayRange(value)}
+          {formatRangePickerTriggerLabel(value, selectedPreset)}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-auto max-w-[min(100vw-1rem,720px)] min-w-[260px] max-h-[calc(100vh-5rem)] overflow-y-auto p-0">
@@ -732,7 +721,7 @@ function PrimaryDriversRangePicker({
             {index > 0 ? <Separator /> : null}
             <div className="p-1">
               {group.options.map((period) => {
-                const isActive = rangeMatchesPreset(value, period.value)
+                const isActive = selectedPreset === period.value
                 return (
                   <button
                     key={period.id}
@@ -745,11 +734,6 @@ function PrimaryDriversRangePicker({
                   >
                     <span className="flex flex-col">
                       <span className="text-sm font-medium text-foreground">{period.label}</span>
-                      {isActive ? (
-                        <span className="text-xs text-muted-foreground">
-                          {formatTimePeriodSummary(period.value)}
-                        </span>
-                      ) : null}
                     </span>
                     {isActive ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> : null}
                   </button>
@@ -767,16 +751,16 @@ function PrimaryDriversRangePicker({
             onClick={() => setCustomExpanded((e) => !e)}
             className={cn(
               "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
-              (customExpanded || !matchesAnyPreset(value)) && "bg-muted",
+              (customExpanded || !selectedPreset) && "bg-muted",
             )}
           >
             <span className="flex flex-col">
               <span className="text-sm font-medium text-foreground">Custom</span>
-              {(customExpanded || !matchesAnyPreset(value)) && value?.from && value?.to ? (
+              {(customExpanded || !selectedPreset) && value?.from && value?.to ? (
                 <span className="text-xs text-muted-foreground">{formatDisplayRange(value)}</span>
               ) : null}
             </span>
-            {!matchesAnyPreset(value) && value?.from && value?.to ? (
+            {!selectedPreset && value?.from && value?.to ? (
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             ) : null}
           </button>
@@ -1322,6 +1306,7 @@ function CallPrepHistoryList({
 export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessName }: PrimaryDriversSheetProps) {
   const defaultRange = React.useMemo(() => createDefaultRange(), [])
   const [draftRange, setDraftRange]         = React.useState<DateRange | undefined>(defaultRange)
+  const [draftRangePreset, setDraftRangePreset] = React.useState<TimePeriodPreset | null>(DEFAULT_RANGE_PRESET)
   const [committedRange, setCommittedRange] = React.useState<DateRange | undefined>(defaultRange)
   const [rangeMsg, setRangeMsg]             = React.useState<string | null>(null)
   const [mode, setMode]                     = React.useState<PrimaryDriversSheetMode>("current")
@@ -1337,6 +1322,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
     if (!open) {
       const d = createDefaultRange()
       setDraftRange(d)
+      setDraftRangePreset(DEFAULT_RANGE_PRESET)
       setCommittedRange(d)
       setRangeMsg(null)
       setMode("current")
@@ -1388,8 +1374,9 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
     enabled: open && mode === "history" && !!selectedHistoryRunId,
   })
 
-  const handleRangeChange = React.useCallback((next: DateRange | undefined) => {
+  const handleRangeChange = React.useCallback((next: DateRange | undefined, selectedPreset: TimePeriodPreset | null) => {
     setDraftRange(next)
+    setDraftRangePreset(selectedPreset)
     if (!next?.from || !next?.to) { setRangeMsg(null); return }
     const len = getRangeLength(next)
     if (len < 7) { setRangeMsg("Select at least 7 days for reliable analysis."); return }
@@ -1482,7 +1469,12 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5">
               {mode === "current" ? (
-                <PrimaryDriversRangePicker value={draftRange} onChange={handleRangeChange} validationMessage={rangeMsg} />
+                <PrimaryDriversRangePicker
+                  value={draftRange}
+                  selectedPreset={draftRangePreset}
+                  onChange={handleRangeChange}
+                  validationMessage={rangeMsg}
+                />
               ) : null}
               <Tooltip>
                 <TooltipTrigger asChild>

@@ -3,14 +3,14 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useQueryState, parseAsInteger, parseAsString, parseAsJson } from "nuqs";
-import { AlertCircle, Layers, List } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { WorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanner";
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard";
 import { WebPageTable } from "@/components/organisms/WebPageTable/web-page-table";
 import { SocialTableClient } from "@/components/organisms/SocialTable/social-table-client";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Typography } from "@/components/ui/typography";
 import { useBlogPagePlan } from "@/hooks/use-blog-page-plan";
@@ -37,7 +37,6 @@ type TopicFilter = {
 
 const TOPIC_PAGE_SIZE = 10;
 const TOPIC_PAGE_SIZE_OPTIONS = [10, 30, 50, 100, 200];
-type TopicActionsLayout = "tabs" | "stacked";
 
 function buildKeywordFilter(field: "supporting_keywords" | "related_keywords", keywords: string[]): TopicFilter | null {
   if (keywords.length === 0) return null;
@@ -50,25 +49,6 @@ function buildKeywordFilter(field: "supporting_keywords" | "related_keywords", k
     variant: "multiSelect",
     operator: "inArray",
   };
-}
-
-function TopicSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex min-h-[420px] flex-col gap-3">
-      <div className="flex shrink-0 items-center justify-between gap-4">
-        <Typography variant="h3" className="text-base font-semibold text-general-foreground">
-          {title}
-        </Typography>
-      </div>
-      <div className="min-h-0 flex-1">{children}</div>
-    </section>
-  );
 }
 
 function TopicActionSectionContent({
@@ -134,13 +114,7 @@ function TopicDetailsPanel({
           <Typography variant="p" className="text-xs font-mono uppercase text-general-muted-foreground">
             Keywords
           </Typography>
-          <div className="flex flex-wrap items-start gap-1">
-            {keywords.map((keyword) => (
-              <Badge key={keyword} variant="outline">
-                {keyword}
-              </Badge>
-            ))}
-          </div>
+          <ExpandablePills items={keywords} pillVariant="outline" />
         </div>
       </div>
     </section>
@@ -275,6 +249,7 @@ function TopicSocialTable({
     <SocialTableClient
       businessId={businessId}
       strategyType={strategyType}
+      hideChannelsSidebar
       queryKeys={{
         page: `${keyPrefix}Page`,
         perPage: `${keyPrefix}PerPage`,
@@ -320,8 +295,6 @@ function StrategyTopicContent({
   isWebReady: boolean;
   isSocialReady: boolean;
 }) {
-  const [layout, setLayout] = React.useState<TopicActionsLayout>("tabs");
-
   if (!topicName.trim()) {
     return (
       <div className="w-full max-w-[1224px] flex-1 p-5">
@@ -372,95 +345,46 @@ function StrategyTopicContent({
       <div className="flex min-h-full flex-col gap-8">
         <TopicDetailsPanel topicName={topicName} keywords={keywords} />
 
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-9 shrink-0"
-              onClick={() => setLayout((current) => (current === "tabs" ? "stacked" : "tabs"))}
-              aria-label={layout === "tabs" ? "Show stacked view" : "Show tabbed view"}
-              title={layout === "tabs" ? "Show stacked view" : "Show tabbed view"}
-            >
-              {layout === "tabs" ? <List className="size-4" /> : <Layers className="size-4" />}
-            </Button>
-          </div>
-
-          {layout === "tabs" ? (
-            <Tabs defaultValue="web" className="flex min-h-[520px] flex-col">
-              <TabsList className="w-fit shrink-0">
-                <TabsTrigger value="web">Web New Pages</TabsTrigger>
-                <TabsTrigger value="engage">Social Engage</TabsTrigger>
-                <TabsTrigger value="publish">Social Publish</TabsTrigger>
-              </TabsList>
-              <TabsContent value="web" className="mt-4 min-h-0 flex-1">
-                <div className="h-[520px]">
-                  <TopicActionSectionContent
-                    businessId={businessId}
-                    keywords={keywords}
-                    isWebReady={isWebReady}
-                    isSocialReady={isSocialReady}
-                    section="web"
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="engage" className="mt-4 min-h-0 flex-1">
-                <div className="h-[520px]">
-                  <TopicActionSectionContent
-                    businessId={businessId}
-                    keywords={keywords}
-                    isWebReady={isWebReady}
-                    isSocialReady={isSocialReady}
-                    section="engage"
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="publish" className="mt-4 min-h-0 flex-1">
-                <div className="h-[520px]">
-                  <TopicActionSectionContent
-                    businessId={businessId}
-                    keywords={keywords}
-                    isWebReady={isWebReady}
-                    isSocialReady={isSocialReady}
-                    section="publish"
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
-          ) : (
-            <div className="flex flex-col gap-8">
-              <TopicSection title="Web New Pages">
-                <TopicActionSectionContent
-                  businessId={businessId}
-                  keywords={keywords}
-                  isWebReady={isWebReady}
-                  isSocialReady={isSocialReady}
-                  section="web"
-                />
-              </TopicSection>
-
-              <TopicSection title="Social Engage">
-                <TopicActionSectionContent
-                  businessId={businessId}
-                  keywords={keywords}
-                  isWebReady={isWebReady}
-                  isSocialReady={isSocialReady}
-                  section="engage"
-                />
-              </TopicSection>
-
-              <TopicSection title="Social Publish">
-                <TopicActionSectionContent
-                  businessId={businessId}
-                  keywords={keywords}
-                  isWebReady={isWebReady}
-                  isSocialReady={isSocialReady}
-                  section="publish"
-                />
-              </TopicSection>
+        <Tabs defaultValue="web" className="flex min-h-[520px] flex-col">
+          <TabsList className="w-fit shrink-0">
+            <TabsTrigger value="web">Web New Pages</TabsTrigger>
+            <TabsTrigger value="engage">Social Engage</TabsTrigger>
+            <TabsTrigger value="publish">Social Publish</TabsTrigger>
+          </TabsList>
+          <TabsContent value="web" className="mt-4 min-h-0 flex-1">
+            <div className="h-[520px]">
+              <TopicActionSectionContent
+                businessId={businessId}
+                keywords={keywords}
+                isWebReady={isWebReady}
+                isSocialReady={isSocialReady}
+                section="web"
+              />
             </div>
-          )}
-        </div>
+          </TabsContent>
+          <TabsContent value="engage" className="mt-4 min-h-0 flex-1">
+            <div className="h-[520px]">
+              <TopicActionSectionContent
+                businessId={businessId}
+                keywords={keywords}
+                isWebReady={isWebReady}
+                isSocialReady={isSocialReady}
+                section="engage"
+              />
+            </div>
+          </TabsContent>
+          <TabsContent value="publish" className="mt-4 min-h-0 flex-1">
+            <div className="h-[520px]">
+              <TopicActionSectionContent
+                businessId={businessId}
+                keywords={keywords}
+                isWebReady={isWebReady}
+                isSocialReady={isSocialReady}
+                section="publish"
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

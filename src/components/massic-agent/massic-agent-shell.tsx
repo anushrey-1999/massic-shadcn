@@ -613,6 +613,7 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
                 <span>Webpages agent</span>
               </div>
             ) : null}
+            {/*
             <div className="hidden items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground sm:flex">
               <span>Free plan</span>
               <span className="text-general-primary">·</span>
@@ -630,6 +631,7 @@ export function MassicAgentShell({ businessId: businessIdProp }: Props = {}) {
                 <X className="h-3 w-3" />
               </button>
             </div>
+            */}
             </div>
 
             <div />

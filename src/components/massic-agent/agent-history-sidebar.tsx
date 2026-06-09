@@ -10,7 +10,6 @@ import {
   MoreVertical,
   Trash2,
   MessageSquare,
-  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,7 +60,9 @@ export function AgentHistorySidebar({
   const primaryNavItems: NavItem[] = [
     { id: "new", label: "New chat", icon: Plus, onClick: onNewChat },
     { id: "chats", label: "Chats", icon: MessageSquare, onClick: onChatsView },
+    /*
     { id: "artifacts", label: "Artifacts", icon: Layers },
+    */
   ];
 
   const sortedRecents = React.useMemo(

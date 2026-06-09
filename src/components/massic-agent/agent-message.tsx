@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Copy, RefreshCw, Table2, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, Copy, RefreshCw, Table2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MassicLoader } from "@/components/ui/massic-loader";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,8 +23,27 @@ const TOOL_LABELS: Record<string, string> = {
   activate_plan: "Activating plan…",
 };
 
+const TOOL_DISPLAY_LABELS: Record<string, string> = {
+  search_knowledge: "Knowledge search",
+  get_business_profile: "Business profile",
+  get_strategy_statuses: "Strategy status",
+  get_pages_details: "Page details",
+  get_webpage_plan: "Webpage plan",
+  recall_memory: "Memory recall",
+  write_memory: "Memory saved",
+  forget_memory: "Memory removed",
+  save_plan: "Plan saved",
+  activate_plan: "Plan activated",
+};
+
 function toolLabel(toolName: string): string {
   return TOOL_LABELS[toolName] ?? `Running ${toolName.replace(/_/g, " ")}…`;
+}
+
+function toolDisplayLabel(toolName: string): string {
+  return TOOL_DISPLAY_LABELS[toolName] ?? toolName
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function ToolIndicatorRow({ toolName }: { toolName: string }) {
@@ -34,6 +53,24 @@ function ToolIndicatorRow({ toolName }: { toolName: string }) {
       <span className="italic font-medium bg-linear-to-r from-muted-foreground via-foreground to-muted-foreground bg-size-[200%_100%] bg-clip-text text-transparent animate-[shimmer_2s_linear_infinite]">
         {toolLabel(toolName)}
       </span>
+    </div>
+  );
+}
+
+function ToolUsageSummary({ tools }: { tools: string[] }) {
+  if (tools.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <span className="font-medium">Tools used</span>
+      {tools.map((tool) => (
+        <span
+          key={tool}
+          className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-foreground/80"
+        >
+          {toolDisplayLabel(tool)}
+        </span>
+      ))}
     </div>
   );
 }
@@ -57,6 +94,28 @@ const proseClasses = cn(
   "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
   "[&_hr]:my-6 [&_hr]:border-border"
 );
+
+function extractToolUsage(content: string): { body: string; tools: string[] } {
+  const tools: string[] = [];
+  const bodyLines = content.split("\n").filter((line) => {
+    const normalized = line.trim().replace(/^_+|_+$/g, "");
+    const match = /^Tools used:\s*(.+)$/i.exec(normalized);
+    if (!match) return true;
+
+    tools.push(
+      ...match[1]
+        .split(",")
+        .map((tool) => tool.trim().replace(/^`+|`+$/g, ""))
+        .filter(Boolean)
+    );
+    return false;
+  });
+
+  return {
+    body: bodyLines.join("\n").trim(),
+    tools: Array.from(new Set(tools)),
+  };
+}
 
 function formatAgentContent(content: string): string {
   const match = content.match(/(^|\n)(Plan highlights):\s*/i);
@@ -140,7 +199,6 @@ export function AgentMessageView({
   onRegenerate,
 }: Props) {
   const [copied, setCopied] = React.useState(false);
-  const [feedback, setFeedback] = React.useState<"up" | "down" | null>(null);
 
   const handleCopy = async () => {
     try {
@@ -191,6 +249,7 @@ export function AgentMessageView({
   // - there's committed thinking text to display
   const showThinkingBlock = thinkingActive || Boolean(message.thinking);
   const isInterrupted = message.partial === true;
+  const formattedContent = extractToolUsage(formatAgentContent(message.content));
 
   return (
     <div className="group flex flex-col gap-3">
@@ -206,9 +265,14 @@ export function AgentMessageView({
       ) : null}
 
       {message.content || respondingActive ? (
-        <div className={proseClasses}>
-          {renderLightMarkdown(formatAgentContent(message.content))}
-        </div>
+        <>
+          {formattedContent.body ? (
+            <div className={proseClasses}>
+              {renderLightMarkdown(formattedContent.body)}
+            </div>
+          ) : null}
+          <ToolUsageSummary tools={formattedContent.tools} />
+        </>
       ) : thinkingActive && !message.thinking ? (
         // Agent has started but no tokens yet — show a pulsing placeholder
         <div className="flex items-center gap-1.5 py-1">
@@ -258,6 +322,7 @@ export function AgentMessageView({
               <TooltipContent>{copied ? "Copied!" : "Copy"}</TooltipContent>
             </Tooltip>
 
+            {/*
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -291,6 +356,7 @@ export function AgentMessageView({
               </TooltipTrigger>
               <TooltipContent>Bad response</TooltipContent>
             </Tooltip>
+            */}
 
             {onRegenerate ? (
               <Tooltip>

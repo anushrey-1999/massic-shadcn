@@ -337,12 +337,47 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     [router, pathname]
   );
 
+  const handleStrategyViewChange = React.useCallback((view: "list" | "bubble") => {
+    setStrategyView(view);
+    setOverviewView(view === "bubble" ? "bubble" : "table");
+  }, []);
+
+  const handleOverviewViewChange = React.useCallback((view: "table" | "bubble" | "scatter") => {
+    setOverviewView(view);
+    if (view === "bubble") {
+      setStrategyView("bubble");
+    } else if (view === "table") {
+      setStrategyView("list");
+    }
+  }, []);
+
+  const handleTopicTabChange = React.useCallback(
+    (value: string) => {
+      const nextTab = value as "detailed" | "overview";
+
+      if (nextTab === "overview" && strategyView === "bubble") {
+        setOverviewView("bubble");
+      }
+
+      if (nextTab === "detailed") {
+        if (overviewView === "bubble") {
+          setStrategyView("bubble");
+        } else {
+          setStrategyView("list");
+        }
+      }
+
+      setTopicTab(nextTab);
+    },
+    [overviewView, strategyView]
+  );
+
   const subtabLabelClass =
-    "flex h-8 cursor-pointer items-center rounded-[10px] px-4 text-sm font-semibold text-foreground transition-colors hover:bg-white/40";
+    "flex h-8 cursor-pointer items-center rounded-[10px] px-4 text-sm font-normal text-foreground transition-colors hover:bg-white/40";
   const activeSubtabGroupClass =
     "inline-flex h-8 items-center gap-1 rounded-[10px] bg-white pr-1 shadow-[0_1px_4px_rgba(0,0,0,0.2)]";
   const activeSubtabLabelClass =
-    "flex h-8 cursor-pointer items-center rounded-[10px] px-4 text-sm font-semibold text-foreground";
+    "flex h-8 cursor-pointer items-center rounded-[10px] px-4 text-sm font-normal text-foreground";
   const subtabIconClass =
     "flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-colors";
   const activeSubtabIconClass =
@@ -360,7 +395,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
         <div className={activeSubtabGroupClass}>
           <button
             type="button"
-            onClick={() => setTopicTab("detailed")}
+            onClick={() => handleTopicTabChange("detailed")}
             className={activeSubtabLabelClass}
           >
             Detailed
@@ -368,7 +403,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           <button
             type="button"
             aria-label="Show detailed list"
-            onClick={() => setStrategyView("list")}
+            onClick={() => handleStrategyViewChange("list")}
             className={cn(
               subtabIconClass,
               strategyView === "list"
@@ -381,7 +416,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           <button
             type="button"
             aria-label="Show detailed map"
-            onClick={() => setStrategyView("bubble")}
+            onClick={() => handleStrategyViewChange("bubble")}
             className={cn(
               subtabIconClass,
               strategyView === "bubble"
@@ -395,7 +430,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
       ) : (
         <button
           type="button"
-          onClick={() => setTopicTab("detailed")}
+          onClick={() => handleTopicTabChange("detailed")}
           className={subtabLabelClass}
         >
           Detailed
@@ -405,7 +440,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
         <div className={activeSubtabGroupClass}>
           <button
             type="button"
-            onClick={() => setTopicTab("overview")}
+            onClick={() => handleTopicTabChange("overview")}
             className={activeSubtabLabelClass}
           >
             Overview
@@ -413,7 +448,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           <button
             type="button"
             aria-label="Show overview list"
-            onClick={() => setOverviewView("table")}
+            onClick={() => handleOverviewViewChange("table")}
             className={cn(
               subtabIconClass,
               overviewView === "table"
@@ -426,7 +461,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           <button
             type="button"
             aria-label="Show overview map"
-            onClick={() => setOverviewView("bubble")}
+            onClick={() => handleOverviewViewChange("bubble")}
             className={cn(
               subtabIconClass,
               overviewView === "bubble"
@@ -439,7 +474,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           <button
             type="button"
             aria-label="Show overview scatter"
-            onClick={() => setOverviewView("scatter")}
+            onClick={() => handleOverviewViewChange("scatter")}
             className={cn(
               subtabIconClass,
               overviewView === "scatter"
@@ -453,7 +488,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
       ) : (
         <button
           type="button"
-          onClick={() => setTopicTab("overview")}
+            onClick={() => handleTopicTabChange("overview")}
           className={subtabLabelClass}
         >
           Overview
@@ -495,9 +530,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
         >
           <Tabs
             value={topicTab}
-            onValueChange={(value) =>
-              setTopicTab(value as "detailed" | "overview")
-            }
+            onValueChange={handleTopicTabChange}
             className="flex flex-col flex-1 min-h-0"
           >
             {!isStrategySplitView && !isThemesSplitView && !isStrategyReady && (
@@ -631,7 +664,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
                 onMetricsTextChange={setThemesMetricsText}
                 toolbarRightPrefix={strategyViewControls}
                 view={overviewView}
-                onViewChange={setOverviewView}
+                onViewChange={handleOverviewViewChange}
               />
             </TabsContent>
           </Tabs>

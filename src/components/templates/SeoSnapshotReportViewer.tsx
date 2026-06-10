@@ -8,6 +8,11 @@ import { DownloadReportDialog } from "@/components/organisms/ReportDetail/downlo
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { copyToClipboard } from "@/utils/clipboard";
 import { ContentConverter } from "@/utils/content-converter";
@@ -68,6 +73,49 @@ function compactUrl(value: string): string {
   return `${stripped.slice(0, 28)}...${stripped.slice(-22)}`;
 }
 
+function TruncatedText({
+  value,
+  className,
+  maxWidth = "max-w-[220px]",
+  children,
+}: {
+  value: string;
+  className?: string;
+  maxWidth?: string;
+  children?: React.ReactNode;
+}) {
+  const display = children ?? value;
+  const tooltipValue = String(value || "").trim();
+
+  if (!tooltipValue) {
+    return <span className={cn("block truncate", maxWidth, className)}>{display}</span>;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className={cn(
+            "block cursor-default truncate outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            maxWidth,
+            className
+          )}
+        >
+          {display}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        sideOffset={6}
+        className="max-w-[420px] whitespace-normal break-words leading-5"
+      >
+        {tooltipValue}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function Section({
   number,
   title,
@@ -117,7 +165,7 @@ function DataTable({
   return (
     <div className="overflow-hidden rounded-lg border border-general-border">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-sm">
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-sm">
           <thead>
             <tr className="bg-neutral-50">
               {headers.map((header) => (
@@ -247,11 +295,13 @@ export function SeoSnapshotReportViewer({
                     <h1 className="text-lg font-medium text-general-secondary-foreground">
                       SEO Snapshot - {report.businessName}
                     </h1>
-                    <p className="mt-1 text-xs text-general-muted-foreground">
-                      {[stripUrlProtocol(report.website), report.location, poweredByName ? `Prepared by ${poweredByName}` : ""]
+                    <TruncatedText
+                      value={[stripUrlProtocol(report.website), report.location, poweredByName ? `Prepared by ${poweredByName}` : ""]
                         .filter(Boolean)
                         .join(" · ")}
-                    </p>
+                      maxWidth="max-w-[560px]"
+                      className="mt-1 text-xs text-general-muted-foreground"
+                    />
                   </div>
                 </div>
                 <div className="text-left md:text-right">
@@ -378,7 +428,11 @@ export function SeoSnapshotReportViewer({
                     key={row.keyword}
                     className="flex items-center justify-between gap-4 border-b border-general-border px-0.5 py-2.5"
                   >
-                    <span className="text-sm text-general-foreground">{row.keyword}</span>
+                    <TruncatedText
+                      value={row.keyword}
+                      maxWidth="max-w-[320px]"
+                      className="text-sm text-general-foreground"
+                    />
                     <span className="shrink-0 text-xs text-general-muted-foreground">
                       {row.searchVolume != null ? (
                         <>
@@ -404,7 +458,12 @@ export function SeoSnapshotReportViewer({
               <DataTable
                 headers={["Search", "Searches", "Your visibility", "Competitor showing up", "Opportunity"]}
                 rows={report.missedVisibility.slice(0, 20).map((row) => [
-                  <span key="keyword" className="font-medium">{row.keyword}</span>,
+                  <TruncatedText
+                    key="keyword"
+                    value={row.keyword}
+                    maxWidth="max-w-[210px]"
+                    className="font-medium"
+                  />,
                   <span key="volume" className="whitespace-nowrap text-general-muted-foreground">
                     {row.searchVolume != null ? `${formatSeoSnapshotNumber(row.searchVolume)}/mo` : ""}
                   </span>,
@@ -415,12 +474,18 @@ export function SeoSnapshotReportViewer({
                   >
                     {row.visibility || "Opportunity"}
                   </Badge>,
-                  <span key="competitor" className="font-medium text-general-secondary-foreground">
-                    {row.competitorShowingUp || "Competitor advantage"}
-                  </span>,
-                  <span key="opportunity" className="text-general-muted-foreground">
-                    {row.opportunity || "High-value opportunity"}
-                  </span>,
+                  <TruncatedText
+                    key="competitor"
+                    value={row.competitorShowingUp || "Competitor advantage"}
+                    maxWidth="max-w-[170px]"
+                    className="font-medium text-general-secondary-foreground"
+                  />,
+                  <TruncatedText
+                    key="opportunity"
+                    value={row.opportunity || "High-value opportunity"}
+                    maxWidth="max-w-[190px]"
+                    className="text-general-muted-foreground"
+                  />,
                 ])}
               />
             </Section>
@@ -433,7 +498,12 @@ export function SeoSnapshotReportViewer({
               <DataTable
                 headers={["Competitor", "Appears for", "In map pack", "Why they are winning"]}
                 rows={report.competitorVisibility.map((row) => [
-                  <span key="domain" className="font-medium">{row.domain}</span>,
+                  <TruncatedText
+                    key="domain"
+                    value={row.domain}
+                    maxWidth="max-w-[180px]"
+                    className="font-medium"
+                  />,
                   <span key="appears" className="whitespace-nowrap text-general-muted-foreground">
                     {row.appearancesInTop10 != null ? `${row.appearancesInTop10} searches` : ""}
                   </span>,
@@ -449,9 +519,12 @@ export function SeoSnapshotReportViewer({
                   >
                     {row.localPackCount && row.localPackCount > 0 ? "Yes" : "No"}
                   </Badge>,
-                  <span key="why" className="text-general-muted-foreground">
-                    {row.whyWinning || "Ranks in top results for multiple searches"}
-                  </span>,
+                  <TruncatedText
+                    key="why"
+                    value={row.whyWinning || "Ranks in top results for multiple searches"}
+                    maxWidth="max-w-[330px]"
+                    className="text-general-muted-foreground"
+                  />,
                 ])}
               />
             </Section>
@@ -464,16 +537,26 @@ export function SeoSnapshotReportViewer({
               <DataTable
                 headers={["Competitor page", "Demand signal", "Your gap"]}
                 rows={report.competitorPages.slice(0, 12).map((row) => [
-                  <span key="page" className="font-mono text-xs text-general-muted-foreground">
+                  <TruncatedText
+                    key="page"
+                    value={row.pageAddress || row.domain}
+                    maxWidth="max-w-[310px]"
+                    className="font-mono text-xs text-general-muted-foreground"
+                  >
                     {compactUrl(row.pageAddress || row.domain)}
-                  </span>,
-                  <span key="demand" className="text-general-muted-foreground">
-                    {row.organicCount != null
+                  </TruncatedText>,
+                  <TruncatedText
+                    key="demand"
+                    value={
+                      row.organicCount != null
                       ? `${formatSeoSnapshotNumber(row.organicCount)} organic keywords`
                       : row.etv != null
                         ? `${formatSeoSnapshotNumber(row.etv)} estimated visits`
-                        : "Relevant demand"}
-                  </span>,
+                        : "Relevant demand"
+                    }
+                    maxWidth="max-w-[190px]"
+                    className="text-general-muted-foreground"
+                  />,
                   <Badge
                     key="gap"
                     variant="outline"

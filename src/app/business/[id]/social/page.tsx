@@ -3,20 +3,32 @@
 import React from 'react'
 import { useQueryState, parseAsInteger, parseAsString } from 'nuqs'
 import { SocialTableClient } from '@/components/organisms/SocialTable/social-table-client'
-import { SocialBubbleChart, type SocialBubbleDatum } from '@/components/organisms/SocialBubbleChart/social-bubble-chart'
+import {
+  SocialBubbleChart,
+  type SocialBubbleColorMetric,
+  type SocialBubbleDatum,
+} from '@/components/organisms/SocialBubbleChart/social-bubble-chart'
 import { PageHeader } from '@/components/molecules/PageHeader'
 import { WorkflowStatusBanner } from '@/components/molecules/WorkflowStatusBanner'
 import { useBusinessProfileById } from '@/hooks/use-business-profiles'
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { EntitlementsGuard } from "@/components/molecules/EntitlementsGuard"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CircleDot, List } from "lucide-react"
+import { CircleDot, List, ListFilter } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { useSocial } from "@/hooks/use-social"
 import { Typography } from '@/components/ui/typography'
 import { BUSINESS_RELEVANCE_PALETTE } from '@/components/organisms/StrategyBubbleChart/strategy-bubble-chart'
 import { getWorkflowStatus, isWorkflowSuccess } from '@/lib/workflow-status'
 import type { SocialStrategyType } from '@/types/social-types'
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -34,6 +46,167 @@ interface PageProps {
 type BusinessSocialPageProps = PageProps & {
   isReadOnly?: boolean
   skipEntitlements?: boolean
+}
+
+type RelevanceFilter = "high" | "medium" | "low"
+
+const RELEVANCE_FILTER_OPTIONS: Array<{
+  value: RelevanceFilter
+  label: string
+  description: string
+}> = [
+  { value: "high", label: "High", description: "More than 70%" },
+  { value: "medium", label: "Medium", description: "40% to 70%" },
+  { value: "low", label: "Low", description: "Less than 40%" },
+]
+
+function getRelevancePercent(score?: number) {
+  if (score === undefined || score === null || !Number.isFinite(score)) return null
+  return score <= 1 ? score * 100 : score
+}
+
+function matchesRelevanceFilter(score: number | undefined, filters: RelevanceFilter[]) {
+  if (filters.length === 0) return true
+
+  const percent = getRelevancePercent(score)
+  if (percent === null) return false
+
+  return filters.some((filter) => {
+    if (filter === "high") return percent > 70
+    if (filter === "medium") return percent >= 40 && percent <= 70
+    return percent < 40
+  })
+}
+
+function getNumberValue(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value
+  }
+  return undefined
+}
+
+function SocialMapRelevanceFilter({
+  selectedFilters,
+  onToggle,
+  onReset,
+  offeringOptions,
+  selectedOffering,
+  onOfferingChange,
+  formatOfferingLabel,
+}: {
+  selectedFilters: RelevanceFilter[]
+  onToggle: (value: RelevanceFilter) => void
+  onReset: () => void
+  offeringOptions: string[]
+  selectedOffering: string
+  onOfferingChange: (value: string) => void
+  formatOfferingLabel: (value: string) => string
+}) {
+  const selectedSet = React.useMemo(
+    () => new Set(selectedFilters),
+    [selectedFilters]
+  )
+  const activeFilterCount =
+    selectedFilters.length + (selectedOffering === "all" ? 0 : 1)
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          aria-label="Filter relevance"
+          className={`h-10 font-normal ${activeFilterCount > 0
+            ? "min-w-10 px-2 gap-1.5"
+            : "w-10 p-0"
+            }`}
+        >
+          <ListFilter className="text-muted-foreground h-4 w-4" />
+          {activeFilterCount > 0 && (
+            <Badge
+              variant="secondary"
+              className="h-[18.24px] rounded-[3.2px] px-[5.12px] font-mono font-normal text-[10.4px]"
+            >
+              {activeFilterCount}
+            </Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="flex w-full max-w-(--radix-popover-content-available-width) flex-col gap-3.5 p-4 sm:min-w-[320px]"
+      >
+        <div className="flex flex-col gap-1">
+          <h4 className="font-medium leading-none">
+            {activeFilterCount > 0 ? "Filters" : "No filters applied"}
+          </h4>
+          <p className="text-muted-foreground text-sm">
+            Filter campaigns by offering and business relevance.
+          </p>
+        </div>
+
+        {offeringOptions.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <Typography
+              variant="p"
+              className="text-sm font-medium text-general-muted-foreground"
+            >
+              Offerings
+            </Typography>
+            <Select value={selectedOffering} onValueChange={onOfferingChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All offerings" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All offerings</SelectItem>
+                {offeringOptions.map((offering) => (
+                  <SelectItem key={offering} value={offering}>
+                    {formatOfferingLabel(offering)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-2">
+          <Typography
+            variant="p"
+            className="text-sm font-medium text-general-muted-foreground"
+          >
+            Relevance
+          </Typography>
+          {RELEVANCE_FILTER_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 hover:bg-accent"
+            >
+              <Checkbox
+                checked={selectedSet.has(option.value)}
+                onCheckedChange={() => onToggle(option.value)}
+              />
+              <span className="flex flex-col">
+                <span className="text-sm font-medium">{option.label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {option.description}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {activeFilterCount > 0 ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-fit rounded"
+            onClick={onReset}
+          >
+            Reset filters
+          </Button>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function SocialEntitledContent({
@@ -60,6 +233,10 @@ function SocialEntitledContent({
   )
   const [socialView, setSocialView] = React.useState<"list" | "bubble">("list")
   const [selectedOffering, setSelectedOffering] = React.useState<string>("all")
+  const [bubbleColorMetric, setBubbleColorMetric] =
+    React.useState<SocialBubbleColorMetric>("topicCoverage")
+  const [selectedRelevanceFilters, setSelectedRelevanceFilters] =
+    React.useState<RelevanceFilter[]>([])
   const activeSocialTab: SocialStrategyType = socialTab === "engage" ? "engage" : "publish"
 
   const { fetchAllSocialPages } = useSocial(businessId, activeSocialTab)
@@ -83,6 +260,7 @@ function SocialEntitledContent({
     setCampaignName(null)
     setPage(1)
     setSelectedOffering("all")
+    setSelectedRelevanceFilters([])
   }, [onChannelSelect, setCampaignName, setPage, setSocialTab])
 
   type SocialBubbleRow = SocialBubbleDatum & { offerings?: string[] }
@@ -103,20 +281,37 @@ function SocialEntitledContent({
         const campaign_name = String(row.campaign_name ?? '').trim()
         if (!channel_name || !campaign_name) return null
 
-        const channel_relevance = typeof row.channel_relevance === 'number' ? row.channel_relevance : undefined
-        const campaign_relevance = typeof row.campaign_relevance === 'number' ? row.campaign_relevance : undefined
+        const channel_relevance = getNumberValue(row.channel_relevance)
+        const campaign_relevance = getNumberValue(row.campaign_relevance)
+        const channel_coverage = getNumberValue(
+          row.channel_coverage,
+          row.topic_coverage,
+          row.coverage
+        )
+        const campaign_coverage = getNumberValue(
+          row.campaign_coverage,
+          row.campaign_topic_coverage,
+          row.topic_coverage,
+          row.coverage
+        )
         const campaignOfferingsRaw = row.campaign_offerings
         const campaign_offerings = Array.isArray(campaignOfferingsRaw)
           ? campaignOfferingsRaw.filter((o): o is string => typeof o === 'string').map((o) => o.trim()).filter(Boolean)
           : undefined
-        const offeringsRaw = row.offerings ?? row.channel_offerings
-        const offerings = Array.isArray(offeringsRaw)
-          ? offeringsRaw.filter((o): o is string => typeof o === 'string').map((o) => o.trim()).filter(Boolean)
-          : undefined
+        const offerings = [
+          ...(Array.isArray(row.offerings) ? row.offerings : []),
+          ...(Array.isArray(row.channel_offerings) ? row.channel_offerings : []),
+          ...(campaign_offerings ?? []),
+        ]
+          .filter((o): o is string => typeof o === 'string')
+          .map((o) => o.trim())
+          .filter(Boolean)
 
         const out: SocialBubbleRow = { channel_name, campaign_name }
         if (channel_relevance !== undefined) out.channel_relevance = channel_relevance
         if (campaign_relevance !== undefined) out.campaign_relevance = campaign_relevance
+        if (channel_coverage !== undefined) out.channel_coverage = channel_coverage
+        if (campaign_coverage !== undefined) out.campaign_coverage = campaign_coverage
         if (campaign_offerings?.length) out.campaign_offerings = campaign_offerings
         if (offerings?.length) out.offerings = offerings
         return out
@@ -143,13 +338,32 @@ function SocialEntitledContent({
     setSelectedOffering("all")
   }, [offeringOptions, selectedOffering])
 
+  const toggleRelevanceFilter = React.useCallback((value: RelevanceFilter) => {
+    setSelectedRelevanceFilters((current) =>
+      current.includes(value)
+        ? current.filter((filter) => filter !== value)
+        : [...current, value]
+    )
+  }, [])
+
+  const resetRelevanceFilters = React.useCallback(() => {
+    setSelectedRelevanceFilters([])
+    setSelectedOffering("all")
+  }, [])
+
   const filteredBubbleRows = React.useMemo(() => {
-    if (selectedOffering === "all") return bubbleRows
     return bubbleRows.filter((row) => {
       const offerings = Array.isArray(row.offerings) ? row.offerings : []
-      return offerings.some((o) => typeof o === "string" && o.trim() === selectedOffering)
+      const matchesOffering =
+        selectedOffering === "all" ||
+        offerings.some((o) => typeof o === "string" && o.trim() === selectedOffering)
+
+      return (
+        matchesOffering &&
+        matchesRelevanceFilter(row.campaign_relevance, selectedRelevanceFilters)
+      )
     })
-  }, [bubbleRows, selectedOffering])
+  }, [bubbleRows, selectedOffering, selectedRelevanceFilters])
 
   const socialViewTabs = (
     <Tabs
@@ -192,15 +406,31 @@ function SocialEntitledContent({
             isReadOnly={isReadOnly}
           />
         ) : (
-          <div className="bg-white rounded-lg p-4 h-full flex flex-col gap-3">
-            <div className="shrink-0 flex items-center justify-between gap-4">
+          <div className="bg-white rounded-lg p-4 h-full flex flex-col gap-2.5 overflow-hidden">
+            <div
+              role="toolbar"
+              aria-orientation="horizontal"
+              className="flex w-full items-start justify-between gap-2 p-1"
+            >
               <div>
-                <Typography
-                  variant="p"
-                  className="font-mono mb-2 text-base text-general-muted-foreground"
+                <Select
+                  value={bubbleColorMetric}
+                  onValueChange={(value) =>
+                    setBubbleColorMetric(value as SocialBubbleColorMetric)
+                  }
                 >
-                  Channel Relevance
-                </Typography>
+                  <SelectTrigger className="mb-2 w-[220px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="topicCoverage">
+                      Topic Coverage
+                    </SelectItem>
+                    <SelectItem value="businessRelevance">
+                      Business Relevance
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
                 <div className="relative h-5 w-[320px] max-w-full rounded-full overflow-hidden">
                   <div className="absolute inset-0 flex">
                     {BUSINESS_RELEVANCE_PALETTE.map((color) => (
@@ -223,35 +453,15 @@ function SocialEntitledContent({
               </div>
 
               <div className="flex items-center gap-4">
-                <Typography
-                  variant="p"
-                  className="text-base font-mono text-general-muted-foreground"
-                >
-                  {bubbleRows.length
-                    ? `${filteredBubbleRows.length} item${filteredBubbleRows.length === 1 ? "" : "s"
-                    }${selectedOffering === "all"
-                      ? ""
-                      : ` (of ${bubbleRows.length})`
-                    }`
-                    : bubbleDataLoading
-                      ? "Loading.."
-                      : "No data"}
-                </Typography>
-                {offeringOptions.length > 0 ? (
-                  <Select value={selectedOffering} onValueChange={setSelectedOffering}>
-                    <SelectTrigger className="w-[240px] max-w-[45vw]">
-                      <SelectValue placeholder="All offerings" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All offerings</SelectItem>
-                      {offeringOptions.map((offering) => (
-                        <SelectItem key={offering} value={offering}>
-                          {formatOfferingLabel(offering)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
+                <SocialMapRelevanceFilter
+                  selectedFilters={selectedRelevanceFilters}
+                  onToggle={toggleRelevanceFilter}
+                  onReset={resetRelevanceFilters}
+                  offeringOptions={offeringOptions}
+                  selectedOffering={selectedOffering}
+                  onOfferingChange={setSelectedOffering}
+                  formatOfferingLabel={formatOfferingLabel}
+                />
                 {socialViewTabs}
               </div>
             </div>
@@ -263,7 +473,10 @@ function SocialEntitledContent({
                 </div>
               ) : filteredBubbleRows.length ? (
                 <div className="w-full h-full min-h-[640px]">
-                  <SocialBubbleChart data={filteredBubbleRows} />
+                  <SocialBubbleChart
+                    data={filteredBubbleRows}
+                    colorMetric={bubbleColorMetric}
+                  />
                 </div>
               ) : (
                 <div className="h-full min-h-[640px] flex items-center justify-center">

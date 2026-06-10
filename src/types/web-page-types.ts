@@ -75,11 +75,12 @@ export interface GetWebPageSchema {
   perPage: number;
   sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{
-    id: string;
+    field?: string;
+    id?: string;
     value: string | string[];
-    variant: string;
+    variant?: string;
     operator: string;
-    filterId: string;
+    filterId?: string;
   }>;
   joinOperator: "and" | "or";
   search?: string;

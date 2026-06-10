@@ -44,7 +44,7 @@ function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
         className="flex h-6 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#2E6A56] px-3 transition-colors hover:bg-[#255745]"
         onClick={() => onRemove(filter.dimension)}
       >
-        <span className="flex min-w-0 items-center gap-1.5 font-sans text-sm leading-none tracking-[0.07px]">
+        <span className="flex min-w-0 items-center gap-1.5 font-sans text-sm leading-normal tracking-[0.07px]">
           <span className="shrink-0 font-medium text-white/65">{badgeParts.label}</span>
           <span className="max-w-[320px] truncate font-semibold text-white">
             {badgeParts.value}
@@ -66,7 +66,7 @@ export function OrganicDeepdiveHeader({
   onRemoveFilter,
 }: OrganicDeepdiveHeaderProps) {
   return (
-    <div className="mb-3 flex w-full items-center justify-between rounded-md border border-[#6EC1A6] bg-[#2E6A561A] p-0.5">
+    <div className="mb-4 flex w-full items-center justify-between rounded-lg border border-[#6EC1A6] bg-[#2E6A561A] px-2 py-2">
       <div />
 
       {filters.length > 0 && (

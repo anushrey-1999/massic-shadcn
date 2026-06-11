@@ -26,6 +26,7 @@ import {
   type CreateCampaignPayload,
   type DefaultCampaignConflictError,
 } from "@/hooks/use-review-campaigns";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -173,6 +174,8 @@ Thank you for your time and support.
   const { profileData } = useBusinessProfileById(businessId || null);
   const createCampaignMutation = useCreateReviewCampaign();
   const updateCampaignMutation = useUpdateReviewCampaign();
+  const guardCreateCampaign = useFeatureActionGuard("reviews.campaigns.create");
+  const guardEditCampaign = useFeatureActionGuard("reviews.campaigns.edit");
   const defaultTemplatesQuery = useDefaultCampaignTemplates();
   const campaignQuery = useReviewCampaignById(isEditMode ? campaignId : null);
 
@@ -691,6 +694,11 @@ Thank you for your time and support.
 
   const saveCampaignPayload = React.useCallback(
     async (payload: CreateCampaignPayload) => {
+      if (isEditMode) {
+        if (!guardEditCampaign()) return;
+      } else if (!guardCreateCampaign()) {
+        return;
+      }
       if (isEditMode && campaignId) {
         await updateCampaignMutation.mutateAsync({ id: campaignId, payload });
       } else {
@@ -707,6 +715,8 @@ Thank you for your time and support.
       campaignId,
       computeSnapshot,
       createCampaignMutation,
+      guardCreateCampaign,
+      guardEditCampaign,
       isEditMode,
       router,
       selectedLocationIdForApi,

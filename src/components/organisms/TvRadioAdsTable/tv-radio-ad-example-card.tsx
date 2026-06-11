@@ -13,6 +13,7 @@ import {
   useAdConceptWriterContentQuery,
   type AdConceptWriterResponse,
 } from "@/hooks/use-ad-concept-writer";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 
@@ -192,6 +193,7 @@ export function TvRadioAdExampleCard({
 }) {
   const queryClient = useQueryClient();
   const { startGeneration } = useAdConceptWriterActions();
+  const guardGenerateAd = useFeatureActionGuard("ads.generate");
   const { creditsBalance, purchaseCredits } = useExecutionCredits();
 
   const problemTitle = row.problem_head_term || row.subtopic || "";
@@ -271,6 +273,7 @@ export function TvRadioAdExampleCard({
   }, []);
 
   const handleGenerate = React.useCallback(async () => {
+    if (!guardGenerateAd()) return;
     if (!businessId || !adConceptId) {
       toast.error("Missing business id or ad concept id");
       return;

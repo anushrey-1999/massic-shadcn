@@ -4,6 +4,7 @@ import * as React from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { RefinePlanOverlay } from "./refine-plan-overlay"
 import { usePagePlanner } from "@/hooks/use-page-planner"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import type { PagePlannerPlanItem, PagePlannerPlanMeta } from "@/types/page-planner-types"
 
 export type RefinePlanSource = "pages" | "posts"
@@ -74,6 +75,8 @@ function extractPlanItemsFromResponse(payload: unknown): PagePlannerPlanItem[] {
 export function RefinePlanOverlayProvider({ businessId, children }: Props) {
   const pagePlanner = usePagePlanner()
   const queryClient = useQueryClient()
+  const guardRegeneratePlan = useFeatureActionGuard("actions.regeneratePlan")
+  const guardAcceptPlan = useFeatureActionGuard("actions.acceptPlan")
   const [overlayOpen, setOverlayOpen] = React.useState(false)
   const [source, setSource] = React.useState<RefinePlanSource>("pages")
   const [pagesRegenerating, setPagesRegenerating] = React.useState(false)
@@ -106,6 +109,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
 
   const regeneratePagesPlan = React.useCallback(
     (args: { mode: PagesRegenerateMode; planId: number | null; planItems: PagePlannerPlanItem[] }) => {
+      if (!guardRegeneratePlan()) return
       if (!businessId || pagesRegenerating || pagesAccepting) return
 
       setPagesRegenerateError(null)
@@ -171,11 +175,12 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
         }
       })()
     },
-    [businessId, pagePlanner, pagesRegenerating, pagesAccepting, queryClient]
+    [businessId, guardRegeneratePlan, pagePlanner, pagesRegenerating, pagesAccepting, queryClient]
   )
 
   const acceptPagesPlan = React.useCallback(
     (args: { planItems: PagePlannerPlanItem[]; planId?: number | null }) => {
+      if (!guardAcceptPlan()) return
       if (!businessId || pagesRegenerating || pagesAccepting) return
 
       setPagesRegenerateError(null)
@@ -217,7 +222,7 @@ export function RefinePlanOverlayProvider({ businessId, children }: Props) {
         }
       })()
     },
-    [businessId, pagePlanner, pagesRegenerating, pagesAccepting, queryClient]
+    [businessId, guardAcceptPlan, pagePlanner, pagesRegenerating, pagesAccepting, queryClient]
   )
 
   const pagesBusy = pagesRegenerating || pagesAccepting

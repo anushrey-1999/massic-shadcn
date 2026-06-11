@@ -42,6 +42,7 @@ import { parseAsStringEnum, useQueryState } from "nuqs";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 import { downloadRowsAsCsv } from "@/lib/csv-export";
 import { cn } from "@/lib/utils";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 interface ThemesTableClientProps {
   businessId: string;
@@ -283,6 +284,7 @@ export function ThemesTableClient({
   const [isPolling, setIsPolling] = React.useState(false);
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const guardGenerate = useFeatureActionGuard("themes.generate");
 
   const themeFilterFields = React.useMemo(
     () => ["theme_name", "offerings", "topics"],
@@ -640,7 +642,9 @@ export function ThemesTableClient({
         </div>
         {showGenerateAction && (
           <Button
-            onClick={() => triggerMutation.mutate()}
+            onClick={() => {
+              if (guardGenerate()) triggerMutation.mutate();
+            }}
             disabled={triggerMutation.isPending}
           >
             <Sparkles className="h-4 w-4 mr-2" />

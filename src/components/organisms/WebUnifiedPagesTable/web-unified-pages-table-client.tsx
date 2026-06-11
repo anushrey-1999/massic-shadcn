@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useUnifiedWebOptimization, type UnifiedPageRow, NO_SNAPSHOT_CODE } from "@/hooks/use-unified-web-optimization";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { WebUnifiedPagesTable } from "./web-unified-pages-table";
 import { WebUnifiedPagesSplitView } from "./web-unified-pages-split-view";
@@ -118,6 +119,7 @@ export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Pr
   const [isGenerating, setIsGenerating] = React.useState(false);
   const { connectGoogleAccount } = useGoogleAccounts();
   const { fetchUnifiedPages, triggerGenerate } = useUnifiedWebOptimization();
+  const guardGenerate = useFeatureActionGuard("web.unifiedGenerate");
 
   const filterFieldMapper = React.useMemo(() => {
     const columns = getWebUnifiedPagesTableColumns({ businessId });
@@ -181,6 +183,7 @@ export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Pr
   });
 
   const handleGenerate = React.useCallback(async () => {
+    if (!guardGenerate()) return;
     if (isGenerating) return;
     setIsGenerating(true);
     try {
@@ -193,7 +196,7 @@ export function WebUnifiedPagesTableClient({ businessId, onSplitViewChange }: Pr
     } finally {
       setIsGenerating(false);
     }
-  }, [businessId, triggerGenerate, queryClient, queryKey, isGenerating]);
+  }, [businessId, triggerGenerate, queryClient, queryKey, isGenerating, guardGenerate]);
 
   const filteredRows = React.useMemo(() => {
     const searchFiltered = applyLocalSearch(allRows || [], search);

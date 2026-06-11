@@ -15,6 +15,7 @@ import {
   useSegmentNarrativeContentQuery,
   type SegmentNarrativeResponse,
 } from "@/hooks/use-segment-narrative";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { ArrowLeft, Eye, Sparkles } from "lucide-react";
 
 function getStatusLowercase(value: unknown): string {
@@ -144,6 +145,7 @@ export function SegmentNarrativeCard({ businessId, row }: SegmentNarrativeCardPr
   const [panelOpen, setPanelOpen] = React.useState(false);
   const queryClient = useQueryClient();
   const { startGeneration } = useSegmentNarrativeActions();
+  const guardGenerate = useFeatureActionGuard("contentSeries.generate");
 
   const contentQuery = useSegmentNarrativeContentQuery({
     businessId,
@@ -201,6 +203,7 @@ export function SegmentNarrativeCard({ businessId, row }: SegmentNarrativeCardPr
   }, [status]);
 
   const handleGenerate = React.useCallback(async () => {
+    if (!guardGenerate()) return;
     if (starting) return;
     setStarting(true);
 
@@ -224,7 +227,7 @@ export function SegmentNarrativeCard({ businessId, row }: SegmentNarrativeCardPr
     } finally {
       setStarting(false);
     }
-  }, [businessId, contentQuery, queryClient, row.id, startGeneration, starting, updateRowStatus]);
+  }, [businessId, contentQuery, guardGenerate, queryClient, row.id, startGeneration, starting, updateRowStatus]);
 
   const handleView = React.useCallback(() => {
     setPanelOpen(true);

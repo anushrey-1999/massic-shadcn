@@ -147,6 +147,7 @@ import {
 } from "@/utils/page-html-editor";
 import { buildStyledMassicHtml, getMassicBlogPageCssText, scopeMassicPreviewCss } from "@/utils/massic-html-copy";
 import { useWebActionContentQuery } from "@/hooks/use-web-page-actions";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import {
   type WordpressSlugConflictInfo,
   useWordpressPreviewLink,
@@ -491,6 +492,8 @@ export function WebPageHtmlView({
   const contentLabel = isBlogContent ? "Blog" : "Page";
   const contentLabelLower = contentLabel.toLowerCase();
   const publishType: "post" | "page" = isBlogContent ? "post" : "page";
+  const guardPublish = useFeatureActionGuard("web.publish");
+  const guardRefine = useFeatureActionGuard("web.refine");
 
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
   const [previewHtml, setPreviewHtml] = React.useState("");
@@ -2191,6 +2194,7 @@ export function WebPageHtmlView({
   const isSlugActionBusy = isPublishBusy || isSlugChecking || isAutoResolvingSlug;
 
   const confirmAndRunPublishAction = React.useCallback(async () => {
+    if (!guardPublish()) return;
     const action = confirmPublishAction;
     setConfirmPublishAction(null);
     if (action === "draft" || action === "webflow-draft") await handlePublishDraft();
@@ -2199,7 +2203,7 @@ export function WebPageHtmlView({
     else if (action === "webflow-rollback-draft") await handleRollbackWebflowToDraft();
     else if (action === "republish") await handleRepublish();
     else if (action === "update-draft") await handleUpdateDraft();
-  }, [confirmPublishAction, handlePreviewWebflowStaging, handlePublishDraft, handlePublishLive, handleRepublish, handleRollbackWebflowToDraft, handleUpdateDraft]);
+  }, [confirmPublishAction, guardPublish, handlePreviewWebflowStaging, handlePublishDraft, handlePublishLive, handleRepublish, handleRollbackWebflowToDraft, handleUpdateDraft]);
 
   const autoResolveSlug = React.useCallback(async () => {
     if (!slugCheckResult?.suggestedSlug || isSlugActionBusy) return;
@@ -3044,6 +3048,7 @@ export function WebPageHtmlView({
 
   const handleAiRefine = React.useCallback(
     async (_action: "custom", selectedText: string, customPrompt?: string) => {
+      if (!guardRefine()) return selectedText;
       const instruction = customPrompt?.trim();
       if (!instruction) {
         throw new Error("Add an instruction to refine the selected text.");
@@ -3084,7 +3089,7 @@ export function WebPageHtmlView({
 
       return revisedText;
     },
-    [businessId, describeTextOwnerForAi, getSavedPreviewSelectionContext]
+    [businessId, describeTextOwnerForAi, getSavedPreviewSelectionContext, guardRefine]
   );
 
   const handleAcceptAiRefine = React.useCallback(
@@ -4604,7 +4609,9 @@ export function WebPageHtmlView({
             <Button
               className="gap-2"
               type="button"
-              onClick={() => setIsPublishModalOpen(true)}
+              onClick={() => {
+                if (guardPublish()) setIsPublishModalOpen(true);
+              }}
               disabled={isProcessing || !hasFinalContent}
             >
               <Globe className="h-4 w-4" />

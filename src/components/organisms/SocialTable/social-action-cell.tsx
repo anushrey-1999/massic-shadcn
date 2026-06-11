@@ -22,6 +22,7 @@ import {
   useSocialActions,
   type SocialActionResponse,
 } from "@/hooks/use-social-actions";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 
@@ -79,6 +80,7 @@ export function SocialActionCell({
 }) {
   const queryClient = useQueryClient();
   const { startGeneration } = useSocialActions(strategyType);
+  const guardGenerate = useFeatureActionGuard("social.generate");
   const { creditsBalance, purchaseCredits } = useExecutionCredits();
 
   const campaignClusterId = React.useMemo(() => getCampaignClusterId(row), [row]);
@@ -218,6 +220,7 @@ export function SocialActionCell({
 
   const handleGenerate = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!guardGenerate()) return;
     if (!campaignClusterId) {
       toast.error("Missing campaign cluster id");
       return;

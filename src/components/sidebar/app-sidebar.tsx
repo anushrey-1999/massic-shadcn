@@ -41,6 +41,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { normalizeDomainForFavicon } from '@/utils/utils'
+import { useCan } from '@/hooks/use-permissions'
 
 const FAVICON_URL = 'https://www.google.com/s2/favicons?domain='
 
@@ -148,6 +149,7 @@ export default function AppSidebar() {
   const router = useRouter()
   const logout = useLogout()
   const { user } = useAuthStore()
+  const canManageLinkedBusinesses = useCan('canManageLinkedBusinesses')
 
   const businessesScrollRef = useRef<HTMLDivElement>(null)
 
@@ -521,14 +523,16 @@ export default function AppSidebar() {
                     Businesses
                   </SidebarGroupLabel>
                   <div className="flex items-center gap-2 ml-auto">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => router.push('/create-business')}
-                      className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
+                    {canManageLinkedBusinesses && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => router.push('/create-business')}
+                        className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { ContentConverter } from "@/utils/content-converter";
 import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
@@ -31,6 +32,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const type = getTypeFromPageType(pageType, intent);
 
   const { startFinal, updateOutline } = useWebPageActions();
+  const guardGeneratePage = useFeatureActionGuard("web.generatePage");
 
   const [loading, setLoading] = React.useState(false);
   const [outline, setOutline] = React.useState<string>("");
@@ -158,6 +160,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   };
 
   const handleGenerateFinal = async () => {
+    if (!guardGeneratePage()) return;
     if (isProcessing) return;
     if (!outline) {
       toast.error("Please generate an outline first before creating the final output.");

@@ -73,6 +73,70 @@ function compactUrl(value: string): string {
   return `${stripped.slice(0, 28)}...${stripped.slice(-22)}`;
 }
 
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mediaQuery.matches);
+
+    const handleChange = () => setPrefersReducedMotion(mediaQuery.matches);
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  return prefersReducedMotion;
+}
+
+function AnimatedNumber({
+  value,
+  prefix = "",
+  suffix = "",
+  className,
+}: {
+  value: number | null | undefined;
+  prefix?: string;
+  suffix?: string;
+  className?: string;
+}) {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const target = Number.isFinite(value as number) ? Number(value) : null;
+  const [displayValue, setDisplayValue] = React.useState(target ?? 0);
+
+  React.useEffect(() => {
+    if (target == null) return;
+    if (prefersReducedMotion) {
+      setDisplayValue(target);
+      return;
+    }
+
+    let frame = 0;
+    const start = performance.now();
+    const duration = 750;
+    const from = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(from + (target - from) * eased));
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [target, prefersReducedMotion]);
+
+  if (target == null) return null;
+
+  return (
+    <span className={cn("tabular-nums", className)}>
+      {prefix}
+      {formatSeoSnapshotNumber(displayValue)}
+      {suffix}
+    </span>
+  );
+}
+
 function TruncatedText({
   value,
   className,
@@ -128,7 +192,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="rounded-lg border-general-border bg-white p-6 shadow-xs gap-5">
+    <Card className="gap-5 rounded-lg border-general-border bg-white p-6 shadow-sm transition-all duration-300 ease-out motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 hover:-translate-y-0.5 hover:shadow-md">
       <div>
         <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.15em] text-general-primary">
           {number}
@@ -163,7 +227,7 @@ function DataTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-general-border">
+    <div className="overflow-hidden rounded-lg border border-general-border shadow-xs transition-shadow duration-300 hover:shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] table-fixed border-collapse text-sm">
           <thead>
@@ -180,7 +244,10 @@ function DataTable({
           </thead>
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr key={rowIndex} className="border-b border-general-border last:border-b-0">
+              <tr
+                key={rowIndex}
+                className="border-b border-general-border transition-colors duration-200 hover:bg-neutral-50/80 last:border-b-0"
+              >
                 {row.map((cell, cellIndex) => (
                   <td
                     key={cellIndex}
@@ -285,7 +352,7 @@ export function SeoSnapshotReportViewer({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex max-w-[960px] flex-col gap-4 pb-8">
-            <Card className="rounded-lg border-general-border bg-white p-5 shadow-xs">
+            <Card className="rounded-lg border-general-border bg-white p-5 shadow-sm transition-all duration-300 ease-out motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 hover:shadow-md">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-general-primary text-sm font-medium text-white">
@@ -323,7 +390,7 @@ export function SeoSnapshotReportViewer({
               title={report.execSummary.execHeadline}
               lead={report.execSummary.execSubhead}
             >
-              <div className="rounded-lg border border-general-border border-l-[3px] border-l-general-primary bg-neutral-50 p-5">
+              <div className="rounded-lg border border-general-border border-l-[3px] border-l-general-primary bg-neutral-50 p-5 shadow-xs transition-all duration-300 hover:bg-white hover:shadow-sm">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
                   <div>
                     <Badge className="mb-3 rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50">
@@ -331,7 +398,7 @@ export function SeoSnapshotReportViewer({
                     </Badge>
                     {report.execSummary.demandLoss != null ? (
                       <div className="text-[40px] font-medium leading-none tracking-normal text-general-foreground">
-                        ~{formatSeoSnapshotNumber(report.execSummary.demandLoss)}
+                        <AnimatedNumber value={report.execSummary.demandLoss} prefix="~" />
                         <span className="text-lg font-normal text-general-muted-foreground">
                           {" "}
                           inquiries / mo
@@ -358,7 +425,7 @@ export function SeoSnapshotReportViewer({
                 {stats.map((stat) => (
                   <div
                     key={stat.label}
-                    className="rounded-lg border border-general-border bg-neutral-50 p-4"
+                    className="rounded-lg border border-general-border bg-neutral-50 p-4 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
                   >
                     <div
                       className={cn(
@@ -366,7 +433,7 @@ export function SeoSnapshotReportViewer({
                         stat.accent ? "text-general-primary" : "text-general-foreground"
                       )}
                     >
-                      {formatSeoSnapshotNumber(stat.value)}
+                      <AnimatedNumber value={stat.value} />
                     </div>
                     <div className="mt-2 text-xs text-general-muted-foreground">{stat.label}</div>
                   </div>
@@ -374,7 +441,7 @@ export function SeoSnapshotReportViewer({
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-lg border border-general-border bg-neutral-50 p-4">
+                <div className="rounded-lg border border-general-border bg-neutral-50 p-4 shadow-xs transition-all duration-300 hover:bg-white hover:shadow-sm">
                   <h3 className="mb-3 text-sm font-medium text-general-secondary-foreground">
                     What we found
                   </h3>
@@ -391,7 +458,7 @@ export function SeoSnapshotReportViewer({
                   </ul>
                 </div>
 
-                <div className="rounded-lg border border-general-border bg-neutral-50 p-4">
+                <div className="rounded-lg border border-general-border bg-neutral-50 p-4 shadow-xs transition-all duration-300 hover:bg-white hover:shadow-sm">
                   <h3 className="mb-3 text-sm font-medium text-general-secondary-foreground">
                     High-impact first steps
                   </h3>
@@ -426,7 +493,7 @@ export function SeoSnapshotReportViewer({
                 {report.customerDemand.map((row) => (
                   <div
                     key={row.keyword}
-                    className="flex items-center justify-between gap-4 border-b border-general-border px-0.5 py-2.5"
+                    className="flex items-center justify-between gap-4 border-b border-general-border px-0.5 py-2.5 transition-colors duration-200 hover:bg-neutral-50"
                   >
                     <TruncatedText
                       value={row.keyword}
@@ -437,7 +504,7 @@ export function SeoSnapshotReportViewer({
                       {row.searchVolume != null ? (
                         <>
                           <span className="font-medium text-general-secondary-foreground">
-                            {formatSeoSnapshotNumber(row.searchVolume)}
+                            <AnimatedNumber value={row.searchVolume} />
                           </span>{" "}
                           / mo
                         </>
@@ -580,7 +647,10 @@ export function SeoSnapshotReportViewer({
             >
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {report.opportunityMap.map((item, index) => (
-                  <div key={`${item.label}-${index}`} className="rounded-lg border border-general-border bg-white p-4">
+                  <div
+                    key={`${item.label}-${index}`}
+                    className="rounded-lg border border-general-border bg-white p-4 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-sm"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="text-sm font-medium text-general-secondary-foreground">

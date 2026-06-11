@@ -201,6 +201,70 @@ export function useGoogleLogin() {
   });
 }
 
+export interface InvitedGoogleLoginCredentials {
+  token: string;
+  googleToken: string;
+}
+
+export function useInvitedGoogleLogin() {
+  const qc = useQueryClient();
+  const setAuth = useAuthStore((state) => state.setAuth);
+
+  return useMutation<LoginResponse, Error, InvitedGoogleLoginCredentials>({
+    mutationFn: async (data: InvitedGoogleLoginCredentials) => {
+      const response = await api.post<ApiLoginResponse>(
+        "/auth/invited-google-login",
+        "node",
+        {
+          token: data.token,
+          googleToken: data.googleToken,
+        }
+      );
+
+      if (!response.success) {
+        const error = new Error(response.message || "Invite login failed");
+        (error as any).response = { data: response };
+        throw error;
+      }
+
+      if (!response.data?.token) {
+        throw new Error("Token not found in response");
+      }
+
+      const { token, ...userData } = response.data;
+      return {
+        token,
+        user: userData,
+      };
+    },
+    onSuccess: (data) => {
+      setAuth(data.token, data.user);
+      qc.invalidateQueries({ queryKey: ["auth"] });
+    },
+  });
+}
+
+export function useSetPassword() {
+  const qc = useQueryClient();
+
+  return useMutation<void, Error, { password: string }>({
+    mutationFn: async ({ password }) => {
+      const response = await api.post<{ success: boolean; message?: string }>(
+        "/auth/set-password",
+        "node",
+        { password }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to set password");
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["auth"] });
+    },
+  });
+}
+
 export interface SignupCredentials {
   email: string;
   password: string;

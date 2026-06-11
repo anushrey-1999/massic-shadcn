@@ -85,6 +85,7 @@ import {
   WebflowPublishConfirmHint,
   type WebflowPublishConfirmAction,
 } from "@/components/organisms/web-page-actions/webflow-publish-confirm-hints";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import {
   clearWebflowStagingPreviewSession,
   openWebflowPreviewInNewTab,
@@ -111,6 +112,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const type = getTypeFromPageType(pageType, intent);
 
   const { updateBlogContent, updatePageContent } = useWebPageActions();
+  const guardPublish = useFeatureActionGuard("web.publish");
 
   const [isInitialLoad, setIsInitialLoad] = React.useState(true);
   const isInitialLoadRef = React.useRef(true);
@@ -1426,6 +1428,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   }, []);
 
   const confirmAndRunPublishAction = React.useCallback(async () => {
+    if (!guardPublish()) return;
     const action = confirmPublishAction;
     setConfirmPublishAction(null);
     if (!action) return;
@@ -1500,6 +1503,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     await handlePublishLive();
   }, [
     confirmPublishAction,
+    guardPublish,
     handlePreviewWebflowStaging,
     handlePublishDraft,
     handlePublishLive,
@@ -1576,7 +1580,9 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
             <Button
               className="gap-2"
               type="button"
-              onClick={() => setIsPublishModalOpen(true)}
+              onClick={() => {
+                if (guardPublish()) setIsPublishModalOpen(true);
+              }}
               disabled={isProcessing || !hasFinalContent}
             >
               <Globe className="h-4 w-4" />

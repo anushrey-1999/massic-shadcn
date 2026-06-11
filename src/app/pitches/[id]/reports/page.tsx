@@ -46,6 +46,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { formatDate, formatVolume } from "@/lib/format";
 import { useQuickEvaluation } from "@/hooks/use-quick-evaluation";
 import { useAgencyInfo } from "@/hooks/use-agency-settings";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 export default function PitchReportsPage() {
   const params = useParams();
@@ -56,6 +57,7 @@ export default function PitchReportsPage() {
   const { user } = useAuthStore();
   const { agencyInfo } = useAgencyInfo();
 
+  const guardPitchSnapshot = useFeatureActionGuard("reports.pitchSnapshot");
   const startQuickyMutation = useStartQuickyReport();
   const fetchReportMutation = useFetchReportFromDownloadUrl();
   const quickEvaluationMutation = useQuickEvaluation();
@@ -336,6 +338,7 @@ export default function PitchReportsPage() {
       type: "snapshot" | "detailed",
       generateFn: () => Promise<void>
     ) => {
+      if (!guardPitchSnapshot()) return;
       if (!status) return;
 
       const hasSubscription = status.has_subscription && status.status === "active";

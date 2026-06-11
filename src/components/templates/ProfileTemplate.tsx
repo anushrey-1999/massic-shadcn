@@ -38,6 +38,7 @@ import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -569,7 +570,11 @@ const ProfileTemplate = ({
     },
   });
 
+  const guardAutofillProfile = useFeatureActionGuard("actions.autofillProfile");
+  const guardAcceptPlan = useFeatureActionGuard("actions.acceptPlan");
+
   const handleAutofillProfile = useCallback(async () => {
+    if (!guardAutofillProfile()) return;
     const values = form.state.values as BusinessInfoFormData;
     const website = cleanWebsiteUrl(values?.website || "").trim();
     if (!website) {
@@ -1242,8 +1247,9 @@ const ProfileTemplate = ({
       return;
     }
 
+    if (!guardAcceptPlan()) return;
     setIsStrategyConfirmOpen(true);
-  }, [handleSaveChanges, hasChanges, isJobCreated]);
+  }, [handleSaveChanges, hasChanges, isJobCreated, guardAcceptPlan]);
 
   // Determine loading state and message
   const isLoading =
@@ -1771,6 +1777,7 @@ const ProfileTemplate = ({
               <AlertDialogAction asChild>
                 <Button
                   onClick={async () => {
+                    if (!guardAcceptPlan()) return;
                     setIsStrategyConfirmOpen(false);
                     try {
                       await handleConfirmAndProceed();

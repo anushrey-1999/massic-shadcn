@@ -22,6 +22,7 @@ import {
   useSocialActions,
   type SocialActionResponse,
 } from "@/hooks/use-social-actions";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 function getCampaignClusterId(row: TacticRow): string | null {
   const candidates = [
@@ -77,6 +78,7 @@ export function SocialActionCell({
 }) {
   const queryClient = useQueryClient();
   const { startGeneration } = useSocialActions(strategyType);
+  const guardGenerate = useFeatureActionGuard("social.generate");
 
   const campaignClusterId = React.useMemo(() => getCampaignClusterId(row), [row]);
   const tacticsChannel = React.useMemo(
@@ -214,6 +216,7 @@ export function SocialActionCell({
 
   const handleGenerate = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!guardGenerate()) return;
     if (!campaignClusterId) {
       toast.error("Missing campaign cluster id");
       return;

@@ -179,11 +179,10 @@ export function DataTable<TData>({
               ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => {
                   const isSelected = selectedRowId != null && row.id === selectedRowId;
-                  const rowKey = (row.original as { id?: string | number } | undefined)?.id ?? row.id;
                   return (
                     <TableRow
-                      key={String(rowKey)}
-                      data-row-id={String(rowKey)}
+                      key={row.id}
+                      data-row-id={row.id}
                       data-selected-row={isSelected ? row.id : undefined}
                       className={cn(
                         "group",

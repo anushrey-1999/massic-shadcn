@@ -16,6 +16,7 @@ import { ReportsTablePagination } from "./reports-table-pagination";
 import { GenerateReportDialog } from "./generate-report-dialog";
 import { AutoScheduleDialog } from "./auto-schedule-dialog";
 import { useGetAutoScheduleByBusiness } from "@/hooks/use-auto-schedules";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 interface ReportsTableProps {
   businessId: string;
@@ -37,6 +38,9 @@ export function ReportsTable({
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [autoScheduleDialogOpen, setAutoScheduleDialogOpen] = React.useState(false);
+
+  const guardGenerateReport = useFeatureActionGuard("reports.generate");
+  const guardScheduleReport = useFeatureActionGuard("reports.schedule");
 
   const { data: existingSchedule } = useGetAutoScheduleByBusiness(businessId);
 
@@ -101,12 +105,12 @@ export function ReportsTable({
             <Button
               variant="outline"
               className="h-9 gap-2"
-              onClick={() => setAutoScheduleDialogOpen(true)}
+              onClick={() => { if (guardScheduleReport()) setAutoScheduleDialogOpen(true); }}
             >
               <CalendarFold className="h-4 w-4" />
               Auto-schedule
             </Button>
-            <Button className="h-9 gap-2" onClick={() => setDialogOpen(true)}>
+            <Button className="h-9 gap-2" onClick={() => { if (guardGenerateReport()) setDialogOpen(true); }}>
               <Plus className="h-4 w-4" />
               Create New
             </Button>

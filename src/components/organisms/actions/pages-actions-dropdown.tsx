@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils"
 import { PagesPlansDialog } from "./pages-plans-dialog"
 import { usePagePlanner } from "@/hooks/use-page-planner"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import type { PagePlannerPlanItem, PagePlannerPlanMeta } from "@/types/page-planner-types"
 import { formatDate, formatVolume } from "@/lib/format"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
@@ -437,6 +438,9 @@ export function PagesActionsDropdown({
   onTableContextChange,
 }: Props) {
   const refinePlan = useRefinePlanOverlayOptional()
+  const guardCreatePlan = useFeatureActionGuard("actions.createPlan")
+  const guardRefinePlan = useFeatureActionGuard("actions.refinePlan")
+  const guardRegeneratePlan = useFeatureActionGuard("actions.regeneratePlan")
   const refineApi = refinePlan as unknown as
     | {
         open: (source: "pages" | "posts") => void
@@ -778,6 +782,7 @@ export function PagesActionsDropdown({
   }, [items, hasAnyPlans])
 
   const handleGenerate = React.useCallback(async () => {
+    if (!guardCreatePlan()) return
     if (!businessId || isGenerating) return
     setGenerateError(null)
     setIsGenerating(true)
@@ -861,7 +866,7 @@ export function PagesActionsDropdown({
     } finally {
       setIsGenerating(false)
     }
-  }, [businessId, isGenerating, pagePlanner, queryClient])
+  }, [businessId, guardCreatePlan, isGenerating, pagePlanner, queryClient])
 
   const sortedRows = React.useMemo(() => {
     if (!sortDirection) return rows
@@ -927,8 +932,9 @@ export function PagesActionsDropdown({
       return
     }
     if (pagesBusy) return
+    if (!guardRefinePlan()) return
     setRefineDialogOpen(true)
-  }, [handleGenerate, showGenerateButton, pagesBusy, isPlansLoading])
+  }, [guardRefinePlan, handleGenerate, showGenerateButton, pagesBusy, isPlansLoading])
 
   const handleDownloadCsv = React.useCallback(() => {
     if (activePlanItems.length === 0) {
@@ -1300,6 +1306,7 @@ export function PagesActionsDropdown({
           <button
             type="button"
             onClick={() => {
+              if (!guardRegeneratePlan()) return
               setRefineDialogOpen(false)
               refineApi?.open("pages")
               refineApi?.regeneratePagesPlan({
@@ -1323,6 +1330,7 @@ export function PagesActionsDropdown({
           <button
             type="button"
             onClick={() => {
+              if (!guardRegeneratePlan()) return
               setRefineDialogOpen(false)
               refineApi?.open("pages")
               refineApi?.regeneratePagesPlan({
@@ -1346,6 +1354,7 @@ export function PagesActionsDropdown({
           <button
             type="button"
             onClick={() => {
+              if (!guardRefinePlan()) return
               setRefineDialogOpen(false)
               refineApi?.open("pages")
             }}

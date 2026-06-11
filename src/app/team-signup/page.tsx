@@ -11,8 +11,10 @@ import {
 import { GenericInput } from "@/components/ui/generic-input";
 import {
   useValidateInviteToken,
-  useCreateTeamMemberProfile,
 } from "@/hooks/use-team-invite";
+import { useInvitedGoogleLogin, useSetPassword } from "@/hooks/use-auth";
+import { useAuthStore } from "@/store/auth-store";
+import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -23,10 +25,9 @@ function TeamSignupContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [googleAccepted, setGoogleAccepted] = useState(false);
 
   const {
     data: tokenData,
@@ -34,7 +35,11 @@ function TeamSignupContent() {
     isError: isTokenInvalid,
   } = useValidateInviteToken(token);
 
-  const createProfile = useCreateTeamMemberProfile();
+  const invitedGoogleLogin = useInvitedGoogleLogin();
+  const setPasswordMutation = useSetPassword();
+  const authToken = useAuthStore((state) => state.token);
+  const authUser = useAuthStore((state) => state.user);
+  const setAuth = useAuthStore((state) => state.setAuth);
 
   useEffect(() => {
     if (!token) {
@@ -50,13 +55,39 @@ function TeamSignupContent() {
     }
   }, [isTokenInvalid, router]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (!firstName.trim()) {
-      toast.error("First name is required");
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential || !token) {
+      toast.error("Google sign-in failed. Please try again.");
       return;
     }
+
+    try {
+      const result = await invitedGoogleLogin.mutateAsync({
+        token,
+        googleToken: credentialResponse.credential,
+      });
+      if (!result.user?.requiresPasswordSetup) {
+        toast.success("Invitation accepted.");
+        router.push("/");
+        return;
+      }
+      setGoogleAccepted(true);
+      toast.success("Invitation accepted. Set a password to finish.");
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to accept invitation. Please try again.";
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleGoogleError = () => {
+    toast.error("Google sign-in failed. Please try again.");
+  };
+
+  const handlePasswordSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
 
     if (!password.trim()) {
       toast.error("Password is required");
@@ -73,26 +104,19 @@ function TeamSignupContent() {
       return;
     }
 
-    if (!token) {
-      toast.error("Invalid invitation token");
-      return;
-    }
-
     try {
-      await createProfile.mutateAsync({
-        token,
-        Password: password,
-        FirstName: firstName,
-        LastName: lastName,
-      });
+      await setPasswordMutation.mutateAsync({ password });
+      if (authToken && authUser) {
+        setAuth(authToken, { ...authUser, requiresPasswordSetup: false });
+      }
 
-      toast.success("Profile created successfully! Please sign in.");
-      router.push("/login");
+      toast.success("Password set successfully.");
+      router.push("/");
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.message ||
         error?.message ||
-        "Failed to create profile. Please try again.";
+        "Failed to set password. Please try again.";
       toast.error(errorMessage);
     }
   };
@@ -116,19 +140,20 @@ function TeamSignupContent() {
     return null;
   }
 
-  const isLoading = createProfile.isPending;
+  const isLoading = invitedGoogleLogin.isPending || setPasswordMutation.isPending;
+  const showPasswordForm = googleAccepted || authUser?.requiresPasswordSetup;
 
   return (
     <div className="min-h-full flex items-center justify-center bg-background p-8">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">Complete Your Profile</CardTitle>
+          <CardTitle className="text-2xl">Accept Invitation</CardTitle>
           <CardDescription>
             Join {tokenData.OrganzationName || "the team"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-4">
             <GenericInput
               type="input"
               label="Organization"
@@ -143,57 +168,45 @@ function TeamSignupContent() {
               disabled
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <GenericInput
-                type="input"
-                label="First Name"
-                placeholder="Enter your first name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                required
-                disabled={isLoading}
-              />
-              <GenericInput
-                type="input"
-                label="Last Name"
-                placeholder="Enter your last name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
+            {!showPasswordForm ? (
+              <div className="flex justify-center py-2">
+                <GoogleLogin onSuccess={handleGoogleSuccess} onError={handleGoogleError} />
+              </div>
+            ) : (
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <GenericInput
+                  type="password"
+                  label="Password"
+                  placeholder="Enter your password (min 6 characters)"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
 
-            <GenericInput
-              type="password"
-              label="Password"
-              placeholder="Enter your password (min 6 characters)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={isLoading}
-            />
+                <GenericInput
+                  type="password"
+                  label="Confirm Password"
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
 
-            <GenericInput
-              type="password"
-              label="Confirm Password"
-              placeholder="Re-enter your password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              disabled={isLoading}
-            />
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Profile...
-                </>
-              ) : (
-                "Complete Profile"
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {setPasswordMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Set Password"
+                  )}
+                </Button>
+              </form>
               )}
-            </Button>
-          </form>
+          </div>
         </CardContent>
       </Card>
     </div>

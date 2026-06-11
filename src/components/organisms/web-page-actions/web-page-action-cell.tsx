@@ -16,6 +16,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
@@ -51,6 +52,8 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const router = useRouter();
   const queryClient = useQueryClient();
   const { getContent, startFinal, startOutline } = useWebPageActions();
+  const guardGenerateOutline = useFeatureActionGuard("web.generateOutline");
+  const guardGeneratePage = useFeatureActionGuard("web.generatePage");
 
   const [open, setOpen] = React.useState(false);
   const [workingAction, setWorkingAction] = React.useState<null | "outline" | "final" | "view">(null);
@@ -128,6 +131,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   };
 
   const handleGenerateFinal = async () => {
+    if (!guardGeneratePage()) return;
     if (!pageId) return;
     if (workingAction) return;
     if (!hasOutline) {
@@ -159,6 +163,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   };
 
   const handleGenerateOutline = async () => {
+    if (!guardGenerateOutline()) return;
     if (!pageId) return;
 
     if (workingAction) return;

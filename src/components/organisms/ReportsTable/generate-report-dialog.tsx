@@ -31,6 +31,7 @@ import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { useGenerateReportV2 } from "@/hooks/use-report-runs";
 import { getWorkflowStatus } from "@/lib/workflow-status";
 import { getAnalyticsPeriodBounds, resolveTimePeriodRange, type TimePeriodValue } from "@/utils/analytics-period";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 interface GenerateReportDialogProps {
   open: boolean;
@@ -82,6 +83,7 @@ export function GenerateReportDialog({
     [periodReferenceDate]
   );
 
+  const guardGenerateReport = useFeatureActionGuard("reports.generate");
   const { data: jobData, isLoading: isJobLoading } = useJobByBusinessId(businessId);
   const generateReport = useGenerateReportV2();
 
@@ -171,6 +173,7 @@ export function GenerateReportDialog({
   };
 
   const handleGenerate = async () => {
+    if (!guardGenerateReport()) return;
     if (!canGenerate || !businessId) return;
 
     if (!effectiveRange?.from || !effectiveRange?.to) {

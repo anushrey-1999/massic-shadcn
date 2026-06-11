@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDebounce } from "@/hooks/use-debounce"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import {
   useApproveReviewCustomers,
   useReviewCampaignById,
@@ -308,6 +309,11 @@ export function CustomersTableClient({
   businessId: string
   selectedLocationIdForApi?: string | null
 }) {
+  const guardCreateCustomer = useFeatureActionGuard("reviews.customers.create")
+  const guardEditCustomer = useFeatureActionGuard("reviews.customers.edit")
+  const guardDeleteCustomer = useFeatureActionGuard("reviews.customers.delete")
+  const guardApproveCustomer = useFeatureActionGuard("reviews.customers.approve")
+  const guardSendNow = useFeatureActionGuard("reviews.customers.sendNow")
   const [existingRows, setExistingRows] = React.useState<ReviewCustomerRow[]>([])
   const [customerDialog, setCustomerDialog] = React.useState<CustomerDialogState>(null)
   const [customerForm, setCustomerForm] = React.useState<CustomerFormState>(EMPTY_CUSTOMER_FORM)
@@ -551,6 +557,7 @@ export function CustomersTableClient({
   )
 
   const openAddCustomerDialog = React.useCallback(() => {
+    if (!guardCreateCustomer()) return
     setCustomerDialog({ mode: "add" })
     setCustomerForm({
       ...EMPTY_CUSTOMER_FORM,
@@ -558,9 +565,10 @@ export function CustomersTableClient({
     })
     setCustomerFormErrors({})
     setCustomerServerError(null)
-  }, [defaultCampaignOption])
+  }, [defaultCampaignOption, guardCreateCustomer])
 
   const openEditCustomerDialog = React.useCallback((row: ReviewCustomerRow) => {
+    if (!guardEditCustomer()) return
     setCustomerDialog({ mode: "edit", row })
     setCustomerForm({
       name: row.name,
@@ -570,7 +578,7 @@ export function CustomersTableClient({
     })
     setCustomerFormErrors({})
     setCustomerServerError(null)
-  }, [])
+  }, [guardEditCustomer])
 
   const validateCustomerForm = React.useCallback(() => {
     const errors: CustomerFormErrors = {}
@@ -612,10 +620,11 @@ export function CustomersTableClient({
 
   const handleDeleteRow = React.useCallback(
     (rowId: string, isNew?: boolean) => {
+      if (!guardDeleteCustomer()) return
       const target = existingRowsRef.current.find((row) => row.id === rowId)
       if (target) setDeleteTarget(target)
     },
-    []
+    [guardDeleteCustomer]
   )
 
   const handleViewRow = React.useCallback((row: ReviewCustomerRow) => {
@@ -624,6 +633,7 @@ export function CustomersTableClient({
 
   const handleApproveRow = React.useCallback(
     (row: ReviewCustomerRow) => {
+      if (!guardApproveCustomer()) return
       if (!row.campaignId) return
       setConfirmAction({
         title: "Approve customer?",
@@ -635,7 +645,7 @@ export function CustomersTableClient({
         }),
       })
     },
-    [approveCustomers.mutate]
+    [approveCustomers.mutate, guardApproveCustomer]
   )
 
   const getCampaignActivityContent = React.useCallback(
@@ -753,6 +763,11 @@ export function CustomersTableClient({
   })
 
   const handleSubmitCustomer = React.useCallback(async () => {
+    if (customerDialog?.mode === "edit") {
+      if (!guardEditCustomer()) return
+    } else if (!guardCreateCustomer()) {
+      return
+    }
     if (!selectedLocationIdForApi) return
 
     const errors = validateCustomerForm()
@@ -794,15 +809,18 @@ export function CustomersTableClient({
     selectedLocationIdForApi,
     customerDialog,
     customerForm,
+    guardCreateCustomer,
+    guardEditCustomer,
     validateCustomerForm,
     saveCustomers,
   ])
 
   const handleConfirmDelete = React.useCallback(async () => {
+    if (!guardDeleteCustomer()) return
     if (!deleteTarget) return
     await deleteCustomer.mutateAsync({ id: deleteTarget.id, businessId })
     setDeleteTarget(null)
-  }, [deleteTarget, deleteCustomer, businessId])
+  }, [deleteTarget, deleteCustomer, businessId, guardDeleteCustomer])
 
   const selectedWaitingRows = React.useMemo(
     () =>
@@ -815,6 +833,7 @@ export function CustomersTableClient({
   )
 
   const approveSelected = React.useCallback(() => {
+    if (!guardApproveCustomer()) return
     if (selectedWaitingRows.length === 0) return
     setConfirmAction({
       title: "Approve selected customers?",
@@ -833,9 +852,10 @@ export function CustomersTableClient({
         setRowSelection({})
       },
     })
-  }, [approveCustomers, selectedWaitingRows])
+  }, [approveCustomers, guardApproveCustomer, selectedWaitingRows])
 
   const approveAllWaitingForVisibleCampaigns = React.useCallback(() => {
+    if (!guardApproveCustomer()) return
     const campaignIds = Array.from(
       new Set(tableData.filter((row) => row.status === "waiting-approval").map((row) => row.campaignId).filter(Boolean))
     )
@@ -850,9 +870,10 @@ export function CustomersTableClient({
         })
       },
     })
-  }, [approveCustomers, tableData])
+  }, [approveCustomers, guardApproveCustomer, tableData])
 
   const handleSendNow = React.useCallback(() => {
+    if (!guardSendNow()) return
     if (!selectedCustomer || !canSendNow) return
     const nextStep = timeline?.nextStep
     setConfirmAction({
@@ -866,7 +887,7 @@ export function CustomersTableClient({
         businessId,
       }),
     })
-  }, [businessId, canSendNow, selectedCustomer, sendCustomerNow, timeline?.nextStep])
+  }, [businessId, canSendNow, guardSendNow, selectedCustomer, sendCustomerNow, timeline?.nextStep])
 
   return (
     <>

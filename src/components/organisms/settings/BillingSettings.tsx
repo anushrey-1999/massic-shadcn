@@ -68,6 +68,7 @@ import { BillingReconciliationReport as BillingReconciliationReportView } from "
 import type { BillingReconciliationPeriod, BillingReconciliationReport } from "@/types/billing-reconciliation-types";
 import { generatePdfFromBillingReconciliation } from "@/utils/pdf-generator";
 import { cn } from "@/lib/utils";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 const toTitleCasePlan = (planType?: string) => {
   if (!planType) return "";
@@ -537,6 +538,8 @@ export function BillingSettings() {
   const cancelMassicOpportunities = useCancelMassicOpportunities();
   const subscribeMassicOpportunities = useSubscribeMassicOpportunities();
   const reactivateMassicOpportunities = useReactivateMassicOpportunities();
+  const guardChangeBillingPlan = useFeatureActionGuard("billing.changePlan");
+  const guardSubscribeBillingPlan = useFeatureActionGuard("billing.subscribe");
   const queryClient = useQueryClient();
   const billingReconciliation = useBillingReconciliation();
   const reconciliationMonthParts = useMemo(() => {
@@ -749,9 +752,10 @@ export function BillingSettings() {
 
   const openSubscriptionAction = useCallback(
     (business: BusinessProfile, type: "cancel" | "reactivate") => {
+      if (!guardChangeBillingPlan()) return;
       setSubscriptionAction({ business, type });
     },
-    []
+    [guardChangeBillingPlan]
   );
 
   const closeSubscriptionAction = useCallback(() => {
@@ -760,6 +764,8 @@ export function BillingSettings() {
 
   const handleConfirmSubscriptionAction = useCallback(async () => {
     if (!subscriptionAction) return;
+    if (!guardChangeBillingPlan()) return;
+
     const businessId = subscriptionAction.business.UniqueId;
     try {
       setActionLoading(true);
@@ -784,7 +790,7 @@ export function BillingSettings() {
     } finally {
       setActionLoading(false);
     }
-  }, [subscriptionAction, refreshBillingData, closeSubscriptionAction]);
+  }, [subscriptionAction, guardChangeBillingPlan, refreshBillingData, closeSubscriptionAction]);
 
   const onSelectPlan = async (
     planName: string,
@@ -795,9 +801,12 @@ export function BillingSettings() {
     if (!business) return;
 
     if (action === "UPGRADE" || action === "DOWNGRADE") {
+      if (!guardChangeBillingPlan()) return;
       setPlanChangeConfirm({ planName, action, business });
       return;
     }
+
+    if (!guardSubscribeBillingPlan()) return;
 
     await handleSubscribeToPlan({
       business,

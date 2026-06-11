@@ -69,6 +69,66 @@
       "permission": "canGenerateContent",
       "blockedFor": ["ANALYST"],
       "visibleWhenRestricted": true
+    },
+    "activatePlan": {
+      "label": "Make plan active",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "profile": {
+    "save": {
+      "label": "Save business profile",
+      "permission": "canManageSettings",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "fetchOfferings": {
+      "label": "Fetch offerings from website",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "business": {
+    "unlink": {
+      "label": "Unlink business",
+      "permission": "canManageLinkedBusinesses",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "convertPitch": {
+      "label": "Convert pitch to business",
+      "permission": "canManageLinkedBusinesses",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "billing": {
+    "subscribe": {
+      "label": "Subscribe or upgrade plan",
+      "permission": "canManageBilling",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "changePlan": {
+      "label": "Change plan",
+      "permission": "canManageBilling",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "massicOpportunitiesSubscribe": {
+      "label": "Subscribe to Massic Opportunities",
+      "permission": "canManageBilling",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "massicOpportunitiesChange": {
+      "label": "Change Massic Opportunities subscription",
+      "permission": "canManageBilling",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
     }
   },
   "ads": {

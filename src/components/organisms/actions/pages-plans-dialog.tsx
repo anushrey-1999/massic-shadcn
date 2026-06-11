@@ -20,6 +20,7 @@ import { Typography } from "@/components/ui/typography"
 import { formatDate, formatVolume } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { usePagePlanner } from "@/hooks/use-page-planner"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import type { PagePlannerPlanDetailResponse, PagePlannerPlanItem, PagePlannerPlanMeta } from "@/types/page-planner-types"
 
 const PAGE_PLANS_QUERY_KEY = "page-planner-plans"
@@ -132,6 +133,7 @@ type Props = {
 export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
   const pagePlanner = usePagePlanner()
   const queryClient = useQueryClient()
+  const guardActivatePlan = useFeatureActionGuard("actions.activatePlan")
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const [previewPlan, setPreviewPlan] = React.useState<PagePlannerPlanMeta | null>(null)
   const [previewOpenItemId, setPreviewOpenItemId] = React.useState<string | null>(null)
@@ -353,6 +355,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
                 onClick={() => {
                   if (isActive) return
                   if (typeof safePlanId !== "number") return
+                  if (!guardActivatePlan()) return
                   setActiveMutation.mutate(safePlanId)
                 }}
                 disabled={!businessId || isActive || setActiveMutation.isPending || typeof safePlanId !== "number"}
@@ -383,7 +386,7 @@ export function PagesPlansDialog({ open, onOpenChange, businessId }: Props) {
         maxSize: 180,
       },
     ]
-  }, [businessId, setActiveMutation])
+  }, [businessId, guardActivatePlan, setActiveMutation])
 
   const table = useReactTable({
     data: plansQuery.data ?? [],

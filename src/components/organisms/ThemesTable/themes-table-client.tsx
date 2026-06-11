@@ -39,6 +39,7 @@ import { Typography } from "@/components/ui/typography";
 import type { ExtendedColumnFilter, JoinOperator } from "@/types/data-table-types";
 import { parseAsStringEnum, useQueryState } from "nuqs";
 import { cn } from "@/lib/utils";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 interface ThemesTableClientProps {
   businessId: string;
@@ -280,6 +281,7 @@ export function ThemesTableClient({
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const guardGenerate = useFeatureActionGuard("themes.generate");
 
   const themeFilterFields = React.useMemo(
     () => ["theme_name", "offerings", "topics"],
@@ -625,7 +627,9 @@ export function ThemesTableClient({
         </div>
         {showGenerateAction && (
           <Button
-            onClick={() => triggerMutation.mutate()}
+            onClick={() => {
+              if (guardGenerate()) triggerMutation.mutate();
+            }}
             disabled={triggerMutation.isPending}
           >
             <Sparkles className="h-4 w-4 mr-2" />

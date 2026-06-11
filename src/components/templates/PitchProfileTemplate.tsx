@@ -41,6 +41,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 function toPrimaryLocationString(input: any): string {
   const location = String(input?.Location || "").trim();
@@ -102,6 +103,7 @@ export function PitchProfileTemplate() {
   const createJobMutation = useCreateJob();
   const updateJobMutation = useUpdateJob();
   const convertPitchMutation = useConvertPitchToBusiness();
+  const guardConvertPitch = useFeatureActionGuard("business.convertPitch");
 
   const [isAutofillLoading, setIsAutofillLoading] = useState(false);
   const [isConvertConfirmOpen, setIsConvertConfirmOpen] = useState(false);
@@ -446,15 +448,19 @@ export function PitchProfileTemplate() {
 
   const handleConfirmAndProceed = React.useCallback(async () => {
     await form.handleSubmit();
-  }, [form]);
+    if (businessId) {
+      router.push(`/pitches/${businessId}/strategy`);
+    }
+  }, [businessId, form, router]);
 
   const handleConvertToBusiness = React.useCallback(async () => {
+    if (!guardConvertPitch()) return;
     if (!businessId) return;
 
     await convertPitchMutation.mutateAsync({ businessId });
     setIsConvertConfirmOpen(false);
     router.push(`/business/${businessId}/profile`);
-  }, [businessId, convertPitchMutation, router]);
+  }, [businessId, convertPitchMutation, guardConvertPitch, router]);
 
   return (
     <div className="flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden">
@@ -485,7 +491,10 @@ export function PitchProfileTemplate() {
                         type="button"
                         variant="outline"
                         className="border-general-border-three text-general-foreground"
-                        onClick={() => setIsConvertConfirmOpen(true)}
+                        onClick={() => {
+                          if (!guardConvertPitch()) return;
+                          setIsConvertConfirmOpen(true);
+                        }}
                         disabled={convertPitchMutation.isPending || isLoading}
                       >
                         {convertPitchMutation.isPending ? "Converting..." : "Convert to Business"}
@@ -502,7 +511,7 @@ export function PitchProfileTemplate() {
                             Saving...
                           </>
                         ) : (
-                          "Save"
+                          "Confirm and proceed to Strategy"
                         )}
                       </Button>
                     </div>

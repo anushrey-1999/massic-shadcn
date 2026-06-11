@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 
 interface SendReviewReplyDialogProps {
   open: boolean
@@ -29,12 +30,14 @@ export function SendReviewReplyDialog({
   replyText,
   isSending = false,
 }: SendReviewReplyDialogProps) {
+  const guardSendReply = useFeatureActionGuard("reviews.replies.send")
   const handleConfirm = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.preventDefault()
+      if (!guardSendReply()) return
       onConfirm()
     },
-    [onConfirm]
+    [guardSendReply, onConfirm]
   )
 
   return (

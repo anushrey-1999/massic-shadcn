@@ -28,6 +28,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 type BusinessInfoFormData = {
   website: string;
@@ -52,6 +53,7 @@ interface OfferingsFormProps {
   embedded?: boolean;
   disabled?: boolean;
   extractionController?: ReturnType<typeof useOfferingsExtractor>;
+  restrictFetchOfferings?: boolean;
 }
 
 export const OfferingsForm = ({
@@ -61,6 +63,7 @@ export const OfferingsForm = ({
   embedded = false,
   disabled = false,
   extractionController,
+  restrictFetchOfferings = false,
 }: OfferingsFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
@@ -125,6 +128,7 @@ export const OfferingsForm = ({
     taskId,
     extractionData,
   } = extractionController ?? internalExtractor;
+  const guardFetchOfferings = useFeatureActionGuard("profile.fetchOfferings");
 
   // Track processed taskId to avoid duplicate processing
   const processedTaskIdRef = useRef<string | null>(null);
@@ -151,13 +155,14 @@ export const OfferingsForm = ({
   // Handle fetch offerings from website
   const handleFetchOfferings = useCallback(async () => {
     if (disabled) return;
+    if (restrictFetchOfferings && !guardFetchOfferings()) return;
     if (!website) {
       toast.error("Please enter a website URL first");
       return;
     }
 
     await startExtraction(website);
-  }, [disabled, website, startExtraction]);
+  }, [disabled, guardFetchOfferings, restrictFetchOfferings, website, startExtraction]);
 
   // Merge extracted offerings with existing ones when extraction completes
   useEffect(() => {

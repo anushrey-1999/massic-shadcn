@@ -41,6 +41,7 @@ import {
   type ReviewCampaignsSort,
 } from "@/hooks/use-review-campaigns"
 import { useDebounce } from "@/hooks/use-debounce"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 
 function formatDateTime(value?: string) {
   if (!value) return "-"
@@ -76,6 +77,8 @@ export function CampaignsTableClient({
   selectedLocationIdForApi?: string | null;
 }) {
   const router = useRouter()
+  const guardCreateCampaign = useFeatureActionGuard("reviews.campaigns.create")
+  const guardEditCampaign = useFeatureActionGuard("reviews.campaigns.edit")
   const [historyCampaign, setHistoryCampaign] = React.useState<ReviewCampaignRow | null>(null)
   const [selectedVersionId, setSelectedVersionId] = React.useState<string | null>(null)
   const columns = React.useMemo(
@@ -83,10 +86,12 @@ export function CampaignsTableClient({
       businessId,
       currentTab,
       selectedLocationIdForApi,
-      (href) => router.push(href),
+      (href) => {
+        if (guardEditCampaign()) router.push(href)
+      },
       setHistoryCampaign
     ),
-    [businessId, currentTab, router, selectedLocationIdForApi]
+    [businessId, currentTab, guardEditCampaign, router, selectedLocationIdForApi]
   )
 
   const [sorting, setSorting] = React.useState<SortingState>([
@@ -196,6 +201,7 @@ export function CampaignsTableClient({
             type="button"
             className="gap-2 shrink-0"
             onClick={() => {
+              if (!guardCreateCampaign()) return
               router.push(`/business/${businessId}/reviews/campaigns/new?tab=${currentTab}${selectedLocationIdForApi ? `&locationId=${encodeURIComponent(selectedLocationIdForApi)}` : ""}`)
             }}
           >

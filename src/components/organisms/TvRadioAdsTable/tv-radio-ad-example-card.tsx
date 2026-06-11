@@ -13,6 +13,7 @@ import {
   useAdConceptWriterContentQuery,
   type AdConceptWriterResponse,
 } from "@/hooks/use-ad-concept-writer";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 function getStatusLowercase(value: unknown): string {
   return (value || "").toString().toLowerCase();
@@ -190,6 +191,7 @@ export function TvRadioAdExampleCard({
 }) {
   const queryClient = useQueryClient();
   const { startGeneration } = useAdConceptWriterActions();
+  const guardGenerateAd = useFeatureActionGuard("ads.generate");
 
   const problemTitle = row.problem_head_term || row.subtopic || "";
   const solutionTitle = row.solution_head_term || "";
@@ -267,6 +269,7 @@ export function TvRadioAdExampleCard({
   }, []);
 
   const handleGenerate = React.useCallback(async () => {
+    if (!guardGenerateAd()) return;
     if (!businessId || !adConceptId) {
       toast.error("Missing business id or ad concept id");
       return;

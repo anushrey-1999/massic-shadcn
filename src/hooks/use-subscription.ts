@@ -3,6 +3,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useApi, UseApiReturn } from "./use-api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 export interface SubscriptionData {
   id?: string;
@@ -38,6 +39,8 @@ interface UseSubscriptionResult {
 export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscriptionParams = {}): UseSubscriptionResult => {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const guardSubscribe = useFeatureActionGuard("billing.subscribe");
+  const guardChangePlan = useFeatureActionGuard("billing.changePlan");
   // We use the node platform for billing APIs as per old UI "seedmain"
   const api: UseApiReturn = useApi({ platform: "node" });
   const [loading, setLoading] = useState(false);
@@ -76,6 +79,8 @@ export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscr
   // -- Actions --
 
   const handleCreateAgencySubscription = useCallback(async ({ business, planName, returnUrl }: { business: any; planName: string; returnUrl?: string }) => {
+    if (!guardSubscribe()) return;
+
     try {
       setLoading(true);
       const currentUrl = returnUrl ?? (typeof window !== "undefined" ? window.location.href : "");
@@ -106,9 +111,11 @@ export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscr
     } finally {
       setLoading(false);
     }
-  }, [user?.uniqueId, api]);
+  }, [user?.uniqueId, api, guardSubscribe]);
 
   const handleAddBusinessToSubscription = useCallback(async ({ business, planName, returnUrl }: { business: any; planName: string; returnUrl?: string }) => {
+    if (!guardSubscribe()) return;
+
     try {
       setLoading(true);
       const currentUrl = returnUrl ?? (typeof window !== "undefined" ? window.location.href : "");
@@ -142,9 +149,11 @@ export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscr
     } finally {
       setLoading(false);
     }
-  }, [user?.uniqueId, api]);
+  }, [user?.uniqueId, api, guardSubscribe]);
 
   const handleChangePlan = useCallback(async ({ business, planName, action, closeAllModals, returnUrl }: { business: any; planName: string; action: string; closeAllModals?: () => void; returnUrl?: string }) => {
+    if (!guardChangePlan()) return;
+
     if (isWhitelisted) {
       toast.info("Your agency has unlimited access. No plan changes needed.");
       closeAllModals?.();
@@ -189,7 +198,7 @@ export const useSubscription = ({ businessId, isWhitelisted = false }: UseSubscr
     } finally {
       setLoading(false);
     }
-  }, [isWhitelisted, api, user?.uniqueId]);
+  }, [isWhitelisted, api, user?.uniqueId, guardChangePlan]);
 
   const refetchData = async () => {
     const result = await refetchSubscriptionQuery();

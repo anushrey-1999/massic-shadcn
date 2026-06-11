@@ -29,6 +29,7 @@ interface CustomSelectProps {
   emptyMessage?: string;
   className?: string;
   maxWidth?: string;
+  disabled?: boolean;
   renderSelected?: (option: CustomSelectOption, onRemove: () => void) => React.ReactNode;
 }
 
@@ -41,6 +42,7 @@ export function CustomSelect({
   emptyMessage = "No options available",
   className = "",
   maxWidth = "300px",
+  disabled = false,
   renderSelected,
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
@@ -48,6 +50,7 @@ export function CustomSelect({
   const selectedOptions = options.filter((opt) => value.includes(opt.value));
 
   const handleSelect = (optionValue: string) => {
+    if (disabled) return;
     const isSelected = value.includes(optionValue);
 
     // Handle mutual exclusivity: "no-location-exist" and regular locations
@@ -65,6 +68,7 @@ export function CustomSelect({
   };
 
   const handleRemove = (optionValue: string, e?: React.MouseEvent) => {
+    if (disabled) return;
     if (e) {
       e.stopPropagation();
     }
@@ -104,10 +108,11 @@ export function CustomSelect({
         <Button
           variant="outline"
           type="button"
+          disabled={disabled}
           className={`w-full justify-start min-h-10 h-auto px-2 py-1.5 ${className}`}
           style={{ maxWidth }}
           onClick={() => {
-            if (!open) {
+            if (!disabled && !open) {
               setOpen(true);
             }
           }}
@@ -188,4 +193,3 @@ export function CustomSelect({
     </Popover>
   );
 }
-

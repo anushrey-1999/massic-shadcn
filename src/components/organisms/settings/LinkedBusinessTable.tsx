@@ -75,6 +75,9 @@ import {
   type GBPLocation,
 } from "@/hooks/use-linked-businesses";
 import { Typography } from "@/components/ui/typography";
+import { usePermissions } from "@/hooks/use-permissions";
+import { ANALYST_RESTRICTED_MESSAGE } from "@/lib/permissions";
+import { toast } from "sonner";
 
 const FILTERS = [
   { label: "All", value: "all" },
@@ -137,6 +140,7 @@ interface Ga4SearchableSelectProps {
   selectedPropertyId?: string;
   selectedGa4?: GA4Property | null;
   onChange: (propertyId: string | null) => void;
+  disabled?: boolean;
 }
 
 function Ga4SearchableSelect({
@@ -144,6 +148,7 @@ function Ga4SearchableSelect({
   selectedPropertyId,
   selectedGa4,
   onChange,
+  disabled = false,
 }: Ga4SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const showClearButton = !!selectedGa4;
@@ -151,12 +156,13 @@ function Ga4SearchableSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full max-w-[300px] min-h-10 h-auto whitespace-normal items-center justify-between px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 font-normal"
-        >
+	        <Button
+	          variant="outline"
+	          role="combobox"
+	          aria-expanded={open}
+	          disabled={disabled}
+	          className="w-full max-w-[300px] min-h-10 h-auto whitespace-normal items-center justify-between px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 font-normal"
+	        >
           {selectedGa4 ? (
             <div className="flex items-center justify-between w-full gap-1 overflow-hidden">
               <TextWithPill
@@ -178,6 +184,7 @@ function Ga4SearchableSelect({
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      if (disabled) return;
                       onChange(null);
                       setOpen(false);
                     }}
@@ -218,6 +225,7 @@ function Ga4SearchableSelect({
                     value={searchValue}
                     className="cursor-pointer"
                     onSelect={() => {
+                      if (disabled) return;
                       onChange(ga4.propertyId);
                       setOpen(false);
                     }}
@@ -242,7 +250,13 @@ function Ga4SearchableSelect({
   );
 }
 
-export default function LinkedBusinessTable() {
+interface LinkedBusinessTableProps {
+  readOnly?: boolean;
+}
+
+export default function LinkedBusinessTable({ readOnly = false }: LinkedBusinessTableProps) {
+  const permissions = usePermissions();
+  const isReadOnly = readOnly || !permissions.canManageLinkedBusinesses;
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [localBusinesses, setLocalBusinesses] = useState<LinkedBusiness[]>([]);
@@ -385,6 +399,10 @@ export default function LinkedBusinessTable() {
   }, [search, localBusinesses, filter]);
 
   const handleGa4Change = (siteUrl: string, propertyId: string | null) => {
+    if (isReadOnly) {
+      toast.error(ANALYST_RESTRICTED_MESSAGE);
+      return;
+    }
     setLocalBusinesses((prev) =>
       prev.map((b) => {
         if (b.siteUrl === siteUrl) {
@@ -416,6 +434,10 @@ export default function LinkedBusinessTable() {
   };
 
   const handleGbpChange = (siteUrl: string, selectedLocationIds: string[]) => {
+    if (isReadOnly) {
+      toast.error(ANALYST_RESTRICTED_MESSAGE);
+      return;
+    }
     setLocalBusinesses((prev) =>
       prev.map((b) => {
         if (b.siteUrl === siteUrl) {
@@ -441,6 +463,10 @@ export default function LinkedBusinessTable() {
   };
 
   const handleAccept = async (row: LinkedBusiness) => {
+    if (isReadOnly) {
+      toast.error(ANALYST_RESTRICTED_MESSAGE);
+      return;
+    }
     try {
       await createBusinessMutation.mutateAsync({
         businesses: [row],
@@ -457,6 +483,10 @@ export default function LinkedBusinessTable() {
   };
 
   const handleConfirmMerge = async () => {
+    if (isReadOnly) {
+      toast.error(ANALYST_RESTRICTED_MESSAGE);
+      return;
+    }
     if (!mergeConfirmRow || !mergeTarget?.UniqueId) return;
 
     await createBusinessMutation.mutateAsync({
@@ -471,10 +501,18 @@ export default function LinkedBusinessTable() {
   };
 
   const handleSaveChanges = async (row: LinkedBusiness) => {
+    if (isReadOnly) {
+      toast.error(ANALYST_RESTRICTED_MESSAGE);
+      return;
+    }
     await linkPropertyMutation.mutateAsync({ business: row });
   };
 
   const handleToggleLink = async (row: LinkedBusiness) => {
+    if (isReadOnly) {
+      toast.error(ANALYST_RESTRICTED_MESSAGE);
+      return;
+    }
     const rowId = row.siteUrl || row.id;
     setLoadingRowId(rowId || null);
     try {
@@ -497,6 +535,10 @@ export default function LinkedBusinessTable() {
   };
 
   const handleAcceptAll = async () => {
+    if (isReadOnly) {
+      toast.error(ANALYST_RESTRICTED_MESSAGE);
+      return;
+    }
     const businessesToAccept = filteredData.filter(
       (b) => !b.businessProfile?.Id && (b.siteUrl || b.displayName)
     );
@@ -592,7 +634,7 @@ export default function LinkedBusinessTable() {
           const rowId = row.original.siteUrl || row.original.id;
           const isRowLoading = loadingRowId === rowId;
 
-          const disableToggle = isPendingAcceptance || isRowLoading;
+          const disableToggle = isReadOnly || isPendingAcceptance || isRowLoading;
           const nextActionLabel = isActive ? "Unlink" : "Link";
           const tooltipText = disableToggle
             ? "Accept this business to enable linking/unlinking."
@@ -730,6 +772,7 @@ export default function LinkedBusinessTable() {
                 selectedPropertyId={selectedPropertyId}
                 selectedGa4={selectedGa4 || null}
                 onChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
+                disabled={isReadOnly}
               />
             );
           }
@@ -809,6 +852,7 @@ export default function LinkedBusinessTable() {
                 selectedPropertyId={selectedPropertyId}
                 selectedGa4={displayGa4}
                 onChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
+                disabled={isReadOnly}
               />
             );
           }
@@ -886,6 +930,7 @@ export default function LinkedBusinessTable() {
               searchPlaceholder="Search locations..."
               emptyMessage="No options available"
               maxWidth="300px"
+              disabled={isReadOnly}
             />
           );
         },
@@ -982,7 +1027,7 @@ export default function LinkedBusinessTable() {
           };
           const hasChanges = checkGa4Edited() || checkGbpEdited();
 
-          if (hasBusinessProfile && hasChanges) {
+          if (!isReadOnly && hasBusinessProfile && hasChanges) {
             return (
               <Button
                 variant="outline"
@@ -994,7 +1039,7 @@ export default function LinkedBusinessTable() {
             );
           }
 
-          if (!hasBusinessProfile && hasGsc) {
+          if (!isReadOnly && !hasBusinessProfile && hasGsc) {
             return (
               <Button
                 variant="outline"
@@ -1012,7 +1057,7 @@ export default function LinkedBusinessTable() {
         },
       },
     ],
-    [allGBP, allGA4, localBusinesses, unmatchedGa4, loadingRowId]
+    [allGBP, allGA4, localBusinesses, unmatchedGa4, loadingRowId, isReadOnly]
   );
 
   // Create summary row data

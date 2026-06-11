@@ -3,6 +3,7 @@ import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth-store";
+import { ANALYST_RESTRICTED_MESSAGE } from "@/lib/permissions";
 
 interface CancelSubscriptionParams {
   businessId: string;
@@ -138,7 +139,14 @@ export function useConvertPitchToBusiness() {
         refetchType: "all",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const status = error?.response?.status;
+      const code = error?.response?.data?.code;
+      if (status === 403 || code === "ACCOUNT_ROLE_FORBIDDEN") {
+        toast.error(ANALYST_RESTRICTED_MESSAGE);
+        return;
+      }
+
       toast.error("Failed to convert to business", {
         description: error.message || "Please try again later.",
       });

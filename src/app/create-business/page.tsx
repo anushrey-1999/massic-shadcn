@@ -25,6 +25,8 @@ import {
   type Offering,
 } from "@/hooks/use-jobs";
 import { useStartOfferingsExtraction } from "@/hooks/use-offerings-extractor";
+import { useRoleGuard } from "@/hooks/use-permissions";
+import { ACCOUNT_ROLES } from "@/lib/permissions";
 
 interface ProfileAutofillResponse {
   business_url?: string;
@@ -272,6 +274,10 @@ const updateCreatedBusinessProfile = async (
 };
 
 export default function CreateBusinessPage() {
+  const allowed = useRoleGuard({
+    allowedRoles: [ACCOUNT_ROLES.OWNER, ACCOUNT_ROLES.ADMIN],
+    fallbackPath: "/settings",
+  });
   const router = useRouter();
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
 
@@ -515,6 +521,8 @@ export default function CreateBusinessPage() {
   const handleCancel = () => {
     router.push("/");
   };
+
+  if (!allowed) return null;
 
   return (
     <CreateBusinessTemplate

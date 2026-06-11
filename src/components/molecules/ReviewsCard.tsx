@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useDebounce } from "@/hooks/use-debounce"
+import { useCanFeatureAction, useFeatureActionGuard } from "@/hooks/use-permissions"
 import { SendReviewReplyDialog } from "@/components/molecules/SendReviewReplyDialog"
 
 export interface ReviewsCardProps {
@@ -100,6 +101,9 @@ export function ReviewsCard({
   const latestSaveRequestRef = React.useRef(0)
   const previousPersistedResponseRef = React.useRef(persistedResponse)
   const debouncedResponse = useDebounce(response, 800)
+  const canUpdateReply = useCanFeatureAction("reviews.replies.update")
+  const guardUpdateReply = useFeatureActionGuard("reviews.replies.update")
+  const guardSendReply = useFeatureActionGuard("reviews.replies.send")
 
   React.useEffect(() => {
     responseRef.current = response
@@ -204,16 +208,26 @@ export function ReviewsCard({
   }, [debouncedResponse, hasReply, lastSavedResponse, onAutoSave])
 
   const handleSendClick = React.useCallback(() => {
+    if (!guardSendReply()) return
     if (!response.trim()) return
     setSendDialogOpen(true)
-  }, [response])
+  }, [guardSendReply, response])
 
   const handleSendConfirm = React.useCallback(async () => {
+    if (!guardSendReply()) return
     if (!onSend) return
 
     await onSend(response)
     setSendDialogOpen(false)
-  }, [onSend, response])
+  }, [guardSendReply, onSend, response])
+
+  const handleResponseChange = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (!guardUpdateReply()) return
+      setResponse(event.target.value)
+    },
+    [guardUpdateReply]
+  )
 
   const relativeTime = React.useMemo(
     () => (createdAt ? formatRelativeTime(createdAt) : ""),
@@ -292,7 +306,11 @@ export function ReviewsCard({
               <div className="relative">
                 <Input
                   value={response}
-                  onChange={(e) => setResponse(e.target.value)}
+                  onChange={handleResponseChange}
+                  onFocus={() => {
+                    if (!canUpdateReply) guardUpdateReply()
+                  }}
+                  readOnly={!canUpdateReply}
                   placeholder="Generated response"
                   className="w-full"
                 />

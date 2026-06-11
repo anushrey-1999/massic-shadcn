@@ -25,6 +25,7 @@ import {
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useTechnicalAuditExecution } from "@/hooks/use-technical-audit-execution";
 import { useTechAudit } from "@/hooks/use-tech-audit";
 
@@ -78,6 +79,8 @@ export default function BusinessTechnicalAuditPage({
     React.useState<CategoryKey | null>(null);
   const [openIssueId, setOpenIssueId] = React.useState<string | null>(null);
   const didAutoOpenIssueRef = React.useRef(false);
+  const guardGenerateAudit = useFeatureActionGuard("technicalAudit.generate");
+  const guardRegenerateAudit = useFeatureActionGuard("technicalAudit.regenerate");
 
   // Execution-blocked: set when can-execute denies the request
   const [executionBlocked, setExecutionBlocked] = React.useState(false);
@@ -241,6 +244,8 @@ export default function BusinessTechnicalAuditPage({
 
   const requestTechnicalAudit = React.useCallback(
     async (mode: "generate" | "regenerate") => {
+      if (mode === "generate" && !guardGenerateAudit()) return;
+      if (mode === "regenerate" && !guardRegenerateAudit()) return;
       if (!businessId || !techAudit.domain) return;
 
       try {
@@ -287,7 +292,7 @@ export default function BusinessTechnicalAuditPage({
         toast.error(err?.message || "Failed to start technical audit.");
       }
     },
-    [businessId, techAudit.domain, checkCanExecute, creditsBalance?.current_balance, computedAlertMessage, executeTechnicalAudit]
+    [businessId, techAudit.domain, checkCanExecute, creditsBalance?.current_balance, computedAlertMessage, executeTechnicalAudit, guardGenerateAudit, guardRegenerateAudit]
   );
 
   // Close regen overlay when audit enters polling or finishes

@@ -46,6 +46,7 @@ import {
 } from "@/hooks/use-primary-drivers"
 import { useCallPrepBrief } from "@/hooks/use-call-prep-brief"
 import { useCallPrepRunDetail, useCallPrepRuns } from "@/hooks/use-call-prep-runs"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import { CallPrepBriefView } from "./CallPrepBriefView"
 import { SourceFavicon } from "./SourceFavicon"
 
@@ -1343,6 +1344,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
   const { data, isLoading, isFetching, isError, error } = usePrimaryDrivers({
     businessId, startDate, endDate, includeAllCtas: true, enabled: open,
   })
+  const guardGenerateMeetingPrep = useFeatureActionGuard("strategy.generateMeetingPrep")
   const callPrepBriefMutation = useCallPrepBrief()
   const { fetchCallPrepRuns } = useCallPrepRuns()
   const currentCallBrief = callBriefRangeKey === committedRangeKey ? callBrief : null
@@ -1402,6 +1404,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
   }, [businessId])
 
   const handleGenerateCallBrief = React.useCallback(async () => {
+    if (!guardGenerateMeetingPrep()) return
     if (!businessId || !data || !committedRangeKey) return
     setIsGeneratingMeetingPrepNotes(true)
     try {

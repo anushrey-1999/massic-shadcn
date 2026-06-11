@@ -13,6 +13,8 @@ import {
   useAdConceptWriterContentQuery,
   type AdConceptWriterResponse,
 } from "@/hooks/use-ad-concept-writer";
+import { useExecutionCredits } from "@/hooks/use-execution-credits";
+import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 function getStatusLowercase(value: unknown): string {
@@ -191,6 +193,7 @@ export function TvRadioAdExampleCard({
 }) {
   const queryClient = useQueryClient();
   const { startGeneration } = useAdConceptWriterActions();
+  const { creditsBalance, purchaseCredits } = useExecutionCredits();
   const guardGenerateAd = useFeatureActionGuard("ads.generate");
 
   const problemTitle = row.problem_head_term || row.subtopic || "";
@@ -201,6 +204,7 @@ export function TvRadioAdExampleCard({
 
   const adConceptId = row.id;
   const [starting, setStarting] = React.useState(false);
+  const [showBuyCreditsModal, setShowBuyCreditsModal] = React.useState(false);
   const [justGenerated, setJustGenerated] = React.useState(false);
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
   const lastStatusRef = React.useRef<string>("");
@@ -299,7 +303,7 @@ export function TvRadioAdExampleCard({
       toast.success("Ad generation started.");
     } catch (error: any) {
       if (error?.response?.status === 403) {
-        toast.error("You need more execution credits to generate ads.");
+        setShowBuyCreditsModal(true);
       } else {
         toast.error("Failed to start generation.");
       }
@@ -418,6 +422,16 @@ export function TvRadioAdExampleCard({
           )}
         </div>
       </div>
+
+      <CreditModal
+        open={showBuyCreditsModal}
+        onClose={() => setShowBuyCreditsModal(false)}
+        currentBalance={creditsBalance?.current_balance ?? 0}
+        autoTopupEnabled={creditsBalance?.auto_topup_enabled ?? false}
+        autoTopupThreshold={creditsBalance?.auto_topup_threshold ?? 0}
+        onPurchaseCredits={purchaseCredits}
+        description="You need more execution credits to generate ads. Purchase credits to continue."
+      />
     </div>
   );
 }

@@ -18,7 +18,9 @@ import {
 } from "@/components/ui/dialog";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
+import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
+import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 
 const VIEW_ACTION_STATUSES = new Set([
@@ -52,10 +54,12 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const router = useRouter();
   const queryClient = useQueryClient();
   const { getContent, startFinal, startOutline } = useWebPageActions();
+  const { creditsBalance, purchaseCredits } = useExecutionCredits();
   const guardGenerateOutline = useFeatureActionGuard("web.generateOutline");
   const guardGeneratePage = useFeatureActionGuard("web.generatePage");
 
   const [open, setOpen] = React.useState(false);
+  const [showBuyCreditsModal, setShowBuyCreditsModal] = React.useState(false);
   const [workingAction, setWorkingAction] = React.useState<null | "outline" | "final" | "view">(null);
   const [contentLoading, setContentLoading] = React.useState(false);
   const [content, setContent] = React.useState<WebActionResponse | null>(null);
@@ -149,11 +153,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       navigateToView("final");
     } catch (error: any) {
       if (error?.response?.status === 403) {
-        toast.error(
-          type === "blog"
-            ? "You need more execution credits to generate blog content."
-            : "You need more execution credits to generate page content."
-        );
+        setShowBuyCreditsModal(true);
       } else {
         toast.error("Failed to start generation.");
       }
@@ -177,11 +177,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       navigateToView("outline");
     } catch (error: any) {
       if (error?.response?.status === 403) {
-        toast.error(
-          type === "blog"
-            ? "You need more execution credits to generate blog content."
-            : "You need more execution credits to generate page content."
-        );
+        setShowBuyCreditsModal(true);
       } else {
         toast.error("Failed to start generation.");
       }
@@ -296,6 +292,20 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
         </DialogContent>
       </Dialog>
       </div>
+
+      <CreditModal
+        open={showBuyCreditsModal}
+        onClose={() => setShowBuyCreditsModal(false)}
+        currentBalance={creditsBalance?.current_balance ?? 0}
+        autoTopupEnabled={creditsBalance?.auto_topup_enabled ?? false}
+        autoTopupThreshold={creditsBalance?.auto_topup_threshold ?? 0}
+        onPurchaseCredits={purchaseCredits}
+        description={
+          type === "blog"
+            ? "You need more execution credits to generate blog content. Purchase credits to continue."
+            : "You need more execution credits to generate page content. Purchase credits to continue."
+        }
+      />
     </>
   );
 }

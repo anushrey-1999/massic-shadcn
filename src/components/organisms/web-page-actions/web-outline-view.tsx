@@ -10,8 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { useWebActionContentQuery, useWebPageActions, type WebActionType } from "@/hooks/use-web-page-actions";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { resolvePageContent } from "@/utils/page-content-resolver";
+import { ContentConverter } from "@/utils/content-converter";
+import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 import { InlineTipTapEditor } from "@/components/ui/inline-tiptap-editor";
 
 function getTypeFromPageType(pageType: string | null, intent?: string | null): WebActionType {
@@ -30,6 +32,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const type = getTypeFromPageType(pageType, intent);
 
   const { startFinal, updateOutline } = useWebPageActions();
+  const guardGeneratePage = useFeatureActionGuard("web.generatePage");
 
   const [loading, setLoading] = React.useState(false);
   const [outline, setOutline] = React.useState<string>("");
@@ -112,15 +115,12 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   const typeLabel = type === "blog" ? "blog" : "page";
   const finalContent =
     type === "blog"
-      ? cleanEscapedContent(
-          (typeof data?.output_data?.page?.blog === "string"
-            ? data?.output_data?.page?.blog
-            : data?.output_data?.page?.blog?.blog_post) || ""
-        )
+      ? resolveBlogFinalContent(data)
       : resolvePageContent(data);
   const hasFinalContent = !!finalContent && finalContent.trim().length > 0;
   const hasOutline = !!outline && outline.trim().length > 0;
   const isGeneratingFinal = hasOutline && !hasFinalContent;
+  const renderedOutline = React.useMemo(() => ContentConverter.markdownToHtml(outline), [outline]);
 
   const handleCopy = async () => {
     if (outlineEditor) {
@@ -160,6 +160,7 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
   };
 
   const handleGenerateFinal = async () => {
+    if (!guardGeneratePage()) return;
     if (isProcessing) return;
     if (!outline) {
       toast.error("Please generate an outline first before creating the final output.");
@@ -192,7 +193,6 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
       await updateOutline(type, businessId, pageId, next);
       lastSavedOutlineRef.current = next;
       setOutline(next);
-      toast.success("Changes Saved");
     } catch {
       toast.error("Failed to save changes to server");
     }
@@ -231,10 +231,12 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleCopy}>
-              <Copy className="h-4 w-4" />
-              Copy
-            </Button>
+            {!isProcessing && (
+              <Button variant="outline" className="gap-2" onClick={handleCopy}>
+                <Copy className="h-4 w-4" />
+                Copy
+              </Button>
+            )}
             {hasFinalContent ? (
               <Button className="gap-2" variant="default" onClick={handleViewFinal}>
                 <Eye className="h-4 w-4" />
@@ -291,9 +293,10 @@ export function WebOutlineView({ businessId, pageId }: { businessId: string; pag
         {!isProcessing && status !== "error" ? (
           <Card className="p-4">
             <InlineTipTapEditor
-              content={outline}
+              content={renderedOutline}
               onEditorReady={setOutlineEditor}
               onSave={handleSaveOutline}
+              autoSaveDelayMs={1000}
               placeholder={type === "blog" ? "Write your blog outline here..." : "Write your page outline here..."}
             />
           </Card>

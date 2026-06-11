@@ -14,17 +14,22 @@ export function getWorkflowStatus(
   workflowKey: string
 ): WorkflowStatusValue {
   const workflowStatus = jobDetails?.workflow_status as
-    | { workflows?: Record<string, WorkflowStatusValue> }
+    | { workflows?: Record<string, WorkflowStatusValue>; status?: string }
     | undefined;
 
   if (!workflowStatus) return undefined;
 
   const workflows = workflowStatus.workflows;
-  if (workflows && typeof workflows === "object" && workflowKey in workflows) {
+  if (workflows && typeof workflows === "object") {
     return workflows[workflowKey];
   }
 
-  return (workflowStatus as Record<string, WorkflowStatusValue>)[workflowKey];
+  const directValue = (workflowStatus as Record<string, WorkflowStatusValue>)[workflowKey];
+  if (directValue !== undefined) return directValue;
+
+  if (workflowStatus.status === "success") return "success";
+
+  return undefined;
 }
 
 export function isWorkflowSuccess(

@@ -15,8 +15,11 @@ function getChannelIcon(channelName: string): string | null {
   const normalized = channelName.toLowerCase().trim();
   const iconMap: Record<string, string> = {
     facebook: "/icons/facebook.png",
+    "facebook group": "/icons/facebook.png",
+    "facebook groups": "/icons/facebook.png",
     instagram: "/icons/instagram.png",
     linkedin: "/icons/linkedin.png",
+    quora: "/icons/quora.svg",
     twitter: "/icons/twitter.png",
     x: "/icons/twitter.png",
     youtube: "/icons/youtube.png",
@@ -29,9 +32,11 @@ function getChannelIcon(channelName: string): string | null {
 
 interface GetSocialTableColumnsProps {
   offeringCounts?: Record<string, number>;
+  offeringOptions?: string[];
 }
 
-export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableColumnsProps = {}): ColumnDef<SocialRow>[] {
+export function getSocialTableColumns({ offeringCounts = {}, offeringOptions }: GetSocialTableColumnsProps = {}): ColumnDef<SocialRow>[] {
+  const resolvedOptions = offeringOptions ?? Object.keys(offeringCounts);
   return [
     {
       id: "channel_name",
@@ -112,7 +117,7 @@ export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableCol
       meta: {
         label: "Campaign Relevance",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -164,14 +169,12 @@ export function getSocialTableColumns({ offeringCounts = {} }: GetSocialTableCol
       },
       meta: {
         label: "Offerings",
-        variant: "multiSelect",
-        options: Object.keys(offeringCounts).map((offering) => ({
+        variant: "multiSelect" as const,
+        options: resolvedOptions.map((offering) => ({
           label: offering,
           value: offering,
         })),
-        operators: [
-          { label: "Has any of", value: "inArray" as const },
-        ],
+        operators: [{ label: "Has any of", value: "inArray" as const }],
         icon: Building2,
         closeOnSelect: true,
       },

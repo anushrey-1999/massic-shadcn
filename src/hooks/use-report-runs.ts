@@ -3,7 +3,13 @@
 import { useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApi, api, type ApiPlatform } from "./use-api";
-import type { ListReportRunsResponse, ReportRunListItem, ReportRunDetail } from "@/types/report-runs-types";
+import type {
+  ListReportRunsResponse,
+  ReportRunListItem,
+  ReportRunDetail,
+  PerformanceReportPayload,
+  PerformanceReportV2EditedFields,
+} from "@/types/report-runs-types";
 
 export interface ListReportRunsParams {
   business_id: string;
@@ -115,6 +121,7 @@ export function useReportRunDetail(params: {
 export interface GenerateReportParams {
   businessId: string;
   period: string;
+  custom_instructions?: string;
 }
 
 export interface GenerateReportResponse {
@@ -126,7 +133,7 @@ export function useGenerateReport() {
   const queryClient = useQueryClient();
 
   return useMutation<GenerateReportResponse, Error, GenerateReportParams>({
-    mutationFn: async ({ businessId, period }) => {
+    mutationFn: async ({ businessId, period, custom_instructions }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
@@ -134,7 +141,7 @@ export function useGenerateReport() {
       const response = await api.post<GenerateReportResponse>(
         `/analytics/generate-performance-report`,
         "node",
-        { businessId, period }
+        { businessId, period, custom_instructions }
       );
 
       return response;
@@ -148,9 +155,52 @@ export function useGenerateReport() {
   });
 }
 
+export interface GenerateReportV2Params {
+  businessId: string;
+  startDate: string;
+  endDate: string;
+  custom_instructions?: string;
+  report_options?: {
+    scope: "organic" | "all_channels";
+    perspective: "wins" | "full_picture";
+  };
+}
+
+export function useGenerateReportV2() {
+  const queryClient = useQueryClient();
+
+  return useMutation<GenerateReportResponse, Error, GenerateReportV2Params>({
+    mutationFn: async ({ businessId, startDate, endDate, custom_instructions, report_options }) => {
+      if (!businessId) {
+        throw new Error("Business ID is required");
+      }
+
+      if (!startDate || !endDate) {
+        throw new Error("Start and end dates are required");
+      }
+
+      const response = await api.post<GenerateReportResponse>(
+        `/analytics/generate-performance-report-v2`,
+        "node",
+        { businessId, startDate, endDate, custom_instructions, report_options }
+      );
+
+      return response;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["report-runs", variables.businessId],
+      });
+    },
+  });
+}
+
 export interface UpdatePerformanceReportParams {
   reportRunId: string;
-  performance_report: string;
+  performance_report?: string;
+  edited_field_updates?: PerformanceReportV2EditedFields;
+  email_summary?: string;
+  discard_all_edits?: boolean;
 }
 
 export interface UpdatePerformanceReportResponse {
@@ -158,8 +208,10 @@ export interface UpdatePerformanceReportResponse {
   message: string;
   data: {
     id: string;
+    email_summary?: string | null;
     narrative_text: {
-      performance_report: string;
+      performance_report?: PerformanceReportPayload;
+      email_summary?: string | null;
     };
   };
 }
@@ -168,24 +220,46 @@ export function useUpdatePerformanceReport() {
   const queryClient = useQueryClient();
 
   return useMutation<UpdatePerformanceReportResponse, Error, UpdatePerformanceReportParams>({
-    mutationFn: async ({ reportRunId, performance_report }) => {
+    mutationFn: async ({ reportRunId, performance_report, edited_field_updates, email_summary, discard_all_edits }) => {
       if (!reportRunId) {
         throw new Error("Report run ID is required");
+      }
+
+      if (
+        performance_report === undefined &&
+        edited_field_updates === undefined &&
+        email_summary === undefined &&
+        !discard_all_edits
+      ) {
+        throw new Error("A report update payload is required");
       }
 
       const response = await api.put<UpdatePerformanceReportResponse>(
         `/analytics/report-runs/${encodeURIComponent(reportRunId)}/performance-report`,
         "node",
-        { performance_report }
+        {
+          ...(performance_report !== undefined ? { performance_report } : {}),
+          ...(edited_field_updates !== undefined ? { edited_field_updates } : {}),
+          ...(email_summary !== undefined ? { email_summary } : {}),
+          ...(discard_all_edits ? { discard_all_edits } : {}),
+        }
       );
 
       return response;
     },
     onSuccess: (data, variables) => {
-      // Invalidate the current report detail to refresh the data
-      queryClient.invalidateQueries({
-        queryKey: ["report-run-detail", variables.reportRunId],
-      });
+      queryClient.setQueryData<ReportRunDetail | undefined>(
+        ["report-run-detail", variables.reportRunId],
+        (current) =>
+          current
+            ? {
+                ...current,
+                email_summary: data.data.email_summary ?? current.email_summary,
+                narrative_text: data.data.narrative_text,
+                updated_at: new Date().toISOString(),
+              }
+            : current
+      );
     },
   });
 }

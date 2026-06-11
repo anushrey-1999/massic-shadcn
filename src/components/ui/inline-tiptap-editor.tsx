@@ -25,6 +25,7 @@ interface InlineTipTapEditorProps {
   editorClassName?: string;
   onEditorReady?: (editor: Editor | null) => void;
   onSave?: (markdown: string) => void | Promise<void>;
+  autoSaveDelayMs?: number;
   onChange?: (markdown: string) => void;
   onFocus?: (editor: Editor) => void;
   onBlur?: () => void;
@@ -38,6 +39,7 @@ export function InlineTipTapEditor({
   editorClassName,
   onEditorReady,
   onSave,
+  autoSaveDelayMs,
   onChange,
   onFocus,
   onBlur,
@@ -47,6 +49,10 @@ export function InlineTipTapEditor({
   const lastContentPropRef = React.useRef<string>(content || "");
   const isFocusedRef = React.useRef(false);
   const isDirtyRef = React.useRef(false);
+  const isSavingRef = React.useRef(false);
+  const saveAfterCurrentRef = React.useRef(false);
+  const autoSaveTimeoutRef = React.useRef<number | null>(null);
+  const editorRef = React.useRef<Editor | null>(null);
 
   const canonicalize = React.useCallback((value: string) => {
     return (value || "")
@@ -65,6 +71,71 @@ export function InlineTipTapEditor({
     },
     [canonicalize]
   );
+
+  const clearPendingAutoSave = React.useCallback(() => {
+    if (autoSaveTimeoutRef.current !== null) {
+      window.clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
+    }
+  }, []);
+
+  const saveIfNeeded = React.useCallback(async () => {
+    if (!onSave) return;
+    if (!isInitializedRef.current) return;
+
+    if (isSavingRef.current) {
+      saveAfterCurrentRef.current = true;
+      return;
+    }
+
+    if (!isDirtyRef.current) return;
+
+    const activeEditor = editorRef.current;
+    if (!activeEditor) return;
+
+    const html = activeEditor.getHTML() || "";
+    const markdown = canonicalize(ContentConverter.htmlToMarkdown(html));
+    const previous = canonicalize(lastSavedMarkdownRef.current);
+
+    if (markdown === previous) {
+      isDirtyRef.current = false;
+      return;
+    }
+
+    isSavingRef.current = true;
+    saveAfterCurrentRef.current = false;
+
+    try {
+      await onSave(markdown);
+      lastSavedMarkdownRef.current = markdown;
+    } finally {
+      isSavingRef.current = false;
+
+      const latestEditor = editorRef.current;
+      const latestHtml = latestEditor?.getHTML() || "";
+      const latestMarkdown = canonicalize(ContentConverter.htmlToMarkdown(latestHtml));
+      isDirtyRef.current = latestMarkdown !== canonicalize(lastSavedMarkdownRef.current);
+
+      if ((saveAfterCurrentRef.current || isDirtyRef.current) && !!autoSaveDelayMs && autoSaveDelayMs > 0) {
+        clearPendingAutoSave();
+        autoSaveTimeoutRef.current = window.setTimeout(() => {
+          autoSaveTimeoutRef.current = null;
+          void saveIfNeeded();
+        }, autoSaveDelayMs);
+      }
+    }
+  }, [autoSaveDelayMs, canonicalize, clearPendingAutoSave, onSave]);
+
+  const scheduleAutoSave = React.useCallback(() => {
+    if (!onSave) return;
+    if (!autoSaveDelayMs || autoSaveDelayMs <= 0) return;
+
+    clearPendingAutoSave();
+    autoSaveTimeoutRef.current = window.setTimeout(() => {
+      autoSaveTimeoutRef.current = null;
+      void saveIfNeeded();
+    }, autoSaveDelayMs);
+  }, [autoSaveDelayMs, clearPendingAutoSave, onSave, saveIfNeeded]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -96,6 +167,9 @@ export function InlineTipTapEditor({
           const markdown = canonicalize(ContentConverter.htmlToMarkdown(html));
           onChange(markdown);
         }
+        if (isInitializedRef.current) {
+          scheduleAutoSave();
+        }
       }
     },
     onFocus: ({ editor }) => {
@@ -108,21 +182,9 @@ export function InlineTipTapEditor({
 
       if (!onSave) return;
       if (!isInitializedRef.current) return;
+      if (autoSaveDelayMs && autoSaveDelayMs > 0) return;
 
-      if (!isDirtyRef.current) return;
-
-      const html = editor?.getHTML() || "";
-      const markdown = canonicalize(ContentConverter.htmlToMarkdown(html));
-      const previous = canonicalize(lastSavedMarkdownRef.current);
-
-      if (markdown === previous) {
-        isDirtyRef.current = false;
-        return;
-      }
-
-      lastSavedMarkdownRef.current = markdown;
-      isDirtyRef.current = false;
-      await onSave(markdown);
+      await saveIfNeeded();
     },
     editorProps: {
       attributes: {
@@ -137,8 +199,12 @@ export function InlineTipTapEditor({
   });
 
   React.useEffect(() => {
+    editorRef.current = editor;
     onEditorReady?.(editor);
-    return () => onEditorReady?.(null);
+    return () => {
+      editorRef.current = null;
+      onEditorReady?.(null);
+    };
   }, [editor, onEditorReady]);
 
   React.useEffect(() => {
@@ -163,10 +229,27 @@ export function InlineTipTapEditor({
     if (isFocusedRef.current) return;
     if (next === lastContentPropRef.current) return;
 
+    clearPendingAutoSave();
     lastContentPropRef.current = next;
     editor.commands.setContent(ContentConverter.normalizeForDisplay(next), { emitUpdate: false });
     syncLastSavedFromEditor(editor);
-  }, [editor, content]);
+  }, [clearPendingAutoSave, editor, content, syncLastSavedFromEditor]);
+
+  React.useEffect(() => {
+    return () => {
+      clearPendingAutoSave();
+    };
+  }, [clearPendingAutoSave]);
+
+  React.useEffect(() => {
+    return () => {
+      if (!autoSaveDelayMs || autoSaveDelayMs <= 0) return;
+      if (!isDirtyRef.current) return;
+
+      clearPendingAutoSave();
+      void saveIfNeeded();
+    };
+  }, [autoSaveDelayMs, clearPendingAutoSave, saveIfNeeded]);
 
   return (
     <div className={cn("w-full", className)}>

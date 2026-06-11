@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import { PageHeader } from "@/components/molecules/PageHeader";
+import { Button } from "@/components/ui/button";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { ReportsTableClient } from "@/components/organisms/ReportsTable/reports-table-client";
-import { AnalyticsPageTabs } from "@/components/molecules/analytics";
 
 interface PageProps {
   params: Promise<{
@@ -15,6 +17,7 @@ interface PageProps {
 
 export default function BusinessReportsPage({ params }: PageProps) {
   const [businessId, setBusinessId] = React.useState<string>("");
+  const router = useRouter();
 
   React.useEffect(() => {
     params.then(({ id }) => setBusinessId(id));
@@ -59,8 +62,15 @@ export default function BusinessReportsPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
-      <div className="w-full max-w-[1224px] px-7 flex items-center gap-4 py-4">
-        <AnalyticsPageTabs businessId={businessId} />
+      <div className="w-full max-w-[1224px] px-7 flex items-center py-4">
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => router.push(`/business/${businessId}/analytics`)}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Analytics
+        </Button>
       </div>
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
         <div className="flex-1 min-h-0 overflow-hidden">

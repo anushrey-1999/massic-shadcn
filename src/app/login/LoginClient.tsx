@@ -20,15 +20,14 @@ export function LoginClient() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const login = useLogin()
   const googleLogin = useGoogleLogin()
+  const searchParams = useSearchParams()
+  const redirect = useMemo(() => searchParams.get('redirect'), [searchParams])
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.push('/')
+      router.push(redirect || '/')
     }
-  }, [isAuthenticated, router])
-
-  const searchParams = useSearchParams()
-  const redirect = useMemo(() => searchParams.get('redirect'), [searchParams])
+  }, [isAuthenticated, redirect, router])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

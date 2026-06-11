@@ -16,6 +16,7 @@ import { PostsActionsDropdown } from "./posts-actions-dropdown"
 import type { RefinePlanSource } from "./refine-plan-overlay-provider"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
 import { usePagePlanner } from "@/hooks/use-page-planner"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import type { PagePlannerPlanItem } from "@/types/page-planner-types"
 
 type ChatMessage = {
@@ -29,6 +30,12 @@ type Props = {
   onOpenChange: (open: boolean) => void
   businessId: string
   source: RefinePlanSource
+}
+
+function normalizeKeyword(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const s = value.trim()
+  return s ? s : null
 }
 
 function isSuccessStatus(value: unknown): boolean {
@@ -89,6 +96,8 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
   const overlayCtx = useRefinePlanOverlayOptional()
   const pagePlanner = usePagePlanner()
   const queryClient = useQueryClient()
+  const guardRefinePlan = useFeatureActionGuard("actions.refinePlan")
+  const guardAcceptPlan = useFeatureActionGuard("actions.acceptPlan")
   const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null)
   const prevOverflowRef = React.useRef<string | null>(null)
   const prevOverscrollRef = React.useRef<string | null>(null)
@@ -103,7 +112,10 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     selectedKeywords: string[]
   } | null>(null)
   const [overridePlanItems, setOverridePlanItems] = React.useState<PagePlannerPlanItem[] | null>(null)
-  const [highlightKeywords, setHighlightKeywords] = React.useState<string[] | null>(null)
+  const [diffKeywords, setDiffKeywords] = React.useState<{
+    added: string[]
+    changed: string[]
+  } | null>(null)
   const [acceptCandidate, setAcceptCandidate] = React.useState<{
     planItems: PagePlannerPlanItem[]
     planId?: number | null
@@ -125,7 +137,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     setIsPreviewGenerating(false)
     setPagesTableCtx(null)
     setOverridePlanItems(null)
-    setHighlightKeywords(null)
+    setDiffKeywords(null)
     setAcceptCandidate(null)
   }, [open, source])
 
@@ -135,7 +147,6 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     const items = overlayCtx?.pagesOverridePlanItems
     if (!items || items.length === 0) return
     setOverridePlanItems(items)
-    setHighlightKeywords(null)
     setAcceptCandidate({
       planItems: items,
       planId: overlayCtx?.pagesOverridePlanId ?? null,
@@ -174,6 +185,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
   }, [onOpenChange])
 
   const handleSend = React.useCallback(async () => {
+    if (!guardRefinePlan()) return
     const text = input.trim()
     if (!text || isSending) return
 
@@ -260,7 +272,59 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
       if (itemsMaybe) {
         const planItems = itemsMaybe as PagePlannerPlanItem[]
         setOverridePlanItems(planItems)
-        setHighlightKeywords(selected_pages)
+        setDiffKeywords(() => {
+          const prevItems = effectivePlanItems ?? []
+          const prevByKeyword = new Map<string, string>()
+          for (const item of prevItems) {
+            const kw = normalizeKeyword((item as any)?.keyword)
+            if (!kw) continue
+            if (prevByKeyword.has(kw)) continue
+            const raw: any = item as any
+            const fingerprint = JSON.stringify({
+              keyword: kw,
+              page_id: raw?.page_id ?? raw?.pageId ?? null,
+              page_type: raw?.page_type ?? raw?.pageType ?? raw?.type ?? null,
+              intent: raw?.search_intent ?? raw?.intent ?? null,
+              rationale: raw?.rationale ?? raw?.reason ?? raw?.description ?? raw?.explanation ?? null,
+              search_volume: raw?.search_volume ?? raw?.searchVolume ?? raw?.volume ?? null,
+              relevance_score:
+                raw?.business_relevance_score ?? raw?.businessRelevanceScore ?? raw?.relevance_score ?? raw?.relevanceScore ?? null,
+              opportunity_score:
+                raw?.page_opportunity_score ?? raw?.pageOpportunityScore ?? raw?.opportunity_score ?? raw?.opportunityScore ?? null,
+              status: raw?.status ?? raw?.page_status ?? raw?.pageStatus ?? null,
+            })
+            prevByKeyword.set(kw, fingerprint)
+          }
+
+          const nextByKeyword = new Map<string, string>()
+          const added: string[] = []
+          const changed: string[] = []
+          for (const item of planItems) {
+            const kw = normalizeKeyword((item as any)?.keyword)
+            if (!kw) continue
+            if (nextByKeyword.has(kw)) continue
+            const raw: any = item as any
+            const fingerprint = JSON.stringify({
+              keyword: kw,
+              page_id: raw?.page_id ?? raw?.pageId ?? null,
+              page_type: raw?.page_type ?? raw?.pageType ?? raw?.type ?? null,
+              intent: raw?.search_intent ?? raw?.intent ?? null,
+              rationale: raw?.rationale ?? raw?.reason ?? raw?.description ?? raw?.explanation ?? null,
+              search_volume: raw?.search_volume ?? raw?.searchVolume ?? raw?.volume ?? null,
+              relevance_score:
+                raw?.business_relevance_score ?? raw?.businessRelevanceScore ?? raw?.relevance_score ?? raw?.relevanceScore ?? null,
+              opportunity_score:
+                raw?.page_opportunity_score ?? raw?.pageOpportunityScore ?? raw?.opportunity_score ?? raw?.opportunityScore ?? null,
+              status: raw?.status ?? raw?.page_status ?? raw?.pageStatus ?? null,
+            })
+            nextByKeyword.set(kw, fingerprint)
+            const prev = prevByKeyword.get(kw)
+            if (!prev) added.push(kw)
+            else if (prev !== fingerprint) changed.push(kw)
+          }
+
+          return { added, changed }
+        })
         const extractedPlanId =
           (typeof payload?.plan_id === "number" && payload.plan_id) ||
           (typeof payload?.planId === "number" && payload.planId) ||
@@ -282,7 +346,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     } finally {
       setIsSending(false)
     }
-  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx, queryClient, acceptCandidate, overridePlanItems, overlayCtx?.pagesOverridePlanId])
+  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx, queryClient, acceptCandidate, overridePlanItems, overlayCtx?.pagesOverridePlanId, guardRefinePlan])
 
   if (!open) return null
 
@@ -327,7 +391,8 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
                       businessId={businessId}
                       mode="table"
                       planItemsOverride={overridePlanItems}
-                      highlightKeywords={highlightKeywords}
+                      addedKeywords={diffKeywords?.added ?? null}
+                      changedKeywords={diffKeywords?.changed ?? null}
                       externalBusy={isPreviewGenerating}
                       externalBusyLabel="Generating plan…"
                       onTableContextChange={setPagesTableCtx}
@@ -343,6 +408,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
                         className="h-10 w-full rounded-lg bg-general-primary px-4 text-primary-foreground"
                         disabled={Boolean(overlayCtx?.pagesBusy) || isSending || isPreviewGenerating}
                         onClick={() => {
+                          if (!guardAcceptPlan()) return
                           onOpenChange(false)
                           overlayCtx?.acceptPagesPlan({
                             planItems: acceptCandidate.planItems,

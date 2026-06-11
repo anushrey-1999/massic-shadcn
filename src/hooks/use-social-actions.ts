@@ -2,6 +2,7 @@
 
 import { useApi } from "@/hooks/use-api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { SocialStrategyType } from "@/types/social-types";
 
 type GenerationStatus = "success" | "error" | "pending" | "processing" | string;
 
@@ -22,13 +23,21 @@ export interface SocialActionResponse {
   message?: string;
   output_data?: {
     social_content?: SocialContent;
-    errors?: string[];
+    social_engage_content?: {
+      comment?: string;
+      [key: string]: any;
+    };
+    errors?: string[] | Record<string, any>;
     [key: string]: any;
   };
   [key: string]: any;
 }
 
 const SOCIAL_ACTION_CONTENT_QUERY_KEY = "social-action-content";
+
+function getSocialActionEndpoint(strategyType: SocialStrategyType) {
+  return strategyType === "engage" ? "/content/social-engage" : "/content/social";
+}
 
 function getStatusLowercase(data: SocialActionResponse | undefined): string {
   return (data?.status || "").toString().toLowerCase();
@@ -37,6 +46,7 @@ function getStatusLowercase(data: SocialActionResponse | undefined): string {
 export function useSocialActionContentQuery(params: {
   businessId: string;
   campaignClusterId: string;
+  strategyType?: SocialStrategyType;
   enabled?: boolean;
   pollingDisabled?: boolean;
   pollingIntervalMs?: number;
@@ -46,16 +56,18 @@ export function useSocialActionContentQuery(params: {
   const {
     businessId,
     campaignClusterId,
+    strategyType = "publish",
     enabled = true,
     pollingDisabled = false,
     pollingIntervalMs = 3000,
   } = params;
+  const endpointPath = getSocialActionEndpoint(strategyType);
 
   return useQuery({
-    queryKey: [SOCIAL_ACTION_CONTENT_QUERY_KEY, businessId, campaignClusterId],
+    queryKey: [SOCIAL_ACTION_CONTENT_QUERY_KEY, strategyType, businessId, campaignClusterId],
     enabled: enabled && !!businessId && !!campaignClusterId,
     queryFn: async () => {
-      const endpoint = `/client/create-social-content-generator?business_id=${encodeURIComponent(
+      const endpoint = `${endpointPath}?business_id=${encodeURIComponent(
         businessId
       )}&campaign_cluster_id=${encodeURIComponent(campaignClusterId)}`;
 
@@ -74,12 +86,13 @@ export function useSocialActionContentQuery(params: {
   });
 }
 
-export function useSocialActions() {
+export function useSocialActions(strategyType: SocialStrategyType = "publish") {
   const api = useApi({ platform: "python" });
   const queryClient = useQueryClient();
+  const endpointPath = getSocialActionEndpoint(strategyType);
 
   const getContent = async (businessId: string, campaignClusterId: string) => {
-    const endpoint = `/client/create-social-content-generator?business_id=${encodeURIComponent(
+    const endpoint = `${endpointPath}?business_id=${encodeURIComponent(
       businessId
     )}&campaign_cluster_id=${encodeURIComponent(campaignClusterId)}`;
 
@@ -87,7 +100,7 @@ export function useSocialActions() {
   };
 
   const startGeneration = async (businessId: string, campaignClusterId: string) => {
-    const endpoint = `/client/create-social-content-generator?business_id=${encodeURIComponent(
+    const endpoint = `${endpointPath}?business_id=${encodeURIComponent(
       businessId
     )}&campaign_cluster_id=${encodeURIComponent(campaignClusterId)}`;
 
@@ -106,7 +119,7 @@ export function useSocialActions() {
     getContent,
     startGeneration,
     invalidateContent: (businessId: string, campaignClusterId: string) =>
-      queryClient.invalidateQueries({ queryKey: [SOCIAL_ACTION_CONTENT_QUERY_KEY, businessId, campaignClusterId] }),
+      queryClient.invalidateQueries({ queryKey: [SOCIAL_ACTION_CONTENT_QUERY_KEY, strategyType, businessId, campaignClusterId] }),
     loading: api.loading,
     error: api.error,
     reset: api.reset,

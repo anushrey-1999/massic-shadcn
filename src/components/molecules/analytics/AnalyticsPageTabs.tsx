@@ -15,7 +15,8 @@ export function AnalyticsPageTabs({ businessId }: AnalyticsPageTabsProps) {
   const pathname = usePathname();
 
   const activeTab = useMemo<AnalyticsTabValue>(() => {
-    if (pathname.includes("/organic-deepdive")) return "organic-deep-dive";
+    // Keep deepdive route grouped under dashboard tab while the tab is hidden.
+    if (pathname.includes("/organic-deepdive")) return "overview";
     if (pathname.includes("/reports")) return "reports";
     return "overview";
   }, [pathname]);
@@ -28,11 +29,6 @@ export function AnalyticsPageTabs({ businessId }: AnalyticsPageTabsProps) {
       return;
     }
 
-    if (value === "organic-deep-dive") {
-      router.push(`/business/${businessId}/organic-deepdive`);
-      return;
-    }
-
     if (value === "reports") {
       router.push(`/business/${businessId}/reports`);
     }
@@ -41,8 +37,8 @@ export function AnalyticsPageTabs({ businessId }: AnalyticsPageTabsProps) {
   return (
     <Tabs value={activeTab} onValueChange={handleChange}>
       <TabsList>
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="organic-deep-dive">Organic Deep Dive</TabsTrigger>
+        <TabsTrigger value="overview">Dashboard</TabsTrigger>
+        {/* <TabsTrigger value="organic-deep-dive">Organic Deep Dive</TabsTrigger> */}
         <TabsTrigger value="reports">Reports</TabsTrigger>
       </TabsList>
     </Tabs>

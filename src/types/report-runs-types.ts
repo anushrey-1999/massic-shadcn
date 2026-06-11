@@ -9,6 +9,14 @@ export type ReportRunDeliveryStatus = "ready_for_approval" | "sent" | null
 
 export type ReportRunError = unknown
 
+export type PerformanceReportV2EditedFields = Record<string, string>
+
+export type PerformanceReportPayload =
+  | string
+  | (Record<string, unknown> & {
+      edited_fields?: PerformanceReportV2EditedFields
+    })
+
 export interface ReportRunListItem {
   id: string
   status: ReportRunStatus
@@ -39,14 +47,18 @@ export interface ReportRunDetail {
   period: string | null
   status: ReportRunStatus
   processed_data: any | null
+  email_summary?: string | null
   narrative_text: {
     errors?: Record<string, any>
+    llm_outputs?: Record<string, any>
+    infer_metadata?: Record<string, any>
     metadata?: Record<string, any>
     output_data?: {
       output_path?: string
       download_url?: string
     }
-    performance_report?: string
+    performance_report?: PerformanceReportPayload
+    email_summary?: string | null
   } | null
   html_url: string | null
   pdf_url: string | null

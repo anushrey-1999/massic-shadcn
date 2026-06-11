@@ -1,57 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
-import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
-
-// Constants
-const SENDER_EMAIL_ID = "no-reply@seedseo.services"; // Based on old UI implicit knowledge or constant
-const ENV_URL = "https://seedseo.services"; // Placeholder, should ideally come from env
 
 export interface TeamMember {
   id: number;
+  userId?: number;
   userName: string;
   email: string;
   logo: string;
   unqiueId: string;
   roleName: string;
-  roleId: number;
+  role?: "OWNER" | "ADMIN" | "ANALYST";
+  roleId?: number;
+  status?: "active" | "pending";
+  invitedAt?: string;
 }
 
-interface EncryptPayload {
-  encryptedText: string;
-}
-
-interface EncryptResponse {
-  err: boolean;
-  data: string; // The token
-  message?: string;
-}
-
-interface SendInvitePayload {
+export interface InviteResult {
   email: string;
-  roleId: number;
-  url: string;
-  inviteToken: string;
-}
-
-interface SendInviteResponse {
-  success: boolean;
-  message?: string;
-  data?: any;
-}
-
-interface EmailPayload {
-  from: string;
-  to: string;
-  subject: string;
-  cc: string;
-  textbody: string;
-  htmlbody: string;
-}
-
-interface EmailResponse {
-  err: boolean;
-  message?: string;
+  status: "success" | "failed" | "error";
+  message: string;
 }
 
 interface RemoveMemberResponse {
@@ -59,9 +27,13 @@ interface RemoveMemberResponse {
   message: string;
 }
 
+function getApiErrorMessage(error: any, fallback: string) {
+  const responseData = error?.response?.data;
+  return responseData?.message || error?.message || fallback;
+}
+
 export function useTeamSettings() {
   const queryClient = useQueryClient();
-  const { user } = useAuthStore();
 
   // --- Fetch Team Members ---
   const {
@@ -71,10 +43,10 @@ export function useTeamSettings() {
   } = useQuery({
     queryKey: ["teamMembers"],
     queryFn: async () => {
-      const response = await api.get<{ success: boolean; data: TeamMember[]; message?: string }>(
-        "/get-team-members",
-        "node"
-      );
+	      const response = await api.get<{ success: boolean; data: TeamMember[]; message?: string }>(
+	        "/users/team/members",
+	        "node"
+	      );
 
       if (response && response.success === true) {
         return response.data;
@@ -84,52 +56,48 @@ export function useTeamSettings() {
   });
 
   // --- Invite Member Flow ---
+  // Always resolves with InviteResult[] — never throws for business-logic failures.
+  // Only throws for unexpected network/server errors.
   const inviteMemberMutation = useMutation({
-    mutationFn: async ({ emails }: { emails: string[] }) => {
-      // Single Bulk API Call to Node Backend which handles everything (token, db, email)
-      const inviteRes = await api.post<SendInviteResponse>(
-        "/send-team-invitations",
-        "node",
-        { emails }
-      );
-
-      // The backend returns { success: true, data: [...results] } or fails
-      // We need to check response structure. 
-      // userctrl.js returns helper.returnAPIResponse('Invitations processed.', results)
-      // which usually follows { success: true, message: ..., data: ... } structure
-
-      if (!inviteRes.success) {
-        throw new Error(inviteRes.message || "Failed to send invitations");
-      }
-
-      // Check for partial failures if any
-      const results = inviteRes.data;
-      if (Array.isArray(results)) {
-        const failed = results.filter((r: any) => r.status !== 'success');
-        if (failed.length > 0) {
-          const errorMsg = failed.map((f: any) => `${f.email} (${f.message})`).join(', ');
-          throw new Error(`Some invites failed: ${errorMsg}`);
+    mutationFn: async ({ emails, role }: { emails: string[]; role: "ADMIN" | "ANALYST" }): Promise<InviteResult[]> => {
+      try {
+        const inviteRes = await api.post<{ success: boolean; message?: string; data?: InviteResult[] }>(
+          "/users/team/invitations",
+          "node",
+          { emails, role }
+        );
+        // Both success and partial/full business-logic failures come here (HTTP 200)
+        return Array.isArray(inviteRes.data) ? inviteRes.data : [];
+      } catch (error: any) {
+        // HTTP 400: all failed — backend includes per-email results in error.response.data.data
+        const results: InviteResult[] | undefined = error?.response?.data?.data;
+        if (Array.isArray(results) && results.length > 0) {
+          return results;
         }
+        // Unexpected error (network, 500, etc.)
+        throw new Error(getApiErrorMessage(error, "Failed to send invitations"));
       }
-
-      return inviteRes;
     },
-    onSuccess: () => {
-      toast.success(`Invitations sent successfully`);
-      queryClient.invalidateQueries({ queryKey: ["teamMembers"] });
+    onSuccess: (results) => {
+      const sentCount = results.filter((r) => r.status === "success").length;
+      if (sentCount > 0) {
+        toast.success(sentCount === 1 ? "Invitation sent" : `${sentCount} invitations sent`);
+        queryClient.invalidateQueries({ queryKey: ["teamMembers"] });
+      }
     },
     onError: (error: any) => {
-      console.error(error);
-      const errorMessage = error?.response?.data?.message || (error instanceof Error ? error.message : "Failed to invite members");
-      toast.error(errorMessage);
+      toast.error(getApiErrorMessage(error, "Failed to send invitations"));
     },
   });
 
   // --- Remove Member ---
-  const removeMemberMutation = useMutation({
-    mutationFn: async ({ teamId, email }: { teamId: number; email: string }) => {
-      const response = await api.get<RemoveMemberResponse>(
-        `/remove-team-member?teamId=${teamId}&email=${email}`,
+	  const removeMemberMutation = useMutation({
+    mutationFn: async ({ teamId, email, status }: { teamId: number; email: string; status?: "active" | "pending" }) => {
+      const endpoint = status === "pending"
+        ? `/users/team/invite/${teamId}`
+        : `/users/team/member?membershipId=${teamId}&email=${encodeURIComponent(email)}`;
+      const response = await api.delete<RemoveMemberResponse>(
+        endpoint,
         "node"
       );
 
@@ -142,8 +110,30 @@ export function useTeamSettings() {
       toast.success("Team member removed successfully");
       queryClient.invalidateQueries({ queryKey: ["teamMembers"] });
     },
-    onError: (error: Error) => {
-      toast.error(error.message || "Failed to remove member");
+    onError: (error: any) => {
+      toast.error(getApiErrorMessage(error, "Failed to remove member"));
+    },
+  });
+
+  // --- Update Member Role ---
+  const updateMemberRoleMutation = useMutation({
+    mutationFn: async ({ membershipId, role }: { membershipId: number; role: "ADMIN" | "ANALYST" }) => {
+      const response = await api.put<{ success: boolean; message: string; data?: any }>(
+        "/users/team/member/role",
+        "node",
+        { membershipId, role }
+      );
+      if (response.success !== true) {
+        throw new Error(response.message || "Failed to update role");
+      }
+      return response;
+    },
+    onSuccess: () => {
+      toast.success("Role updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["teamMembers"] });
+    },
+    onError: (error: any) => {
+      toast.error(getApiErrorMessage(error, "Failed to update role"));
     },
   });
 
@@ -154,6 +144,8 @@ export function useTeamSettings() {
     isInviting: inviteMemberMutation.isPending,
     removeMember: removeMemberMutation.mutateAsync,
     isRemoving: removeMemberMutation.isPending,
+    updateMemberRole: updateMemberRoleMutation.mutateAsync,
+    isUpdatingRole: updateMemberRoleMutation.isPending,
     refetchTeamMembers: refetch,
   };
 }

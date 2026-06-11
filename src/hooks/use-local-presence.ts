@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
 import { useMemo } from "react"
+import type { TimePeriodValue } from "@/utils/analytics-period"
 
-export type TimePeriodValue = "7 days" | "14 days" | "28 days" | "3 months" | "6 months" | "12 months"
+export type { TimePeriodValue }
 
 interface TrendValue {
   Total: string
@@ -31,6 +32,12 @@ interface LocalPresenceApiResponse {
   interactions?: string
   queries?: string
   reviews?: string
+}
+
+interface NodeApiResponse {
+  data: LocalPresenceApiResponse | null
+  err: boolean
+  message: string
 }
 
 export interface InteractionChartDataPoint {
@@ -105,12 +112,16 @@ export function useLocalPresence(
         throw new Error("Missing business ID")
       }
 
-      const response = await api.get<LocalPresenceApiResponse>(
-        `/Review/FetchLocalPresence?uniqueId=${businessUniqueId}&period=${period}&location=${encodeURIComponent(location)}`,
-        "dotnet"
+      const response = await api.get<NodeApiResponse>(
+        `/local-presence/data?uniqueId=${businessUniqueId}&period=${encodeURIComponent(period)}&location=${encodeURIComponent(location)}`,
+        "node"
       )
 
-      return response
+      if (response.err || !response.data) {
+        return { interactions: undefined, queries: undefined, reviews: undefined }
+      }
+
+      return response.data
     },
     enabled: !!businessUniqueId,
     staleTime: 5 * 60 * 1000,

@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { PageHeader } from "@/components/molecules/PageHeader";
+import { Button } from "@/components/ui/button";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { ReportDetailClient } from "@/components/organisms/ReportDetail/report-detail-client";
 
@@ -15,6 +18,7 @@ interface PageProps {
 
 export default function ReportRunDetailPage({ params }: PageProps) {
   const [state, setState] = React.useState<{ id: string; reportRunId: string } | null>(null);
+  const router = useRouter();
 
   React.useEffect(() => {
     params.then(({ id, reportRunId }) => setState({ id, reportRunId }));
@@ -48,6 +52,16 @@ export default function ReportRunDetailPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-screen">
       <PageHeader breadcrumbs={breadcrumbs} />
+      <div className="w-full max-w-[1224px] px-7 flex items-center py-4">
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => router.push(`/business/${businessId}/analytics`)}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Analytics
+        </Button>
+      </div>
       <div className="w-full max-w-[1224px] flex-1 min-h-0 flex flex-col">
         <ReportDetailClient businessId={businessId} reportRunId={reportRunId} />
       </div>

@@ -73,6 +73,10 @@ export const pageMeta = {
     title: "Web Page View",
     description: "View details and actions for a specific web page.",
   },
+  businessTechnicalAudit: {
+    title: "Technical Audit",
+    description: "Review technical SEO health, categories, and issues for your business.",
+  },
   businessSocial: {
     title: "Social",
     description: "Analyze social channels, campaigns, and relevance for your business.",

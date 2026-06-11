@@ -7,8 +7,8 @@ import { RelevancePill } from "@/components/ui/relevance-pill";
 import { Typography } from "@/components/ui/typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { TacticRow } from "@/types/social-types";
-import { Tag, FileText, TrendingUp, Hash, CheckCircle2, Sparkles, Eye } from "lucide-react";
+import type { SocialStrategyType, TacticRow } from "@/types/social-types";
+import { Tag, FileText, TrendingUp, Hash, CheckCircle2, Sparkles, Share2, Megaphone } from "lucide-react";
 import { SocialActionCell } from "./social-action-cell";
 
 interface GetTacticsTableColumnsProps {
@@ -17,6 +17,8 @@ interface GetTacticsTableColumnsProps {
   expandedRowId?: string | null;
   onExpandedRowChange?: (rowId: string | null) => void;
   hideActions?: boolean;
+  strategyType?: SocialStrategyType;
+  includeCampaignContext?: boolean;
 }
 
 function extractRedditThreadPath(url: string): string {
@@ -37,8 +39,121 @@ function extractRedditThreadPath(url: string): string {
   }
 }
 
-export function getTacticsTableColumns({ channelName, businessId, expandedRowId, onExpandedRowChange, hideActions = false }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
+function getUrlDisplayPath(url: string): string {
+  if (!url) return "";
+  try {
+    const parsedUrl = new URL(url);
+    return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}` || "/";
+  } catch {
+    return url.startsWith("/") ? url : `/${url}`;
+  }
+}
+
+export function getTacticsTableColumns({ channelName, businessId, expandedRowId, onExpandedRowChange, hideActions = false, strategyType = "publish", includeCampaignContext = false }: GetTacticsTableColumnsProps = {}): ColumnDef<TacticRow>[] {
   const isReddit = channelName?.toLowerCase() === "reddit";
+  const actionColumn: ColumnDef<TacticRow> = {
+    id: "actions",
+    header: () => <div className="text-sm font-semibold">Actions</div>,
+    cell: ({ row }) => {
+      if (!businessId) {
+        return (
+          <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled>
+            <Sparkles className="h-4 w-4" />
+          </Button>
+        );
+      }
+
+      return <SocialActionCell businessId={businessId} row={row.original} channelName={row.original.channel_name || channelName} strategyType={strategyType} />;
+    },
+    enableColumnFilter: false,
+    enableSorting: false,
+    size: 100,
+    minSize: 100,
+    maxSize: 100,
+  };
+
+  const contextColumns: ColumnDef<TacticRow>[] = includeCampaignContext
+    ? [
+        {
+          id: "channel_name",
+          accessorKey: "channel_name",
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} label="Channel" />
+          ),
+          cell: ({ row }) => (
+            <Typography variant="p" className="truncate">
+              {row.original.channel_name || "N/A"}
+            </Typography>
+          ),
+          meta: {
+            label: "Channel",
+            placeholder: "Search channels...",
+            variant: "text",
+            icon: Share2,
+          },
+          enableColumnFilter: true,
+          enableSorting: true,
+          size: 120,
+          minSize: 100,
+          maxSize: 160,
+        },
+        {
+          id: "campaign_name",
+          accessorKey: "campaign_name",
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} label="Campaign" />
+          ),
+          cell: ({ row }) => (
+            <Typography variant="p" className="truncate">
+              {row.original.campaign_name || "N/A"}
+            </Typography>
+          ),
+          meta: {
+            label: "Campaign",
+            placeholder: "Search campaigns...",
+            variant: "text",
+            icon: Megaphone,
+          },
+          enableColumnFilter: true,
+          enableSorting: true,
+          size: 160,
+          minSize: 130,
+          maxSize: 220,
+        },
+        {
+          id: "campaign_type",
+          accessorFn: (row) =>
+            row.campaign_type ||
+            row.campaign_type_name ||
+            row.post_type ||
+            row.format ||
+            "",
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} label="Type" />
+          ),
+          cell: ({ row }) => (
+            <Typography variant="p" className="truncate">
+              {row.original.campaign_type ||
+                row.original.campaign_type_name ||
+                row.original.post_type ||
+                row.original.format ||
+                "N/A"}
+            </Typography>
+          ),
+          meta: {
+            label: "Type",
+            placeholder: "Search types...",
+            variant: "text",
+            icon: Tag,
+          },
+          enableColumnFilter: true,
+          enableSorting: true,
+          size: 120,
+          minSize: 100,
+          maxSize: 160,
+        },
+      ]
+    : [];
 
   let columns: ColumnDef<TacticRow>[] = [];
 
@@ -104,7 +219,7 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
         meta: {
           label: "Relevance",
           variant: "range",
-          range: [0, 1],
+          range: [0, 100],
           icon: TrendingUp,
         },
         enableColumnFilter: true,
@@ -174,9 +289,52 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
         minSize: 150,
         maxSize: 250,
       },
+      actionColumn,
     ];
   } else {
     columns = [
+      {
+        id: "url",
+        accessorKey: "url",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="URL" />
+        ),
+        cell: ({ row }) => {
+          const url = row.original.url || "";
+          const displayPath = getUrlDisplayPath(url);
+
+          if (!url) {
+            return (
+              <Typography variant="p" className="truncate text-muted-foreground">
+                N/A
+              </Typography>
+            );
+          }
+
+          return (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block truncate text-primary hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {displayPath}
+            </a>
+          );
+        },
+        meta: {
+          label: "URL",
+          placeholder: "Search URLs...",
+          variant: "text",
+          icon: FileText,
+        },
+        enableColumnFilter: true,
+        enableSorting: false,
+        size: 180,
+        minSize: 140,
+        maxSize: 240,
+      },
       {
         id: "tactic",
         accessorKey: "cluster_name",
@@ -263,7 +421,7 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
         meta: {
           label: "Relevance",
           variant: "range",
-          range: [0, 1],
+          range: [0, 100],
           icon: TrendingUp,
         },
         enableColumnFilter: true,
@@ -333,27 +491,16 @@ export function getTacticsTableColumns({ channelName, businessId, expandedRowId,
         minSize: 90,
         maxSize: 120,
       },
-      {
-        id: "actions",
-        header: () => <div className="text-sm font-semibold">Actions</div>,
-        cell: ({ row }) => {
-          if (!businessId) {
-            return (
-              <Button size="sm" variant="outline" className="h-8 w-8 p-0" disabled>
-                <Sparkles className="h-4 w-4" />
-              </Button>
-            );
-          }
-
-          return <SocialActionCell businessId={businessId} row={row.original} channelName={channelName} />;
-        },
-        enableColumnFilter: false,
-        enableSorting: false,
-        size: 100,
-        minSize: 100,
-        maxSize: 100,
-      },
+      actionColumn,
     ];
+  }
+
+  if (strategyType === "publish") {
+    columns = columns.filter((col) => col.id !== "url");
+  }
+
+  if (contextColumns.length > 0) {
+    columns = [...contextColumns, ...columns];
   }
 
   if (hideActions) {

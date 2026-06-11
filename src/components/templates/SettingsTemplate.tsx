@@ -5,17 +5,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileSettings } from "@/components/organisms/settings/ProfileSettings";
 import { BillingSettings } from "@/components/organisms/settings/BillingSettings";
 import { TeamSettings } from "@/components/organisms/settings/TeamSettings";
+import { AccessRequestSettings } from "@/components/organisms/settings/AccessRequestSettings";
 import { PageHeader } from "@/components/molecules/PageHeader";
-import { ReceiptText, Settings, Users } from "lucide-react";
+import { ReceiptText, Settings, Users, Share2 } from "lucide-react";
 import { useAuthStore } from "@/store/auth-store";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const SettingsTemplate = () => {
   const user = useAuthStore((state) => state.user);
+  const permissions = usePermissions();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isTeamMember = user?.isTeamMember || false;
+  const isAnalyst = user?.accountRole === "ANALYST" || (!permissions.canManageBilling && !permissions.canManageTeam);
+  const canManageBilling = permissions.canManageBilling;
+  const canManageTeam = permissions.canManageTeam;
   const [activeTab, setActiveTab] = useState("profile");
   const breadcrumbs = useMemo(
     () => [
@@ -38,11 +43,14 @@ const SettingsTemplate = () => {
       billingFlag === "1" ||
       rawSearch.includes("t=billing");
 
-    if (shouldShowBilling) {
+    if (shouldShowBilling && canManageBilling) {
       setActiveTab("billing");
       router.replace(pathname, { scroll: false });
+    } else if (normalizedTab === "access-requests") {
+      setActiveTab("access-requests");
+      router.replace(pathname, { scroll: false });
     }
-  }, [pathname, router, searchParams]);
+  }, [canManageBilling, pathname, router, searchParams]);
 
   return (
     <div className="bg-muted min-h-screen">
@@ -58,33 +66,41 @@ const SettingsTemplate = () => {
           >
             <TabsList>
               <TabsTrigger value="profile">
-                <Settings /> Profile
+                <Settings /> {isAnalyst ? "Linked Businesses" : "Profile"}
               </TabsTrigger>
-              <TabsTrigger value="billing">
-                <ReceiptText /> Billing
-              </TabsTrigger>
-              <TabsTrigger
-                value="team"
-                disabled={isTeamMember}
-                className={isTeamMember ? "hidden" : undefined}
-              >
-                <Users /> Team
+              {canManageBilling && (
+                <TabsTrigger value="billing">
+                  <ReceiptText /> Billing
+                </TabsTrigger>
+              )}
+              {canManageTeam && (
+                <TabsTrigger value="team">
+                  <Users /> Team
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="access-requests">
+                <Share2 /> Access Requests
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="profile" className="mt-6">
-              <ProfileSettings />
+              <ProfileSettings linkedBusinessesOnly={isAnalyst} />
             </TabsContent>
 
-            <TabsContent value="billing" className="mt-6">
-              <BillingSettings />
-            </TabsContent>
+            {canManageBilling && (
+              <TabsContent value="billing" className="mt-6">
+                <BillingSettings />
+              </TabsContent>
+            )}
 
-            <TabsContent
-              value="team"
-              className={isTeamMember ? "hidden" : "mt-6"}
-            >
-              <TeamSettings />
+            {canManageTeam && (
+              <TabsContent value="team" className="mt-6">
+                <TeamSettings />
+              </TabsContent>
+            )}
+
+            <TabsContent value="access-requests" className="mt-6">
+              <AccessRequestSettings isActive={activeTab === "access-requests"} />
             </TabsContent>
           </Tabs>
         </div>

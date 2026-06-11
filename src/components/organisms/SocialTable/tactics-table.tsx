@@ -5,7 +5,7 @@ import { DataTable } from "../../filter-table/index";
 import { DataTableSortList } from "../../filter-table/data-table-sort-list";
 import { DataTableSearch } from "../../filter-table/data-table-search";
 import { DataTableViewOptions } from "../../filter-table/data-table-view-options";
-import type { TacticRow } from "@/types/social-types";
+import type { SocialStrategyType, TacticRow } from "@/types/social-types";
 import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import { getTacticsTableColumns } from "./tactics-table-columns";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,9 @@ interface TacticsTableProps {
   onBack?: () => void;
   channelName?: string;
   hideActions?: boolean;
+  strategyType?: SocialStrategyType;
+  includeCampaignContext?: boolean;
+  pageSize?: number;
 }
 
 export function TacticsTable({
@@ -33,6 +36,9 @@ export function TacticsTable({
   onBack,
   channelName,
   hideActions = false,
+  strategyType = "publish",
+  includeCampaignContext = false,
+  pageSize = 500,
 }: TacticsTableProps) {
   const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
 
@@ -86,9 +92,11 @@ export function TacticsTable({
       businessId, 
       expandedRowId, 
       onExpandedRowChange: handleExpandedRowChange,
-      hideActions
+      hideActions,
+      strategyType,
+      includeCampaignContext,
     }),
-    [channelName, businessId, expandedRowId, handleExpandedRowChange, hideActions]
+    [channelName, businessId, expandedRowId, handleExpandedRowChange, hideActions, strategyType, includeCampaignContext]
   );
 
   const { table } = useLocalDataTable({
@@ -97,7 +105,7 @@ export function TacticsTable({
     initialState: {
       pagination: {
         pageIndex: 0,
-        pageSize: 500,
+        pageSize,
       },
       columnVisibility: {
         status: false,

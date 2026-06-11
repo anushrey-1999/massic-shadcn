@@ -25,6 +25,7 @@ export interface TvRadioAdConceptRow {
   comp: number;
   comp_level: string;
   relevance: number;
+  offerings?: string[];
 
   problem_head_term?: string;
   solution_head_term?: string;
@@ -47,6 +48,9 @@ export interface TvRadioAdsApiItem {
   ad_concept_id: string;
   channel: TvRadioChannel;
   status?: string;
+  cas_score?: number | null;
+  avg_channel_affinity?: number | null;
+  cohesion_score?: number | null;
   scores?: {
     tcas?: number | null;
     rcas?: number | null;
@@ -101,6 +105,7 @@ export interface TvRadioAdsApiResponse {
 
 export interface TvRadioAdsMetrics {
   total_ads: number;
+  total_concepts?: number;
 }
 
 export interface TvRadioApiFilter {

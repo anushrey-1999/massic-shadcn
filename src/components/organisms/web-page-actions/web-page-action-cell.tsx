@@ -16,11 +16,12 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useWebPageActions, type WebActionResponse, type WebActionType } from "@/hooks/use-web-page-actions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
-import { resolvePageContent } from "@/utils/page-content-resolver";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
+import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
@@ -54,6 +55,8 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const queryClient = useQueryClient();
   const { getContent, startFinal, startOutline } = useWebPageActions();
   const { creditsBalance, purchaseCredits } = useExecutionCredits();
+  const guardGenerateOutline = useFeatureActionGuard("web.generateOutline");
+  const guardGeneratePage = useFeatureActionGuard("web.generatePage");
 
   const [open, setOpen] = React.useState(false);
   const [showBuyCreditsModal, setShowBuyCreditsModal] = React.useState(false);
@@ -71,7 +74,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
     }
 
     const pageType = row.page_type ?? (row as any).pageType ?? "";
-    const keyword = row.keyword || "";
+    const keyword = row.cluster_name || row.keyword || "";
 
     const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : "";
     router.push(
@@ -115,12 +118,9 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   const isGenerating = status === "pending" || status === "processing";
 
   const outlineFromServer = cleanEscapedContent(content?.output_data?.page?.outline || "");
-  const blogFromContent = content?.output_data?.page?.blog;
   const finalFromServer =
     type === "blog"
-      ? cleanEscapedContent(
-        (typeof blogFromContent === "string" ? blogFromContent : blogFromContent?.blog_post) || ""
-      )
+      ? resolveBlogFinalContent(content)
       : resolvePageContent(content);
 
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
@@ -135,6 +135,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   };
 
   const handleGenerateFinal = async () => {
+    if (!guardGeneratePage()) return;
     if (!pageId) return;
     if (workingAction) return;
     if (!hasOutline) {
@@ -162,6 +163,7 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
   };
 
   const handleGenerateOutline = async () => {
+    if (!guardGenerateOutline()) return;
     if (!pageId) return;
 
     if (workingAction) return;
@@ -249,8 +251,8 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
           <div className="h-px bg-border" />
 
           <div className="px-4 pt-4 pb-0 flex items-center justify-center">
-            {row.keyword ? (
-              <p className="text-base font-medium leading-normal text-foreground text-center">{row.keyword}</p>
+            {(row.cluster_name || row.keyword) ? (
+              <p className="text-base font-medium leading-normal text-foreground text-center">{row.cluster_name || row.keyword}</p>
             ) : null}
           </div>
 

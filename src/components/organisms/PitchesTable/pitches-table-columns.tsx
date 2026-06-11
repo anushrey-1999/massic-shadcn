@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Building2, CalendarClock, Tag, ArrowRight, CircleDot } from "lucide-react";
+import { Building2, Globe, ArrowRight, Tag, CalendarClock, CircleDot } from "lucide-react";
 import Link from "next/link";
 
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header";
@@ -12,13 +12,20 @@ import { Typography } from "@/components/ui/typography";
 export type PitchRow = {
   id: string;
   business: string;
+  website: string;
+  business_id: string;
+};
+
+export type PitchHistoryRow = {
+  id: string;
+  business: string;
   type: string;
   status: string;
   dateTime: string;
   business_id: string;
 };
 
-export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
+export function getPitchHistoryTableColumns(): ColumnDef<PitchHistoryRow>[] {
   return [
     {
       id: "business",
@@ -122,6 +129,87 @@ export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
       size: 220,
       minSize: 180,
       maxSize: 300,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
+        <div className="flex items-center justify-start">
+          <Link href={`/pitches/${row.original.business_id}/reports?view=cards`}>
+            <Button variant="ghost" size="icon" aria-label="View pitch summary">
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      ),
+      enableSorting: false,
+      enableColumnFilter: false,
+      size: 90,
+      minSize: 80,
+      maxSize: 100,
+    },
+  ];
+}
+
+export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
+  return [
+    {
+      id: "business",
+      accessorKey: "business",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Business" />
+      ),
+      cell: ({ row }) => (
+        <Typography variant="p" className="truncate">
+          {row.getValue("business")}
+        </Typography>
+      ),
+      meta: {
+        label: "Business",
+        placeholder: "Search businesses...",
+        variant: "text",
+        icon: Building2,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 320,
+      minSize: 220,
+      maxSize: 420,
+    },
+    {
+      id: "website",
+      accessorKey: "website",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Website" />
+      ),
+      cell: ({ row }) => {
+        const website = row.getValue("website") as string;
+        return website ? (
+          <a
+            href={website.startsWith("http") ? website : `https://${website}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline truncate block"
+          >
+            {website}
+          </a>
+        ) : (
+          <Typography variant="p" className="truncate text-muted-foreground">
+            —
+          </Typography>
+        );
+      },
+      meta: {
+        label: "Website",
+        placeholder: "Search websites...",
+        variant: "text",
+        icon: Globe,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 280,
+      minSize: 180,
+      maxSize: 380,
     },
     {
       id: "actions",

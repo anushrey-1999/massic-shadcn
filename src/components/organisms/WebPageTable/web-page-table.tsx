@@ -7,10 +7,13 @@ import { DataTableFilterList } from "../../filter-table/data-table-filter-list";
 import { DataTableSortList } from "../../filter-table/data-table-sort-list";
 import { DataTableSearch } from "../../filter-table/data-table-search";
 import { DataTableViewOptions } from "../../filter-table/data-table-view-options";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { WebPageRow } from "@/types/web-page-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getWebPageTableColumns } from "./web-page-table-columns";
+
+type WebPageQuickTypeFilter = "all" | "blog" | "other" | "custom";
 
 interface WebPageTableProps {
   businessId: string;
@@ -22,7 +25,13 @@ interface WebPageTableProps {
   isFetching?: boolean;
   search?: string;
   onSearchChange?: (value: string) => void;
+  quickTypeFilter?: WebPageQuickTypeFilter;
+  onQuickTypeFilterChange?: (value: Exclude<WebPageQuickTypeFilter, "all" | "custom">) => void;
   hideActions?: boolean;
+  pageSize?: number;
+  pageSizeOptions?: number[];
+  showPagination?: boolean;
+  hideRowsPerPage?: boolean;
 }
 
 export function WebPageTable({
@@ -35,7 +44,13 @@ export function WebPageTable({
   isFetching = false,
   search = "",
   onSearchChange,
+  quickTypeFilter,
+  onQuickTypeFilterChange,
   hideActions = false,
+  pageSize = 100,
+  pageSizeOptions = [10, 30, 50, 100, 200],
+  showPagination = true,
+  hideRowsPerPage = false,
 }: WebPageTableProps) {
   const enableAdvancedFilter = true;
 
@@ -110,7 +125,7 @@ export function WebPageTable({
     initialState: {
       pagination: {
         pageIndex: 0,
-        pageSize: 100,
+        pageSize,
       },
       columnVisibility: {
         offerings: false,
@@ -173,7 +188,9 @@ export function WebPageTable({
         table={table}
         isLoading={isLoading}
         isFetching={isFetching}
-        pageSizeOptions={[10, 30, 50, 100, 200]}
+        pageSizeOptions={pageSizeOptions}
+        showPagination={showPagination}
+        hideRowsPerPage={hideRowsPerPage}
         emptyMessage="No web pages found. Try adjusting your filters or check back later."
         onRowClick={(row) => {
           const rowId = (row as any).id;
@@ -194,6 +211,27 @@ export function WebPageTable({
                 onChange={onSearchChange}
                 placeholder="Search pages, keywords..."
               />
+            )}
+
+            {quickTypeFilter && onQuickTypeFilterChange && (
+              <Tabs
+                value={quickTypeFilter}
+                onValueChange={(value) => {
+                  if (value === "blog" || value === "other") {
+                    onQuickTypeFilterChange(value);
+                  }
+                }}
+                className="shrink-0"
+              >
+                <TabsList className="h-9 rounded-md p-1">
+                  <TabsTrigger value="blog" className="h-7 rounded px-2.5 text-xs">
+                    Blogs
+                  </TabsTrigger>
+                  <TabsTrigger value="other" className="h-7 rounded px-2.5 text-xs">
+                    Other pages
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             )}
         
             <DataTableFilterList

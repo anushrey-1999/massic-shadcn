@@ -10,23 +10,65 @@ import { AlertCircle } from "lucide-react";
 import { ChannelsSidebar } from "./channels-sidebar";
 import { useSocial } from "@/hooks/use-social";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
-import type { SocialRow } from "@/types/social-types";
+import type { SocialRow, SocialStrategyType } from "@/types/social-types";
+import type { QueryKeys } from "@/types/data-table-types";
+
+type SocialTableFilter = {
+  id: string;
+  value: string | string[];
+  variant: string;
+  operator: string;
+  filterId: string;
+  field?: string;
+};
 
 interface SocialTableClientProps {
   businessId: string;
   channelsSidebar?: React.ReactNode;
+  hideChannelsSidebar?: boolean;
   toolbarRightPrefix?: React.ReactNode;
   isReadOnly?: boolean;
+  strategyType?: SocialStrategyType;
+  queryKeys?: Partial<QueryKeys>;
+  searchKey?: string;
+  channelNameKey?: string;
+  campaignNameKey?: string;
+  defaultPerPage?: number;
+  defaultJoinOperator?: "and" | "or";
+  pageSizeOptions?: number[];
+  baseFilters?: SocialTableFilter[];
+  tacticsBaseFilters?: SocialTableFilter[];
 }
 
-export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPrefix, isReadOnly = false }: SocialTableClientProps) {
+export function SocialTableClient({
+  businessId,
+  channelsSidebar,
+  hideChannelsSidebar = false,
+  toolbarRightPrefix,
+  isReadOnly = false,
+  strategyType = "publish",
+  queryKeys,
+  searchKey = "search",
+  channelNameKey = "channel_name",
+  campaignNameKey = "campaign_name",
+  defaultPerPage = 100,
+  defaultJoinOperator = "and",
+  pageSizeOptions,
+  baseFilters = [],
+  tacticsBaseFilters = baseFilters,
+}: SocialTableClientProps) {
+  const pageKey = queryKeys?.page ?? "page";
+  const perPageKey = queryKeys?.perPage ?? "perPage";
+  const sortKey = queryKeys?.sort ?? "sort";
+  const filtersKey = queryKeys?.filters ?? "filters";
+  const joinOperatorKey = queryKeys?.joinOperator ?? "joinOperator";
   const [tacticsSearch, setTacticsSearch] = React.useState("");
   const [suppressTacticsFetching, setSuppressTacticsFetching] = React.useState(false);
-  const [page, setPage] = useQueryState("page", parseAsInteger.withDefault(1));
-  const [perPage] = useQueryState("perPage", parseAsInteger.withDefault(100));
-  const [search, setSearch] = useQueryState("search", parseAsString.withDefault(""));
+  const [page, setPage] = useQueryState(pageKey, parseAsInteger.withDefault(1));
+  const [perPage] = useQueryState(perPageKey, parseAsInteger.withDefault(defaultPerPage));
+  const [search, setSearch] = useQueryState(searchKey, parseAsString.withDefault(""));
   const [sort] = useQueryState(
-    "sort",
+    sortKey,
     parseAsJson<Array<{ field: string; desc: boolean }>>((value) => {
       if (Array.isArray(value)) {
         return value as Array<{ field: string; desc: boolean }>;
@@ -35,40 +77,34 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     }).withDefault([])
   );
   const [filters] = useQueryState(
-    "filters",
-    parseAsJson<
-      Array<{
-        id: string;
-        value: string | string[];
-        variant: string;
-        operator: string;
-        filterId: string;
-      }>
-    >((value) => {
+    filtersKey,
+    parseAsJson<SocialTableFilter[]>((value) => {
       if (Array.isArray(value)) {
-        return value as Array<{
-          id: string;
-          value: string | string[];
-          variant: string;
-          operator: string;
-          filterId: string;
-        }>;
+        return value as SocialTableFilter[];
       }
       return null;
     }).withDefault([])
   );
   const [joinOperator] = useQueryState(
-    "joinOperator",
-    parseAsString.withDefault("and")
+    joinOperatorKey,
+    parseAsString.withDefault(defaultJoinOperator)
   );
   const [channelName, setChannelName] = useQueryState(
-    "channel_name",
+    channelNameKey,
     parseAsString
   );
   const [campaignName, setCampaignName] = useQueryState(
-    "campaign_name",
+    campaignNameKey,
     parseAsString
   );
+
+  const effectiveBaseFilters = React.useMemo(() => baseFilters || [], [baseFilters]);
+  const effectiveTacticsBaseFilters = React.useMemo(() => tacticsBaseFilters || [], [tacticsBaseFilters]);
+  const apiFilters = React.useMemo(
+    () => [...effectiveBaseFilters, ...(filters || [])],
+    [effectiveBaseFilters, filters]
+  );
+  const apiJoinOperator = joinOperator || defaultJoinOperator;
 
   // Store the channel from the clicked row (for tactics view) without changing URL state
   const [selectedRowChannel, setSelectedRowChannel] = React.useState<string | null>(null);
@@ -82,9 +118,10 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   const hasActiveSearchOrFilters = React.useMemo(() => {
     const hasSearch = (search || "").trim().length > 0;
     const hasFilters = Array.isArray(filters) && filters.length > 0;
-    const hasChannel = (channelName || "").trim().length > 0;
-    return hasSearch || hasFilters || hasChannel;
-  }, [search, filters, channelName]);
+    const hasBaseFilters = effectiveBaseFilters.length > 0;
+    const hasChannel = !hideChannelsSidebar && (channelName || "").trim().length > 0;
+    return hasSearch || hasFilters || hasBaseFilters || hasChannel;
+  }, [search, filters, effectiveBaseFilters, channelName, hideChannelsSidebar]);
 
   const previousSearchRef = React.useRef(search);
   React.useEffect(() => {
@@ -103,7 +140,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   const { data: jobDetails, isLoading: jobLoading } = useJobByBusinessId(businessId || null);
   const jobExists = jobDetails && jobDetails.job_id;
 
-  const { fetchSocial, fetchSocialCounts, fetchTactics } = useSocial(businessId);
+  const { fetchSocial, fetchSocialCounts, fetchTactics } = useSocial(businessId, strategyType);
   const queryClient = useQueryClient();
 
   React.useEffect(() => {
@@ -114,32 +151,34 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         const key = query.queryKey;
         if (!Array.isArray(key)) return false;
         if (key[0] !== "social") return false;
-        if (key[1] !== businessId) return false;
+        if (key[1] !== strategyType) return false;
+        if (key[2] !== businessId) return false;
 
-        const keyPage = typeof key[2] === "number" ? key[2] : Number(key[2]);
-        const keySearch = typeof key[4] === "string" ? key[4] : "";
-        const keyChannel = key[8] ?? null;
+        const keyPage = typeof key[3] === "number" ? key[3] : Number(key[3]);
+        const keySearch = typeof key[5] === "string" ? key[5] : "";
+        const keyChannel = key[9] ?? null;
 
         return keySearch === "" && keyChannel === null && Number.isFinite(keyPage) && keyPage > 1;
       },
     });
-  }, [hasActiveSearchOrFilters, businessId, queryClient]);
+  }, [hasActiveSearchOrFilters, strategyType, businessId, queryClient]);
 
-  const effectiveChannelName = channelName || "all";
+  const effectiveChannelName = hideChannelsSidebar ? "all" : (channelName || "all");
 
   const queryKey = React.useMemo(
     () => [
       "social",
+      strategyType,
       businessId,
       page,
       perPage,
       search || "",
       JSON.stringify(sort),
-      JSON.stringify(filters),
-      joinOperator,
+      JSON.stringify(apiFilters),
+      apiJoinOperator,
       effectiveChannelName,
     ],
-    [businessId, page, perPage, search, sort, filters, joinOperator, effectiveChannelName]
+    [strategyType, businessId, page, perPage, search, sort, apiFilters, apiJoinOperator, effectiveChannelName]
   );
 
   const {
@@ -158,8 +197,8 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         perPage,
         search: search || undefined,
         sort: sort || [],
-        filters: filters || [],
-        joinOperator: (joinOperator || "and") as "and" | "or",
+        filters: apiFilters,
+        joinOperator: apiJoinOperator as "and" | "or",
         channel_name: effectiveChannelName,
       });
     },
@@ -173,7 +212,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   });
 
   const { data: channelsData } = useQuery({
-    queryKey: ["social-channels-list", businessId],
+    queryKey: ["social-channels-list", strategyType, businessId, JSON.stringify(effectiveBaseFilters)],
     queryFn: async () => {
       return fetchSocial({
         business_id: businessId,
@@ -181,8 +220,8 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         perPage: 100,
         search: undefined,
         sort: [],
-        filters: [],
-        joinOperator: "and",
+        filters: effectiveBaseFilters,
+        joinOperator: defaultJoinOperator,
         channel_name: undefined,
       });
     },
@@ -216,6 +255,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
 
     const page1QueryKey = [
       "social",
+      strategyType,
       businessId,
       1,
       perPage,
@@ -232,6 +272,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         for (let nextPage = 2; nextPage <= Math.min(3, page1Data.pageCount); nextPage++) {
           const nextPageQueryKey = [
             "social",
+            strategyType,
             businessId,
             nextPage,
             perPage,
@@ -266,7 +307,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
       };
       prefetchNextPages();
     }
-  }, [businessId, jobExists, page, perPage, queryClient, fetchSocial, hasActiveSearchOrFilters]);
+  }, [businessId, strategyType, jobExists, page, perPage, queryClient, fetchSocial, hasActiveSearchOrFilters]);
 
   React.useEffect(() => {
     if (!jobExists || !socialData || !socialData.pageCount) return;
@@ -281,6 +322,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         const prevPage = page - 1;
         const prevQueryKey = [
           "social",
+          strategyType,
           businessId,
           prevPage,
           perPage,
@@ -321,6 +363,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
 
         const prefetchQueryKey = [
           "social",
+          strategyType,
           businessId,
           nextPage,
           perPage,
@@ -355,7 +398,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     };
 
     prefetchPages();
-  }, [socialData, page, perPage, search, sort, filters, joinOperator, effectiveChannelName, channelName, businessId, queryClient, fetchSocial, jobExists, hasActiveSearchOrFilters]);
+  }, [socialData, page, perPage, search, sort, filters, joinOperator, effectiveChannelName, channelName, businessId, strategyType, queryClient, fetchSocial, jobExists, hasActiveSearchOrFilters]);
 
   const {
     data: countsData,
@@ -363,7 +406,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     error: countsErrorData,
     refetch: refetchCounts,
   } = useQuery({
-    queryKey: ["social-counts", businessId],
+    queryKey: ["social-counts", strategyType, businessId],
     queryFn: async () => {
       return fetchSocialCounts();
     },
@@ -373,21 +416,37 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
     enabled: false,
   });
 
-  const offerings = React.useMemo(() => {
-    if (!jobDetails?.offerings) return [] as string[];
+  const offeringOptions = React.useMemo(() => {
+    const set = new Set<string>();
 
-    return jobDetails.offerings
-      .map((offering: any) => offering.name || offering.offering || "")
-      .filter((name: string) => name.length > 0);
-  }, [jobDetails]);
+    // Primary source: job-level offerings (covers all pages)
+    if (jobDetails?.offerings) {
+      (jobDetails.offerings as Array<{ name?: string; offering?: string }>).forEach((o) => {
+        const name = (o.name || o.offering || "").trim();
+        if (name) set.add(name);
+      });
+    }
+
+    // Supplement with offerings from loaded row data
+    const rows = [
+      ...(channelsData?.data ?? []),
+      ...(socialData?.data ?? []),
+    ];
+    rows.forEach((row) => {
+      (Array.isArray(row.offerings) ? row.offerings : []).forEach((o: string) => {
+        const trimmed = typeof o === "string" ? o.trim() : "";
+        if (trimmed) set.add(trimmed);
+      });
+    });
+
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [jobDetails?.offerings, channelsData?.data, socialData?.data]);
 
   const offeringCounts = React.useMemo(() => {
     const counts: Record<string, number> = {};
-    offerings.forEach((offering: string) => {
-      counts[offering] = 0;
-    });
+    offeringOptions.forEach((o) => { counts[o] = 0; });
     return counts;
-  }, [offerings]);
+  }, [offeringOptions]);
 
   // Use selectedRowChannel for tactics if available, otherwise use channelName from URL
   const tacticsChannel = selectedRowChannel || channelName;
@@ -395,11 +454,13 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
   const tacticsQueryKey = React.useMemo(
     () => [
       "tactics-all",
+      strategyType,
       businessId,
       tacticsChannel || null,
       campaignName || null,
+      JSON.stringify(effectiveTacticsBaseFilters),
     ],
-    [businessId, tacticsChannel, campaignName]
+    [strategyType, businessId, tacticsChannel, campaignName, effectiveTacticsBaseFilters]
   );
 
   const {
@@ -421,8 +482,8 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         perPage: 500,
         search: undefined,
         sort: [],
-        filters: [],
-        joinOperator: "and",
+        filters: effectiveTacticsBaseFilters,
+        joinOperator: defaultJoinOperator,
         channel_name: tacticsChannel || undefined,
         campaign_name: campaignName || undefined,
       });
@@ -558,20 +619,21 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
           onBack={handleBackToMain}
           channelName={tacticsChannel || undefined}
           hideActions={isReadOnly}
+          strategyType={strategyType}
         />
       </div>
     );
   }
 
-  const sidebarNode =
-    channelsSidebar ||
-    (
-      <ChannelsSidebar
-        selectedChannel={channelName || null}
-        onChannelSelect={onChannelSelect}
-        channels={channelRows}
-      />
-    );
+  const sidebarNode = hideChannelsSidebar
+    ? undefined
+    : channelsSidebar || (
+        <ChannelsSidebar
+          selectedChannel={channelName || null}
+          onChannelSelect={onChannelSelect}
+          channels={channelRows}
+        />
+      );
 
   return (
     <div className="relative h-full flex flex-col">
@@ -579,6 +641,7 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         data={socialData?.data || []}
         pageCount={socialData?.pageCount || 0}
         offeringCounts={offeringCounts}
+        offeringOptions={offeringOptions}
         isLoading={socialLoading && !socialData}
         isFetching={socialFetching}
         search={search}
@@ -586,6 +649,15 @@ export function SocialTableClient({ businessId, channelsSidebar, toolbarRightPre
         channelsSidebar={sidebarNode}
         onRowClick={handleRowClick}
         toolbarRightPrefix={toolbarRightPrefix}
+        queryKeys={{
+          page: pageKey,
+          perPage: perPageKey,
+          sort: sortKey,
+          filters: filtersKey,
+          joinOperator: joinOperatorKey,
+        }}
+        pageSize={defaultPerPage}
+        pageSizeOptions={pageSizeOptions}
       />
     </div>
   );

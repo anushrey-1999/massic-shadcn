@@ -34,6 +34,7 @@ interface DataTableProps<TData> extends React.ComponentProps<"div"> {
   hideRowsPerPage?: boolean;
   disableHorizontalScroll?: boolean;
   paginationAlign?: "left" | "right" | "between";
+  toolbarPosition?: "beforeTable" | "belowHeader";
 }
 
 export function DataTable<TData>({
@@ -51,6 +52,7 @@ export function DataTable<TData>({
   hideRowsPerPage = false,
   disableHorizontalScroll = false,
   paginationAlign = "between",
+  toolbarPosition = "beforeTable",
   highlightSelectedRow = true,
   ...props
 }: DataTableProps<TData>) {
@@ -64,7 +66,7 @@ export function DataTable<TData>({
       {...props}
     >
       {/* Filters/Toolbar - Always visible, no scroll */}
-      {children && (
+      {children && toolbarPosition === "beforeTable" && (
         <div className="shrink-0">
           {children}
         </div>
@@ -151,6 +153,17 @@ export function DataTable<TData>({
               ))}
             </TableHeader>
             <TableBody>
+              {children && toolbarPosition === "belowHeader" && (
+                <TableRow data-toolbar-row="true">
+                  <TableCell
+                    colSpan={table.getVisibleLeafColumns().length}
+                    data-toolbar-cell="true"
+                    className="p-0"
+                  >
+                    {children}
+                  </TableCell>
+                </TableRow>
+              )}
               {showLoading ? (
                 <TableRow>
                   <TableCell
@@ -164,13 +177,15 @@ export function DataTable<TData>({
                   </TableCell>
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row, index) => {
+                table.getRowModel().rows.map((row) => {
                   const isSelected = selectedRowId != null && row.id === selectedRowId;
                   return (
                     <TableRow
-                      key={`${row.id}-${index}`}
+                      key={row.id}
+                      data-row-id={row.id}
                       data-selected-row={isSelected ? row.id : undefined}
                       className={cn(
+                        "group",
                         onRowClick && "cursor-pointer hover:bg-muted/70",
                         highlightSelectedRow && isSelected && "bg-primary/10"
                       )}
@@ -178,7 +193,12 @@ export function DataTable<TData>({
                         // Prevent row click if a button or inside a button is clicked
                         if (
                           e.target instanceof HTMLElement &&
-                          (e.target.closest('button') || e.target.tagName === 'BUTTON')
+                          (e.target.closest('button') ||
+                            e.target.closest('a') ||
+                            e.target.closest('input') ||
+                            e.target.closest('[role="combobox"]') ||
+                            e.target.tagName === 'BUTTON' ||
+                            e.target.tagName === 'A')
                         ) {
                           return;
                         }

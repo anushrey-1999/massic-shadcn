@@ -23,6 +23,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { RelevancePill } from "@/components/ui/relevance-pill"
 import { cn } from "@/lib/utils"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 
 type PostActionType = "publish" | "engage"
 type SortDirection = "asc" | "desc" | null
@@ -160,8 +161,11 @@ function getChannelIcon(channelName: string): string | null {
   const normalized = (channelName || "").toLowerCase().trim()
   const iconMap: Record<string, string> = {
     facebook: "/icons/facebook.png",
+    "facebook group": "/icons/facebook.png",
+    "facebook groups": "/icons/facebook.png",
     instagram: "/icons/instagram.png",
     linkedin: "/icons/linkedin.png",
+    quora: "/icons/quora.svg",
     x: "/icons/twitter.png",
     twitter: "/icons/twitter.png",
     youtube: "/icons/youtube.png",
@@ -225,6 +229,8 @@ export function PostsActionsDropdown({
   mode = "section",
 }: Props) {
   const refinePlan = useRefinePlanOverlayOptional()
+  const guardGenerate = useFeatureActionGuard("social.generate")
+  const guardRegeneratePlan = useFeatureActionGuard("actions.regeneratePlan")
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(true)
   const [rows, setRows] = React.useState<PostsActionsItem[]>(items)
   const [openItemId, setOpenItemId] = React.useState<string | null>(items[1]?.id ?? null)
@@ -488,6 +494,7 @@ export function PostsActionsDropdown({
                           aria-label={isDone ? "View" : "Generate"}
                           onClick={() => {
                             if (isDone) return
+                            if (!guardGenerate()) return
                             setDoneIds((prev) => {
                               const next = new Set(prev)
                               next.add(row.id)
@@ -578,6 +585,7 @@ export function PostsActionsDropdown({
             className="h-9 rounded-lg bg-general-primary px-4 text-primary-foreground"
             onClick={(e) => {
               e.stopPropagation()
+              if (!guardRegeneratePlan()) return
               refinePlan?.open("posts")
             }}
           >
@@ -806,6 +814,7 @@ export function PostsActionsDropdown({
                           aria-label={isDone ? "View" : "Generate"}
                           onClick={() => {
                             if (isDone) return
+                            if (!guardGenerate()) return
                             setDoneIds((prev) => {
                               const next = new Set(prev)
                               next.add(row.id)

@@ -10,13 +10,13 @@ import {
 } from "@/hooks/use-gsc-top-queries";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
 
 interface TopQueriesSectionProps {
   businessUniqueId: string | null;
   website: string | null;
   period: TimePeriodValue;
-  filters?: DeepdiveFilter[];
+  filters?: DeepdiveApiFilter[];
   onRowClick?: (query: string) => void;
 }
 
@@ -63,6 +63,8 @@ export function TopQueriesSection({
           key: item.query,
           impressions: {
             value: item.impressions,
+            rawValue: item.impressions,
+            previousValue: item.previousImpressions,
             change: item.impressionsTrend?.isInfinity
               ? Infinity
               : item.impressionsTrend?.trend === "up"
@@ -71,6 +73,8 @@ export function TopQueriesSection({
           },
           clicks: {
             value: item.clicks,
+            rawValue: item.clicks,
+            previousValue: item.previousClicks,
             change: item.clicksTrend?.isInfinity
               ? Infinity
               : item.clicksTrend?.trend === "up"
@@ -110,6 +114,8 @@ export function TopQueriesSection({
           key: item.query,
           impressions: {
             value: item.impressions,
+            rawValue: item.impressions,
+            previousValue: item.previousImpressions,
             change: item.impressionsTrend?.isInfinity
               ? Infinity
               : item.impressionsTrend?.trend === "up"
@@ -118,6 +124,8 @@ export function TopQueriesSection({
           },
           clicks: {
             value: item.clicks,
+            rawValue: item.clicks,
+            previousValue: item.previousClicks,
             change: item.clicksTrend?.isInfinity
               ? Infinity
               : item.clicksTrend?.trend === "up"

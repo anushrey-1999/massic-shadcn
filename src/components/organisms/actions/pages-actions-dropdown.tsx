@@ -7,10 +7,12 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Download,
   Loader2,
   RotateCw,
 } from "lucide-react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -19,9 +21,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogOverlay, DialogTitle } from "@/components/ui/dialog"
 import { RelevancePill } from "@/components/ui/relevance-pill"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { PagesPlansDialog } from "./pages-plans-dialog"
 import { usePagePlanner } from "@/hooks/use-page-planner"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import type { PagePlannerPlanItem, PagePlannerPlanMeta } from "@/types/page-planner-types"
 import { formatDate, formatVolume } from "@/lib/format"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
@@ -62,7 +66,8 @@ type Props = {
   onOpenChange?: (open: boolean) => void
   mode?: "section" | "table"
   planItemsOverride?: PagePlannerPlanItem[] | null
-  highlightKeywords?: string[] | null
+  addedKeywords?: string[] | null
+  changedKeywords?: string[] | null
   externalBusy?: boolean
   externalBusyLabel?: string | null
   onTableContextChange?: (ctx: {
@@ -75,6 +80,14 @@ type Props = {
 const DEFAULT_ITEMS: PagesActionsItem[] = []
 
 const PAGE_PLANS_QUERY_KEY = "page-planner-plans"
+const VIEW_ACTION_STATUSES = new Set([
+  "success",
+  "update_required",
+  "outline_only",
+  "final_only",
+  "pending",
+  "processing",
+])
 
 function isTruthyFlag(value: unknown): boolean {
   if (value === true) return true
@@ -98,7 +111,9 @@ function isActivePlan(plan: PagePlannerPlanMeta): boolean {
   const status = (plan.status || "").toString().toLowerCase()
   // Server is source-of-truth: some "active" plans still have archived_at set.
   if (status === "active") return true
-  // Fallback when older records don't have status populated.
+  // If status is explicitly set to something non-active, trust the server.
+  if (status) return false
+  // Fallback only when older records don't have status populated at all.
   return Boolean(plan.activated_at) && !isArchived((plan as any).archived_at)
 }
 
@@ -148,6 +163,22 @@ function getNumberFromAny(obj: any, keys: string[]): number | null {
   return null
 }
 
+function getErrorMessage(error: unknown): string | null {
+  if (!error || typeof error !== "object") {
+    return error instanceof Error ? error.message : null
+  }
+
+  const anyError = error as any
+  const responseMessage =
+    firstNonEmptyString(anyError?.response?.data?.detail) ||
+    firstNonEmptyString(anyError?.response?.data?.message) ||
+    firstNonEmptyString(anyError?.response?.data?.error)
+
+  if (responseMessage) return responseMessage
+  if (error instanceof Error) return firstNonEmptyString(error.message)
+  return firstNonEmptyString(anyError?.message)
+}
+
 function getItemTitle(item: any): string {
   return (
     getStringFromAny(item, [
@@ -180,6 +211,25 @@ function oppScoreLabel(score: number | undefined): "High" | "Medium" | "Low" {
   if (v >= 0.67) return "High"
   if (v >= 0.34) return "Medium"
   return "Low"
+}
+
+function formatPlanItemStatus(value: unknown): string {
+  const status = firstNonEmptyString(value)
+  if (!status) return "Build"
+  return status.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function getGeneratedViewLabel(item: PagePlannerPlanItem): string {
+  const status = String((item as any)?.status || "").trim().toLowerCase()
+  return VIEW_ACTION_STATUSES.has(status) ? "Report generated" : "Not generated"
+}
+
+function escapeCsvValue(value: unknown): string {
+  const stringValue = String(value ?? "")
+  if (/[",\n]/.test(stringValue)) {
+    return `"${stringValue.replace(/"/g, "\"\"")}"`
+  }
+  return stringValue
 }
 
 function extractPlanItems(payload: unknown): PagePlannerPlanItem[] | null {
@@ -381,12 +431,16 @@ export function PagesActionsDropdown({
   onOpenChange,
   mode = "section",
   planItemsOverride = null,
-  highlightKeywords = null,
+  addedKeywords = null,
+  changedKeywords = null,
   externalBusy = false,
   externalBusyLabel = null,
   onTableContextChange,
 }: Props) {
   const refinePlan = useRefinePlanOverlayOptional()
+  const guardCreatePlan = useFeatureActionGuard("actions.createPlan")
+  const guardRefinePlan = useFeatureActionGuard("actions.refinePlan")
+  const guardRegeneratePlan = useFeatureActionGuard("actions.regeneratePlan")
   const refineApi = refinePlan as unknown as
     | {
         open: (source: "pages" | "posts") => void
@@ -409,17 +463,27 @@ export function PagesActionsDropdown({
   const [plansOpen, setPlansOpen] = React.useState(false)
   const [refineDialogOpen, setRefineDialogOpen] = React.useState(false)
   const [isGenerating, setIsGenerating] = React.useState(false)
+  const [generateError, setGenerateError] = React.useState<string | null>(null)
   const [sourceMode, setSourceMode] = React.useState<"active" | "generated" | "placeholder">("placeholder")
   const [planItems, setPlanItems] = React.useState<PagePlannerPlanItem[]>([])
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
-  const highlightKeywordsSet = React.useMemo(() => {
-    const arr = Array.isArray(highlightKeywords) ? highlightKeywords : []
+  const addedKeywordsSet = React.useMemo(() => {
+    const arr = Array.isArray(addedKeywords) ? addedKeywords : []
     const out = new Set<string>()
     for (const kw of arr) {
       if (typeof kw === "string" && kw.length > 0) out.add(kw)
     }
     return out
-  }, [highlightKeywords])
+  }, [addedKeywords])
+
+  const changedKeywordsSet = React.useMemo(() => {
+    const arr = Array.isArray(changedKeywords) ? changedKeywords : []
+    const out = new Set<string>()
+    for (const kw of arr) {
+      if (typeof kw === "string" && kw.length > 0) out.add(kw)
+    }
+    return out
+  }, [changedKeywords])
 
   const buildRowsFromPlanItems = React.useCallback(
     (items: PagePlannerPlanItem[]): PagesActionsItem[] => {
@@ -476,6 +540,7 @@ export function PagesActionsDropdown({
   const pagesOverridePlanItems = refinePlan?.pagesOverridePlanItems ?? null
   const pagesRegenerateError = refinePlan?.pagesRegenerateError ?? null
   const isSelectable = mode === "table"
+  const showGenerateViewButton = mode === "section"
 
   const isPanelOpen = mode === "table" ? true : open ?? uncontrolledOpen
   const setPanelOpen = React.useCallback(
@@ -524,8 +589,14 @@ export function PagesActionsDropdown({
     retry: 1,
   })
 
+  const activePlanItems = React.useMemo(
+    () => extractPlanItemsFromDetail(activePlanQuery.data) ?? [],
+    [activePlanQuery.data]
+  )
+
   React.useEffect(() => {
     if (!planItemsOverride) return
+    setGenerateError(null)
     setPlanItems(planItemsOverride)
     setRowSelection({})
     setVisibleCount(10)
@@ -534,6 +605,7 @@ export function PagesActionsDropdown({
   React.useEffect(() => {
     // In split-view we pass planItemsOverride after refine/regenerate; rebuild rows so highlighting works.
     if (!planItemsOverride || planItemsOverride.length === 0) return
+    setGenerateError(null)
     const nextRows = buildRowsFromPlanItems(planItemsOverride)
     const uniqRows = ensureUniqueRowIds(nextRows)
     setRows(uniqRows)
@@ -601,6 +673,7 @@ export function PagesActionsDropdown({
       setSourceMode("active")
       return
     }
+    setGenerateError(null)
     setPlanItems(extracted)
     setRowSelection({})
     setVisibleCount(10)
@@ -646,6 +719,7 @@ export function PagesActionsDropdown({
     if (!pagesOverridePlanItems || pagesOverridePlanItems.length === 0) return
     if (pagesBusy) return
 
+    setGenerateError(null)
     setPlanItems(pagesOverridePlanItems)
     setRowSelection({})
     setVisibleCount(10)
@@ -698,6 +772,7 @@ export function PagesActionsDropdown({
       setVisibleCount(10)
       return
     }
+    setGenerateError(null)
     const uniqRows = ensureUniqueRowIds(items)
     setRows(uniqRows)
     setOpenItemId(uniqRows[0]?.id ?? null)
@@ -707,7 +782,9 @@ export function PagesActionsDropdown({
   }, [items, hasAnyPlans])
 
   const handleGenerate = React.useCallback(async () => {
+    if (!guardCreatePlan()) return
     if (!businessId || isGenerating) return
+    setGenerateError(null)
     setIsGenerating(true)
     try {
       const response = await pagePlanner.generatePlan(businessId, {
@@ -754,6 +831,7 @@ export function PagesActionsDropdown({
       setRows(uniqRows)
       setOpenItemId(uniqRows[0]?.id ?? null)
       setDoneIds(new Set())
+      setGenerateError(null)
       setSourceMode("generated")
       await queryClient.invalidateQueries({ queryKey: [PAGE_PLANS_QUERY_KEY, businessId] })
 
@@ -775,10 +853,20 @@ export function PagesActionsDropdown({
       } catch {
         // If activation fails, keep showing the generated plan as a fallback.
       }
+    } catch (error) {
+      const message = getErrorMessage(error)
+      setPlanItems([])
+      setRowSelection({})
+      setVisibleCount(10)
+      setRows([])
+      setOpenItemId(null)
+      setDoneIds(new Set())
+      setSourceMode("placeholder")
+      setGenerateError(message ? message.replace(/\.$/, "") : null)
     } finally {
       setIsGenerating(false)
     }
-  }, [businessId, isGenerating, pagePlanner, queryClient])
+  }, [businessId, guardCreatePlan, isGenerating, pagePlanner, queryClient])
 
   const sortedRows = React.useMemo(() => {
     if (!sortDirection) return rows
@@ -844,8 +932,65 @@ export function PagesActionsDropdown({
       return
     }
     if (pagesBusy) return
+    if (!guardRefinePlan()) return
     setRefineDialogOpen(true)
-  }, [handleGenerate, showGenerateButton, pagesBusy, isPlansLoading])
+  }, [guardRefinePlan, handleGenerate, showGenerateButton, pagesBusy, isPlansLoading])
+
+  const handleDownloadCsv = React.useCallback(() => {
+    if (activePlanItems.length === 0) {
+      toast.error("No active plan available to download.")
+      return
+    }
+
+    const headers = ["Title", "Page Type", "Relevance", "Status", "Vol", "Opp Score", "Generated / View"]
+    const csvRows = activePlanItems.map((item) => {
+      const raw: any = item as any
+      const relevance =
+        getNumberFromAny(raw, [
+          "business_relevance_score",
+          "businessRelevanceScore",
+          "relevance_score",
+          "relevanceScore",
+          "relevance",
+          "score",
+        ]) ?? 0
+      const vol = getNumberFromAny(raw, ["search_volume", "searchVolume", "volume"]) ?? 0
+      const opp = oppScoreLabel(
+        getNumberFromAny(raw, [
+          "page_opportunity_score",
+          "pageOpportunityScore",
+          "opportunity_score",
+          "opportunityScore",
+        ]) ?? 0
+      )
+      const pageType = getStringFromAny(raw, ["page_type", "pageType", "type"]) || ""
+
+      return [
+        getItemTitle(raw),
+        toTitleCase(pageType) || "—",
+        String(relevance),
+        formatPlanItemStatus(getPlanItemStatus(raw)),
+        formatVolume(vol),
+        opp,
+        getGeneratedViewLabel(item),
+      ]
+    })
+
+    const csvContent = [headers, ...csvRows]
+      .map((row) => row.map((value) => escapeCsvValue(value)).join(","))
+      .join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    const fileSuffix = typeof activePlanId === "number" ? `_${activePlanId}` : ""
+    link.href = url
+    link.download = `active_pages_plan${fileSuffix}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }, [activePlanId, activePlanItems])
 
   const table = isPanelOpen ? (
     <div
@@ -930,7 +1075,7 @@ export function PagesActionsDropdown({
               </div>
             ) : displayRows.length === 0 && showGenerateButton && !plansQuery.isLoading ? (
               <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-                No Data
+                {generateError ?? "No Data"}
               </div>
             ) : displayRows.length === 0 ? (
               <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
@@ -946,15 +1091,21 @@ export function PagesActionsDropdown({
               const showContentBorder = showBottomBorder && hasMetrics
               const isDone = doneIds.has(item.id)
               const isChecked = Boolean((rowSelection as any)?.[item.id])
-              const showHighlight =
-                isSelectable &&
+              const showAdded =
                 typeof item.keyword === "string" &&
                 item.keyword.length > 0 &&
-                highlightKeywordsSet.has(item.keyword)
+                addedKeywordsSet.has(item.keyword)
+              const showChanged =
+                typeof item.keyword === "string" &&
+                item.keyword.length > 0 &&
+                changedKeywordsSet.has(item.keyword)
+              const showMarked = showAdded || showChanged
               const statusForCell = String(item.planItemStatus || "").trim().toLowerCase()
+              const pageLabel = (item.keyword || item.title || "").trim() || "N/A"
               const webRow = {
                 id: item.id,
-                keyword: (item.keyword || item.title || "").trim() || "N/A",
+                cluster_name: pageLabel,
+                keyword: pageLabel,
                 page_type: (item.pageType || "").trim() || "page",
                 search_volume: 0,
                 business_relevance_score: 0,
@@ -972,6 +1123,7 @@ export function PagesActionsDropdown({
                   key={item.id}
                   open={open}
                   onOpenChange={(next) => setOpenItemId(next ? item.id : null)}
+                  className={cn(showMarked ? "border-l-2 border-emerald-500" : null)}
                 >
                   <CollapsibleTrigger asChild>
                     <div
@@ -988,7 +1140,7 @@ export function PagesActionsDropdown({
                         "group flex min-h-11 items-center gap-2 px-2 py-1.5 select-none cursor-pointer",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                         open && "bg-[#FAFAFA]",
-                        showHighlight && "bg-amber-50/40 border-l-2 border-amber-400",
+                        showMarked ? "bg-emerald-50/50" : null,
                         showTriggerBorder && "border-b border-general-border"
                       )}
                     >
@@ -1092,14 +1244,18 @@ export function PagesActionsDropdown({
                             )
                           })}
                         </div>
-                      <div
-                        className={cn(
-                          "flex w-[52px] justify-end px-2 py-1.5",
-                          isSelectable ? "items-start" : "items-center"
+                        {showGenerateViewButton ? (
+                          <div
+                            className={cn(
+                              "flex w-[52px] justify-end px-2 py-1.5",
+                              isSelectable ? "items-start" : "items-center"
+                            )}
+                          >
+                            <WebPageActionCell businessId={businessId} row={webRow} />
+                          </div>
+                        ) : (
+                          <div className="w-[52px]" />
                         )}
-                      >
-                        <WebPageActionCell businessId={businessId} row={webRow} />
-                      </div>
                       </div>
                     </CollapsibleContent>
                   ) : null}
@@ -1150,6 +1306,7 @@ export function PagesActionsDropdown({
           <button
             type="button"
             onClick={() => {
+              if (!guardRegeneratePlan()) return
               setRefineDialogOpen(false)
               refineApi?.open("pages")
               refineApi?.regeneratePagesPlan({
@@ -1173,6 +1330,7 @@ export function PagesActionsDropdown({
           <button
             type="button"
             onClick={() => {
+              if (!guardRegeneratePlan()) return
               setRefineDialogOpen(false)
               refineApi?.open("pages")
               refineApi?.regeneratePagesPlan({
@@ -1196,6 +1354,7 @@ export function PagesActionsDropdown({
           <button
             type="button"
             onClick={() => {
+              if (!guardRefinePlan()) return
               setRefineDialogOpen(false)
               refineApi?.open("pages")
             }}
@@ -1265,6 +1424,27 @@ export function PagesActionsDropdown({
           <span className="text-xs font-mono text-general-muted-foreground">
             {lastUpdatedLabelDisplay}
           </span>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="secondary"
+                size="icon"
+                className="h-9 w-9 rounded-lg"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDownloadCsv()
+                }}
+                disabled={!businessId || activePlanQuery.isLoading || activePlanItems.length === 0}
+                aria-label="Download CSV"
+              >
+                <Download className="h-[13px] w-[13px]" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={8}>
+              Download CSV
+            </TooltipContent>
+          </Tooltip>
 
           <Button
             variant="secondary"

@@ -15,6 +15,7 @@ import {
 } from "@/hooks/use-ad-concept-writer";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 function getStatusLowercase(value: unknown): string {
   return (value || "").toString().toLowerCase();
@@ -27,7 +28,7 @@ type WriterSuccessContent = {
 };
 
 function extractWriterSuccessContent(data: AdConceptWriterResponse | undefined): WriterSuccessContent | null {
-  const writer = (data?.output_data as any)?.ad_concept_writer_content;
+  const writer = (data?.output_data as any)?.ad_content ?? (data?.output_data as any)?.ad_concept_writer_content;
   if (!writer || typeof writer !== "object") return null;
 
   const title = typeof writer.title === "string" ? writer.title : "";
@@ -193,6 +194,7 @@ export function TvRadioAdExampleCard({
   const queryClient = useQueryClient();
   const { startGeneration } = useAdConceptWriterActions();
   const { creditsBalance, purchaseCredits } = useExecutionCredits();
+  const guardGenerateAd = useFeatureActionGuard("ads.generate");
 
   const problemTitle = row.problem_head_term || row.subtopic || "";
   const solutionTitle = row.solution_head_term || "";
@@ -271,6 +273,7 @@ export function TvRadioAdExampleCard({
   }, []);
 
   const handleGenerate = React.useCallback(async () => {
+    if (!guardGenerateAd()) return;
     if (!businessId || !adConceptId) {
       toast.error("Missing business id or ad concept id");
       return;

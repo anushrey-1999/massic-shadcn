@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   const promptUrl =
-    process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v1";
+    process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v2";
 
   const body = (await request.json().catch(() => null)) as
     | { question?: string; conversation_id?: string }

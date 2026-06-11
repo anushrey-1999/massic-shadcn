@@ -66,6 +66,7 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
   | "checkbox-group"
   | "radio"
   | "radio-group"
+  | "radio-cards"
   | "number"
   | "email"
   | "password"
@@ -90,6 +91,9 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
   name?: string;
   // Layout for radio/checkbox groups
   orientation?: "horizontal" | "vertical";
+  radioGroupVariant?: "default" | "cards";
+  radioCardSize?: "sm" | "md";
+  radioCardIcons?: Record<string, React.ReactNode>;
   // LocationSelect specific
   loading?: boolean;
   addon?: {
@@ -206,6 +210,9 @@ function GenericInput<
   loading,
   required = false,
   inputVariant,
+  radioGroupVariant = "default",
+  radioCardSize = "md",
+  radioCardIcons,
   ...props
 }: GenericInputProps<TFormData>) {
   // If formField is provided, extract field values and handlers
@@ -286,6 +293,9 @@ function GenericInput<
             rows={rows}
             options={options}
             orientation={props.orientation}
+            radioGroupVariant={radioGroupVariant}
+            radioCardSize={radioCardSize}
+            radioCardIcons={radioCardIcons}
             addon={addon}
             className={className}
             disabled={shouldDisable}
@@ -540,9 +550,85 @@ function GenericInput<
     }
 
     // Handle radio group
-    if ((type === "radio-group" || (type === "radio" && options)) && options) {
+    if (
+      (type === "radio-group" ||
+        type === "radio-cards" ||
+        (type === "radio" && options)) &&
+      options
+    ) {
       const currentValue = value;
       const groupOrientation = props.orientation || "vertical";
+      const effectiveRadioGroupVariant =
+        type === "radio-cards" ? "cards" : radioGroupVariant;
+
+      if (effectiveRadioGroupVariant === "cards") {
+        const groupDisabled = Boolean(props.disabled);
+        const cardClassName =
+          radioCardSize === "sm"
+            ? "rounded-xl w-24 h-24 p-3"
+            : "rounded-2xl px-8 py-5 min-h-[88px] min-w-[160px]";
+        return (
+          <div
+            id={inputId}
+            data-slot="radio-group"
+            aria-invalid={isInvalid}
+            className={cn(
+              "flex gap-4",
+              groupOrientation === "horizontal"
+                ? "flex-row flex-wrap"
+                : "flex-col gap-2",
+              className
+            )}
+          >
+            {options.map((option) => {
+              const optionKey = String(option.value);
+              const icon = radioCardIcons?.[optionKey];
+              const isOptionDisabled = groupDisabled || Boolean(option.disabled);
+              return (
+                <label
+                  key={option.value}
+                  className="cursor-pointer relative"
+                >
+                  <input
+                    type="radio"
+                    name={props.name}
+                    value={option.value}
+                    checked={currentValue === option.value}
+                    disabled={isOptionDisabled}
+                    onChange={(e) => {
+                      if (onChange) {
+                        const syntheticEvent = {
+                          target: { value: e.target.value },
+                        } as React.ChangeEvent<HTMLInputElement>;
+                        onChange(syntheticEvent);
+                      }
+                    }}
+                    onBlur={props.onBlur}
+                    className="peer sr-only"
+                  />
+                  <div
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-2 border border-transparent bg-[#f5f5f5]",
+                      cardClassName,
+                      "text-[#737373]",
+                      "transition-colors",
+                      "peer-checked:border-general-primary peer-checked:text-general-primary",
+                      "peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
+                      !isOptionDisabled && "hover:border-general-primary/60",
+                      isOptionDisabled && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    {icon ? (
+                      <span className="shrink-0 opacity-40">{icon}</span>
+                    ) : null}
+                    <span className="text-sm font-medium">{option.label}</span>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        );
+      }
 
       return (
         <div
@@ -559,6 +645,7 @@ function GenericInput<
         >
           {options.map((option) => {
             const isChecked = currentValue === option.value;
+            const isOptionDisabled = Boolean(props.disabled) || Boolean(option.disabled);
             return (
               <label
                 key={option.value}
@@ -569,7 +656,7 @@ function GenericInput<
                   name={props.name}
                   value={option.value}
                   checked={isChecked}
-                  disabled={option.disabled}
+                  disabled={isOptionDisabled}
                   onChange={(e) => {
                     if (onChange) {
                       const syntheticEvent = {

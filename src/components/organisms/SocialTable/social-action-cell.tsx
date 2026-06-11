@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Eye, Sparkles, X, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import type { TacticRow } from "@/types/social-types";
+import type { SocialStrategyType, TacticRow } from "@/types/social-types";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@/hooks/use-social-actions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 function getCampaignClusterId(row: TacticRow): string | null {
   const candidates = [
@@ -56,6 +57,10 @@ function extractContent(data: SocialActionResponse | undefined): any {
   return data?.output_data?.social_content || null;
 }
 
+function extractEngageComment(data: SocialActionResponse | undefined): string {
+  return (data?.output_data?.social_engage_content?.comment || "").toString();
+}
+
 function normalizeChannel(channelName: string | undefined | null): string {
   const normalized = (channelName || "").toString().trim().toLowerCase();
   if (normalized === "x") return "twitter";
@@ -66,14 +71,17 @@ export function SocialActionCell({
   businessId,
   row,
   channelName,
+  strategyType = "publish",
 }: {
   businessId: string;
   row: TacticRow;
   channelName?: string;
+  strategyType?: SocialStrategyType;
 }) {
   const queryClient = useQueryClient();
-  const { startGeneration } = useSocialActions();
   const { creditsBalance, purchaseCredits } = useExecutionCredits();
+  const { startGeneration } = useSocialActions(strategyType);
+  const guardGenerate = useFeatureActionGuard("social.generate");
 
   const campaignClusterId = React.useMemo(() => getCampaignClusterId(row), [row]);
   const tacticsChannel = React.useMemo(
@@ -93,8 +101,8 @@ export function SocialActionCell({
   );
 
   const tacticsQueryKey = React.useMemo(
-    () => ["tactics-all", businessId, tacticsChannel || null, tacticsCampaign || null],
-    [businessId, tacticsChannel, tacticsCampaign]
+    () => ["tactics-all", strategyType, businessId, tacticsChannel || null, tacticsCampaign || null],
+    [strategyType, businessId, tacticsChannel, tacticsCampaign]
   );
 
   const [open, setOpen] = React.useState(false);
@@ -102,10 +110,12 @@ export function SocialActionCell({
   const [starting, setStarting] = React.useState(false);
   const [justGenerated, setJustGenerated] = React.useState(false);
   const [shouldPoll, setShouldPoll] = React.useState(false);
+  const ignoreNextCloseRef = React.useRef(false);
 
   const contentQuery = useSocialActionContentQuery({
     businessId,
     campaignClusterId: campaignClusterId || "",
+    strategyType,
     enabled: (open || shouldPoll) && !!campaignClusterId,
     pollingIntervalMs: 3000,
   });
@@ -139,9 +149,15 @@ export function SocialActionCell({
     (contentQuery.error as any)?.response?.status === 400;
 
   const content = extractContent(contentQuery.data);
+  const engageComment = extractEngageComment(contentQuery.data);
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
+      if (!nextOpen && ignoreNextCloseRef.current) {
+        ignoreNextCloseRef.current = false;
+        return;
+      }
+
       setOpen(nextOpen);
 
       if (nextOpen) return;
@@ -166,7 +182,7 @@ export function SocialActionCell({
 
         // Refetch content in background without showing loading state
         queryClient.refetchQueries({
-          queryKey: ["social-action-content", businessId, campaignClusterId],
+          queryKey: ["social-action-content", strategyType, businessId, campaignClusterId],
           type: "inactive",
         });
       }
@@ -182,8 +198,16 @@ export function SocialActionCell({
         exact: true,
       });
     },
-    [businessId, campaignClusterId, contentQuery.data?.status, queryClient, tacticsQueryKey]
+    [businessId, campaignClusterId, contentQuery.data?.status, queryClient, strategyType, tacticsQueryKey]
   );
+
+  const handleModalInteraction = React.useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    ignoreNextCloseRef.current = true;
+    window.setTimeout(() => {
+      ignoreNextCloseRef.current = false;
+    }, 0);
+  }, []);
 
   const handleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -196,6 +220,7 @@ export function SocialActionCell({
 
   const handleGenerate = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!guardGenerate()) return;
     if (!campaignClusterId) {
       toast.error("Missing campaign cluster id");
       return;
@@ -225,7 +250,7 @@ export function SocialActionCell({
         }
       );
 
-      toast.success("Social content generation started.");
+      toast.success(strategyType === "engage" ? "Social engage content generation started." : "Social content generation started.");
     } catch (error: any) {
       if (error?.response?.status === 403) {
         setShowBuyCreditsModal(true);
@@ -253,37 +278,58 @@ export function SocialActionCell({
   const primaryLabel = primaryAction === "view" ? "View" : "Generate";
   const handlePrimaryClick = primaryAction === "view" ? handleOpen : handleGenerate;
   const buttonVariant = primaryAction === "generate" ? "default" : "outline";
-
-  const isReddit = resolvedChannel === "reddit";
+  const stopRowClick = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  };
 
   return (
     <>
-      <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-        {!isReddit && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant={buttonVariant}
-                className="size-6 rounded-sm"
-                onClick={handlePrimaryClick}
-                aria-label={primaryLabel}
-                disabled={primaryAction === "generate" ? starting : false}
-              >
-                <PrimaryIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={8}>
-              {primaryLabel}
-            </TooltipContent>
-          </Tooltip>
-        )}
+      <div
+        className="flex items-center justify-center gap-2"
+        onClick={stopRowClick}
+        onMouseDown={stopRowClick}
+        onPointerDown={stopRowClick}
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant={buttonVariant}
+              className="size-6 rounded-sm"
+              onClick={handlePrimaryClick}
+              onMouseDown={stopRowClick}
+              onPointerDown={stopRowClick}
+              aria-label={primaryLabel}
+              disabled={primaryAction === "generate" ? starting : false}
+            >
+              <PrimaryIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>
+            {primaryLabel}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
           showCloseButton={false}
           className="w-fit max-w-[90vw] border-0 bg-transparent p-2 shadow-none max-h-[95vh] overflow-auto"
+          onClick={handleModalInteraction}
+          onMouseDown={handleModalInteraction}
+          onPointerDown={handleModalInteraction}
+          onPointerDownOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest?.("[data-slot=dialog-overlay]")) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest?.("[data-slot=dialog-overlay]")) {
+              e.preventDefault();
+            }
+          }}
         >
           <DialogTitle className="sr-only">{title}</DialogTitle>
           <div className="relative flex w-full justify-center p-2">
@@ -293,6 +339,11 @@ export function SocialActionCell({
                 size="icon"
                 type="button"
                 className="absolute right-2 top-2 h-8 w-8 rounded-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  ignoreNextCloseRef.current = false;
+                  setOpen(false);
+                }}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -302,7 +353,7 @@ export function SocialActionCell({
               <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-10 text-center flex flex-col items-center justify-center gap-3">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 <Typography variant="p" className="text-muted-foreground">
-                  Generating content...
+                  {strategyType === "engage" ? "Generating comment..." : "Generating content..."}
                 </Typography>
               </div>
             ) : isNotGeneratedYet ? (
@@ -328,6 +379,17 @@ export function SocialActionCell({
                 <Button type="button" variant="outline" onClick={() => contentQuery.refetch()}>
                   Try again
                 </Button>
+              </div>
+            ) : strategyType === "engage" && status === "success" ? (
+              <div className="w-[420px] max-w-[90vw] min-h-[300px] rounded-lg bg-background px-6 py-8 flex flex-col justify-center gap-4">
+                <div>
+                  <Typography variant="p" className="text-sm font-medium text-muted-foreground">
+                    Generated Comment
+                  </Typography>
+                  <Typography variant="p" className="mt-2 whitespace-pre-wrap text-foreground">
+                    {engageComment || "No comment available."}
+                  </Typography>
+                </div>
               </div>
             ) : (contentQuery.isLoading || status === "success") ? (
               <SocialChannelPreview

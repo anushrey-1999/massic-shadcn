@@ -146,29 +146,35 @@ export function FacetedItem({ value, children, ...props }: React.ComponentProps<
 export function FacetedBadgeList({ 
   options, 
   placeholder, 
+  className,
   ...props 
 }: { 
   options?: Option[]
   placeholder?: string
 } & React.HTMLAttributes<HTMLDivElement>) {
   const context = React.useContext(FacetedContext)
-  if (!context) return <span {...props}>{placeholder}</span>
+  if (!context) return <span className={cn("truncate", className)} {...props}>{placeholder}</span>
 
   const selectedValues = Array.isArray(context.value) ? context.value : context.value ? [context.value] : []
   const selectedOptions = options?.filter((opt) => selectedValues.includes(opt.value)) || []
 
   if (selectedOptions.length === 0) {
-    return <span {...props}>{placeholder}</span>
+    return <span className={cn("truncate", className)} {...props}>{placeholder}</span>
   }
 
   return (
-    <div className="flex flex-wrap gap-1" {...props}>
+    <div
+      className={cn(
+        "grid w-full grid-cols-2 gap-1 min-[560px]:grid-cols-3",
+        className,
+      )}
+      {...props}
+    >
       {selectedOptions.map((option) => (
-        <Badge key={option.value} variant="secondary" className="mr-1">
-          {option.label}
+        <Badge key={option.value} variant="secondary" className="min-w-0 justify-center px-2">
+          <span className="truncate">{option.label}</span>
         </Badge>
       ))}
     </div>
   )
 }
-

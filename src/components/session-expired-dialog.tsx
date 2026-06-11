@@ -21,7 +21,7 @@ export function SessionExpiredDialog({ open, onOpenChange }: SessionExpiredDialo
 
   const handleLoginAgain = () => {
     onOpenChange(false);
-    const currentPath = window.location.pathname;
+    const currentPath = `${window.location.pathname}${window.location.search || ""}`;
     router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
   };
 

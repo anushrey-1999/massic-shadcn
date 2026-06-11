@@ -1,6 +1,5 @@
 "use client";
 
-import { Fragment } from "react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { StatsBadge } from "./StatsBadge";
@@ -13,14 +12,7 @@ interface ChartLegendItem {
   change: number;
   color?: string;
   checked?: boolean;
-  funnelPercentage?: string;
 }
-
-const BOX_PATHS = [
-  "M 5 0 Q 0 0 0 5 L 0 23 Q 0 28 5 28 L 94 28 L 100 14 L 94 0 Z",
-  "M 0 0 L 94 0 L 100 14 L 94 28 L 0 28 L 6 14 Z",
-  "M 0 0 L 95 0 Q 100 0 100 5 L 100 23 Q 100 28 95 28 L 0 28 L 6 14 Z",
-];
 
 interface ChartLegendProps {
   items: ChartLegendItem[];
@@ -39,59 +31,47 @@ export function ChartLegend({
 }: ChartLegendProps) {
   if (variant === "box") {
     return (
-      <div className={cn("flex items-center gap-0", className)}>
-        {items.map((item, index) => (
-          <Fragment key={item.key}>
-            <div className="relative shrink-0 h-8 w-fit">
-              <svg
-                className="absolute inset-0 w-full h-full"
-                viewBox="0 0 100 28"
-                preserveAspectRatio="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden
-              >
-                <path
-                  d={BOX_PATHS[index % BOX_PATHS.length]}
-                  className="fill-foreground-light"
-                  strokeWidth="0.5"
+      <div className={cn("flex flex-wrap items-center gap-2", className)}>
+        {items.map((item) => {
+          const checked = item.checked ?? true;
+          return (
+            <label
+              key={item.key}
+              className={cn(
+                "flex items-center gap-2 rounded-sm bg-foreground-light px-3 py-2",
+                showToggle ? "cursor-pointer" : "cursor-default",
+                !checked && "opacity-50"
+              )}
+            >
+              {showToggle && (
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={(nextChecked) =>
+                    onToggle?.(item.key, nextChecked as boolean)
+                  }
+                  className="cursor-pointer shrink-0"
                 />
-              </svg>
-              <div className="relative h-full flex items-center justify-center gap-1.5 px-4 py-1.5">
-                {showToggle && (
-                  <Checkbox
-                    checked={item.checked ?? true}
-                    onCheckedChange={(checked) =>
-                      onToggle?.(item.key, checked as boolean)
-                    }
-                    className="cursor-pointer shrink-0"
-                  />
+              )}
+              <span
+                style={item.color ? { color: item.color } : undefined}
+                className={cn(
+                  "flex items-center gap-1 [&_svg]:h-3.5 [&_svg]:w-3.5",
+                  item.color ? undefined : "text-muted-foreground"
                 )}
-                <span
-                  style={item.color ? { color: item.color } : undefined}
-                  className={cn(
-                    "flex items-center gap-0.5 [&_svg]:w-3 [&_svg]:h-3",
-                    item.color ? undefined : "text-muted-foreground"
-                  )}
-                >
-                  {item.icon}
-                </span>
-                <span className="text-xs font-medium text-foreground">
-                  {item.value}
-                </span>
-                <StatsBadge
-                  value={item.change}
-                  variant="big"
-                  className="flex items-baseline"
-                />
-              </div>
-            </div>
-            {item.funnelPercentage ? (
-              <span className="text-xs text-muted-foreground px-2 shrink-0">
-                {item.funnelPercentage}
+              >
+                {item.icon}
               </span>
-            ) : null}
-          </Fragment>
-        ))}
+              <span className="text-xs font-medium text-foreground">
+                {item.value}
+              </span>
+              <StatsBadge
+                value={item.change}
+                variant="big"
+                className="flex items-baseline"
+              />
+            </label>
+          );
+        })}
       </div>
     );
   }

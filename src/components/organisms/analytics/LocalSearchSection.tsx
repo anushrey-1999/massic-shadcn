@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { MapPin, Search, Loader2 } from "lucide-react";
 import { Typography } from "@/components/ui/typography";
@@ -13,6 +13,13 @@ import {
   type TimePeriodValue,
 } from "@/hooks/use-local-presence";
 import { useBusinessStore } from "@/store/business-store";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface LocationOption {
   value: string;
@@ -22,21 +29,26 @@ interface LocationOption {
 interface LocalSearchSectionProps {
   period?: TimePeriodValue;
   locations?: LocationOption[];
-  selectedLocation?: string;
 }
 
 export function LocalSearchSection({
   period = "3 months",
   locations = [],
-  selectedLocation = "",
 }: LocalSearchSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
   const [queriesModalOpen, setQueriesModalOpen] = useState(false);
+  const [activeLocation, setActiveLocation] = useState<string>("");
   const [sortConfig, setSortConfig] = useState<SortConfig>({
     column: "searches",
     direction: "desc",
   });
+
+  useEffect(() => {
+    if (locations.length > 0 && !activeLocation) {
+      setActiveLocation(locations[0].value);
+    }
+  }, [locations, activeLocation]);
 
   const { businessUniqueId } = useMemo(() => {
     const match = pathname.match(/^\/business\/([^/]+)/);
@@ -54,7 +66,7 @@ export function LocalSearchSection({
     isLoading,
     hasInteractionsData,
     hasQueriesData,
-  } = useLocalPresence(businessUniqueId, period, selectedLocation);
+  } = useLocalPresence(businessUniqueId, period, activeLocation);
 
   const tableData = useMemo(() => {
     const mapped = queriesData.map((item) => ({
@@ -83,9 +95,25 @@ export function LocalSearchSection({
 
   return (
     <div className="px-7 pb-10">
-      <div className="flex items-center gap-2 pb-6">
-        <MapPin className="h-8 w-8 text-general-foreground" />
-        <Typography variant="h2">Local Search</Typography>
+      <div className="flex items-center justify-between pb-6">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-8 w-8 text-general-foreground" />
+          <Typography variant="h2">Local Search</Typography>
+        </div>
+        {locations.length >= 1 && (
+          <Select value={activeLocation} onValueChange={setActiveLocation}>
+            <SelectTrigger className="w-[260px]">
+              <SelectValue placeholder="Select location" />
+            </SelectTrigger>
+            <SelectContent>
+              {locations.map((loc) => (
+                <SelectItem key={loc.value} value={loc.value}>
+                  {loc.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {locations.length === 0 ? (
@@ -143,7 +171,7 @@ export function LocalSearchSection({
             />
             <RatingCard
               title={`Ratings Past ${period}`}
-              rating={Math.round(reviewsData.avgRating.value)}
+              rating={reviewsData.avgRating.value}
               maxRating={5}
               change={reviewsData.avgRating.change}
             />

@@ -3,8 +3,9 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/filter-table/data-table-column-header";
 import { RelevancePill } from "@/components/ui/relevance-pill";
+import { ExpandablePills } from "@/components/ui/expandable-pills";
 import { Typography } from "@/components/ui/typography";
-import { Radio, Tv } from "lucide-react";
+import { Building2, Radio, Tv } from "lucide-react";
 import type { TvRadioAdConceptRow, TvRadioChannel } from "@/types/tv-radio-ads-types";
 
 function formatVolume(value: number): string {
@@ -27,7 +28,11 @@ function TypeCell({ value }: { value: TvRadioChannel }) {
   );
 }
 
-export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
+interface GetTvRadioAdsTableColumnsProps {
+  offeringOptions?: string[];
+}
+
+export function getTvRadioAdsTableColumns({ offeringOptions = [] }: GetTvRadioAdsTableColumnsProps = {}): ColumnDef<TvRadioAdConceptRow>[] {
   return [
     {
       id: "subtopic",
@@ -61,8 +66,12 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
       cell: ({ cell }) => <TypeCell value={cell.getValue<TvRadioChannel>()} />,
       meta: {
         label: "Type",
-        variant: "text",
-        placeholder: "TV or Radio...",
+        variant: "select",
+        placeholder: "Select type...",
+        options: [
+          { label: "TV", value: "TV" },
+          { label: "Radio", value: "Radio" },
+        ],
         apiField: "channel",
       },
       enableColumnFilter: true,
@@ -85,7 +94,7 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
       meta: {
         label: "Relevance",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
         apiField: "avg_business_relevance",
       },
       enableColumnFilter: true,
@@ -108,7 +117,8 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
       meta: {
         label: "Priority",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
+        apiField: "cas_score",
       },
       enableColumnFilter: true,
       enableSorting: true,
@@ -129,13 +139,39 @@ export function getTvRadioAdsTableColumns(): ColumnDef<TvRadioAdConceptRow>[] {
         label: "Volume",
         variant: "range",
         range: [0, 10000000],
-        apiField: "total_search_volume",
+        apiField: "supporting_data.totals.total_search_volume",
       },
       enableColumnFilter: true,
       enableSorting: true,
       size: 140,
       minSize: 120,
       maxSize: 180,
+    },
+    {
+      id: "offerings",
+      accessorKey: "offerings",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Offerings" />
+      ),
+      cell: ({ row }) => (
+        <div className="max-w-full">
+          <ExpandablePills items={row.getValue<string[]>("offerings") || []} pillVariant="outline" />
+        </div>
+      ),
+      meta: {
+        label: "Offerings",
+        variant: "multiSelect" as const,
+        options: offeringOptions.map((o) => ({ label: o, value: o })),
+        operators: [{ label: "Has any of", value: "inArray" as const }],
+        icon: Building2,
+        closeOnSelect: true,
+      },
+      enableColumnFilter: true,
+      enableSorting: false,
+      enableHiding: true,
+      size: 150,
+      minSize: 120,
+      maxSize: 250,
     },
   ];
 }
@@ -174,8 +210,12 @@ export function getTvRadioAdsSplitViewColumns(): ColumnDef<TvRadioAdConceptRow>[
       cell: ({ cell }) => <TypeCell value={cell.getValue<TvRadioChannel>()} />,
       meta: {
         label: "Type",
-        variant: "text",
-        placeholder: "TV or Radio...",
+        variant: "select",
+        placeholder: "Select type...",
+        options: [
+          { label: "TV", value: "TV" },
+          { label: "Radio", value: "Radio" },
+        ],
         apiField: "channel",
       },
       enableColumnFilter: true,
@@ -198,7 +238,8 @@ export function getTvRadioAdsSplitViewColumns(): ColumnDef<TvRadioAdConceptRow>[
       meta: {
         label: "Priority",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
+        apiField: "cas_score",
       },
       enableColumnFilter: true,
       enableSorting: true,

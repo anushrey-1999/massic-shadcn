@@ -2,21 +2,24 @@
 
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import * as d3 from "d3";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { ChartHoverTooltip } from "@/components/ui/chart-hover-tooltip";
 import { BUSINESS_RELEVANCE_PALETTE } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 
 export type SocialBubbleDatum = {
 	channel_name: string;
 	channel_relevance?: number;
+	channel_coverage?: number;
 	campaign_name: string;
 	campaign_relevance?: number;
-	cluster_name?: string;
-	cluster_relevance?: number;
+	campaign_coverage?: number;
+	campaign_offerings?: string[];
 };
+
+export type SocialBubbleColorMetric = "topicCoverage" | "businessRelevance";
 
 interface SocialBubbleChartProps {
 	data: SocialBubbleDatum[];
+	colorMetric?: SocialBubbleColorMetric;
 	width?: number;
 	height?: number;
 }
@@ -25,9 +28,10 @@ interface HierarchyNode {
 	name: string;
 	children?: HierarchyNode[];
 	value?: number;
-	type: "root" | "channel" | "campaign" | "cluster";
+	type: "root" | "channel" | "tactic" | "keyword";
 	data?: {
 		relevanceScore?: number;
+		coverage?: number;
 	};
 }
 
@@ -50,6 +54,7 @@ function formatScorePercent(scoreRaw?: number) {
 
 export function SocialBubbleChart({
 	data,
+	colorMetric = "topicCoverage",
 	width = 1200,
 	height = 800,
 }: SocialBubbleChartProps) {
@@ -90,16 +95,19 @@ export function SocialBubbleChart({
 		};
 	}, []);
 
+	// Channel > Tactic > Keyword (from campaign_offerings)
 	const hierarchyData = useMemo(() => {
 		const byChannel = new Map<
 			string,
 			{
 				channel_relevance?: number;
-				campaigns: Map<
+				channel_coverage?: number;
+				tactics: Map<
 					string,
 					{
-						campaign_relevance?: number;
-						clusters: Map<string, { cluster_relevance?: number }>;
+						tactic_relevance?: number;
+						tactic_coverage?: number;
+						keywords: Set<string>;
 					}
 				>;
 			}
@@ -107,60 +115,43 @@ export function SocialBubbleChart({
 
 		for (const row of data) {
 			const channel = (row.channel_name || "").trim();
-			const campaign = (row.campaign_name || "").trim();
-			const cluster = (row.cluster_name || "").trim();
-			if (!channel || !campaign) continue;
+			const tactic = (row.campaign_name || "").trim();
+			if (!channel || !tactic) continue;
 
-			const existing = byChannel.get(channel);
-			if (!existing) {
-				const campaignEntry = {
-					campaign_relevance: row.campaign_relevance,
-					clusters: new Map<string, { cluster_relevance?: number }>(),
-				};
-				if (cluster) {
-					campaignEntry.clusters.set(cluster, { cluster_relevance: row.cluster_relevance });
-				}
+			const keywords = Array.isArray(row.campaign_offerings)
+				? row.campaign_offerings.map((k) => String(k).trim()).filter(Boolean)
+				: [];
+
+			if (!byChannel.has(channel)) {
 				byChannel.set(channel, {
 					channel_relevance: row.channel_relevance,
-					campaigns: new Map([[campaign, campaignEntry]]),
+					channel_coverage: row.channel_coverage,
+					tactics: new Map(),
 				});
-				continue;
 			}
 
-			if (existing.channel_relevance === undefined && row.channel_relevance !== undefined) {
-				existing.channel_relevance = row.channel_relevance;
+			const channelData = byChannel.get(channel)!;
+			if (channelData.channel_relevance === undefined && row.channel_relevance !== undefined) {
+				channelData.channel_relevance = row.channel_relevance;
+			}
+			if (channelData.channel_coverage === undefined && row.channel_coverage !== undefined) {
+				channelData.channel_coverage = row.channel_coverage;
 			}
 
-			const existingCampaign = existing.campaigns.get(campaign);
-			if (!existingCampaign) {
-				const campaignEntry = {
-					campaign_relevance: row.campaign_relevance,
-					clusters: new Map<string, { cluster_relevance?: number }>(),
-				};
-				if (cluster) {
-					campaignEntry.clusters.set(cluster, { cluster_relevance: row.cluster_relevance });
-				}
-				existing.campaigns.set(campaign, campaignEntry);
+			if (!channelData.tactics.has(tactic)) {
+				channelData.tactics.set(tactic, {
+					tactic_relevance: row.campaign_relevance,
+					tactic_coverage: row.campaign_coverage,
+					keywords: new Set(keywords),
+				});
 			} else {
-				if (
-					existingCampaign.campaign_relevance === undefined &&
-					row.campaign_relevance !== undefined
-				) {
-					existingCampaign.campaign_relevance = row.campaign_relevance;
+				const tacticData = channelData.tactics.get(tactic)!;
+				keywords.forEach((k) => tacticData.keywords.add(k));
+				if (tacticData.tactic_relevance === undefined && row.campaign_relevance !== undefined) {
+					tacticData.tactic_relevance = row.campaign_relevance;
 				}
-
-				if (cluster) {
-					const existingCluster = existingCampaign.clusters.get(cluster);
-					if (!existingCluster) {
-						existingCampaign.clusters.set(cluster, {
-							cluster_relevance: row.cluster_relevance,
-						});
-					} else if (
-						existingCluster.cluster_relevance === undefined &&
-						row.cluster_relevance !== undefined
-					) {
-						existingCluster.cluster_relevance = row.cluster_relevance;
-					}
+				if (tacticData.tactic_coverage === undefined && row.campaign_coverage !== undefined) {
+					tacticData.tactic_coverage = row.campaign_coverage;
 				}
 			}
 		}
@@ -168,38 +159,41 @@ export function SocialBubbleChart({
 		const channels = Array.from(byChannel.entries())
 			.sort(([a], [b]) => a.localeCompare(b))
 			.map(([channelName, channelData]) => {
-				const campaigns = Array.from(channelData.campaigns.entries())
+				const tactics = Array.from(channelData.tactics.entries())
 					.sort(([a], [b]) => a.localeCompare(b))
-					.map(([campaignName, campaignData]) => {
-						const clusters = Array.from(campaignData.clusters.entries())
-							.sort(([a], [b]) => a.localeCompare(b))
-							.map(([clusterName, clusterData]) => ({
-								name: clusterName,
-								type: "cluster" as const,
+					.map(([tacticName, tacticData]) => {
+						const keywords = Array.from(tacticData.keywords)
+							.sort()
+							.map((keyword) => ({
+								name: keyword,
+								type: "keyword" as const,
 								value: 1,
 								data: {
-									relevanceScore: clusterData.cluster_relevance,
+									relevanceScore: tacticData.tactic_relevance,
+									coverage: tacticData.tactic_coverage,
 								},
 							}));
 
-						if (!clusters.length) {
+						if (!keywords.length) {
 							return {
-								name: campaignName,
-								type: "campaign" as const,
+								name: tacticName,
+								type: "tactic" as const,
 								value: 1,
 								data: {
-									relevanceScore: campaignData.campaign_relevance,
+									relevanceScore: tacticData.tactic_relevance,
+									coverage: tacticData.tactic_coverage,
 								},
 							};
 						}
 
 						return {
-							name: campaignName,
-							type: "campaign" as const,
+							name: tacticName,
+							type: "tactic" as const,
 							data: {
-								relevanceScore: campaignData.campaign_relevance,
+								relevanceScore: tacticData.tactic_relevance,
+								coverage: tacticData.tactic_coverage,
 							},
-							children: clusters,
+							children: keywords,
 						};
 					});
 
@@ -208,8 +202,9 @@ export function SocialBubbleChart({
 					type: "channel" as const,
 					data: {
 						relevanceScore: channelData.channel_relevance,
+						coverage: channelData.channel_coverage,
 					},
-					children: campaigns,
+					children: tactics,
 				};
 			});
 
@@ -217,7 +212,7 @@ export function SocialBubbleChart({
 			name: "Channels",
 			type: "root" as const,
 			children: channels,
-		}
+		};
 
 		return root;
 	}, [data]);
@@ -228,17 +223,16 @@ export function SocialBubbleChart({
 		const channelAncestor =
 			node.data.type === "channel"
 				? node
-				: node.ancestors().find((a): a is PackedNode => a.data.type === "channel") ??
-					null;
+				: node.ancestors().find((a): a is PackedNode => a.data.type === "channel") ?? null;
 
 		const scoreRaw =
-			node.data.type === "channel"
-				? node.data.data?.relevanceScore
-				: node.data.type === "campaign"
-					? node.data.data?.relevanceScore ?? channelAncestor?.data.data?.relevanceScore
-					: node.data.type === "cluster"
-						? node.data.data?.relevanceScore
-						: channelAncestor?.data.data?.relevanceScore;
+			colorMetric === "businessRelevance"
+				? node.data.type === "channel"
+					? node.data.data?.relevanceScore
+					: node.data.data?.relevanceScore ?? channelAncestor?.data.data?.relevanceScore
+				: node.data.type === "channel"
+					? node.data.data?.coverage
+					: node.data.data?.coverage ?? channelAncestor?.data.data?.coverage;
 
 		const score = normalizeScore(scoreRaw);
 		const index = Math.max(
@@ -246,7 +240,7 @@ export function SocialBubbleChart({
 			Math.min(palette.length - 1, Math.round(score * (palette.length - 1)))
 		);
 		return palette[index];
-	}, []);
+	}, [colorMetric]);
 
 	useEffect(() => {
 		if (!canvasRef.current || !hierarchyData.children?.length) return;
@@ -305,18 +299,17 @@ export function SocialBubbleChart({
 
 				const color = getColor(node);
 				let alpha = 0.7;
-				if (node.data.type === "campaign") alpha = 0.6;
-				if (node.data.type === "cluster") alpha = 0.5;
-				ctx.fillStyle =
-					color + Math.round(alpha * 255).toString(16).padStart(2, "0");
+				if (node.data.type === "tactic") alpha = 0.6;
+				if (node.data.type === "keyword") alpha = 0.5;
+				ctx.fillStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0");
 				ctx.fill();
 
 				ctx.strokeStyle = "#ffffff";
-				ctx.lineWidth = node.data.type === "channel" ? 2 : node.data.type === "campaign" ? 1.5 : 1;
+				ctx.lineWidth =
+					node.data.type === "channel" ? 2 : node.data.type === "tactic" ? 1.5 : 1;
 				ctx.stroke();
 			});
 
-			// Draw a subtle boundary for the root circle to visually wrap all channels.
 			{
 				const rootX = (packedData.x - view[0]) * k + centerX;
 				const rootY = (packedData.y - view[1]) * k + centerY;
@@ -429,17 +422,11 @@ export function SocialBubbleChart({
 			const y = clientY - containerRect.top;
 
 			const offset = 12;
-			const tooltipWidth = 260;
+			const tooltipWidth = 280;
 			const tooltipHeight = 100;
 
-			const left = Math.max(
-				0,
-				Math.min(x + offset, containerRect.width - tooltipWidth)
-			);
-			const top = Math.max(
-				0,
-				Math.min(y + offset, containerRect.height - tooltipHeight)
-			);
+			const left = Math.max(0, Math.min(x + offset, containerRect.width - tooltipWidth));
+			const top = Math.max(0, Math.min(y + offset, containerRect.height - tooltipHeight));
 
 			tooltipEl.style.transform = `translate3d(${left}px, ${top}px, 0)`;
 		};
@@ -489,12 +476,13 @@ export function SocialBubbleChart({
 	const tooltipTypeLabel =
 		tooltipType === "channel"
 			? "Channel"
-			: tooltipType === "campaign"
-				? "Campaign"
-				: tooltipType === "cluster"
-					? "Sub Topic"
+			: tooltipType === "tactic"
+				? "Tactic"
+				: tooltipType === "keyword"
+					? "Keyword"
 					: null;
 	const tooltipRelevance = formatScorePercent(tooltipNode?.data.data?.relevanceScore);
+	const tooltipCoverage = formatScorePercent(tooltipNode?.data.data?.coverage);
 
 	return (
 		<div
@@ -505,32 +493,17 @@ export function SocialBubbleChart({
 
 			<div
 				ref={tooltipRef}
-				className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity"
+				className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity duration-150"
 			>
 				{tooltipNode ? (
-					<Card
-						variant="profileCard"
-						className="w-[260px] p-3 bg-foreground-light border-none rounded-xl"
-					>
-						{tooltipTypeLabel ? (
-							<div className="mb-1">
-								<Badge
-									variant="outline"
-									className="border border-general-border"
-								>
-									{tooltipTypeLabel}
-								</Badge>
-							</div>
-						) : null}
-						<CardTitle className="text-sm font-medium text-general-primary">
-							{tooltipTitle}
-						</CardTitle>
-						<div className="mt-2 flex flex-col items-start flex-wrap gap-2">
-							<Badge variant="outline">
-								Relevance&nbsp;<span className="text-general-foreground">{tooltipRelevance}</span>
-							</Badge>
-						</div>
-					</Card>
+					<ChartHoverTooltip
+						typeLabel={tooltipTypeLabel}
+						title={tooltipTitle}
+						metrics={[
+							{ label: "Topic Coverage", value: tooltipCoverage },
+							{ label: "Relevance", value: tooltipRelevance },
+						]}
+					/>
 				) : null}
 			</div>
 		</div>

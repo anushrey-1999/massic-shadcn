@@ -434,7 +434,7 @@ export function DataTableFilterList<TData>({
       <PopoverContent
         aria-describedby={descriptionId}
         aria-labelledby={labelId}
-        className="flex w-full max-w-(--radix-popover-content-available-width) flex-col gap-3.5 p-4 sm:min-w-[380px]"
+        className="flex w-[calc(100vw-2rem)] max-w-[760px] flex-col gap-3.5 p-4 sm:min-w-[380px]"
         {...props}
       >
         <div className="flex flex-col gap-1">
@@ -454,7 +454,7 @@ export function DataTableFilterList<TData>({
           </p>
         </div>
         {allFilters.length > 0 ? (
-          <ul className="flex max-h-[300px] flex-col gap-2 overflow-y-auto p-1">
+          <ul className="flex max-h-[300px] flex-col gap-2 overflow-y-auto overflow-x-hidden p-1">
             {allFilters.map((filter, index) => (
               <DataTableFilterItem<TData>
                 key={`${filter.field}-${index}`}
@@ -626,10 +626,10 @@ function DataTableFilterItem<TData>({
     <li
       id={filterItemId}
       tabIndex={-1}
-      className="flex items-center gap-2"
+      className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[72px_8rem_8rem_minmax(0,1fr)_2rem] sm:items-start"
       onKeyDown={onItemKeyDown}
     >
-      <div className="min-w-[72px] text-center">
+      <div className="col-span-2 min-w-[72px] pt-1 text-left sm:col-span-1 sm:text-center">
         {index === 0 ? (
           <span className="text-muted-foreground text-sm">Where</span>
         ) : index === 1 ? (
@@ -775,7 +775,7 @@ function DataTableFilterItem<TData>({
           ))}
         </SelectContent>
       </Select>
-      <div className="min-w-36 flex-1">
+      <div className="col-span-2 min-w-0 sm:col-span-1">
         {onFilterInputRender({
           filter,
           inputId,
@@ -793,7 +793,7 @@ function DataTableFilterItem<TData>({
         aria-controls={filterItemId}
         variant="outline"
         size="icon"
-        className="size-8 rounded"
+        className="size-8 rounded sm:col-start-5"
         onClick={() => onFilterRemove(filter.field)}
       >
         <Trash2 />
@@ -957,9 +957,10 @@ function onFilterInputRender<TData>({
               aria-label={`${columnMeta?.label} filter value${multiple ? "s" : ""}`}
               variant="outline"
               size="sm"
-              className="h-8 w-full min-h-8 rounded font-normal"
+              className="h-auto min-h-8 w-full justify-start rounded px-2 py-1 font-normal whitespace-normal"
             >
               <FacetedBadgeList
+                className="max-w-full"
                 options={columnMeta?.options}
                 placeholder={
                   columnMeta?.placeholder ??

@@ -124,6 +124,23 @@ export function LocationSelect({
   const triggerRef = React.useRef<HTMLDivElement>(null)
   const [popoverWidth, setPopoverWidth] = React.useState<number | undefined>(undefined)
 
+  const findScrollableAncestor = React.useCallback((el: HTMLElement | null) => {
+    if (!el) return null
+    const isScrollable = (node: HTMLElement) => {
+      const style = window.getComputedStyle(node)
+      const overflowY = style.overflowY
+      if (overflowY !== 'auto' && overflowY !== 'scroll') return false
+      return node.scrollHeight > node.clientHeight
+    }
+
+    let current: HTMLElement | null = el
+    while (current) {
+      if (isScrollable(current)) return current
+      current = current.parentElement
+    }
+    return null
+  }, [])
+
   // Debounce the search value for filtering (not the input value)
   const debouncedSetSearch = useDebouncedCallback((val: string) => {
     setDebouncedSearchValue(val)
@@ -156,9 +173,16 @@ export function LocationSelect({
     return filtered.slice(0, 500)
   }, [validOptions, debouncedSearchValue])
 
-  // Find selected option label
-  const selectedOption = options.find((opt) => opt.value === value)
-  const displayValue = selectedOption?.label || placeholder
+  // Find selected option label.
+  // Some callsites include a disabled placeholder option with empty value.
+  // Treat that as "no selection" so the closed trigger shows the placeholder styling.
+  const selectedOption = options.find(
+    (opt) => opt.value === value && !opt.disabled && opt.value !== ''
+  )
+  const hasRealSelection =
+    value != null && String(value).trim() !== '' && Boolean(selectedOption)
+  const displayValue = hasRealSelection ? selectedOption!.label : placeholder
+  const isPlaceholder = loading || !hasRealSelection
 
   // Measure trigger width when it opens
   React.useEffect(() => {
@@ -167,6 +191,25 @@ export function LocationSelect({
       setPopoverWidth(width)
     }
   }, [open])
+
+  // When this select is inside a custom scroll container (like ProfileStepCard),
+  // Radix Popover is portalled to the body. If the container scrolls, the popover
+  // can appear "stuck" over the page. Close on scroll to avoid broken UI.
+  React.useEffect(() => {
+    if (!open) return
+    if (typeof window === 'undefined') return
+
+    const triggerEl = triggerRef.current
+    const scrollParent = findScrollableAncestor(triggerEl)
+    const onScroll = () => setOpen(false)
+
+    scrollParent?.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      scrollParent?.removeEventListener('scroll', onScroll)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [open, findScrollableAncestor])
 
   return (
     <div ref={triggerRef} className={cn("w-full", className)}>
@@ -177,7 +220,8 @@ export function LocationSelect({
             role="combobox"
             aria-expanded={open}
             className={cn(
-              "w-full justify-between",
+              // Match input-like typography/colors (not CTA button styling)
+              "w-full justify-between text-foreground font-normal",
               // Only apply default classes if triggerClassName doesn't override them
               !triggerClassName && "h-10 rounded-lg",
               triggerClassName
@@ -186,7 +230,7 @@ export function LocationSelect({
           >
             <span className={cn(
               "truncate",
-              selectedOption ? "text-sm" : "text-general-muted-foreground text-xs"
+              isPlaceholder ? "text-general-muted-foreground text-xs" : "text-sm text-foreground"
             )}>
               {loading ? 'Loading locations...' : displayValue}
             </span>

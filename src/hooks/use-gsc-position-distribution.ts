@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { useMemo, useState, useCallback } from "react";
 import { calculateTrend } from "@/utils/gsc-deepdive-utils";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
+import type { TimePeriodValue } from "@/utils/analytics-period";
 
-export type TimePeriodValue = "7 days" | "14 days" | "28 days" | "3 months" | "6 months" | "12 months";
+export type { TimePeriodValue };
 
 interface GscV2Response {
   success: boolean;
@@ -44,7 +45,7 @@ export function useGscPositionDistribution(
   businessId: string | null,
   siteUrl: string | null,
   period: TimePeriodValue = "3 months",
-  apiFilters: DeepdiveFilter[] = []
+  apiFilters: DeepdiveApiFilter[] = []
 ) {
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     pos1_3: true,

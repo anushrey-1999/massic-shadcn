@@ -2,13 +2,6 @@
 
 import { ReactNode } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatsBadge } from "./StatsBadge"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 
 interface LLMData {
   name: string
@@ -26,8 +19,12 @@ interface LLMComparisonChartProps {
   hasData?: boolean
 }
 
+function formatCount(value: number): string {
+  if (!Number.isFinite(value)) return "0"
+  return value.toLocaleString()
+}
+
 export function LLMComparisonChart({
-  title,
   data,
   isLoading = false,
   hasData = true,
@@ -62,37 +59,37 @@ export function LLMComparisonChart({
   const maxValue = Math.max(...data.map((d) => d.value), 1)
 
   return (
-    <div className="flex flex-col bg-white justify-center">
-      <div className="flex flex-col gap-4">
+    <div className="flex flex-col justify-center bg-white">
+      <div className="flex flex-col gap-1">
         {data.map((item, index) => {
           const displayValue = item.rawValue ?? item.value
           const barWidth = maxValue > 0 ? (item.value / maxValue) * 100 : 0
+          const percentage = Math.round(item.value)
 
           return (
             <div key={index} className="flex items-center gap-3">
-              <div className="flex h-[40px] w-[40px] items-center justify-center text-general-muted-foreground shrink-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center text-general-muted-foreground">
                 {item.icon}
               </div>
-              <div className="flex flex-1 flex-col gap-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm" style={{ color: '#737373' }}>{item.name}</span>
-                  <StatsBadge value={item.change} className="min-w-[60px] justify-end" />
-                </div>
-                <div className="flex items-center gap-2 group relative">
-                  <div className="w-full h-[12px] bg-[#E5E5E5] rounded-full relative">
-                    <div
-                      className="h-[12px] rounded-full absolute top-0 left-0 cursor-pointer"
-                      style={{
-                        width: barWidth > 0 ? `${barWidth}%` : '4px',
-                        backgroundColor: item.value > 0 ? item.color : '#E5E5E5',
-                      }}
-                    >
-                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#171717] text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                        {displayValue}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <span className="w-[96px] shrink-0 truncate text-left text-sm font-medium text-[#737373]">
+                {item.name}
+              </span>
+              <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[#E5E5E5]">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: barWidth > 0 ? `${barWidth}%` : "4px",
+                    backgroundColor: item.value > 0 ? item.color : "#E5E5E5",
+                  }}
+                />
+              </div>
+              <div className="ml-auto flex min-w-[72px] shrink-0 items-center justify-end gap-1.5 whitespace-nowrap text-right leading-normal">
+                <span className="text-[12px] font-normal tracking-[0.18px] text-[#0a0a0a]">
+                  {percentage}%
+                </span>
+                <span className="text-[10px] font-medium tracking-[0.15px] text-[#737373]">
+                  {formatCount(displayValue)}
+                </span>
               </div>
             </div>
           )

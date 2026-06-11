@@ -3,6 +3,14 @@ import { toast } from "sonner";
 
 import { api } from "@/hooks/use-api";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
+import {
+  normalizeSeoSnapshotReport,
+  seoSnapshotReportToMarkdown,
+  type SeoSnapshotReport,
+} from "@/utils/seo-snapshot-report";
+
+const SEO_SNAPSHOT_ENDPOINT = "/reports/seo-snapshot";
+const LEGACY_SNAPSHOT_ENDPOINT = "/reports/snapshot";
 
 export type ExpressPitchTactic = {
   priority: number;
@@ -20,6 +28,14 @@ export type ExpressPitch = {
   [key: string]: any;
 };
 
+export type SeoSnapshotRequestBody = {
+  gbp_url?: string | null;
+  highest_value_services?: string[];
+  target_customer_type?: string;
+  competitors_override?: string[];
+  location_override?: string;
+};
+
 function toStringOrJson(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
@@ -33,6 +49,133 @@ function toStringOrJson(value: unknown): string {
 
 function isNonNullObject(value: unknown): value is Record<string, any> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function text(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function cleanDomain(value: unknown): string {
+  const raw = text(value);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+    return url.hostname.replace(/^www\./i, "");
+  } catch {
+    return raw.replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0] || raw;
+  }
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const cleaned = value.trim();
+    const key = cleaned.toLowerCase();
+    if (!cleaned || seen.has(key)) continue;
+    seen.add(key);
+    result.push(cleaned);
+  }
+  return result;
+}
+
+function extractServiceName(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (!isNonNullObject(value)) return "";
+  return text(value.name) || text(value.Name) || text(value.title) || text(value.service);
+}
+
+function extractLocationLabel(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (!isNonNullObject(value)) return "";
+
+  const direct =
+    text(value.Location) ||
+    text(value.location) ||
+    text(value.DisplayName) ||
+    text(value.displayName) ||
+    text(value.Name) ||
+    text(value.name);
+  const country = text(value.Country) || text(value.country);
+  if (direct && country && !direct.toLowerCase().includes(country.toLowerCase())) {
+    return `${direct}, ${country}`;
+  }
+  return direct || country;
+}
+
+function extractGbpUrl(profile: Record<string, any>): string {
+  const keys = [
+    "gbp_url",
+    "GBPUrl",
+    "GbpUrl",
+    "GoogleBusinessProfileUrl",
+    "GoogleBusinessProfileURL",
+    "googleBusinessProfileUrl",
+    "google_business_profile_url",
+  ];
+  for (const key of keys) {
+    const value = text(profile[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
+export function buildSeoSnapshotRequestBodyFromBusinessProfile(profile: unknown): SeoSnapshotRequestBody | undefined {
+  if (!isNonNullObject(profile)) return undefined;
+
+  const productsServices = Array.isArray(profile.ProductsServices)
+    ? profile.ProductsServices
+    : Array.isArray(profile.productsServices)
+      ? profile.productsServices
+      : [];
+  const highestValueServices = uniqueStrings(productsServices.map(extractServiceName));
+
+  const personas = Array.isArray(profile.CustomerPersonas)
+    ? profile.CustomerPersonas
+    : Array.isArray(profile.customerPersonas)
+      ? profile.customerPersonas
+      : [];
+  const targetCustomerType = uniqueStrings(
+    personas.map((persona) => {
+      if (typeof persona === "string") return persona.trim();
+      if (!isNonNullObject(persona)) return "";
+      const name = text(persona.personName) || text(persona.name);
+      const description = text(persona.personDescription) || text(persona.description);
+      return [name, description].filter(Boolean).join(": ");
+    })
+  ).join("; ");
+
+  const competitors = Array.isArray(profile.Competitors)
+    ? profile.Competitors
+    : Array.isArray(profile.competitors)
+      ? profile.competitors
+      : [];
+  const competitorDomains = uniqueStrings(
+    competitors.map((competitor) => {
+      if (typeof competitor === "string") return cleanDomain(competitor);
+      if (!isNonNullObject(competitor)) return "";
+      return cleanDomain(competitor.website || competitor.url || competitor.domain);
+    })
+  );
+
+  const locationOverride =
+    extractLocationLabel(profile.PrimaryLocation) ||
+    extractLocationLabel(profile.primaryLocation) ||
+    (Array.isArray(profile.Locations) ? extractLocationLabel(profile.Locations[0]) : "") ||
+    (Array.isArray(profile.locations) ? extractLocationLabel(profile.locations[0]) : "");
+
+  const gbpUrl = extractGbpUrl(profile);
+
+  const body: SeoSnapshotRequestBody = {};
+  if (gbpUrl) body.gbp_url = gbpUrl;
+  if (highestValueServices.length) body.highest_value_services = highestValueServices;
+  if (targetCustomerType) body.target_customer_type = targetCustomerType;
+  if (competitorDomains.length) body.competitors_override = competitorDomains;
+  if (locationOverride) body.location_override = locationOverride;
+
+  return Object.keys(body).length ? body : undefined;
 }
 
 function coerceExpressPitch(value: unknown): ExpressPitch | null {
@@ -201,6 +344,9 @@ function extractReportText(payload: unknown): string {
   if (payload == null) return "";
   if (typeof payload === "string") return payload;
 
+  const seoSnapshotReport = normalizeSeoSnapshotReport(payload);
+  if (seoSnapshotReport) return seoSnapshotReportToMarkdown(seoSnapshotReport);
+
   const snapshotMarkdown = extractSnapshotSectionsMarkdown(payload);
   if (snapshotMarkdown) return snapshotMarkdown;
 
@@ -245,6 +391,22 @@ function normalizeStatus(value: unknown): string {
   return String(value || "").trim().toLowerCase();
 }
 
+function isSnapshotProcessingStatus(value: unknown): boolean {
+  const status = normalizeStatus(value);
+  return [
+    "queued",
+    "extracting",
+    "keyword_pool",
+    "scoring",
+    "serp_check",
+    "aggregating",
+    "assembling",
+    "pending",
+    "processing",
+    "in_progress",
+  ].includes(status);
+}
+
 function extractSubscriptionError(error: any): string | null {
   if (!error) return null;
 
@@ -287,13 +449,13 @@ function is403Error(error: any): boolean {
 
 export function useStartQuickyReport() {
   const queryClient = useQueryClient();
-  return useMutation<ReportStatusResponse, Error, { businessId: string }>({
-    mutationFn: async ({ businessId }) => {
+  return useMutation<ReportStatusResponse, Error, { businessId: string; body?: SeoSnapshotRequestBody }>({
+    mutationFn: async ({ businessId, body }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
 
-      return api.post<ReportStatusResponse>("/client/quicky", "python", undefined, {
+      return api.post<ReportStatusResponse>(SEO_SNAPSHOT_ENDPOINT, "python", body, {
         params: { business_id: businessId },
       });
     },
@@ -330,11 +492,16 @@ export function useQuickyReportStatus(params: {
     queryFn: async () => {
       if (!businessId) return null;
       try {
-        return await api.get<ReportStatusResponse>("/client/quicky", "python", {
+        return await api.get<ReportStatusResponse>(SEO_SNAPSHOT_ENDPOINT, "python", {
           params: { business_id: businessId },
         });
       } catch (error: any) {
         if (error?.response?.status === 403) return null;
+        if (error?.response?.status === 404) {
+          return await api.get<ReportStatusResponse>(LEGACY_SNAPSHOT_ENDPOINT, "python", {
+            params: { business_id: businessId },
+          });
+        }
         throw error;
       }
     },
@@ -343,15 +510,19 @@ export function useQuickyReportStatus(params: {
     gcTime: 5 * 60 * 1000,
     refetchInterval: (query) => {
       const data = query.state.data as ReportStatusResponse | null;
-      const status = normalizeStatus(data?.status);
-      return status === "pending" || status === "processing" ? 4000 : false;
+      return isSnapshotProcessingStatus(data?.status) ? 4000 : false;
     },
   });
 }
 
 export function useFetchReportFromDownloadUrl() {
   return useMutation<
-    { content: string; expressPitch: ExpressPitch | null; payload: unknown },
+    {
+      content: string;
+      expressPitch: ExpressPitch | null;
+      seoSnapshotReport: SeoSnapshotReport | null;
+      payload: unknown;
+    },
     Error,
     { downloadUrl: string }
   >({
@@ -364,6 +535,7 @@ export function useFetchReportFromDownloadUrl() {
       return {
         content: cleanEscapedContent(extractReportText(response)),
         expressPitch: extractExpressPitch(response),
+        seoSnapshotReport: normalizeSeoSnapshotReport(response),
         payload: response,
       };
     },
@@ -377,13 +549,13 @@ export function useFetchReportFromDownloadUrl() {
 
 export function useGenerateQuickyReport() {
   const queryClient = useQueryClient();
-  return useMutation<string, Error, { businessId: string }>({
-    mutationFn: async ({ businessId }) => {
+  return useMutation<string, Error, { businessId: string; body?: SeoSnapshotRequestBody }>({
+    mutationFn: async ({ businessId, body }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
 
-      const response = await api.post("/client/quicky", "python", undefined, {
+      const response = await api.post(SEO_SNAPSHOT_ENDPOINT, "python", body, {
         params: { business_id: businessId },
       });
       return cleanEscapedContent(extractReportText(response));
@@ -417,7 +589,7 @@ export function useGenerateDetailedPitch() {
         throw new Error("Business ID is required");
       }
 
-      const response = await api.post("/client/pitches", "python", undefined, {
+      const response = await api.post("/actions/pitches", "python", undefined, {
         params: { business_id: businessId },
       });
       return cleanEscapedContent(extractReportText(response));
@@ -451,7 +623,7 @@ export function usePitchSummary(
       if (!businessId) return null;
 
       try {
-        const response = await api.get<ReportStatusResponse>("/client/quicky", "python", {
+        const response = await api.get<ReportStatusResponse>(SEO_SNAPSHOT_ENDPOINT, "python", {
           params: { business_id: businessId },
         });
 
@@ -476,7 +648,27 @@ export function usePitchSummary(
         };
       } catch (error: any) {
         if (error?.response?.status === 404) {
-          return null;
+          try {
+            const response = await api.get<ReportStatusResponse>(LEGACY_SNAPSHOT_ENDPOINT, "python", {
+              params: { business_id: businessId },
+            });
+            const status = normalizeStatus(response?.status);
+            let content = "";
+            const snapshotMarkdown = extractSnapshotSectionsMarkdown(response);
+            if (snapshotMarkdown) {
+              content = snapshotMarkdown;
+            } else {
+              const downloadUrl = response?.output_data?.download_url;
+              if (downloadUrl) {
+                const reportResponse = await api.get(downloadUrl, "python");
+                content = cleanEscapedContent(extractReportText(reportResponse));
+              }
+            }
+            return { content, status };
+          } catch (legacyError: any) {
+            if (legacyError?.response?.status === 404) return null;
+            throw legacyError;
+          }
         }
         throw error;
       }
@@ -487,8 +679,7 @@ export function usePitchSummary(
     retry: false,
     refetchInterval: (query) => {
       const data = query.state.data as { content: string; status: string } | null;
-      const status = normalizeStatus(data?.status);
-      return status === "pending" || status === "processing" ? 4000 : false;
+      return isSnapshotProcessingStatus(data?.status) ? 4000 : false;
     },
   });
 }

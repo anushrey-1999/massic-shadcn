@@ -31,8 +31,8 @@ export function getPersonaSplitTableColumns(): ColumnDef<AudienceRow>[] {
       maxSize: 180,
     },
     {
-      id: "ars",
-      accessorKey: "ars",
+      id: "audience_relevance_score",
+      accessorKey: "audience_relevance_score",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Relevance" />
       ),
@@ -45,7 +45,7 @@ export function getPersonaSplitTableColumns(): ColumnDef<AudienceRow>[] {
         );
       },
       meta: {
-        label: "ARS",
+        label: "Relevance",
         variant: "range",
         range: [0, 1],
       },

@@ -174,6 +174,7 @@ export function CreditModal({
                 { text: "1 blog post", credits: "5 credits" },
                 { text: "1 snapshot pitch", credits: "10 credits" },
                 { text: "1 detailed pitch", credits: "100 credits" },
+                { text: "1 technical audit", credits: "10 credits" },
               ].map((row) => (
                 <div
                   key={row.text}

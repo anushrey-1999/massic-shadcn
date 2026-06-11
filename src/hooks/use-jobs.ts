@@ -64,6 +64,13 @@ export interface JobDetails {
   [key: string]: any;
 }
 
+function normalizeServeValue(value: string | undefined): "local" | "online" | "both" {
+  const objective = String(value || "local").toLowerCase();
+  if (objective === "hybrid" || objective === "both") return "both";
+  if (objective === "online") return "online";
+  return "local";
+}
+
 // Helper function to convert business profile payload to job API FormData
 // Reuses the already-mapped business profile payload instead of mapping form data again
 function mapBusinessProfilePayloadToJobFormData(
@@ -106,7 +113,7 @@ function mapBusinessProfilePayloadToJobFormData(
   );
   formDataPayload.append(
     "serve",
-    (businessProfilePayload.BusinessObjective || "local").toLowerCase()
+    normalizeServeValue(businessProfilePayload.BusinessObjective)
   );
   formDataPayload.append(
     "sell",
@@ -235,7 +242,7 @@ function mapBusinessProfilePayloadToJobFormData(
 // Helper to create axios instance for FormData requests
 function createFormDataAxiosInstance() {
   const baseURL =
-    process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v1";
+    process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v2";
   const token = Cookies.get("token");
 
   return axios.create({
@@ -262,7 +269,7 @@ export function useJobByBusinessId(businessId: string | null) {
 
       try {
         const response = await api.get<JobDetails>(
-          `/job/${businessId}`,
+          `/jobs/${businessId}`,
           "python"
         );
         return response || null;
@@ -326,7 +333,7 @@ export function useCreateJob() {
         );
 
         const instance = createFormDataAxiosInstance();
-        const response = await instance.post<JobDetails>("/job", formDataPayload);
+        const response = await instance.post<JobDetails>("/jobs", formDataPayload);
 
         if (!response.data) {
           const errorMessage =
@@ -395,7 +402,7 @@ export function useUpdateJob() {
         );
 
         const instance = createFormDataAxiosInstance();
-        const response = await instance.put<JobDetails>("/job", formDataPayload);
+        const response = await instance.put<JobDetails>(`/jobs/${businessId}`, formDataPayload);
 
         if (!response.data) {
           const errorMessage =

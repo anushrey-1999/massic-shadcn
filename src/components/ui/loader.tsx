@@ -87,7 +87,7 @@ export function LoaderOverlay({
   if (!isLoading) return <>{children}</>;
 
   return (
-    <div className="relative flex-1 min-h-0">
+    <div className="relative flex-1 min-h-screen w-full">
       {/* Overlay - Fixed to viewport so it's always visible regardless of scroll position */}
       <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
         <Loader size="lg" />

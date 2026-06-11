@@ -1,7 +1,8 @@
 // Web Page (Blog Page Plan) data types based on Backend API Specification
 
 export interface WebPageItem {
-  keyword: string;
+  cluster_name?: string;
+  keyword?: string;
   page_type: string;
   search_volume: number;
   business_relevance_score: number;
@@ -19,7 +20,8 @@ export interface WebPageItem {
 // Row structure for table display
 export interface WebPageRow {
   id: string;
-  keyword: string;
+  cluster_name: string;
+  keyword?: string;
   page_type: string;
   search_volume: number;
   business_relevance_score: number;
@@ -73,11 +75,12 @@ export interface GetWebPageSchema {
   perPage: number;
   sort: Array<{ field: string; desc: boolean }>;
   filters: Array<{
-    id: string;
+    field?: string;
+    id?: string;
     value: string | string[];
-    variant: string;
+    variant?: string;
     operator: string;
-    filterId: string;
+    filterId?: string;
   }>;
   joinOperator: "and" | "or";
   search?: string;

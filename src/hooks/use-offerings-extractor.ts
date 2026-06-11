@@ -174,7 +174,7 @@ export function useStartOfferingsExtraction() {
   return useMutation({
     mutationFn: async (businessUrl: string): Promise<string> => {
       const response = await api.post<ExtractionTaskResponse>(
-        "/offering-extractor",
+        "/tools/extract-offerings",
         "python",
         {
           business_url: businessUrl,
@@ -214,7 +214,7 @@ export function useOfferingsExtractionStatus(
       }
 
       const response = await api.get<ExtractionStatusResponse>(
-        `/offering-extractor?task_id=${taskId}`,
+        `/tools/extract-offerings?task_id=${taskId}`,
         "python"
       );
 
@@ -276,7 +276,7 @@ export function useOfferingsExtractor(businessId: string | null) {
             const checkStatus = async () => {
               try {
                 const response = await api.get<ExtractionStatusResponse>(
-                  `/offering-extractor?task_id=${savedTaskId}`,
+                  `/tools/extract-offerings?task_id=${savedTaskId}`,
                   "python"
                 );
                 

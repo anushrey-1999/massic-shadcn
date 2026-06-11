@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { useMemo, useState, useCallback } from "react";
 import { calculateTrend, type TrendResult } from "@/utils/gsc-deepdive-utils";
-import { type DeepdiveFilter } from "@/hooks/use-organic-deepdive-filters";
+import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
+import type { TimePeriodValue } from "@/utils/analytics-period";
 
-export type TimePeriodValue = "7 days" | "14 days" | "28 days" | "3 months" | "6 months" | "12 months";
+export type { TimePeriodValue };
 export type TableFilterType = "popular" | "growing" | "decaying";
 export type SortColumn = "impressions" | "clicks";
 export type SortDirection = "asc" | "desc";
@@ -22,7 +23,7 @@ export function useGscTopPages(
   businessId: string | null,
   siteUrl: string | null,
   period: TimePeriodValue = "3 months",
-  apiFilters: DeepdiveFilter[] = []
+  apiFilters: DeepdiveApiFilter[] = []
 ) {
   const [filter, setFilter] = useState<TableFilterType>("popular");
   const [sort, setSort] = useState<{ column: SortColumn; direction: SortDirection }>({
@@ -56,6 +57,8 @@ export function useGscTopPages(
         page,
         impressions: item.impressions ?? 0,
         clicks: item.clicks ?? 0,
+        previousImpressions: prevItem?.impressions ?? 0,
+        previousClicks: prevItem?.clicks ?? 0,
         position: item.position ?? 0,
         impressionsTrend: calculateTrend(item.impressions ?? 0, prevItem?.impressions ?? 0),
         clicksTrend: calculateTrend(item.clicks ?? 0, prevItem?.clicks ?? 0),

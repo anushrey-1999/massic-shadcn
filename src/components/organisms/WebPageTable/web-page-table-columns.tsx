@@ -18,17 +18,39 @@ interface GetWebPageTableColumnsProps {
   hideActions?: boolean;
 }
 
+export const WEB_PAGE_BLOG_TYPE = "blog";
+
+export const WEB_PAGE_TYPE_OPTIONS = [
+  { label: "Blog", value: WEB_PAGE_BLOG_TYPE },
+  { label: "Use Case", value: "use case" },
+  { label: "Audience", value: "audience" },
+  { label: "Alternative", value: "alternative" },
+  { label: "Comparison", value: "comparison" },
+  { label: "Local", value: "local" },
+  { label: "Product/Service Page", value: "product/service page" },
+  { label: "Benefits", value: "benefits" },
+  { label: "Reviews Section", value: "reviews section" },
+  { label: "Page Section", value: "page section" },
+  { label: "Brand", value: "brand" },
+  { label: "Pricing", value: "pricing" },
+  { label: "Careers", value: "careers" },
+] as const;
+
+export const WEB_PAGE_OTHER_TYPE_VALUES = WEB_PAGE_TYPE_OPTIONS
+  .map((option) => option.value)
+  .filter((value) => value !== WEB_PAGE_BLOG_TYPE);
+
 export function getWebPageTableColumns({ businessId, offeringCounts = {}, expandedRowId = null, onExpandedRowChange, hideActions = false }: GetWebPageTableColumnsProps): ColumnDef<WebPageRow>[] {
   const columns: ColumnDef<WebPageRow>[] = [
     {
-      id: "keyword",
-      accessorKey: "keyword",
+      id: "cluster_name",
+      accessorKey: "cluster_name",
       header: ({ column }) => (
         <DataTableColumnHeader column={column} label="Page" />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
-          {row.getValue("keyword") || "N/A"}
+          {row.getValue("cluster_name") || "N/A"}
         </Typography>
       ),
       meta: {
@@ -57,21 +79,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
         label: "Type",
         placeholder: "Select page type...",
         variant: "multiSelect",
-        options: [
-          { label: "Blog", value: "blog" },
-          { label: "Use Case", value: "use case" },
-          { label: "Audience", value: "audience" },
-          { label: "Alternative", value: "alternative" },
-          { label: "Comparison", value: "comparison" },
-          { label: "Local", value: "local" },
-          { label: "Product/Service Page", value: "product/service page" },
-          { label: "Benefits", value: "benefits" },
-          { label: "Reviews Section", value: "reviews section" },
-          { label: "Page Section", value: "page section" },
-          { label: "Brand", value: "brand" },
-          { label: "Pricing", value: "pricing" },
-          { label: "Careers", value: "careers" },
-        ],
+        options: [...WEB_PAGE_TYPE_OPTIONS],
         operators: [{ label: "Has any of", value: "inArray" as const }],
         icon: Tag,
       },
@@ -133,7 +141,7 @@ export function getWebPageTableColumns({ businessId, offeringCounts = {}, expand
       meta: {
         label: "Business Relevance",
         variant: "range",
-        range: [0, 1],
+        range: [0, 100],
         icon: TrendingUp,
       },
       enableColumnFilter: true,

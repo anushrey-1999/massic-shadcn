@@ -14,6 +14,8 @@ import {
   type AdConceptWriterResponse,
 } from "@/hooks/use-ad-concept-writer";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import { useExecutionCredits } from "@/hooks/use-execution-credits";
+import { CreditModal } from "@/components/molecules/settings/CreditModal";
 
 function getStatusLowercase(value: unknown): string {
   return (value || "").toString().toLowerCase();
@@ -192,6 +194,7 @@ export function TvRadioAdExampleCard({
   const queryClient = useQueryClient();
   const { startGeneration } = useAdConceptWriterActions();
   const guardGenerateAd = useFeatureActionGuard("ads.generate");
+  const { creditsBalance, purchaseCredits } = useExecutionCredits();
 
   const problemTitle = row.problem_head_term || row.subtopic || "";
   const solutionTitle = row.solution_head_term || "";
@@ -201,6 +204,7 @@ export function TvRadioAdExampleCard({
 
   const adConceptId = row.id;
   const [starting, setStarting] = React.useState(false);
+  const [showBuyCreditsModal, setShowBuyCreditsModal] = React.useState(false);
   const [justGenerated, setJustGenerated] = React.useState(false);
   const [pollingDisabled, setPollingDisabled] = React.useState(false);
   const lastStatusRef = React.useRef<string>("");
@@ -299,7 +303,7 @@ export function TvRadioAdExampleCard({
       toast.success("Ad generation started.");
     } catch (error: any) {
       if (error?.response?.status === 403) {
-        toast.error("You need more execution credits to generate ads.");
+        setShowBuyCreditsModal(true);
       } else {
         toast.error("Failed to start generation.");
       }
@@ -418,6 +422,16 @@ export function TvRadioAdExampleCard({
           )}
         </div>
       </div>
+
+      <CreditModal
+        open={showBuyCreditsModal}
+        onClose={() => setShowBuyCreditsModal(false)}
+        currentBalance={creditsBalance?.current_balance ?? 0}
+        autoTopupEnabled={creditsBalance?.auto_topup_enabled ?? false}
+        autoTopupThreshold={creditsBalance?.auto_topup_threshold ?? 0}
+        onPurchaseCredits={purchaseCredits}
+        description="You need more execution credits to generate ads. Purchase credits to continue."
+      />
     </div>
   );
 }

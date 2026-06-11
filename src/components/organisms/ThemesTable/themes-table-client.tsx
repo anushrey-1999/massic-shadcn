@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { AlertCircle, ChartScatter, CircleDot, List, ListFilter, Loader2, Sparkles } from "lucide-react";
 import { useThemes } from "@/hooks/use-themes";
+import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { BUSINESS_RELEVANCE_PALETTE } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { getThemesTableColumns } from "./themes-table-columns";
 import {
@@ -38,6 +39,8 @@ import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
 import type { ExtendedColumnFilter, JoinOperator } from "@/types/data-table-types";
 import { parseAsStringEnum, useQueryState } from "nuqs";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
 import { cn } from "@/lib/utils";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
@@ -274,11 +277,11 @@ export function ThemesTableClient({
     React.useState<ThemesBubbleColorMetric>("topicCoverage");
   const [selectedRelevanceFilters, setSelectedRelevanceFilters] =
     React.useState<RelevanceFilter[]>([]);
+  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   const [isSplitView, setIsSplitView] = React.useState(false);
   const [selectedThemeId, setSelectedThemeId] = React.useState<string | null>(null);
   const [splitViewSearch, setSplitViewSearch] = React.useState("");
   const [isPolling, setIsPolling] = React.useState(false);
-  const [expandedRowId, setExpandedRowId] = React.useState<string | null>(null);
   const tableContainerRef = React.useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const guardGenerate = useFeatureActionGuard("themes.generate");
@@ -305,6 +308,7 @@ export function ThemesTableClient({
 
 
   const { fetchThemes, fetchScatterPlot, triggerThemes } = useThemes(businessId);
+  const { data: jobDetails } = useJobByBusinessId(businessId || null);
 
   const {
     data: themesData,
@@ -382,6 +386,16 @@ export function ThemesTableClient({
 
   const allOfferings = React.useMemo(() => {
     const offeringsSet = new Set<string>();
+
+    // Primary: job-level offerings (covers all business offerings)
+    if (jobDetails?.offerings) {
+      (jobDetails.offerings as Array<{ name?: string; offering?: string }>).forEach((o) => {
+        const name = (o.name || o.offering || "").trim();
+        if (name) offeringsSet.add(name);
+      });
+    }
+
+    // Supplement with offerings found directly on theme rows
     allData.forEach((row) => {
       const originOffering = row.origin_offering?.trim();
       if (originOffering) offeringsSet.add(originOffering);
@@ -390,8 +404,9 @@ export function ThemesTableClient({
         if (trimmed) offeringsSet.add(trimmed);
       });
     });
+
     return Array.from(offeringsSet).sort();
-  }, [allData]);
+  }, [jobDetails?.offerings, allData]);
 
   const columns = React.useMemo(
     () => getThemesTableColumns({ expandedRowId, onExpandedRowChange: setExpandedRowId, offeringOptions: allOfferings }),
@@ -725,6 +740,10 @@ export function ThemesTableClient({
     </div>
   );
 
+  const handleDownloadCsv = React.useCallback(() => {
+    downloadRowsAsCsv(filteredData, "themes.csv");
+  }, [filteredData]);
+
   if (view === "bubble") {
     return (
       <div className="flex-1 min-h-0 overflow-hidden h-full">
@@ -884,9 +903,7 @@ export function ThemesTableClient({
   }
 
   return (
-    <div
-      className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden"
-    >
+    <div className="bg-white rounded-lg p-4 h-full flex flex-col overflow-hidden">
       <DataTable
         table={table}
         isLoading={themesLoading && !themesData}
@@ -895,6 +912,7 @@ export function ThemesTableClient({
         emptyMessage="No themes found."
         showPagination={true}
         disableHorizontalScroll={false}
+        className="h-full"
         onRowClick={handleThemeRowClick}
         highlightSelectedRow={false}
       >
@@ -914,6 +932,7 @@ export function ThemesTableClient({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
+            <DownloadCsvButton onDownload={handleDownloadCsv} disabled={filteredData.length === 0} />
             {toolbarRightPrefix}
             {!toolbarRightPrefix && viewToggle}
           </div>

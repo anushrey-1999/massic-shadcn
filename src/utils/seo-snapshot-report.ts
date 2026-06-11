@@ -114,6 +114,52 @@ function hostFromUrl(value: string): string {
   }
 }
 
+function normalizeOpportunityLabel(value: unknown, keyword?: string, visibility?: string): string {
+  const raw = text(value);
+  const normalized = raw.toLowerCase().trim();
+
+  const explicitMap: Record<string, string> = {
+    service_page: "Dedicated service page",
+    dedicated_service_page: "Dedicated service page",
+    high_value_page: "Dedicated service page",
+    missing_page: "Missing service page",
+    local_landing_page: "Local landing page",
+    local_page: "Local landing page",
+    cost_pricing_guide: "Cost/pricing guide",
+    pricing_guide: "Cost/pricing guide",
+    cost_guide: "Cost/pricing guide",
+    authority_guide: "Authority guide",
+    authority_content: "Authority content",
+    comparison_page: "Comparison page",
+    compare_page: "Comparison page",
+    audience_specific_page: "Audience-specific page",
+    audience_page: "Audience-specific page",
+    faq_educational_article: "FAQ / educational article",
+    educational_article: "FAQ / educational article",
+    faq_article: "FAQ / educational article",
+    gbp_optimization: "Map pack + page",
+    map_pack_page: "Map pack + page",
+    map_pack_and_page: "Map pack + page",
+    improve_page: "Improve page",
+  };
+
+  if (explicitMap[normalized]) return explicitMap[normalized];
+
+  if (raw && !raw.includes("_")) return raw;
+  if (raw) {
+    return raw.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+  }
+
+  const query = String(keyword || "").toLowerCase();
+  const visibilityText = String(visibility || "").toLowerCase();
+  if (visibilityText.includes("missing local pack")) return "Map pack + page";
+  if (/\bnear me\b/.test(query)) return "Local landing page";
+  if (/\b(cost|price|pricing|fees?)\b/.test(query)) return "Cost/pricing guide";
+  if (/\b(best|vs|versus|compare|comparison)\b/.test(query)) return "Comparison page";
+  if (/\b(how|what|where|why|when|guide|tips)\b/.test(query)) return "FAQ / educational article";
+  return "Dedicated service page";
+}
+
 function reportRoot(payload: unknown): Record<string, unknown> | null {
   if (!isRecord(payload)) return null;
   if (isRecord(payload.report)) return payload.report;
@@ -170,8 +216,12 @@ export function normalizeSeoSnapshotReport(
     searchVolume: numberOrNull(row.search_volume),
     visibility: text(row.visibility || row.client_visibility),
     score: numberOrNull(row.score),
-    competitorShowingUp: text(row.competitor_showing_up || row.competitor || row.domain),
-    opportunity: text(row.opportunity || row.asset_type || row.label),
+    competitorShowingUp: text(row.competitor_showing_up || row.top_competitor || row.competitor || row.domain),
+    opportunity: normalizeOpportunityLabel(
+      row.opportunity || row.recommended_asset || row.asset_type || row.label,
+      text(row.keyword),
+      text(row.visibility || row.client_visibility)
+    ),
   })).filter((row) => row.keyword);
 
   const competitorVisibility = competitorRows.map((row) => ({

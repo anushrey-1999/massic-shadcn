@@ -334,7 +334,8 @@ function transformGoalData(data: GoalAnalysisResponse | null): GoalData[] {
 export function useGoalAnalysis(
   businessId: string | null,
   businessName: string = "",
-  selectedDate: string | null = null
+  selectedDate: string | null = null,
+  enabled = true
 ): UseGoalAnalysisReturn {
   const { data: rawData, isLoading, error, refetch } = useQuery({
     queryKey: ["goal-analysis", businessId, businessName, selectedDate],
@@ -356,7 +357,7 @@ export function useGoalAnalysis(
       }
       throw new Error(response.message || "Failed to fetch goal analysis")
     },
-    enabled: !!businessId,
+    enabled: enabled && !!businessId,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   })

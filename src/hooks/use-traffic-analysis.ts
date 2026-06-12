@@ -145,7 +145,8 @@ export type { HeadlineReel as TrafficHeadlineReel }
 export function useTrafficAnalysis(
   businessId: string | null,
   businessName: string = "",
-  selectedDate: string | null = null
+  selectedDate: string | null = null,
+  enabled = true
 ): UseTrafficAnalysisReturn {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["traffic-analysis", businessId, businessName, selectedDate],
@@ -170,7 +171,7 @@ export function useTrafficAnalysis(
       }
       return { trafficData: null, message: response.message || null }
     },
-    enabled: !!businessId,
+    enabled: enabled && !!businessId,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   })

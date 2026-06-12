@@ -46,6 +46,8 @@ interface DiscoveryPerformanceSectionProps {
   hideTopQueries?: boolean;
   hideHowYouRank?: boolean;
   ga4TrafficScope?: GA4TrafficScope;
+  /** When true, row-click filters are disabled (ingestion in progress). */
+  isIngestionActive?: boolean;
 }
 
 function normalizePageForDisplay(value: string): string {
@@ -96,6 +98,7 @@ const DiscoveryPerformanceSection = ({
   hideTopQueries = false,
   hideHowYouRank = false,
   ga4TrafficScope = "organic",
+  isIngestionActive = false,
 }: DiscoveryPerformanceSectionProps) => {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -340,6 +343,12 @@ const DiscoveryPerformanceSection = ({
     });
   }, [onSelectFilter]);
 
+  // Suppress row-click handlers (and thus cursor-pointer) when filters are disabled.
+  const rowClickEnabled = !isIngestionActive && !!onSelectFilter;
+  const contentGroupRowClick = rowClickEnabled ? handleContentGroupRowClick : undefined;
+  const topPageRowClick = rowClickEnabled ? handleTopPageRowClick : undefined;
+  const topQueryRowClick = rowClickEnabled ? handleTopQueryRowClick : undefined;
+
   const metricVisibility = useMemo(
     () => ({
       impressions: visibleMetrics?.impressions ?? true,
@@ -573,7 +582,7 @@ const DiscoveryPerformanceSection = ({
                 )
               }
               onArrowClick={() => setContentGroupsModalOpen(true)}
-              onRowClick={handleContentGroupRowClick}
+              onRowClick={contentGroupRowClick}
               maxRows={10}
               dynamicFirstColumn
               renderFirstColumn={renderContentGroupLabel}
@@ -616,7 +625,7 @@ const DiscoveryPerformanceSection = ({
                 )
               }
               onArrowClick={() => setTopPagesModalOpen(true)}
-              onRowClick={handleTopPageRowClick}
+              onRowClick={topPageRowClick}
               maxRows={10}
               dynamicFirstColumn
             />
@@ -664,7 +673,7 @@ const DiscoveryPerformanceSection = ({
                       handleTopQueriesSort(column as "impressions" | "clicks")
                     }
                     onArrowClick={() => setTopQueriesModalOpen(true)}
-                    onRowClick={handleTopQueryRowClick}
+                    onRowClick={topQueryRowClick}
                     maxRows={10}
                     dynamicFirstColumn
                   />
@@ -764,7 +773,7 @@ const DiscoveryPerformanceSection = ({
           )
         }
         isLoading={showContentGroupsLoader}
-        onRowClick={handleContentGroupRowClick}
+        onRowClick={contentGroupRowClick}
         dynamicFirstColumn
         renderFirstColumn={renderContentGroupLabel}
       />
@@ -804,7 +813,7 @@ const DiscoveryPerformanceSection = ({
           )
         }
         isLoading={showTopPagesLoader}
-        onRowClick={handleTopPageRowClick}
+        onRowClick={topPageRowClick}
         dynamicFirstColumn
       />
 
@@ -842,7 +851,7 @@ const DiscoveryPerformanceSection = ({
             handleTopQueriesSort(column as "impressions" | "clicks")
           }
           isLoading={showTopQueriesLoader}
-          onRowClick={handleTopQueryRowClick}
+          onRowClick={topQueryRowClick}
           dynamicFirstColumn
         />
       )}

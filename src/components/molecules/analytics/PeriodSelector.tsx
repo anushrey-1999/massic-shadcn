@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import type { AnalyticsGroupBy } from "@/utils/analytics-chart-grouping"
 import {
@@ -23,6 +24,18 @@ import {
   serializeCustomTimePeriod,
 } from "@/utils/analytics-period"
 
+/** Periods available when data is being prepared (capped at 3 months). */
+const INGESTION_ALLOWED_PERIODS = new Set<TimePeriodValue>([
+  "7 days",
+  "14 days",
+  "28 days",
+  "last week",
+  "this month",
+  "last month",
+  "3 months",
+])
+const INGESTION_DISABLED_TOOLTIP = "Data is being prepared — check back soon"
+
 interface PeriodSelectorProps {
   value: TimePeriodValue
   onValueChange: (value: TimePeriodValue) => void
@@ -30,6 +43,8 @@ interface PeriodSelectorProps {
   groupBy?: AnalyticsGroupBy
   onGroupByChange?: (value: AnalyticsGroupBy) => void
   disabledGroupByOptions?: AnalyticsGroupBy[]
+  /** When true, only 7 days / 14 days / 3 months are selectable. */
+  ingestionActive?: boolean
 }
 
 interface DraftRange {
@@ -77,6 +92,7 @@ export function PeriodSelector({
   groupBy,
   onGroupByChange,
   disabledGroupByOptions = [],
+  ingestionActive = false,
 }: PeriodSelectorProps) {
   const [open, setOpen] = useState(false)
   const [customExpanded, setCustomExpanded] = useState(false)
@@ -203,15 +219,19 @@ export function PeriodSelector({
               <div className="p-1">
                 {group.options.map((period) => {
                   const isActive = !isCustomValue && value === period.value
+                  const isDisabled = ingestionActive && !INGESTION_ALLOWED_PERIODS.has(period.value)
 
-                  return (
+                  const btn = (
                     <button
                       key={period.id}
                       type="button"
-                      onClick={() => handlePresetSelect(period.value)}
+                      disabled={isDisabled}
+                      onClick={() => !isDisabled && handlePresetSelect(period.value)}
                       className={cn(
-                        "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
-                        isActive && "bg-muted"
+                        "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors",
+                        !isDisabled && "hover:bg-muted/60",
+                        isActive && "bg-muted",
+                        isDisabled && "cursor-not-allowed opacity-40"
                       )}
                     >
                       <span className="flex flex-col">
@@ -225,6 +245,17 @@ export function PeriodSelector({
                       {isActive ? <Check className="mt-0.5 h-4 w-4 text-primary" /> : null}
                     </button>
                   )
+
+                  if (isDisabled) {
+                    return (
+                      <Tooltip key={period.id}>
+                        <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                        <TooltipContent side="left">{INGESTION_DISABLED_TOOLTIP}</TooltipContent>
+                      </Tooltip>
+                    )
+                  }
+
+                  return btn
                 })}
               </div>
             </div>
@@ -233,24 +264,39 @@ export function PeriodSelector({
           <Separator />
 
           <div className="p-1">
-            <button
-              type="button"
-              onClick={handleCustomSelect}
-              className={cn(
-                "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
-                (isCustomValue || customExpanded) && "bg-muted"
-              )}
-            >
-              <span className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">Custom</span>
-                {(isCustomValue || customExpanded) ? (
-                  <span className="text-xs text-muted-foreground">
-                    {draftSummary || formatTimePeriodSummary(value)}
-                  </span>
-                ) : null}
-              </span>
-              {isCustomValue ? <Check className="mt-0.5 h-4 w-4 text-primary" /> : null}
-            </button>
+            {ingestionActive ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    disabled
+                    className="flex w-full cursor-not-allowed items-start justify-between rounded-md px-3 py-2 text-left opacity-40"
+                  >
+                    <span className="text-sm font-medium text-foreground">Custom</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left">{INGESTION_DISABLED_TOOLTIP}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <button
+                type="button"
+                onClick={handleCustomSelect}
+                className={cn(
+                  "flex w-full items-start justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-muted/60",
+                  (isCustomValue || customExpanded) && "bg-muted"
+                )}
+              >
+                <span className="flex flex-col">
+                  <span className="text-sm font-medium text-foreground">Custom</span>
+                  {(isCustomValue || customExpanded) ? (
+                    <span className="text-xs text-muted-foreground">
+                      {draftSummary || formatTimePeriodSummary(value)}
+                    </span>
+                  ) : null}
+                </span>
+                {isCustomValue ? <Check className="mt-0.5 h-4 w-4 text-primary" /> : null}
+              </button>
+            )}
           </div>
 
           {customExpanded ? (

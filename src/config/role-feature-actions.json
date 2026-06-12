@@ -142,8 +142,8 @@
   "strategy": {
     "generateMeetingPrep": {
       "label": "Generate meeting prep notes",
-      "permission": "canGenerateContent",
-      "blockedFor": ["ANALYST"],
+      "permission": "canGenerateReports",
+      "blockedFor": [],
       "visibleWhenRestricted": true
     }
   },

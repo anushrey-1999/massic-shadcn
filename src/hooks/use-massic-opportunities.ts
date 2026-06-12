@@ -3,6 +3,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { api } from "./use-api";
 import { toast } from "sonner";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import { hasMassicOpportunitiesAccess } from "@/lib/subscription-status";
 
 export interface MassicOpportunitiesStatus {
   status: string;
@@ -85,7 +86,7 @@ export function useCanExecuteMassicOpportunities() {
 
     if (status.whitelisted) return true;
 
-    if (status.has_subscription && status.status === "active") {
+    if (hasMassicOpportunitiesAccess(status)) {
       return true;
     }
 
@@ -102,7 +103,7 @@ export function useCanExecuteMassicOpportunities() {
 
     if (status.whitelisted) return true;
 
-    if (status.has_subscription && status.status === "active") {
+    if (hasMassicOpportunitiesAccess(status)) {
       return true;
     }
 
@@ -115,7 +116,7 @@ export function useCanExecuteMassicOpportunities() {
 
     if (status.whitelisted) return false;
 
-    if (status.has_subscription && status.status === "active") {
+    if (hasMassicOpportunitiesAccess(status)) {
       return false;
     }
 
@@ -129,11 +130,11 @@ export function useCanExecuteMassicOpportunities() {
   const getSnapshotChipsData = () => {
     if (isLoading || !status) return null;
 
-    const hasSubscription = status.has_subscription && status.status === "active";
+    const hasSubscription = hasMassicOpportunitiesAccess(status);
 
     if (hasSubscription) {
       const used = status.usage?.snapshot_report?.used ?? 0;
-      const limit = status.usage?.snapshot_report?.limit ?? 15;
+      const limit = status.usage?.snapshot_report?.limit ?? 50;
 
       return {
         usageChip: `${used} of ${limit} used`,
@@ -152,7 +153,7 @@ export function useCanExecuteMassicOpportunities() {
   const getDetailedChipsData = () => {
     if (isLoading || !status) return null;
 
-    const hasSubscription = status.has_subscription && status.status === "active";
+    const hasSubscription = hasMassicOpportunitiesAccess(status);
 
     if (hasSubscription) {
       const used = status.usage?.detailed_pitch?.used ?? 0;

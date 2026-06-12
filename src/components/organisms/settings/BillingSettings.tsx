@@ -69,6 +69,12 @@ import type { BillingReconciliationPeriod, BillingReconciliationReport } from "@
 import { generatePdfFromBillingReconciliation } from "@/utils/pdf-generator";
 import { cn } from "@/lib/utils";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import {
+  getMassicOpportunitiesLinkLabel,
+  hasBusinessPlanAccess,
+  hasMassicOpportunitiesAccess,
+  isPastDueSubscription,
+} from "@/lib/subscription-status";
 
 const toTitleCasePlan = (planType?: string) => {
   if (!planType) return "";
@@ -197,7 +203,7 @@ const getBillingStatusFilterValue = (
     return "inactive";
   }
 
-  if (subscriptionStatus === "active") {
+  if (hasBusinessPlanAccess(subscription)) {
     return "active";
   }
 
@@ -241,6 +247,15 @@ const getBusinessStatus = (profile: BusinessProfile, isAgencyWhitelisted: boolea
     };
   }
 
+  if (isPastDueSubscription(subscriptionStatus)) {
+    return {
+      label: "Past due",
+      className:
+        "h-6 rounded-full border border-amber-200 bg-amber-50 px-2.5 text-[11px] font-medium leading-none text-amber-700",
+      tooltip: null,
+    };
+  }
+
   if (subscription?.cancel_at_period_end && subscription?.cancelled_date) {
     return {
       label: "Cancelling",
@@ -279,6 +294,10 @@ const getBusinessStatusDetail = (
 
   const subscription = profile.SubscriptionItems;
 
+  if (isPastDueSubscription(subscription?.status)) {
+    return "Payment failed — update your payment method";
+  }
+
   if (subscription?.cancel_at_period_end && subscription?.cancelled_date) {
     return `Access until ${formatShortDate(subscription.cancelled_date)}`;
   }
@@ -288,8 +307,7 @@ const getBusinessStatusDetail = (
   }
 
   const hasActivePlan =
-    Boolean(subscription?.plan_type) &&
-    subscription?.status !== "cancelled" &&
+    hasBusinessPlanAccess(subscription) &&
     !subscription?.cancel_at_period_end;
 
   if (hasActivePlan && subscription?.current_period_end) {
@@ -424,7 +442,7 @@ const getLinkedCount = (profiles: BusinessProfile[], planName: string) => {
   return profiles
     .filter(
       (p) =>
-        p.SubscriptionItems?.status === "active" &&
+        hasBusinessPlanAccess(p.SubscriptionItems) &&
         p.SubscriptionItems?.plan_type?.toLowerCase() === planName.toLowerCase()
     )
     .length.toString();
@@ -707,18 +725,14 @@ export function BillingSettings() {
       {
         planName: "Massic Opportunities",
         price: "499",
-        businessesLinked: massicOpportunitiesStatus?.cancel_at_period_end
-          ? `Cancels ${massicOpportunitiesStatus?.current_period_end ? new Date(massicOpportunitiesStatus.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}`
-          : massicOpportunitiesStatus?.status === "active" && massicOpportunitiesStatus?.has_subscription
-            ? "Active"
-            : "Inactive",
+        businessesLinked: getMassicOpportunitiesLinkLabel(massicOpportunitiesStatus),
         iconName: "Target",
         cardBackground: "#F5F5F5",
         isGradientPlanName: false,
         hasBorder: false,
         isRecommended: false,
         isAddOn: true,
-        isMassicOpportunitiesActive: massicOpportunitiesStatus?.status === "active" && massicOpportunitiesStatus?.has_subscription,
+        isMassicOpportunitiesActive: hasMassicOpportunitiesAccess(massicOpportunitiesStatus),
       },
       {
         planName: "100 Execution Credits",
@@ -1299,7 +1313,7 @@ export function BillingSettings() {
       <MassicOpportunitiesModal
         open={massicOpportunitiesModalOpen}
         onOpenChange={setMassicOpportunitiesModalOpen}
-        isActive={massicOpportunitiesStatus?.status === "active" && massicOpportunitiesStatus?.has_subscription}
+        isActive={hasMassicOpportunitiesAccess(massicOpportunitiesStatus)}
         isUpgrading={subscribeMassicOpportunities.isPending}
         isDeactivating={cancelMassicOpportunities.isPending}
         isReactivating={reactivateMassicOpportunities.isPending}

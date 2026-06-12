@@ -222,6 +222,8 @@ export interface OrganicPerformanceSectionProps {
   groupBy?: AnalyticsGroupBy;
   onAvailableGroupingsChange?: (available: AnalyticsGroupBy[]) => void;
   showAnomalyHighlights?: boolean;
+  /** When true, anomaly detection API call is skipped. */
+  isIngestionActive?: boolean;
 }
 
 export function OrganicPerformanceSection({
@@ -234,6 +236,7 @@ export function OrganicPerformanceSection({
   groupBy = "day",
   onAvailableGroupingsChange,
   showAnomalyHighlights = true,
+  isIngestionActive = false,
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
   const profiles = useBusinessStore((state) => state.profiles);
@@ -288,14 +291,14 @@ export function OrganicPerformanceSection({
     positiveCount,
     isLoading: isLoadingGoals,
     error: goalError,
-  } = useGoalAnalysis(businessUniqueId, businessName, null);
+  } = useGoalAnalysis(businessUniqueId, businessName, null, !isIngestionActive);
 
   const {
     trafficData,
     isLoading: isLoadingTraffic,
     error: trafficError,
     hasAnomaly: hasTrafficAnomaly,
-  } = useTrafficAnalysis(businessUniqueId, businessName, null);
+  } = useTrafficAnalysis(businessUniqueId, businessName, null, !isIngestionActive);
 
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
   const [anomaliesSheetTab, setAnomaliesSheetTab] = useState<AnomalySheetTab>("goals");
@@ -401,7 +404,7 @@ export function OrganicPerformanceSection({
     businessUniqueId,
     anomalyDatesFrom,
     chartRanges.currentEnd,
-    !loadingState.chart && Boolean(anomalyDatesFrom && chartRanges.currentEnd)
+    !isIngestionActive && !loadingState.chart && Boolean(anomalyDatesFrom && chartRanges.currentEnd)
   );
 
   const singleMetricYDomain = useMemo(() => {
@@ -720,8 +723,8 @@ export function OrganicPerformanceSection({
   return (
     <div className="flex flex-col gap-3">
 
-      {/* Alert Bar */}
-      <AlertBar
+      {/* Alert Bar — hidden while data is being prepared */}
+      {!isIngestionActive && <AlertBar
         title={hasAnomalies ? "Anomalies Detected" : ""}
         icon={
           hasAnomalies ? (
@@ -752,10 +755,10 @@ export function OrganicPerformanceSection({
         noAlertsMessage={noAnomaliesMsg}
         onClick={openDefaultAnomaliesSheet}
         variant="secondary"
-      />
+      />}
 
       {/* Anomalies Sheet */}
-      <AnomaliesSheet
+      {!isIngestionActive && <AnomaliesSheet
         open={anomaliesSheetOpen}
         onOpenChange={setAnomaliesSheetOpen}
         defaultGoalData={goalData}
@@ -772,7 +775,7 @@ export function OrganicPerformanceSection({
         obsEndDate={obsEndDate}
         initialTab={anomaliesSheetTab}
         initialSelectedDate={anomaliesSheetDate}
-      />
+      />}
 
       <div className="flex flex-col gap-3">
         {/* Metric Cards */}

@@ -37,6 +37,8 @@ interface AnalyticsFilterControlsProps {
   hasActiveKeywordScope?: boolean;
   anomalyHighlightsEnabled?: boolean;
   onAnomalyHighlightsChange?: (enabled: boolean) => void;
+  /** When true, the anomaly and filter buttons are disabled. */
+  isIngestionActive?: boolean;
 }
 
 interface AnalyticsReportsActionsProps {
@@ -46,6 +48,8 @@ interface AnalyticsReportsActionsProps {
   reportsDisabled?: boolean;
   primaryDriversDisabled?: boolean;
   contentGroupsDisabled?: boolean;
+  /** When true, What's Happening? and View Reports are disabled pending ingestion. */
+  isIngestionActive?: boolean;
 }
 
 const KEYWORD_SCOPE_OPTIONS: SegmentedOption<AnalyticsKeywordScope>[] = [
@@ -161,8 +165,10 @@ export function AnalyticsFilterControls({
   hasActiveKeywordScope = false,
   anomalyHighlightsEnabled,
   onAnomalyHighlightsChange,
+  isIngestionActive = false,
 }: AnalyticsFilterControlsProps) {
-  const showAnomalyToggle = typeof anomalyHighlightsEnabled === "boolean" && Boolean(onAnomalyHighlightsChange);
+  const showAnomalyToggle = !isIngestionActive && typeof anomalyHighlightsEnabled === "boolean" && Boolean(onAnomalyHighlightsChange);
+  const dataReadyTooltip = "Available once your data is ready";
 
   return (
     <div className="flex items-center gap-2">
@@ -178,68 +184,99 @@ export function AnalyticsFilterControls({
       {showAnomalyToggle ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className={cn(
-                "h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40",
-                anomalyHighlightsEnabled &&
-                  "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-              )}
-              onClick={() => onAnomalyHighlightsChange?.(!anomalyHighlightsEnabled)}
-              aria-label={anomalyHighlightsEnabled ? "Hide anomaly highlights" : "Show anomaly highlights"}
-              aria-pressed={anomalyHighlightsEnabled}
-            >
-              <Flag className="h-4 w-4" />
-            </Button>
+            <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
+              <Button
+                variant="outline"
+                size="icon-lg"
+                className={cn(
+                  "h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40",
+                  !isIngestionActive && anomalyHighlightsEnabled &&
+                    "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100",
+                  isIngestionActive && "opacity-40"
+                )}
+                onClick={() => !isIngestionActive && onAnomalyHighlightsChange?.(!anomalyHighlightsEnabled)}
+                disabled={isIngestionActive}
+                style={isIngestionActive ? { pointerEvents: "none" } : undefined}
+                aria-label={anomalyHighlightsEnabled ? "Hide anomaly highlights" : "Show anomaly highlights"}
+                aria-pressed={anomalyHighlightsEnabled}
+              >
+                <Flag className="h-4 w-4" />
+              </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={8}>
-            {anomalyHighlightsEnabled ? "Hide anomaly highlights" : "Show anomaly highlights"}
+            {isIngestionActive
+              ? dataReadyTooltip
+              : anomalyHighlightsEnabled
+                ? "Hide anomaly highlights"
+                : "Show anomaly highlights"}
           </TooltipContent>
         </Tooltip>
       ) : null}
 
       {showKeywordScope ? (
-        <Popover>
+        isIngestionActive ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <PopoverTrigger asChild>
+              <span className="cursor-not-allowed">
                 <Button
                   variant="outline"
                   size="icon-lg"
-                  className={cn(
-                    "h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40",
-                    hasActiveKeywordScope &&
-                      "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                  )}
+                  className="h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground opacity-40"
+                  disabled
+                  style={{ pointerEvents: "none" }}
                   aria-label="Filter analytics"
                 >
                   <FilterIcon className="h-[16.25px] w-[17.91px]" />
                 </Button>
-              </PopoverTrigger>
+              </span>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={8}>
-              Filter
+              {dataReadyTooltip}
             </TooltipContent>
           </Tooltip>
-          <PopoverContent
-            align="center"
-            side="bottom"
-            sideOffset={6}
-            className="w-[200px] rounded-[8px] border-general-border bg-white p-0.5 shadow-[0px_4px_6px_rgba(0,0,0,0.1),0px_2px_4px_rgba(0,0,0,0.1)]"
-          >
-            <div className="flex flex-col gap-0">
-              <div className="min-h-8 px-2 py-[5.5px] text-[10px] tracking-[0.15px] text-muted-foreground">
-                Keywords
+        ) : (
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon-lg"
+                    className={cn(
+                      "h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40",
+                      hasActiveKeywordScope &&
+                        "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    )}
+                    aria-label="Filter analytics"
+                  >
+                    <FilterIcon className="h-[16.25px] w-[17.91px]" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={8}>
+                Filter
+              </TooltipContent>
+            </Tooltip>
+            <PopoverContent
+              align="center"
+              side="bottom"
+              sideOffset={6}
+              className="w-[200px] rounded-[8px] border-general-border bg-white p-0.5 shadow-[0px_4px_6px_rgba(0,0,0,0.1),0px_2px_4px_rgba(0,0,0,0.1)]"
+            >
+              <div className="flex flex-col gap-0">
+                <div className="min-h-8 px-2 py-[5.5px] text-[10px] tracking-[0.15px] text-muted-foreground">
+                  Keywords
+                </div>
+                <SegmentedControl
+                  value={keywordScope}
+                  options={KEYWORD_SCOPE_OPTIONS}
+                  onChange={onKeywordScopeChange}
+                />
               </div>
-              <SegmentedControl
-                value={keywordScope}
-                options={KEYWORD_SCOPE_OPTIONS}
-                onChange={onKeywordScopeChange}
-              />
-            </div>
-          </PopoverContent>
-        </Popover>
+            </PopoverContent>
+          </Popover>
+        )
       ) : null}
     </div>
   );
@@ -252,40 +289,50 @@ export function AnalyticsReportsActions({
   reportsDisabled = false,
   primaryDriversDisabled = false,
   contentGroupsDisabled = false,
+  isIngestionActive = false,
 }: AnalyticsReportsActionsProps) {
+  const ingestionTooltip = "Available once your data is ready";
+
   return (
     <div className="flex items-center gap-2">
       {onPrimaryDrivers ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
-              onClick={onPrimaryDrivers}
-              disabled={primaryDriversDisabled}
-            >
-              What's Happening?
-            </Button>
+            {/* span wrapper needed so Tooltip works on a disabled button */}
+            <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
+              <Button
+                variant="outline"
+                className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
+                onClick={onPrimaryDrivers}
+                disabled={primaryDriversDisabled || isIngestionActive}
+                style={isIngestionActive ? { pointerEvents: "none" } : undefined}
+              >
+                What's Happening?
+              </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={8}>
-            What's Happening?
+            {isIngestionActive ? ingestionTooltip : "What's Happening?"}
           </TooltipContent>
         </Tooltip>
       ) : null}
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
-            onClick={onViewReports}
-            disabled={reportsDisabled}
-          >
-            View Reports
-          </Button>
+          <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
+            <Button
+              variant="outline"
+              className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
+              onClick={onViewReports}
+              disabled={reportsDisabled || isIngestionActive}
+              style={isIngestionActive ? { pointerEvents: "none" } : undefined}
+            >
+              View Reports
+            </Button>
+          </span>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={8}>
-          View Reports
+          {isIngestionActive ? ingestionTooltip : "View Reports"}
         </TooltipContent>
       </Tooltip>
 

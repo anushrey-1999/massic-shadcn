@@ -40,6 +40,7 @@ import {
 import { OrganicDeepdiveHeader } from "@/components/organisms/organic-deepdive/OrganicDeepdiveHeader";
 import { getFallbackAnalyticsGrouping } from "@/utils/analytics-chart-grouping";
 import { CustomContentGroupsModal } from "@/components/molecules/analytics/CustomContentGroupsModal";
+import { useGscIngestionStatus } from "@/hooks/use-gsc-ingestion-status";
 
 const CHART_LINE_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
 const METRIC_TOOLTIPS: Record<(typeof CHART_LINE_KEYS)[number], string> = {
@@ -125,6 +126,7 @@ export function AnalyticsTemplate() {
   }, [pathname, profiles]);
 
   const { profileData } = useBusinessProfileById(businessId);
+  const { isIngestionActive } = useGscIngestionStatus(profileData as any);
   const { prefetchPage1 } = usePrefetchAnalyticsPages(businessId);
   const { fetchStrategyTopicKeywords } = useStrategy(businessId || "");
   const urlTopicName = searchParams.get("topicName")?.trim() || "";
@@ -311,6 +313,23 @@ export function AnalyticsTemplate() {
     removeFilter("keyword_scope");
   }, [keywordScope, removeFilter, selectedTab]);
 
+  const INGESTION_ALLOWED_PERIODS = [
+    "7 days",
+    "14 days",
+    "28 days",
+    "last week",
+    "this month",
+    "last month",
+    "3 months",
+  ] as const;
+  useEffect(() => {
+    if (!isIngestionActive) return;
+    if (!INGESTION_ALLOWED_PERIODS.includes(selectedPeriod as any)) {
+      setSelectedPeriod("3 months");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isIngestionActive]);
+
   useEffect(() => {
     setShowDeferredSections(false);
 
@@ -417,6 +436,7 @@ export function AnalyticsTemplate() {
               }}
               reportsDisabled={!businessId}
               primaryDriversDisabled={!businessId}
+              isIngestionActive={isIngestionActive}
               contentGroupsDisabled={!businessId}
             />
           </div>
@@ -470,14 +490,16 @@ export function AnalyticsTemplate() {
                     (option) => !availableGroupByOptions.includes(option)
                   )}
                   className="h-10 cursor-pointer rounded-[8px] border-[#d4d4d4] bg-transparent px-4 py-[7.5px] text-sm font-medium tracking-[0.07px] shadow-none"
+                  ingestionActive={isIngestionActive}
                 />
               }
               keywordScope={keywordScope}
               onKeywordScopeChange={handleKeywordScopeChange}
               showKeywordScope={selectedTab === "organic"}
               hasActiveKeywordScope={keywordScope !== "all"}
-              anomalyHighlightsEnabled={showAnomalyHighlights}
-              onAnomalyHighlightsChange={setShowAnomalyHighlights}
+              anomalyHighlightsEnabled={isIngestionActive ? false : showAnomalyHighlights}
+              onAnomalyHighlightsChange={isIngestionActive ? undefined : setShowAnomalyHighlights}
+              isIngestionActive={isIngestionActive}
             />
           </div>
         </div>
@@ -530,18 +552,20 @@ export function AnalyticsTemplate() {
                 ga4TrafficScope={selectedTab}
                 groupBy={groupBy}
                 onAvailableGroupingsChange={setAvailableGroupByOptions}
-                showAnomalyHighlights={showAnomalyHighlights}
+                showAnomalyHighlights={isIngestionActive ? false : showAnomalyHighlights}
+                isIngestionActive={isIngestionActive}
               />
             </div>
             <DiscoveryPerformanceSection
               period={selectedPeriod}
               visibleMetrics={overviewVisibleLines}
               filters={filtersForApi}
-              onSelectFilter={handleOverviewFilterSelect}
+              onSelectFilter={isIngestionActive ? undefined : handleOverviewFilterSelect}
               onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}
               hideTopQueries={selectedTab === "all"}
               hideHowYouRank={selectedTab === "all"}
               ga4TrafficScope={selectedTab}
+              isIngestionActive={isIngestionActive}
             />
             {showDeferredSections ? (
               <>

@@ -133,7 +133,7 @@ export function useCanExecuteMassicOpportunities() {
 
     if (hasSubscription) {
       const used = status.usage?.snapshot_report?.used ?? 0;
-      const limit = status.usage?.snapshot_report?.limit ?? 15;
+      const limit = status.usage?.snapshot_report?.limit ?? 50;
 
       return {
         usageChip: `${used} of ${limit} used`,

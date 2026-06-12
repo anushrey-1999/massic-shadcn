@@ -131,7 +131,7 @@ export function PlanCard({
 
 const defaultFeatures: PlanFeature[] = [
   {
-    text: "15 Snapshot analyses included – quick SEO opportunity overviews for prospects or clients",
+    text: "50 Snapshot analyses included – quick SEO opportunity overviews for prospects or clients",
   },
   {
     text: "3 Detailed Pitches included – full workflows, strategy outputs, and pitch-ready insights",

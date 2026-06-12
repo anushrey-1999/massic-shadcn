@@ -351,7 +351,7 @@ export default function PitchReportsPage() {
     if (type === "snapshot") {
       if (hasSubscription) {
         const used = status.usage?.snapshot_report?.used ?? 0;
-        const limit = status.usage?.snapshot_report?.limit ?? 15;
+        const limit = status.usage?.snapshot_report?.limit ?? 50;
         return used < limit;
       } else {
         const used = status.free_snapshots?.used ?? 0;
@@ -378,7 +378,7 @@ export default function PitchReportsPage() {
 
     if (type === "snapshot") {
       if (hasSubscription) {
-        return status.usage?.snapshot_report?.limit ?? 15;
+        return status.usage?.snapshot_report?.limit ?? 50;
       }
       return status.free_snapshots?.limit ?? 3;
     }

@@ -1,5 +1,6 @@
 import { useBusinessStore } from "@/store/business-store";
 import { useSubscription } from "./use-subscription";
+import { hasBusinessPlanAccess } from "@/lib/subscription-status";
 
 export type PlanType = "starter" | "core" | "growth" | "whitelisted" | "no_plan";
 
@@ -34,8 +35,7 @@ export const useEntitlements = (businessId?: string) => {
     const business = profiles.find((b) => b.UniqueId === id);
     if (!business || !business.SubscriptionItems) return "no_plan";
 
-    // Check if whitelisted (sometimes on business level too, or just status)
-    if (business.SubscriptionItems.status === "active") {
+    if (hasBusinessPlanAccess(business.SubscriptionItems)) {
       return (business.SubscriptionItems.plan_type?.toLowerCase() as PlanType) || "no_plan";
     }
 

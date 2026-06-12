@@ -43,6 +43,7 @@ import { MassicOpportunitiesModal } from "@/components/molecules/MassicOpportuni
 import { ApplyCreditsModal } from "@/components/molecules/ApplyCreditsModal";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { useCanExecuteMassicOpportunities, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
+import { hasMassicOpportunitiesAccess } from "@/lib/subscription-status";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useAuthStore } from "@/store/auth-store";
 import { formatDate, formatVolume } from "@/lib/format";
@@ -346,7 +347,7 @@ export default function PitchReportsPage() {
     if (!status) return false;
     if (status.whitelisted) return true;
 
-    const hasSubscription = status.has_subscription && status.status === "active";
+    const hasSubscription = hasMassicOpportunitiesAccess(status);
 
     if (type === "snapshot") {
       if (hasSubscription) {
@@ -374,7 +375,7 @@ export default function PitchReportsPage() {
 
   const getUsageLimitForType = React.useCallback((type: "snapshot" | "detailed") => {
     if (!status) return 0;
-    const hasSubscription = status.has_subscription && status.status === "active";
+    const hasSubscription = hasMassicOpportunitiesAccess(status);
 
     if (type === "snapshot") {
       if (hasSubscription) {
@@ -404,7 +405,7 @@ export default function PitchReportsPage() {
       if (!guardPitchSnapshot()) return;
       if (!status) return;
 
-      const hasSubscription = status.has_subscription && status.status === "active";
+      const hasSubscription = hasMassicOpportunitiesAccess(status);
       const hasUsage = hasUsageRemaining(type);
 
       if (!hasSubscription && type === "detailed") {
@@ -1402,7 +1403,7 @@ export default function PitchReportsPage() {
       <MassicOpportunitiesModal
         open={showUpgradeModal}
         onOpenChange={setShowUpgradeModal}
-        isActive={status?.status === "active" && status?.has_subscription}
+        isActive={hasMassicOpportunitiesAccess(status)}
         isUpgrading={subscribeMassicOpportunities.isPending}
         isDeactivating={cancelMassicOpportunities.isPending}
         isReactivating={reactivateMassicOpportunities.isPending}

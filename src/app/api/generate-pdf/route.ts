@@ -647,11 +647,12 @@ const SEO_SNAPSHOT_CSS = `
   .secnum { font-size: 10px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: #2E6A56; margin-bottom: 8px; }
   .lead { font-size: 14px; color: #525252; max-width: 720px; margin-bottom: 18px; }
   .loss {
-    display: flex; justify-content: space-between; align-items: center; gap: 20px;
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;
     background: #FAFAFA; border: 1px solid #E5E5E5; border-left: 3px solid #2E6A56;
     border-radius: 8px; padding: 18px 22px; margin-bottom: 18px;
   }
-  .lossBadge { display: inline-block; font-size: 12px; font-weight: 500; color: #991B1B; background: #FEE2E2; padding: 3px 8px; border-radius: 4px; margin-bottom: 10px; }
+  .lossBadge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: #991B1B; background: #FEE2E2; padding: 3px 8px; border-radius: 4px; margin-bottom: 10px; }
+  .lossBadge svg { width: 13px; height: 13px; flex: none; }
   .big { font-size: 40px; font-weight: 500; line-height: 1; color: #0A0A0A; }
   .unit { font-size: 18px; color: #737373; font-weight: 400; }
   .assume { font-size: 11px; color: #737373; max-width: 250px; text-align: right; }
@@ -686,6 +687,76 @@ const SEO_SNAPSHOT_CSS = `
   .bucket ul { margin: 8px 0 0; padding-left: 16px; }
   .bucket li { font-size: 13px; color: #525252; margin-bottom: 5px; }
   .foot { font-size: 12px; color: #737373; text-align: center; padding-top: 8px; }
+
+  /* favicons */
+  .fav { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; background: #F5F5F5; color: #404040; font-weight: 500; vertical-align: middle; }
+  .fav img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .fav.s20 { width: 20px; height: 20px; border-radius: 5px; font-size: 10px; }
+  .fav.s44 { width: 44px; height: 44px; border-radius: 10px; font-size: 16px; border: 1px solid #E5E5E5; }
+  .fav .mono { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; }
+
+  /* badges with icons + tones */
+  .badge { display: inline-flex; align-items: center; gap: 5px; line-height: 1; }
+  .badge svg { width: 12px; height: 12px; }
+  .b-blue { background: #EFF4FF; color: #1D4ED8; }
+  .b-violet { background: #F4F1FE; color: #6D28D9; }
+  .b-green { background: #DCFCE7; color: #166534; }
+  .b-amber { background: #FEF3C7; color: #92400E; }
+  .b-red { background: #FEE2E2; color: #991B1B; }
+  .b-gray { background: #F3F4F6; color: #6B7280; }
+
+  /* track / volume bars */
+  .track { height: 5px; border-radius: 99px; background: #F5F5F5; margin-top: 9px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg,#2E6A56,#56A48A); }
+  .dq { display: block; }
+  .dqRow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .svol { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .vbar { width: 100%; max-width: 120px; height: 5px; border-radius: 99px; background: #F5F5F5; overflow: hidden; }
+  .vfill { height: 100%; border-radius: 99px; background: linear-gradient(90deg,#2E6A56,#56A48A); }
+  .ks { display: flex; align-items: center; gap: 8px; }
+  .miniwrap { width: 54px; height: 5px; border-radius: 99px; background: #F5F5F5; overflow: hidden; flex: none; }
+  .mini { height: 100%; background: #D4D4D4; border-radius: 99px; }
+
+  /* coverage meter */
+  .coverage { border: 1px solid #E5E5E5; border-radius: 8px; background: #fff; padding: 16px 18px; margin-bottom: 18px; }
+  .covTop { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .covTitle { font-size: 14px; font-weight: 500; color: #171717; }
+  .covSub { font-weight: 400; font-size: 12px; color: #737373; margin-left: 8px; }
+  .covScore { font-size: 13px; color: #737373; }
+  .covScore b { font-size: 16px; font-weight: 500; color: #0A0A0A; }
+  .covBar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: #F5F5F5; margin-top: 13px; }
+  .covBar .seg { height: 100%; }
+  .segVis { background: #22C55E; } .segWeak { background: #F59E0B; } .segOut { background: #EF4444; }
+  .covLegend { display: flex; gap: 18px; margin-top: 12px; flex-wrap: wrap; }
+  .covLegend span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #737373; }
+  .covLegend i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .covLegend b { color: #171717; font-weight: 500; }
+
+  /* KPI tiles with icons */
+  .tile .tileTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: #737373; }
+  .tile .tileTop span { font-size: 13px; font-weight: 500; line-height: 1.3; min-height: 34px; }
+  .tile .tileTop svg { width: 18px; height: 18px; flex: none; margin-top: 2px; }
+  .tile.flag .tileTop { color: #2E6A56; }
+  .tile .tileN { margin-top: 14px; }
+
+  /* site / path cells */
+  .site { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .pathwrap { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .path .p1 { font-size: 12px; color: #737373; line-height: 1.3; }
+  .path .p2 { font-size: 13px; color: #0A0A0A; word-break: break-all; }
+
+  /* opportunity buckets with icon + chips */
+  .bucket .ohead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .bucket .oleft { display: flex; gap: 12px; align-items: flex-start; }
+  .oicon { width: 36px; height: 36px; border-radius: 8px; background: #E9F2ED; color: #2E6A56; display: flex; align-items: center; justify-content: center; flex: none; }
+  .oicon svg { width: 18px; height: 18px; }
+  .chips { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E5E5E5; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 4px; background: #F5F5F5; color: #404040; font-size: 12px; }
+  .chipNote { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E5E5E5; font-size: 12px; color: #737373; }
+
+  /* verified header badge */
+  .verified { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 3px 8px; border-radius: 4px; background: #EFF4FF; color: #1D4ED8; border: 1px solid #D6E2FB; margin-top: 6px; }
+  .verified svg { width: 13px; height: 13px; }
 `;
 
 function escapeHtml(input: string): string {
@@ -963,24 +1034,112 @@ function formatSeoDate(value: string): string {
   }).format(date);
 }
 
-function seoVisibilityBadgeClass(value: string): string {
-  const normalized = value.toLowerCase();
-  if (normalized.includes("not visible")) return "bad";
-  if (normalized.includes("missing") || normalized.includes("buried") || normalized.includes("weak")) return "warn";
-  if (normalized.includes("strong")) return "ok";
-  return "neu";
-}
-
-function seoCompactUrl(value: string): string {
-  const stripped = stripUrlProtocol(value);
-  if (stripped.length <= 68) return stripped;
-  return `${stripped.slice(0, 36)}...${stripped.slice(-28)}`;
-}
-
 function seoHumanize(value: string): string {
   const cleaned = String(value || "").replace(/_/g, " ").trim();
   if (!cleaned) return "Opportunity";
   return cleaned.replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function seoCapitalizeFirst(value: string): string {
+  const str = String(value || "").trim();
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+const SEO_ICON: Record<string, string> = {
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  crosshair:
+    '<circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/>',
+  users:
+    '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  eyeOff:
+    '<path d="M10.7 5.1A10.7 10.7 0 0 1 22 11.6a1 1 0 0 1 0 .7 10.7 10.7 0 0 1-1.4 2.5"/><path d="M14.1 14.2a3 3 0 0 1-4.3-4.3"/><path d="M17.5 17.5A10.8 10.8 0 0 1 2 12.3a1 1 0 0 1 0-.7 10.8 10.8 0 0 1 4.4-5.1"/><path d="m2 2 20 20"/>',
+  alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  eye: '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.8 10.8 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.8 10.8 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
+  bars: '<line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/>',
+  flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
+  plus: '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>',
+  trendDown: '<polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/>',
+  verified:
+    '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/>',
+  file:
+    '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+  pin: '<path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+  compare: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+};
+
+function seoSvg(path: string): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+}
+
+function seoFaviconHost(value: string): string | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const candidate = raw
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .split(/[/\s]/)[0];
+  return candidate && candidate.includes(".") && !/\s/.test(candidate) ? candidate : null;
+}
+
+function seoFav(value: string, size: 20 | 44 = 20): string {
+  const host = seoFaviconHost(value);
+  const letter = escapeHtml(
+    String(host || value || "?").replace(/^www\./, "").charAt(0).toUpperCase()
+  );
+  const cls = size === 44 ? "s44" : "s20";
+  if (!host) {
+    return `<span class="fav ${cls}"><span class="mono" style="display:flex">${letter}</span></span>`;
+  }
+  const sz = size === 44 ? 128 : 64;
+  return `<span class="fav ${cls}"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(
+    host
+  )}&sz=${sz}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="mono">${letter}</span></span>`;
+}
+
+function seoVisibilityBadge(value: string): { label: string; cls: string; icon: string | null } {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized.includes("not visible")) {
+    return { label: value || "Not visible", cls: "b-red", icon: SEO_ICON.eyeOff };
+  }
+  if (normalized.includes("missing") || normalized.includes("buried") || normalized.includes("weak")) {
+    return { label: value || "Weak", cls: "b-amber", icon: SEO_ICON.alert };
+  }
+  if (normalized.includes("strong")) {
+    return { label: value || "Strong", cls: "b-green", icon: SEO_ICON.eye };
+  }
+  return { label: value || "Opportunity", cls: "b-gray", icon: null };
+}
+
+function seoOpportunityBadge(value: string): { label: string; cls: string } {
+  const normalized = String(value || "").toLowerCase();
+  const short = String(value || "").split(/[—\-:]/)[0]?.trim() || value || "Opportunity";
+  if (normalized.startsWith("service")) return { label: "Service page", cls: "b-blue" };
+  if (normalized.startsWith("audience")) return { label: "Audience page", cls: "b-violet" };
+  if (normalized.includes("comparison")) return { label: "Comparison page", cls: "b-violet" };
+  if (normalized.includes("local")) return { label: "Local landing page", cls: "b-green" };
+  if (normalized.includes("cost") || normalized.includes("pricing")) {
+    return { label: "Cost/pricing guide", cls: "b-amber" };
+  }
+  return { label: short, cls: "b-gray" };
+}
+
+function seoOppIcon(assetType: string, label: string): string {
+  const key = `${assetType} ${label}`.toLowerCase();
+  if (key.includes("local") || key.includes("gbp") || key.includes("map")) return SEO_ICON.pin;
+  if (key.includes("comparison") || key.includes("compare")) return SEO_ICON.compare;
+  if (key.includes("review") || key.includes("reputation")) return SEO_ICON.star;
+  if (key.includes("audience")) return SEO_ICON.users;
+  return SEO_ICON.file;
+}
+
+function seoSplitPath(value: string): { host: string; path: string } {
+  const stripped = stripUrlProtocol(value);
+  const slash = stripped.indexOf("/");
+  if (slash === -1) return { host: stripped, path: "/" };
+  return { host: stripped.slice(0, slash), path: stripped.slice(slash) || "/" };
 }
 
 function seoSnapshotHtmlFromData(args: {
@@ -996,10 +1155,10 @@ function seoSnapshotHtmlFromData(args: {
   ].filter(Boolean).map(escapeHtml).join(" · ");
 
   const stats = [
-    ["Real searches analyzed", report.analyzedKeywordCount ?? report.customerDemand.length, false],
-    ["High-value searches checked", report.retainedKeywordCount ?? report.missedVisibility.length, false],
-    ["Missed opportunities found", report.missedVisibility.length, true],
-    ["Competitors showing up", report.competitorVisibility.length, false],
+    ["Real searches analyzed", report.statTiles.searchesAnalyzed, false, SEO_ICON.search],
+    ["High-value searches checked", report.statTiles.highValueChecked, false, SEO_ICON.target],
+    ["Missed opportunities found", report.statTiles.missedFound, true, SEO_ICON.crosshair],
+    ["Competitors showing up", report.statTiles.competitorsOutranking, false, SEO_ICON.users],
   ] as const;
 
   const findings = report.execSummary.whatWeFound.length
@@ -1008,21 +1167,70 @@ function seoSnapshotHtmlFromData(args: {
 
   const firstSteps = report.opportunityMap.slice(0, 3);
 
+  const missedRows = report.missedVisibility.slice(0, 20);
+  const missedVolumeMax = Math.max(1, ...missedRows.map((row) => row.searchVolume ?? 0));
+  const demandMax = Math.max(1, ...report.customerDemand.map((row) => row.searchVolume ?? 0));
+  const pageRows = report.competitorPages.slice(0, 12);
+  const organicMax = Math.max(1, ...pageRows.map((row) => row.organicCount ?? 0));
+
+  const coverageTotal = report.missedVisibility.length;
+  let coverageWeak = 0;
+  let coverageOut = 0;
+  for (const row of report.missedVisibility) {
+    const cls = seoVisibilityBadge(row.visibility).cls;
+    if (cls === "b-amber") coverageWeak += 1;
+    else if (cls === "b-red") coverageOut += 1;
+  }
+  const coverageVisible = Math.max(0, coverageTotal - coverageWeak - coverageOut);
+  const coverageSegs = [
+    ["segVis", coverageVisible],
+    ["segWeak", coverageWeak],
+    ["segOut", coverageOut],
+  ]
+    .filter(([, n]) => (n as number) > 0)
+    .map(
+      ([c, n], idx, arr) =>
+        `<div class="seg ${c}" style="width:${((n as number) / coverageTotal) * 100}%;${
+          idx < arr.length - 1 ? "border-right:2px solid #fff;" : ""
+        }"></div>`
+    )
+    .join("");
+
+  const coverageHtml = coverageTotal
+    ? `
+      <div class="coverage">
+        <div class="covTop">
+          <div class="covTitle">Search visibility<span class="covSub">Across the ${coverageTotal} high-value searches tracked</span></div>
+          <div class="covScore"><b>${coverageVisible}</b> / ${coverageTotal} visible</div>
+        </div>
+        <div class="covBar">${coverageSegs}</div>
+        <div class="covLegend">
+          <span><i class="segVis"></i>Visible <b>${coverageVisible}</b></span>
+          <span><i class="segWeak"></i>Weak <b>${coverageWeak}</b></span>
+          <span><i class="segOut"></i>Not visible <b>${coverageOut}</b></span>
+        </div>
+      </div>
+    `
+    : "";
+
   return `
     <div class="wrap">
       <div class="card">
         <div class="header">
           <div class="brand">
-            <div class="logo">${escapeHtml(seoSnapshotInitials(report.businessName))}</div>
+            ${
+              seoFaviconHost(report.website)
+                ? seoFav(report.website, 44)
+                : `<div class="logo">${escapeHtml(seoSnapshotInitials(report.businessName))}</div>`
+            }
             <div>
               <h1>SEO Snapshot - ${escapeHtml(report.businessName || "Business")}</h1>
               ${meta ? `<div class="sub">${meta}</div>` : ""}
             </div>
           </div>
           <div style="text-align:right">
-            <div class="kicker">Missed Customer Demand</div>
-            ${generatedAt ? `<div class="sub">${escapeHtml(generatedAt)}</div>` : ""}
-            <div class="sub">Based on real Google search data</div>
+            ${generatedAt ? `<div class="sub" style="font-size:13px;color:#171717">${escapeHtml(generatedAt)}</div>` : ""}
+            <span class="verified">${seoSvg(SEO_ICON.verified)}Real Google search data</span>
           </div>
         </div>
       </div>
@@ -1033,21 +1241,22 @@ function seoSnapshotHtmlFromData(args: {
         ${report.execSummary.execSubhead ? `<p class="lead">${escapeHtml(report.execSummary.execSubhead)}</p>` : ""}
         <div class="loss">
           <div>
-            <span class="lossBadge">Demand you're missing</span>
+            <span class="lossBadge" style="display:inline-flex;align-items:center;gap:5px">${seoSvg(SEO_ICON.trendDown)}Demand you're missing</span>
             ${
-              report.execSummary.demandLoss != null
-                ? `<div class="big">~${escapeHtml(formatSeoSnapshotNumber(report.execSummary.demandLoss))}<span class="unit"> inquiries / mo</span></div>`
+              report.execSummary.demandLoss.value != null
+                ? `<div class="big">~${escapeHtml(formatSeoSnapshotNumber(report.execSummary.demandLoss.value))}<span class="unit"> inquiries / mo</span></div>`
                 : `<div class="big" style="font-size:24px">A steady stream of searches every month</div>`
             }
             <p class="sub" style="max-width:420px;margin-top:10px">Estimated new customer inquiries each month from people searching for services this business is not capturing yet.</p>
           </div>
-          <div class="assume">A high-level estimate to put the opportunity in perspective, not a precise calculation.</div>
+          <div class="assume">${escapeHtml(seoCapitalizeFirst(report.execSummary.demandLoss.disclaimer))}</div>
         </div>
+        ${coverageHtml}
         <div class="tiles">
-          ${stats.map(([label, value, accent]) => `
-            <div class="tile">
+          ${stats.map(([label, value, accent, icon]) => `
+            <div class="tile ${accent ? "flag" : ""}">
+              <div class="tileTop"><span>${escapeHtml(label)}</span>${seoSvg(icon)}</div>
               <div class="tileN ${accent ? "accent" : ""}">${escapeHtml(formatSeoSnapshotNumber(value))}</div>
-              <div class="tileL">${escapeHtml(label)}</div>
             </div>
           `).join("")}
         </div>
@@ -1075,8 +1284,11 @@ function seoSnapshotHtmlFromData(args: {
         <div class="demand">
           ${report.customerDemand.map((row) => `
             <div class="dq">
-              <span>${escapeHtml(row.keyword)}</span>
-              <span>${row.searchVolume != null ? `<b>${escapeHtml(formatSeoSnapshotNumber(row.searchVolume))}</b> / mo` : "Demand"}</span>
+              <div class="dqRow">
+                <span>${escapeHtml(row.keyword)}</span>
+                <span>${row.searchVolume != null ? `<b>${escapeHtml(formatSeoSnapshotNumber(row.searchVolume))}</b> / mo` : "Demand"}</span>
+              </div>
+              <div class="track"><div class="fill" style="width:${row.searchVolume != null ? (row.searchVolume / demandMax) * 100 : 0}%"></div></div>
             </div>
           `).join("")}
         </div>
@@ -1087,17 +1299,26 @@ function seoSnapshotHtmlFromData(args: {
         <h2>High-value searches you are missing.</h2>
         <p class="lead">${escapeHtml(report.missedIntro)}</p>
         <div class="tablewrap"><table>
-          <thead><tr><th>Search</th><th>Searches</th><th>Your visibility</th><th>Competitor showing up</th><th>Opportunity</th></tr></thead>
+          <thead><tr><th>Search</th><th>Searches</th><th>Your visibility</th><th>Found instead</th><th>Opportunity</th></tr></thead>
           <tbody>
-            ${report.missedVisibility.slice(0, 20).map((row) => `
+            ${missedRows.map((row) => {
+              const vis = seoVisibilityBadge(row.visibility);
+              const opp = seoOpportunityBadge(row.opportunity);
+              const barPct = row.searchVolume != null ? (Math.sqrt(row.searchVolume) / Math.sqrt(missedVolumeMax)) * 100 : 0;
+              return `
               <tr>
-                <td>${escapeHtml(row.keyword)}</td>
-                <td>${row.searchVolume != null ? `${escapeHtml(formatSeoSnapshotNumber(row.searchVolume))}/mo` : ""}</td>
-                <td><span class="badge ${seoVisibilityBadgeClass(row.visibility)}">${escapeHtml(row.visibility || "Opportunity")}</span></td>
-                <td>${escapeHtml(row.competitorShowingUp || "Competitor advantage")}</td>
-                <td>${escapeHtml(row.opportunity || "High-value opportunity")}</td>
+                <td style="font-weight:500">${escapeHtml(row.keyword)}</td>
+                <td><div class="svol"><span>${row.searchVolume != null ? `${escapeHtml(formatSeoSnapshotNumber(row.searchVolume))}<span style="color:#737373;font-size:12px">/mo</span>` : ""}</span>${row.searchVolume != null ? `<div class="vbar"><div class="vfill" style="width:${barPct}%"></div></div>` : ""}</div></td>
+                <td><span class="badge ${vis.cls}">${vis.icon ? seoSvg(vis.icon) : ""}${escapeHtml(vis.label)}</span></td>
+                <td>${
+                  row.competitorShowingUp
+                    ? `<div class="site">${seoFaviconHost(row.competitorShowingUp) ? seoFav(row.competitorShowingUp, 20) : ""}<span>${escapeHtml(row.competitorShowingUp)}</span></div>`
+                    : `<span style="color:#737373">—</span>`
+                }</td>
+                <td><span class="badge ${opp.cls}">${escapeHtml(opp.label)}</span></td>
               </tr>
-            `).join("")}
+            `;
+            }).join("")}
           </tbody>
         </table></div>
       </div>
@@ -1107,16 +1328,19 @@ function seoSnapshotHtmlFromData(args: {
         <h2>These competitors are being found before you.</h2>
         <p class="lead">${escapeHtml(report.competitorIntro)}</p>
         <div class="tablewrap"><table>
-          <thead><tr><th>Competitor</th><th>Appears for</th><th>In map pack</th><th>Why they are winning</th></tr></thead>
+          <thead><tr><th>Competitor</th><th>Appears for</th><th>Map pack</th><th>Why they are winning</th></tr></thead>
           <tbody>
-            ${report.competitorVisibility.map((row) => `
+            ${report.competitorVisibility.map((row) => {
+              const inMapPack = !!(row.localPackCount && row.localPackCount > 0);
+              return `
               <tr>
-                <td>${escapeHtml(row.domain)}</td>
+                <td><div class="site">${seoFav(row.domain, 20)}<span style="font-weight:500">${escapeHtml(row.domain)}</span></div></td>
                 <td>${row.appearancesInTop10 != null ? `${escapeHtml(formatSeoSnapshotNumber(row.appearancesInTop10))} searches` : ""}</td>
-                <td><span class="badge ${row.localPackCount && row.localPackCount > 0 ? "ok" : "neu"}">${row.localPackCount && row.localPackCount > 0 ? "Yes" : "No"}</span></td>
-                <td>${escapeHtml(row.whyWinning || "Ranks in top results for multiple searches")}</td>
+                <td><span class="badge ${inMapPack ? "b-green" : "b-gray"}">${inMapPack ? "Listed" : "Not listed"}</span></td>
+                <td style="color:#737373">${escapeHtml(row.whyWinning || "Ranks in top results for multiple searches")}</td>
               </tr>
-            `).join("")}
+            `;
+            }).join("")}
           </tbody>
         </table></div>
       </div>
@@ -1128,13 +1352,24 @@ function seoSnapshotHtmlFromData(args: {
         <div class="tablewrap"><table>
           <thead><tr><th>Competitor page</th><th>Demand signal</th><th>Your gap</th></tr></thead>
           <tbody>
-            ${report.competitorPages.slice(0, 12).map((row) => `
+            ${pageRows.map((row) => {
+              const full = row.pageAddress || row.domain;
+              const parts = seoSplitPath(full);
+              return `
               <tr>
-                <td class="mono">${escapeHtml(seoCompactUrl(row.pageAddress || row.domain))}</td>
-                <td>${row.organicCount != null ? `${escapeHtml(formatSeoSnapshotNumber(row.organicCount))} organic keywords` : row.etv != null ? `${escapeHtml(formatSeoSnapshotNumber(row.etv))} estimated visits` : "Relevant demand"}</td>
-                <td><span class="badge ${row.clientGap === true ? "bad" : "warn"}">${row.clientGap === true ? "Client gap" : "Review gap"}</span></td>
+                <td><div class="pathwrap">${seoFav(row.domain || full, 20)}<div class="path"><div class="p1">${escapeHtml(parts.host)}</div><div class="p2">${escapeHtml(parts.path)}</div></div></div></td>
+                <td>${
+                  row.organicCount != null
+                    ? `<div class="ks"><span style="font-weight:500">${escapeHtml(formatSeoSnapshotNumber(row.organicCount))}</span><span style="color:#737373;font-size:12px">keywords</span><span class="miniwrap"><span class="mini" style="width:${(row.organicCount / organicMax) * 100}%"></span></span></div>`
+                    : escapeHtml(
+                        row.demandCaptured ||
+                          (row.etv != null ? `${formatSeoSnapshotNumber(row.etv)} estimated visits` : "Relevant demand")
+                      )
+                }</td>
+                <td><span class="badge ${row.clientGap === true ? "b-red" : "b-amber"}">${row.clientGap === true ? "Client gap" : "Review gap"}</span></td>
               </tr>
-            `).join("")}
+            `;
+            }).join("")}
           </tbody>
         </table></div>
       </div>
@@ -1144,13 +1379,28 @@ function seoSnapshotHtmlFromData(args: {
         <h2>Here is what we would build first.</h2>
         <p class="lead">${escapeHtml(report.opportunityIntro)}</p>
         <div class="buckets">
-          ${report.opportunityMap.map((item, index) => `
+          ${report.opportunityMap.map((item, index) => {
+            const buildFirst = index < 2;
+            return `
             <div class="bucket">
-              <h3>${escapeHtml(item.label || seoHumanize(item.assetType))}<span class="tag">${index < 2 ? "Build first" : "Support"}</span></h3>
-              <p class="sub">${escapeHtml(seoHumanize(item.assetType))}${item.keywordCount != null ? ` · ${escapeHtml(formatSeoSnapshotNumber(item.keywordCount))} searches mapped` : ""}</p>
-              ${item.keywords.length ? `<ul>${item.keywords.slice(0, 5).map((keyword) => `<li>${escapeHtml(keyword)}</li>`).join("")}</ul>` : ""}
+              <div class="ohead">
+                <div class="oleft">
+                  <span class="oicon">${seoSvg(seoOppIcon(item.assetType, item.label))}</span>
+                  <div>
+                    <h3 style="margin:0">${escapeHtml(item.label || seoHumanize(item.assetType))}</h3>
+                    <p class="sub">${escapeHtml(item.bucket || seoHumanize(item.assetType))}${item.keywordCount != null ? ` · ${escapeHtml(formatSeoSnapshotNumber(item.keywordCount))} searches mapped` : ""}</p>
+                  </div>
+                </div>
+                <span class="badge b-gray">${seoSvg(buildFirst ? SEO_ICON.flag : SEO_ICON.plus)}${buildFirst ? "Build first" : "Support"}</span>
+              </div>
+              ${
+                item.keywords.length
+                  ? `<div class="chips">${item.keywords.slice(0, 6).map((keyword) => `<span class="chip">${escapeHtml(keyword)}</span>`).join("")}</div>`
+                  : `<div class="chipNote">Foundational work — strengthens visibility across the searches above.</div>`
+              }
             </div>
-          `).join("")}
+          `;
+          }).join("")}
         </div>
       </div>
 

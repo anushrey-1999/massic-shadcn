@@ -1,8 +1,30 @@
+export type SeoSnapshotDemandLoss = {
+  value: number | null;
+  disclaimer: string;
+};
+
+export type SeoSnapshotStatTiles = {
+  searchesAnalyzed: number | null;
+  highValueChecked: number | null;
+  missedFound: number | null;
+  competitorsOutranking: number | null;
+};
+
+export type SeoSnapshotTalkingPoint = {
+  label: string;
+  script: string;
+};
+
+export type SeoSnapshotObjectionHandler = {
+  objection: string;
+  response: string;
+};
+
 export type SeoSnapshotExecSummary = {
   execHeadline: string;
   execSubhead: string;
   whatWeFound: string[];
-  demandLoss: number | null;
+  demandLoss: SeoSnapshotDemandLoss;
 };
 
 export type SeoSnapshotDemandRow = {
@@ -35,6 +57,7 @@ export type SeoSnapshotCompetitorPageRow = {
   organicCount: number | null;
   etv: number | null;
   clientGap: boolean | null;
+  demandCaptured: string;
 };
 
 export type SeoSnapshotOpportunityAsset = {
@@ -43,6 +66,7 @@ export type SeoSnapshotOpportunityAsset = {
   aggregateScore: number | null;
   keywordCount: number | null;
   keywords: string[];
+  bucket: string;
 };
 
 export type SeoSnapshotReport = {
@@ -51,6 +75,7 @@ export type SeoSnapshotReport = {
   location: string;
   generatedAt: string;
   execSummary: SeoSnapshotExecSummary;
+  statTiles: SeoSnapshotStatTiles;
   customerDemand: SeoSnapshotDemandRow[];
   missedVisibility: SeoSnapshotMissedVisibilityRow[];
   competitorVisibility: SeoSnapshotCompetitorRow[];
@@ -64,7 +89,13 @@ export type SeoSnapshotReport = {
   pipelineWarnings: string[];
   analyzedKeywordCount: number | null;
   retainedKeywordCount: number | null;
+  framingMode: string;
+  talkingPoints: SeoSnapshotTalkingPoint[];
+  objectionHandlers: SeoSnapshotObjectionHandler[];
 };
+
+const DEFAULT_DEMAND_LOSS_DISCLAIMER =
+  "A high-level estimate to put the opportunity in perspective, not a precise calculation.";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -169,6 +200,101 @@ function reportRoot(payload: unknown): Record<string, unknown> | null {
   return null;
 }
 
+type ReportSection = {
+  intro: string;
+  items: Record<string, unknown>[];
+};
+
+function extractReportSection(
+  root: Record<string, unknown>,
+  key: string,
+  legacyIntroKey: string
+): ReportSection {
+  const section = root[key];
+  if (isRecord(section) && Array.isArray(section.items)) {
+    return {
+      intro: text(section.intro),
+      items: section.items.filter(isRecord),
+    };
+  }
+  if (Array.isArray(section)) {
+    const items = section.filter(isRecord);
+    return {
+      intro: firstTextFromRows(items, legacyIntroKey),
+      items,
+    };
+  }
+  return { intro: "", items: [] };
+}
+
+function parseDemandLoss(raw: unknown): SeoSnapshotDemandLoss {
+  if (isRecord(raw)) {
+    return {
+      value: numberOrNull(raw.value),
+      disclaimer: text(raw.disclaimer) || DEFAULT_DEMAND_LOSS_DISCLAIMER,
+    };
+  }
+  return {
+    value: numberOrNull(raw),
+    disclaimer: DEFAULT_DEMAND_LOSS_DISCLAIMER,
+  };
+}
+
+function parseStatTiles(
+  execRaw: Record<string, unknown>,
+  pipelineMetadata: Record<string, unknown>,
+  legacyFallbacks: {
+    customerDemandCount: number;
+    missedVisibilityCount: number;
+    competitorVisibilityCount: number;
+  }
+): SeoSnapshotStatTiles {
+  const tiles = isRecord(execRaw.stat_tiles) ? execRaw.stat_tiles : {};
+
+  return {
+    searchesAnalyzed:
+      numberOrNull(tiles.searches_analyzed) ??
+      numberOrNull(pipelineMetadata.keyword_pool_size) ??
+      (legacyFallbacks.customerDemandCount > 0 ? legacyFallbacks.customerDemandCount : null),
+    highValueChecked:
+      numberOrNull(tiles.high_value_checked) ??
+      numberOrNull(pipelineMetadata.retained_count) ??
+      (legacyFallbacks.missedVisibilityCount > 0 ? legacyFallbacks.missedVisibilityCount : null),
+    missedFound:
+      numberOrNull(tiles.missed_found) ??
+      (legacyFallbacks.missedVisibilityCount > 0 ? legacyFallbacks.missedVisibilityCount : null),
+    competitorsOutranking:
+      numberOrNull(tiles.competitors_outranking) ??
+      (legacyFallbacks.competitorVisibilityCount > 0 ? legacyFallbacks.competitorVisibilityCount : null),
+  };
+}
+
+function parseTalkingPoints(payload: unknown): {
+  talkingPoints: SeoSnapshotTalkingPoint[];
+  objectionHandlers: SeoSnapshotObjectionHandler[];
+} {
+  if (!isRecord(payload)) {
+    return { talkingPoints: [], objectionHandlers: [] };
+  }
+
+  const talkingPointsRoot = isRecord(payload.talking_points) ? payload.talking_points : {};
+  const talkingPoints = Array.isArray(talkingPointsRoot.talking_points)
+    ? talkingPointsRoot.talking_points.filter(isRecord).map((row) => ({
+        label: text(row.label),
+        script: text(row.script),
+      })).filter((row) => row.label || row.script)
+    : [];
+
+  const objectionHandlers = Array.isArray(talkingPointsRoot.objection_handlers)
+    ? talkingPointsRoot.objection_handlers.filter(isRecord).map((row) => ({
+        objection: text(row.objection),
+        response: text(row.response),
+      })).filter((row) => row.objection || row.response)
+    : [];
+
+  return { talkingPoints, objectionHandlers };
+}
+
 export function normalizeSeoSnapshotReport(
   payload: unknown,
   fallback?: {
@@ -182,27 +308,31 @@ export function normalizeSeoSnapshotReport(
   if (!root) return null;
 
   const execRaw = isRecord(root.exec_summary) ? root.exec_summary : {};
-  const customerDemandRows = Array.isArray(root.customer_demand)
-    ? root.customer_demand.filter(isRecord)
-    : [];
-  const missedRows = Array.isArray(root.missed_visibility)
-    ? root.missed_visibility.filter(isRecord)
-    : [];
-  const competitorRows = Array.isArray(root.competitor_visibility)
-    ? root.competitor_visibility.filter(isRecord)
-    : [];
+
+  const customerDemandSection = extractReportSection(root, "customer_demand", "demand_intro");
+  const missedSection = extractReportSection(root, "missed_visibility", "missed_intro");
+  const competitorSection = extractReportSection(root, "competitor_visibility", "competitor_intro");
+  const opportunitySection = extractReportSection(root, "opportunity_map", "opportunity_intro");
+
+  const customerDemandRows = customerDemandSection.items;
+  const missedRows = missedSection.items;
+  const competitorRows = competitorSection.items;
+  const opportunityRows = opportunitySection.items;
+
   const competitorPageRows = Array.isArray(root.competitor_pages)
     ? root.competitor_pages.filter(isRecord)
     : [];
-  const opportunityRows = Array.isArray(root.opportunity_map)
-    ? root.opportunity_map.filter(isRecord)
-    : [];
 
-  const pipelineMetadata = isRecord(root.pipeline_metadata) ? root.pipeline_metadata : {};
+  const payloadRecord = isRecord(payload) ? payload : {};
+  const internalData = isRecord(payloadRecord.internal_data) ? payloadRecord.internal_data : {};
+  const pipelineMetadata = isRecord(internalData.pipeline_metadata)
+    ? internalData.pipeline_metadata
+    : isRecord(root.pipeline_metadata)
+      ? root.pipeline_metadata
+      : {};
+
   const business = isRecord(root.business) ? root.business : {};
-  const meta = isRecord((payload as Record<string, unknown>).metadata)
-    ? ((payload as Record<string, unknown>).metadata as Record<string, unknown>)
-    : {};
+  const meta = isRecord(payloadRecord.metadata) ? payloadRecord.metadata : {};
 
   const customerDemand = customerDemandRows.map((row) => ({
     keyword: text(row.keyword),
@@ -238,6 +368,7 @@ export function normalizeSeoSnapshotReport(
     organicCount: numberOrNull(row.organic_count),
     etv: numberOrNull(row.etv),
     clientGap: booleanOrNull(row.client_gap),
+    demandCaptured: text(row.demand_captured),
   })).filter((row) => row.pageAddress || row.domain);
 
   const opportunityMap = opportunityRows.map((row) => ({
@@ -246,6 +377,7 @@ export function normalizeSeoSnapshotReport(
     aggregateScore: numberOrNull(row.aggregate_score),
     keywordCount: numberOrNull(row.keyword_count),
     keywords: stringArray(row.keywords),
+    bucket: text(row.bucket),
   })).filter((row) => row.label || row.assetType || row.keywords.length);
 
   const inferredBusinessName =
@@ -264,24 +396,33 @@ export function normalizeSeoSnapshotReport(
 
   const generatedAt =
     text(root.generated_at) ||
-    text((payload as Record<string, unknown>).created_at) ||
+    text(payloadRecord.created_at) ||
     text(fallback?.generatedAt);
 
   const demandIntro =
-    firstTextFromRows(customerDemandRows, "demand_intro") ||
+    customerDemandSection.intro ||
     "Here are the searches where customer demand is already visible.";
   const missedIntro =
-    firstTextFromRows(missedRows, "missed_intro") ||
+    missedSection.intro ||
     "These searches represent immediate opportunities where the business is not showing up strongly.";
   const competitorIntro =
-    firstTextFromRows(competitorRows, "competitor_intro") ||
+    competitorSection.intro ||
     "Competitors are supporting evidence that the demand is real.";
   const opportunityIntro =
-    firstTextFromRows(opportunityRows, "opportunity_intro") ||
+    opportunitySection.intro ||
     "These assets are prioritized by the search demand they can unlock.";
+
+  const opportunityMapSection = isRecord(root.opportunity_map) ? root.opportunity_map : null;
   const firstStepsCaption =
+    text(opportunityMapSection?.first_steps_caption) ||
     firstTextFromRows(opportunityRows, "first_steps_caption") ||
     "Full sequencing is set after live data is reviewed.";
+
+  const statTiles = parseStatTiles(execRaw, pipelineMetadata, {
+    customerDemandCount: customerDemand.length,
+    missedVisibilityCount: missedVisibility.length,
+    competitorVisibilityCount: competitorVisibility.length,
+  });
 
   const execSummary = {
     execHeadline:
@@ -289,8 +430,10 @@ export function normalizeSeoSnapshotReport(
       `${customerDemand.length} demand signals found for ${inferredBusinessName}`,
     execSubhead: text(execRaw.exec_subhead),
     whatWeFound: stringArray(execRaw.what_we_found),
-    demandLoss: numberOrNull(execRaw.demand_loss),
+    demandLoss: parseDemandLoss(execRaw.demand_loss),
   };
+
+  const { talkingPoints, objectionHandlers } = parseTalkingPoints(payload);
 
   const hasRenderableContent =
     execSummary.execHeadline ||
@@ -308,6 +451,7 @@ export function normalizeSeoSnapshotReport(
     location: inferredLocation,
     generatedAt,
     execSummary,
+    statTiles,
     customerDemand,
     missedVisibility,
     competitorVisibility,
@@ -321,6 +465,9 @@ export function normalizeSeoSnapshotReport(
     pipelineWarnings: stringArray(pipelineMetadata.warnings),
     analyzedKeywordCount: numberOrNull(pipelineMetadata.keyword_pool_size),
     retainedKeywordCount: numberOrNull(pipelineMetadata.retained_count),
+    framingMode: text(root.framing_mode),
+    talkingPoints,
+    objectionHandlers,
   };
 }
 
@@ -351,14 +498,33 @@ export function seoSnapshotReportToMarkdown(report: SeoSnapshotReport): string {
   lines.push("", "## Executive Summary");
   lines.push("", mdLine(report.execSummary.execHeadline));
   if (report.execSummary.execSubhead) lines.push("", mdLine(report.execSummary.execSubhead));
-  if (report.execSummary.demandLoss != null) {
+  if (report.execSummary.demandLoss.value != null) {
     lines.push(
       "",
-      `Demand you're missing: ~${formatSeoSnapshotNumber(report.execSummary.demandLoss)} inquiries / mo`,
+      `Demand you're missing: ~${formatSeoSnapshotNumber(report.execSummary.demandLoss.value)} inquiries / mo`,
       "",
-      "This figure is a high-level estimate to put the opportunity in perspective, not a precise calculation."
+      mdLine(report.execSummary.demandLoss.disclaimer)
     );
   }
+
+  const statTileSummary = [
+    report.statTiles.searchesAnalyzed != null
+      ? `${formatSeoSnapshotNumber(report.statTiles.searchesAnalyzed)} searches analyzed`
+      : "",
+    report.statTiles.highValueChecked != null
+      ? `${formatSeoSnapshotNumber(report.statTiles.highValueChecked)} high-value searches checked`
+      : "",
+    report.statTiles.missedFound != null
+      ? `${formatSeoSnapshotNumber(report.statTiles.missedFound)} missed opportunities found`
+      : "",
+    report.statTiles.competitorsOutranking != null
+      ? `${formatSeoSnapshotNumber(report.statTiles.competitorsOutranking)} competitors outranking`
+      : "",
+  ].filter(Boolean);
+  if (statTileSummary.length) {
+    lines.push("", statTileSummary.join(" · "));
+  }
+
   if (report.execSummary.whatWeFound.length) {
     lines.push("", "What we found:");
     report.execSummary.whatWeFound.forEach((item) => lines.push(`- ${mdLine(item)}`));
@@ -405,8 +571,11 @@ export function seoSnapshotReportToMarkdown(report: SeoSnapshotReport): string {
     lines.push("| Competitor page | Demand signal | Your gap |");
     lines.push("| --- | ---: | --- |");
     report.competitorPages.forEach((row) => {
+      const demandSignal =
+        row.demandCaptured ||
+        (row.organicCount != null ? String(row.organicCount) : "");
       lines.push(
-        `| ${mdLine(row.pageAddress || row.domain)} | ${row.organicCount ?? ""} | ${row.clientGap === true ? "Gap found" : row.clientGap === false ? "No clear gap" : ""} |`
+        `| ${mdLine(row.pageAddress || row.domain)} | ${mdLine(demandSignal)} | ${row.clientGap === true ? "Gap found" : row.clientGap === false ? "No clear gap" : ""} |`
       );
     });
   }
@@ -415,8 +584,9 @@ export function seoSnapshotReportToMarkdown(report: SeoSnapshotReport): string {
     lines.push("", "## Opportunity Map", "", mdLine(report.opportunityIntro));
     report.opportunityMap.forEach((item) => {
       const label = mdLine(item.label || item.assetType);
+      const bucket = item.bucket ? ` (${mdLine(item.bucket)})` : "";
       const keywords = item.keywords.slice(0, 6).map(mdLine).filter(Boolean).join(", ");
-      lines.push(`- ${label}${keywords ? `: ${keywords}` : ""}`);
+      lines.push(`- ${label}${bucket}${keywords ? `: ${keywords}` : ""}`);
     });
   }
 

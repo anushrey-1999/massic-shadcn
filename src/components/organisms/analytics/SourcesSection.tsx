@@ -2,9 +2,10 @@
 
 import { Typography } from "@/components/ui/typography";
 import { ListChecks, Eye, TrendingUp, TrendingDown, ListOrdered } from "lucide-react";
-import React, { useMemo, useState } from "react";
-import { DataTable } from "@/components/molecules/analytics/DataTable";
+import React, { useCallback, useMemo, useState } from "react";
+import { DataTable, type DataTableRow } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
+import { SourceFavicon } from "@/components/molecules/analytics/SourceFavicon";
 import { SourcesChannelsChart } from "@/components/molecules/analytics/SourcesChannelsChart";
 import {
   useGA4Analytics,
@@ -58,6 +59,19 @@ const SourcesSection = ({
   const showTopSourcesLoader = loadingState.topSources && !hasTopSourcesData;
   const showChannelsLoader = loadingState.channels && !hasChannelsData;
 
+  const renderSourceLabel = useCallback(
+    (_row: DataTableRow, value: string) => (
+      <>
+        <SourceFavicon
+          sourceName={value}
+          fallback={ga4TrafficScope === "organic" ? "search" : "auto"}
+        />
+        <span className="truncate">{value}</span>
+      </>
+    ),
+    [ga4TrafficScope]
+  );
+
   return (
     <div className="flex flex-col px-7 pb-10">
       <div className="flex items-center gap-2 pb-6">
@@ -99,6 +113,7 @@ const SourcesSection = ({
           onSort={(column) => handleTopSourcesSort(column as GA4SortColumn)}
           onArrowClick={() => setTopSourcesModalOpen(true)}
           maxRows={10}
+          renderFirstColumn={renderSourceLabel}
         />
 
         {!hideChannelsChart ? (
@@ -137,6 +152,7 @@ const SourcesSection = ({
         sortConfig={{ column: topSourcesSort.column, direction: topSourcesSort.direction }}
         onSort={(column) => handleTopSourcesSort(column as GA4SortColumn)}
         isLoading={showTopSourcesLoader}
+        renderFirstColumn={renderSourceLabel}
       />
     </div>
   );

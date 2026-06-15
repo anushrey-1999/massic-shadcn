@@ -86,8 +86,8 @@ export default function BusinessProfilePage() {
   // Sync location options to Zustand store
   const { setLocationOptions, setLocationsLoading, setCurrentBusinessId } = useBusinessStore()
   const prevLocationOptionsRef = useRef<typeof locationOptions>([])
-  const prevLocationsLoadingRef = useRef(locationsLoading)
-  const prevBusinessIdRef = useRef(businessId)
+  const prevLocationsLoadingRef = useRef<boolean | null>(null)
+  const prevBusinessIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     // Only update if locationOptions actually changed (deep comparison)

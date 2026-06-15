@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { List as ReactWindowList } from 'react-window'
-import { Check, ChevronsUpDown } from 'lucide-react'
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -249,21 +249,30 @@ export function LocationSelect({
             onValueChange={handleInputChange}
           />
           <CommandList className="max-h-[250px] overflow-hidden">
-            <CommandEmpty>No location found.</CommandEmpty>
-            <CommandGroup>
-              {filteredOptions.length > 0 ? (
-                <VirtualizedCommandItems
-                  items={filteredOptions}
-                  selectedValue={value}
-                  onSelect={(selectedValue) => {
-                    onChange(selectedValue)
-                    setOpen(false)
-                    setInputValue('')
-                    setDebouncedSearchValue('')
-                  }}
-                />
-              ) : null}
-            </CommandGroup>
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading locations...
+              </div>
+            ) : (
+              <>
+                <CommandEmpty>No location found.</CommandEmpty>
+                <CommandGroup>
+                  {filteredOptions.length > 0 ? (
+                    <VirtualizedCommandItems
+                      items={filteredOptions}
+                      selectedValue={value}
+                      onSelect={(selectedValue) => {
+                        onChange(selectedValue)
+                        setOpen(false)
+                        setInputValue('')
+                        setDebouncedSearchValue('')
+                      }}
+                    />
+                  ) : null}
+                </CommandGroup>
+              </>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

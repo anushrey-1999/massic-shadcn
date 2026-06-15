@@ -805,13 +805,33 @@ export default function PitchReportsPage() {
     detailedStatus,
   ]);
 
+  // For the snapshot path, keep showing the proper loading state whenever there
+  // is nothing renderable yet (and it has not errored). This covers every
+  // transient gap — initial fetch, processing, and the window between a
+  // "success" status and the report finishing downloading/normalizing — so the
+  // legacy markdown viewer never flashes for a frame.
+  const snapshotStillLoading = React.useMemo(() => {
+    if (activeReport !== "snapshot") return false;
+    if (seoSnapshotReport) return false;
+    if (snapshotExpressPitch) return false;
+    if (reportContent.trim()) return false;
+    return !isSnapshotWorkflowError(snapshotStatus);
+  }, [
+    activeReport,
+    seoSnapshotReport,
+    snapshotExpressPitch,
+    reportContent,
+    snapshotStatus,
+  ]);
+
   const shouldShowProcessingEmptyState = React.useMemo(() => {
     if (activeReport === null) return false;
     if (activeReport === "snapshot" && seoSnapshotReport) return false;
     if (reportContent.trim()) return false;
+    if (snapshotStillLoading) return true;
     const status = String(viewerWorkflowStatus || "").trim().toLowerCase();
     return isSnapshotWorkflowProcessing(status) || isSnapshotWorkflowError(status);
-  }, [activeReport, seoSnapshotReport, reportContent, viewerWorkflowStatus]);
+  }, [activeReport, seoSnapshotReport, reportContent, viewerWorkflowStatus, snapshotStillLoading]);
 
   const processingEmptyState = React.useMemo(() => {
     const status = String(viewerWorkflowStatus || "").trim().toLowerCase();
@@ -824,17 +844,11 @@ export default function PitchReportsPage() {
       };
     }
 
-    if (isSnapshotWorkflowProcessing(status)) {
-      return {
-        title: "Report Processing",
-        description: "Your report is being prepared. Data will be available shortly.",
-        isProcessing: true,
-      };
-    }
-
+    // Single, stable loading state while the report is being prepared/generated
+    // so the title doesn't flip between messages during status transitions.
     return {
-      title: "Preparing Report",
-      description: "Please wait.",
+      title: "Report Processing",
+      description: "Your report is being prepared. Data will be available shortly.",
       isProcessing: true,
     };
   }, [viewerWorkflowStatus]);

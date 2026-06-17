@@ -227,6 +227,8 @@ export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
             : "—"}
         </Typography>
       ),
+      sortingFn: (rowA, rowB) =>
+        (rowA.original.createdAtTs ?? 0) - (rowB.original.createdAtTs ?? 0),
       meta: {
         label: "Created At",
         placeholder: "Filter by date...",

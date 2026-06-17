@@ -8,8 +8,7 @@ import { DataTableSearch } from "@/components/filter-table/data-table-search";
 import { DataTableSortList } from "@/components/filter-table/data-table-sort-list";
 import { DataTableViewOptions } from "@/components/filter-table/data-table-view-options";
 import { Button } from "@/components/ui/button";
-import { useDataTable } from "@/hooks/use-data-table";
-import type { QueryKeys } from "@/types/data-table-types";
+import { useLocalDataTable } from "@/hooks/use-local-data-table";
 import Link from "next/link";
 
 import type { PitchRow } from "./pitches-table-columns";
@@ -17,36 +16,26 @@ import { getPitchesTableColumns } from "./pitches-table-columns";
 
 interface PitchesTableProps {
   data: PitchRow[];
-  pageCount: number;
-  queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
 }
 
 export function PitchesTable({
   data,
-  pageCount,
-  queryKeys,
   isLoading = false,
 }: PitchesTableProps) {
-  const enableAdvancedFilter = false;
-
   const columns = React.useMemo(() => getPitchesTableColumns(), []);
 
-  const { table, shallow, debounceMs, throttleMs } = useDataTable({
+  const { table } = useLocalDataTable({
     data,
     columns,
-    pageCount,
-    enableAdvancedFilter,
     initialState: {
+      sorting: [{ id: "createdAt", desc: true }],
       pagination: {
         pageIndex: 0,
         pageSize: 10,
       },
     },
-    queryKeys,
     getRowId: (originalRow: PitchRow) => originalRow.id,
-    shallow: false,
-    clearOnDefault: true,
   });
 
   const [search, setSearch] = useQueryState(

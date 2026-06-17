@@ -12,6 +12,21 @@ interface ApiResponse<T> {
   message?: string;
 }
 
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  const responseMessage = (error as { response?: { data?: { message?: string } } })
+    ?.response?.data?.message;
+
+  if (responseMessage) {
+    return responseMessage;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export function useAccessRequests(page = 1, limit = 20) {
   return useQuery<AccessRequestListResponse>({
     queryKey: ["access-requests", page, limit],
@@ -48,15 +63,21 @@ export function useCreateAccessRequest() {
 
   return useMutation<AccessRequest, Error, CreateAccessRequestPayload>({
     mutationFn: async (payload) => {
-      const res = await api.post<ApiResponse<AccessRequest>>(
-        "/access-request/create",
-        "node",
-        payload
-      );
-      if (!res.success) {
-        throw new Error(res.message || "Failed to create access request");
+      try {
+        const res = await api.post<ApiResponse<AccessRequest>>(
+          "/access-request/create",
+          "node",
+          payload
+        );
+        if (!res.success) {
+          throw new Error(res.message || "Failed to create access request");
+        }
+        return res.data;
+      } catch (error) {
+        throw new Error(
+          getApiErrorMessage(error, "Failed to create access request")
+        );
       }
-      return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["access-requests"] });

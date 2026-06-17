@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useForm, useStore } from "@tanstack/react-form";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -13,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -29,10 +31,27 @@ import { useCreateAccessRequest } from "@/hooks/use-access-requests";
 import { PRODUCT_CONFIG, ALL_PRODUCTS } from "@/config/access-request";
 import { ProductIcon } from "@/components/organisms/access-request/ProductIcon";
 import type { Product, AccessRequest } from "@/types/access-request";
+import { isValidWebsiteUrl as isWebsiteUrlFormatValid } from "@/utils/utils";
 
 interface CreateAccessRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+type AccessRequestFormValues = {
+  websiteUrl: string;
+};
+
+function getWebsiteUrlError(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "Website URL is required.";
+  }
+
+  return isWebsiteUrlFormatValid(trimmed)
+    ? undefined
+    : "Enter a valid website URL.";
 }
 
 export function CreateAccessRequestDialog({
@@ -42,6 +61,11 @@ export function CreateAccessRequestDialog({
   const { agencyDetails } = useAgencyInfo();
   const { connectGoogleAccount } = useGoogleAccounts();
   const createMutation = useCreateAccessRequest();
+  const form = useForm({
+    defaultValues: {
+      websiteUrl: "",
+    } satisfies AccessRequestFormValues,
+  });
 
   const [selectedEmail, setSelectedEmail] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
@@ -64,6 +88,13 @@ export function CreateAccessRequestDialog({
     return [];
   }, [agencyDetails]);
 
+  const websiteUrl = useStore(
+    form.store,
+    (state: any) => state.values.websiteUrl
+  ) as string;
+  const trimmedWebsiteUrl = websiteUrl.trim();
+  const websiteUrlError = getWebsiteUrlError(websiteUrl);
+
   function toggleProduct(product: Product) {
     setSelectedProducts((prev) => {
       if (prev.includes(product)) {
@@ -80,6 +111,7 @@ export function CreateAccessRequestDialog({
 
   function resetForm() {
     setSelectedEmail("");
+    form.reset();
     setSelectedProducts([]);
     setRoles({});
     setExpiresInDays(30);
@@ -97,6 +129,25 @@ export function CreateAccessRequestDialog({
       toast.error("Please select a Google account");
       return;
     }
+
+    const currentWebsiteUrl = form.state.values.websiteUrl;
+    const currentWebsiteUrlError = getWebsiteUrlError(currentWebsiteUrl);
+    form.setFieldMeta("websiteUrl", (prev: any) => ({
+      ...prev,
+      isTouched: true,
+      isValid: !currentWebsiteUrlError,
+      errors: currentWebsiteUrlError
+        ? [{ message: currentWebsiteUrlError }]
+        : [],
+      errorMap: currentWebsiteUrlError
+        ? { onChange: [{ message: currentWebsiteUrlError }] }
+        : {},
+      hasValidationErrors: Boolean(currentWebsiteUrlError),
+    }));
+
+    if (currentWebsiteUrlError) {
+      return;
+    }
     if (selectedProducts.length === 0) {
       toast.error("Please select at least one product");
       return;
@@ -105,18 +156,17 @@ export function CreateAccessRequestDialog({
     try {
       const result = await createMutation.mutateAsync({
         agencyEmail: selectedEmail,
+        websiteUrl: currentWebsiteUrl.trim(),
         products: selectedProducts,
         roles,
         expiresInDays,
       });
-      setCreatedRequest(result);
-      toast.success("Access request created successfully");
-    } catch (err: any) {
-      toast.error("Failed to create request", {
-        description: err?.message || "Please try again",
-      });
-    }
+    setCreatedRequest(result);
+    toast.success("Access request created successfully");
+  } catch (err: any) {
+    toast.error(err?.message || "Failed to create request");
   }
+}
 
   function copyLink() {
     if (!createdRequest) return;
@@ -244,6 +294,50 @@ export function CreateAccessRequestDialog({
             )}
           </div>
 
+{/* Website URL */}
+          <form.Field
+            name="websiteUrl"
+            validators={{
+              onChange: ({ value }) => {
+                const error = getWebsiteUrlError(value);
+                return error ? { message: error } : undefined;
+              },
+            }}
+          >
+            {(field) => {
+              const showError =
+                (field.state.meta.isTouched || Boolean(field.state.value)) &&
+                !field.state.meta.isValid &&
+                field.state.meta.errors?.length > 0;
+
+              return (
+                <Field data-invalid={showError}>
+                  <FieldLabel htmlFor={field.name} className="gap-0">
+                    <span className="text-destructive mr-0.5">*</span>
+                    Website URL
+                  </FieldLabel>
+                  <Input
+                    id={field.name}
+                    name={field.name}
+                    type="text"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    placeholder="example.com"
+                    autoComplete="url"
+                    aria-invalid={showError}
+                  />
+                  {showError && (
+                    <FieldError
+                      className="text-xs mt-0.5"
+                      errors={field.state.meta.errors}
+                    />
+                  )}
+                </Field>
+              );
+            }}
+          </form.Field>
+
           {/* Products Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">Products</Label>
@@ -340,6 +434,8 @@ export function CreateAccessRequestDialog({
             disabled={
               isSubmitting ||
               !selectedEmail ||
+              !trimmedWebsiteUrl ||
+              Boolean(websiteUrlError) ||
               selectedProducts.length === 0 ||
               linkedAccounts.length === 0
             }

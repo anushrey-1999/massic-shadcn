@@ -39,8 +39,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function ProductBadges({ products }: { products: Product[] }) {
-  return (
-    <div className="flex flex-wrap gap-1">
+ return (
+ <div className="flex flex-wrap gap-1">
       {products.map((product) => (
         <Badge
           key={product}
@@ -51,6 +51,27 @@ function ProductBadges({ products }: { products: Product[] }) {
         </Badge>
       ))}
     </div>
+ );
+}
+
+function WebsiteLink({ websiteUrl }: { websiteUrl?: string | null }) {
+  if (!websiteUrl) {
+    return <span className="text-sm text-general-muted-foreground">-</span>;
+  }
+
+  const label = websiteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+  return (
+    <a
+      href={websiteUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="block max-w-[180px] truncate text-sm text-general-primary hover:underline"
+      title={websiteUrl}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {label}
+    </a>
   );
 }
 
@@ -125,6 +146,7 @@ export function AccessRequestSettings({ isActive = true }: AccessRequestSettings
                     <TableHeader>
                       <TableRow className="bg-muted/50">
                         <TableHead className="text-xs font-medium">Agency Email</TableHead>
+                        <TableHead className="text-xs font-medium">Website</TableHead>
                         <TableHead className="text-xs font-medium">Products</TableHead>
                         <TableHead className="text-xs font-medium">Status</TableHead>
                         <TableHead className="text-xs font-medium">Created</TableHead>
@@ -137,6 +159,9 @@ export function AccessRequestSettings({ isActive = true }: AccessRequestSettings
                         <TableRow key={request.id} className="hover:bg-muted/30">
                           <TableCell className="text-sm font-mono text-general-unofficial-foreground-alt">
                             {request.agencyEmail}
+                          </TableCell>
+                          <TableCell>
+                            <WebsiteLink websiteUrl={request.websiteUrl} />
                           </TableCell>
                           <TableCell>
                             <ProductBadges products={request.products} />

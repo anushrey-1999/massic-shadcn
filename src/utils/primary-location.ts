@@ -67,6 +67,31 @@ export function parsePrimaryLocationForPayload(
   return { Location: location, Country: country };
 }
 
+/** Full location string as shown in the UI dropdown (e.g. "New York, United States"). */
+export function formatPrimaryLocationDisplayLabel(
+  primaryLocation?:
+    | {
+        Location?: string;
+        Country?: string;
+      }
+    | null
+): string {
+  const location = String(primaryLocation?.Location || "").trim();
+  const country = String(primaryLocation?.Country || "").trim();
+
+  if (!location && !country) return "";
+
+  if (
+    location &&
+    country &&
+    !location.toLowerCase().includes(country.toLowerCase())
+  ) {
+    return `${location}, ${country}`;
+  }
+
+  return location || country;
+}
+
 /** Maps saved profile/API location text back to a LocationSelect option value. */
 export function resolvePrimaryLocationFormValue(
   savedValue: string,

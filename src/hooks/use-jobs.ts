@@ -3,6 +3,7 @@ import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
 import axios from "axios";
 import Cookies from "js-cookie";
+import { formatPrimaryLocationDisplayLabel } from "@/utils/primary-location";
 
 const JOBS_KEY = "jobs";
 
@@ -92,7 +93,10 @@ function mapBusinessProfilePayloadToJobFormData(
   if (!businessProfilePayload.Website) {
     throw new Error("Business website is required");
   }
-  if (!businessProfilePayload.PrimaryLocation?.Location) {
+  const locationLabel = formatPrimaryLocationDisplayLabel(
+    businessProfilePayload.PrimaryLocation
+  );
+  if (!locationLabel) {
     throw new Error("Primary location is required");
   }
 
@@ -101,10 +105,7 @@ function mapBusinessProfilePayloadToJobFormData(
   formDataPayload.append("name", businessProfilePayload.Name);
   formDataPayload.append("business_url", businessProfilePayload.Website);
   formDataPayload.append("brand", businessProfilePayload.Name);
-  formDataPayload.append(
-    "location",
-    businessProfilePayload.PrimaryLocation.Location
-  );
+  formDataPayload.append("location", locationLabel);
   formDataPayload.append(
     "user_defined_business_description",
     businessProfilePayload.UserDefinedBusinessDescription ||

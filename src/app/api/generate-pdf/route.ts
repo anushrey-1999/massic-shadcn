@@ -615,6 +615,7 @@ const SNAPSHOT_CSS = `
 `;
 
 const SEO_SNAPSHOT_CSS = `
+  @page { size: 1160px 2800px; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -623,140 +624,225 @@ const SEO_SNAPSHOT_CSS = `
     color: #0A0A0A;
     background: #ffffff;
   }
-  .wrap { width: 100%; }
-  .card, .section {
+  .pdfCanvas {
+    width: 1096px;
+    margin: 0 auto;
     background: #ffffff;
+    padding: 24px 24px 24px;
+  }
+  .reportHeader {
+    width: 1048px;
+    height: 72px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 1px solid #E5E5E5;
+    padding-bottom: 16px;
+  }
+  .reportTitleBlock { display: flex; align-items: flex-start; gap: 8px; }
+  .logoBox {
+    width: 56px; height: 56px; border-radius: 8px; background: #D9D9D9;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .titleText { display: flex; flex-direction: column; gap: 8px; }
+  h1 {
+    color: #000000;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.4px;
+  }
+  h2 {
+    color: #0A0A0A;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.48px;
+  }
+  h3 {
+    color: #0A0A0A;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: 0.18px;
+  }
+  .contentStack {
+    width: 1048px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    margin-top: 24px;
+  }
+  .sectionCard {
+    width: 1048px;
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 2px 2px rgba(0,0,0,0.10), 0 4px 3px rgba(0,0,0,0.10);
+    break-inside: avoid;
+  }
+  .eyebrow {
+    color: #737373;
+    font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+  .sectionIntro { display: flex; flex-direction: column; gap: 6px; }
+  .sectionLead {
+    color: #737373;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: 0.18px;
+  }
+  .overviewTop { display: flex; gap: 12px; width: 100%; }
+  .demandCard {
+    width: 506px;
+    height: 166px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 16px 12px;
     border: 1px solid #E5E5E5;
     border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    background: #FAFAFA;
   }
-  .card { padding: 20px 22px; margin-bottom: 14px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .logo {
-    width: 32px; height: 32px; border-radius: 8px; background: #2E6A56; color: #fff;
-    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500;
+  .demandLeft { width: 181px; height: 134px; flex: none; display: flex; flex-direction: column; gap: 12px; }
+  .demandLeft.wide { width: 205px; }
+  .demandNumberRow { display: flex; align-items: flex-end; gap: 8px; white-space: nowrap; width: 100%; }
+  .demandNumber {
+    flex: none;
+    color: #0A0A0A;
+    font-size: 48px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.48px;
   }
-  h1 { font-size: 18px; font-weight: 500; line-height: 1.25; color: #171717; }
-  h2 { font-size: 22px; font-weight: 500; line-height: 1.3; color: #171717; margin-bottom: 6px; }
-  h3 { font-size: 14px; font-weight: 500; color: #171717; margin-bottom: 8px; }
-  .sub, .muted { color: #737373; }
-  .sub { font-size: 12px; margin-top: 3px; }
-  .kicker { font-size: 10px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: #737373; }
-  .section { padding: 24px; margin-bottom: 16px; break-inside: avoid; }
-  .secnum { font-size: 10px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: #2E6A56; margin-bottom: 8px; }
-  .lead { font-size: 14px; color: #525252; max-width: 720px; margin-bottom: 18px; }
-  .loss {
-    display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;
-    background: #FAFAFA; border: 1px solid #E5E5E5; border-left: 3px solid #2E6A56;
-    border-radius: 8px; padding: 18px 22px; margin-bottom: 18px;
+  .demandNumber.medium { font-size: 38px; }
+  .demandNumber.small { font-size: 34px; }
+  .demandUnit {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #737373;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0.18px;
+    padding-bottom: 4px;
   }
-  .lossBadge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: #991B1B; background: #FEE2E2; padding: 3px 8px; border-radius: 4px; margin-bottom: 10px; }
-  .lossBadge svg { width: 13px; height: 13px; flex: none; }
-  .big { font-size: 40px; font-weight: 500; line-height: 1; color: #0A0A0A; }
-  .unit { font-size: 18px; color: #737373; font-weight: 400; }
-  .assume { font-size: 11px; color: #737373; max-width: 250px; text-align: right; }
-  .tiles { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 18px; }
-  .tile { background: #FAFAFA; border: 1px solid #E5E5E5; border-radius: 8px; padding: 14px; }
-  .tileN { font-size: 28px; font-weight: 500; line-height: 1; }
-  .accent { color: #2E6A56; }
-  .tileL { font-size: 12px; color: #737373; margin-top: 8px; }
-  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .panel { background: #FAFAFA; border: 1px solid #E5E5E5; border-radius: 8px; padding: 16px; }
-  ul.clean { list-style: none; margin: 0; padding: 0; }
-  ul.clean li { position: relative; padding-left: 17px; margin-bottom: 7px; font-size: 13px; color: #525252; }
-  ul.clean li:before { content: ""; position: absolute; left: 0; top: 8px; width: 6px; height: 6px; border-radius: 50%; background: #2E6A56; }
-  .demand { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
-  .dq { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E5E5E5; padding: 9px 2px; gap: 14px; }
-  .dq span:first-child { color: #0A0A0A; }
-  .dq span:last-child { color: #737373; white-space: nowrap; font-size: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; background: #FAFAFA; color: #737373; font-weight: 500; font-size: 12px; padding: 9px 11px; border-bottom: 1px solid #E5E5E5; }
-  td { padding: 10px 11px; border-bottom: 1px solid #E5E5E5; vertical-align: middle; }
-  tr:last-child td { border-bottom: none; }
-  .tablewrap { border: 1px solid #E5E5E5; border-radius: 8px; overflow: hidden; }
-  .badge { display: inline-block; font-size: 12px; font-weight: 500; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
-  .bad { background: #FEE2E2; color: #991B1B; }
-  .warn { background: #FEF3C7; color: #92400E; }
-  .ok { background: #DCFCE7; color: #166534; }
-  .neu { background: #F5F5F5; color: #525252; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #525252; word-break: break-word; }
-  .buckets { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .bucket { border: 1px solid #E5E5E5; border-radius: 8px; padding: 16px; background: #fff; }
-  .bucket .tag { font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 4px; background: #DCFCE7; color: #166534; margin-left: 6px; }
-  .bucket ul { margin: 8px 0 0; padding-left: 16px; }
-  .bucket li { font-size: 13px; color: #525252; margin-bottom: 5px; }
-  .foot { font-size: 12px; color: #737373; text-align: center; padding-top: 8px; }
-
-  /* favicons */
+  .demandText { min-width: 0; flex: 1; height: 134px; display: flex; flex-direction: column; gap: 8px; }
+  .demandHeadline {
+    color: #DC2626;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: 0.18px;
+    overflow-wrap: anywhere;
+  }
+  .demandDisclaimer {
+    color: #737373;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0.15px;
+    overflow-wrap: anywhere;
+  }
+  .metricGrid { min-width: 0; flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .metricTile {
+    height: 77px;
+    border: 1px solid #E5E5E5;
+    border-radius: 8px;
+    background: #FAFAFA;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .metricLabel { display: flex; align-items: center; gap: 6px; color: #737373; font-size: 12px; font-weight: 500; line-height: 1.5; letter-spacing: 0.18px; }
+  .metricLabel svg { width: 16px; height: 16px; flex: none; }
+  .metricValue { color: #0A0A0A; font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -0.48px; }
+  .metricValue.accent { color: #DC2626; }
+  .visibilityMeter { border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; width: 100%; }
+  .visibilityTop { display: flex; align-items: flex-start; justify-content: space-between; }
+  .visibilityTitle { display: flex; align-items: center; gap: 12px; color: #737373; font-size: 12px; font-weight: 500; line-height: 1.5; letter-spacing: 0.18px; }
+  .visibilityTitle svg { width: 16px; height: 16px; flex: none; }
+  .visibilitySub { color: rgba(115,115,115,.6); font-weight: 400; }
+  .visibilityScore { display: flex; align-items: center; gap: 2px; color: #737373; font-size: 12px; line-height: 1.5; letter-spacing: 0.18px; }
+  .visibilityScore b { color: #2E6A56; font-size: 14px; font-weight: 500; letter-spacing: 0.07px; }
+  .visibilityBar { display: flex; width: 100%; height: 23px; margin-top: 8px; border-radius: 300px; overflow: hidden; }
+  .seg { height: 100%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 500; line-height: 1.5; letter-spacing: 0.18px; }
+  .seg span span { opacity: .6; }
+  .segOut { background: #DC2626; }
+  .segWeak { background: #F97316; }
+  .segVis { background: #16A34A; }
+  .summaryGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+  .summaryPanel { min-height: 137px; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; }
+  .panelTitle { display: flex; align-items: center; gap: 6px; color: #737373; font-size: 12px; font-weight: 500; line-height: 1.5; letter-spacing: 0.18px; margin-bottom: 8px; }
+  .panelTitle svg { width: 16px; height: 16px; }
+  .checkLine { display: flex; gap: 8px; align-items: flex-start; color: #0A0A0A; font-size: 10px; font-weight: 400; line-height: 1.5; letter-spacing: 0.15px; margin-bottom: 8px; }
+  .checkLine svg { width: 16px; height: 16px; flex: none; color: #2E6A56; margin-top: 1px; }
+  .caption { color: #737373; font-size: 10px; font-weight: 400; line-height: 1.5; letter-spacing: 0.15px; margin-top: 8px; }
+  .demandList { width: 100%; display: grid; grid-template-columns: 1fr 1fr; column-gap: 32px; }
+  .demandRow { min-height: 57px; border-bottom: 1px solid #E5E5E5; padding: 12px 0; display: flex; flex-direction: column; gap: 6px; }
+  .demandRowTop { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .keyword { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0A0A0A; font-size: 12px; font-weight: 500; line-height: 1.5; letter-spacing: 0.18px; }
+  .volume { display: flex; align-items: center; gap: 2px; flex: none; color: #737373; font-size: 12px; font-weight: 400; line-height: 1.5; letter-spacing: 0.18px; }
+  .volume b { color: #2E6A56; font-size: 14px; font-weight: 500; letter-spacing: 0.07px; }
+  .progressTrack { width: 100%; height: 6px; border-radius: 300px; overflow: hidden; background: #E5E5E5; }
+  .progressFill { height: 100%; background: linear-gradient(90deg,#2E6A56,#56A48A); }
+  .tableWrap { width: 100%; border: 1px solid #E5E5E5; border-radius: 8px; overflow: hidden; background: #fff; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { background: #FAFAFA; color: #737373; font-size: 14px; font-weight: 500; line-height: 1.5; letter-spacing: 0.07px; text-align: left; padding: 7.5px 8px; border-bottom: 1px solid #E5E5E5; }
+  td { color: #0A0A0A; font-size: 14px; font-weight: 400; line-height: 1.5; letter-spacing: 0.07px; padding: 10px 8px; border-bottom: 1px solid #E5E5E5; vertical-align: middle; overflow: hidden; }
+  tr:last-child td { border-bottom: 0; }
+  .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .searchVolumeCell { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+  .searchVolumeText { color: #737373; font-size: 10px; }
+  .searchVolumeText b { color: #2E6A56; font-size: 12px; font-weight: 500; }
+  .miniTrack { width: 100%; max-width: 210px; height: 6px; border-radius: 300px; background: #E5E5E5; overflow: hidden; }
+  .siteCell, .pathCell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .pathText { min-width: 0; }
+  .pathHost { color: #737373; font-size: 10px; font-weight: 500; line-height: 1.5; letter-spacing: 0.15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pathPath { color: #0A0A0A; font-size: 14px; line-height: 1.5; letter-spacing: 0.07px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .keywordBadges { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    padding: 3px 8px;
+    color: #171717;
+    background: #F5F5F5;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: 0.18px;
+    white-space: nowrap;
+  }
+  .badge svg { width: 12px; height: 12px; flex: none; }
+  .badgeMini { font-size: 10px; letter-spacing: 0.15px; }
+  .b-outline { background: rgba(0,0,0,.05); border-color: #E5E5E5; color: #737373; }
+  .b-blue { background: #DBEAFE; color: #2563EB; }
+  .b-red { background: #FFE2E2; border-color: #E5E5E5; color: #DC2626; }
+  .b-green { background: #DCFCE7; color: #166534; }
+  .b-amber { background: #FFEDD5; color: #C2410C; }
+  .b-gray { background: #F5F5F5; color: #171717; }
   .fav { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; background: #F5F5F5; color: #404040; font-weight: 500; vertical-align: middle; }
   .fav img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .fav.s20 { width: 20px; height: 20px; border-radius: 5px; font-size: 10px; }
-  .fav.s44 { width: 44px; height: 44px; border-radius: 10px; font-size: 16px; border: 1px solid #E5E5E5; }
-  .fav .mono { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; }
-
-  /* badges with icons + tones */
-  .badge { display: inline-flex; align-items: center; gap: 5px; line-height: 1; }
-  .badge svg { width: 12px; height: 12px; }
-  .b-blue { background: #EFF4FF; color: #1D4ED8; }
-  .b-violet { background: #F4F1FE; color: #6D28D9; }
-  .b-green { background: #DCFCE7; color: #166534; }
-  .b-amber { background: #FEF3C7; color: #92400E; }
-  .b-red { background: #FEE2E2; color: #991B1B; }
-  .b-gray { background: #F3F4F6; color: #6B7280; }
-
-  /* track / volume bars */
-  .track { height: 5px; border-radius: 99px; background: #F5F5F5; margin-top: 9px; overflow: hidden; }
-  .fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg,#2E6A56,#56A48A); }
-  .dq { display: block; }
-  .dqRow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .svol { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-  .vbar { width: 100%; max-width: 120px; height: 5px; border-radius: 99px; background: #F5F5F5; overflow: hidden; }
-  .vfill { height: 100%; border-radius: 99px; background: linear-gradient(90deg,#2E6A56,#56A48A); }
-  .ks { display: flex; align-items: center; gap: 8px; }
-  .miniwrap { width: 54px; height: 5px; border-radius: 99px; background: #F5F5F5; overflow: hidden; flex: none; }
-  .mini { height: 100%; background: #D4D4D4; border-radius: 99px; }
-
-  /* coverage meter */
-  .coverage { border: 1px solid #E5E5E5; border-radius: 8px; background: #fff; padding: 16px 18px; margin-bottom: 18px; }
-  .covTop { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .covTitle { font-size: 14px; font-weight: 500; color: #171717; }
-  .covSub { font-weight: 400; font-size: 12px; color: #737373; margin-left: 8px; }
-  .covScore { font-size: 13px; color: #737373; }
-  .covScore b { font-size: 16px; font-weight: 500; color: #0A0A0A; }
-  .covBar { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: #F5F5F5; margin-top: 13px; }
-  .covBar .seg { height: 100%; }
-  .segVis { background: #22C55E; } .segWeak { background: #F59E0B; } .segOut { background: #EF4444; }
-  .covLegend { display: flex; gap: 18px; margin-top: 12px; flex-wrap: wrap; }
-  .covLegend span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #737373; }
-  .covLegend i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-  .covLegend b { color: #171717; font-weight: 500; }
-
-  /* KPI tiles with icons */
-  .tile .tileTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: #737373; }
-  .tile .tileTop span { font-size: 13px; font-weight: 500; line-height: 1.3; min-height: 34px; }
-  .tile .tileTop svg { width: 18px; height: 18px; flex: none; margin-top: 2px; }
-  .tile.flag .tileTop { color: #2E6A56; }
-  .tile .tileN { margin-top: 14px; }
-
-  /* site / path cells */
-  .site { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .pathwrap { display: flex; align-items: center; gap: 9px; min-width: 0; }
-  .path .p1 { font-size: 12px; color: #737373; line-height: 1.3; }
-  .path .p2 { font-size: 13px; color: #0A0A0A; word-break: break-all; }
-
-  /* opportunity buckets with icon + chips */
-  .bucket .ohead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-  .bucket .oleft { display: flex; gap: 12px; align-items: flex-start; }
-  .oicon { width: 36px; height: 36px; border-radius: 8px; background: #E9F2ED; color: #2E6A56; display: flex; align-items: center; justify-content: center; flex: none; }
-  .oicon svg { width: 18px; height: 18px; }
-  .chips { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E5E5E5; display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 4px; background: #F5F5F5; color: #404040; font-size: 12px; }
-  .chipNote { margin-top: 14px; padding-top: 14px; border-top: 1px solid #E5E5E5; font-size: 12px; color: #737373; }
-
-  /* verified header badge */
-  .verified { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 3px 8px; border-radius: 4px; background: #EFF4FF; color: #1D4ED8; border: 1px solid #D6E2FB; margin-top: 6px; }
-  .verified svg { width: 13px; height: 13px; }
+  .fav.s20 { width: 32px; height: 32px; border-radius: 999px; background: #F5F5F5; font-size: 10px; }
+  .fav.s44 { width: 56px; height: 56px; border-radius: 8px; background: #D9D9D9; padding: 8px; font-size: 16px; }
+  .fav .mono { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  .foot { padding-top: 24px; text-align: center; color: #737373; font-size: 10px; font-weight: 400; line-height: 1.5; letter-spacing: 0.15px; }
 `;
 
 function escapeHtml(input: string): string {
@@ -1056,6 +1142,12 @@ const SEO_ICON: Record<string, string> = {
   eyeOff:
     '<path d="M10.7 5.1A10.7 10.7 0 0 1 22 11.6a1 1 0 0 1 0 .7 10.7 10.7 0 0 1-1.4 2.5"/><path d="M14.1 14.2a3 3 0 0 1-4.3-4.3"/><path d="M17.5 17.5A10.8 10.8 0 0 1 2 12.3a1 1 0 0 1 0-.7 10.8 10.8 0 0 1 4.4-5.1"/><path d="m2 2 20 20"/>',
   alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  circleAlert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  binoculars:
+    '<path d="M10 10h4"/><path d="M19 7V4a2 2 0 0 0-2-2h-1a2 2 0 0 0-2 2v3"/><path d="M5 7V4a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v3"/><path d="M14 21a4 4 0 0 0 4-4V7h-4v10a4 4 0 0 0 4 4Z"/><path d="M6 21a4 4 0 0 0 4-4V7H6v10a4 4 0 0 0 4 4Z"/>',
+  clapperboard:
+    '<path d="M20.2 6 3 11l-.9-3.1a2 2 0 0 1 1.4-2.5L16.4 2a2 2 0 0 1 2.5 1.4Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.7 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
   eye: '<path d="M2.06 12.35a1 1 0 0 1 0-.7 10.8 10.8 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.8 10.8 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/>',
   bars: '<line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/>',
   flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
@@ -1142,7 +1234,7 @@ function seoSplitPath(value: string): { host: string; path: string } {
   return { host: stripped.slice(0, slash), path: stripped.slice(slash) || "/" };
 }
 
-function seoSnapshotHtmlFromData(args: {
+function legacySeoSnapshotHtmlFromData(args: {
   report: SeoSnapshotReport;
   poweredByName?: string;
 }): string {
@@ -1409,6 +1501,295 @@ function seoSnapshotHtmlFromData(args: {
   `;
 }
 
+function seoSnapshotHtmlFromData(args: {
+  report: SeoSnapshotReport;
+  poweredByName?: string;
+}): string {
+  const { report } = args;
+  const generatedAt = formatSeoDate(report.generatedAt);
+  const websiteLabel = stripUrlProtocol(report.website).split("/")[0] || "";
+  const verifiedText = generatedAt
+    ? `Verified search data from ${generatedAt}`
+    : "Verified search data";
+  const demandLossValue = report.execSummary.demandLoss.value;
+  const demandLossText = demandLossValue != null ? formatSeoSnapshotNumber(demandLossValue) : "";
+  const demandLossDigits = demandLossText.length;
+  const demandNumberClass =
+    demandLossDigits > 5
+      ? "demandNumber small"
+      : demandLossDigits > 3
+        ? "demandNumber medium"
+        : "demandNumber";
+
+  const stats = [
+    ["Real searches analyzed", report.statTiles.searchesAnalyzed, false, SEO_ICON.search],
+    ["High-value searches checked", report.statTiles.highValueChecked, false, SEO_ICON.target],
+    ["Missed opportunities found", report.statTiles.missedFound, true, SEO_ICON.crosshair],
+    ["Competitors showing up", report.statTiles.competitorsOutranking, false, SEO_ICON.users],
+  ] as const;
+
+  const findings = report.execSummary.whatWeFound.length
+    ? report.execSummary.whatWeFound.slice(0, 2)
+    : ["Search demand exists for services this business already offers."];
+  const firstSteps = report.opportunityMap.slice(0, 3);
+  const missedRows = report.missedVisibility.slice(0, 20);
+  const missedVolumeMax = Math.max(1, ...missedRows.map((row) => row.searchVolume ?? 0));
+  const demandMax = Math.max(1, ...report.customerDemand.map((row) => row.searchVolume ?? 0));
+  const pageRows = report.competitorPages.slice(0, 12);
+
+  const coverageTotal = Math.max(1, missedRows.length);
+  let coverageWeak = 0;
+  let coverageOut = 0;
+  for (const row of missedRows) {
+    const cls = seoVisibilityBadge(row.visibility).cls;
+    if (cls === "b-amber") coverageWeak += 1;
+    else if (cls === "b-red") coverageOut += 1;
+  }
+  const coverageVisible = Math.max(0, missedRows.length - coverageWeak - coverageOut);
+  const coverageSegs = [
+    ["segOut", coverageOut],
+    ["segWeak", coverageWeak],
+    ["segVis", coverageVisible],
+  ]
+    .filter(([, n]) => (n as number) > 0)
+    .map(([c, n]) => {
+      const label = c === "segOut" ? "not visible" : c === "segWeak" ? "weak" : "visible";
+      return `<div class="seg ${c}" style="width:${((n as number) / coverageTotal) * 100}%"><span>${n} <span>${label}</span></span></div>`;
+    })
+    .join("");
+
+  return `
+    <div class="pdfCanvas">
+      <header class="reportHeader">
+        <div class="reportTitleBlock">
+          <div class="logoBox">${seoFav(report.website || report.businessName, 44)}</div>
+          <div class="titleText">
+            <h1>SEO Snapshot Report</h1>
+            ${websiteLabel ? `<span class="badge badgeMini b-gray">${escapeHtml(websiteLabel)}</span>` : ""}
+          </div>
+        </div>
+        <span class="badge badgeMini b-blue">${seoSvg(SEO_ICON.verified)}${escapeHtml(verifiedText)}</span>
+      </header>
+
+      <main class="contentStack">
+        <section class="sectionCard">
+          <div class="eyebrow">OVERVIEW</div>
+
+          <div class="overviewTop">
+            <div class="demandCard">
+              <div class="demandLeft ${demandLossDigits > 3 ? "wide" : ""}">
+                <div class="demandNumberRow">
+                  <span class="${demandNumberClass}">${demandLossValue != null ? escapeHtml(demandLossText) : "—"}</span>
+                  <span class="demandUnit">inquiries/month</span>
+                </div>
+                <span class="badge badgeMini b-red">${seoSvg(SEO_ICON.circleAlert)}Demand you're missing</span>
+              </div>
+              <div class="demandText">
+                <p class="demandHeadline">${escapeHtml(report.execSummary.execHeadline || "Searches per month looking for your services miss you.")}</p>
+                <p class="demandDisclaimer">${escapeHtml(seoCapitalizeFirst(report.execSummary.demandLoss.disclaimer))}</p>
+              </div>
+            </div>
+
+            <div class="metricGrid">
+              ${stats.map(([label, value, accent, icon]) => `
+                <div class="metricTile">
+                  <div class="metricLabel">${seoSvg(icon)}<span class="truncate">${escapeHtml(label)}</span></div>
+                  <div class="metricValue ${accent ? "accent" : ""}">${escapeHtml(formatSeoSnapshotNumber(value))}</div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <div class="visibilityMeter">
+            <div class="visibilityTop">
+              <div class="visibilityTitle">
+                ${seoSvg(SEO_ICON.eye)}
+                <span>Search visibility</span>
+                <span class="visibilitySub">Across the ${missedRows.length} high-value searches tracked</span>
+              </div>
+              <div class="visibilityScore"><b>${coverageVisible}</b><span>/</span><span>${missedRows.length} visible</span></div>
+            </div>
+            <div class="visibilityBar">${coverageSegs}</div>
+          </div>
+
+          <div class="summaryGrid">
+            <div class="summaryPanel">
+              <div class="panelTitle">${seoSvg(SEO_ICON.binoculars)}What we found</div>
+              ${findings.map((item) => `<div class="checkLine">${seoSvg(SEO_ICON.check)}<span>${escapeHtml(item)}</span></div>`).join("")}
+            </div>
+            <div class="summaryPanel">
+              <div class="panelTitle">${seoSvg(SEO_ICON.clapperboard)}High-impact first steps</div>
+              ${
+                firstSteps.length
+                  ? firstSteps.map((item) => `<div class="checkLine">${seoSvg(SEO_ICON.check)}<span>${escapeHtml(item.label || seoHumanize(item.assetType))}</span></div>`).join("")
+                  : `<div class="checkLine">${seoSvg(SEO_ICON.check)}<span>Prioritized assets will appear here when the report includes them.</span></div>`
+              }
+              ${report.firstStepsCaption ? `<p class="caption">${escapeHtml(report.firstStepsCaption)}</p>` : ""}
+            </div>
+          </div>
+        </section>
+
+        <section class="sectionCard">
+          <div class="eyebrow">CUSTOMER DEMAND</div>
+          <div class="sectionIntro">
+            <h2>Here is what potential customers are searching.</h2>
+            <p class="sectionLead">${escapeHtml(report.demandIntro)}</p>
+          </div>
+          <div class="demandList">
+            ${report.customerDemand.map((row) => `
+              <div class="demandRow">
+                <div class="demandRowTop">
+                  <span class="keyword">${escapeHtml(row.keyword)}</span>
+                  <span class="volume">${
+                    row.searchVolume != null
+                      ? `<b>${escapeHtml(formatSeoSnapshotNumber(row.searchVolume))}</b><span>/</span><span>month</span>`
+                      : `<span>Demand</span>`
+                  }</span>
+                </div>
+                <div class="progressTrack"><div class="progressFill" style="width:${row.searchVolume != null ? (row.searchVolume / demandMax) * 100 : 0}%"></div></div>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+
+        <section class="sectionCard">
+          <div class="eyebrow">MISSED VISIBILITY</div>
+          <div class="sectionIntro">
+            <h2>High-value searches you are missing.</h2>
+            <p class="sectionLead">${escapeHtml(report.missedIntro)}</p>
+          </div>
+          <div class="tableWrap">
+            <table>
+              <colgroup><col><col><col style="width:150px"><col><col style="width:150px"></colgroup>
+              <thead><tr><th>Search</th><th>Searches</th><th>Your visibility</th><th>Found instead</th><th>Opportunity</th></tr></thead>
+              <tbody>
+                ${missedRows.map((row) => {
+                  const vis = seoVisibilityBadge(row.visibility);
+                  const opp = seoOpportunityBadge(row.opportunity);
+                  const barPct = row.searchVolume != null ? (Math.sqrt(row.searchVolume) / Math.sqrt(missedVolumeMax)) * 100 : 0;
+                  return `
+                    <tr>
+                      <td><div class="truncate">${escapeHtml(row.keyword)}</div></td>
+                      <td>
+                        <div class="searchVolumeCell">
+                          <div class="searchVolumeText">${row.searchVolume != null ? `<b>${escapeHtml(formatSeoSnapshotNumber(row.searchVolume))}</b><span>/month</span>` : ""}</div>
+                          <div class="miniTrack"><div class="progressFill" style="width:${barPct}%"></div></div>
+                        </div>
+                      </td>
+                      <td><span class="badge ${vis.cls}">${vis.icon ? seoSvg(vis.icon) : ""}${escapeHtml(vis.label)}</span></td>
+                      <td>${
+                        row.competitorShowingUp
+                          ? `<div class="siteCell">${seoFav(row.competitorShowingUp, 20)}<span class="truncate">${escapeHtml(row.competitorShowingUp)}</span></div>`
+                          : `<span style="color:#737373">-</span>`
+                      }</td>
+                      <td><span class="badge b-outline">${escapeHtml(opp.label)}</span></td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="sectionCard">
+          <div class="eyebrow">COMPETITOR VISIBILITY</div>
+          <div class="sectionIntro">
+            <h2>These competitors are being found before you.</h2>
+            <p class="sectionLead">${escapeHtml(report.competitorIntro)}</p>
+          </div>
+          <div class="tableWrap">
+            <table>
+              <colgroup><col><col style="width:181px"><col style="width:181px"><col style="width:363px"></colgroup>
+              <thead><tr><th>Competitor</th><th>Appears in</th><th>Map Pack</th><th>Why they are winning</th></tr></thead>
+              <tbody>
+                ${report.competitorVisibility.map((row) => {
+                  const inMapPack = !!(row.localPackCount && row.localPackCount > 0);
+                  return `
+                    <tr>
+                      <td><div class="siteCell">${seoFav(row.domain, 20)}<span class="truncate">${escapeHtml(row.domain)}</span></div></td>
+                      <td>${row.appearancesInTop10 != null ? `${escapeHtml(formatSeoSnapshotNumber(row.appearancesInTop10))} searches` : ""}</td>
+                      <td><span class="badge b-gray">${inMapPack ? "Listed" : "Not Listed"}</span></td>
+                      <td><div class="truncate">${escapeHtml(row.whyWinning || "ranks in top 3 for multiple high-value keywords")}</div></td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="sectionCard">
+          <div class="eyebrow">COMPETITOR PAGES</div>
+          <div class="sectionIntro">
+            <h2>Here is what competitors built to capture that demand.</h2>
+            <p class="sectionLead">The specific pages doing the work, and the gap on your site for each.</p>
+          </div>
+          <div class="tableWrap">
+            <table>
+              <colgroup><col><col style="width:181px"><col style="width:181px"></colgroup>
+              <thead><tr><th>Competitor page</th><th>Demand signal</th><th>Your gap</th></tr></thead>
+              <tbody>
+                ${pageRows.map((row) => {
+                  const full = row.pageAddress || row.domain;
+                  const parts = seoSplitPath(full);
+                  return `
+                    <tr>
+                      <td>
+                        <div class="pathCell">
+                          ${seoFav(row.domain || full, 20)}
+                          <div class="pathText">
+                            <div class="pathHost">${escapeHtml(parts.host)}</div>
+                            <div class="pathPath">${escapeHtml(parts.path)}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span class="badge b-gray">${
+                        row.organicCount != null
+                          ? `${escapeHtml(formatSeoSnapshotNumber(row.organicCount))} keywords`
+                          : escapeHtml(row.demandCaptured || (row.etv != null ? `${formatSeoSnapshotNumber(row.etv)} estimated visits` : "Relevant demand"))
+                      }</span></td>
+                      <td><span class="badge ${row.clientGap === true ? "b-red" : "b-amber"}">${row.clientGap === true ? "Client gap" : "Review gap"}</span></td>
+                    </tr>
+                  `;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="sectionCard">
+          <div class="eyebrow">OPPORTUNITY MAP</div>
+          <div class="sectionIntro">
+            <h2>Here is what we would build first.</h2>
+            <p class="sectionLead">${escapeHtml(report.opportunityIntro)}</p>
+          </div>
+          <div class="tableWrap">
+            <table>
+              <colgroup><col style="width:150px"><col style="width:300px"><col></colgroup>
+              <thead><tr><th>Page type</th><th>Page name</th><th>Keywords</th></tr></thead>
+              <tbody>
+                ${report.opportunityMap.map((item) => `
+                  <tr>
+                    <td><span class="badge b-gray">${escapeHtml(seoHumanize(item.assetType || item.bucket || "Service page"))}</span></td>
+                    <td><div class="truncate">${escapeHtml(item.label || seoHumanize(item.assetType))}</div></td>
+                    <td>
+                      <div class="keywordBadges">
+                        ${(item.keywords.length ? item.keywords : [item.label || item.assetType]).filter(Boolean).slice(0, 6).map((keyword) => `<span class="badge b-outline">${escapeHtml(keyword)}</span>`).join("")}
+                      </div>
+                    </td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <div class="foot">SEO Snapshot · ${escapeHtml(report.businessName || "Business")}${generatedAt ? ` · Generated ${escapeHtml(generatedAt)}` : ""}</div>
+    </div>
+  `;
+}
+
 export async function POST(request: NextRequest) {
   let page = null;
   try {
@@ -1528,13 +1909,23 @@ export async function POST(request: NextRequest) {
     await page.setContent(fullHtml, { waitUntil: "networkidle0" });
     await page.evaluateHandle("document.fonts.ready");
 
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: isSnapshotTemplate || isSeoSnapshotTemplate || isPerformanceV2Template || isBillingReconciliationTemplate
-        ? { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" }
-        : { top: "20mm", right: "20mm", bottom: "20mm", left: "20mm" },
-    });
+    const pdf = await page.pdf(
+      isSeoSnapshotTemplate
+        ? {
+            width: "1160px",
+            height: "2800px",
+            printBackground: true,
+            margin: { top: "0", right: "0", bottom: "0", left: "0" },
+            preferCSSPageSize: true,
+          }
+        : {
+            format: "A4",
+            printBackground: true,
+            margin: isSnapshotTemplate || isPerformanceV2Template || isBillingReconciliationTemplate
+              ? { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" }
+              : { top: "20mm", right: "20mm", bottom: "20mm", left: "20mm" },
+          }
+    );
 
     return new NextResponse(Buffer.from(pdf), {
       headers: {

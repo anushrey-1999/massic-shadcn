@@ -19,6 +19,7 @@ import {
   normalizeWebsiteUrl,
 } from "@/utils/utils";
 import { getAutofillErrorMessage } from "@/utils/profile-autofill";
+import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
 import {
   useCreateJob,
   type BusinessProfilePayload,
@@ -190,11 +191,13 @@ const pollOfferingsExtraction = async (
 
 const buildBusinessProfilePayload = (
   value: FormData,
-  autofillData: ProfileAutofillResponse["profile_autofill"] | null
+  autofillData: ProfileAutofillResponse["profile_autofill"] | null,
+  locationOptions?: Array<{ value: string; label: string; disabled?: boolean }>
 ): BusinessProfilePayload => {
-  const locationParts = value.primaryLocation.split(",");
-  const location = locationParts[0]?.trim() || "";
-  const country = locationParts[1]?.trim() || "united states";
+  const { Location: location, Country: country } = parsePrimaryLocationForPayload(
+    value.primaryLocation,
+    locationOptions
+  );
 
   const ltv = String(autofillData?.ltv ?? "").trim().toLowerCase();
   const ctas = Array.isArray(autofillData?.ctas)
@@ -375,6 +378,7 @@ export default function CreateBusinessPage() {
           primaryLocation: values.primaryLocation,
           serveCustomers: values.serveCustomers as "local" | "online",
           offerType: values.offerType as "products" | "services",
+          locationOptions,
         });
 
         await refetchBusinessProfiles();
@@ -390,7 +394,8 @@ export default function CreateBusinessPage() {
                 : [];
           const businessProfilePayload = buildBusinessProfilePayload(
             values,
-            profileData
+            profileData,
+            locationOptions
           );
 
           try {
@@ -430,6 +435,8 @@ export default function CreateBusinessPage() {
       refetchBusinessProfiles,
       router,
       extractedOfferings,
+      offeringsExtractionPromiseRef,
+      locationOptions,
     ]
   );
 

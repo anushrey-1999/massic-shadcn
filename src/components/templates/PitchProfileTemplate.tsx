@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import { parsePrimaryLocationForPayload, primaryLocationFromProfile, resolvePrimaryLocationFormValue } from "@/utils/primary-location";
 
 function toPrimaryLocationString(input: any): string {
   const location = String(input?.Location || "").trim();
@@ -146,20 +147,10 @@ export function PitchProfileTemplate() {
       const normalizedServeCustomers: "local" | "online" =
         value.serviceType === "physical" ? "local" : "online";
 
-      const locationParts = String(value.primaryLocation || "")
-        .split(",")
-        .map((p) => p.trim())
-        .filter(Boolean);
-
-      const country =
-        locationParts.length >= 2
-          ? locationParts[locationParts.length - 1]
-          : "united states";
-
-      const location =
-        locationParts.length >= 2
-          ? locationParts.slice(0, -1).join(", ")
-          : locationParts[0] || "";
+      const { Location: location, Country: country } = parsePrimaryLocationForPayload(
+        value.primaryLocation,
+        locationOptions
+      );
 
       const offerings: Offering[] = Array.isArray(value.offeringsList)
         ? value.offeringsList
@@ -217,6 +208,14 @@ export function PitchProfileTemplate() {
           businessProfilePayload: payloadForUpdate,
           offerings,
         });
+      }
+
+      const resolvedPrimaryLocation = primaryLocationFromProfile(
+        { Location: location, Country: country },
+        locationOptions
+      );
+      if (resolvedPrimaryLocation) {
+        form.setFieldValue("primaryLocation", resolvedPrimaryLocation);
       }
 
       toast.success("Profile updated");
@@ -294,7 +293,7 @@ export function PitchProfileTemplate() {
 
   React.useEffect(() => {
     if (!businessId) return;
-    if (profileDataLoading) return;
+    if (profileDataLoading || locationsLoading) return;
     if (!jobQuery.isFetched) return;
 
     const jobDetails = jobQuery.data;
@@ -312,7 +311,7 @@ export function PitchProfileTemplate() {
       String((profileData as any)?.UserDefinedBusinessDescription || "").trim() ||
       String(profileData?.Description || "").trim() ||
       String(jobDetails?.user_defined_business_description || "").trim();
-    const primaryLocation =
+    const primaryLocationRaw =
       toPrimaryLocationString(profileAny?.PrimaryLocation) ||
       String(profileData?.Locations?.[0] ? (profileData.Locations[0] as any)?.Name || "" : "").trim() ||
       (() => {
@@ -322,6 +321,9 @@ export function PitchProfileTemplate() {
         if (loc && country && country.toLowerCase() !== loc.toLowerCase()) return `${loc},${country}`;
         return loc || country;
       })();
+    const primaryLocation = profileAny?.PrimaryLocation
+      ? primaryLocationFromProfile(profileAny.PrimaryLocation, locationOptions)
+      : resolvePrimaryLocationFormValue(primaryLocationRaw, locationOptions);
 
     const businessObjective = String(
       profileData?.BusinessObjective || (jobDetails as any)?.serve || ""
@@ -380,6 +382,14 @@ export function PitchProfileTemplate() {
     }
     if (!String(formValues.primaryLocation || "").trim() && primaryLocation) {
       form.setFieldValue("primaryLocation", primaryLocation);
+    } else if (primaryLocation) {
+      const current = String(formValues.primaryLocation || "");
+      const currentIsValid = locationOptions.some(
+        (opt) => !opt.disabled && opt.value !== "" && opt.value === current
+      );
+      if (!currentIsValid && primaryLocation !== current) {
+        form.setFieldValue("primaryLocation", primaryLocation);
+      }
     }
     if (!String(formValues.serviceType || "").trim() && serviceType) form.setFieldValue("serviceType", serviceType as any);
 
@@ -400,7 +410,31 @@ export function PitchProfileTemplate() {
     if (currentBrandTerms.length === 0 && Array.isArray(brandTerms) && brandTerms.length > 0) {
       form.setFieldValue("brandTerms", brandTerms as any);
     }
-  }, [businessId, form, formValues, jobQuery.data, jobQuery.isFetched, profileData, profileDataLoading]);
+  }, [businessId, form, formValues, jobQuery.data, jobQuery.isFetched, locationOptions, locationsLoading, profileData, profileDataLoading]);
+
+  React.useEffect(() => {
+    if (locationsLoading || !profileData) return;
+
+    const hasSelectableOptions = locationOptions.some(
+      (opt) => opt.disabled !== true && opt.value !== ""
+    );
+    if (!hasSelectableOptions) return;
+
+    const resolved = primaryLocationFromProfile(
+      (profileData as any).PrimaryLocation,
+      locationOptions
+    );
+    if (!resolved) return;
+
+    const current = String(form.state.values.primaryLocation || "");
+    const currentIsValid = locationOptions.some(
+      (opt) => opt.disabled !== true && opt.value !== "" && opt.value === current
+    );
+
+    if (!currentIsValid && resolved !== current) {
+      form.setFieldValue("primaryLocation", resolved);
+    }
+  }, [form, locationOptions, locationsLoading, profileData]);
 
   const businessNameForBreadcrumb =
     profileData?.Name || profileData?.DisplayName || "Business";

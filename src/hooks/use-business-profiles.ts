@@ -1,8 +1,9 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
-import { useBusinessStore, BusinessProfile } from "@/store/business-store";
+import { useBusinessStore, BusinessProfile, type LocationOption } from "@/store/business-store";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
+import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
 
 const BUSINESS_PROFILES_KEY = "businessProfiles";
 
@@ -164,6 +165,7 @@ interface CreateBusinessPayload {
   serveCustomers: "local" | "online";
   offerType: "products" | "services";
   isPitch?: boolean; // Set to true when created from /create-pitch
+  locationOptions?: LocationOption[];
 }
 
 interface CreateBusinessResponse {
@@ -189,10 +191,14 @@ export function useCreateBusiness() {
         throw new Error("User not authenticated");
       }
 
-      // Parse primaryLocation - it might be "Location,Country" or just "Location"
-      const locationParts = formData.primaryLocation.split(",");
-      const location = locationParts[0]?.trim() || "";
-      const country = locationParts[1]?.trim() || "united states";
+      const locationOptions =
+        formData.locationOptions ??
+        useBusinessStore.getState().profileForm.locationOptions;
+
+      const { Location: location, Country: country } = parsePrimaryLocationForPayload(
+        formData.primaryLocation,
+        locationOptions
+      );
 
       // Map form data to API payload structure
       const payload = {

@@ -10,6 +10,7 @@ import { useBusinessStore } from "@/store/business-store";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { useCreateBusiness, useBusinessProfiles, usePitchBusinesses, fetchPitchBusinessProfiles } from "@/hooks/use-business-profiles";
 import { useCreateJob, type Offering, type BusinessProfilePayload } from "@/hooks/use-jobs";
+import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -116,6 +117,7 @@ export function CreatePitchTemplate() {
         serveCustomers: normalizedServeCustomers,
         offerType: normalizedOfferType,
         isPitch: true, // Mark this business as created from pitch flow
+        locationOptions,
       });
 
       await refetchBusinessProfiles();
@@ -141,20 +143,10 @@ export function CreatePitchTemplate() {
         return;
       }
 
-      const locationParts = String(value.primaryLocation || "")
-        .split(",")
-        .map((p) => p.trim())
-        .filter(Boolean);
-
-      const country =
-        locationParts.length >= 2
-          ? locationParts[locationParts.length - 1]
-          : "united states";
-
-      const location =
-        locationParts.length >= 2
-          ? locationParts.slice(0, -1).join(", ")
-          : locationParts[0] || "";
+      const { Location: location, Country: country } = parsePrimaryLocationForPayload(
+        value.primaryLocation,
+        locationOptions
+      );
 
       const offerings: Offering[] = Array.isArray(value.offeringsList)
         ? value.offeringsList

@@ -5,7 +5,9 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgeCheck,
+  Binoculars,
   Check,
+  Clapperboard,
   Copy,
   Crosshair,
   Download,
@@ -20,16 +22,25 @@ import {
   MessagesSquare,
   PlusCircle,
   Search as SearchIcon,
-  ShieldCheck,
   ShieldQuestion,
   Star,
   Target,
-  TrendingDown,
   Users,
+  CircleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { DownloadReportDialog } from "@/components/organisms/ReportDetail/download-report-dialog";
+import {
+  SnapshotBadge,
+  SnapshotDataTable,
+  SnapshotMetricTile,
+  SnapshotProgressBar,
+  SnapshotReportHeader,
+  SnapshotReportShell,
+  SnapshotSectionCard,
+  SnapshotVisibilityMeter,
+} from "@/components/organisms/SeoSnapshotReport/SnapshotReportPrimitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -774,9 +785,36 @@ export function SeoSnapshotReportViewer({
     }
   }, [markdown]);
 
+  const websiteLabel = stripUrlProtocol(report.website).split("/")[0] || "";
+  const verifiedText = generatedAt
+    ? `Verified search data from ${generatedAt}`
+    : "Verified search data";
+  const demandLossValue = report.execSummary.demandLoss.value;
+  const demandLossDigits = demandLossValue == null ? 0 : formatSeoSnapshotNumber(demandLossValue).length;
+  const demandMax = Math.max(
+    1,
+    ...report.customerDemand.map((row) => row.searchVolume ?? 0)
+  );
+  const missedRows = report.missedVisibility.slice(0, 20);
+  const missedVolumeMax = Math.max(
+    1,
+    ...missedRows.map((row) => row.searchVolume ?? 0)
+  );
+  const competitorPageRows = report.competitorPages.slice(0, 12);
+  const visibilityCounts = missedRows.reduce(
+    (acc, row) => {
+      const tone = visibilityVisual(row.visibility).tone;
+      if (tone === "red") acc.notVisible += 1;
+      else if (tone === "amber") acc.weak += 1;
+      else acc.visible += 1;
+      return acc;
+    },
+    { notVisible: 0, weak: 0, visible: 0 }
+  );
+
   return (
     <div className="h-full overflow-hidden rounded-lg bg-neutral-50 p-6">
-      <div className="flex h-full flex-col gap-5">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex items-center justify-between">
           <Button variant="ghost" className="gap-2" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
@@ -806,451 +844,378 @@ export function SeoSnapshotReportViewer({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-[960px] flex-col gap-4 pb-8">
-            <Card className="rounded-lg border-general-border bg-white p-5 shadow-sm transition-all duration-300 ease-out motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 hover:shadow-md">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div className="flex items-center gap-3.5">
-                  {faviconHost(report.website) ? (
-                    <ReportFavicon domain={report.website} size={44} />
-                  ) : (
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-general-primary text-base font-medium text-white">
-                      {initials(report.businessName)}
-                    </div>
-                  )}
-                  <div>
-                    <h1 className="text-lg font-medium text-general-secondary-foreground">
-                      SEO Snapshot - {report.businessName}
-                    </h1>
-                    <TruncatedText
-                      value={[stripUrlProtocol(report.website), report.location, poweredByName ? `Prepared by ${poweredByName}` : ""]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      maxWidth="max-w-[560px]"
-                      className="mt-1 text-xs text-general-muted-foreground"
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-col items-start gap-1.5 md:items-end">
-                  {generatedAt ? (
-                    <div className="text-sm tabular-nums text-general-secondary-foreground">{generatedAt}</div>
-                  ) : null}
-                  <ReportBadge tone="blue" icon={BadgeCheck}>
-                    Real Google search data
-                  </ReportBadge>
-                </div>
-              </div>
-            </Card>
-
-            <Section
-              number="01 · Executive summary"
-              title={report.execSummary.execHeadline}
-              lead={report.execSummary.execSubhead}
-              accessory={
-                <ReportBadge tone="blue" icon={ShieldCheck}>
-                  Data verified
-                </ReportBadge>
+          <SnapshotReportShell
+            footer={
+              <>
+                SEO Snapshot · {report.businessName}
+                {generatedAt ? ` · Generated ${generatedAt}` : ""}
+              </>
+            }
+          >
+            <SnapshotReportHeader
+              title="SEO Snapshot Report"
+              website={websiteLabel}
+              verifiedText={verifiedText}
+              verifiedIcon={BadgeCheck}
+              logo={
+                <ReportFavicon
+                  domain={report.website || report.businessName}
+                  size={44}
+                  className="size-14 rounded-lg border-0 bg-[#d9d9d9] p-2"
+                />
               }
-            >
-              <div className="rounded-lg border border-general-border border-l-[3px] border-l-general-primary bg-general-primary/[0.06] p-5 shadow-xs transition-all duration-300 hover:bg-general-primary/10 hover:shadow-sm">
-                <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <ReportBadge tone="red" icon={TrendingDown} className="mb-3">
-                      Demand you&apos;re missing
-                    </ReportBadge>
-                    {report.execSummary.demandLoss.value != null ? (
-                      <div className="text-[40px] font-medium leading-none tracking-normal text-general-foreground">
-                        <AnimatedNumber value={report.execSummary.demandLoss.value} prefix="~" />
-                        <span className="text-lg font-normal text-general-muted-foreground">
-                          {" "}
-                          inquiries / mo
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="text-2xl font-medium text-general-foreground">
-                        A steady stream of searches every month
-                      </div>
-                    )}
-                    <p className="mt-3 max-w-lg text-sm text-general-muted-foreground">
-                      Estimated new customer inquiries each month from people searching for services
-                      this business is not capturing yet.
-                    </p>
-                  </div>
-                  <p className="max-w-xs text-left text-xs leading-5 text-general-muted-foreground md:text-right">
-                    {capitalizeFirst(report.execSummary.demandLoss.disclaimer)}
-                  </p>
-                </div>
-              </div>
+            />
 
-              <CoverageMeter rows={report.missedVisibility} />
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {stats.map((stat) => {
-                  const StatIcon = stat.icon;
-                  return (
+            <div className="mt-6 flex flex-col gap-8">
+              <SnapshotSectionCard eyebrow="OVERVIEW">
+                <div className="flex w-full items-start gap-3">
+                  <div className="flex h-[166px] w-[506px] shrink-0 items-center gap-6 rounded-lg border border-general-border bg-[#fafafa] px-3 py-4">
                     <div
-                      key={stat.label}
-                      className="flex flex-col rounded-lg border border-general-border bg-neutral-50 p-4 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-sm"
+                      className={cn(
+                        "flex h-full shrink-0 flex-col items-start gap-3",
+                        demandLossDigits > 3 ? "w-[205px]" : "w-[181px]"
+                      )}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="min-h-[34px] text-[13px] font-medium leading-snug text-general-muted-foreground">
-                          {stat.label}
-                        </span>
-                        <StatIcon
+                      <div className="flex w-full items-end gap-2 whitespace-nowrap">
+                        <span
                           className={cn(
-                            "mt-0.5 h-[18px] w-[18px] shrink-0",
-                            stat.accent ? "text-general-primary" : "text-general-muted-foreground"
+                            "shrink-0 font-semibold leading-none tracking-[-0.48px] text-general-foreground",
+                            demandLossDigits > 5
+                              ? "text-[34px]"
+                              : demandLossDigits > 3
+                                ? "text-[38px]"
+                                : "text-[48px]"
                           )}
-                        />
+                        >
+                          {demandLossValue != null ? (
+                            <AnimatedNumber value={demandLossValue} />
+                          ) : (
+                            "—"
+                          )}
+                        </span>
+                        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pb-1 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
+                          inquiries/month
+                        </span>
                       </div>
-                      <div
-                        className={cn(
-                          "mt-2 text-[29px] font-medium leading-none tracking-[-0.5px]",
-                          stat.accent ? "text-general-primary" : "text-general-foreground"
-                        )}
+                      <SnapshotBadge
+                        tone="red"
+                        icon={CircleAlert}
+                        className="w-full text-[10px] tracking-[0.15px]"
                       >
-                        <AnimatedNumber value={stat.value} />
-                      </div>
+                        Demand you&apos;re missing
+                      </SnapshotBadge>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="flex h-full min-w-0 flex-1 flex-col items-start gap-2">
+                      <p className="w-full whitespace-normal break-words text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-red-600">
+                        {report.execSummary.execHeadline ||
+                          "Searches per month looking for your services miss you."}
+                      </p>
+                      <p className="w-full whitespace-normal break-words text-[10px] font-normal leading-[1.5] tracking-[0.15px] text-general-muted-foreground">
+                        {capitalizeFirst(report.execSummary.demandLoss.disclaimer)}
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-lg border border-general-border bg-neutral-50 p-4 shadow-xs transition-all duration-300 hover:bg-white hover:shadow-sm">
-                  <h3 className="mb-3 text-sm font-medium text-general-secondary-foreground">
-                    What we found
-                  </h3>
-                  <ul className="space-y-2">
-                    {(report.execSummary.whatWeFound.length
-                      ? report.execSummary.whatWeFound
-                      : ["Search demand exists for services this business already offers."]
-                    ).map((item, index) => (
-                      <li key={index} className="flex gap-2 text-sm leading-6 text-general-muted-foreground">
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-general-primary" />
-                        <span>{item}</span>
-                      </li>
+                  <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
+                    {stats.map((stat) => (
+                      <SnapshotMetricTile
+                        key={stat.label}
+                        label={stat.label}
+                        icon={stat.icon}
+                        accent={stat.accent}
+                        value={<AnimatedNumber value={stat.value} />}
+                      />
                     ))}
-                  </ul>
+                  </div>
                 </div>
 
-                <div className="rounded-lg border border-general-border bg-neutral-50 p-4 shadow-xs transition-all duration-300 hover:bg-white hover:shadow-sm">
-                  <h3 className="mb-3 text-sm font-medium text-general-secondary-foreground">
-                    High-impact first steps
-                  </h3>
-                  <ul className="space-y-2">
-                    {report.opportunityMap.slice(0, 3).map((item, index) => (
-                      <li key={`${item.label}-${index}`} className="flex gap-2 text-sm leading-6 text-general-muted-foreground">
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-general-primary" />
-                        <span>{item.label || humanize(item.assetType)}</span>
-                      </li>
-                    ))}
-                    {!report.opportunityMap.length ? (
-                      <li className="text-sm leading-6 text-general-muted-foreground">
-                        Prioritized assets will appear here when the report includes them.
-                      </li>
+                <SnapshotVisibilityMeter
+                  notVisible={visibilityCounts.notVisible}
+                  weak={visibilityCounts.weak}
+                  visible={visibilityCounts.visible}
+                />
+
+                <div className="grid w-full grid-cols-2 gap-3">
+                  <div className="min-h-[137px] rounded-lg border border-general-border p-3">
+                    <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
+                      <Binoculars className="size-4" />
+                      What we found
+                    </div>
+                    <div className="space-y-2">
+                      {(report.execSummary.whatWeFound.length
+                        ? report.execSummary.whatWeFound.slice(0, 2)
+                        : ["Search demand exists for services this business already offers."]
+                      ).map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-start gap-2 text-[10px] font-normal leading-[1.5] tracking-[0.15px] text-general-foreground"
+                        >
+                          <Check className="mt-0.5 size-4 shrink-0 text-general-primary" />
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="min-h-[137px] rounded-lg border border-general-border p-3">
+                    <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
+                      <Clapperboard className="size-4" />
+                      High-impact first steps
+                    </div>
+                    <div className="space-y-2">
+                      {report.opportunityMap.slice(0, 3).map((item, index) => (
+                        <div
+                          key={`${item.label}-${index}`}
+                          className="flex items-start gap-2 text-[10px] font-normal leading-[1.5] tracking-[0.15px] text-general-foreground"
+                        >
+                          <Check className="mt-0.5 size-4 shrink-0 text-general-primary" />
+                          <span>{item.label || humanize(item.assetType)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {report.firstStepsCaption ? (
+                      <p className="mt-2 text-[10px] font-normal leading-[1.5] tracking-[0.15px] text-general-muted-foreground">
+                        {report.firstStepsCaption}
+                      </p>
                     ) : null}
-                  </ul>
-                  {report.firstStepsCaption ? (
-                    <p className="mt-3 text-xs text-general-muted-foreground">
-                      {report.firstStepsCaption}
-                    </p>
-                  ) : null}
+                  </div>
                 </div>
-              </div>
-            </Section>
+              </SnapshotSectionCard>
 
-            <Section
-              number="02 · Customer demand"
-              title="Here is what potential customers are searching."
-              lead={report.demandIntro}
-            >
-              {(() => {
-                const demandMax = Math.max(
-                  1,
-                  ...report.customerDemand.map((row) => row.searchVolume ?? 0)
-                );
-                return (
-                  <div className="grid grid-cols-1 gap-x-7 md:grid-cols-2">
-                    {report.customerDemand.map((row) => (
-                      <div
-                        key={row.keyword}
-                        className="border-b border-general-border py-3 transition-colors duration-200"
-                      >
-                        <div className="flex items-baseline justify-between gap-3">
-                          <TruncatedText
-                            value={row.keyword}
-                            maxWidth="max-w-[260px]"
-                            className="text-sm text-general-foreground"
-                          />
-                          <span className="shrink-0 text-sm font-medium text-general-foreground">
+              <SnapshotSectionCard
+                eyebrow="CUSTOMER DEMAND"
+                title="Here is what potential customers are searching."
+                description={report.demandIntro}
+              >
+                <div className="grid w-full grid-cols-2 gap-x-8">
+                  {report.customerDemand.map((row) => (
+                    <div
+                      key={row.keyword}
+                      className="flex min-h-[57px] flex-col gap-1.5 border-b border-general-border py-3 last:border-b-0"
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <TruncatedText
+                          value={row.keyword}
+                          maxWidth="max-w-[320px]"
+                          className="text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-foreground"
+                        />
+                        <div className="flex shrink-0 items-center gap-0.5 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
+                          <span className="text-[14px] font-medium tracking-[0.07px] text-general-primary">
                             {row.searchVolume != null ? (
-                              <>
-                                <AnimatedNumber value={row.searchVolume} />{" "}
-                                <span className="text-xs font-normal text-general-muted-foreground">
-                                  / mo
-                                </span>
-                              </>
+                              <AnimatedNumber value={row.searchVolume} />
                             ) : (
-                              <span className="text-xs font-normal text-general-muted-foreground">
-                                Demand
-                              </span>
+                              "—"
                             )}
                           </span>
+                          <span>/</span>
+                          <span>month</span>
                         </div>
-                        <AnimatedBar
-                          trackClassName="mt-2.5"
-                          percent={
-                            row.searchVolume != null
-                              ? (row.searchVolume / demandMax) * 100
-                              : 0
-                          }
-                        />
                       </div>
-                    ))}
-                  </div>
-                );
-              })()}
-            </Section>
+                      <SnapshotProgressBar
+                        value={
+                          row.searchVolume != null
+                            ? (row.searchVolume / demandMax) * 100
+                            : 0
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </SnapshotSectionCard>
 
-            <Section
-              number="03 · Missed visibility"
-              title="High-value searches you are missing."
-              lead={report.missedIntro}
-            >
-              {(() => {
-                const missedRows = report.missedVisibility.slice(0, 20);
-                const volumeMax = Math.max(
-                  1,
-                  ...missedRows.map((row) => row.searchVolume ?? 0)
-                );
-                return (
-                  <DataTable
-                    headers={["Search", "Searches", "Your visibility", "Found instead", "Opportunity"]}
-                    rows={missedRows.map((row) => {
-                      const vis = visibilityVisual(row.visibility);
-                      const opp = opportunityVisual(row.opportunity);
-                      const competitorHost = faviconHost(row.competitorShowingUp);
-                      const barPercent =
-                        row.searchVolume != null
-                          ? (Math.sqrt(row.searchVolume) / Math.sqrt(volumeMax)) * 100
-                          : 0;
-                      return [
-                        <TruncatedText
-                          key="keyword"
-                          value={row.keyword}
-                          maxWidth="max-w-[210px]"
-                          className="font-medium"
-                        />,
-                        <div key="volume" className="flex flex-col items-start gap-1.5">
-                          <span className="whitespace-nowrap text-sm text-general-foreground">
+              <SnapshotSectionCard
+                eyebrow="MISSED VISIBILITY"
+                title="High-value searches you are missing."
+                description={report.missedIntro}
+              >
+                <SnapshotDataTable
+                  minWidth={1016}
+                  headers={[
+                    { label: "Search" },
+                    { label: "Searches" },
+                    { label: "Your visibility", className: "w-[150px]" },
+                    { label: "Found instead" },
+                    { label: "Opportunity", className: "w-[150px]" },
+                  ]}
+                  rows={missedRows.map((row) => {
+                    const vis = visibilityVisual(row.visibility);
+                    const opp = opportunityVisual(row.opportunity);
+                    const barPercent =
+                      row.searchVolume != null
+                        ? (Math.sqrt(row.searchVolume) / Math.sqrt(missedVolumeMax)) * 100
+                        : 0;
+
+                    return [
+                      <TruncatedText
+                        key="keyword"
+                        value={row.keyword}
+                        maxWidth="max-w-[220px]"
+                        className="text-[14px] font-normal"
+                      />,
+                      <div key="volume" className="flex flex-col items-start gap-0.5">
+                        <div className="flex items-center gap-0.5 text-[10px] text-general-muted-foreground">
+                          <span className="text-[12px] font-medium text-general-primary">
                             {row.searchVolume != null
                               ? formatSeoSnapshotNumber(row.searchVolume)
                               : ""}
-                            {row.searchVolume != null ? (
-                              <span className="text-xs text-general-muted-foreground">/mo</span>
-                            ) : null}
                           </span>
                           {row.searchVolume != null ? (
-                            <AnimatedBar percent={barPercent} trackClassName="w-full max-w-[120px]" />
+                            <>
+                              <span>/</span>
+                              <span>month</span>
+                            </>
                           ) : null}
-                        </div>,
-                        <ReportBadge key="visibility" tone={vis.tone} icon={vis.Icon ?? undefined}>
-                          {vis.label}
-                        </ReportBadge>,
-                        row.competitorShowingUp ? (
-                          <div key="competitor" className="flex items-center gap-2">
-                            {competitorHost ? <ReportFavicon domain={row.competitorShowingUp} /> : null}
-                            <TruncatedText
-                              value={row.competitorShowingUp}
-                              maxWidth="max-w-[150px]"
-                              className="text-general-secondary-foreground"
-                            />
-                          </div>
-                        ) : (
-                          <span key="competitor" className="text-general-muted-foreground">
-                            —
-                          </span>
-                        ),
-                        <ReportBadge key="opportunity" tone={opp.tone}>
-                          {opp.label}
-                        </ReportBadge>,
-                      ];
-                    })}
-                  />
-                );
-              })()}
-            </Section>
-
-            <Section
-              number="04 · Competitor visibility"
-              title="These competitors are being found before you."
-              lead={report.competitorIntro}
-            >
-              <DataTable
-                headers={["Competitor", "Appears for", "Map pack", "Why they are winning"]}
-                rows={report.competitorVisibility.map((row) => {
-                  const inMapPack = !!(row.localPackCount && row.localPackCount > 0);
-                  return [
-                    <div key="domain" className="flex items-center gap-2">
-                      <ReportFavicon domain={row.domain} />
-                      <TruncatedText
-                        value={row.domain}
-                        maxWidth="max-w-[180px]"
-                        className="font-medium"
-                      />
-                    </div>,
-                    <span key="appears" className="whitespace-nowrap text-general-muted-foreground">
-                      {row.appearancesInTop10 != null
-                        ? `${formatSeoSnapshotNumber(row.appearancesInTop10)} searches`
-                        : ""}
-                    </span>,
-                    <ReportBadge key="local" tone={inMapPack ? "green" : "gray"}>
-                      {inMapPack ? "Listed" : "Not listed"}
-                    </ReportBadge>,
-                    <TruncatedText
-                      key="why"
-                      value={row.whyWinning || "Ranks in top results for multiple searches"}
-                      maxWidth="max-w-[330px]"
-                      className="text-general-muted-foreground"
-                    />,
-                  ];
-                })}
-              />
-            </Section>
-
-            <Section
-              number="05 · Competitor pages"
-              title="Here is what competitors built to capture that demand."
-              lead="The specific pages doing the work, and the gap on your site for each."
-            >
-              {(() => {
-                const pageRows = report.competitorPages.slice(0, 12);
-                const organicMax = Math.max(
-                  1,
-                  ...pageRows.map((row) => row.organicCount ?? 0)
-                );
-                return (
-                  <DataTable
-                    headers={["Competitor page", "Demand signal", "Your gap"]}
-                    rows={pageRows.map((row) => {
-                      const full = row.pageAddress || row.domain;
-                      const { host, path } = splitPath(full);
-                      return [
-                        <div key="page" className="flex items-center gap-2.5">
-                          <ReportFavicon domain={row.domain || full} />
-                          <div className="min-w-0">
-                            <div className="text-xs leading-tight text-general-muted-foreground">
-                              {host}
-                            </div>
-                            <TruncatedText
-                              value={full}
-                              maxWidth="max-w-[260px]"
-                              className="text-sm text-general-foreground"
-                            >
-                              {path}
-                            </TruncatedText>
-                          </div>
-                        </div>,
-                        row.organicCount != null ? (
-                          <div key="demand" className="flex items-center gap-2">
-                            <span className="whitespace-nowrap text-sm tabular-nums text-general-foreground">
-                              {formatSeoSnapshotNumber(row.organicCount)}
-                            </span>
-                            <span className="text-xs text-general-muted-foreground">keywords</span>
-                            <AnimatedBar
-                              percent={(row.organicCount / organicMax) * 100}
-                              trackClassName="w-[54px] shrink-0"
-                              className="bg-general-border-three bg-none"
-                            />
-                          </div>
-                        ) : (
-                          <TruncatedText
-                            key="demand"
-                            value={
-                              row.demandCaptured ||
-                              (row.etv != null
-                                ? `${formatSeoSnapshotNumber(row.etv)} estimated visits`
-                                : "Relevant demand")
-                            }
-                            maxWidth="max-w-[190px]"
-                            className="text-general-muted-foreground"
-                          />
-                        ),
-                        <ReportBadge key="gap" tone={row.clientGap === true ? "red" : "amber"}>
-                          {row.clientGap === true ? "Client gap" : "Review gap"}
-                        </ReportBadge>,
-                      ];
-                    })}
-                  />
-                );
-              })()}
-            </Section>
-
-            <Section
-              number="06 · Your opportunity map"
-              title="Here is what we would build first."
-              lead={report.opportunityIntro}
-            >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {report.opportunityMap.map((item, index) => {
-                  const buildFirst = index < 2;
-                  return (
-                    <div
-                      key={`${item.label}-${index}`}
-                      className="rounded-lg border border-general-border bg-white p-5 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-sm"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <OpportunityIcon assetType={item.assetType} label={item.label} />
-                          <div>
-                            <h3 className="text-base font-medium text-general-foreground">
-                              {item.label || humanize(item.assetType)}
-                            </h3>
-                            <p className="mt-1 text-xs text-general-muted-foreground">
-                              {item.bucket || humanize(item.assetType)}
-                              {item.keywordCount != null
-                                ? ` · ${formatSeoSnapshotNumber(item.keywordCount)} searches mapped`
-                                : ""}
-                            </p>
-                          </div>
                         </div>
-                        <ReportBadge
-                          tone="gray"
-                          icon={buildFirst ? Flag : PlusCircle}
-                          className="shrink-0"
-                        >
-                          {buildFirst ? "Build first" : "Support"}
-                        </ReportBadge>
-                      </div>
-                      <div className="mt-3.5 border-t border-general-border pt-3.5">
-                        {item.keywords.length ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {item.keywords.slice(0, 6).map((keyword) => (
-                              <span
-                                key={keyword}
-                                className="inline-flex items-center rounded bg-neutral-100 px-2.5 py-1 text-xs text-general-unofficial-foreground-alt"
-                              >
-                                {keyword}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-general-muted-foreground">
-                            Foundational work — strengthens visibility across the searches above.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
+                        <SnapshotProgressBar value={barPercent} className="w-full max-w-[210px]" />
+                      </div>,
+                      <SnapshotBadge
+                        key="visibility"
+                        tone={vis.tone === "red" ? "red" : vis.tone === "amber" ? "orange" : "green"}
+                        icon={vis.Icon ?? undefined}
+                      >
+                        {vis.label}
+                      </SnapshotBadge>,
+                      row.competitorShowingUp ? (
+                        <div key="competitor" className="flex items-center gap-2">
+                          <ReportFavicon domain={row.competitorShowingUp} />
+                          <TruncatedText
+                            value={row.competitorShowingUp}
+                            maxWidth="max-w-[170px]"
+                          />
+                        </div>
+                      ) : (
+                        <span key="competitor" className="text-general-muted-foreground">
+                          -
+                        </span>
+                      ),
+                      <SnapshotBadge key="opportunity" tone="outline">
+                        {opp.label}
+                      </SnapshotBadge>,
+                    ];
+                  })}
+                />
+              </SnapshotSectionCard>
 
-            <div className="pb-2 pt-1 text-center text-xs text-general-muted-foreground">
-              SEO Snapshot · {report.businessName}
-              {generatedAt ? ` · Generated ${generatedAt}` : ""}
+              <SnapshotSectionCard
+                eyebrow="COMPETITOR VISIBILITY"
+                title="These competitors are being found before you."
+                description={report.competitorIntro}
+              >
+                <SnapshotDataTable
+                  minWidth={1016}
+                  headers={[
+                    { label: "Competitor" },
+                    { label: "Appears in", className: "w-[181px]" },
+                    { label: "Map Pack", className: "w-[181px]" },
+                    { label: "Why they are winning", className: "w-[363px]" },
+                  ]}
+                  rows={report.competitorVisibility.map((row) => {
+                    const inMapPack = !!(row.localPackCount && row.localPackCount > 0);
+                    return [
+                      <div key="domain" className="flex items-center gap-2">
+                        <ReportFavicon domain={row.domain} />
+                        <TruncatedText value={row.domain} maxWidth="max-w-[220px]" />
+                      </div>,
+                      <span key="appears" className="whitespace-nowrap">
+                        {row.appearancesInTop10 != null
+                          ? `${formatSeoSnapshotNumber(row.appearancesInTop10)} searches`
+                          : ""}
+                      </span>,
+                      <SnapshotBadge key="map" tone="muted">
+                        {inMapPack ? "Listed" : "Not Listed"}
+                      </SnapshotBadge>,
+                      <TruncatedText
+                        key="why"
+                        value={row.whyWinning || "ranks in top 3 for multiple high-value keywords"}
+                        maxWidth="max-w-[340px]"
+                      />,
+                    ];
+                  })}
+                />
+              </SnapshotSectionCard>
+
+              <SnapshotSectionCard
+                eyebrow="COMPETITOR PAGES"
+                title="Here is what competitors built to capture that demand."
+                description="The specific pages doing the work, and the gap on your site for each."
+              >
+                <SnapshotDataTable
+                  minWidth={1016}
+                  headers={[
+                    { label: "Competitor page" },
+                    { label: "Demand signal", className: "w-[181px]" },
+                    { label: "Your gap", className: "w-[181px]" },
+                  ]}
+                  rows={competitorPageRows.map((row) => {
+                    const full = row.pageAddress || row.domain;
+                    const { host, path } = splitPath(full);
+                    return [
+                      <div key="page" className="flex items-center gap-2">
+                        <ReportFavicon domain={row.domain || full} />
+                        <div className="min-w-0">
+                          <TruncatedText
+                            value={host}
+                            maxWidth="max-w-[520px]"
+                            className="text-[10px] font-medium leading-[1.5] tracking-[0.15px] text-general-muted-foreground"
+                          />
+                          <TruncatedText
+                            value={full}
+                            maxWidth="max-w-[520px]"
+                            className="text-[14px] font-normal leading-[1.5] tracking-[0.07px] text-general-foreground"
+                          >
+                            {path}
+                          </TruncatedText>
+                        </div>
+                      </div>,
+                      <SnapshotBadge key="demand" tone="muted">
+                        {row.organicCount != null
+                          ? `${formatSeoSnapshotNumber(row.organicCount)} keywords`
+                          : row.demandCaptured || "Relevant demand"}
+                      </SnapshotBadge>,
+                      <SnapshotBadge key="gap" tone={row.clientGap === true ? "red" : "orange"}>
+                        {row.clientGap === true ? "Client gap" : "Review gap"}
+                      </SnapshotBadge>,
+                    ];
+                  })}
+                />
+              </SnapshotSectionCard>
+
+              <SnapshotSectionCard
+                eyebrow="OPPORTUNITY MAP"
+                title="Here is what we would build first."
+                description={report.opportunityIntro}
+              >
+                <SnapshotDataTable
+                  minWidth={1016}
+                  headers={[
+                    { label: "Page type", className: "w-[150px]" },
+                    { label: "Page name", className: "w-[300px]" },
+                    { label: "Keywords" },
+                  ]}
+                  rows={report.opportunityMap.map((item) => [
+                    <SnapshotBadge key="type" tone="muted">
+                      {humanize(item.assetType || item.bucket || "Service page")}
+                    </SnapshotBadge>,
+                    <TruncatedText
+                      key="name"
+                      value={item.label || humanize(item.assetType)}
+                      maxWidth="max-w-[280px]"
+                    />,
+                    <div key="keywords" className="flex flex-wrap gap-2">
+                      {(item.keywords.length ? item.keywords : [item.label || item.assetType])
+                        .filter(Boolean)
+                        .slice(0, 6)
+                        .map((keyword) => (
+                          <SnapshotBadge key={keyword} tone="outline">
+                            {keyword}
+                          </SnapshotBadge>
+                        ))}
+                    </div>,
+                  ])}
+                />
+              </SnapshotSectionCard>
             </div>
-          </div>
+          </SnapshotReportShell>
         </div>
       </div>
 

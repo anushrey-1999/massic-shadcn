@@ -257,6 +257,7 @@ function parseStatTiles(
       numberOrNull(pipelineMetadata.keyword_pool_size) ??
       (legacyFallbacks.customerDemandCount > 0 ? legacyFallbacks.customerDemandCount : null),
     highValueChecked:
+      numberOrNull(tiles.serp_checked) ??
       numberOrNull(tiles.high_value_checked) ??
       numberOrNull(pipelineMetadata.retained_count) ??
       (legacyFallbacks.missedVisibilityCount > 0 ? legacyFallbacks.missedVisibilityCount : null),

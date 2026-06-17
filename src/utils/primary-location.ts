@@ -92,6 +92,21 @@ export function formatPrimaryLocationDisplayLabel(
   return location || country;
 }
 
+/** Exact raw dropdown value for the API (e.g. "honolulu,hi,hawaii,united states"). */
+export function formatPrimaryLocationApiValue(
+  primaryLocation?:
+    | {
+        Location?: string;
+        Country?: string;
+      }
+    | null
+): string {
+  return formatPrimaryLocationDisplayLabel(primaryLocation)
+    .toLowerCase()
+    .replace(/\s*,\s*/g, ",")
+    .trim();
+}
+
 /** Maps saved profile/API location text back to a LocationSelect option value. */
 export function resolvePrimaryLocationFormValue(
   savedValue: string,

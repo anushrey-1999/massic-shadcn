@@ -35,6 +35,7 @@ import { DataTableSortList } from "@/components/filter-table/data-table-sort-lis
 import { DataTableSearch } from "@/components/filter-table/data-table-search"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -98,7 +99,7 @@ type CustomerFormState = {
   campaignId: string
 }
 
-type CustomerFormErrors = Partial<Record<keyof CustomerFormState, string>>
+type CustomerFormErrors = Partial<Record<keyof CustomerFormState | "consentAttested", string>>
 
 type CustomerDialogState =
   | { mode: "add"; row?: null }
@@ -152,6 +153,12 @@ function normalizeStatus(status: string) {
     default:
       return "pending" as const
   }
+}
+
+function getDisplayStatus(item: ReviewCustomerListItem) {
+  if (item.isSuppressed) return "unsubscribed" as const
+  if (item.hasClicked) return "link-clicked" as const
+  return normalizeStatus(item.status)
 }
 
 function isValidEmail(value: string) {
@@ -302,6 +309,81 @@ function getJourneyMarkerIcon(marker: JourneyTimelineItem["marker"]) {
   }
 }
 
+function getConsentStatusConfig(given?: boolean | null) {
+  if (given === false) {
+    return {
+      label: "Revoked",
+      className: "bg-red-50 text-red-700 border-red-200",
+    }
+  }
+  if (given === true) {
+    return {
+      label: "Attested",
+      className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    }
+  }
+  return {
+    label: "No record",
+    className: "bg-muted text-muted-foreground border-border",
+  }
+}
+
+function ConsentIndicator({
+  label,
+  icon: Icon,
+  given,
+  timestamp,
+}: {
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  given?: boolean | null
+  timestamp?: string | null
+}) {
+  const config = getConsentStatusConfig(given)
+  return (
+    <div className="rounded-lg bg-muted/30 px-3 py-2">
+      <div className="mb-1 flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+      <Badge variant="outline" className={config.className}>
+        {config.label}
+      </Badge>
+      {timestamp ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">{formatDateTime(timestamp)}</p>
+      ) : null}
+    </div>
+  )
+}
+
+function UnsubscribedIndicator({
+  isSuppressed,
+  suppressedAt,
+}: {
+  isSuppressed?: boolean
+  suppressedAt?: string | null
+}) {
+  return (
+    <div className="rounded-lg bg-muted/30 px-3 py-2">
+      <div className="mb-1 flex items-center gap-2">
+        <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Unsubscribed</p>
+      </div>
+      <Badge
+        variant="outline"
+        className={isSuppressed
+          ? "bg-red-50 text-red-700 border-red-200"
+          : "bg-muted text-muted-foreground border-border"}
+      >
+        {isSuppressed ? "Yes" : "No"}
+      </Badge>
+      {suppressedAt ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">{formatDateTime(suppressedAt)}</p>
+      ) : null}
+    </div>
+  )
+}
+
 export function CustomersTableClient({
   businessId,
   selectedLocationIdForApi,
@@ -318,6 +400,7 @@ export function CustomersTableClient({
   const [customerDialog, setCustomerDialog] = React.useState<CustomerDialogState>(null)
   const [customerForm, setCustomerForm] = React.useState<CustomerFormState>(EMPTY_CUSTOMER_FORM)
   const [customerFormErrors, setCustomerFormErrors] = React.useState<CustomerFormErrors>({})
+  const [consentAttested, setConsentAttested] = React.useState(false)
   const [customerServerError, setCustomerServerError] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<ReviewCustomerRow | null>(null)
   const [selectedCustomer, setSelectedCustomer] = React.useState<ReviewCustomerRow | null>(null)
@@ -380,6 +463,7 @@ export function CustomersTableClient({
   const timeline = timelineQuery.data?.data
   const canSendNow = Boolean(
     timeline?.nextStep &&
+    !timeline?.isSuppressed &&
     timeline.status !== "WAITING_FOR_APPROVAL" &&
     timeline.status !== "COMPLETED" &&
     timeline.status !== "FAILED"
@@ -503,7 +587,17 @@ export function CustomersTableClient({
         campaignId: campaign?.id ? String(campaign.id) : "",
         campaignName: campaign?.name || "",
         campaignPlatform: platform,
-        status: normalizeStatus(item.status),
+        lifecycleStatus: normalizeStatus(item.status),
+        hasClicked: Boolean(item.hasClicked),
+        emailConsentGiven: item.emailConsentGiven,
+        emailConsentTimestamp: item.emailConsentTimestamp,
+        emailConsentMethod: item.emailConsentMethod,
+        smsConsentGiven: item.smsConsentGiven,
+        smsConsentTimestamp: item.smsConsentTimestamp,
+        smsConsentMethod: item.smsConsentMethod,
+        isSuppressed: Boolean(item.isSuppressed),
+        suppressedAt: item.suppressedAt,
+        status: getDisplayStatus(item),
       } as ReviewCustomerRow
     })
 
@@ -563,6 +657,7 @@ export function CustomersTableClient({
       ...EMPTY_CUSTOMER_FORM,
       campaignId: defaultCampaignOption?.id || "",
     })
+    setConsentAttested(false)
     setCustomerFormErrors({})
     setCustomerServerError(null)
   }, [defaultCampaignOption, guardCreateCustomer])
@@ -576,6 +671,7 @@ export function CustomersTableClient({
       email: row.email,
       campaignId: row.campaignId,
     })
+    setConsentAttested(false)
     setCustomerFormErrors({})
     setCustomerServerError(null)
   }, [guardEditCustomer])
@@ -596,6 +692,9 @@ export function CustomersTableClient({
     }
     if (email && !isValidEmail(email)) errors.email = "Invalid email"
     if (phone && !isValidPhone(phone)) errors.phone = "Enter a valid US phone number"
+    if (customerDialog?.mode !== "edit" && !consentAttested) {
+      errors.consentAttested = "Consent confirmation is required"
+    }
 
     const duplicateEmail = email
       ? existingRows.some(
@@ -616,7 +715,7 @@ export function CustomersTableClient({
     if (duplicatePhone) errors.phone = "Phone already exists in this location"
 
     return errors
-  }, [customerDialog, customerForm, existingRows])
+  }, [consentAttested, customerDialog, customerForm, existingRows])
 
   const handleDeleteRow = React.useCallback(
     (rowId: string, isNew?: boolean) => {
@@ -778,6 +877,7 @@ export function CustomersTableClient({
     const payload = {
       businessId,
       locationId: selectedLocationIdForApi,
+      consentAttested: customerDialog?.mode !== "edit" ? consentAttested : undefined,
       customers: [
         {
           ...(row ? { id: row.id } : {}),
@@ -793,6 +893,7 @@ export function CustomersTableClient({
       await saveCustomers.mutateAsync(payload)
       setCustomerDialog(null)
       setCustomerForm(EMPTY_CUSTOMER_FORM)
+      setConsentAttested(false)
       setCustomerFormErrors({})
       setCustomerServerError(null)
     } catch (error) {
@@ -990,6 +1091,7 @@ export function CustomersTableClient({
           if (open) return
           setCustomerDialog(null)
           setCustomerForm(EMPTY_CUSTOMER_FORM)
+          setConsentAttested(false)
           setCustomerFormErrors({})
           setCustomerServerError(null)
         }}
@@ -1060,6 +1162,34 @@ export function CustomersTableClient({
                 ) : null}
               </div>
             </div>
+
+            {customerDialog?.mode !== "edit" ? (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="customer-consent-attested"
+                    checked={consentAttested}
+                    onCheckedChange={(checked) => {
+                      setConsentAttested(checked === true)
+                      setCustomerFormErrors((prev) => ({ ...prev, consentAttested: undefined }))
+                    }}
+                    aria-invalid={!!customerFormErrors.consentAttested}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="customer-consent-attested"
+                      className="text-sm leading-5"
+                    >
+                      I confirm that all contacts uploaded to Massic have consented to receive review request communications from this business.
+                    </Label>
+                    {customerFormErrors.consentAttested ? (
+                      <p className="text-xs text-destructive">{customerFormErrors.consentAttested}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label htmlFor="customer-campaign">Campaign</Label>
@@ -1226,6 +1356,25 @@ export function CustomersTableClient({
                         <p className="truncate text-sm font-medium">{timelineQuery.data.data.phone || "No phone"}</p>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <ConsentIndicator
+                      label="SMS consent"
+                      icon={MessageSquare}
+                      given={timelineQuery.data.data.smsConsentGiven}
+                      timestamp={timelineQuery.data.data.smsConsentTimestamp}
+                    />
+                    <ConsentIndicator
+                      label="Email consent"
+                      icon={Mail}
+                      given={timelineQuery.data.data.emailConsentGiven}
+                      timestamp={timelineQuery.data.data.emailConsentTimestamp}
+                    />
+                    <UnsubscribedIndicator
+                      isSuppressed={timelineQuery.data.data.isSuppressed}
+                      suppressedAt={timelineQuery.data.data.suppressedAt}
+                    />
                   </div>
                 </div>
 

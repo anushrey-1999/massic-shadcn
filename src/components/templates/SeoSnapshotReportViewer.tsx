@@ -347,11 +347,35 @@ function CoverageMeter({ rows }: { rows: { visibility: string }[] }) {
   );
 }
 
+function formatTalkingPointsForCopy(talkingPoints: SeoSnapshotTalkingPoint[]): string {
+  return talkingPoints
+    .map((point, index) => {
+      const label = point.label || `Talking point ${index + 1}`;
+      return point.script ? `${index + 1}. ${label}\n${point.script}` : `${index + 1}. ${label}`;
+    })
+    .join("\n\n");
+}
+
+function formatObjectionsForCopy(objectionHandlers: SeoSnapshotObjectionHandler[]): string {
+  return objectionHandlers
+    .map((item, index) => {
+      const objection = item.objection || `Objection ${index + 1}`;
+      return item.response
+        ? `${index + 1}. ${objection}\nResponse: ${item.response}`
+        : `${index + 1}. ${objection}`;
+    })
+    .join("\n\n");
+}
+
 function CopyTextButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = React.useCallback(async () => {
     try {
+      if (!text.trim()) {
+        toast.error("Nothing to copy yet");
+        return;
+      }
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
       } else {
@@ -366,25 +390,17 @@ function CopyTextButton({ text, label }: { text: string; label: string }) {
   }, [text]);
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={handleCopy}
-          aria-label={`Copy ${label}`}
-          className="h-7 w-7 shrink-0 text-general-muted-foreground transition-colors hover:text-general-foreground"
-        >
-          {copied ? (
-            <Check className="h-3.5 w-3.5 text-general-primary" />
-          ) : (
-            <Copy className="h-3.5 w-3.5" />
-          )}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="left">{copied ? "Copied" : `Copy ${label}`}</TooltipContent>
-    </Tooltip>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={handleCopy}
+      aria-label={`Copy ${label}`}
+      className="h-8 shrink-0 gap-1.5"
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? "Copied" : "Copy all"}
+    </Button>
   );
 }
 
@@ -402,6 +418,14 @@ function TalkingPointsDrawer({
   const hasObjections = objectionHandlers.length > 0;
   const hasTalkingPoints = talkingPoints.length > 0;
   const [tab, setTab] = React.useState(hasTalkingPoints ? "points" : "objections");
+  const talkingPointsCopy = React.useMemo(
+    () => formatTalkingPointsForCopy(talkingPoints),
+    [talkingPoints]
+  );
+  const objectionsCopy = React.useMemo(
+    () => formatObjectionsForCopy(objectionHandlers),
+    [objectionHandlers]
+  );
 
   React.useEffect(() => {
     if (open) setTab(hasTalkingPoints ? "points" : "objections");
@@ -453,23 +477,29 @@ function TalkingPointsDrawer({
             <div className="p-6 pt-4">
               {hasTalkingPoints ? (
                 <TabsContent value="points" className="mt-0 space-y-3">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-general-border bg-white p-3">
+                    <div>
+                      <p className="text-sm font-medium text-general-secondary-foreground">
+                        Talking points
+                      </p>
+                      <p className="text-xs text-general-muted-foreground">
+                        Copy all {talkingPoints.length} talking points.
+                      </p>
+                    </div>
+                    <CopyTextButton text={talkingPointsCopy} label="talking points" />
+                  </div>
                   {talkingPoints.map((point, index) => (
                     <div
                       key={`${point.label}-${index}`}
                       className="group rounded-lg border border-general-border bg-neutral-50 p-4 transition-colors duration-200 hover:bg-white"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-general-border bg-white text-xs font-medium tabular-nums text-general-unofficial-foreground-alt">
-                            {index + 1}
-                          </span>
-                          <h3 className="text-sm font-medium text-general-secondary-foreground">
-                            {point.label || `Talking point ${index + 1}`}
-                          </h3>
-                        </div>
-                        {point.script ? (
-                          <CopyTextButton text={point.script} label="script" />
-                        ) : null}
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-general-border bg-white text-xs font-medium tabular-nums text-general-unofficial-foreground-alt">
+                          {index + 1}
+                        </span>
+                        <h3 className="text-sm font-medium text-general-secondary-foreground">
+                          {point.label || `Talking point ${index + 1}`}
+                        </h3>
                       </div>
                       {point.script ? (
                         <p className="mt-2.5 text-sm leading-6 text-general-unofficial-foreground-alt">
@@ -483,6 +513,17 @@ function TalkingPointsDrawer({
 
               {hasObjections ? (
                 <TabsContent value="objections" className="mt-0 space-y-3">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-general-border bg-white p-3">
+                    <div>
+                      <p className="text-sm font-medium text-general-secondary-foreground">
+                        Objections
+                      </p>
+                      <p className="text-xs text-general-muted-foreground">
+                        Copy all {objectionHandlers.length} objection responses.
+                      </p>
+                    </div>
+                    <CopyTextButton text={objectionsCopy} label="objection responses" />
+                  </div>
                   {objectionHandlers.map((item, index) => (
                     <div
                       key={`${item.objection}-${index}`}
@@ -495,14 +536,11 @@ function TalkingPointsDrawer({
                         </p>
                       </div>
                       {item.response ? (
-                        <div className="mt-3 flex items-start justify-between gap-3 border-t border-general-border pt-3">
-                          <div className="flex items-start gap-2.5">
-                            <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-general-primary" />
-                            <p className="text-sm leading-6 text-general-unofficial-foreground-alt">
-                              {item.response}
-                            </p>
-                          </div>
-                          <CopyTextButton text={item.response} label="response" />
+                        <div className="mt-3 flex items-start gap-2.5 border-t border-general-border pt-3">
+                          <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-general-primary" />
+                          <p className="text-sm leading-6 text-general-unofficial-foreground-alt">
+                            {item.response}
+                          </p>
                         </div>
                       ) : null}
                     </div>
@@ -1188,30 +1226,36 @@ export function SeoSnapshotReportViewer({
                 <SnapshotDataTable
                   minWidth={1016}
                   headers={[
-                    { label: "Page type", className: "w-[150px]" },
-                    { label: "Page name", className: "w-[300px]" },
-                    { label: "Keywords" },
+                    { label: "Tactic", className: "w-[220px]" },
+                    { label: "Description" },
                   ]}
-                  rows={report.opportunityMap.map((item) => [
-                    <SnapshotBadge key="type" tone="muted">
-                      {humanize(item.assetType || item.bucket || "Service page")}
-                    </SnapshotBadge>,
-                    <TruncatedText
-                      key="name"
-                      value={item.label || humanize(item.assetType)}
-                      maxWidth="max-w-[280px]"
-                    />,
-                    <div key="keywords" className="flex flex-wrap gap-2">
-                      {(item.keywords.length ? item.keywords : [item.label || item.assetType])
-                        .filter(Boolean)
-                        .slice(0, 6)
-                        .map((keyword) => (
-                          <SnapshotBadge key={keyword} tone="outline">
-                            {keyword}
-                          </SnapshotBadge>
-                        ))}
-                    </div>,
-                  ])}
+                  rows={report.opportunityMap.map((item) => {
+                    const tactic = humanize(item.assetType || item.bucket || "Service page");
+                    const description = item.label || tactic;
+                    const keywords = item.keywords.filter(Boolean).slice(0, 6);
+
+                    return [
+                      <SnapshotBadge key="type" tone="muted">
+                        {tactic}
+                      </SnapshotBadge>,
+                      <div key="description" className="flex min-w-0 flex-col gap-2">
+                        <TruncatedText
+                          value={description}
+                          maxWidth="max-w-[680px]"
+                          className="text-[14px] font-normal leading-[1.5] tracking-[0.07px] text-general-foreground"
+                        />
+                        {keywords.length ? (
+                          <div className="flex flex-wrap gap-2">
+                            {keywords.map((keyword) => (
+                              <SnapshotBadge key={keyword} tone="outline">
+                                {keyword}
+                              </SnapshotBadge>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>,
+                    ];
+                  })}
                 />
               </SnapshotSectionCard>
             </div>

@@ -27,6 +27,15 @@ export type ReviewCustomerListItem = {
   status: ReviewCustomerStatus;
   locationId?: string | null;
   createdAt: string;
+  hasClicked?: boolean;
+  emailConsentGiven?: boolean | null;
+  emailConsentTimestamp?: string | null;
+  emailConsentMethod?: string | null;
+  smsConsentGiven?: boolean | null;
+  smsConsentTimestamp?: string | null;
+  smsConsentMethod?: string | null;
+  isSuppressed?: boolean;
+  suppressedAt?: string | null;
   campaign: ReviewCustomerCampaign;
 };
 
@@ -53,6 +62,7 @@ export type ReviewCustomerUpsertRow = {
 export type ReviewCustomerUpsertPayload = {
   businessId: string;
   locationId: string;
+  consentAttested?: boolean;
   customers: ReviewCustomerUpsertRow[];
 };
 
@@ -112,6 +122,15 @@ export type ReviewCustomerTimeline = {
   email?: string | null;
   status: ReviewCustomerStatus;
   locationId?: string | null;
+  hasClicked?: boolean;
+  emailConsentGiven?: boolean | null;
+  emailConsentTimestamp?: string | null;
+  emailConsentMethod?: string | null;
+  smsConsentGiven?: boolean | null;
+  smsConsentTimestamp?: string | null;
+  smsConsentMethod?: string | null;
+  isSuppressed?: boolean;
+  suppressedAt?: string | null;
   campaign: { id: string; name: string } | null;
   campaignVersionId?: string | null;
   waitingReason?: string | null;
@@ -145,6 +164,8 @@ export type ReviewCustomerTimeline = {
     campaignActivityVersionId?: string | null;
     skipReason?: string | null;
     errorMessage?: string | null;
+    userUniqueId?: string | null;
+    channel?: "EMAIL" | "SMS" | null;
     activity?: {
       type: "EMAIL" | "SMS";
       orderIndex: number;

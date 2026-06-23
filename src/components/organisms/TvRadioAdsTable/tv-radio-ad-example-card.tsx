@@ -16,6 +16,7 @@ import {
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
+import { getGenerationBlockedMessage, isExecutionCreditError } from "@/lib/generation-error";
 
 function getStatusLowercase(value: unknown): string {
   return (value || "").toString().toLowerCase();
@@ -302,10 +303,10 @@ export function TvRadioAdExampleCard({
 
       toast.success("Ad generation started.");
     } catch (error: any) {
-      if (error?.response?.status === 403) {
+      if (isExecutionCreditError(error)) {
         setShowBuyCreditsModal(true);
       } else {
-        toast.error("Failed to start generation.");
+        toast.error(getGenerationBlockedMessage(error, "Failed to start generation."));
       }
     } finally {
       setStarting(false);

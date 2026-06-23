@@ -22,6 +22,7 @@ import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { resolveBlogFinalContent, resolvePageContent } from "@/utils/page-content-resolver";
+import { getGenerationBlockedMessage, isExecutionCreditError } from "@/lib/generation-error";
 
 const VIEW_ACTION_STATUSES = new Set([
   "success",
@@ -152,10 +153,10 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       toast.success(type === "blog" ? "Final blog generation started." : "Final page generation started.");
       navigateToView("final");
     } catch (error: any) {
-      if (error?.response?.status === 403) {
+      if (isExecutionCreditError(error)) {
         setShowBuyCreditsModal(true);
       } else {
-        toast.error("Failed to start generation.");
+        toast.error(getGenerationBlockedMessage(error, "Failed to start generation."));
       }
     } finally {
       setWorkingAction(null);
@@ -176,10 +177,10 @@ export function WebPageActionCell({ businessId, row }: { businessId: string; row
       toast.success(type === "blog" ? "Blog outline generation started." : "Page outline generation started.");
       navigateToView("outline");
     } catch (error: any) {
-      if (error?.response?.status === 403) {
+      if (isExecutionCreditError(error)) {
         setShowBuyCreditsModal(true);
       } else {
-        toast.error("Failed to start generation.");
+        toast.error(getGenerationBlockedMessage(error, "Failed to start generation."));
       }
     } finally {
       setWorkingAction(null);

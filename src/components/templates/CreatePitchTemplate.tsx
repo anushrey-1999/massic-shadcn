@@ -474,7 +474,7 @@ export function CreatePitchTemplate() {
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+            <PageHeader breadcrumbs={breadcrumbs} />
           </div>
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">

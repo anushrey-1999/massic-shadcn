@@ -339,99 +339,113 @@ export default function CreateBusinessPage() {
     },
   });
 
-  const handleSubmitCreate = useCallback(async () => {
-    const values = form.state.values as FormData;
-    const validation = formSchema.safeParse(values);
+  const createBusinessFromValues = useCallback(
+    async (
+      values: FormData,
+      profileData: ProfileAutofillResponse["profile_autofill"] | null,
+      offeringsPromise?: Promise<Offering[]>
+    ) => {
+      const validation = formSchema.safeParse(values);
 
-    formFieldNames.forEach((fieldName) => {
-      const fieldIssue = validation.success
-        ? undefined
-        : validation.error.issues.find((issue) => issue.path[0] === fieldName);
+      formFieldNames.forEach((fieldName) => {
+        const fieldIssue = validation.success
+          ? undefined
+          : validation.error.issues.find((issue) => issue.path[0] === fieldName);
 
-      form.setFieldMeta(fieldName, (prev: any) => ({
-        ...prev,
-        isTouched: true,
-        isValid: !fieldIssue,
-        errors: fieldIssue ? [{ message: fieldIssue.message }] : [],
-        errorMap: fieldIssue
-          ? {
-            onChange: [{ message: fieldIssue.message }],
-          }
-          : {},
-        hasValidationErrors: Boolean(fieldIssue),
-      }));
-    });
-
-    if (!validation.success) {
-      toast.error("Please fix the highlighted fields before creating your business.");
-      return;
-    }
-
-    try {
-      const result = await createBusiness.mutateAsync({
-        website: values.website,
-        businessName: values.businessName,
-        primaryLocation: values.primaryLocation,
-        serveCustomers: values.serveCustomers as "local" | "online",
-        offerType: values.offerType as "products" | "services",
+        form.setFieldMeta(fieldName, (prev: any) => ({
+          ...prev,
+          isTouched: true,
+          isValid: !fieldIssue,
+          errors: fieldIssue ? [{ message: fieldIssue.message }] : [],
+          errorMap: fieldIssue
+            ? {
+              onChange: [{ message: fieldIssue.message }],
+            }
+            : {},
+          hasValidationErrors: Boolean(fieldIssue),
+        }));
       });
 
-      await refetchBusinessProfiles();
+      if (!validation.success) {
+        toast.error("Please fix the highlighted fields before creating your business.");
+        return;
+      }
 
-      const businessId = result?.createdBusiness?.UniqueId;
-      if (businessId) {
-        const offerings =
-          extractedOfferings.length > 0
-            ? extractedOfferings
-            : offeringsExtractionPromiseRef.current
-              ? await offeringsExtractionPromiseRef.current
-              : [];
-        const businessProfilePayload = buildBusinessProfilePayload(
-          values,
-          autofillProfileData,
-          locationOptions
-        );
-
-        try {
-          await updateCreatedBusinessProfile(
-            businessId,
-            result.createdBusiness,
-            businessProfilePayload
-          );
-        } catch (error) {
-          console.error("Failed to update business profile after creation:", error);
-        }
-
-        try {
-          await createJob.mutateAsync({
-            businessId,
-            businessProfilePayload,
-            offerings,
-          });
-        } catch (error) {
-          console.error("Failed to create job after business creation:", error);
-        }
+      try {
+        const result = await createBusiness.mutateAsync({
+          website: values.website,
+          businessName: values.businessName,
+          primaryLocation: values.primaryLocation,
+          serveCustomers: values.serveCustomers as "local" | "online",
+          offerType: values.offerType as "products" | "services",
+          locationOptions,
+        });
 
         await refetchBusinessProfiles();
 
-        router.push(`/business/${businessId}/profile`);
-      } else {
-        router.push("/");
+        const businessId = result?.createdBusiness?.UniqueId;
+        if (businessId) {
+          const offerings = offeringsPromise
+            ? await offeringsPromise
+            : extractedOfferings.length > 0
+              ? extractedOfferings
+              : offeringsExtractionPromiseRef.current
+                ? await offeringsExtractionPromiseRef.current
+                : [];
+          const businessProfilePayload = buildBusinessProfilePayload(
+            values,
+            profileData,
+            locationOptions
+          );
+
+          try {
+            await updateCreatedBusinessProfile(
+              businessId,
+              result.createdBusiness,
+              businessProfilePayload
+            );
+          } catch (error) {
+            console.error("Failed to update business profile after creation:", error);
+          }
+
+          try {
+            await createJob.mutateAsync({
+              businessId,
+              businessProfilePayload,
+              offerings,
+            });
+          } catch (error) {
+            console.error("Failed to create job after business creation:", error);
+          }
+
+          await refetchBusinessProfiles();
+
+          router.push(`/business/${businessId}/profile`);
+        } else {
+          router.push("/");
+        }
+      } catch {
+        // Error is already handled in the mutation's onError
       }
-    } catch {
-      // Error is already handled in the mutation's onError
-    }
-  }, [
-    form,
-    createBusiness,
-    createJob,
-    refetchBusinessProfiles,
-    router,
-    extractedOfferings,
-    offeringsExtractionPromiseRef,
-    autofillProfileData,
-    locationOptions,
-  ]);
+    },
+    [
+      form,
+      createBusiness,
+      createJob,
+      refetchBusinessProfiles,
+      router,
+      extractedOfferings,
+      offeringsExtractionPromiseRef,
+      locationOptions,
+    ]
+  );
+
+  const handleSubmitCreate = useCallback(async () => {
+    await createBusinessFromValues(
+      form.state.values as FormData,
+      autofillProfileData
+    );
+  }, [autofillProfileData, createBusinessFromValues, form]);
 
   const handleAutofillProfile = useCallback(async () => {
     const values = form.state.values as FormData;
@@ -449,7 +463,7 @@ export default function CreateBusinessPage() {
 
     setIsAutofillLoading(true);
     setExtractedOfferings([]);
-    startOfferingsExtractionForWebsite(website);
+    const offeringsPromise = startOfferingsExtractionForWebsite(website);
     try {
       const res = await api.post<ProfileAutofillResponse>(
         "/tools/autofill-profile",
@@ -475,22 +489,29 @@ export default function CreateBusinessPage() {
       const nextWebsite = cleanWebsiteUrl(
         String(pa.url || res?.business_url || website)
       );
+      const nextValues: FormData = {
+        ...values,
+        website: nextWebsite ? normalizeWebsiteUrl(nextWebsite) : values.website,
+      };
       if (nextWebsite) {
-        form.setFieldValue("website", normalizeWebsiteUrl(nextWebsite));
+        form.setFieldValue("website", nextValues.website);
       }
 
       const nextBusinessName = String(pa.business_name ?? "").trim();
       if (nextBusinessName) {
+        nextValues.businessName = nextBusinessName;
         form.setFieldValue("businessName", nextBusinessName);
       }
 
       const market = String(pa.market ?? "").trim().toLowerCase();
       if (market === "local" || market === "online") {
+        nextValues.serveCustomers = market;
         form.setFieldValue("serveCustomers", market);
       }
 
       const sell = String(pa.sell ?? "").trim().toLowerCase();
       if (sell === "products" || sell === "services") {
+        nextValues.offerType = sell;
         form.setFieldValue("offerType", sell);
       }
 
@@ -505,7 +526,8 @@ export default function CreateBusinessPage() {
         }));
       });
       setHasAutofilledProfile(true);
-      toast.success("Profile fields updated from website");
+      toast.success("Profile fields updated from website. Creating business...");
+      await createBusinessFromValues(nextValues, pa, offeringsPromise);
     } catch (error: any) {
       const fallbackMessage = String(
         error?.response?.data?.message ??
@@ -521,7 +543,7 @@ export default function CreateBusinessPage() {
     } finally {
       setIsAutofillLoading(false);
     }
-  }, [form, startOfferingsExtractionForWebsite]);
+  }, [createBusinessFromValues, form, startOfferingsExtractionForWebsite]);
 
   const handleCancel = () => {
     router.push("/");

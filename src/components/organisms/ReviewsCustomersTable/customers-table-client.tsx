@@ -81,6 +81,7 @@ import {
   useSendReviewCustomerNow,
   type ReviewCustomerListItem,
   type ReviewCustomerListSort,
+  type ReviewCustomerMutationError,
   type ReviewCustomerStatus,
 } from "@/hooks/use-review-customers"
 import { isValidUsPhone, normalizeUsPhoneToE164 } from "@/utils/phone"
@@ -897,11 +898,15 @@ export function CustomersTableClient({
       setCustomerFormErrors({})
       setCustomerServerError(null)
     } catch (error) {
-      const mutationError = error as Error & {
+      const mutationError = error as ReviewCustomerMutationError & {
         fieldErrors?: CustomerFormErrors
       }
       if (mutationError.fieldErrors) {
         setCustomerFormErrors(mutationError.fieldErrors)
+      }
+      if (mutationError.code === "CUSTOMER_CONTACT_OPTED_OUT") {
+        setCustomerServerError(null)
+        return
       }
       setCustomerServerError(mutationError.message || "Failed to save customer")
     }

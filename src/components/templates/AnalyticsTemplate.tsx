@@ -434,10 +434,15 @@ export function AnalyticsTemplate() {
                 if (!businessId) return;
                 setCustomContentGroupsOpen(true);
               }}
+              onIndexing={() => {
+                if (!businessId) return;
+                router.push(`/business/${businessId}/indexing`);
+              }}
               reportsDisabled={!businessId}
               primaryDriversDisabled={!businessId}
               isIngestionActive={isIngestionActive}
               contentGroupsDisabled={!businessId}
+              indexingDisabled={!businessId}
             />
           </div>
           <div className="flex items-center gap-3">

@@ -10,6 +10,7 @@ import type { StrategyRow } from "@/types/strategy-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getStrategyTableColumns } from "./strategy-table-columns";
+import type { TopicSignalRow } from "@/types/topic-signals-types";
 
 interface StrategyTableProps {
   businessId?: string;
@@ -27,6 +28,7 @@ interface StrategyTableProps {
   onRowClick?: (row: StrategyRow) => void;
   toolbarRightPrefix?: React.ReactNode;
   columnVisibilityKey?: string;
+  signalsByTopicId?: Record<number, TopicSignalRow>;
 }
 
 export function StrategyTable({
@@ -45,6 +47,7 @@ export function StrategyTable({
   onRowClick,
   toolbarRightPrefix,
   columnVisibilityKey,
+  signalsByTopicId = {},
 }: StrategyTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
@@ -57,8 +60,9 @@ export function StrategyTable({
         businessRelevanceRange,
         topicCoverageRange,
         searchVolumeRange,
+        signalsByTopicId,
       }),
-    [businessId, offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange]
+    [businessId, offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange, signalsByTopicId]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({

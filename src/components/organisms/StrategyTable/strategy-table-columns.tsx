@@ -15,6 +15,8 @@ import type { StrategyRow } from "@/types/strategy-types";
 import { Typography } from "@/components/ui/typography";
 import { formatVolume } from "@/lib/format";
 import { StrategyTopicCtas } from "./strategy-topic-ctas";
+import { TopicSignalLabelBadge } from "@/components/organisms/TopicSignalsTable";
+import type { TopicSignalRow } from "@/types/topic-signals-types";
 
 // Helper to format percentage
 function formatPercentage(value: number): string {
@@ -27,6 +29,7 @@ interface GetStrategyTableColumnsProps {
   businessRelevanceRange?: { min: number; max: number };
   topicCoverageRange?: { min: number; max: number };
   searchVolumeRange?: { min: number; max: number };
+  signalsByTopicId?: Record<number, TopicSignalRow>;
 }
 
 export function getStrategyTableColumns({
@@ -35,6 +38,7 @@ export function getStrategyTableColumns({
   businessRelevanceRange = { min: 0, max: 1 },
   topicCoverageRange = { min: 0, max: 1 },
   searchVolumeRange = { min: 0, max: 10000 },
+  signalsByTopicId = {},
 }: GetStrategyTableColumnsProps): ColumnDef<StrategyRow>[] {
   return [
     {
@@ -45,9 +49,18 @@ export function getStrategyTableColumns({
       ),
       cell: ({ row }) => (
         <div className="flex w-full min-w-0 items-center justify-between gap-2">
-          <Typography variant="p" className="min-w-0 flex-1 truncate">
-            {row.getValue("topic")}
-          </Typography>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Typography variant="p" className="min-w-0 truncate">
+              {row.getValue("topic")}
+            </Typography>
+            {row.original.topic_id &&
+              signalsByTopicId[row.original.topic_id]?.label && (
+                <TopicSignalLabelBadge
+                  compact
+                  label={signalsByTopicId[row.original.topic_id].label}
+                />
+              )}
+          </div>
           <StrategyTopicCtas businessId={businessId} row={row.original} className="ml-0" />
         </div>
       ),

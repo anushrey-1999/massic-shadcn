@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import type { AxiosError } from "axios";
 import { useApi, type ApiPlatform } from "./use-api";
 import type { TopicSignalsApiResponse } from "@/types/topic-signals-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
@@ -14,6 +15,15 @@ interface FetchTopicSignalsParams {
   sort?: Array<{ field: string; desc: boolean }>;
   filters?: ExtendedColumnFilter<TopicSignalRow>[];
   joinOperator?: "and" | "or";
+}
+
+function getAxiosDetail(error: AxiosError): string {
+  const data = error.response?.data;
+  if (data && typeof data === "object" && "detail" in data) {
+    const detail = (data as { detail?: unknown }).detail;
+    if (typeof detail === "string") return detail;
+  }
+  return "";
 }
 
 export function useTopicSignals(businessId: string) {
@@ -50,17 +60,50 @@ export function useTopicSignals(businessId: string) {
           )
         );
       }
-      return getApi.execute(`/strategies/topic-signals?${params.toString()}`, {
-        method: "GET",
-      });
+      try {
+        return await getApi.execute(`/strategies/topic-signals?${params.toString()}`, {
+          method: "GET",
+        });
+      } catch (err) {
+        const axiosErr = err as AxiosError;
+        if (axiosErr?.response?.status === 404) {
+          const detail = getAxiosDetail(axiosErr);
+          const missingPrerequisite = detail.includes(
+            "Successful topics workflow run not found"
+          );
+          return {
+            status: "not_found",
+            isNotFound: true,
+            missingPrerequisite,
+            notFoundDetail: detail,
+            metadata: {
+              evaluation_month: monthYear,
+              workflow: "topic_signals",
+            },
+            output_data: {
+              items: [],
+              metrics: [{ total_signals: 0, labels: {} }],
+              pagination: {
+                page,
+                page_size: pageSize,
+                fetched: 0,
+                total_pages: 1,
+              },
+              errors: null,
+            },
+          } satisfies TopicSignalsApiResponse;
+        }
+        throw err;
+      }
     },
     [businessId, getApi]
   );
 
   const triggerTopicSignals = useCallback(
-    async (monthYear?: string) => {
+    async (monthYear?: string, forceRegenerate = false) => {
       const params = new URLSearchParams({ business_id: businessId });
       if (monthYear) params.set("month_year", monthYear);
+      if (forceRegenerate) params.set("force_regenerate", "true");
       return postApi.execute(`/strategies/topic-signals?${params.toString()}`, {
         method: "POST",
       });

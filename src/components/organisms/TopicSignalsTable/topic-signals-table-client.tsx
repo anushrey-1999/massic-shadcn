@@ -90,7 +90,7 @@ export function TopicSignalsTableClient({
   });
 
   const mutation = useMutation({
-    mutationFn: () => triggerTopicSignals(month),
+    mutationFn: (forceRegenerate: boolean) => triggerTopicSignals(month, forceRegenerate),
     onSuccess: () => {
       setPage(1);
       queryClient.invalidateQueries({ queryKey: ["topic-signals", businessId, month] });
@@ -102,22 +102,43 @@ export function TopicSignalsTableClient({
   const metrics = query.data?.output_data?.metrics?.[0];
   const pagination = query.data?.output_data?.pagination;
   const pageCount = pagination?.total_pages || 1;
-  const isStatusLoading = query.isLoading || query.isFetching || !query.data;
-  const canGenerate =
-    !isStatusLoading && (status === "not_found" || status === "error");
+  const isMissingPrerequisite = Boolean(query.data?.missingPrerequisite);
+  const isNotGenerated =
+    Boolean(query.data?.isNotFound || status === "not_found") && !isMissingPrerequisite;
+  const isWorkflowError = status === "error";
+  const isGenerated = status === "success" && !isMissingPrerequisite && !isNotGenerated;
+  const isRequestError = query.isError;
+  const isStatusLoading = query.isLoading || query.isFetching || (!query.data && !query.isError);
+  const canRunSignalsAction =
+    !isStatusLoading &&
+    !isMissingPrerequisite &&
+    (isNotGenerated || isWorkflowError || isGenerated);
+  const isRegenerateAction = isGenerated && !isWorkflowError && !isNotGenerated;
   const isGenerating =
     status === "pending" || status === "processing" || mutation.isPending;
   const isInitialLoading = query.isLoading && !query.data;
-  const errorMessage =
+  const workflowErrorMessage =
     query.data?.output_data?.errors?.[0] || "Topic Signals failed. Please retry.";
+  const requestErrorMessage =
+    query.error instanceof Error
+      ? query.error.message
+      : "Unable to load Topic Signals. Please retry.";
 
   React.useEffect(() => {
     if (!onMetricsTextChange) return;
-    if (query.isLoading) {
+    if (query.isLoading && !query.data) {
       onMetricsTextChange("Loading topic signals...");
       return;
     }
-    if (status === "not_found") {
+    if (isRequestError) {
+      onMetricsTextChange("Topic Signals unavailable");
+      return;
+    }
+    if (isMissingPrerequisite) {
+      onMetricsTextChange("Topic Signals: generate Topics first");
+      return;
+    }
+    if (isNotGenerated) {
       onMetricsTextChange(`Topic Signals: ${month} not generated`);
       return;
     }
@@ -128,7 +149,18 @@ export function TopicSignalsTableClient({
     onMetricsTextChange(
       `${metrics?.total_signals ?? rows.length} Topic Signals for ${month}`
     );
-  }, [metrics?.total_signals, month, onMetricsTextChange, query.isLoading, rows.length, status]);
+  }, [
+    isMissingPrerequisite,
+    isNotGenerated,
+    isRequestError,
+    metrics?.total_signals,
+    month,
+    onMetricsTextChange,
+    query.data,
+    query.isLoading,
+    rows.length,
+    status,
+  ]);
 
   const handleRowClick = React.useCallback((row: TopicSignalRow) => {
     setSelectedRowId(String(row.id));
@@ -153,19 +185,27 @@ export function TopicSignalsTableClient({
 
   const toolbarAction = (
     <Button
-      variant={canGenerate ? "default" : "outline"}
+      variant={canRunSignalsAction && !isRegenerateAction ? "default" : "outline"}
       size="sm"
-      disabled={!canGenerate || isGenerating}
-      onClick={() => mutation.mutate()}
+      disabled={!canRunSignalsAction || isGenerating}
+      onClick={() => mutation.mutate(isRegenerateAction)}
     >
       {isGenerating ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      ) : canGenerate && status === "error" ? (
+      ) : canRunSignalsAction && (isWorkflowError || isRegenerateAction) ? (
         <RefreshCw className="mr-2 h-4 w-4" />
       ) : (
         <Sparkles className="mr-2 h-4 w-4" />
       )}
-      {status === "error" ? "Retry Signals" : "Generate Signals"}
+      {mutation.isPending && isRegenerateAction
+        ? "Regenerating Signals"
+        : mutation.isPending
+          ? "Generating Signals"
+          : isWorkflowError
+            ? "Retry Signals"
+            : isRegenerateAction
+              ? "Regenerate Signals"
+              : "Generate Signals"}
     </Button>
   );
 
@@ -201,16 +241,38 @@ export function TopicSignalsTableClient({
         <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white">
           <TopicSignalsPanelState
             icon={<Loader2 className="h-7 w-7 animate-spin text-general-primary" />}
-            title="Generating topic signals"
+            title={isRegenerateAction ? "Regenerating topic signals" : "Generating topic signals"}
             description="We are analyzing trend, seasonality, and growth signals. This view refreshes automatically every few seconds."
           />
         </div>
-      ) : status === "error" ? (
+      ) : isRequestError ? (
+        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white">
+          <TopicSignalsPanelState
+            icon={<AlertCircle className="h-8 w-8 text-destructive" />}
+            title="Unable to load Topic Signals"
+            description={requestErrorMessage}
+            action={
+              <Button variant="outline" size="sm" onClick={() => query.refetch()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Try Again
+              </Button>
+            }
+          />
+        </div>
+      ) : isMissingPrerequisite ? (
+        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white">
+          <TopicSignalsPanelState
+            icon={<AlertCircle className="h-8 w-8 text-general-muted-foreground" />}
+            title="Generate Topics first"
+            description="Topic Signals needs a successful Topics run before monthly signals can be generated."
+          />
+        </div>
+      ) : isWorkflowError ? (
         <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white">
           <TopicSignalsPanelState
             icon={<AlertCircle className="h-8 w-8 text-destructive" />}
             title="Topic Signals failed"
-            description={errorMessage}
+            description={workflowErrorMessage}
             action={toolbarAction}
           />
         </div>
@@ -218,13 +280,13 @@ export function TopicSignalsTableClient({
         <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-white">
           <TopicSignalsPanelState
             icon={<Sparkles className="h-8 w-8 text-general-muted-foreground" />}
-            title={status === "not_found" ? "No signals generated yet" : "No topic signals found"}
+            title={isNotGenerated ? "No signals generated yet" : "No topic signals found"}
             description={
-              status === "not_found"
+              isNotGenerated
                 ? "Generate monthly signals to identify rising, seasonal, and breakout topics."
                 : "This month did not surface any topics that passed the precision gate."
             }
-            action={status === "not_found" ? toolbarAction : undefined}
+            action={isNotGenerated || isGenerated ? toolbarAction : undefined}
           />
         </div>
       ) : (

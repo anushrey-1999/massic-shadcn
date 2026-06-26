@@ -42,6 +42,9 @@ export interface TopicSignalRow {
 
 export interface TopicSignalsApiResponse {
   status: TopicSignalStatus;
+  isNotFound?: boolean;
+  missingPrerequisite?: boolean;
+  notFoundDetail?: string;
   metadata: {
     run_id?: number;
     workflow?: string;

@@ -101,6 +101,21 @@ function normalizeSiteUrlInput(value: string) {
   return `https://${trimmed}`;
 }
 
+function buildWordpressPluginInstallUrl(siteUrl: string) {
+  try {
+    const parsed = new URL(normalizeSiteUrlInput(siteUrl));
+    const basePath = parsed.pathname.replace(/\/+$/, "");
+    const installUrl = new URL(`${basePath}/wp-admin/plugin-install.php`, parsed.origin);
+    installUrl.searchParams.set("tab", "search");
+    installUrl.searchParams.set("type", "term");
+    installUrl.searchParams.set("s", "massic-integration");
+    installUrl.searchParams.set("massic_from", "massic_app");
+    return installUrl.toString();
+  } catch {
+    return "";
+  }
+}
+
 function getSiteHostLabel(siteUrl?: string | null) {
   if (!siteUrl) return "";
   try {
@@ -540,7 +555,7 @@ export function WebChannelsTab({
     return () => window.removeEventListener("message", onWebflowOauthMessage);
   }, [refetch, webflowConnectionQuery]);
 
-  const submitRecommended = async () => { const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl); if (!siteUrl) return; const pendingWindow = openPendingExternalTab(); setIsRecommendedModalOpen(false); try { const response = await oauthStartLinkMutation.mutateAsync({ businessId, siteUrl }); const connectUrl = response?.data?.connectUrl; if (!connectUrl) { pendingWindow?.close(); return; } if (!navigatePendingExternalTab(pendingWindow, connectUrl)) { setExternalNavigationFallback({ url: connectUrl, title: "Open WordPress admin", description: "Your browser blocked the new tab. Open WordPress from here to continue setup.", }); return; } toast.success("WordPress admin opened", { description: "Click Connect Massic in your plugin page.", }); } catch { pendingWindow?.close(); } };
+  const submitRecommended = async () => { const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl); if (!siteUrl) return; const wordpressInstallUrl = buildWordpressPluginInstallUrl(siteUrl); if (!wordpressInstallUrl) { toast.error("Invalid WordPress site URL"); return; } const pendingWindow = openPendingExternalTab(); setIsRecommendedModalOpen(false); try { await oauthStartLinkMutation.mutateAsync({ businessId, siteUrl }); if (!navigatePendingExternalTab(pendingWindow, wordpressInstallUrl)) { setExternalNavigationFallback({ url: wordpressInstallUrl, title: "Open WordPress plugin search", description: "Your browser blocked the new tab. Open WordPress from here to install Massic Integration.", }); return; } toast.success("WordPress plugin search opened", { description: "Install Massic Integration, then open Settings and click Connect Massic.", }); } catch { pendingWindow?.close(); } };
 
   const submitDisconnect = async () => {
     if (!connection?.connectionId) return;
@@ -910,7 +925,7 @@ export function WebChannelsTab({
           <DialogHeader>
             <DialogTitle>Connect WordPress</DialogTitle>
             <DialogDescription>
-              Enter your site URL. We&apos;ll open your WordPress admin where you can approve the connection.
+              Enter your site URL. We&apos;ll open WordPress so an admin can install or open Massic Integration.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-1">
@@ -925,8 +940,8 @@ export function WebChannelsTab({
               />
             </div>
             <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
-              In WordPress, open <strong className="text-general-foreground">Settings → Massic Integration</strong> and
-              click <strong className="text-general-foreground">Connect to Massic</strong>.
+ Use a WordPress administrator account. Install and activate <strong className="text-general-foreground">Massic Integration</strong>,
+ open <strong className="text-general-foreground">Settings → Massic Integration</strong>, then click <strong className="text-general-foreground">Connect Massic</strong>.
             </p>
             <Button
               variant="link"

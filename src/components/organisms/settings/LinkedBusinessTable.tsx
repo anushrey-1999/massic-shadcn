@@ -63,6 +63,7 @@ import {
   CustomSelect,
   type CustomSelectOption,
 } from "@/components/molecules/settings/CustomSelect";
+import { SiteFavicon } from "@/components/organisms/WebChannels/platform-icon";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   useFetchBusinesses,
@@ -709,9 +710,11 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
               </div>
             );
           }
+          const gscUrl = removeScDomainPrefix(row.original.displayName);
           return (
-            <div className="max-w-[300px] truncate">
-              {removeScDomainPrefix(row.original.displayName)}
+            <div className="flex max-w-[300px] items-center gap-2">
+              <SiteFavicon siteUrl={gscUrl} className="size-6" />
+              <span className="truncate">{gscUrl}</span>
             </div>
           );
         },

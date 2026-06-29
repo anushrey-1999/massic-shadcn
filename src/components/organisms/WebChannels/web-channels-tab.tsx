@@ -70,7 +70,6 @@ interface WebChannelsTabProps {
 
 const EMPTY_WEBFLOW_FIELDS: WebflowCollectionField[] = [];
 const WORDPRESS_PLUGIN_QA_ZIP_PATH = "/downloads/massic-integration-qa-1.0.0.zip";
-const WORDPRESS_PLUGIN_DIRECTORY_URL = "https://wordpress.org/plugins/massic-integration/";
 
 function getWordpressPluginBuildEnv(): "qa" | "prod" {
   const envLabel = [
@@ -292,7 +291,11 @@ export function WebChannelsTab({
   const webflowCollections = webflowCollectionsQuery.data || [];
 
   const connected = Boolean(data?.connected && data?.connection); const connection = data?.connection || null; const connectedSiteHost = React.useMemo(() => getSiteHostLabel(connection?.siteUrl), [connection?.siteUrl]); const wordpressAdminUrl = React.useMemo(() => { if (!connection?.siteUrl) return ""; try { const parsed = new URL(normalizeSiteUrlInput(connection.siteUrl)); const basePath = parsed.pathname.replace(/\/+$/, ""); return `${parsed.origin}${basePath}/wp-admin/options-general.php?page=massic-integration`; } catch { return ""; } }, [connection?.siteUrl]);
-  const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
+const guideWordpressSiteUrl = connection?.siteUrl || recommendedSiteUrl || defaultSiteUrl || "";
+const guideWordpressUrl = connected
+  ? wordpressAdminUrl
+  : buildWordpressPluginInstallUrl(guideWordpressSiteUrl);
+const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     () => webflowCollections.find(collection => getWebflowId(collection) === selectedWebflowCollectionId) || null,
     [selectedWebflowCollectionId, webflowCollections]
   );
@@ -1005,14 +1008,19 @@ export function WebChannelsTab({
                   Download QA plugin
                 </a>
               </Button>
-            ) : (
-              <Button asChild>
-                <a href={WORDPRESS_PLUGIN_DIRECTORY_URL} target="_blank" rel="noreferrer">
-                  <ExternalLink className="mr-1.5 size-4" />
-                  Open WordPress.org
-                </a>
-              </Button>
-            )}
+ ) : guideWordpressUrl ? (
+ <Button asChild>
+ <a href={guideWordpressUrl} target="_blank" rel="noreferrer">
+ <ExternalLink className="mr-1.5 size-4" />
+ Open WordPress
+ </a>
+ </Button>
+ ) : (
+ <Button disabled>
+ <ExternalLink className="mr-1.5 size-4" />
+ Open WordPress
+ </Button>
+ )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

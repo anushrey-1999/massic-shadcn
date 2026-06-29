@@ -215,6 +215,16 @@ function GenericInput<
   radioCardIcons,
   ...props
 }: GenericInputProps<TFormData>) {
+  const normalizedLocationOptions = React.useMemo(
+    () =>
+      options?.map((opt) => ({
+        value: String(opt.value),
+        label: opt.label,
+        disabled: opt.disabled,
+      })) || [],
+    [options]
+  );
+
   // If formField is provided, extract field values and handlers
   // Then merge with existing props and continue to normal rendering
   if (formField) {
@@ -319,11 +329,6 @@ function GenericInput<
     // Handle location-select using LocationSelect component
     if (type === "location-select") {
       const currentValue = value as string | undefined;
-      const locationOptions = options?.map((opt) => ({
-        value: String(opt.value),
-        label: opt.label,
-        disabled: opt.disabled,
-      })) || [];
 
       const handleLocationChange = (newValue: string) => {
         if (onChange) {
@@ -360,7 +365,7 @@ function GenericInput<
         <LocationSelect
           value={currentValue}
           onChange={handleLocationChange}
-          options={locationOptions}
+          options={normalizedLocationOptions}
           placeholder={props.placeholder}
           disabled={props.disabled}
           loading={loading}
@@ -999,4 +1004,3 @@ export function FormFieldInput<
     />
   );
 }
-

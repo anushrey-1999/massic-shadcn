@@ -70,7 +70,6 @@ interface WebChannelsTabProps {
 
 const EMPTY_WEBFLOW_FIELDS: WebflowCollectionField[] = [];
 const WORDPRESS_PLUGIN_QA_ZIP_PATH = "/downloads/massic-integration-qa-1.0.0.zip";
-const WORDPRESS_PLUGIN_DIRECTORY_URL = "https://wordpress.org/plugins/massic-integration/";
 
 function getWordpressPluginBuildEnv(): "qa" | "prod" {
   const envLabel = [
@@ -99,6 +98,21 @@ function normalizeSiteUrlInput(value: string) {
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
+}
+
+function buildWordpressPluginInstallUrl(siteUrl: string) {
+  try {
+    const parsed = new URL(normalizeSiteUrlInput(siteUrl));
+    const basePath = parsed.pathname.replace(/\/+$/, "");
+    const installUrl = new URL(`${basePath}/wp-admin/plugin-install.php`, parsed.origin);
+    installUrl.searchParams.set("tab", "search");
+    installUrl.searchParams.set("type", "term");
+    installUrl.searchParams.set("s", "massic-integration");
+    installUrl.searchParams.set("massic_from", "massic_app");
+    return installUrl.toString();
+  } catch {
+    return "";
+  }
 }
 
 function getSiteHostLabel(siteUrl?: string | null) {
@@ -277,7 +291,11 @@ export function WebChannelsTab({
   const webflowCollections = webflowCollectionsQuery.data || [];
 
   const connected = Boolean(data?.connected && data?.connection); const connection = data?.connection || null; const connectedSiteHost = React.useMemo(() => getSiteHostLabel(connection?.siteUrl), [connection?.siteUrl]); const wordpressAdminUrl = React.useMemo(() => { if (!connection?.siteUrl) return ""; try { const parsed = new URL(normalizeSiteUrlInput(connection.siteUrl)); const basePath = parsed.pathname.replace(/\/+$/, ""); return `${parsed.origin}${basePath}/wp-admin/options-general.php?page=massic-integration`; } catch { return ""; } }, [connection?.siteUrl]);
-  const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
+const guideWordpressSiteUrl = connection?.siteUrl || recommendedSiteUrl || defaultSiteUrl || "";
+const guideWordpressUrl = connected
+  ? wordpressAdminUrl
+  : buildWordpressPluginInstallUrl(guideWordpressSiteUrl);
+const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     () => webflowCollections.find(collection => getWebflowId(collection) === selectedWebflowCollectionId) || null,
     [selectedWebflowCollectionId, webflowCollections]
   );
@@ -540,7 +558,7 @@ export function WebChannelsTab({
     return () => window.removeEventListener("message", onWebflowOauthMessage);
   }, [refetch, webflowConnectionQuery]);
 
-  const submitRecommended = async () => { const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl); if (!siteUrl) return; const pendingWindow = openPendingExternalTab(); setIsRecommendedModalOpen(false); try { const response = await oauthStartLinkMutation.mutateAsync({ businessId, siteUrl }); const connectUrl = response?.data?.connectUrl; if (!connectUrl) { pendingWindow?.close(); return; } if (!navigatePendingExternalTab(pendingWindow, connectUrl)) { setExternalNavigationFallback({ url: connectUrl, title: "Open WordPress admin", description: "Your browser blocked the new tab. Open WordPress from here to continue setup.", }); return; } toast.success("WordPress admin opened", { description: "Click Connect Massic in your plugin page.", }); } catch { pendingWindow?.close(); } };
+  const submitRecommended = async () => { const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl); if (!siteUrl) return; const wordpressInstallUrl = buildWordpressPluginInstallUrl(siteUrl); if (!wordpressInstallUrl) { toast.error("Invalid WordPress site URL"); return; } const pendingWindow = openPendingExternalTab(); setIsRecommendedModalOpen(false); try { await oauthStartLinkMutation.mutateAsync({ businessId, siteUrl }); if (!navigatePendingExternalTab(pendingWindow, wordpressInstallUrl)) { setExternalNavigationFallback({ url: wordpressInstallUrl, title: "Open WordPress plugin search", description: "Your browser blocked the new tab. Open WordPress from here to install Massic Integration.", }); return; } toast.success("WordPress plugin search opened", { description: "Install Massic Integration, then open Settings and click Connect Massic.", }); } catch { pendingWindow?.close(); } };
 
   const submitDisconnect = async () => {
     if (!connection?.connectionId) return;
@@ -910,7 +928,7 @@ export function WebChannelsTab({
           <DialogHeader>
             <DialogTitle>Connect WordPress</DialogTitle>
             <DialogDescription>
-              Enter your site URL. We&apos;ll open your WordPress admin where you can approve the connection.
+              Enter your site URL. We&apos;ll open WordPress so an admin can install or open Massic Integration.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-1">
@@ -925,8 +943,8 @@ export function WebChannelsTab({
               />
             </div>
             <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
-              In WordPress, open <strong className="text-general-foreground">Settings → Massic Integration</strong> and
-              click <strong className="text-general-foreground">Connect to Massic</strong>.
+ Use a WordPress administrator account. Install and activate <strong className="text-general-foreground">Massic Integration</strong>,
+ open <strong className="text-general-foreground">Settings → Massic Integration</strong>, then click <strong className="text-general-foreground">Connect Massic</strong>.
             </p>
             <Button
               variant="link"
@@ -990,14 +1008,19 @@ export function WebChannelsTab({
                   Download QA plugin
                 </a>
               </Button>
-            ) : (
-              <Button asChild>
-                <a href={WORDPRESS_PLUGIN_DIRECTORY_URL} target="_blank" rel="noreferrer">
-                  <ExternalLink className="mr-1.5 size-4" />
-                  Open WordPress.org
-                </a>
-              </Button>
-            )}
+ ) : guideWordpressUrl ? (
+ <Button asChild>
+ <a href={guideWordpressUrl} target="_blank" rel="noreferrer">
+ <ExternalLink className="mr-1.5 size-4" />
+ Open WordPress
+ </a>
+ </Button>
+ ) : (
+ <Button disabled>
+ <ExternalLink className="mr-1.5 size-4" />
+ Open WordPress
+ </Button>
+ )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

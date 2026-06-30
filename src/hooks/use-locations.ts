@@ -5,7 +5,6 @@ import { formatLocationLabel } from "@/utils/primary-location";
 import type { LocationOption } from "@/store/business-store";
 
 const LOCATIONS_KEY = "locations";
-const MAX_LOCATIONS = 1000; // Limit to prevent freezing
 const EMPTY_LOCATIONS: string[] = [];
 
 interface LocationsResponse {
@@ -54,14 +53,10 @@ export function useLocations(country: string = "us") {
 
   const locations = data ?? EMPTY_LOCATIONS;
 
-  // Limit locations to prevent freezing - only show first MAX_LOCATIONS
-  const limitedLocations = useMemo(() => {
-    return locations.slice(0, MAX_LOCATIONS);
-  }, [locations]);
-
-  // Transform limited locations to options format for GenericInput
+  // Transform all locations to options format for GenericInput.
+  // Rendering/search are optimized in LocationSelect, so do not truncate here.
   const locationOptions = useMemo((): LocationOption[] => {
-    const options: LocationOption[] = limitedLocations.map((location) => ({
+    const options: LocationOption[] = locations.map((location) => ({
       value: location,
       label: formatLocationLabel(location),
     }));
@@ -71,14 +66,13 @@ export function useLocations(country: string = "us") {
       { value: "", label: "Location", disabled: true },
       ...options,
     ];
-  }, [limitedLocations]);
+  }, [locations]);
 
   return {
-    locations: limitedLocations,
+    locations,
     locationOptions,
     isLoading,
     isFetching,
     error,
   };
 }
-

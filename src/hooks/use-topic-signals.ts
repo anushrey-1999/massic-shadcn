@@ -8,13 +8,13 @@ import type { ExtendedColumnFilter } from "@/types/data-table-types";
 import type { TopicSignalRow } from "@/types/topic-signals-types";
 
 interface FetchTopicSignalsParams {
-  monthYear?: string;
   page?: number;
   pageSize?: number;
   search?: string;
   sort?: Array<{ field: string; desc: boolean }>;
   filters?: ExtendedColumnFilter<TopicSignalRow>[];
   joinOperator?: "and" | "or";
+  monthYear?: string;
 }
 
 function getAxiosDetail(error: AxiosError): string {
@@ -33,20 +33,20 @@ export function useTopicSignals(businessId: string) {
 
   const fetchTopicSignals = useCallback(
     async ({
-      monthYear,
       page = 1,
       pageSize = 100,
       search,
       sort,
       filters,
       joinOperator = "and",
+      monthYear,
     }: FetchTopicSignalsParams = {}) => {
       const params = new URLSearchParams({
         business_id: businessId,
         page: String(page),
         page_size: String(pageSize),
       });
-      if (monthYear) params.set("month_year", monthYear);
+      if (monthYear?.trim()) params.set("month_year", monthYear.trim());
       if (search?.trim()) params.set("search", search.trim());
       if (sort?.length) params.set("sort", JSON.stringify(sort));
       if (filters?.length) {
@@ -77,7 +77,6 @@ export function useTopicSignals(businessId: string) {
             missingPrerequisite,
             notFoundDetail: detail,
             metadata: {
-              evaluation_month: monthYear,
               workflow: "topic_signals",
             },
             output_data: {
@@ -100,10 +99,8 @@ export function useTopicSignals(businessId: string) {
   );
 
   const triggerTopicSignals = useCallback(
-    async (monthYear?: string, forceRegenerate = false) => {
+    async () => {
       const params = new URLSearchParams({ business_id: businessId });
-      if (monthYear) params.set("month_year", monthYear);
-      if (forceRegenerate) params.set("force_regenerate", "true");
       return postApi.execute(`/strategies/topic-signals?${params.toString()}`, {
         method: "POST",
       });

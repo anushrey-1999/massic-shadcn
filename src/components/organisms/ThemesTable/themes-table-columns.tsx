@@ -5,7 +5,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import type { ThemeRow } from "@/types/themes-types";
 import { Typography } from "@/components/ui/typography";
-import { ExpandablePills } from "@/components/ui/expandable-pills";
 
 const textFilterOperators = [
   { label: "Contains", value: "iLike" as const },
@@ -16,9 +15,10 @@ const textFilterOperators = [
 interface GetThemesTableColumnsProps {
   expandedRowId?: string | null;
   onExpandedRowChange?: (rowId: string | null) => void;
+  offeringOptions?: string[];
 }
 
-export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChange }: GetThemesTableColumnsProps = {}): ColumnDef<ThemeRow>[] {
+export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChange, offeringOptions = [] }: GetThemesTableColumnsProps = {}): ColumnDef<ThemeRow>[] {
   return [
     {
       id: "theme_name",
@@ -29,7 +29,7 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
       cell: ({ row }) => {
         const name = row.getValue("theme_name") as string;
         return (
-          <Typography variant="p" className="font-medium truncate" title={name}>
+          <Typography variant="p" className="truncate" title={name}>
             {name || "-"}
           </Typography>
         );
@@ -58,26 +58,26 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
       ),
       cell: ({ row }) => {
         const offerings = row.getValue("offerings") as string[];
-        const isExpanded = expandedRowId === row.id;
         return (
-          <div className="max-w-full">
-            <ExpandablePills
-              items={offerings || []}
-              pillVariant="outline"
-              expanded={isExpanded}
-              onExpandedChange={(next) => {
-                onExpandedRowChange?.(next ? row.id : null);
-              }}
-            />
-          </div>
+          <Typography variant="p">
+            {offerings?.length ?? 0}
+          </Typography>
         );
       },
-      meta: {
-        label: "Offerings",
-        placeholder: "Search offerings...",
-        variant: "text",
-        operators: textFilterOperators,
-      },
+      meta: offeringOptions.length > 0
+        ? {
+            label: "Offerings",
+            variant: "multiSelect" as const,
+            options: offeringOptions.map((o) => ({ label: o, value: o })),
+            operators: [{ label: "Has any of", value: "inArray" as const }],
+            closeOnSelect: true,
+          }
+        : {
+            label: "Offerings",
+            placeholder: "Search offerings...",
+            variant: "text" as const,
+            operators: textFilterOperators,
+          },
       enableColumnFilter: true,
       enableSorting: false,
       size: 150,
@@ -91,19 +91,10 @@ export function getThemesTableColumns({ expandedRowId = null, onExpandedRowChang
         <DataTableColumnHeader column={column} label="Topics" />
       ),
       cell: ({ row }) => {
-        const topicNames = (row.original.topics || []).map((t) => t.topic_name);
-        const isExpanded = expandedRowId === row.id;
         return (
-          <div className="max-w-full">
-            <ExpandablePills
-              items={topicNames}
-              pillVariant="secondary"
-              expanded={isExpanded}
-              onExpandedChange={(next) => {
-                onExpandedRowChange?.(next ? row.id : null);
-              }}
-            />
-          </div>
+          <Typography variant="p">
+            {row.original.topics?.length ?? 0}
+          </Typography>
         );
       },
       meta: {

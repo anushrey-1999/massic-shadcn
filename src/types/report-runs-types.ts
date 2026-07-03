@@ -47,6 +47,7 @@ export interface ReportRunDetail {
   period: string | null
   status: ReportRunStatus
   processed_data: any | null
+  email_summary?: string | null
   narrative_text: {
     errors?: Record<string, any>
     llm_outputs?: Record<string, any>
@@ -57,6 +58,7 @@ export interface ReportRunDetail {
       download_url?: string
     }
     performance_report?: PerformanceReportPayload
+    email_summary?: string | null
   } | null
   html_url: string | null
   pdf_url: string | null

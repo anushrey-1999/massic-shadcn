@@ -16,6 +16,7 @@ import { PostsActionsDropdown } from "./posts-actions-dropdown"
 import type { RefinePlanSource } from "./refine-plan-overlay-provider"
 import { useRefinePlanOverlayOptional } from "./refine-plan-overlay-provider"
 import { usePagePlanner } from "@/hooks/use-page-planner"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import type { PagePlannerPlanItem } from "@/types/page-planner-types"
 
 type ChatMessage = {
@@ -95,6 +96,8 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
   const overlayCtx = useRefinePlanOverlayOptional()
   const pagePlanner = usePagePlanner()
   const queryClient = useQueryClient()
+  const guardRefinePlan = useFeatureActionGuard("actions.refinePlan")
+  const guardAcceptPlan = useFeatureActionGuard("actions.acceptPlan")
   const [portalTarget, setPortalTarget] = React.useState<HTMLElement | null>(null)
   const prevOverflowRef = React.useRef<string | null>(null)
   const prevOverscrollRef = React.useRef<string | null>(null)
@@ -182,6 +185,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
   }, [onOpenChange])
 
   const handleSend = React.useCallback(async () => {
+    if (!guardRefinePlan()) return
     const text = input.trim()
     if (!text || isSending) return
 
@@ -342,7 +346,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
     } finally {
       setIsSending(false)
     }
-  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx, queryClient, acceptCandidate, overridePlanItems, overlayCtx?.pagesOverridePlanId])
+  }, [input, isSending, businessId, source, pagePlanner, pagesTableCtx, queryClient, acceptCandidate, overridePlanItems, overlayCtx?.pagesOverridePlanId, guardRefinePlan])
 
   if (!open) return null
 
@@ -404,6 +408,7 @@ export function RefinePlanOverlay({ open, onOpenChange, businessId, source }: Pr
                         className="h-10 w-full rounded-lg bg-general-primary px-4 text-primary-foreground"
                         disabled={Boolean(overlayCtx?.pagesBusy) || isSending || isPreviewGenerating}
                         onClick={() => {
+                          if (!guardAcceptPlan()) return
                           onOpenChange(false)
                           overlayCtx?.acceptPagesPlan({
                             planItems: acceptCandidate.planItems,

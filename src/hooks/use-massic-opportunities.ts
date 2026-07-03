@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth-store";
 import { api } from "./use-api";
 import { toast } from "sonner";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import { hasMassicOpportunitiesAccess } from "@/lib/subscription-status";
 
 export interface MassicOpportunitiesStatus {
   status: string;
@@ -32,6 +34,16 @@ export interface MassicOpportunitiesStatus {
     limit: number;
     remaining: number;
   };
+}
+
+function permissionDeniedError() {
+  const error = new Error("Permission denied");
+  error.name = "PermissionDenied";
+  return error;
+}
+
+function isPermissionDeniedError(error: any) {
+  return error?.name === "PermissionDenied";
 }
 
 export function useMassicOpportunitiesStatus() {
@@ -74,7 +86,7 @@ export function useCanExecuteMassicOpportunities() {
 
     if (status.whitelisted) return true;
 
-    if (status.has_subscription && status.status === "active") {
+    if (hasMassicOpportunitiesAccess(status)) {
       return true;
     }
 
@@ -91,7 +103,7 @@ export function useCanExecuteMassicOpportunities() {
 
     if (status.whitelisted) return true;
 
-    if (status.has_subscription && status.status === "active") {
+    if (hasMassicOpportunitiesAccess(status)) {
       return true;
     }
 
@@ -104,7 +116,7 @@ export function useCanExecuteMassicOpportunities() {
 
     if (status.whitelisted) return false;
 
-    if (status.has_subscription && status.status === "active") {
+    if (hasMassicOpportunitiesAccess(status)) {
       return false;
     }
 
@@ -118,11 +130,11 @@ export function useCanExecuteMassicOpportunities() {
   const getSnapshotChipsData = () => {
     if (isLoading || !status) return null;
 
-    const hasSubscription = status.has_subscription && status.status === "active";
+    const hasSubscription = hasMassicOpportunitiesAccess(status);
 
     if (hasSubscription) {
       const used = status.usage?.snapshot_report?.used ?? 0;
-      const limit = status.usage?.snapshot_report?.limit ?? 15;
+      const limit = status.usage?.snapshot_report?.limit ?? 50;
 
       return {
         usageChip: `${used} of ${limit} used`,
@@ -141,7 +153,7 @@ export function useCanExecuteMassicOpportunities() {
   const getDetailedChipsData = () => {
     if (isLoading || !status) return null;
 
-    const hasSubscription = status.has_subscription && status.status === "active";
+    const hasSubscription = hasMassicOpportunitiesAccess(status);
 
     if (hasSubscription) {
       const used = status.usage?.detailed_pitch?.used ?? 0;
@@ -174,9 +186,14 @@ export function useCanExecuteMassicOpportunities() {
 export function useCancelMassicOpportunities() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const guardChangeMassicOpportunities = useFeatureActionGuard("billing.massicOpportunitiesChange");
 
   return useMutation({
     mutationFn: async () => {
+      if (!guardChangeMassicOpportunities()) {
+        throw permissionDeniedError();
+      }
+
       if (!user?.uniqueId) {
         throw new Error("User not authenticated");
       }
@@ -204,6 +221,7 @@ export function useCancelMassicOpportunities() {
       });
     },
     onError: (error: any) => {
+      if (isPermissionDeniedError(error)) return;
       console.error("Cancel subscription error:", error);
       toast.error(error?.response?.data?.message || error.message || "Failed to cancel subscription");
     },
@@ -213,9 +231,14 @@ export function useCancelMassicOpportunities() {
 export function useReactivateMassicOpportunities() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const guardChangeMassicOpportunities = useFeatureActionGuard("billing.massicOpportunitiesChange");
 
   return useMutation({
     mutationFn: async () => {
+      if (!guardChangeMassicOpportunities()) {
+        throw permissionDeniedError();
+      }
+
       if (!user?.uniqueId) {
         throw new Error("User not authenticated");
       }
@@ -242,6 +265,7 @@ export function useReactivateMassicOpportunities() {
       });
     },
     onError: (error: any) => {
+      if (isPermissionDeniedError(error)) return;
       console.error("Reactivate subscription error:", error);
       toast.error(error?.response?.data?.message || error.message || "Failed to reactivate subscription");
     },
@@ -251,9 +275,14 @@ export function useReactivateMassicOpportunities() {
 export function useSubscribeMassicOpportunities() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const guardSubscribeMassicOpportunities = useFeatureActionGuard("billing.massicOpportunitiesSubscribe");
 
   return useMutation({
     mutationFn: async ({ returnUrl }: { returnUrl: string }) => {
+      if (!guardSubscribeMassicOpportunities()) {
+        throw permissionDeniedError();
+      }
+
       if (!user?.uniqueId) {
         throw new Error("User not authenticated");
       }
@@ -285,6 +314,7 @@ export function useSubscribeMassicOpportunities() {
       }
     },
     onError: (error: any) => {
+      if (isPermissionDeniedError(error)) return;
       console.error("Subscription error:", error);
       toast.error(error?.response?.data?.message || error.message || "Failed to start subscription");
     },

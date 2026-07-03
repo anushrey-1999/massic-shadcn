@@ -80,24 +80,19 @@ export default function BusinessProfilePage() {
     syncUspsOnMount()
   }, [jobDetails, profileData, businessId])
 
-  // Fetch locations using React Query (limited to 1000 for performance)
+  // Fetch locations using React Query. LocationSelect handles large-list rendering/search.
   const { locationOptions, isLoading: locationsLoading } = useLocations("us")
 
   // Sync location options to Zustand store
   const { setLocationOptions, setLocationsLoading, setCurrentBusinessId } = useBusinessStore()
   const prevLocationOptionsRef = useRef<typeof locationOptions>([])
-  const prevLocationsLoadingRef = useRef(locationsLoading)
-  const prevBusinessIdRef = useRef(businessId)
+  const prevLocationsLoadingRef = useRef<boolean | null>(null)
+  const prevBusinessIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    // Only update if locationOptions actually changed (deep comparison)
-    const optionsChanged =
-      prevLocationOptionsRef.current.length !== locationOptions.length ||
-      prevLocationOptionsRef.current.some((opt, idx) =>
-        opt.value !== locationOptions[idx]?.value || opt.label !== locationOptions[idx]?.label
-      )
-
-    if (optionsChanged) {
+    // React Query/useMemo keep this reference stable until the fetched list changes.
+    // Avoid scanning huge option arrays just to decide whether to sync Zustand.
+    if (prevLocationOptionsRef.current !== locationOptions) {
       setLocationOptions(locationOptions)
       prevLocationOptionsRef.current = locationOptions
     }
@@ -335,4 +330,3 @@ export default function BusinessProfilePage() {
     />
   )
 }
-

@@ -3,8 +3,7 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from "react";
 import * as d3 from "d3";
 import type { StrategyRow } from "@/types/strategy-types";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardTitle } from "@/components/ui/card";
+import { ChartHoverTooltip } from "@/components/ui/chart-hover-tooltip";
 
 export const BUSINESS_RELEVANCE_PALETTE = [
   "#F58787",
@@ -22,8 +21,11 @@ export const BUSINESS_RELEVANCE_PALETTE = [
   "#B1DE6A",
 ];
 
+export type StrategyBubbleColorMetric = "topicCoverage" | "businessRelevance";
+
 interface StrategyBubbleChartProps {
   data: StrategyRow[];
+  colorMetric?: StrategyBubbleColorMetric;
   width?: number;
   height?: number;
 }
@@ -45,6 +47,7 @@ type PackedNode = d3.HierarchyCircularNode<HierarchyNode>;
 
 export function StrategyBubbleChart({
   data,
+  colorMetric = "topicCoverage",
   width = 1200,
   height = 800,
 }: StrategyBubbleChartProps) {
@@ -105,6 +108,7 @@ export function StrategyBubbleChart({
           name: cluster.cluster_name || cluster.cluster || "",
           type: "cluster" as const,
           data: {
+            relevanceScore: topic.business_relevance_score,
             searchVolume: cluster.total_search_volume,
             coverage: cluster.topic_coverage ?? cluster.intent_cluster_topic_coverage,
             keywordsCount: cluster.keywords.length,
@@ -114,6 +118,7 @@ export function StrategyBubbleChart({
             type: "keyword" as const,
             value: 1,
             data: {
+              relevanceScore: topic.business_relevance_score,
               coverage: cluster.topic_coverage ?? cluster.intent_cluster_topic_coverage,
               keywordsCount: 1,
             },
@@ -127,11 +132,11 @@ export function StrategyBubbleChart({
   const getColor = useCallback((node: PackedNode) => {
     const palette = BUSINESS_RELEVANCE_PALETTE;
 
-    const normalizeCoverage = (coverageRaw?: number) => {
-      const coverage = coverageRaw ?? 0;
-      if (!Number.isFinite(coverage)) return 0;
-      if (coverage <= 1) return Math.max(0, Math.min(1, coverage));
-      if (coverage <= 100) return Math.max(0, Math.min(1, coverage / 100));
+    const normalizeScore = (scoreRaw?: number) => {
+      const score = scoreRaw ?? 0;
+      if (!Number.isFinite(score)) return 0;
+      if (score <= 1) return Math.max(0, Math.min(1, score));
+      if (score <= 100) return Math.max(0, Math.min(1, score / 100));
       return 1;
     };
 
@@ -147,20 +152,22 @@ export function StrategyBubbleChart({
         : node.ancestors().find((a): a is PackedNode => a.data.type === "topic") ??
           null;
 
-    const coverageRaw =
-      node.data.type === "topic"
-        ? node.data.data?.coverage
-        : node.data.type === "cluster"
+    const metricRaw =
+      colorMetric === "businessRelevance"
+        ? node.data.data?.relevanceScore ?? topicAncestor?.data.data?.relevanceScore
+        : node.data.type === "topic"
           ? node.data.data?.coverage
-          : node.data.type === "keyword"
-            ? node.data.data?.coverage ?? clusterAncestor?.data.data?.coverage
-            : topicAncestor?.data.data?.coverage;
+          : node.data.type === "cluster"
+            ? node.data.data?.coverage
+            : node.data.type === "keyword"
+              ? node.data.data?.coverage ?? clusterAncestor?.data.data?.coverage
+              : topicAncestor?.data.data?.coverage;
 
-    const coverage = normalizeCoverage(coverageRaw);
-    const index = Math.max(0, Math.min(palette.length - 1, Math.round(coverage * (palette.length - 1))));
+    const score = normalizeScore(metricRaw);
+    const index = Math.max(0, Math.min(palette.length - 1, Math.round(score * (palette.length - 1))));
 
     return palette[index];
-  }, []);
+  }, [colorMetric]);
 
   const formatCompactNumber = useCallback((value?: number) => {
     if (value === undefined || value === null) return "-";
@@ -364,7 +371,7 @@ export function StrategyBubbleChart({
       const y = clientY - containerRect.top;
 
       const offset = 12;
-      const tooltipWidth = 260;
+      const tooltipWidth = 280;
       const tooltipHeight = 120;
 
       const left = Math.max(0, Math.min(x + offset, containerRect.width - tooltipWidth));
@@ -427,6 +434,7 @@ export function StrategyBubbleChart({
         : tooltipType === "keyword"
           ? "Keyword"
           : null;
+  const tooltipRelevance = formatCoveragePercent(tooltipNode?.data.data?.relevanceScore);
   const tooltipCoverage = formatCoveragePercent(tooltipNode?.data.data?.coverage);
   const tooltipKeywords = tooltipNode?.data.data?.keywordsCount;
   const tooltipVolume = tooltipNode?.data.data?.searchVolume;
@@ -440,28 +448,26 @@ export function StrategyBubbleChart({
 
       <div
         ref={tooltipRef}
-        className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity"
+        className="pointer-events-none absolute left-0 top-0 z-10 opacity-0 transition-opacity duration-150"
       >
         {tooltipNode ? (
-          <Card variant="profileCard" className="w-[260px] p-3 bg-foreground-light border-none rounded-xl">
-            {tooltipTypeLabel ? (
-              <div className="mb-1">
-                <Badge variant="outline" className="border border-general-border">{tooltipTypeLabel}</Badge>
-              </div>
-            ) : null}
-            <CardTitle className="text-sm font-medium text-general-primary">
-              {tooltipTitle}
-            </CardTitle>
-            <div className="mt-2 flex flex-col items-start flex-wrap gap-2">
-              <Badge variant="outline">Topic Coverage&nbsp;<span className="text-general-foreground">{tooltipCoverage}</span></Badge>
-              <Badge variant="outline">Keywords&nbsp;<span className="text-general-foreground"> {tooltipKeywords ?? 0}</span></Badge>
-              {tooltipVolume !== undefined ? (
-                <Badge variant="outline">
-                  Sub Topic Vol&nbsp;<span className="text-general-foreground">{formatCompactNumber(tooltipVolume)}</span>
-                </Badge>
-              ) : null}
-            </div>
-          </Card>
+          <ChartHoverTooltip
+            typeLabel={tooltipTypeLabel}
+            title={tooltipTitle}
+            metrics={[
+              { label: "Business Relevance", value: tooltipRelevance },
+              { label: "Topic Coverage", value: tooltipCoverage },
+              { label: "Keywords", value: tooltipKeywords ?? 0 },
+              ...(tooltipVolume !== undefined
+                ? [
+                    {
+                      label: "Sub Topic Vol",
+                      value: formatCompactNumber(tooltipVolume),
+                    },
+                  ]
+                : []),
+            ]}
+          />
         ) : null}
       </div>
     </div>

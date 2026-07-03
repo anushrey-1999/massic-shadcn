@@ -33,6 +33,7 @@ export interface AccessRequest {
   token: string;
   agencyId: string;
   agencyEmail: string;
+  websiteUrl?: string | null;
   products: Product[];
   roles: Partial<Record<Product, string>>;
   status: RequestStatus;
@@ -99,6 +100,7 @@ export interface VerifyStepResponse {
 
 export interface CreateAccessRequestPayload {
   agencyEmail: string;
+  websiteUrl: string;
   products: Product[];
   roles: Partial<Record<Product, string>>;
   expiresInDays?: number;

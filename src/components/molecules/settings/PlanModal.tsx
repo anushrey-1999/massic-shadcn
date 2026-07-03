@@ -135,6 +135,7 @@ export function PlanModal({
   ) => {
     setSelectedPlanName(planName);
     await onSelectPlan?.(planName, action);
+    setSelectedPlanName(null);
   };
 
   return (

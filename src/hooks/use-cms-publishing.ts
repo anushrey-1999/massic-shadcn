@@ -14,6 +14,16 @@ export interface CmsPublishingDomain {
   lastPublished?: string | null;
 }
 
+export interface CmsPublishingTarget {
+  targetId: string;
+  siteId: string;
+  collectionId: string;
+  documentType?: string;
+  name: string;
+  fieldMapping?: Record<string, any>;
+  metadata?: Record<string, any> | null;
+}
+
 export interface CmsPublishingChannel {
   connected: boolean;
   platform: CmsPublishingPlatform | null;
@@ -27,16 +37,28 @@ export interface CmsPublishingChannel {
     lastUsedAt?: string | null;
     metadata?: Record<string, any> | null;
   } | null;
-  target: {
-    targetId: string;
-    siteId: string;
-    collectionId: string;
-    documentType?: string;
-    name: string;
-    fieldMapping?: Record<string, any>;
-    metadata?: Record<string, any> | null;
-  } | null;
+  target: CmsPublishingTarget | null;
+  targets?: {
+    post?: CmsPublishingTarget | null;
+    page?: CmsPublishingTarget | null;
+  };
   domains: CmsPublishingDomain[];
+  domainsByType?: {
+    post?: CmsPublishingDomain[];
+    page?: CmsPublishingDomain[];
+  };
+}
+
+export interface CmsWordpressPageTemplateStatus {
+  platform: "wordpress";
+  templateName: string;
+  exists: boolean;
+  templateFile?: string | null;
+  theme?: {
+    name?: string | null;
+    stylesheet?: string | null;
+    template?: string | null;
+  } | null;
 }
 
 export interface CmsSlugCheckResponse {
@@ -150,6 +172,13 @@ interface ContentStatusResponse {
   data?: CmsContentStatus;
 }
 
+interface WordpressPageTemplateStatusResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: CmsWordpressPageTemplateStatus;
+}
+
 interface SlugCheckPayload {
   businessId: string;
   contentId: string;
@@ -251,7 +280,7 @@ export function useCmsPublishingChannel(businessId: string | null) {
         "node"
       );
       if (!res?.success) throw new Error(res?.message || "Failed to fetch publishing channel");
-      return res.data || { connected: false, platform: null, connection: null, target: null, domains: [] };
+      return res.data || { connected: false, platform: null, connection: null, target: null, targets: {}, domains: [], domainsByType: {} };
     },
     staleTime: 15 * 1000,
   });
@@ -275,6 +304,30 @@ export function useCmsPublishingContentStatus(businessId: string | null, content
   });
 }
 
+export function useCmsWordpressPageTemplateStatus(businessId: string | null, enabled = true) {
+  return useQuery<CmsWordpressPageTemplateStatus>({
+    queryKey: ["cms-publishing-wordpress-page-template", businessId],
+    enabled: Boolean(enabled && businessId),
+    queryFn: async () => {
+      const res = await api.get<WordpressPageTemplateStatusResponse>(
+        `/cms/publishing/wordpress-page-template?businessId=${encodeURIComponent(String(businessId))}`,
+        "node"
+      );
+      if (!res?.success) throw new Error(res?.message || "Failed to verify WordPress Massic Template");
+      return res.data || {
+        platform: "wordpress",
+        templateName: "Massic Template",
+        exists: false,
+        templateFile: null,
+        theme: null,
+      };
+    },
+    staleTime: 15 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  });
+}
+
 export function useCmsSlugCheck() {
   return useMutation<CmsSlugCheckResponse, Error, SlugCheckPayload>({
     mutationFn: async (payload) => {
@@ -288,11 +341,13 @@ export function useCmsSlugCheck() {
 interface WebflowStagingPreviewPayload {
   businessId: string;
   contentId: string;
+  type?: "post" | "page";
 }
 
 interface WebflowRollbackToDraftPayload {
   businessId: string;
   contentId: string;
+  type?: "post" | "page";
 }
 
 export function useCmsWebflowStagingPreview() {

@@ -89,6 +89,18 @@ export interface V2Response<T = any> {
   }
 }
 
+type V2Data<T = any> = V2Response<T>["data"]
+
+interface GscBulkResponse {
+  success: boolean
+  data: {
+    date?: V2Data<GscMetricRow>
+    content_group?: V2Data<GscMetricRow>
+    page?: V2Data<GscMetricRow>
+    query?: V2Data<GscMetricRow>
+  }
+}
+
 interface GscMetricRow {
   keys?: string[]
   group?: string
@@ -678,6 +690,14 @@ function buildBasePayload(period: TimePeriodValue, website: string, filters: Dee
   }
 }
 
+function hasQueryFilter(filters: DeepdiveApiFilter[]): boolean {
+  return filters.some((filter) => String(filter.dimension || "").toLowerCase() === "query")
+}
+
+function toV2Response<T>(data?: V2Data<T>): V2Response<T> {
+  return data ? { success: true, data } : buildEmptyV2Response<T>()
+}
+
 export type GA4TrafficScope = "all" | "organic"
 
 export function useGSCAnalytics(
@@ -710,6 +730,8 @@ export function useGSCAnalytics(
 
   const filtersQueryKey = useMemo(() => JSON.stringify(filters ?? []), [filters])
   const enabled = Boolean(businessUniqueId && website)
+  const queryFilterActive = useMemo(() => hasQueryFilter(filters), [filters])
+  const ga4Enabled = enabled && !queryFilterActive
   const basePayload = useMemo(
     () =>
       website
@@ -721,71 +743,56 @@ export function useGSCAnalytics(
     [businessUniqueId, filters, period, website]
   )
 
-  const gscDateQuery = useQuery<V2Response<GscMetricRow>>({
-    queryKey: ["gsc-date", businessUniqueId, website, period, filtersQueryKey],
+  const gscBulkQuery = useQuery<GscBulkResponse>({
+    queryKey: ["gsc-bulk", businessUniqueId, website, period, filtersQueryKey],
     queryFn: async () => {
       if (!basePayload) {
         throw new Error("Missing business ID or website")
       }
 
-      return api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
-        ...basePayload,
-        dimension: "date",
-      })
-    },
-    enabled,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  })
+      try {
+        return await api.post<GscBulkResponse>("/analytics/gsc/analytics-v2/bulk", "node", {
+          ...basePayload,
+          dimensions: [
+            { dimension: "date" },
+            { dimension: "content_group", limit: 200 },
+            { dimension: "page", limit: 500 },
+            { dimension: "query", limit: 200 },
+          ],
+        })
+      } catch {
+        const [date, contentGroup, page, query] = await Promise.all([
+          api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+            ...basePayload,
+            dimension: "date",
+          }),
+          api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+            ...basePayload,
+            dimension: "content_group",
+            limit: 200,
+          }),
+          api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+            ...basePayload,
+            dimension: "page",
+            limit: 500,
+          }),
+          api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
+            ...basePayload,
+            dimension: "query",
+            limit: 200,
+          }),
+        ])
 
-  const gscContentGroupsQuery = useQuery<V2Response<GscMetricRow>>({
-    queryKey: ["gsc-content-groups", businessUniqueId, website, period, filtersQueryKey],
-    queryFn: async () => {
-      if (!basePayload) {
-        throw new Error("Missing business ID or website")
+        return {
+          success: true,
+          data: {
+            date: date.data,
+            content_group: contentGroup.data,
+            page: page.data,
+            query: query.data,
+          },
+        }
       }
-
-      return api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
-        ...basePayload,
-        dimension: "content_group",
-        limit: 200,
-      })
-    },
-    enabled,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  })
-
-  const gscTopPagesQuery = useQuery<V2Response<GscMetricRow>>({
-    queryKey: ["gsc-top-pages", businessUniqueId, website, period, filtersQueryKey],
-    queryFn: async () => {
-      if (!basePayload) {
-        throw new Error("Missing business ID or website")
-      }
-
-      return api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
-        ...basePayload,
-        dimension: "page",
-        limit: 500,
-      })
-    },
-    enabled,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
-  })
-
-  const gscTopQueriesQuery = useQuery<V2Response<GscMetricRow>>({
-    queryKey: ["gsc-top-queries", businessUniqueId, website, period, filtersQueryKey],
-    queryFn: async () => {
-      if (!basePayload) {
-        throw new Error("Missing business ID or website")
-      }
-
-      return api.post<V2Response<GscMetricRow>>("/analytics/gsc/analytics-v2", "node", {
-        ...basePayload,
-        dimension: "query",
-        limit: 200,
-      })
     },
     enabled,
     staleTime: 5 * 60 * 1000,
@@ -809,7 +816,7 @@ export function useGSCAnalytics(
         return buildEmptyV2Response<Ga4MetricRow>()
       }
     },
-    enabled,
+    enabled: ga4Enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
@@ -832,7 +839,7 @@ export function useGSCAnalytics(
         return buildEmptyV2Response<Ga4MetricRow>()
       }
     },
-    enabled,
+    enabled: ga4Enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
@@ -855,15 +862,15 @@ export function useGSCAnalytics(
         return buildEmptyV2Response<Ga4MetricRow>()
       }
     },
-    enabled,
+    enabled: ga4Enabled,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
 
-  const gscDateData = gscDateQuery.data ?? buildEmptyV2Response<GscMetricRow>()
-  const gscContentData = gscContentGroupsQuery.data ?? buildEmptyV2Response<GscMetricRow>()
-  const gscPagesData = gscTopPagesQuery.data ?? buildEmptyV2Response<GscMetricRow>()
-  const gscQueriesData = gscTopQueriesQuery.data ?? buildEmptyV2Response<GscMetricRow>()
+  const gscDateData = toV2Response<GscMetricRow>(gscBulkQuery.data?.data.date)
+  const gscContentData = toV2Response<GscMetricRow>(gscBulkQuery.data?.data.content_group)
+  const gscPagesData = toV2Response<GscMetricRow>(gscBulkQuery.data?.data.page)
+  const gscQueriesData = toV2Response<GscMetricRow>(gscBulkQuery.data?.data.query)
 
   const ga4DateData = ga4DateQuery.data ?? buildEmptyV2Response<Ga4MetricRow>()
   const ga4ContentData = ga4ContentGroupsQuery.data ?? buildEmptyV2Response<Ga4MetricRow>()
@@ -1222,48 +1229,42 @@ export function useGSCAnalytics(
   const hasTopQueriesData = topQueryRows.length > 0
 
   const loadingState: GSCAnalyticsLoadingState = {
-    chart: gscDateQuery.isLoading || ga4DateQuery.isLoading,
-    funnel: gscDateQuery.isLoading || ga4DateQuery.isLoading,
-    contentGroups: gscContentGroupsQuery.isLoading || ga4ContentGroupsQuery.isLoading,
-    topPages: gscTopPagesQuery.isLoading || ga4TopPagesQuery.isLoading,
-    topQueries: gscTopQueriesQuery.isLoading,
+    chart: gscBulkQuery.isLoading || ga4DateQuery.isLoading,
+    funnel: gscBulkQuery.isLoading || ga4DateQuery.isLoading,
+    contentGroups: gscBulkQuery.isLoading || ga4ContentGroupsQuery.isLoading,
+    topPages: gscBulkQuery.isLoading || ga4TopPagesQuery.isLoading,
+    topQueries: gscBulkQuery.isLoading,
   }
 
   const isLoading = Object.values(loadingState).some(Boolean)
   const isFetching = [
-    gscDateQuery,
-    gscContentGroupsQuery,
-    gscTopPagesQuery,
-    gscTopQueriesQuery,
+    gscBulkQuery,
     ga4DateQuery,
     ga4ContentGroupsQuery,
     ga4TopPagesQuery,
   ].some((query) => query.isFetching)
 
   const error =
-    gscDateQuery.error ||
-    gscContentGroupsQuery.error ||
-    gscTopPagesQuery.error ||
-    gscTopQueriesQuery.error
+    gscBulkQuery.error
 
   const refetch = useCallback(async () => {
-    return Promise.allSettled([
-      gscDateQuery.refetch(),
-      gscContentGroupsQuery.refetch(),
-      gscTopPagesQuery.refetch(),
-      gscTopQueriesQuery.refetch(),
-      ga4DateQuery.refetch(),
-      ga4ContentGroupsQuery.refetch(),
-      ga4TopPagesQuery.refetch(),
-    ])
+    const refetches: Promise<unknown>[] = [gscBulkQuery.refetch()]
+
+    if (!queryFilterActive) {
+      refetches.push(
+        ga4DateQuery.refetch(),
+        ga4ContentGroupsQuery.refetch(),
+        ga4TopPagesQuery.refetch()
+      )
+    }
+
+    return Promise.allSettled(refetches)
   }, [
     ga4ContentGroupsQuery,
     ga4DateQuery,
     ga4TopPagesQuery,
-    gscContentGroupsQuery,
-    gscDateQuery,
-    gscTopPagesQuery,
-    gscTopQueriesQuery,
+    gscBulkQuery,
+    queryFilterActive,
   ])
 
   return {

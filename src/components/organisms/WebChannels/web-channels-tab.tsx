@@ -28,6 +28,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Typography } from "@/components/ui/typography";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -37,6 +44,7 @@ import {
 } from "@/hooks/use-wordpress-connector";
 import {
   useConfigureWebflow,
+  useConfigureWebflowPages,
   useDisconnectWebflow,
   useStartWebflowOauth,
   useWebflowCollections,
@@ -77,13 +85,50 @@ interface WebChannelsTabProps {
 
 const EMPTY_WEBFLOW_FIELDS: WebflowCollectionField[] = [];
 const EMPTY_SANITY_FIELDS: SanityField[] = [];
-const WORDPRESS_PLUGIN_ZIP_PATH = "/downloads/massic-wp-connector-1.0.0.zip";
+const WORDPRESS_PLUGIN_QA_ZIP_PATH = "/downloads/massic-integration-qa-1.0.0.zip";
+
+function getWordpressPluginBuildEnv(): "qa" | "prod" {
+  const envLabel = [
+    process.env.NEXT_PUBLIC_APP_ENV,
+    process.env.NEXT_PUBLIC_ENV,
+    process.env.NEXT_PUBLIC_DEPLOY_ENV,
+    process.env.NEXT_PUBLIC_NODE_API_URL,
+    process.env.NODE_ENV,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/(qa|dev|development|staging|seedinternaldev|localhost)/.test(envLabel)) {
+    return "qa";
+  }
+
+  return "prod";
+}
+
+const WORDPRESS_PLUGIN_BUILD_ENV = getWordpressPluginBuildEnv();
+const IS_WORDPRESS_QA_PLUGIN_BUILD = WORDPRESS_PLUGIN_BUILD_ENV === "qa";
 
 function normalizeSiteUrlInput(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
+}
+
+function buildWordpressPluginInstallUrl(siteUrl: string) {
+  try {
+    const parsed = new URL(normalizeSiteUrlInput(siteUrl));
+    const basePath = parsed.pathname.replace(/\/+$/, "");
+    const installUrl = new URL(`${basePath}/wp-admin/plugin-install.php`, parsed.origin);
+    installUrl.searchParams.set("tab", "search");
+    installUrl.searchParams.set("type", "term");
+    installUrl.searchParams.set("s", "massic-integration");
+    installUrl.searchParams.set("massic_from", "massic_app");
+    return installUrl.toString();
+  } catch {
+    return "";
+  }
 }
 
 function getSiteHostLabel(siteUrl?: string | null) {
@@ -199,6 +244,40 @@ function isSanityManagedMassicStyleMapping(row: Pick<SanityMappingRow, "massicFi
   );
 }
 
+type ExternalNavigationFallback = {
+  url: string;
+  title: string;
+  description: string;
+};
+
+function openPendingExternalTab() {
+  const externalWindow = window.open("about:blank", "_blank");
+  if (!externalWindow) return null;
+
+  try {
+    externalWindow.opener = null;
+    externalWindow.document.title = "Opening...";
+    externalWindow.document.body.innerHTML =
+      '<p style="font-family: system-ui, sans-serif; padding: 24px;">Opening secure connection...</p>';
+  } catch {
+    // Some browsers restrict access even for newly opened contexts.
+  }
+
+  return externalWindow;
+}
+
+function navigatePendingExternalTab(externalWindow: Window | null, url: string) {
+  if (!externalWindow || externalWindow.closed) return false;
+
+  try {
+    externalWindow.location.replace(url);
+    externalWindow.focus();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function WebChannelsTab({
   businessId,
   defaultSiteUrl,
@@ -209,6 +288,8 @@ export function WebChannelsTab({
   const [isHowToModalOpen, setIsHowToModalOpen] = React.useState(false);
   const [isSanityConnectModalOpen, setIsSanityConnectModalOpen] = React.useState(false);
   const [isSanityGuideOpen, setIsSanityGuideOpen] = React.useState(false);
+  const [externalNavigationFallback, setExternalNavigationFallback] =
+    React.useState<ExternalNavigationFallback | null>(null);
   const [recommendedSiteUrl, setRecommendedSiteUrl] = React.useState(defaultSiteUrl || "");
   const [sanityProjectId, setSanityProjectId] = React.useState("");
   const [sanityDataset, setSanityDataset] = React.useState("production");
@@ -216,6 +297,7 @@ export function WebChannelsTab({
   const [sanityPreviewBaseUrl, setSanityPreviewBaseUrl] = React.useState("");
   const [sanityUrlPattern, setSanityUrlPattern] = React.useState("/blog/{slug}");
   const [selectedWebflowSiteId, setSelectedWebflowSiteId] = React.useState("");
+  const [selectedWebflowPageSiteId, setSelectedWebflowPageSiteId] = React.useState("");
   const [selectedWebflowCollectionId, setSelectedWebflowCollectionId] = React.useState("");
   const [webflowMappings, setWebflowMappings] = React.useState<WebflowMappingRow[]>([]);
   const [webflowImageDestinations, setWebflowImageDestinations] = React.useState<WebflowImageDestinationRow[]>([]);
@@ -250,9 +332,11 @@ export function WebChannelsTab({
   const webflowConnection = webflowConnectionQuery.data?.connection || null;
   const isWebflowConnected = Boolean(webflowConnectionQuery.data?.connected && webflowConnection);
   const webflowTarget = webflowConnection?.target || null;
+  const webflowPageTarget = webflowConnection?.targets?.page || null;
   const startWebflowOauthMutation = useStartWebflowOauth();
   const disconnectWebflowMutation = useDisconnectWebflow(businessId);
   const configureWebflowMutation = useConfigureWebflow(businessId);
+  const configureWebflowPagesMutation = useConfigureWebflowPages(businessId);
   const sanityConnectionQuery = useSanityConnection(businessId);
   const sanityConnection = sanityConnectionQuery.data?.connection || null;
   const isSanityConnected = Boolean(sanityConnectionQuery.data?.connected && sanityConnection);
@@ -269,16 +353,19 @@ export function WebChannelsTab({
   const webflowSitesQuery = useWebflowSites(webflowConnection?.connectionId || null);
   const webflowSites = webflowSitesQuery.data || [];
   const effectiveWebflowSiteId = selectedWebflowSiteId || webflowTarget?.siteId || "";
+  const effectiveWebflowPageSiteId = selectedWebflowPageSiteId || webflowPageTarget?.siteId || "";
   const webflowCollectionsQuery = useWebflowCollections(
     webflowConnection?.connectionId || null,
     effectiveWebflowSiteId || null
   );
   const webflowCollections = webflowCollectionsQuery.data || [];
 
-  const connected = Boolean(data?.connected && data?.connection);
-  const connection = data?.connection || null;
-  const connectedSiteHost = React.useMemo(() => getSiteHostLabel(connection?.siteUrl), [connection?.siteUrl]);
-  const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
+  const connected = Boolean(data?.connected && data?.connection); const connection = data?.connection || null; const connectedSiteHost = React.useMemo(() => getSiteHostLabel(connection?.siteUrl), [connection?.siteUrl]); const wordpressAdminUrl = React.useMemo(() => { if (!connection?.siteUrl) return ""; try { const parsed = new URL(normalizeSiteUrlInput(connection.siteUrl)); const basePath = parsed.pathname.replace(/\/+$/, ""); return `${parsed.origin}${basePath}/wp-admin/options-general.php?page=massic-integration`; } catch { return ""; } }, [connection?.siteUrl]);
+const guideWordpressSiteUrl = connection?.siteUrl || recommendedSiteUrl || defaultSiteUrl || "";
+const guideWordpressUrl = connected
+  ? wordpressAdminUrl
+  : buildWordpressPluginInstallUrl(guideWordpressSiteUrl);
+const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     () => webflowCollections.find(collection => getWebflowId(collection) === selectedWebflowCollectionId) || null,
     [selectedWebflowCollectionId, webflowCollections]
   );
@@ -359,6 +446,11 @@ export function WebChannelsTab({
     return site?.displayName || site?.name || site?.shortName || null;
   }, [effectiveWebflowSiteId, webflowSites]);
 
+  const selectedWebflowPageSiteName = React.useMemo(() => {
+    const site = webflowSites.find(s => getWebflowId(s) === effectiveWebflowPageSiteId);
+    return site?.displayName || site?.name || site?.shortName || null;
+  }, [effectiveWebflowPageSiteId, webflowSites]);
+
   const selectedWebflowCollectionName = React.useMemo(
     () => selectedWebflowCollection?.displayName || selectedWebflowCollection?.name || webflowTarget?.name || null,
     [selectedWebflowCollection, webflowTarget?.name]
@@ -389,6 +481,19 @@ export function WebChannelsTab({
       sanityTarget?.metadata?.urlPattern,
     ]
   );
+
+  const latestWebflowPageSetupData =
+    configureWebflowPagesMutation.variables?.siteId === effectiveWebflowPageSiteId
+      ? configureWebflowPagesMutation.data?.data || null
+      : null;
+  const hasSavedWebflowPageTarget = Boolean(
+    webflowPageTarget?.collectionId && webflowPageTarget.siteId === effectiveWebflowPageSiteId
+  );
+  const isWebflowPageSetupReady = latestWebflowPageSetupData
+    ? Boolean(latestWebflowPageSetupData.ready)
+    : hasSavedWebflowPageTarget;
+  const webflowPageSetupStatus = latestWebflowPageSetupData?.status || (isWebflowPageSetupReady ? "ready" : "not_checked");
+  const webflowPageSetupErrors = latestWebflowPageSetupData?.errors || [];
 
   React.useEffect(() => {
     if (!recommendedSiteUrl && defaultSiteUrl) setRecommendedSiteUrl(defaultSiteUrl);
@@ -421,6 +526,12 @@ export function WebChannelsTab({
     sanityTarget?.documentType,
     selectedSanityDocumentType,
   ]);
+
+  React.useEffect(() => {
+    if (webflowPageTarget?.siteId && !selectedWebflowPageSiteId) {
+      setSelectedWebflowPageSiteId(webflowPageTarget.siteId);
+    }
+  }, [selectedWebflowPageSiteId, webflowPageTarget?.siteId]);
 
   React.useEffect(() => {
     if (!selectedWebflowCollection) {
@@ -663,38 +774,14 @@ export function WebChannelsTab({
     return () => window.removeEventListener("message", onWebflowOauthMessage);
   }, [refetch, sanityConnectionQuery, webflowConnectionQuery]);
 
-  const submitRecommended = async () => {
-    const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl);
-    if (!siteUrl) return;
-    setIsRecommendedModalOpen(false);
-    const response = await oauthStartLinkMutation.mutateAsync({ businessId, siteUrl });
-    const connectUrl = response?.data?.connectUrl;
-    if (!connectUrl) return;
-    const popup = window.open(connectUrl, "_blank", "noopener,noreferrer");
-    if (!popup) {
-      toast.error("Popup blocked", { description: "Allow popups for this site and try again." });
-      return;
-    }
-    toast.success("WordPress admin opened", {
-      description: "Click Connect to Massic in your plugin page.",
-    });
-  };
+  const submitRecommended = async () => { const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl); if (!siteUrl) return; const wordpressInstallUrl = buildWordpressPluginInstallUrl(siteUrl); if (!wordpressInstallUrl) { toast.error("Invalid WordPress site URL"); return; } const pendingWindow = openPendingExternalTab(); setIsRecommendedModalOpen(false); try { await oauthStartLinkMutation.mutateAsync({ businessId, siteUrl }); if (!navigatePendingExternalTab(pendingWindow, wordpressInstallUrl)) { setExternalNavigationFallback({ url: wordpressInstallUrl, title: "Open WordPress plugin search", description: "Your browser blocked the new tab. Open WordPress from here to install Massic Integration.", }); return; } toast.success("WordPress plugin search opened", { description: "Install Massic Integration, then open Settings and click Connect Massic.", }); } catch { pendingWindow?.close(); } };
 
   const submitDisconnect = async () => {
     if (!connection?.connectionId) return;
     await disconnectMutation.mutateAsync({ connectionId: connection.connectionId });
   };
 
-  const submitWebflowConnect = async () => {
-    const returnUrl = `${window.location.origin}/business/${businessId}/web?integrations=1`;
-    const response = await startWebflowOauthMutation.mutateAsync({ businessId, returnUrl });
-    const authorizationUrl = response?.data?.authorizationUrl;
-    if (!authorizationUrl) return;
-    const popup = window.open(authorizationUrl, "_blank", "noopener,noreferrer");
-    if (!popup) {
-      toast.error("Popup blocked", { description: "Allow popups for this site and try again." });
-    }
-  };
+  const submitWebflowConnect = async () => { const pendingWindow = openPendingExternalTab(); const returnUrl = `${window.location.origin}/business/${businessId}/web?integrations=1`; try { const response = await startWebflowOauthMutation.mutateAsync({ businessId, returnUrl }); const authorizationUrl = response?.data?.authorizationUrl; if (!authorizationUrl) { pendingWindow?.close(); return; } if (!navigatePendingExternalTab(pendingWindow, authorizationUrl)) { setExternalNavigationFallback({ url: authorizationUrl, title: "Open Webflow authorization", description: "Your browser blocked the new tab. Open Webflow from here to continue setup.", }); } } catch { pendingWindow?.close(); } };
 
   const submitWebflowConfiguration = async () => {
     if (
@@ -787,28 +874,23 @@ export function WebChannelsTab({
     });
   };
 
-  const handleOpenWordpressAdmin = () => {
-    if (!connection?.siteUrl) return;
-    try {
-      const parsed = new URL(normalizeSiteUrlInput(connection.siteUrl));
-      const basePath = parsed.pathname.replace(/\/+$/, "");
-      const adminUrl = `${parsed.origin}${basePath}/wp-admin`;
-      const popup = window.open(adminUrl, "_blank", "noopener,noreferrer");
-      if (!popup) {
-        toast.error("Popup blocked", {
-          description: "Allow popups or open wp-admin manually.",
-        });
-      }
-    } catch {
-      toast.error("Invalid WordPress site URL");
-    }
+  const submitWebflowPagesConfiguration = async () => {
+    if (!webflowConnection?.connectionId || !effectiveWebflowPageSiteId) return;
+    await configureWebflowPagesMutation.mutateAsync({
+      connectionId: webflowConnection.connectionId,
+      siteId: effectiveWebflowPageSiteId,
+    });
   };
+
+  const handleInvalidWordpressAdminUrl = () => { toast.error("Invalid WordPress site URL"); };
 
   const canSaveWebflowConfig =
     Boolean(webflowConnection?.connectionId && selectedWebflowSiteId && selectedWebflowCollectionId && hasBodyMapping) &&
     missingStaticMappings.length === 0 &&
     missingRequiredImageMappings.length === 0 &&
     !configureWebflowMutation.isPending;
+  const canCheckWebflowPagesSetup = Boolean(webflowConnection?.connectionId && effectiveWebflowPageSiteId) &&
+    !configureWebflowPagesMutation.isPending;
 
   const needsWebflowSetup = isWebflowConnected && !webflowTarget?.collectionId;
   const canSaveSanityConfig =
@@ -856,10 +938,19 @@ export function WebChannelsTab({
             <div className="flex shrink-0 items-center gap-2">
               {connected ? (
                 <>
-                  <Button size="sm" variant="outline" onClick={handleOpenWordpressAdmin}>
-                    <ExternalLink className="mr-1.5 size-4" />
-                    WP Admin
-                  </Button>
+                  {wordpressAdminUrl ? (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={wordpressAdminUrl} target="_blank" rel="noreferrer">
+                        <ExternalLink className="mr-1.5 size-4" />
+                        WP Admin
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={handleInvalidWordpressAdminUrl}>
+                      <ExternalLink className="mr-1.5 size-4" />
+                      WP Admin
+                    </Button>
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button size="icon" variant="outline" className="size-9">
@@ -1021,6 +1112,84 @@ export function WebChannelsTab({
                     getWebflowFieldType={getWebflowFieldType}
                     isWebflowRequiredField={isWebflowRequiredField}
                   />
+                  <div className="mt-5 rounded-lg border border-general-border bg-background p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <Typography variant="small" className="font-medium text-general-foreground">
+                          Massic Pages collection
+                        </Typography>
+                        <p className="mt-1 text-sm text-general-muted-foreground">
+                          Create a Webflow CMS collection named <span className="font-medium text-general-foreground">Massic Pages</span>.
+                          Add custom fields <span className="font-medium text-general-foreground">Content</span> (Rich Text),
+                          <span className="font-medium text-general-foreground"> Meta title</span> (Plain Text), and
+                          <span className="font-medium text-general-foreground"> Meta description</span> (Plain Text).
+                        </p>
+                        <p className="mt-1 text-xs text-general-muted-foreground">
+                          Recommended collection URL slug: <span className="font-medium text-general-foreground">resources</span>.
+                          Massic checks the collection and fields before allowing Webflow page publishing.
+                        </p>
+                      </div>
+                      <div className="shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium text-general-muted-foreground">
+                        {isWebflowPageSetupReady
+                          ? "Ready"
+                          : webflowPageSetupStatus === "missing_collection"
+                            ? "Collection missing"
+                            : webflowPageSetupStatus === "invalid_schema"
+                              ? "Invalid fields"
+                              : "Not checked"}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                      <div className="space-y-2">
+                        <Label htmlFor="webflow-page-site">Page publish site</Label>
+                        <Select
+                          value={effectiveWebflowPageSiteId || undefined}
+                          onValueChange={setSelectedWebflowPageSiteId}
+                          disabled={webflowSitesQuery.isLoading}
+                        >
+                          <SelectTrigger id="webflow-page-site" className="w-full cursor-pointer">
+                            <SelectValue placeholder={webflowSitesQuery.isLoading ? "Loading sites…" : "Select site"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {webflowSites.map(site => {
+                              const id = getWebflowId(site);
+                              return (
+                                <SelectItem key={id} value={id}>
+                                  {site.displayName || site.name || site.shortName || id}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        variant={isWebflowPageSetupReady ? "outline" : "default"}
+                        onClick={submitWebflowPagesConfiguration}
+                        disabled={!canCheckWebflowPagesSetup}
+                      >
+                        {configureWebflowPagesMutation.isPending ? "Checking…" : isWebflowPageSetupReady ? "Recheck setup" : "Check setup"}
+                      </Button>
+                    </div>
+
+                    <div className="mt-3 text-xs text-general-muted-foreground">
+                      {isWebflowPageSetupReady ? (
+                        <span>
+                          Pages will publish to {webflowPageTarget?.name || "Massic Pages"}
+                          {selectedWebflowPageSiteName ? ` on ${selectedWebflowPageSiteName}` : ""}.
+                        </span>
+                      ) : webflowPageSetupErrors.length > 0 ? (
+                        <ul className="list-disc space-y-1 pl-4">
+                          {webflowPageSetupErrors.map(error => (
+                            <li key={error}>{error}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span>Select a site and check setup after creating the Massic Pages collection in Webflow.</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -1292,7 +1461,7 @@ export function WebChannelsTab({
           <DialogHeader>
             <DialogTitle>Connect WordPress</DialogTitle>
             <DialogDescription>
-              Enter your site URL. We&apos;ll open your WordPress admin where you can approve the connection.
+              Enter your site URL. We&apos;ll open WordPress so an admin can install or open Massic Integration.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-1">
@@ -1307,8 +1476,8 @@ export function WebChannelsTab({
               />
             </div>
             <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
-              In WordPress, open <strong className="text-general-foreground">Settings → Massic Connector</strong> and
-              click <strong className="text-general-foreground">Connect to Massic</strong>.
+ Use a WordPress administrator account. Install and activate <strong className="text-general-foreground">Massic Integration</strong>,
+ open <strong className="text-general-foreground">Settings → Massic Integration</strong>, then click <strong className="text-general-foreground">Connect Massic</strong>.
             </p>
             <Button
               variant="link"
@@ -1336,24 +1505,91 @@ export function WebChannelsTab({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>WordPress setup</DialogTitle>
-            <DialogDescription>Install the connector plugin and link your site in a few steps.</DialogDescription>
+            <DialogDescription>
+              {IS_WORDPRESS_QA_PLUGIN_BUILD
+                ? "Download the QA plugin build, install it, and link your site."
+                : "Install the approved Massic Integration plugin and link your site."}
+            </DialogDescription>
           </DialogHeader>
           <ol className="list-decimal space-y-2.5 py-1 pl-5 text-sm text-general-foreground">
-            <li>Download and install the Massic connector plugin.</li>
-            <li>In WP admin: <strong>Plugins → Add New → Upload</strong>, then activate.</li>
-            <li>Open <strong>Settings → Massic Connector</strong>.</li>
-            <li>Here, click <strong>Connect</strong>, enter your site URL, and approve in WordPress.</li>
+            {IS_WORDPRESS_QA_PLUGIN_BUILD ? (
+              <>
+                <li>Download the QA plugin ZIP from Massic.</li>
+                <li>In WP Admin, go to <strong>Plugins → Add New → Upload Plugin</strong>.</li>
+                <li>Upload the ZIP, install it, and activate it.</li>
+                <li>Open <strong>Settings → Massic Integration</strong>.</li>
+                <li>Click <strong>Connect Massic</strong> and approve the connection.</li>
+              </>
+            ) : (
+              <>
+                <li>In WP Admin, go to <strong>Plugins → Add New</strong>.</li>
+                <li>Search <strong>massic-integration</strong> or <strong>Massic Integration</strong>.</li>
+                <li>Install and activate the plugin.</li>
+                <li>Open <strong>Settings → Massic Integration</strong>.</li>
+                <li>Click <strong>Connect Massic</strong> and approve the connection.</li>
+              </>
+            )}
           </ol>
           <DialogFooter className="sm:justify-between">
             <Button variant="outline" onClick={() => setIsHowToModalOpen(false)}>
               Close
             </Button>
-            <Button asChild>
-              <a href={WORDPRESS_PLUGIN_ZIP_PATH} download>
-                <Download className="mr-1.5 size-4" />
-                Download plugin
-              </a>
+            {IS_WORDPRESS_QA_PLUGIN_BUILD ? (
+              <Button asChild>
+                <a href={WORDPRESS_PLUGIN_QA_ZIP_PATH} download>
+                  <Download className="mr-1.5 size-4" />
+                  Download QA plugin
+                </a>
+              </Button>
+ ) : guideWordpressUrl ? (
+ <Button asChild>
+ <a href={guideWordpressUrl} target="_blank" rel="noreferrer">
+ <ExternalLink className="mr-1.5 size-4" />
+ Open WordPress
+ </a>
+ </Button>
+ ) : (
+ <Button disabled>
+ <ExternalLink className="mr-1.5 size-4" />
+ Open WordPress
+ </Button>
+ )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(externalNavigationFallback)} onOpenChange={(open) => { if (!open) setExternalNavigationFallback(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{externalNavigationFallback?.title || "Open connection"}</DialogTitle>
+            <DialogDescription>{externalNavigationFallback?.description}</DialogDescription>
+          </DialogHeader>
+          {externalNavigationFallback?.url ? (
+            <p className="break-all rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 font-mono text-xs text-general-muted-foreground">
+              {externalNavigationFallback.url}
+            </p>
+          ) : null}
+          <DialogFooter className="sm:justify-between">
+            <Button variant="outline" onClick={() => setExternalNavigationFallback(null)}>
+              Cancel
             </Button>
+            <div className="flex gap-2">
+              {externalNavigationFallback?.url ? (
+                <Button variant="outline" asChild>
+                  <a href={externalNavigationFallback.url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="mr-1.5 size-4" />
+                    Try new tab
+                  </a>
+                </Button>
+              ) : null}
+              <Button
+                onClick={() => {
+                  if (!externalNavigationFallback?.url) return;
+                  window.location.assign(externalNavigationFallback.url);
+                }}
+              >
+                Open here
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

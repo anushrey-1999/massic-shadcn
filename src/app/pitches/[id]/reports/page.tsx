@@ -24,12 +24,14 @@ import {
   useStartQuickyReport,
   useQuickyReportStatus,
   useFetchReportFromDownloadUrl,
+  buildSeoSnapshotRequestBodyFromBusinessProfile,
   extractExpressPitch,
   extractSnapshotSectionsMarkdown,
   extractDetailedSectionsMarkdown,
 } from "@/hooks/use-pitch-reports";
 import { PitchReportViewer } from "@/components/templates/PitchReportViewer";
 import { SnapshotReportViewer } from "@/components/templates/SnapshotReportViewer";
+import { SeoSnapshotReportViewer } from "@/components/templates/SeoSnapshotReportViewer";
 import {
   useGenerateDetailedReport,
 } from "@/hooks/use-detailed-pitch-workflow";
@@ -41,11 +43,38 @@ import { MassicOpportunitiesModal } from "@/components/molecules/MassicOpportuni
 import { ApplyCreditsModal } from "@/components/molecules/ApplyCreditsModal";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { useCanExecuteMassicOpportunities, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
+import { hasMassicOpportunitiesAccess } from "@/lib/subscription-status";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useAuthStore } from "@/store/auth-store";
 import { formatDate, formatVolume } from "@/lib/format";
 import { useQuickEvaluation } from "@/hooks/use-quick-evaluation";
 import { useAgencyInfo } from "@/hooks/use-agency-settings";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import {
+  normalizeSeoSnapshotReport,
+  type SeoSnapshotReport,
+} from "@/utils/seo-snapshot-report";
+
+function isSnapshotWorkflowProcessing(status: unknown): boolean {
+  return [
+    "queued",
+    "extracting",
+    "keyword_pool",
+    "scoring",
+    "serp_check",
+    "aggregating",
+    "assembling",
+    "pending",
+    "processing",
+    "in_progress",
+  ].includes(String(status || "").trim().toLowerCase());
+}
+
+function isSnapshotWorkflowError(status: unknown): boolean {
+  return ["error", "failed", "failed_cost_guard", "failed_partial_data", "provider_unavailable"].includes(
+    String(status || "").trim().toLowerCase()
+  );
+}
 
 export default function PitchReportsPage() {
   const params = useParams();
@@ -56,6 +85,7 @@ export default function PitchReportsPage() {
   const { user } = useAuthStore();
   const { agencyInfo } = useAgencyInfo();
 
+  const guardPitchSnapshot = useFeatureActionGuard("reports.pitchSnapshot");
   const startQuickyMutation = useStartQuickyReport();
   const fetchReportMutation = useFetchReportFromDownloadUrl();
   const quickEvaluationMutation = useQuickEvaluation();
@@ -63,6 +93,8 @@ export default function PitchReportsPage() {
   const [detailedPolling, setDetailedPolling] = React.useState(false);
   const [downloadedSnapshotExpressPitch, setDownloadedSnapshotExpressPitch] =
     React.useState<ReturnType<typeof extractExpressPitch>>(null);
+  const [downloadedSeoSnapshotReport, setDownloadedSeoSnapshotReport] =
+    React.useState<SeoSnapshotReport | null>(null);
 
   const [activeReport, setActiveReport] = React.useState<
     "snapshot" | "detailed" | null
@@ -108,12 +140,22 @@ export default function PitchReportsPage() {
     queryFn: async () => {
       if (!businessId) return null;
       try {
-        return await api.get("/reports/snapshot", "python", {
+        return await api.get("/reports/seo-snapshot", "python", {
           params: { business_id: businessId },
         });
       } catch (error: any) {
-        if (error?.response?.status === 404) return null;
         if (error?.response?.status === 403) return null;
+        if (error?.response?.status === 404) {
+          try {
+            return await api.get("/reports/snapshot", "python", {
+              params: { business_id: businessId },
+            });
+          } catch (legacyError: any) {
+            if (legacyError?.response?.status === 404) return null;
+            if (legacyError?.response?.status === 403) return null;
+            throw legacyError;
+          }
+        }
         throw error;
       }
     },
@@ -123,7 +165,7 @@ export default function PitchReportsPage() {
     refetchInterval: (query) => {
       const data = query.state.data as any;
       const status = String(data?.status || "").trim().toLowerCase();
-      return status === "pending" || status === "processing" ? 10_000 : false;
+      return isSnapshotWorkflowProcessing(status) ? 10_000 : false;
     },
   });
 
@@ -180,6 +222,30 @@ export default function PitchReportsPage() {
     const fromProfile = String((businessProfile as any)?.Website || "").trim();
     return fromList || fromProfile;
   }, [profiles, businessId, businessProfile]);
+
+  const businessLocation = React.useMemo(() => {
+    const profile = businessProfile as any;
+    const primary = profile?.PrimaryLocation || profile?.primaryLocation;
+    if (primary && typeof primary === "object") {
+      const location = String(primary.Location || primary.location || primary.Name || primary.name || "").trim();
+      const country = String(primary.Country || primary.country || "").trim();
+      return [location, country].filter(Boolean).join(", ");
+    }
+    if (typeof primary === "string") return primary.trim();
+
+    const locations = Array.isArray(profile?.Locations) ? profile.Locations : [];
+    const first = locations[0];
+    if (first && typeof first === "object") {
+      return String(first.DisplayName || first.Name || first.name || first.address || "").trim();
+    }
+    if (typeof first === "string") return first.trim();
+    return "";
+  }, [businessProfile]);
+
+  const seoSnapshotRequestBody = React.useMemo(
+    () => buildSeoSnapshotRequestBodyFromBusinessProfile(businessProfile),
+    [businessProfile]
+  );
 
   const businessPitchRows = React.useMemo<PitchHistoryRow[]>(() => {
     const rows = Array.isArray(businessPitchesQuery.data)
@@ -281,12 +347,12 @@ export default function PitchReportsPage() {
     if (!status) return false;
     if (status.whitelisted) return true;
 
-    const hasSubscription = status.has_subscription && status.status === "active";
+    const hasSubscription = hasMassicOpportunitiesAccess(status);
 
     if (type === "snapshot") {
       if (hasSubscription) {
         const used = status.usage?.snapshot_report?.used ?? 0;
-        const limit = status.usage?.snapshot_report?.limit ?? 15;
+        const limit = status.usage?.snapshot_report?.limit ?? 50;
         return used < limit;
       } else {
         const used = status.free_snapshots?.used ?? 0;
@@ -309,11 +375,11 @@ export default function PitchReportsPage() {
 
   const getUsageLimitForType = React.useCallback((type: "snapshot" | "detailed") => {
     if (!status) return 0;
-    const hasSubscription = status.has_subscription && status.status === "active";
+    const hasSubscription = hasMassicOpportunitiesAccess(status);
 
     if (type === "snapshot") {
       if (hasSubscription) {
-        return status.usage?.snapshot_report?.limit ?? 15;
+        return status.usage?.snapshot_report?.limit ?? 50;
       }
       return status.free_snapshots?.limit ?? 3;
     }
@@ -336,9 +402,10 @@ export default function PitchReportsPage() {
       type: "snapshot" | "detailed",
       generateFn: () => Promise<void>
     ) => {
+      if (!guardPitchSnapshot()) return;
       if (!status) return;
 
-      const hasSubscription = status.has_subscription && status.status === "active";
+      const hasSubscription = hasMassicOpportunitiesAccess(status);
       const hasUsage = hasUsageRemaining(type);
 
       if (!hasSubscription && type === "detailed") {
@@ -454,6 +521,33 @@ export default function PitchReportsPage() {
     quickyStatusQuery.data,
     startQuickyMutation.data,
     snapshotExistingQuery.data,
+  ]);
+
+  const seoSnapshotFallback = React.useMemo(
+    () => ({
+      businessName,
+      website: businessWebsite,
+      location: businessLocation,
+      generatedAt: latestSuccessfulSnapshotCreatedAt
+        ? latestSuccessfulSnapshotCreatedAt.toISOString()
+        : new Date().toISOString(),
+    }),
+    [businessName, businessWebsite, businessLocation, latestSuccessfulSnapshotCreatedAt]
+  );
+
+  const seoSnapshotReport = React.useMemo(() => {
+    return (
+      downloadedSeoSnapshotReport ||
+      normalizeSeoSnapshotReport(quickyStatusQuery.data, seoSnapshotFallback) ||
+      normalizeSeoSnapshotReport(startQuickyMutation.data, seoSnapshotFallback) ||
+      normalizeSeoSnapshotReport(snapshotExistingQuery.data, seoSnapshotFallback)
+    );
+  }, [
+    downloadedSeoSnapshotReport,
+    quickyStatusQuery.data,
+    startQuickyMutation.data,
+    snapshotExistingQuery.data,
+    seoSnapshotFallback,
   ]);
 
   const snapshotProfileTags = React.useMemo(() => {
@@ -589,6 +683,9 @@ export default function PitchReportsPage() {
     if (!businessId) return;
 
     const status = String(quickyStatus).trim().toLowerCase();
+    const seoSnapshotFromPayload =
+      normalizeSeoSnapshotReport(quickyStatusQuery.data, seoSnapshotFallback) ||
+      normalizeSeoSnapshotReport(startQuickyMutation.data, seoSnapshotFallback);
     const snapshotFromPayload =
       extractSnapshotSectionsMarkdown(quickyStatusQuery.data) ||
       extractSnapshotSectionsMarkdown(startQuickyMutation.data);
@@ -598,19 +695,30 @@ export default function PitchReportsPage() {
 
     if (status !== "success") return;
 
+    if (seoSnapshotFromPayload && !downloadedSeoSnapshotReport) {
+      setDownloadedSeoSnapshotReport(seoSnapshotFromPayload);
+      return;
+    }
+
     if (snapshotFromPayload && !reportContent.trim()) {
       setReportContent(snapshotFromPayload);
       return;
     }
 
     if (!downloadUrl) return;
-    if (reportContent.trim()) return;
+    if (downloadedSeoSnapshotReport || reportContent.trim()) return;
     if (fetchReportMutation.isPending || fetchReportMutation.isSuccess) return;
 
     fetchReportMutation
       .mutateAsync({ downloadUrl })
       .then((result) => {
         setReportContent(result.content);
+        if (result.seoSnapshotReport) {
+          const normalized =
+            normalizeSeoSnapshotReport(result.payload, seoSnapshotFallback) ||
+            result.seoSnapshotReport;
+          setDownloadedSeoSnapshotReport(normalized);
+        }
         if (result.expressPitch) {
           setDownloadedSnapshotExpressPitch(result.expressPitch);
         }
@@ -626,6 +734,8 @@ export default function PitchReportsPage() {
     quickyStatusQuery.data?.output_data?.download_url,
     startQuickyMutation.data?.output_data?.download_url,
     reportContent,
+    downloadedSeoSnapshotReport,
+    seoSnapshotFallback,
     fetchReportMutation.isPending,
     fetchReportMutation.isSuccess,
   ]);
@@ -647,8 +757,7 @@ export default function PitchReportsPage() {
   }, [detailedExistingQuery.data, normalizeStatus]);
 
   const isSnapshotProcessing = React.useMemo(() => {
-    const fromExisting =
-      snapshotExistingStatus === "pending" || snapshotExistingStatus === "processing";
+    const fromExisting = isSnapshotWorkflowProcessing(snapshotExistingStatus);
     return fromExisting || isPitchTypeProcessing("snapshot");
   }, [snapshotExistingStatus, isPitchTypeProcessing]);
 
@@ -667,6 +776,7 @@ export default function PitchReportsPage() {
   }, [activeReport, snapshotStatus, detailedStatus, generateDetailedReportMutation.isPending]);
 
   const viewerShowWorkflowMessage = React.useMemo(() => {
+    if (seoSnapshotReport) return false;
     if (reportContent.trim()) return false;
     if (activeReport === "snapshot") {
       return (
@@ -685,6 +795,7 @@ export default function PitchReportsPage() {
     return false;
   }, [
     reportContent,
+    seoSnapshotReport,
     activeReport,
     snapshotStarted,
     startQuickyMutation.isPending,
@@ -694,17 +805,38 @@ export default function PitchReportsPage() {
     detailedStatus,
   ]);
 
+  // For the snapshot path, keep showing the proper loading state whenever there
+  // is nothing renderable yet (and it has not errored). This covers every
+  // transient gap — initial fetch, processing, and the window between a
+  // "success" status and the report finishing downloading/normalizing — so the
+  // legacy markdown viewer never flashes for a frame.
+  const snapshotStillLoading = React.useMemo(() => {
+    if (activeReport !== "snapshot") return false;
+    if (seoSnapshotReport) return false;
+    if (snapshotExpressPitch) return false;
+    if (reportContent.trim()) return false;
+    return !isSnapshotWorkflowError(snapshotStatus);
+  }, [
+    activeReport,
+    seoSnapshotReport,
+    snapshotExpressPitch,
+    reportContent,
+    snapshotStatus,
+  ]);
+
   const shouldShowProcessingEmptyState = React.useMemo(() => {
     if (activeReport === null) return false;
+    if (activeReport === "snapshot" && seoSnapshotReport) return false;
     if (reportContent.trim()) return false;
+    if (snapshotStillLoading) return true;
     const status = String(viewerWorkflowStatus || "").trim().toLowerCase();
-    return status === "pending" || status === "processing" || status === "error";
-  }, [activeReport, reportContent, viewerWorkflowStatus]);
+    return isSnapshotWorkflowProcessing(status) || isSnapshotWorkflowError(status);
+  }, [activeReport, seoSnapshotReport, reportContent, viewerWorkflowStatus, snapshotStillLoading]);
 
   const processingEmptyState = React.useMemo(() => {
     const status = String(viewerWorkflowStatus || "").trim().toLowerCase();
 
-    if (status === "error") {
+    if (isSnapshotWorkflowError(status)) {
       return {
         title: "Report Error",
         description: "Something went wrong while preparing your report. Please try again.",
@@ -712,17 +844,11 @@ export default function PitchReportsPage() {
       };
     }
 
-    if (status === "pending" || status === "processing") {
-      return {
-        title: "Report Processing",
-        description: "Your report is being prepared. Data will be available shortly.",
-        isProcessing: true,
-      };
-    }
-
+    // Single, stable loading state while the report is being prepared/generated
+    // so the title doesn't flip between messages during status transitions.
     return {
-      title: "Preparing Report",
-      description: "Please wait.",
+      title: "Report Processing",
+      description: "Your report is being prepared. Data will be available shortly.",
       isProcessing: true,
     };
   }, [viewerWorkflowStatus]);
@@ -839,6 +965,7 @@ export default function PitchReportsPage() {
     setSnapshotStarted(false);
     setDetailedPolling(false);
     setDownloadedSnapshotExpressPitch(null);
+    setDownloadedSeoSnapshotReport(null);
     startQuickyMutation.reset();
     fetchReportMutation.reset();
     quickEvaluationMutation.reset();
@@ -864,6 +991,7 @@ export default function PitchReportsPage() {
       setSnapshotStarted(false);
       setDetailedPolling(false);
       setDownloadedSnapshotExpressPitch(null);
+      setDownloadedSeoSnapshotReport(null);
       startQuickyMutation.reset();
       fetchReportMutation.reset();
       quickEvaluationMutation.reset();
@@ -897,6 +1025,7 @@ export default function PitchReportsPage() {
     setActiveReport("snapshot");
     setReportContent("");
     setDownloadedSnapshotExpressPitch(null);
+    setDownloadedSeoSnapshotReport(null);
     setSnapshotStarted(true);
     quickEvaluationMutation.reset();
     triggerQuickEvaluation();
@@ -937,10 +1066,12 @@ export default function PitchReportsPage() {
                       queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                       setActiveReport("snapshot");
                       setReportContent("");
+                      setDownloadedSeoSnapshotReport(null);
+                      setDownloadedSnapshotExpressPitch(null);
                       setSnapshotStarted(false);
                       startQuickyMutation.reset();
                       fetchReportMutation.reset();
-                      await startQuickyMutation.mutateAsync({ businessId });
+                      await startQuickyMutation.mutateAsync({ businessId, body: seoSnapshotRequestBody });
                       queryClient.invalidateQueries({ queryKey: ["pitches"] });
                       setSnapshotStarted(true);
                     };
@@ -973,7 +1104,19 @@ export default function PitchReportsPage() {
                 ]}
               />
             ) : (
-              activeReport === "snapshot" && snapshotExpressPitch ? (
+              activeReport === "snapshot" && seoSnapshotReport ? (
+                <SeoSnapshotReportViewer
+                  report={seoSnapshotReport}
+                  poweredByName={agencyInfo?.name}
+                  onBack={() => {
+                    router.push(
+                      businessId
+                        ? `/pitches/${businessId}/reports?view=cards`
+                        : "/pitches"
+                    );
+                  }}
+                />
+              ) : activeReport === "snapshot" && snapshotExpressPitch ? (
                 <SnapshotReportViewer
                   expressPitch={snapshotExpressPitch}
                   generatedAt={snapshotGeneratedAt}
@@ -1070,12 +1213,10 @@ export default function PitchReportsPage() {
 
                   <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                     <Typography variant="p" className="text-primary">
-                      A super-fast, low-cost snapshot of your SEO opportunity. In
-                      10-20 seconds, it gives you a personalized, high-impact teaser
-                      of where you stand and what you could gain—using only your
-                      basic business info and current rankings. It's designed to
-                      spark quick insight and help you decide when it's worth diving
-                      deeper with a full Massic Pitch.
+                      A data-backed SEO opportunity snapshot built from business
+                      profile inputs, search demand, and competitor visibility. It
+                      highlights missed customer demand, the searches competitors
+                      are capturing, and the highest-impact pages to build first.
                     </Typography>
                   </div>
 
@@ -1099,6 +1240,8 @@ export default function PitchReportsPage() {
                             queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                             setActiveReport("snapshot");
                             setReportContent("");
+                            setDownloadedSeoSnapshotReport(null);
+                            setDownloadedSnapshotExpressPitch(null);
                             setSnapshotStarted(true);
                             startQuickyMutation.reset();
                             fetchReportMutation.reset();
@@ -1123,11 +1266,13 @@ export default function PitchReportsPage() {
                               queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                               setActiveReport("snapshot");
                               setReportContent("");
+                              setDownloadedSeoSnapshotReport(null);
+                              setDownloadedSnapshotExpressPitch(null);
                               setSnapshotStarted(false);
                               startQuickyMutation.reset();
                               fetchReportMutation.reset();
                               try {
-                                await startQuickyMutation.mutateAsync({ businessId });
+                                await startQuickyMutation.mutateAsync({ businessId, body: seoSnapshotRequestBody });
                                 queryClient.invalidateQueries({ queryKey: ["pitches"] });
                                 setSnapshotStarted(true);
                               } catch (error) {
@@ -1161,11 +1306,13 @@ export default function PitchReportsPage() {
                             queryClient.removeQueries({ queryKey: ["quicky", "status", businessId] });
                             setActiveReport("snapshot");
                             setReportContent("");
+                            setDownloadedSeoSnapshotReport(null);
+                            setDownloadedSnapshotExpressPitch(null);
                             setSnapshotStarted(false);
                             startQuickyMutation.reset();
                             fetchReportMutation.reset();
                             try {
-                              await startQuickyMutation.mutateAsync({ businessId });
+                              await startQuickyMutation.mutateAsync({ businessId, body: seoSnapshotRequestBody });
                               queryClient.invalidateQueries({ queryKey: ["pitches"] });
                               setSnapshotStarted(true);
                             } catch (error) {
@@ -1270,7 +1417,7 @@ export default function PitchReportsPage() {
       <MassicOpportunitiesModal
         open={showUpgradeModal}
         onOpenChange={setShowUpgradeModal}
-        isActive={status?.status === "active" && status?.has_subscription}
+        isActive={hasMassicOpportunitiesAccess(status)}
         isUpgrading={subscribeMassicOpportunities.isPending}
         isDeactivating={cancelMassicOpportunities.isPending}
         isReactivating={reactivateMassicOpportunities.isPending}

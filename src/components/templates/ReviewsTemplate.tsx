@@ -38,6 +38,7 @@ import {
   type ReviewSortBy,
 } from "@/hooks/use-reviews"
 import { useDebounce } from "@/hooks/use-debounce"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/store/auth-store"
 import { useBusinessProfileSettings } from "@/hooks/use-review-responder-settings"
 import { reviewsPageCampaignsAndCustomersEnabled } from "@/config/reviews-page-features"
@@ -188,15 +189,21 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
 
   const sendReviewReplyMutation = useSendReviewReply()
   const { mutateAsync: saveReviewResponse } = useUpdateReviewResponse()
+  const guardUpdateReply = useFeatureActionGuard("reviews.replies.update")
+  const guardSendReply = useFeatureActionGuard("reviews.replies.send")
   const handleAutoSaveReviewResponse = React.useCallback(
-    (payload: { businessId: string; reviewId: string; updatedResponse: string }) =>
-      saveReviewResponse(payload),
-    [saveReviewResponse]
+    async (payload: { businessId: string; reviewId: string; updatedResponse: string }) => {
+      if (!guardUpdateReply()) return
+      return saveReviewResponse(payload)
+    },
+    [guardUpdateReply, saveReviewResponse]
   )
   const handleSendReviewReply = React.useCallback(
-    (payload: { businessId: string; reviewId: string; replyText: string }) =>
-      sendReviewReplyMutation.mutateAsync(payload),
-    [sendReviewReplyMutation]
+    async (payload: { businessId: string; reviewId: string; replyText: string }) => {
+      if (!guardSendReply()) return
+      return sendReviewReplyMutation.mutateAsync(payload)
+    },
+    [guardSendReply, sendReviewReplyMutation]
   )
 
   const breadcrumbs = React.useMemo(
@@ -424,6 +431,7 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                             rating={review.numericRating || parseInt(review.StarRating) || 0}
                             reviewText={review.Comment || ""}
                             reviewerImageSrc={review.ReviewerProfilePhotoUrl || undefined}
+                            createdAt={review.CreateTime || undefined}
                             generatedResponse={review.SuggestedResponse}
                             editedResponse={review.EditedResponse}
                             existingReply={review.ReviewReplyComment}

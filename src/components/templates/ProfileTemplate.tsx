@@ -27,6 +27,7 @@ import {
   normalizeWebsiteUrl,
 } from "@/utils/utils";
 import { getAutofillErrorMessage } from "@/utils/profile-autofill";
+import { parsePrimaryLocationForPayload, primaryLocationFromProfile, resolvePrimaryLocationFormValue } from "@/utils/primary-location";
 import { Button } from "@/components/ui/button";
 import { GenericInput } from "@/components/ui/generic-input";
 import { Stepper } from "@/components/ui/stepper";
@@ -38,6 +39,7 @@ import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { useToggleBusinessStatus } from "@/hooks/use-linked-businesses";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -126,6 +128,8 @@ const ProfileTemplate = ({
   const router = useRouter();
   const queryClient = useQueryClient();
   const profiles = useBusinessStore((state) => state.profiles);
+  const locationOptions = useBusinessStore((state) => state.profileForm.locationOptions);
+  const locationsLoading = useBusinessStore((state) => state.profileForm.locationsLoading);
   const currentProfile = profiles.find((p) => p.UniqueId === businessId);
   const [isStrategyConfirmOpen, setIsStrategyConfirmOpen] = useState(false);
   const [isUnlinkBusinessConfirmOpen, setIsUnlinkBusinessConfirmOpen] =
@@ -194,23 +198,22 @@ const ProfileTemplate = ({
       };
     }
 
-    // Extract primary location from business API
+    // Extract primary location from business API (resolve to LocationSelect option value)
     let primaryLocation = "";
     const profileDataAny = profileData as any; // Type assertion for PrimaryLocation
+    const locationOptions = useBusinessStore.getState().profileForm.locationOptions;
+
     if (profileDataAny?.PrimaryLocation) {
-      const loc = profileDataAny.PrimaryLocation;
-      if (loc.Location) {
-        // Only append country if it's different from location to avoid duplication
-        const location = loc.Location;
-        const country = loc.Country || "";
-        primaryLocation =
-          country && country.toLowerCase() !== location.toLowerCase()
-            ? `${location},${country}`
-            : location;
-      }
+      primaryLocation = primaryLocationFromProfile(
+        profileDataAny.PrimaryLocation,
+        locationOptions
+      );
     } else if (profileData?.Locations?.[0]) {
       const loc = profileData.Locations[0] as any;
-      primaryLocation = loc.Name || "";
+      primaryLocation = resolvePrimaryLocationFormValue(
+        loc.Name || "",
+        locationOptions
+      );
     }
 
     // Offerings: ONLY field that comes from job API (if job exists)
@@ -446,9 +449,10 @@ const ProfileTemplate = ({
 
         // Map form values to API payload structure
         // Spread existing profile data to preserve all fields, then update specific ones
-        const locationParts = value.primaryLocation.split(",");
-        const location = locationParts[0]?.trim() || "";
-        const country = locationParts[1]?.trim() || "united states";
+        const { Location: location, Country: country } = parsePrimaryLocationForPayload(
+          value.primaryLocation,
+          useBusinessStore.getState().profileForm.locationOptions
+        );
 
         const payload = {
           ...externalProfileData, // Spread existing profile data
@@ -569,7 +573,15 @@ const ProfileTemplate = ({
     },
   });
 
+  const guardAutofillProfile = useFeatureActionGuard("actions.autofillProfile");
+  const guardAcceptPlan = useFeatureActionGuard("actions.acceptPlan");
+  const guardSaveProfile = useFeatureActionGuard("profile.save");
+  const guardUnlinkBusiness = useFeatureActionGuard("business.unlink");
+  const guardSubscribePlan = useFeatureActionGuard("billing.subscribe");
+  const guardChangeBillingPlan = useFeatureActionGuard("billing.changePlan");
+
   const handleAutofillProfile = useCallback(async () => {
+    if (!guardAutofillProfile()) return;
     const values = form.state.values as BusinessInfoFormData;
     const website = cleanWebsiteUrl(values?.website || "").trim();
     if (!website) {
@@ -833,6 +845,37 @@ const ProfileTemplate = ({
     }
   }, [externalProfileData, externalJobDetails, form, isSaving]);
 
+  // Re-resolve primary location once options load (saved API labels -> select values)
+  useEffect(() => {
+    if (isSaving || locationsLoading || !externalProfileData) return;
+
+    const hasSelectableOptions = locationOptions.some(
+      (opt) => !opt.disabled && opt.value !== ""
+    );
+    if (!hasSelectableOptions) return;
+
+    const resolved = primaryLocationFromProfile(
+      (externalProfileData as any).PrimaryLocation,
+      locationOptions
+    );
+    if (!resolved) return;
+
+    const current = String(form.state.values.primaryLocation || "");
+    const currentIsValid = locationOptions.some(
+      (opt) => !opt.disabled && opt.value !== "" && opt.value === current
+    );
+
+    if (!currentIsValid && resolved !== current) {
+      form.setFieldValue("primaryLocation", resolved);
+    }
+  }, [
+    externalProfileData,
+    form,
+    isSaving,
+    locationOptions,
+    locationsLoading,
+  ]);
+
   // Store initial values on mount (only once)
   useEffect(() => {
     if (!initialValuesRef.current) {
@@ -894,6 +937,8 @@ const ProfileTemplate = ({
 
   // Handle Save Changes - memoized to prevent re-renders
   const handleSaveChanges = useCallback(async () => {
+    if (!guardSaveProfile()) return;
+
     setShowSubmitErrors(true);
 
     // Force field-level errors to render (GenericInput only shows errors when touched/has value)
@@ -912,7 +957,7 @@ const ProfileTemplate = ({
     }
 
     await saveProfileValues(parsed.data as BusinessInfoFormData);
-  }, [form, saveProfileValues]);
+  }, [form, guardSaveProfile, saveProfileValues]);
 
   const getPlanTypeFromData = useCallback(
     (data: any) => {
@@ -1242,8 +1287,9 @@ const ProfileTemplate = ({
       return;
     }
 
+    if (!guardAcceptPlan()) return;
     setIsStrategyConfirmOpen(true);
-  }, [handleSaveChanges, hasChanges, isJobCreated]);
+  }, [handleSaveChanges, hasChanges, isJobCreated, guardAcceptPlan]);
 
   // Determine loading state and message
   const isLoading =
@@ -1268,6 +1314,12 @@ const ProfileTemplate = ({
 
   const handlePlanSelect = useCallback(
     async (planName: string, action: "UPGRADE" | "DOWNGRADE" | "SUBSCRIBE") => {
+      if (action === "SUBSCRIBE") {
+        if (!guardSubscribePlan()) return;
+      } else if (!guardChangeBillingPlan()) {
+        return;
+      }
+
       const business = currentProfile || externalProfileData;
       if (!business) return;
       await handleSubscribeToPlan({
@@ -1277,7 +1329,7 @@ const ProfileTemplate = ({
         closeAllModals: () => setPlanModalOpen(false),
       });
     },
-    [currentProfile, externalProfileData, handleSubscribeToPlan]
+    [currentProfile, externalProfileData, guardChangeBillingPlan, guardSubscribePlan, handleSubscribeToPlan]
   );
 
   const businessForUnlink = externalProfileData || currentProfile;
@@ -1285,6 +1337,8 @@ const ProfileTemplate = ({
     Boolean(businessForUnlink?.Id) && businessForUnlink?.IsActive !== false;
 
   const handleConfirmUnlinkBusiness = useCallback(async () => {
+    if (!guardUnlinkBusiness()) return;
+
     if (!businessForUnlink?.Id) {
       toast.error("Unable to unlink business", {
         description: "Business details are still loading. Please try again.",
@@ -1313,6 +1367,7 @@ const ProfileTemplate = ({
   }, [
     businessForUnlink,
     businessId,
+    guardUnlinkBusiness,
     queryClient,
     router,
     toggleBusinessStatusMutation,
@@ -1323,7 +1378,10 @@ const ProfileTemplate = ({
       <Button
         type="button"
         variant="destructive"
-        onClick={() => setIsUnlinkBusinessConfirmOpen(true)}
+        onClick={() => {
+          if (!guardUnlinkBusiness()) return;
+          setIsUnlinkBusinessConfirmOpen(true);
+        }}
         disabled={externalLoading || toggleBusinessStatusMutation.isPending}
       >
         {toggleBusinessStatusMutation.isPending
@@ -1513,6 +1571,7 @@ const ProfileTemplate = ({
                             embedded
                             hideFetchOfferingsFromWebsite
                             extractionController={offeringsExtractor}
+                            restrictFetchOfferings
                           />
                           <div className="w-1/2">
                             <GenericInput<BusinessInfoFormData>
@@ -1665,6 +1724,7 @@ const ProfileTemplate = ({
                         embedded
                         hideFetchOfferingsFromWebsite
                         extractionController={offeringsExtractor}
+                        restrictFetchOfferings
                       />
                       <div className="w-1/2">
                         <GenericInput<BusinessInfoFormData>
@@ -1771,6 +1831,7 @@ const ProfileTemplate = ({
               <AlertDialogAction asChild>
                 <Button
                   onClick={async () => {
+                    if (!guardAcceptPlan()) return;
                     setIsStrategyConfirmOpen(false);
                     try {
                       await handleConfirmAndProceed();

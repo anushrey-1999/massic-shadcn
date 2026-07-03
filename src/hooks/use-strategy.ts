@@ -10,6 +10,23 @@ import type {
   StrategyMetrics,
 } from "@/types/strategy-types";
 
+export function getStrategyTopicKeywords(topic: Pick<StrategyRow, "clusters"> | null | undefined): string[] {
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+
+  for (const cluster of topic?.clusters || []) {
+    for (const keyword of cluster.keywords || []) {
+      const normalized = String(keyword || "").trim();
+      const key = normalized.toLowerCase();
+      if (!normalized || seen.has(key)) continue;
+      seen.add(key);
+      keywords.push(normalized);
+    }
+  }
+
+  return keywords;
+}
+
 /**
  * Custom hook for Strategy API calls
  * Wraps the use-api hook to provide strategy-specific functionality
@@ -282,6 +299,37 @@ export function useStrategy(businessId: string) {
     [strategyApi, transformToTableRows]
   );
 
+  const fetchStrategyTopicKeywords = useCallback(
+    async (topicName: string) => {
+      const normalizedTopicName = topicName.trim();
+      if (!businessId || !normalizedTopicName) return [];
+
+      const result = await fetchStrategy({
+        business_id: businessId,
+        page: 1,
+        perPage: 1,
+        search: undefined,
+        sort: [],
+        filters: [
+          {
+            field: "topic",
+            value: normalizedTopicName,
+            operator: "eq",
+          },
+        ],
+        joinOperator: "and",
+      });
+
+      const topic =
+        result.data.find(
+          (row) => row.topic.trim().toLowerCase() === normalizedTopicName.toLowerCase()
+        ) || result.data[0];
+
+      return getStrategyTopicKeywords(topic);
+    },
+    [businessId, fetchStrategy]
+  );
+
   /**
    * Fetch counts and ranges for filter options
    * This can be used to populate filter dropdowns with counts
@@ -419,6 +467,7 @@ export function useStrategy(businessId: string) {
 
   return {
     fetchStrategy,
+    fetchStrategyTopicKeywords,
     fetchStrategyCounts,
     fetchAllStrategyPages,
     loading: strategyApi.loading || countsApi.loading,

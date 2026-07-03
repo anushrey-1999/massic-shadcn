@@ -24,6 +24,7 @@ import {
   useUpdateAutoSchedule
 } from "@/hooks/use-auto-schedules";
 import type { AutoSchedule } from "@/types/auto-schedule-types";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 
 interface AutoScheduleDialogProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export function AutoScheduleDialog({
   const user = useAuthStore((s) => s.user);
   const userEmail = user?.email || "";
 
+  const guardScheduleReport = useFeatureActionGuard("reports.schedule");
   const createAutoSchedule = useCreateAutoSchedule();
   const updateAutoSchedule = useUpdateAutoSchedule();
 
@@ -136,6 +138,7 @@ export function AutoScheduleDialog({
   };
 
   const handleSave = async () => {
+    if (!guardScheduleReport()) return;
     if (!businessId) return;
 
     try {

@@ -1,0 +1,262 @@
+{
+  "web": {
+    "generateOutline": {
+      "label": "Generate outline",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "generatePage": {
+      "label": "Generate page or blog",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "publish": {
+      "label": "Publish web content",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "refine": {
+      "label": "Refine web content",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "unifiedGenerate": {
+      "label": "Generate web optimization pages",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "social": {
+    "generate": {
+      "label": "Generate social content",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "actions": {
+    "createPlan": {
+      "label": "Create plan",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "refinePlan": {
+      "label": "Refine plan",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "regeneratePlan": {
+      "label": "Regenerate plan",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "acceptPlan": {
+      "label": "Accept plan",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "autofillProfile": {
+      "label": "Autofill business profile",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "activatePlan": {
+      "label": "Make plan active",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "profile": {
+    "save": {
+      "label": "Save business profile",
+      "permission": "canManageSettings",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "fetchOfferings": {
+      "label": "Fetch offerings from website",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "business": {
+    "unlink": {
+      "label": "Unlink business",
+      "permission": "canManageLinkedBusinesses",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "convertPitch": {
+      "label": "Convert pitch to business",
+      "permission": "canManageLinkedBusinesses",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "billing": {
+    "subscribe": {
+      "label": "Subscribe or upgrade plan",
+      "permission": "canManageBilling",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "changePlan": {
+      "label": "Change plan",
+      "permission": "canManageBilling",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "massicOpportunitiesSubscribe": {
+      "label": "Subscribe to Massic Opportunities",
+      "permission": "canManageBilling",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "massicOpportunitiesChange": {
+      "label": "Change Massic Opportunities subscription",
+      "permission": "canManageBilling",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "ads": {
+    "generate": {
+      "label": "Generate TV/radio ad content",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "strategy": {
+    "generateMeetingPrep": {
+      "label": "Generate meeting prep notes",
+      "permission": "canGenerateReports",
+      "blockedFor": [],
+      "visibleWhenRestricted": true
+    }
+  },
+  "technicalAudit": {
+    "generate": {
+      "label": "Generate technical audit",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "regenerate": {
+      "label": "Regenerate technical audit",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "contentSeries": {
+    "generate": {
+      "label": "Generate content series",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "themes": {
+    "generate": {
+      "label": "Generate themes",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "reviews": {
+    "campaigns.create": {
+      "label": "Create review campaign",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "campaigns.edit": {
+      "label": "Edit review campaign",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "customers.create": {
+      "label": "Create review customer",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "customers.edit": {
+      "label": "Edit review customer",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "customers.delete": {
+      "label": "Delete review customer",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "customers.approve": {
+      "label": "Approve review customer",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "customers.sendNow": {
+      "label": "Send review request",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "replies.send": {
+      "label": "Send review reply",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    },
+    "replies.update": {
+      "label": "Update review reply",
+      "permission": "canGenerateContent",
+      "blockedFor": ["ANALYST"],
+      "visibleWhenRestricted": true
+    }
+  },
+  "reports": {
+    "generate": {
+      "label": "Generate report",
+      "permission": "canGenerateReports",
+      "blockedFor": [],
+      "visibleWhenRestricted": true
+    },
+    "schedule": {
+      "label": "Schedule report",
+      "permission": "canGenerateReports",
+      "blockedFor": [],
+      "visibleWhenRestricted": true
+    },
+    "pitchSnapshot": {
+      "label": "Generate pitch snapshot report",
+      "permission": "canGenerateReports",
+      "blockedFor": [],
+      "visibleWhenRestricted": true
+    },
+    "pitchDetailed": {
+      "label": "Generate pitch detailed report",
+      "permission": "canGenerateReports",
+      "blockedFor": [],
+      "visibleWhenRestricted": true
+    }
+  }
+}

@@ -103,6 +103,8 @@ export function useTvRadioAds(_businessId: string) {
         proof_keywords: toArray(item.supporting_data?.by_role_keywords?.proof),
         action_keywords: toArray(item.supporting_data?.by_role_keywords?.action),
 
+        offerings: toArray(item.offerings),
+
         totals,
       };
     });

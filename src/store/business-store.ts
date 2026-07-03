@@ -41,6 +41,9 @@ export interface BusinessProfile {
   LinkedAuthId?: string | null;
   IsActive?: boolean;
   isWhitelisted?: boolean;
+  GscIngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
+  Ga4IngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
+  CreatedDateTime?: string | null;
 }
 
 // Profile form table row types

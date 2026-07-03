@@ -11,6 +11,7 @@ import {
   isNoContentSeriesError,
   useContentSeries,
 } from "@/hooks/use-content-series";
+import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import type {
   ContentSeriesMetrics,
   ContentSeriesRow,
@@ -60,6 +61,7 @@ export function ContentSeriesTableClient({
     }).withDefault([])
   );
   const [joinOperator] = useQueryState("joinOperator", parseAsString.withDefault("and"));
+  const guardGenerate = useFeatureActionGuard("contentSeries.generate");
 
   const hasActiveSearchOrFilters = React.useMemo(() => {
     const hasSearch = (search || "").trim().length > 0;
@@ -151,6 +153,7 @@ export function ContentSeriesTableClient({
   }, [isError, error, onMetricsChange]);
 
   const handleGenerate = React.useCallback(async () => {
+    if (!guardGenerate()) return;
     if (isGenerating) return;
     setIsGenerating(true);
     try {
@@ -163,7 +166,7 @@ export function ContentSeriesTableClient({
     } finally {
       setIsGenerating(false);
     }
-  }, [businessId, generateContentSeries, isGenerating, queryClient, refetch]);
+  }, [businessId, generateContentSeries, guardGenerate, isGenerating, queryClient, refetch]);
 
   const handleOpenRow = React.useCallback((row: ContentSeriesRow) => {
     setSelectedRowId(row.id);

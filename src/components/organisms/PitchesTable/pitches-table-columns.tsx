@@ -8,12 +8,15 @@ import { DataTableColumnHeader } from "@/components/filter-table/data-table-colu
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Typography } from "@/components/ui/typography";
+import { formatUtcToLocalDateTime } from "@/lib/format";
 
 export type PitchRow = {
   id: string;
   business: string;
   website: string;
   business_id: string;
+  createdAt?: string | null;
+  createdAtTs?: number;
 };
 
 export type PitchHistoryRow = {
@@ -115,7 +118,7 @@ export function getPitchHistoryTableColumns(): ColumnDef<PitchHistoryRow>[] {
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="truncate">
-          {row.getValue("dateTime")}
+          {formatUtcToLocalDateTime(row.getValue("dateTime")) || "—"}
         </Typography>
       ),
       meta: {
@@ -210,6 +213,33 @@ export function getPitchesTableColumns(): ColumnDef<PitchRow>[] {
       size: 280,
       minSize: 180,
       maxSize: 380,
+    },
+    {
+      id: "createdAt",
+      accessorKey: "createdAtTs",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Created At" />
+      ),
+      cell: ({ row }) => (
+        <Typography variant="p" className="truncate">
+          {row.original.createdAt
+            ? formatUtcToLocalDateTime(row.original.createdAt)
+            : "—"}
+        </Typography>
+      ),
+      sortingFn: (rowA, rowB) =>
+        (rowA.original.createdAtTs ?? 0) - (rowB.original.createdAtTs ?? 0),
+      meta: {
+        label: "Created At",
+        placeholder: "Filter by date...",
+        variant: "dateRange",
+        icon: CalendarClock,
+      },
+      enableColumnFilter: true,
+      enableSorting: true,
+      size: 220,
+      minSize: 180,
+      maxSize: 300,
     },
     {
       id: "actions",

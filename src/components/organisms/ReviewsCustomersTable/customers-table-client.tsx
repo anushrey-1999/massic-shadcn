@@ -35,6 +35,7 @@ import { DataTableSortList } from "@/components/filter-table/data-table-sort-lis
 import { DataTableSearch } from "@/components/filter-table/data-table-search"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useDebounce } from "@/hooks/use-debounce"
+import { useFeatureActionGuard } from "@/hooks/use-permissions"
 import {
   useApproveReviewCustomers,
   useReviewCampaignById,
@@ -79,6 +81,7 @@ import {
   useSendReviewCustomerNow,
   type ReviewCustomerListItem,
   type ReviewCustomerListSort,
+  type ReviewCustomerMutationError,
   type ReviewCustomerStatus,
 } from "@/hooks/use-review-customers"
 import { isValidUsPhone, normalizeUsPhoneToE164 } from "@/utils/phone"
@@ -97,7 +100,7 @@ type CustomerFormState = {
   campaignId: string
 }
 
-type CustomerFormErrors = Partial<Record<keyof CustomerFormState, string>>
+type CustomerFormErrors = Partial<Record<keyof CustomerFormState | "consentAttested", string>>
 
 type CustomerDialogState =
   | { mode: "add"; row?: null }
@@ -151,6 +154,12 @@ function normalizeStatus(status: string) {
     default:
       return "pending" as const
   }
+}
+
+function getDisplayStatus(item: ReviewCustomerListItem) {
+  if (item.isSuppressed) return "unsubscribed" as const
+  if (item.hasClicked) return "link-clicked" as const
+  return normalizeStatus(item.status)
 }
 
 function isValidEmail(value: string) {
@@ -301,6 +310,81 @@ function getJourneyMarkerIcon(marker: JourneyTimelineItem["marker"]) {
   }
 }
 
+function getConsentStatusConfig(given?: boolean | null) {
+  if (given === false) {
+    return {
+      label: "Revoked",
+      className: "bg-red-50 text-red-700 border-red-200",
+    }
+  }
+  if (given === true) {
+    return {
+      label: "Attested",
+      className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    }
+  }
+  return {
+    label: "No record",
+    className: "bg-muted text-muted-foreground border-border",
+  }
+}
+
+function ConsentIndicator({
+  label,
+  icon: Icon,
+  given,
+  timestamp,
+}: {
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  given?: boolean | null
+  timestamp?: string | null
+}) {
+  const config = getConsentStatusConfig(given)
+  return (
+    <div className="rounded-lg bg-muted/30 px-3 py-2">
+      <div className="mb-1 flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+      <Badge variant="outline" className={config.className}>
+        {config.label}
+      </Badge>
+      {timestamp ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">{formatDateTime(timestamp)}</p>
+      ) : null}
+    </div>
+  )
+}
+
+function UnsubscribedIndicator({
+  isSuppressed,
+  suppressedAt,
+}: {
+  isSuppressed?: boolean
+  suppressedAt?: string | null
+}) {
+  return (
+    <div className="rounded-lg bg-muted/30 px-3 py-2">
+      <div className="mb-1 flex items-center gap-2">
+        <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Unsubscribed</p>
+      </div>
+      <Badge
+        variant="outline"
+        className={isSuppressed
+          ? "bg-red-50 text-red-700 border-red-200"
+          : "bg-muted text-muted-foreground border-border"}
+      >
+        {isSuppressed ? "Yes" : "No"}
+      </Badge>
+      {suppressedAt ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">{formatDateTime(suppressedAt)}</p>
+      ) : null}
+    </div>
+  )
+}
+
 export function CustomersTableClient({
   businessId,
   selectedLocationIdForApi,
@@ -308,10 +392,16 @@ export function CustomersTableClient({
   businessId: string
   selectedLocationIdForApi?: string | null
 }) {
+  const guardCreateCustomer = useFeatureActionGuard("reviews.customers.create")
+  const guardEditCustomer = useFeatureActionGuard("reviews.customers.edit")
+  const guardDeleteCustomer = useFeatureActionGuard("reviews.customers.delete")
+  const guardApproveCustomer = useFeatureActionGuard("reviews.customers.approve")
+  const guardSendNow = useFeatureActionGuard("reviews.customers.sendNow")
   const [existingRows, setExistingRows] = React.useState<ReviewCustomerRow[]>([])
   const [customerDialog, setCustomerDialog] = React.useState<CustomerDialogState>(null)
   const [customerForm, setCustomerForm] = React.useState<CustomerFormState>(EMPTY_CUSTOMER_FORM)
   const [customerFormErrors, setCustomerFormErrors] = React.useState<CustomerFormErrors>({})
+  const [consentAttested, setConsentAttested] = React.useState(false)
   const [customerServerError, setCustomerServerError] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<ReviewCustomerRow | null>(null)
   const [selectedCustomer, setSelectedCustomer] = React.useState<ReviewCustomerRow | null>(null)
@@ -374,6 +464,7 @@ export function CustomersTableClient({
   const timeline = timelineQuery.data?.data
   const canSendNow = Boolean(
     timeline?.nextStep &&
+    !timeline?.isSuppressed &&
     timeline.status !== "WAITING_FOR_APPROVAL" &&
     timeline.status !== "COMPLETED" &&
     timeline.status !== "FAILED"
@@ -497,7 +588,17 @@ export function CustomersTableClient({
         campaignId: campaign?.id ? String(campaign.id) : "",
         campaignName: campaign?.name || "",
         campaignPlatform: platform,
-        status: normalizeStatus(item.status),
+        lifecycleStatus: normalizeStatus(item.status),
+        hasClicked: Boolean(item.hasClicked),
+        emailConsentGiven: item.emailConsentGiven,
+        emailConsentTimestamp: item.emailConsentTimestamp,
+        emailConsentMethod: item.emailConsentMethod,
+        smsConsentGiven: item.smsConsentGiven,
+        smsConsentTimestamp: item.smsConsentTimestamp,
+        smsConsentMethod: item.smsConsentMethod,
+        isSuppressed: Boolean(item.isSuppressed),
+        suppressedAt: item.suppressedAt,
+        status: getDisplayStatus(item),
       } as ReviewCustomerRow
     })
 
@@ -551,16 +652,19 @@ export function CustomersTableClient({
   )
 
   const openAddCustomerDialog = React.useCallback(() => {
+    if (!guardCreateCustomer()) return
     setCustomerDialog({ mode: "add" })
     setCustomerForm({
       ...EMPTY_CUSTOMER_FORM,
       campaignId: defaultCampaignOption?.id || "",
     })
+    setConsentAttested(false)
     setCustomerFormErrors({})
     setCustomerServerError(null)
-  }, [defaultCampaignOption])
+  }, [defaultCampaignOption, guardCreateCustomer])
 
   const openEditCustomerDialog = React.useCallback((row: ReviewCustomerRow) => {
+    if (!guardEditCustomer()) return
     setCustomerDialog({ mode: "edit", row })
     setCustomerForm({
       name: row.name,
@@ -568,9 +672,10 @@ export function CustomersTableClient({
       email: row.email,
       campaignId: row.campaignId,
     })
+    setConsentAttested(false)
     setCustomerFormErrors({})
     setCustomerServerError(null)
-  }, [])
+  }, [guardEditCustomer])
 
   const validateCustomerForm = React.useCallback(() => {
     const errors: CustomerFormErrors = {}
@@ -588,6 +693,9 @@ export function CustomersTableClient({
     }
     if (email && !isValidEmail(email)) errors.email = "Invalid email"
     if (phone && !isValidPhone(phone)) errors.phone = "Enter a valid US phone number"
+    if (customerDialog?.mode !== "edit" && !consentAttested) {
+      errors.consentAttested = "Consent confirmation is required"
+    }
 
     const duplicateEmail = email
       ? existingRows.some(
@@ -608,14 +716,15 @@ export function CustomersTableClient({
     if (duplicatePhone) errors.phone = "Phone already exists in this location"
 
     return errors
-  }, [customerDialog, customerForm, existingRows])
+  }, [consentAttested, customerDialog, customerForm, existingRows])
 
   const handleDeleteRow = React.useCallback(
     (rowId: string, isNew?: boolean) => {
+      if (!guardDeleteCustomer()) return
       const target = existingRowsRef.current.find((row) => row.id === rowId)
       if (target) setDeleteTarget(target)
     },
-    []
+    [guardDeleteCustomer]
   )
 
   const handleViewRow = React.useCallback((row: ReviewCustomerRow) => {
@@ -624,6 +733,7 @@ export function CustomersTableClient({
 
   const handleApproveRow = React.useCallback(
     (row: ReviewCustomerRow) => {
+      if (!guardApproveCustomer()) return
       if (!row.campaignId) return
       setConfirmAction({
         title: "Approve customer?",
@@ -635,7 +745,7 @@ export function CustomersTableClient({
         }),
       })
     },
-    [approveCustomers.mutate]
+    [approveCustomers.mutate, guardApproveCustomer]
   )
 
   const getCampaignActivityContent = React.useCallback(
@@ -753,6 +863,11 @@ export function CustomersTableClient({
   })
 
   const handleSubmitCustomer = React.useCallback(async () => {
+    if (customerDialog?.mode === "edit") {
+      if (!guardEditCustomer()) return
+    } else if (!guardCreateCustomer()) {
+      return
+    }
     if (!selectedLocationIdForApi) return
 
     const errors = validateCustomerForm()
@@ -763,6 +878,7 @@ export function CustomersTableClient({
     const payload = {
       businessId,
       locationId: selectedLocationIdForApi,
+      consentAttested: customerDialog?.mode !== "edit" ? consentAttested : undefined,
       customers: [
         {
           ...(row ? { id: row.id } : {}),
@@ -778,14 +894,19 @@ export function CustomersTableClient({
       await saveCustomers.mutateAsync(payload)
       setCustomerDialog(null)
       setCustomerForm(EMPTY_CUSTOMER_FORM)
+      setConsentAttested(false)
       setCustomerFormErrors({})
       setCustomerServerError(null)
     } catch (error) {
-      const mutationError = error as Error & {
+      const mutationError = error as ReviewCustomerMutationError & {
         fieldErrors?: CustomerFormErrors
       }
       if (mutationError.fieldErrors) {
         setCustomerFormErrors(mutationError.fieldErrors)
+      }
+      if (mutationError.code === "CUSTOMER_CONTACT_OPTED_OUT") {
+        setCustomerServerError(null)
+        return
       }
       setCustomerServerError(mutationError.message || "Failed to save customer")
     }
@@ -794,15 +915,18 @@ export function CustomersTableClient({
     selectedLocationIdForApi,
     customerDialog,
     customerForm,
+    guardCreateCustomer,
+    guardEditCustomer,
     validateCustomerForm,
     saveCustomers,
   ])
 
   const handleConfirmDelete = React.useCallback(async () => {
+    if (!guardDeleteCustomer()) return
     if (!deleteTarget) return
     await deleteCustomer.mutateAsync({ id: deleteTarget.id, businessId })
     setDeleteTarget(null)
-  }, [deleteTarget, deleteCustomer, businessId])
+  }, [deleteTarget, deleteCustomer, businessId, guardDeleteCustomer])
 
   const selectedWaitingRows = React.useMemo(
     () =>
@@ -815,6 +939,7 @@ export function CustomersTableClient({
   )
 
   const approveSelected = React.useCallback(() => {
+    if (!guardApproveCustomer()) return
     if (selectedWaitingRows.length === 0) return
     setConfirmAction({
       title: "Approve selected customers?",
@@ -833,9 +958,10 @@ export function CustomersTableClient({
         setRowSelection({})
       },
     })
-  }, [approveCustomers, selectedWaitingRows])
+  }, [approveCustomers, guardApproveCustomer, selectedWaitingRows])
 
   const approveAllWaitingForVisibleCampaigns = React.useCallback(() => {
+    if (!guardApproveCustomer()) return
     const campaignIds = Array.from(
       new Set(tableData.filter((row) => row.status === "waiting-approval").map((row) => row.campaignId).filter(Boolean))
     )
@@ -850,9 +976,10 @@ export function CustomersTableClient({
         })
       },
     })
-  }, [approveCustomers, tableData])
+  }, [approveCustomers, guardApproveCustomer, tableData])
 
   const handleSendNow = React.useCallback(() => {
+    if (!guardSendNow()) return
     if (!selectedCustomer || !canSendNow) return
     const nextStep = timeline?.nextStep
     setConfirmAction({
@@ -866,7 +993,7 @@ export function CustomersTableClient({
         businessId,
       }),
     })
-  }, [businessId, canSendNow, selectedCustomer, sendCustomerNow, timeline?.nextStep])
+  }, [businessId, canSendNow, guardSendNow, selectedCustomer, sendCustomerNow, timeline?.nextStep])
 
   return (
     <>
@@ -969,6 +1096,7 @@ export function CustomersTableClient({
           if (open) return
           setCustomerDialog(null)
           setCustomerForm(EMPTY_CUSTOMER_FORM)
+          setConsentAttested(false)
           setCustomerFormErrors({})
           setCustomerServerError(null)
         }}
@@ -1039,6 +1167,34 @@ export function CustomersTableClient({
                 ) : null}
               </div>
             </div>
+
+            {customerDialog?.mode !== "edit" ? (
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="customer-consent-attested"
+                    checked={consentAttested}
+                    onCheckedChange={(checked) => {
+                      setConsentAttested(checked === true)
+                      setCustomerFormErrors((prev) => ({ ...prev, consentAttested: undefined }))
+                    }}
+                    aria-invalid={!!customerFormErrors.consentAttested}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor="customer-consent-attested"
+                      className="text-sm leading-5"
+                    >
+                      I confirm that all contacts uploaded to Massic have consented to receive review request communications from this business.
+                    </Label>
+                    {customerFormErrors.consentAttested ? (
+                      <p className="text-xs text-destructive">{customerFormErrors.consentAttested}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label htmlFor="customer-campaign">Campaign</Label>
@@ -1205,6 +1361,25 @@ export function CustomersTableClient({
                         <p className="truncate text-sm font-medium">{timelineQuery.data.data.phone || "No phone"}</p>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <ConsentIndicator
+                      label="SMS consent"
+                      icon={MessageSquare}
+                      given={timelineQuery.data.data.smsConsentGiven}
+                      timestamp={timelineQuery.data.data.smsConsentTimestamp}
+                    />
+                    <ConsentIndicator
+                      label="Email consent"
+                      icon={Mail}
+                      given={timelineQuery.data.data.emailConsentGiven}
+                      timestamp={timelineQuery.data.data.emailConsentTimestamp}
+                    />
+                    <UnsubscribedIndicator
+                      isSuppressed={timelineQuery.data.data.isSuppressed}
+                      suppressedAt={timelineQuery.data.data.suppressedAt}
+                    />
                   </div>
                 </div>
 

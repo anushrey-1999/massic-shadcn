@@ -5,14 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "scan": "dotenv -e .env.dev -- next dev & npx react-scan@latest localhost:3000",
-    "dev:qa": "dotenv -e .env.qa -- next dev",
-    "dev:prod": "dotenv -e .env.prod -- next dev",
+    "dev:qa": "NEXT_PUBLIC_APP_ENV=qa dotenv -e .env.qa -- next dev",
+    "dev:prod": "NEXT_PUBLIC_APP_ENV=prod dotenv -e .env.prod -- next dev",
     "build": "next build",
-    "build:qa": "dotenv -e .env.qa -- next build",
-    "build:prod": "dotenv -e .env.prod -- next build",
+    "build:qa": "NEXT_PUBLIC_APP_ENV=qa dotenv -e .env.qa -- next build",
+    "build:prod": "NEXT_PUBLIC_APP_ENV=prod dotenv -e .env.prod -- next build",
     "start": "next start",
-    "start:qa": "dotenv -e .env.qa -- next start",
-    "start:prod": "dotenv -e .env.prod -- next start"
+    "start:qa": "NEXT_PUBLIC_APP_ENV=qa dotenv -e .env.qa -- next start",
+    "start:prod": "NEXT_PUBLIC_APP_ENV=prod dotenv -e .env.prod -- next start"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -59,6 +59,7 @@
     "d3": "^7.9.0",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.44.7",
+    "flexsearch": "^0.8.212",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.552.0",
     "marked": "^17.0.1",
@@ -77,7 +78,6 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "turndown": "^7.2.2",
-    "umap-js": "^1.4.0",
     "zod": "^4.1.12",
     "zustand": "^5.0.8"
   },

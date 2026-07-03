@@ -38,6 +38,7 @@ import {
 import { useUnlinkGoogleAccount } from "@/hooks/use-unlink-google-account";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const agencyFormSchema = z.object({
   agencyName: z.string().min(1, "Agency Name is required"),
@@ -94,9 +95,14 @@ function GoogleConnectButton() {
   );
 }
 
-export function ProfileSettings() {
+interface ProfileSettingsProps {
+  linkedBusinessesOnly?: boolean;
+}
+
+export function ProfileSettings({ linkedBusinessesOnly = false }: ProfileSettingsProps) {
   const { profileDataByUniqueID } = useBusinessStore();
   const { agencyInfo, agencyDetails, isTeamMember } = useAgencyInfo();
+  const permissions = usePermissions();
   const updateAgencyMutation = useUpdateAgencyInfo();
   const uploadLogoMutation = useUploadLogo();
   const unlinkGoogleAccount = useUnlinkGoogleAccount();
@@ -175,6 +181,16 @@ export function ProfileSettings() {
 
   const isSubmitting = updateAgencyMutation.isPending;
   const isUploadingLogo = uploadLogoMutation.isPending;
+  const canManageSettings = permissions.canManageSettings && !linkedBusinessesOnly;
+  const canManageLinkedBusinesses = permissions.canManageLinkedBusinesses && !linkedBusinessesOnly;
+
+  if (linkedBusinessesOnly) {
+    return (
+      <div className="relative">
+        <LinkedBusinessTable readOnly />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -205,7 +221,7 @@ export function ProfileSettings() {
                           inputVariant="noBorder"
                           label="Agency Name"
                           required={true}
-                          disabled={isTeamMember}
+                          disabled={!canManageSettings}
                           placeholder="Provide the name of your agency"
                         />
                       </CardContent>
@@ -225,7 +241,7 @@ export function ProfileSettings() {
                           inputVariant="noBorder"
                           label="Agency Website"
                           required={true}
-                          disabled={isTeamMember}
+                          disabled={!canManageSettings}
                           placeholder="Provide the official url of your agency website"
                         />
                       </CardContent>
@@ -262,7 +278,7 @@ export function ProfileSettings() {
                       <CardContent>
                         <div
                           onClick={() => {
-                            if (!isUploadingLogo && !isTeamMember) {
+                            if (!isUploadingLogo && canManageSettings) {
                               const fileInput = document.createElement("input");
                               fileInput.type = "file";
                               fileInput.accept =
@@ -280,8 +296,8 @@ export function ProfileSettings() {
                           className={`
                           relative w-[182px] h-[182px] rounded-lg border-2 border-dashed 
                           border-muted bg-muted/30 flex flex-col items-center justify-center 
-                          ${!isTeamMember ? 'cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/50' : 'cursor-not-allowed'}
-                          ${isUploadingLogo || isTeamMember
+                          ${canManageSettings ? 'cursor-pointer transition-colors hover:border-primary/50 hover:bg-muted/50' : 'cursor-not-allowed'}
+                          ${isUploadingLogo || !canManageSettings
                               ? "opacity-50 cursor-not-allowed"
                               : ""
                             }
@@ -294,7 +310,7 @@ export function ProfileSettings() {
                                 alt="Agency Logo"
                                 className="absolute inset-0 w-full h-full rounded-lg object-cover"
                               />
-                              {!isTeamMember && (
+                              {canManageSettings && (
                                 <div className="absolute inset-0 bg-black/40 rounded-lg flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                                   {isUploadingLogo ? (
                                     <Loader2 className="h-8 w-8 text-white animate-spin" />
@@ -317,9 +333,9 @@ export function ProfileSettings() {
                                 <ImageIcon className="h-12 w-12 text-muted-foreground mb-4" />
                               )}
                               <span className="text-sm font-medium text-muted-foreground mb-1">
-                                {isTeamMember ? "Agency Logo" : "Upload Thumbnail"}
+                                {canManageSettings ? "Upload Thumbnail" : "Agency Logo"}
                               </span>
-                              {!isTeamMember && (
+                              {canManageSettings && (
                                 <span className="text-xs text-muted-foreground">
                                   .png, .jpeg, .jpg
                                 </span>
@@ -334,7 +350,7 @@ export function ProfileSettings() {
               </div>
             </div>
 
-            {!isTeamMember && (
+            {canManageSettings && (
               <div className="flex justify-end gap-2 mt-6 pt-6 border-t">
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? (
@@ -352,7 +368,7 @@ export function ProfileSettings() {
         </CardContent>
       </Card>
 
-      {!isTeamMember && (
+      {canManageLinkedBusinesses && (
         <Card variant="profileCard" className="p-4 bg-white border-none">
           <CardHeader className="pb-6 flex items-center justify-between">
             <CardTitle className="flex items-center justify-between">
@@ -423,7 +439,7 @@ export function ProfileSettings() {
         </Card>
       )}
 
-      {!isTeamMember && (
+      {canManageLinkedBusinesses && (
         <AlertDialog
           open={unlinkDialogOpen}
           onOpenChange={(open) => {
@@ -466,8 +482,8 @@ export function ProfileSettings() {
       )}
 
       <div className="relative">
-        <LinkedBusinessTable />
-        {!isTeamMember && linkedGoogleAccounts.length === 0 && (
+        <LinkedBusinessTable readOnly={!canManageLinkedBusinesses} />
+        {canManageLinkedBusinesses && linkedGoogleAccounts.length === 0 && (
           <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg backdrop-blur-sm bg-background/60">
             <Typography variant="h4" className="text-general-muted-foreground">
               Connect Google account to see your businesses

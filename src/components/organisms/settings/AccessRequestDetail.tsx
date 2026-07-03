@@ -166,6 +166,24 @@ export function AccessRequestDetail({
                   {displayData.agencyEmail}
                 </span>
               </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-general-muted-foreground">
+                  Website
+                </span>
+                {displayData.websiteUrl ? (
+                  <a
+                    href={displayData.websiteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="max-w-[220px] truncate text-sm text-general-primary hover:underline"
+                    title={displayData.websiteUrl}
+                  >
+                    {displayData.websiteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                  </a>
+                ) : (
+                  <span className="text-sm text-general-muted-foreground">-</span>
+                )}
+              </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-general-muted-foreground">
                   Status

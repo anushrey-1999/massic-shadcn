@@ -46,6 +46,7 @@ type PersistedConversationList = {
 };
 
 const HISTORY_CACHE_TTL_MS = 60_000;
+const SHOW_PLANNER_START_OPTION = false;
 
 function storageKey(businessId: string) {
   return `massic:chatbot:${businessId}`;
@@ -1589,7 +1590,7 @@ export function AskMassicOverlay({
             </div>
 
             <div className="shrink-0">
-              {showHistory ? (
+              {showHistory && SHOW_PLANNER_START_OPTION ? (
                 <div className="max-w-[600px] w-full mx-auto px-6 pb-2">
                   <button
                     type="button"

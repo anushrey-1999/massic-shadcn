@@ -4,6 +4,7 @@ import * as React from "react";
 import { useBusinessStore } from "@/store/business-store";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useSubscription } from "@/hooks/use-subscription";
+import { hasBusinessPlanAccess } from "@/lib/subscription-status";
 
 export type EntitlementKey =
   | "analytics"
@@ -72,8 +73,11 @@ export function useEntitlementGate({
     if (isTrialActive) return "free_trial";
 
     const plan = business?.SubscriptionItems?.plan_type;
-    const status = business?.SubscriptionItems?.status;
-    if (status === "active" && typeof plan === "string" && plan.length > 0) {
+    if (
+      hasBusinessPlanAccess(business?.SubscriptionItems) &&
+      typeof plan === "string" &&
+      plan.length > 0
+    ) {
       return plan.toLowerCase();
     }
     return "no_plan";
@@ -145,8 +149,11 @@ export function useEntitlementGate({
 
   const getCurrentPlan = React.useCallback(() => {
     const plan = business?.SubscriptionItems?.plan_type;
-    const status = business?.SubscriptionItems?.status;
-    if (status === "active" && typeof plan === "string" && plan.length > 0) {
+    if (
+      hasBusinessPlanAccess(business?.SubscriptionItems) &&
+      typeof plan === "string" &&
+      plan.length > 0
+    ) {
       return plan.charAt(0).toUpperCase() + plan.slice(1).toLowerCase();
     }
     return "No Plan";

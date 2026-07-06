@@ -980,7 +980,6 @@ export function WebPageHtmlView({
     return null;
   }, [activeConnection?.siteUrl, isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId]);
 
-  const cssVarOverrides = React.useMemo<Record<string, string>>(() => ({}), []);
   const previewStyleVars = React.useMemo<React.CSSProperties>(() => ({}), []);
   const previewMassicVarCss = "";
   const previewBaseCss = React.useMemo(() => {
@@ -1499,12 +1498,11 @@ export function WebPageHtmlView({
     const baseCss = await getMassicBlogPageCssText();
     const styledHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
       baseCss,
-      cssVarOverrides,
     });
     const cssMatch = styledHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
     payload.styledHtml = styledHtml;
     payload.massicCss = (cssMatch?.[1] || baseCss || "").trim();
-  }, [activePlatform, cssVarOverrides]);
+  }, [activePlatform]);
 
   const buildPublishPayload = React.useCallback(
     (targetStatus: "draft" | "publish") => {
@@ -1892,7 +1890,6 @@ export function WebPageHtmlView({
         const baseCss = await getMassicBlogPageCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
-          cssVarOverrides,
         });
       } else if (activePlatform === "sanity") {
         await attachSanityStyleFields(payload);
@@ -1944,7 +1941,7 @@ export function WebPageHtmlView({
       toast.success("Preview ready");
     }
     void contentStatusQuery.refetch();
-  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isSanityImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
+  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isSanityImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !cmsChannel?.connected || !hasFinalContent) return;
@@ -1963,7 +1960,6 @@ export function WebPageHtmlView({
       const baseCss = await getMassicBlogPageCssText();
       payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
         baseCss,
-        cssVarOverrides,
       });
       const draftResult = await cmsPublishMutation.mutateAsync(payload);
       const draft = draftResult?.data;
@@ -2025,7 +2021,7 @@ export function WebPageHtmlView({
         toast.error("Slug conflict: choose a unique slug");
       }
     }
-  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, cssVarOverrides, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
+  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
 
   const handleRollbackWebflowToDraft = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !hasWebflowMapping) return;
@@ -2109,7 +2105,6 @@ export function WebPageHtmlView({
         const baseCss = await getMassicBlogPageCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
-          cssVarOverrides,
         });
       } else if (activePlatform === "sanity") {
         await attachSanityStyleFields(payload);
@@ -2153,7 +2148,7 @@ export function WebPageHtmlView({
     if (activePlatform !== "webflow") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, cssVarOverrides, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
 
   const handleRepublish = React.useCallback(async () => {
     if (!isActiveWordpress || !hasFinalContent) return;
@@ -2346,7 +2341,6 @@ export function WebPageHtmlView({
     const baseCss = editorBaseCss || (await getMassicBlogPageCssText());
     const styledHtml = buildStyledMassicHtml(safeHtml, {
       baseCss,
-      cssVarOverrides,
     });
 
     if (!styledHtml) {

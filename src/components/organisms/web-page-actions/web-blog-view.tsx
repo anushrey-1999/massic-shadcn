@@ -509,7 +509,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const webflowStagingViewUrl = hasWebflowStagingPreview
     ? webflowStagingPreview?.url
     : webflowStagingPreviewUrl;
-  const cssVarOverrides = React.useMemo<Record<string, string>>(() => ({}), []);
   React.useEffect(() => {
     if (!isPublishModalOpen) return;
     if (isSlugEdited) return;
@@ -828,7 +827,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     const baseCss = await getMassicBlogPageCssText();
     payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
       baseCss,
-      cssVarOverrides,
     });
     const result = await cmsPublishMutation.mutateAsync(payload);
     void contentStatusQuery.refetch();
@@ -850,7 +848,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     buildPublishPayload,
     cmsPublishMutation,
     contentStatusQuery,
-    cssVarOverrides,
     hasFinalContent,
     isWebflowReady,
     normalizedSlugForPublish,
@@ -871,7 +868,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       const baseCss = await getMassicBlogPageCssText();
       payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
         baseCss,
-        cssVarOverrides,
       });
       const draftResult = await cmsPublishMutation.mutateAsync(payload);
       setLastPublishedData(prev => ({
@@ -910,7 +906,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     } catch {
       // toast handled in mutation
     }
-  }, [buildPublishPayload, businessId, cmsPublishMutation, cssVarOverrides, hasFinalContent, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, runSlugCheck, webflowStagingPreviewMutation]);
+  }, [buildPublishPayload, businessId, cmsPublishMutation, hasFinalContent, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, runSlugCheck, webflowStagingPreviewMutation]);
 
   const handleRollbackWebflowToDraft = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !hasWebflowMapping) return;
@@ -970,7 +966,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     const baseCss = await getMassicBlogPageCssText();
     payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
       baseCss,
-      cssVarOverrides,
     });
     const result = await cmsPublishMutation.mutateAsync(payload);
     void contentStatusQuery.refetch();
@@ -988,7 +983,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     buildPublishPayload,
     cmsPublishMutation,
     contentStatusQuery,
-    cssVarOverrides,
     hasFinalContent,
     isWebflowReady,
     normalizedSlugForPublish,
@@ -1282,7 +1276,6 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     const baseCss = await getMassicBlogPageCssText();
     const styledHtml = buildStyledMassicHtml(htmlContent, {
       baseCss,
-      cssVarOverrides,
     });
 
     try {

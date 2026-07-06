@@ -29,6 +29,8 @@ export function clearWebflowStagingPreviewSession(contentId: string) {
 export const WEBFLOW_STAGING_PUBLISH_OPEN_DELAY_MS = 7000;
 export const WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS = 2000;
 export const WEBFLOW_LIVE_VIEW_OPEN_DELAY_MS = 1200;
+export const SANITY_LIVE_PUBLISH_OPEN_DELAY_MS = 5000;
+export const SANITY_LIVE_VIEW_OPEN_DELAY_MS = 1200;
 
 type OpenWebflowPreviewOptions = {
   delayMs?: number;

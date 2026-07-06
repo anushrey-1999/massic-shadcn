@@ -208,6 +208,7 @@ export function useConnectWordpress() {
       toast.success("WordPress connected successfully");
       queryClient.invalidateQueries({ queryKey: ["wordpress-connection", variables.businessId] });
       queryClient.invalidateQueries({ queryKey: ["webflow-connection", variables.businessId] });
+      queryClient.invalidateQueries({ queryKey: ["sanity-connection", variables.businessId] });
       queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", variables.businessId] });
     },
     onError: (error) => {

@@ -61,6 +61,7 @@ import {
   StakeholderRow,
   LocationRow,
   CompetitorRow,
+  CalendarEventRow,
 } from "@/store/business-store";
 
 interface ProfileAutofillResponse {
@@ -193,6 +194,7 @@ const ProfileTemplate = ({
         stakeholders: [],
         locations: [],
         competitors: [],
+        calendarEvents: [],
         brandToneSocial: [],
         brandToneWeb: [],
       };
@@ -264,6 +266,14 @@ const ProfileTemplate = ({
     const competitorsList = parseArrayField(profileData.Competitors).map(
       (comp: any): CompetitorRow => ({
         url: cleanWebsiteUrl(comp.website || comp.Website),
+      })
+    );
+
+    const calendarEventsList = parseArrayField((profileData as any).CalendarEvents).map(
+      (event: any): CalendarEventRow => ({
+        eventName: event.eventName || "",
+        startDate: event.startDate || null,
+        endDate: event.endDate || null,
       })
     );
 
@@ -383,6 +393,7 @@ const ProfileTemplate = ({
       stakeholders: stakeholdersList,
       locations: locationsList,
       competitors: competitorsList,
+      calendarEvents: calendarEventsList,
       brandToneSocial: brandToneSocial,
       brandToneWeb: brandToneWeb,
       // ONLY offerings come from job API (if job exists)
@@ -516,6 +527,17 @@ const ProfileTemplate = ({
           Competitors: (value.competitors || [])?.map((comp: any) => ({
             website: cleanWebsiteUrl(comp.url),
           })),
+          CalendarEvents: (value.calendarEvents || [])
+            ?.filter((event: any) => {
+              const hasEventName = event.eventName && String(event.eventName).trim().length > 0;
+              const hasStartDate = event.startDate && String(event.startDate).trim().length > 0;
+              return hasEventName || hasStartDate;
+            })
+            ?.map((event: any) => ({
+              eventName: String(event.eventName || "").trim(),
+              startDate: event.startDate ? String(event.startDate).trim() : null,
+              endDate: event.endDate ? String(event.endDate).trim() : null,
+            })) || null,
           WebBrandVoice:
             value.brandToneWeb && value.brandToneWeb.length > 0
               ? value.brandToneWeb.map((v: string) => {
@@ -1423,10 +1445,7 @@ const ProfileTemplate = ({
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           {/* Sticky Page Header */}
           <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader
-              breadcrumbs={breadcrumbs}
-              showAskMassic={Boolean(externalJobDetails?.job_id)}
-            />
+            <PageHeader breadcrumbs={breadcrumbs} />
           </div>
 
           {/* Content area: takes remaining height, scroll lives inside form column */}

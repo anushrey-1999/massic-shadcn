@@ -29,6 +29,7 @@ export interface BusinessProfile {
   USPs?: string[] | null;
   BusinessObjective?: string | null;
   Competitors?: { name: string; website: string }[] | null;
+  CalendarEvents?: CalendarEventRow[] | null;
   SubscriptionItems?: {
     plan_type?: string;
     status?: string;
@@ -43,6 +44,8 @@ export interface BusinessProfile {
   isWhitelisted?: boolean;
   GscIngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
   Ga4IngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
+  IndexingStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
+  IndexingLastRunAt?: string | null;
   CreatedDateTime?: string | null;
 }
 
@@ -71,6 +74,12 @@ export type LocationRow = {
 
 export type CompetitorRow = {
   url: string;
+};
+
+export type CalendarEventRow = {
+  eventName: string;
+  startDate: string | null;
+  endDate: string | null;
 };
 
 export type LocationOption = {

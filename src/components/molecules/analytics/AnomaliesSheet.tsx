@@ -428,6 +428,7 @@ function ChannelBlock({
   );
 }
 
+
 function PartialBaselineChip({ historyDays }: { historyDays: number }) {
   const weeks = Math.floor(historyDays / 7);
   return (

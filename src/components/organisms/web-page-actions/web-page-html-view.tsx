@@ -10,12 +10,6 @@ import {
   ArrowDown,
   ArrowDownFromLine,
   ArrowLeft,
-  Copy,
-  ExternalLink,
-  Globe,
-  ImageIcon,
-  Loader2,
-  Monitor,
   ArrowUp,
   ArrowUpFromLine,
   Bold,
@@ -30,18 +24,25 @@ import {
   MoveVertical,
   PanelLeft,
   PanelRight,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Globe,
+  ImageIcon,
+  Loader2,
+  Monitor,
   Plus,
   Redo2,
   RefreshCw,
   RotateCcw,
   Save,
-  Smartphone,
-  Tablet,
   SquarePlus,
   Strikethrough,
   Trash2,
   Underline,
   Unlink,
+  Smartphone,
+  Tablet,
   Undo2,
   X,
 } from "lucide-react";
@@ -473,7 +474,6 @@ function detectInlineFormatsAtNode(node: Node | null, container: HTMLElement): {
   return result;
 }
 
-
 type HtmlContentType = "page" | "blog";
 
 export function WebPageHtmlView({
@@ -592,7 +592,6 @@ export function WebPageHtmlView({
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
   const wpPreviewMutation = useWordpressPreviewLink();
   const wpUnpublishMutation = useWordpressUnpublish();
-  const wpPublishMutation = useWordpressPublish();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
   const isSanityReady = isActiveSanity && Boolean(activeTarget?.targetId);
@@ -980,9 +979,6 @@ export function WebPageHtmlView({
     return null;
   }, [activeConnection?.siteUrl, isPersistedLive, lastPublishedData?.permalink, persistedContent?.permalink, persistedContent?.wpId]);
 
-  const cssVarOverrides = React.useMemo<Record<string, string>>(() => ({}), []);
-  const previewStyleVars = React.useMemo<React.CSSProperties>(() => ({}), []);
-  const previewMassicVarCss = "";
   const previewBaseCss = React.useMemo(() => {
     if (!editorBaseCss) return "";
     return scopeMassicPreviewCss(editorBaseCss, ".massic-html-preview");
@@ -1494,6 +1490,8 @@ export function WebPageHtmlView({
     });
   }, []);
 
+  const cssVarOverrides = React.useMemo<Record<string, string>>(() => ({}), []);
+
   const attachSanityStyleFields = React.useCallback(async (payload: { contentHtml?: string; styledHtml?: string; massicCss?: string }) => {
     if (activePlatform !== "sanity") return;
     const baseCss = await getMassicBlogPageCssText();
@@ -1892,7 +1890,6 @@ export function WebPageHtmlView({
         const baseCss = await getMassicBlogPageCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
-          cssVarOverrides,
         });
       } else if (activePlatform === "sanity") {
         await attachSanityStyleFields(payload);
@@ -1963,7 +1960,6 @@ export function WebPageHtmlView({
       const baseCss = await getMassicBlogPageCssText();
       payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
         baseCss,
-        cssVarOverrides,
       });
       const draftResult = await cmsPublishMutation.mutateAsync(payload);
       const draft = draftResult?.data;
@@ -2025,7 +2021,7 @@ export function WebPageHtmlView({
         toast.error("Slug conflict: choose a unique slug");
       }
     }
-  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, cssVarOverrides, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
+  }, [activePlatform, buildPublishPayload, businessId, cmsChannel?.connected, cmsPublishMutation, hasFinalContent, isBlogContent, isWebflowImagePublish, isWebflowReady, normalizedSlugForPublish, openWebflowPreview, publishContentId, publishType, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, webflowStagingPreviewMutation]);
 
   const handleRollbackWebflowToDraft = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !hasWebflowMapping) return;
@@ -2109,7 +2105,6 @@ export function WebPageHtmlView({
         const baseCss = await getMassicBlogPageCssText();
         payload.contentHtml = buildStyledMassicHtml(String(payload.contentHtml || ""), {
           baseCss,
-          cssVarOverrides,
         });
       } else if (activePlatform === "sanity") {
         await attachSanityStyleFields(payload);
@@ -2346,7 +2341,6 @@ export function WebPageHtmlView({
     const baseCss = editorBaseCss || (await getMassicBlogPageCssText());
     const styledHtml = buildStyledMassicHtml(safeHtml, {
       baseCss,
-      cssVarOverrides,
     });
 
     if (!styledHtml) {
@@ -4659,7 +4653,6 @@ export function WebPageHtmlView({
               <Plus className="h-4 w-4" />
               Insert
             </Button>
-
             <div className="h-5 w-px bg-border" />
             <div className="inline-flex items-center gap-0.5">
               <Tooltip><TooltipTrigger asChild>
@@ -6055,7 +6048,6 @@ export function WebPageHtmlView({
                   previewEditMode === "text" && "massic-mode-text",
                   previewEditMode === "layout" && "massic-mode-layout"
                 )}
-                style={previewStyleVars}
                 onMouseDownCapture={handlePreviewMouseDownCapture}
                 onMouseUpCapture={handlePreviewMouseUpCapture}
                 onClickCapture={handlePreviewClickCapture}
@@ -6169,7 +6161,6 @@ export function WebPageHtmlView({
             </AlertDialog>
             <style>{`
               ${previewBaseCss}
-              ${previewMassicVarCss}
               .massic-html-preview .massic-text-editable {
                 border-radius: 4px;
                 outline: none;

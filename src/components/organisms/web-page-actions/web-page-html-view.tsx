@@ -187,6 +187,8 @@ import {
   WEBFLOW_LIVE_VIEW_OPEN_DELAY_MS,
   WEBFLOW_STAGING_PUBLISH_OPEN_DELAY_MS,
   WEBFLOW_STAGING_VIEW_OPEN_DELAY_MS,
+  SANITY_LIVE_PUBLISH_OPEN_DELAY_MS,
+  SANITY_LIVE_VIEW_OPEN_DELAY_MS,
 } from "@/components/organisms/web-page-actions/webflow-open-preview";
 import { LayoutPanel, MediaEditorPanel } from "@/components/ui/layout-panel";
 import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
@@ -369,6 +371,9 @@ function areSpacingValuesEqual(left: Partial<EditableSpacingValue> | null | unde
     (leftValue.outsideRight || null) === (rightValue.outsideRight || null)
   );
 }
+
+const SANITY_DRAFT_PREVIEW_UNAVAILABLE_MESSAGE =
+  "Sanity drafts aren't visible on your live website yet. Open this post in Sanity Studio to preview it there — it will appear on your site once you choose \"Publish Live\".";
 
 const SPACING_STEP = 8;
 const SPACING_PIXEL_BASE: Record<string, number> = {
@@ -1482,7 +1487,7 @@ export function WebPageHtmlView({
     setWebflowStagingPreview((prev) => (prev?.contentId === contentId ? prev : null));
   }, [activePlatform, publishContentId]);
 
-  const openWebflowPreview = React.useCallback((url?: string | null, options?: { delayMs?: number; subject?: string }) => {
+  const openWebflowPreview = React.useCallback((url?: string | null, options?: { delayMs?: number; subject?: string; waitingHint?: string }) => {
     if (!url) {
       toast.error("Preview URL is not available yet");
       return;
@@ -1490,6 +1495,7 @@ export function WebPageHtmlView({
     openWebflowPreviewInNewTab(url, {
       delayMs: options?.delayMs,
       subject: options?.subject ?? "published page",
+      waitingHint: options?.waitingHint,
     });
   }, []);
 
@@ -1935,10 +1941,14 @@ export function WebPageHtmlView({
         clearWebflowStagingPreviewSession(String(publishContentId));
       }
     }
-    const previewUrl = published.previewUrl || published.externalUrl;
-    if (previewUrl && activePlatform !== "webflow") {
-      openEmbeddedPreview(previewUrl, activePlatform === "sanity" ? "Sanity Draft Preview" : "WordPress Draft Preview");
-      toast.success("Preview ready");
+    if (activePlatform === "sanity") {
+      toast.info(SANITY_DRAFT_PREVIEW_UNAVAILABLE_MESSAGE);
+    } else {
+      const previewUrl = published.previewUrl || published.externalUrl;
+      if (previewUrl && activePlatform !== "webflow") {
+        openEmbeddedPreview(previewUrl, "WordPress Draft Preview");
+        toast.success("Preview ready");
+      }
     }
     void contentStatusQuery.refetch();
   }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isSanityImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
@@ -2144,11 +2154,19 @@ export function WebPageHtmlView({
       slug: published.slug || normalizedSlugForPublish || null,
     }));
     toast.success(activePlatform === "webflow" ? "Published live to Webflow" : activePlatform === "sanity" ? "Published live to Sanity" : "Published live to WordPress");
+    if (activePlatform === "sanity") {
+      const liveUrl = published.externalUrl || published.previewUrl;
+      openWebflowPreview(liveUrl, {
+        delayMs: SANITY_LIVE_PUBLISH_OPEN_DELAY_MS,
+        subject: "live Sanity post",
+        waitingHint: "Sanity may need a few seconds to finish publishing.",
+      });
+    }
     void contentStatusQuery.refetch();
     if (activePlatform !== "webflow") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, openWebflowPreview, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
 
   const handleRepublish = React.useCallback(async () => {
     if (!isActiveWordpress || !hasFinalContent) return;
@@ -5348,14 +5366,13 @@ export function WebPageHtmlView({
                           type="button"
                           size="icon"
                           variant="outline"
-                          onClick={() => publishUrlPreview && openEmbeddedPreview(publishUrlPreview, "Sanity Draft Preview")}
-                          disabled={!publishUrlPreview}
-                          aria-label="Preview Sanity draft"
+                          onClick={() => toast.info(SANITY_DRAFT_PREVIEW_UNAVAILABLE_MESSAGE)}
+                          aria-label="Sanity draft preview info"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Preview draft</TooltipContent>
+                      <TooltipContent>Drafts aren&apos;t visible on your live site — preview in Sanity Studio</TooltipContent>
                     </Tooltip>
                     <Button
                       variant="outline"
@@ -5380,7 +5397,12 @@ export function WebPageHtmlView({
                           type="button"
                           size="icon"
                           variant="outline"
-                          onClick={() => publishUrlPreview && openEmbeddedPreview(publishUrlPreview, "Published Sanity Post")}
+                          onClick={() =>
+                            openWebflowPreview(publishUrlPreview, {
+                              delayMs: SANITY_LIVE_VIEW_OPEN_DELAY_MS,
+                              subject: "live Sanity post",
+                            })
+                          }
                           disabled={!publishUrlPreview}
                           aria-label="View live Sanity post"
                         >
@@ -5463,7 +5485,7 @@ export function WebPageHtmlView({
                   ) : confirmPublishAction === "sanity-live" ? (
                     `This will create or update the published Sanity document at ${publishUrlPreview || "the configured route"}.`
                   ) : confirmPublishAction === "sanity-draft" ? (
-                    `This will create or update the Sanity draft at ${publishUrlPreview || "the configured route"}.`
+                    "This will save a draft to Sanity. Drafts aren't visible on your live website — open the post in Sanity Studio to preview it."
                   ) : confirmPublishAction === "republish" ? (
                     `This will push your latest content and images to the live post at ${publishUrlPreview || "the selected route"}.`
                   ) : confirmPublishAction === "update-draft" ? (

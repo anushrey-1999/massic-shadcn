@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import type { WordpressSlugConflictInfo } from "@/hooks/use-wordpress-publishing";
 
-export type CmsPublishingPlatform = "wordpress" | "webflow";
+export type CmsPublishingPlatform = "wordpress" | "webflow" | "sanity";
 
 export interface CmsPublishingDomain {
   id: string;
@@ -18,6 +18,7 @@ export interface CmsPublishingTarget {
   targetId: string;
   siteId: string;
   collectionId: string;
+  documentType?: string;
   name: string;
   fieldMapping?: Record<string, any>;
   metadata?: Record<string, any> | null;
@@ -193,12 +194,19 @@ interface PublishPayload {
   title?: string;
   slug?: string | null;
   contentHtml?: string;
+  styledHtml?: string;
+  massicCss?: string;
   contentMarkdown?: string;
   excerpt?: string | null;
   head?: Record<string, any>;
   featuredImageUrl?: string | null;
   featuredImageAlt?: string | null;
   webflowImagesByFieldKey?: Record<string, {
+    assetId?: string;
+    cdnUrl: string;
+    altText?: string | null;
+  }>;
+  sanityImagesByFieldKey?: Record<string, {
     assetId?: string;
     cdnUrl: string;
     altText?: string | null;

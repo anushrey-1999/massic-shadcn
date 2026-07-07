@@ -39,8 +39,9 @@ function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
 
   return (
     <div className="flex flex-row items-center self-stretch">
-      <div
-        className="flex min-h-6 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#2E6A56] px-3 py-1.5 transition-colors hover:bg-[#255745]"
+      <button
+        type="button"
+        className="flex h-6 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#2E6A56] px-3 transition-colors hover:bg-[#255745]"
         onClick={() => onRemove(filter.dimension)}
       >
         <span className="flex min-w-0 items-center gap-1.5 font-sans text-sm leading-normal tracking-[0.07px]">
@@ -50,7 +51,7 @@ function FilterBadge({ filter, onRemove }: FilterBadgeProps) {
           </span>
         </span>
         <X className="h-4 w-4 shrink-0 text-white/70" strokeWidth={2} />
-      </div>
+      </button>
     </div>
   );
 }
@@ -69,7 +70,7 @@ export function OrganicDeepdiveHeader({
       <div />
 
       {filters.length > 0 && (
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-1.5 items-center">
           {filters.map((filter) => (
             <FilterBadge
               key={filter.dimension}

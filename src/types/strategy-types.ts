@@ -12,6 +12,7 @@ export interface StrategyTopic {
   total_search_volume?: number;
   offerings: string[];
   clusters: StrategyCluster[];
+  [key: string]: any;
 }
 
 export interface StrategyCluster {
@@ -37,6 +38,7 @@ export interface StrategyRow {
   total_keywords: number; // Total count of all keywords
   total_cluster_search_volume: number; // Sum of all cluster search volumes
   total_search_volume?: number; // Legacy/fallback field from API
+  [key: string]: any;
 }
 
 // API Response structure

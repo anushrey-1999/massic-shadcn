@@ -24,18 +24,12 @@ function formatPercentage(value: number): string {
 interface GetStrategyTableColumnsProps {
   businessId?: string;
   offeringCounts?: Record<string, number>;
-  businessRelevanceRange?: { min: number; max: number };
-  topicCoverageRange?: { min: number; max: number };
-  searchVolumeRange?: { min: number; max: number };
 }
 
 export function getStrategyTableColumns({
   businessId,
   offeringCounts = {},
-  businessRelevanceRange = { min: 0, max: 1 },
-  topicCoverageRange = { min: 0, max: 1 },
-  searchVolumeRange = { min: 0, max: 10000 },
-}: GetStrategyTableColumnsProps): ColumnDef<StrategyRow>[] {
+}: GetStrategyTableColumnsProps = {}): ColumnDef<StrategyRow>[] {
   return [
     {
       id: "topic",
@@ -78,11 +72,13 @@ export function getStrategyTableColumns({
         );
       },
       meta: {
-        label: "Business Relevance",
+        label: "Relevance",
         variant: "range",
-        range: [
-          Math.round(businessRelevanceRange.min * 100),
-          Math.round(businessRelevanceRange.max * 100),
+        range: [0, 100],
+        operators: [
+          { label: "Is", value: "eq" as const },
+          { label: "Is less than", value: "lte" as const },
+          { label: "Is greater than", value: "gte" as const },
         ],
         icon: TrendingUp,
       },
@@ -105,11 +101,14 @@ export function getStrategyTableColumns({
         );
       },
       meta: {
-        label: "Topic Coverage",
+        label: "Coverage",
         variant: "range",
-        range: [
-          Math.round(topicCoverageRange.min * 100),
-          Math.round(topicCoverageRange.max * 100),
+        range: [0, 100],
+        unit: "%",
+        operators: [
+          { label: "Is between", value: "isBetween" as const },
+          { label: "Is at least", value: "gte" as const },
+          { label: "Is at most", value: "lte" as const },
         ],
         icon: CalendarIcon,
       },
@@ -134,7 +133,13 @@ export function getStrategyTableColumns({
       meta: {
         label: "Volume",
         variant: "range",
-        range: [searchVolumeRange.min, searchVolumeRange.max],
+        range: [0, 10000000],
+        placeholder: "e.g. 10K or 1M",
+        operators: [
+          { label: "Is between", value: "isBetween" as const },
+          { label: "Is at least", value: "gte" as const },
+          { label: "Is at most", value: "lte" as const },
+        ],
         icon: TrendingUp,
       },
       enableColumnFilter: true,
@@ -161,7 +166,7 @@ export function getStrategyTableColumns({
         variant: "text",
         icon: Building2,
       },
-      enableColumnFilter: true,
+      enableColumnFilter: false,
       enableSorting: false,
       size: 100,
       minSize: 80,

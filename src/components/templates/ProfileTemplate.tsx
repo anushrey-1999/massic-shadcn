@@ -69,6 +69,7 @@ import {
   StakeholderRow,
   LocationRow,
   CompetitorRow,
+  CalendarEventRow,
 } from "@/store/business-store";
 
 interface ProfileTemplateProps {
@@ -219,6 +220,7 @@ const ProfileTemplate = ({
         supportEmail: "",
         commsEmail: "",
         competitors: [],
+        calendarEvents: [],
         brandToneSocial: [],
         brandToneWeb: [],
       };
@@ -319,6 +321,14 @@ const ProfileTemplate = ({
       }
       return [];
     };
+
+    const calendarEventsList = parseArrayField((profileData as any).CalendarEvents).map(
+      (event: any): CalendarEventRow => ({
+        eventName: event.eventName || "",
+        startDate: event.startDate || null,
+        endDate: event.endDate || null,
+      })
+    );
 
     const normalizeUsps = (raw: unknown): string[] => {
       if (!raw) return [];
@@ -524,6 +534,7 @@ const ProfileTemplate = ({
       supportEmail: String((profileData as any).SupportEmail ?? ""),
       commsEmail: String((profileData as any).CommsEmail ?? ""),
       competitors: competitorsList,
+      calendarEvents: calendarEventsList,
       brandToneSocial: brandToneSocial,
       brandToneWeb: brandToneWeb,
       // ONLY offerings come from job API (if job exists)
@@ -600,6 +611,67 @@ const ProfileTemplate = ({
           }),
           USPs: uspsPayload.length > 0 ? uspsPayload : null,
           SellingPoints: uspsPayload.length > 0 ? uspsPayload : null,
+          BrandTerms:
+            Array.isArray(value.brandTerms) && value.brandTerms.length > 0
+              ? value.brandTerms
+                .map((t: any) => String(t).trim())
+                .filter((t: string) => t.length > 0)
+              : null,
+          LTV:
+            value.lifetimeValue === "high" || value.lifetimeValue === "low"
+              ? value.lifetimeValue
+              : null,
+          CTAs:
+            value.ctas && value.ctas.length > 0
+              ? (value.ctas || [])?.map((cta: any) => ({
+                buttonText: String(cta?.buttonText || ""),
+                url: (() => {
+                  const raw = String(cta?.url || "");
+                  const cleaned = raw.replace(/^sc-domain:/i, "").trim();
+                  if (!cleaned) return "";
+                  if (/^(tel:|mailto:)/i.test(cleaned)) return cleaned;
+                  if (/^https?:\/\//i.test(cleaned)) {
+                    return cleaned.replace(/^http:\/\//i, "https://");
+                  }
+                  return `https://${cleaned}`;
+                })(),
+              }))
+              : null,
+          CustomerPersonas: (value.stakeholders || [])?.map((s: any) => ({
+            personName: s.name || "",
+            personDescription: s.title || "",
+          })),
+          Locations: (value.locations || [])?.map((loc: any) => ({
+            Name: loc.name || "",
+            Address1: loc.address || "",
+            TimeZone: loc.timezone || "",
+          })),
+          Competitors: (value.competitors || [])?.map((comp: any) => ({
+            website: cleanWebsiteUrl(comp.url),
+          })),
+          CalendarEvents: (value.calendarEvents || [])
+            ?.filter((event: any) => {
+              const hasEventName = event.eventName && String(event.eventName).trim().length > 0;
+              const hasStartDate = event.startDate && String(event.startDate).trim().length > 0;
+              return hasEventName || hasStartDate;
+            })
+            ?.map((event: any) => ({
+              eventName: String(event.eventName || "").trim(),
+              startDate: event.startDate ? String(event.startDate).trim() : null,
+              endDate: event.endDate ? String(event.endDate).trim() : null,
+            })) || null,
+          WebBrandVoice:
+            value.brandToneWeb && value.brandToneWeb.length > 0
+              ? value.brandToneWeb.map((v: string) => {
+                return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+              })
+              : null,
+          SocialBrandVoice:
+            value.brandToneSocial && value.brandToneSocial.length > 0
+              ? value.brandToneSocial.map((v: string) => {
+                return v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+              })
+              : null,
         };
 
         // Store offerings that are being saved (ensure proper type - all fields must be strings)
@@ -1427,10 +1499,7 @@ const ProfileTemplate = ({
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           {/* Sticky Page Header */}
           <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader
-              breadcrumbs={breadcrumbs}
-              showAskMassic={Boolean(externalJobDetails?.job_id)}
-            />
+            <PageHeader breadcrumbs={breadcrumbs} />
           </div>
 
           {/* Content area: takes remaining height, scroll lives inside form column */}

@@ -30,6 +30,7 @@ import {
   profileFormDefaults,
 } from "@/utils/profile-form-mappers";
 import type { NormalizedProfileResult } from "@/utils/profile-result";
+import { cleanWebsiteUrl } from "@/utils/utils";
 
 type FormData = BusinessInfoFormData;
 const formFieldNames = [
@@ -56,6 +57,81 @@ const updateCreatedBusinessProfile = async (
   );
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const extractOfferingsFromWebsite = async (
+  website: string,
+  options?: { timeoutMs?: number; intervalMs?: number }
+): Promise<Offering[]> => {
+  const timeoutMs = options?.timeoutMs ?? 180000;
+  const intervalMs = options?.intervalMs ?? 5000;
+  const startedAt = Date.now();
+  const created = await api.post<{ task_id?: string }>(
+    "/tools/extract-offerings",
+    "python",
+    { business_url: website }
+  );
+  const taskId = created.task_id;
+  if (!taskId) return [];
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const response = await api.get<{
+      status?: "processing" | "completed" | "failed";
+      type?: string;
+      offerings?: Array<{
+        name?: string;
+        offering?: string;
+        description?: string;
+        url?: string;
+        link?: string;
+      }>;
+      error?: string;
+      errors?: string[];
+    }>(`/tools/extract-offerings?task_id=${encodeURIComponent(taskId)}`, "python");
+
+    if (response.status === "failed") {
+      throw new Error(response.error || response.errors?.[0] || "Failed to extract offerings");
+    }
+
+    const rawOfferings = Array.isArray(response.offerings) ? response.offerings : [];
+    const isComplete =
+      response.status === "completed" ||
+      (response.status !== "processing" && (rawOfferings.length > 0 || response.type !== undefined));
+
+    if (isComplete) {
+      return rawOfferings
+        .map((offering) => ({
+          name: String(offering.name || offering.offering || "").trim(),
+          description: String(offering.description || "").trim(),
+          link: String(offering.url || offering.link || "").trim(),
+        }))
+        .filter((offering) => Boolean(offering.name));
+    }
+
+    await sleep(intervalMs);
+  }
+
+  return [];
+};
+
+const mergeOfferings = (...groups: Array<Offering[] | undefined>): Offering[] => {
+  const seen = new Set<string>();
+  return groups
+    .flatMap((group) => group ?? [])
+    .map((offering) => ({
+      name: String(offering.name || offering.offering || "").trim(),
+      description: String(offering.description || "").trim(),
+      link: String(offering.link || offering.url || offering.page_url || "").trim(),
+    }))
+    .filter((offering) => {
+      if (!offering.name) return false;
+      const key = offering.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
 export default function CreateBusinessPage() {
   const allowed = useRoleGuard({
     allowedRoles: [ACCOUNT_ROLES.OWNER, ACCOUNT_ROLES.ADMIN],
@@ -71,6 +147,7 @@ export default function CreateBusinessPage() {
   const setLocationOptions = useBusinessStore((state) => state.setLocationOptions);
   const setLocationsLoading = useBusinessStore((state) => state.setLocationsLoading);
   const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
+  const [isOneClickCreating, setIsOneClickCreating] = useState(false);
 
   const form = useForm({
     defaultValues: profileFormDefaults,
@@ -200,7 +277,6 @@ export default function CreateBusinessPage() {
       normalizeWebsite: true,
       onBeforeAutofill: (website) => {
         offeringsExtractor.clearExtraction();
-        void offeringsExtractor.startExtraction(website).catch(() => {});
       },
       onAutofillSuccess: async (profile, nextValues) => {
         formFieldNames.forEach((fieldName) => {
@@ -217,6 +293,41 @@ export default function CreateBusinessPage() {
       },
     });
 
+  const handleAutofillAndCreate = useCallback(async () => {
+    const website = cleanWebsiteUrl(String(form.state.values?.website || "")).trim();
+    setIsOneClickCreating(true);
+    try {
+      const offeringsPromise = website
+        ? extractOfferingsFromWebsite(website).catch((error) => {
+            console.warn("Offerings extraction failed during one-click create:", error);
+            return [] as Offering[];
+          })
+        : Promise.resolve([] as Offering[]);
+
+      const result = await handleAutofillProfile();
+      if (!result) return;
+
+      const extractedOfferings = await offeringsPromise;
+      const mergedOfferings = mergeOfferings(
+        result.values.offeringsList as Offering[] | undefined,
+        result.profile.offerings as Offering[] | undefined,
+        extractedOfferings
+      );
+      const values = {
+        ...result.values,
+        offeringsList: mergedOfferings,
+      } as FormData;
+
+      form.setFieldValue("offeringsList" as any, mergedOfferings as any);
+      await handleSubmitCreate({
+        values,
+        autofillData: result.profile,
+      });
+    } finally {
+      setIsOneClickCreating(false);
+    }
+  }, [form, handleAutofillProfile, handleSubmitCreate]);
+
   const handleCancel = () => {
     router.push("/");
   };
@@ -229,11 +340,11 @@ export default function CreateBusinessPage() {
       locationOptions={locationOptions}
       locationsLoading={locationsLoading}
       isSubmitting={form.state.isSubmitting}
-      isPending={createBusiness.isPending || createJob.isPending}
+      isPending={createBusiness.isPending || createJob.isPending || isOneClickCreating}
       isAutofillLoading={isAutofillLoading}
       offeringsExtractor={offeringsExtractor}
       hasAutofilledProfile={hasAutofilledProfile}
-      onAutofillProfile={handleAutofillProfile}
+      onAutofillProfile={handleAutofillAndCreate}
       onSubmitCreate={() => handleSubmitCreate({ autofillData: autofillProfileResult })}
       onCancel={handleCancel}
     />

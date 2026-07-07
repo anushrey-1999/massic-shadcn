@@ -1098,6 +1098,20 @@ const ProfileTemplate = ({
     return isWorkflowActive(externalJobDetails);
   }, [externalJobDetails]);
 
+  const handleAutofillProfileClick = useCallback(async () => {
+    if (!String((form.state.values as any)?.serviceAreaType || "").trim()) {
+      form.setFieldValue("serviceAreaType" as any, "city_local" as any);
+    }
+
+    await handleAutofillProfile();
+  }, [form, handleAutofillProfile]);
+
+  const isAutofillProfileDisabled =
+    isAutofillLoading ||
+    offeringsExtractor.isExtracting ||
+    !(formValues?.website ?? "").toString().trim() ||
+    !(formValues?.primaryLocation ?? "").toString().trim();
+
   // Always prioritize showing "Save Changes" when there are changes, regardless of workflow state
   const buttonText = !isJobCreated
     ? isSaving
@@ -1477,14 +1491,8 @@ const ProfileTemplate = ({
                           isAutofillGateActive ? (
                             <Button
                               type="button"
-                              onClick={handleAutofillProfile}
-                              disabled={
-                                isAutofillLoading ||
-                                offeringsExtractor.isExtracting ||
-                                !(formValues?.website ?? "").toString().trim() ||
-                                !(formValues?.primaryLocation ?? "").toString().trim() ||
-                                !(formValues?.serviceAreaType ?? "").toString().trim()
-                              }
+                              onClick={handleAutofillProfileClick}
+                              disabled={isAutofillProfileDisabled}
                               className="w-full gap-2"
                             >
                               {isAutofillLoading ? (
@@ -1501,14 +1509,8 @@ const ProfileTemplate = ({
                               type="button"
                               variant="outline"
                               size="default"
-                              onClick={handleAutofillProfile}
-                              disabled={
-                                isAutofillLoading ||
-                                offeringsExtractor.isExtracting ||
-                                !(formValues?.website ?? "").toString().trim() ||
-                                !(formValues?.primaryLocation ?? "").toString().trim() ||
-                                !(formValues?.serviceAreaType ?? "").toString().trim()
-                              }
+                              onClick={handleAutofillProfileClick}
+                              disabled={isAutofillProfileDisabled}
                               className="gap-2 border-general-border-three text-general-foreground"
                             >
                               {isAutofillLoading ? (
@@ -1637,14 +1639,8 @@ const ProfileTemplate = ({
                       type="button"
                       variant="outline"
                       size="default"
-                      onClick={handleAutofillProfile}
-                      disabled={
-                        isAutofillLoading ||
-                        offeringsExtractor.isExtracting ||
-                        !(formValues?.website ?? "").toString().trim() ||
-                        !(formValues?.primaryLocation ?? "").toString().trim() ||
-                        !(formValues?.serviceAreaType ?? "").toString().trim()
-                      }
+                      onClick={handleAutofillProfileClick}
+                      disabled={isAutofillProfileDisabled}
                       className="gap-2 border-general-border-three text-general-foreground"
                     >
                       {isAutofillLoading ? (

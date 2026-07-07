@@ -233,8 +233,10 @@ function GenericInput<
     // With onChange validation, errors clear immediately when value becomes valid
     // This prevents showing errors on untouched empty fields, but shows them once user interacts
     const hasValue = field.state.value !== "" && field.state.value !== undefined && field.state.value !== null;
+    const shouldShowFieldError =
+      field.state.meta.isTouched || (type !== "location-select" && hasValue);
     const fieldIsInvalid =
-      (field.state.meta.isTouched || hasValue) &&
+      shouldShowFieldError &&
       !field.state.meta.isValid &&
       field.state.meta.errors &&
       field.state.meta.errors.length > 0;

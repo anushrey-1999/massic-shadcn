@@ -1,17 +1,21 @@
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
-import axios from "axios";
-import Cookies from "js-cookie";
 import { formatPrimaryLocationApiValue } from "@/utils/primary-location";
+import { isWorkflowActive } from "@/lib/workflow-status";
+import { normalizeProfileCountry } from "@/utils/profile-result";
 
 const JOBS_KEY = "jobs";
 
 // Type for offerings array
 export interface Offering {
-  name: string;
-  description: string;
-  link: string;
+  name?: string;
+  offering?: string;
+  description?: string;
+  link?: string;
+  url?: string;
+  page_url?: string;
+  [key: string]: unknown;
 }
 
 // Type for business profile payload (matching the structure from ProfileTemplate)
@@ -32,10 +36,28 @@ export interface BusinessProfilePayload {
   LocationType?: string;
   USPs?: string[] | null;
   CTAs?: {
-    value: string;
-  } | null;
+    value: string | Array<{ buttonText?: string; text?: string; url?: string }>;
+  } | Array<{ buttonText?: string; text?: string; url?: string }> | null;
   SocialBrandVoice?: string[] | null;
   WebBrandVoice?: string[] | null;
+  ProfileId?: string | null;
+  profile_id?: string | null;
+  BusinessCategory?: string | null;
+  business_category?: string | null;
+  ServiceAreaType?: string | null;
+  service_area_type?: string | null;
+  ServiceAreas?: string[] | null;
+  service_areas?: string[] | null;
+  ProfileLocation?: string | null;
+  location?: string | null;
+  ProfileCountry?: string | null;
+  country?: string | null;
+  Segment?: string | number | null;
+  segment?: string | number | null;
+  B2bB2c?: string | null;
+  b2b_b2c?: string | null;
+  Competitors?: Array<{ website?: string; Website?: string; url?: string }> | string[] | null;
+  competitors?: Array<{ website?: string; Website?: string; url?: string }> | string[] | null;
   [key: string]: any; // Allow other fields
 }
 
@@ -51,15 +73,21 @@ export interface JobDetails {
     offering?: string;
     description?: string;
     url?: string;
+    link?: string;
   }>;
   usps?: string[];
-  ctas?: {
-    value: string | Array<{ buttonText: string; url: string }>;
+  ctas?: Array<{ text?: string; url?: string }> | {
+    value: string | Array<{ buttonText?: string; text?: string; url?: string }>;
   };
   social_brand_voice?: string[];
   web_brand_voice?: string[];
+  profile_id?: string;
+  business_category?: string;
+  service_area_type?: string;
+  service_areas?: string[];
   workflow_status?: {
-    status?: "pending" | "processing" | "success" | "error";
+    status?: "pending" | "processing" | "success" | "error" | null;
+    workflows?: Record<string, "pending" | "processing" | "success" | "error" | string | null>;
     [key: string]: any;
   };
   [key: string]: any;
@@ -72,188 +100,253 @@ function normalizeServeValue(value: string | undefined): "local" | "online" | "b
   return "local";
 }
 
-// Helper function to convert business profile payload to job API FormData
-// Reuses the already-mapped business profile payload instead of mapping form data again
-function mapBusinessProfilePayloadToJobFormData(
+function normalizeSellValue(value: string | undefined): "products" | "services" | "both" {
+  const sell = String(value || "services").toLowerCase();
+  if (sell === "both") return "both";
+  if (sell === "product" || sell === "products") return "products";
+  return "services";
+}
+
+function compactObject<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined)
+  ) as Partial<T>;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const entry = item as Record<string, unknown>;
+          return String(entry.Name ?? entry.DisplayName ?? entry.name ?? entry.value ?? "").trim();
+        }
+        return String(item ?? "").trim();
+      })
+      .filter(Boolean);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return normalizeStringArray(parsed);
+    } catch {
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function normalizeCtas(value: BusinessProfilePayload["CTAs"]): Array<{ text: string; url: string }> {
+  if (!value) return [];
+  let raw: unknown = value;
+  if (!Array.isArray(value) && typeof value === "object" && "value" in value) {
+    raw = value.value;
+  }
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((cta) => {
+      if (!cta || typeof cta !== "object") return null;
+      const item = cta as Record<string, unknown>;
+      const text = String(item.text ?? item.buttonText ?? "").trim();
+      const url = String(item.url ?? "").trim();
+      return text && url ? { text, url } : null;
+    })
+    .filter((cta): cta is { text: string; url: string } => Boolean(cta));
+}
+
+function normalizeOfferings(offerings: Offering[]): Array<Record<string, unknown>> {
+  return offerings
+    .map((offering) => {
+      const name = String(offering.name ?? offering.offering ?? "").trim();
+      const description = String(offering.description ?? "").trim();
+      const pageUrl = String(offering.page_url ?? offering.url ?? offering.link ?? "").trim();
+      return compactObject({
+        name,
+        description: description || undefined,
+        page_url: pageUrl || undefined,
+      });
+    })
+    .filter((offering) => Boolean(offering.name));
+}
+
+function normalizeAov(value: unknown): number | undefined {
+  if (value === undefined || value === null || String(value).trim() === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  return Math.trunc(parsed);
+}
+
+function normalizeRecurringFlag(value: unknown): "yes" | "no" | "sometimes" | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "yes" || normalized === "no" || normalized === "sometimes") {
+    return normalized;
+  }
+  if (normalized === "partial") return "sometimes";
+  return undefined;
+}
+
+function normalizeCompetitors(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const competitors = value
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") {
+        const competitor = item as Record<string, unknown>;
+        return String(competitor.website ?? competitor.Website ?? competitor.url ?? "").trim();
+      }
+      return "";
+    })
+    .filter(Boolean);
+  return competitors.length > 0 ? competitors : undefined;
+}
+
+function mapBusinessProfilePayloadToJobBody(
   businessProfilePayload: BusinessProfilePayload,
   businessId: string,
   offerings: Offering[],
-  options?: { includeOfferings?: boolean }
-): FormData {
-  const formDataPayload = new FormData();
+  options?: { includeOfferings?: boolean; isUpdate?: boolean }
+): Record<string, unknown> {
   const includeOfferings = options?.includeOfferings !== false;
+  const isUpdate = options?.isUpdate === true;
 
-  // Validate required fields
   if (!businessId) {
     throw new Error("Business ID is required");
   }
-  if (!businessProfilePayload.Name) {
+  if (!isUpdate && !businessProfilePayload.Name) {
     throw new Error("Business name is required");
   }
-  if (!businessProfilePayload.Website) {
+  if (!isUpdate && !businessProfilePayload.Website) {
     throw new Error("Business website is required");
   }
   const locationValue = formatPrimaryLocationApiValue(
     businessProfilePayload.PrimaryLocation
   );
-  if (!locationValue) {
+  if (!isUpdate && !locationValue) {
     throw new Error("Primary location is required");
   }
+  const normalizedOfferings = normalizeOfferings(offerings);
+  if (!isUpdate && normalizedOfferings.length === 0) {
+    throw new Error("At least one offering is required");
+  }
 
-  // Map from business profile payload to job API format
-  formDataPayload.append("business_id", businessId);
-  formDataPayload.append("name", businessProfilePayload.Name);
-  formDataPayload.append("business_url", businessProfilePayload.Website);
-  formDataPayload.append("brand", businessProfilePayload.Name);
-  formDataPayload.append("location", locationValue);
-  formDataPayload.append(
-    "user_defined_business_description",
-    businessProfilePayload.UserDefinedBusinessDescription ||
-    businessProfilePayload.Description ||
-    ""
-  );
-  formDataPayload.append(
-    "serve",
-    normalizeServeValue(businessProfilePayload.BusinessObjective)
-  );
-  formDataPayload.append(
-    "sell",
-    (businessProfilePayload.LocationType || "services").toLowerCase()
-  );
-
-  // Handle USPs - ensure it's always a valid JSON array
   const usps = Array.isArray(businessProfilePayload.USPs)
     ? businessProfilePayload.USPs
     : [];
-  formDataPayload.append("usps", JSON.stringify(usps));
+  const shouldSendUsps = !isUpdate || "USPs" in businessProfilePayload;
+  const shouldSendCtas = !isUpdate || "CTAs" in businessProfilePayload;
 
-  // Handle CTAs
-  let ctaArray: Array<{ buttonText: string; url: string }> = [];
-  if (businessProfilePayload.CTAs?.value) {
-    try {
-      // CTAs.value might be a JSON string or already parsed
-      const ctaValue =
-        typeof businessProfilePayload.CTAs.value === "string"
-          ? JSON.parse(businessProfilePayload.CTAs.value)
-          : businessProfilePayload.CTAs.value;
-
-      // Handle if it's an array directly or nested
-      if (Array.isArray(ctaValue)) {
-        ctaArray = ctaValue;
-      } else if (typeof ctaValue === "string") {
-        // Try parsing again if it's a double-encoded string
-        ctaArray = JSON.parse(ctaValue);
-      }
-    } catch (e) {
-      console.error("Error parsing CTAs:", e);
-      ctaArray = [];
-    }
-  }
-
-  formDataPayload.append(
-    "ctas",
-    JSON.stringify({
-      value: JSON.stringify(
-        ctaArray.map((cta) => ({
-          buttonText: cta.buttonText || "",
-          url: cta.url || "",
-        }))
-      ),
-    })
-  );
-
-  // Handle Social Brand Voice - ensure it's always a valid JSON array
   const socialBrandVoice = Array.isArray(businessProfilePayload.SocialBrandVoice)
     ? businessProfilePayload.SocialBrandVoice
     : [];
-  formDataPayload.append(
-    "social_brand_voice",
-    JSON.stringify(
-      socialBrandVoice
-        .map((s) => s.toString().trim().toLowerCase())
-        .filter((s) => s.length > 0)
-        .slice(0, 3)
-    )
-  );
+  const shouldSendSocialBrandVoice =
+    !isUpdate || "SocialBrandVoice" in businessProfilePayload;
 
-  // Handle Web Brand Voice - ensure it's always a valid JSON array
   const webBrandVoice = Array.isArray(businessProfilePayload.WebBrandVoice)
     ? businessProfilePayload.WebBrandVoice
     : [];
-  formDataPayload.append(
-    "web_brand_voice",
-    JSON.stringify(
-      webBrandVoice
-        .map((s) => s.toString().trim().toLowerCase())
-        .filter((s) => s.length > 0)
-        .slice(0, 3)
-    )
-  );
+  const shouldSendWebBrandVoice =
+    !isUpdate || "WebBrandVoice" in businessProfilePayload;
 
-  formDataPayload.append("trigger_workflow", "False");
-
-  // Extra business fields (python API expects snake_case)
   const aov = (businessProfilePayload as any).AOV ?? (businessProfilePayload as any).aov;
   const ltv = (businessProfilePayload as any).LTV ?? (businessProfilePayload as any).ltv;
   const recurringFlag =
     (businessProfilePayload as any).RecurringFlag ?? (businessProfilePayload as any).recurring_flag;
   const brandTerms = (businessProfilePayload as any).BrandTerms ?? (businessProfilePayload as any).brand_terms;
-
-  if (aov !== undefined && aov !== null && String(aov).trim() !== "") {
-    formDataPayload.append("aov", String(aov));
-  }
+  const shouldSendBrandTerms =
+    !isUpdate ||
+    "BrandTerms" in businessProfilePayload ||
+    "brand_terms" in businessProfilePayload;
   const ltvStr = ltv != null ? String(ltv).trim().toLowerCase() : "";
-  if (ltvStr === "high" || ltvStr === "low") {
-    formDataPayload.append("ltv", ltvStr);
-  }
-  if (typeof recurringFlag === "string" && recurringFlag.trim()) {
-    formDataPayload.append("recurring_flag", recurringFlag.trim().toLowerCase());
-  }
-  if (Array.isArray(brandTerms)) {
-    formDataPayload.append(
-      "brand_terms",
-      JSON.stringify(brandTerms.map((t) => String(t).trim()).filter((t) => t.length > 0))
-    );
-  }
+  const profileId = businessProfilePayload.ProfileId ?? businessProfilePayload.profile_id;
+  const businessCategory =
+    businessProfilePayload.BusinessCategory ?? businessProfilePayload.business_category;
+  const serviceAreaType =
+    businessProfilePayload.ServiceAreaType ?? businessProfilePayload.service_area_type;
+  const serviceAreas = normalizeStringArray(
+    businessProfilePayload.ServiceAreas ?? businessProfilePayload.service_areas
+  );
+  const profileLocation =
+    businessProfilePayload.ProfileLocation ?? businessProfilePayload.location;
+  const country = businessProfilePayload.PrimaryLocation?.Country;
+  const segment = businessProfilePayload.Segment ?? businessProfilePayload.segment;
+  const b2bB2c = businessProfilePayload.B2bB2c ?? businessProfilePayload.b2b_b2c;
+  const competitors =
+    businessProfilePayload.Competitors ?? businessProfilePayload.competitors;
+
+  const body: Record<string, unknown> = compactObject({
+    business_id: isUpdate ? undefined : businessId,
+    name: businessProfilePayload.Name,
+    business_url: businessProfilePayload.Website,
+    brand: businessProfilePayload.Name,
+    location: locationValue || profileLocation || undefined,
+    country: country ? normalizeProfileCountry(country) : undefined,
+    user_defined_business_description:
+      businessProfilePayload.UserDefinedBusinessDescription ||
+      businessProfilePayload.Description ||
+      undefined,
+    serve: businessProfilePayload.BusinessObjective
+      ? normalizeServeValue(businessProfilePayload.BusinessObjective)
+      : undefined,
+    sell: businessProfilePayload.LocationType
+      ? normalizeSellValue(businessProfilePayload.LocationType)
+      : undefined,
+    usps: shouldSendUsps ? usps : undefined,
+    ctas: shouldSendCtas ? normalizeCtas(businessProfilePayload.CTAs) : undefined,
+    social_brand_voice: shouldSendSocialBrandVoice
+      ? socialBrandVoice
+        .map((s) => s.toString().trim().toLowerCase())
+        .filter((s) => s.length > 0)
+        .slice(0, 3)
+      : undefined,
+    web_brand_voice: shouldSendWebBrandVoice
+      ? webBrandVoice
+        .map((s) => s.toString().trim().toLowerCase())
+        .filter((s) => s.length > 0)
+        .slice(0, 3)
+      : undefined,
+    trigger_workflow: false,
+    aov: normalizeAov(aov),
+    ltv: ltvStr === "high" || ltvStr === "low" ? ltvStr : undefined,
+    recurring_flag: normalizeRecurringFlag(recurringFlag),
+    brand_terms: shouldSendBrandTerms
+      ? Array.isArray(brandTerms)
+        ? brandTerms.map((t) => String(t).trim()).filter((t) => t.length > 0)
+        : []
+      : undefined,
+    profile_id: profileId || undefined,
+    business_category: businessCategory || undefined,
+    service_area_type: serviceAreaType || undefined,
+    service_areas: serviceAreas.length > 0 ? serviceAreas : undefined,
+    segment: segment !== undefined && segment !== null ? String(segment) : undefined,
+    b2b_b2c: b2bB2c || undefined,
+    competitors: normalizeCompetitors(competitors),
+  });
 
   if (includeOfferings) {
-    const csvRows: string[] = [];
-    csvRows.push("Offerings,Description,Url,Link,URL,Website,offering_url");
-
-    if (offerings.length > 0) {
-      offerings.forEach((offering) => {
-        const name = (offering.name || "").replace(/"/g, '""');
-        const description = (offering.description || "").replace(/"/g, '""');
-        const url = (offering.link || "").replace(/"/g, '""');
-        csvRows.push(`"${name}","${description}","${url}","${url}","${url}","${url}","${url}"`);
-      });
-    } else {
-      csvRows.push('"","",""');
-    }
-
-    const csvString = csvRows.join("\n");
-    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-    const file = new File([blob], "offerings.csv", { type: "text/csv" });
-    formDataPayload.append("csv_file", file);
+    body.offerings = normalizedOfferings;
   }
 
-  return formDataPayload;
-}
-
-// Helper to create axios instance for FormData requests
-function createFormDataAxiosInstance() {
-  const baseURL =
-    process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v2";
-  const token = Cookies.get("token");
-
-  return axios.create({
-    baseURL,
-    timeout: 300000,
-    headers: {
-      "Content-Type": "multipart/form-data",
-      ...(token && { token }),
-    },
-  });
+  return body;
 }
 
 /**
@@ -290,10 +383,9 @@ export function useJobByBusinessId(businessId: string | null) {
     refetchOnMount: true, // Refetch on mount if data is stale (within 30 seconds)
     refetchOnWindowFocus: true, // Refetch on window focus if data is stale
     refetchInterval: (query) => {
-      // Poll every 20 seconds when workflow is processing or pending
+      // Poll every 20 seconds when any workflow is processing or pending.
       const data = query.state.data;
-      const workflowStatus = data?.workflow_status?.status;
-      if (workflowStatus === "processing" || workflowStatus === "pending") {
+      if (isWorkflowActive(data)) {
         return 20000; // 20 seconds
       }
       return false; // Stop polling when success or error
@@ -327,19 +419,18 @@ export function useCreateJob() {
       }
 
       try {
-        const formDataPayload = mapBusinessProfilePayloadToJobFormData(
+        const jobPayload = mapBusinessProfilePayloadToJobBody(
           businessProfilePayload,
           businessId,
           offerings
         );
 
-        const instance = createFormDataAxiosInstance();
-        const response = await instance.post<JobDetails>("/jobs", formDataPayload);
+        const response = await api.post<JobDetails>("/jobs", "python", jobPayload);
 
-        if (!response.data) {
+        if (!response) {
           const errorMessage =
-            (response as any).response?.data?.detail ||
-            (response as any).response?.data?.message ||
+            (response as any)?.response?.data?.detail ||
+            (response as any)?.response?.data?.message ||
             "Failed to create job";
           throw new Error(errorMessage);
         }
@@ -349,7 +440,7 @@ export function useCreateJob() {
           queryKey: [JOBS_KEY, "detail", businessId],
         });
 
-        return response.data;
+        return response;
       } catch (error: any) {
         // Provide more detailed error message for 422 errors
         if (error.response?.status === 422) {
@@ -395,20 +486,19 @@ export function useUpdateJob() {
       }
 
       try {
-        const formDataPayload = mapBusinessProfilePayloadToJobFormData(
+        const jobPayload = mapBusinessProfilePayloadToJobBody(
           businessProfilePayload,
           businessId,
           offerings,
-          { includeOfferings }
+          { includeOfferings, isUpdate: true }
         );
 
-        const instance = createFormDataAxiosInstance();
-        const response = await instance.put<JobDetails>(`/jobs/${businessId}`, formDataPayload);
+        const response = await api.put<JobDetails>(`/jobs/${businessId}`, "python", jobPayload);
 
-        if (!response.data) {
+        if (!response) {
           const errorMessage =
-            (response as any).response?.data?.detail ||
-            (response as any).response?.data?.message ||
+            (response as any)?.response?.data?.detail ||
+            (response as any)?.response?.data?.message ||
             "Failed to update job";
           throw new Error(errorMessage);
         }
@@ -418,7 +508,7 @@ export function useUpdateJob() {
           queryKey: [JOBS_KEY, "detail", businessId],
         });
 
-        return response.data;
+        return response;
       } catch (error: any) {
         // Provide more detailed error message for 422 errors
         if (error.response?.status === 422) {

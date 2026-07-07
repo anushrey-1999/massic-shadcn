@@ -18,13 +18,24 @@ export const businessInfoSchema = z.object({
       (val) => isValidWebsiteUrl(val),
       { message: "Please enter a valid website URL (e.g., example.com, www.example.com, or https://example.com)" }
     ),
+  legalName: z.string().optional(),
   businessName: z.string().min(1, "Business Name is required"),
+  businessCategory: z.string().optional(),
+  foundingDate: z.string().optional(),
+  logoUrl: z.string().optional(),
+  siteName: z.string().optional(),
+  alternateName: z.string().optional(),
+  siteSearchUrlPattern: z.string().optional(),
   businessDescription: z.string(),
   primaryLocation: z.string().min(1, "Primary Location is required"),
+  serviceAreaType: z.string().optional(),
+  serviceAreas: z.array(z.string().trim().min(1)).optional(),
   serviceType: z.enum(["physical", "online", "both"]),
   lifetimeValue: z
     .union([z.enum(["high", "low"]), z.literal("")])
     .optional(),
+  b2bB2c: z.string().optional(),
+  segment: z.string().optional(),
   offerings: z.enum(["products", "services", "both"]),
   offeringsList: z
     .array(
@@ -46,6 +57,7 @@ export const businessInfoSchema = z.object({
             },
             { message: "Please enter a valid URL" }
           ),
+        pricePositioning: z.string().optional(),
       })
     )
     .optional(),
@@ -69,6 +81,7 @@ export const businessInfoSchema = z.object({
       z.object({
         name: z.string().optional(),
         title: z.string().optional(),
+        bio: z.string().optional(),
       })
     )
     .optional(),
@@ -81,6 +94,57 @@ export const businessInfoSchema = z.object({
       })
     )
     .optional(),
+  detailedLocations: z
+    .array(
+      z.object({
+        streetAddress: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        zip: z.string().optional(),
+        country: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().optional(),
+        mapLink: z.string().optional(),
+        hours: z.string().optional(),
+        holidayHours: z.string().optional(),
+        primaryFlag: z.string().optional(),
+      })
+    )
+    .optional(),
+  keyPeople: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        role: z.string().optional(),
+        bio: z.string().optional(),
+      })
+    )
+    .optional(),
+  licensesCompliance: z.array(z.string().trim().min(1)).optional(),
+  awardsCertifications: z.array(z.string().trim().min(1)).optional(),
+  reviewRating: z.string().optional(),
+  reviewCount: z.string().optional(),
+  testimonials: z.array(z.string().trim().min(1)).optional(),
+  colorsFontsCss: z.string().optional(),
+  imagePhotoLibrary: z.array(z.string().trim().min(1)).optional(),
+  socialProfiles: z
+    .array(
+      z.object({
+        platform: z.string().optional(),
+        url: z.string().optional(),
+      })
+    )
+    .optional(),
+  directoryProfiles: z
+    .array(
+      z.object({
+        name: z.string().optional(),
+        url: z.string().optional(),
+      })
+    )
+    .optional(),
+  supportEmail: z.string().optional(),
+  commsEmail: z.string().optional(),
   competitors: z
     .array(
       z.object({

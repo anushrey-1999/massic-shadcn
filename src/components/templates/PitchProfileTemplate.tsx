@@ -5,7 +5,6 @@ import { useForm, useStore } from "@tanstack/react-form";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { api } from "@/hooks/use-api";
 import { useLocations } from "@/hooks/use-locations";
 import { useBusinessStore } from "@/store/business-store";
 import {
@@ -13,23 +12,22 @@ import {
   type BusinessInfoFormData,
 } from "@/schemas/ProfileFormSchema";
 import { useBusinessProfileById, useUpdateBusinessProfile } from "@/hooks/use-business-profiles";
-import { useCreateJob, useJobByBusinessId, useUpdateJob, type Offering, type BusinessProfilePayload } from "@/hooks/use-jobs";
+import { useCreateJob, useJobByBusinessId, useUpdateJob } from "@/hooks/use-jobs";
 
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/molecules/PageHeader";
-import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
-import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
+import { ProfileFormTabs } from "@/components/templates/ProfileFormTabs";
 import { LoaderOverlay } from "@/components/ui/loader";
-import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { Loader2 } from "lucide-react";
 import { cleanWebsiteUrl } from "@/utils/utils";
-import { getAutofillErrorMessage } from "@/utils/profile-autofill";
+import {
+  type NormalizedProfileResult,
+} from "@/utils/profile-result";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { TagsInput } from "@/components/ui/tags-input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +40,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
-import { parsePrimaryLocationForPayload, primaryLocationFromProfile, resolvePrimaryLocationFormValue } from "@/utils/primary-location";
+import { primaryLocationFromProfile, resolvePrimaryLocationFormValue } from "@/utils/primary-location";
+import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
+import {
+  buildBusinessProfilePayload,
+  mapFormOfferingsToJobOfferings,
+  PROFILE_FORM_TABS,
+  profileFormDefaults,
+  type ProfileFormTabId,
+} from "@/utils/profile-form-mappers";
 
 function toPrimaryLocationString(input: any): string {
   const location = String(input?.Location || "").trim();
@@ -65,27 +71,6 @@ function normalizeOfferingsList(jobOfferings: any): Array<{ name: string; descri
     .filter((o) => Boolean(o.name));
 }
 
-interface ProfileAutofillResponse {
-  business_url?: string;
-  profile_autofill?: {
-    url?: string;
-    market?: string;
-    ltv?: string;
-    sell?: string;
-    b2b_b2c?: string;
-    competitors?: string[];
-    segment?: number;
-    error?: string | null;
-    reason?: string | null;
-    recommendation?: string | null;
-    [key: string]: unknown;
-  };
-  errors?: string | string[] | null;
-  error?: string | null;
-  message?: string | null;
-  detail?: string | null;
-}
-
 export function PitchProfileTemplate() {
   const router = useRouter();
   const params = useParams();
@@ -106,8 +91,12 @@ export function PitchProfileTemplate() {
   const convertPitchMutation = useConvertPitchToBusiness();
   const guardConvertPitch = useFeatureActionGuard("business.convertPitch");
 
-  const [isAutofillLoading, setIsAutofillLoading] = useState(false);
   const [isConvertConfirmOpen, setIsConvertConfirmOpen] = useState(false);
+  const [autofillProfileResult, setAutofillProfileResult] =
+    useState<NormalizedProfileResult | null>(null);
+  const [profileTab, setProfileTab] = useState<ProfileFormTabId>(
+    PROFILE_FORM_TABS[0].id
+  );
 
   React.useEffect(() => {
     resetProfileForm();
@@ -119,77 +108,22 @@ export function PitchProfileTemplate() {
     setLocationsLoading(locationsLoading);
   }, [locationOptions, locationsLoading, setLocationOptions, setLocationsLoading]);
 
-  const defaultValues = React.useMemo(() => {
-    return {
-      website: "",
-      businessName: "",
-      businessDescription: "",
-      primaryLocation: "",
-      lifetimeValue: "",
-      serviceType: "" as any,
-      offerings: "" as any,
-      offeringsList: [],
-      brandTerms: [],
-    } as unknown as BusinessInfoFormData;
-  }, []);
-
   const form = useForm({
-    defaultValues,
+    defaultValues: profileFormDefaults,
     validators: {
       onChange: businessInfoSchema,
     },
     onSubmit: async ({ value }) => {
       if (!businessId) return;
 
-      const normalizedOfferType: "products" | "services" =
-        value.offerings === "products" ? "products" : "services";
-
-      const normalizedServeCustomers: "local" | "online" =
-        value.serviceType === "physical" ? "local" : "online";
-
-      const { Location: location, Country: country } = parsePrimaryLocationForPayload(
-        value.primaryLocation,
-        locationOptions
-      );
-
-      const offerings: Offering[] = Array.isArray(value.offeringsList)
-        ? value.offeringsList
-            .filter((row) => Boolean(row?.name?.trim()))
-            .map((row) => ({
-              name: String(row.name || ""),
-              description: String(row.description || ""),
-              link: String(row.link || ""),
-            }))
-        : [];
-
-      const brandTermsArray = Array.isArray(value.brandTerms)
-        ? value.brandTerms.map((t) => String(t).trim()).filter(Boolean)
-        : [];
-
-      const businessProfilePayload: BusinessProfilePayload = {
-        Website: value.website,
-        Name: value.businessName,
-        Description: value.businessDescription,
-        UserDefinedBusinessDescription: value.businessDescription,
-        PrimaryLocation: {
-          Location: location,
-          Country: country,
-        },
-        BusinessObjective: normalizedServeCustomers,
-        LocationType: normalizedOfferType,
-        LTV:
-          value.lifetimeValue === "high" ||
-          value.lifetimeValue === "low"
-            ? value.lifetimeValue
-            : null,
-        BrandTerms: brandTermsArray.length > 0 ? brandTermsArray : null,
-      };
-
-      // Inputs for some business metrics were removed from the UI, but the backend may still return them.
-      // Preserve any existing non-editable fields by merging current profile data into the update payload.
-      const payloadForUpdate: BusinessProfilePayload = profileData
-        ? ({ ...(profileData as any), ...(businessProfilePayload as any) } as any)
-        : businessProfilePayload;
+      const offerings = mapFormOfferingsToJobOfferings(value);
+      const businessProfilePayload = buildBusinessProfilePayload(value, {
+        autofillResult: autofillProfileResult,
+        existingProfile: profileData,
+        locationOptions,
+        preserveExistingProfile: true,
+      });
+      const payloadForUpdate = businessProfilePayload;
 
       await updateBusinessProfileMutation.mutateAsync(payloadForUpdate as any);
 
@@ -211,7 +145,7 @@ export function PitchProfileTemplate() {
       }
 
       const resolvedPrimaryLocation = primaryLocationFromProfile(
-        { Location: location, Country: country },
+        businessProfilePayload.PrimaryLocation,
         locationOptions
       );
       if (resolvedPrimaryLocation) {
@@ -222,72 +156,14 @@ export function PitchProfileTemplate() {
     },
   });
 
-  const handleAutofillProfile = useCallback(async () => {
-    const values = form.state.values as BusinessInfoFormData;
-    const website = cleanWebsiteUrl(values?.website || "").trim();
-    if (!website) {
-      toast.error("Please enter a website URL first");
-      return;
-    }
-    setIsAutofillLoading(true);
-    try {
-      const res = await api.post<ProfileAutofillResponse>(
-        "/tools/autofill-profile",
-        "python",
-        { business_url: website },
-        { timeout: 120000 }
-      );
-      const autofillErrorMessage = getAutofillErrorMessage(res, "");
-      if (autofillErrorMessage) {
-        toast.error(autofillErrorMessage);
-        return;
-      }
-      const pa = res?.profile_autofill;
-      if (!pa) {
-        const fallbackMessage = String(res?.message ?? res?.detail ?? "").trim();
-        toast.error(fallbackMessage || "Failed to autofill profile");
-        return;
-      }
-
-      const market = (pa.market ?? "").toLowerCase();
-      if (market === "local" || market === "online") {
-        form.setFieldValue(
-          "serviceType" as any,
-          (market === "local" ? "physical" : "online") as any
-        );
-      }
-
-      const sell = (pa.sell ?? "products").toLowerCase();
-      const nextOfferings =
-        sell === "services"
-          ? "services"
-          : sell === "both"
-            ? "both"
-            : "products";
-      form.setFieldValue("offerings" as any, nextOfferings as any);
-
-      const ltvFromAutofill = (pa.ltv ?? "").toString().trim().toLowerCase();
-      if (ltvFromAutofill === "high" || ltvFromAutofill === "low") {
-        form.setFieldValue("lifetimeValue" as any, ltvFromAutofill as any);
-      }
-
-      toast.success("Profile fields updated from website");
-    } catch (error: any) {
-      const fallbackMessage = String(
-        error?.response?.data?.message ??
-        error?.response?.data?.detail ??
-        error?.message ??
-        ""
-      ).trim();
-      toast.error(
-        getAutofillErrorMessage(error?.response?.data ?? error, "") ||
-        fallbackMessage ||
-        "Failed to autofill profile"
-      );
-    } finally {
-      setIsAutofillLoading(false);
-    }
-  }, [form]);
+  const { autofillProfile: handleAutofillProfile, isAutofillLoading } =
+    useProfileAutofillForm({
+      form,
+      locationOptions,
+      onAutofillSuccess: (profile) => {
+        setAutofillProfileResult(profile);
+      },
+    });
 
   const formValues = useStore(form.store, (state: any) => state.values) as BusinessInfoFormData;
 
@@ -311,6 +187,33 @@ export function PitchProfileTemplate() {
       String((profileData as any)?.UserDefinedBusinessDescription || "").trim() ||
       String(profileData?.Description || "").trim() ||
       String(jobDetails?.user_defined_business_description || "").trim();
+    const businessCategory =
+      String(profileAny?.BusinessCategory || profileAny?.business_category || (jobDetails as any)?.business_category || "").trim();
+    const legalName = String(profileAny?.LegalName || profileAny?.legalName || "").trim();
+    const foundingDate = String(profileAny?.FoundingDate || profileAny?.foundingDate || "").trim();
+    const logoUrl = String(profileAny?.LogoUrl || profileAny?.logoUrl || "").trim();
+    const siteName = String(profileAny?.SiteName || profileAny?.siteName || profileAny?.site_name || "").trim();
+    const alternateName = String(profileAny?.AlternateName || profileAny?.alternateName || "").trim();
+    const siteSearchUrlPattern = String(profileAny?.SiteSearchUrlPattern || profileAny?.siteSearchUrlPattern || "").trim();
+    const serviceAreaType =
+      String(profileAny?.ServiceAreaType || profileAny?.service_area_type || (jobDetails as any)?.service_area_type || "").trim();
+    const normalizeStringArray = (raw: unknown): string[] => {
+      if (!raw) return [];
+      if (Array.isArray(raw)) return raw.map((item) => String(item).trim()).filter(Boolean);
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
+        } catch {
+          // ignore
+        }
+        return raw.split(",").map((item) => item.trim()).filter(Boolean);
+      }
+      return [];
+    };
+    const serviceAreas = normalizeStringArray(
+      profileAny?.ServiceAreas ?? profileAny?.service_areas ?? (jobDetails as any)?.service_areas
+    );
     const primaryLocationRaw =
       toPrimaryLocationString(profileAny?.PrimaryLocation) ||
       String(profileData?.Locations?.[0] ? (profileData.Locations[0] as any)?.Name || "" : "").trim() ||
@@ -331,7 +234,13 @@ export function PitchProfileTemplate() {
       .toLowerCase()
       .trim();
     const serviceType =
-      businessObjective === "local" ? "physical" : businessObjective === "online" ? "online" : "";
+      businessObjective === "local"
+        ? "physical"
+        : businessObjective === "online"
+          ? "online"
+          : businessObjective === "both" || businessObjective === "hybrid"
+            ? "both"
+            : "";
 
     const locationType = String(
       profileData?.LocationType || (jobDetails as any)?.sell || ""
@@ -374,11 +283,81 @@ export function PitchProfileTemplate() {
       }
       return [];
     })();
+    const normalizeArray = (raw: unknown): any[] => {
+      if (!raw) return [];
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {
+          return raw.split(",").map((item) => item.trim()).filter(Boolean);
+        }
+      }
+      return [];
+    };
+    const normalizeUsps = (raw: unknown): string[] =>
+      normalizeArray(raw).map((item) => String(item).trim()).filter(Boolean);
+    const usps = normalizeUsps((jobDetails as any)?.usps ?? profileAny?.USPs ?? profileAny?.SellingPoints).join(", ");
+    const ctas = normalizeArray(profileAny?.CTAs ?? (jobDetails as any)?.ctas)
+      .map((cta: any) => ({
+        buttonText: String(cta?.buttonText ?? cta?.text ?? "").trim(),
+        url: String(cta?.url ?? "").trim(),
+      }))
+      .filter((cta) => Boolean(cta.buttonText && cta.url));
+    const rawStakeholders = normalizeArray(profileAny?.CustomerPersonas);
+    const rawKeyPeople = normalizeArray(profileAny?.KeyPeople);
+    const stakeholders = (rawStakeholders.length > 0 ? rawStakeholders : rawKeyPeople).map((person: any) => ({
+      name: person?.personName || person?.name || "",
+      title: person?.personDescription || person?.title || person?.role || "",
+      bio: person?.bio || "",
+    }));
+    const businessLocations = normalizeArray(profileAny?.Locations).map((loc: any, index: number) => ({
+      name: loc?.DisplayName || loc?.Name || `Location ${index + 1}`,
+      address: loc?.Address1 || loc?.address || "",
+      timezone: loc?.TimeZone || loc?.timezone || "",
+    }));
+    const competitors = normalizeArray(profileAny?.Competitors).map((comp: any) => ({
+      url: cleanWebsiteUrl(comp?.website || comp?.Website || comp?.url || ""),
+    })).filter((comp) => Boolean(comp.url));
+    const validToneOptions = new Set([
+      "professional",
+      "bold",
+      "friendly",
+      "innovative",
+      "playful",
+      "trustworthy",
+    ]);
+    const normalizeTones = (raw: unknown): string[] =>
+      normalizeArray(raw)
+        .map((tone) => String(tone).toLowerCase().trim())
+        .filter((tone) => validToneOptions.has(tone))
+        .slice(0, 3);
+    const brandToneSocial = normalizeTones(profileAny?.SocialBrandVoice ?? (jobDetails as any)?.social_brand_voice);
+    const brandToneWeb = normalizeTones(profileAny?.WebBrandVoice ?? (jobDetails as any)?.web_brand_voice);
 
     if (!String(formValues.website || "").trim() && website) form.setFieldValue("website", website);
+    if (!String((formValues as any).legalName || "").trim() && legalName) form.setFieldValue("legalName" as any, legalName as any);
     if (!String(formValues.businessName || "").trim() && businessName) form.setFieldValue("businessName", businessName);
+    if (!String((formValues as any).foundingDate || "").trim() && foundingDate) form.setFieldValue("foundingDate" as any, foundingDate as any);
+    if (!String((formValues as any).logoUrl || "").trim() && logoUrl) form.setFieldValue("logoUrl" as any, logoUrl as any);
+    if (!String((formValues as any).siteName || "").trim() && siteName) form.setFieldValue("siteName" as any, siteName as any);
+    if (!String((formValues as any).alternateName || "").trim() && alternateName) form.setFieldValue("alternateName" as any, alternateName as any);
+    if (!String((formValues as any).siteSearchUrlPattern || "").trim() && siteSearchUrlPattern) form.setFieldValue("siteSearchUrlPattern" as any, siteSearchUrlPattern as any);
     if (!String(formValues.businessDescription || "").trim() && businessDescription) {
       form.setFieldValue("businessDescription", businessDescription);
+    }
+    if (!String((formValues as any).businessCategory || "").trim() && businessCategory) {
+      form.setFieldValue("businessCategory" as any, businessCategory as any);
+    }
+    if (!String((formValues as any).serviceAreaType || "").trim() && serviceAreaType) {
+      form.setFieldValue("serviceAreaType" as any, serviceAreaType as any);
+    }
+    if (
+      (!Array.isArray((formValues as any).serviceAreas) || (formValues as any).serviceAreas.length === 0) &&
+      serviceAreas.length > 0
+    ) {
+      form.setFieldValue("serviceAreas" as any, serviceAreas as any);
     }
     if (!String(formValues.primaryLocation || "").trim() && primaryLocation) {
       form.setFieldValue("primaryLocation", primaryLocation);
@@ -401,6 +380,14 @@ export function PitchProfileTemplate() {
     if ((formValues.lifetimeValue == null || String(formValues.lifetimeValue).trim() === "") && ltvValue) {
       form.setFieldValue("lifetimeValue", ltvValue as any);
     }
+    if (!String((formValues as any).b2bB2c || "").trim()) {
+      const b2bB2c = String(profileAny?.B2bB2c || profileAny?.b2b_b2c || (jobDetails as any)?.b2b_b2c || "").trim();
+      if (b2bB2c) form.setFieldValue("b2bB2c" as any, b2bB2c as any);
+    }
+    if (!String((formValues as any).segment || "").trim()) {
+      const segment = String(profileAny?.Segment ?? profileAny?.segment ?? (jobDetails as any)?.segment ?? "").trim();
+      if (segment) form.setFieldValue("segment" as any, segment as any);
+    }
 
     if (!String(formValues.offerings || "").trim()) form.setFieldValue("offerings", offerings as any);
     if (!hasAnyOfferingRow && offeringsList.length > 0) form.setFieldValue("offeringsList", offeringsList as any);
@@ -409,6 +396,45 @@ export function PitchProfileTemplate() {
       : [];
     if (currentBrandTerms.length === 0 && Array.isArray(brandTerms) && brandTerms.length > 0) {
       form.setFieldValue("brandTerms", brandTerms as any);
+    }
+    if (!String(formValues.usps || "").trim() && usps) form.setFieldValue("usps", usps as any);
+    if ((!Array.isArray(formValues.ctas) || formValues.ctas.length === 0) && ctas.length > 0) {
+      form.setFieldValue("ctas", ctas as any);
+    }
+    if ((!Array.isArray(formValues.stakeholders) || formValues.stakeholders.length === 0) && stakeholders.length > 0) {
+      form.setFieldValue("stakeholders", stakeholders as any);
+    }
+    if ((!Array.isArray(formValues.locations) || formValues.locations.length === 0) && businessLocations.length > 0) {
+      form.setFieldValue("locations", businessLocations as any);
+    }
+    const copyArrayIfEmpty = (fieldName: string, raw: unknown) => {
+      const current = (formValues as any)[fieldName];
+      const next = normalizeArray(raw);
+      if ((!Array.isArray(current) || current.length === 0) && next.length > 0) {
+        form.setFieldValue(fieldName as any, next as any);
+      }
+    };
+    copyArrayIfEmpty("detailedLocations", profileAny?.DetailedLocations);
+    copyArrayIfEmpty("keyPeople", profileAny?.KeyPeople);
+    copyArrayIfEmpty("licensesCompliance", profileAny?.LicensesCompliance);
+    copyArrayIfEmpty("awardsCertifications", profileAny?.AwardsCertifications);
+    copyArrayIfEmpty("testimonials", profileAny?.Testimonials);
+    copyArrayIfEmpty("imagePhotoLibrary", profileAny?.ImagePhotoLibrary);
+    copyArrayIfEmpty("socialProfiles", profileAny?.SocialProfiles);
+    copyArrayIfEmpty("directoryProfiles", profileAny?.DirectoryProfiles);
+    if (!String((formValues as any).reviewRating || "").trim() && profileAny?.ReviewRating) form.setFieldValue("reviewRating" as any, String(profileAny.ReviewRating) as any);
+    if (!String((formValues as any).reviewCount || "").trim() && profileAny?.ReviewCount) form.setFieldValue("reviewCount" as any, String(profileAny.ReviewCount) as any);
+    if (!String((formValues as any).colorsFontsCss || "").trim() && profileAny?.ColorsFontsCss) form.setFieldValue("colorsFontsCss" as any, String(profileAny.ColorsFontsCss) as any);
+    if (!String((formValues as any).supportEmail || "").trim() && profileAny?.SupportEmail) form.setFieldValue("supportEmail" as any, String(profileAny.SupportEmail) as any);
+    if (!String((formValues as any).commsEmail || "").trim() && profileAny?.CommsEmail) form.setFieldValue("commsEmail" as any, String(profileAny.CommsEmail) as any);
+    if ((!Array.isArray(formValues.competitors) || formValues.competitors.length === 0) && competitors.length > 0) {
+      form.setFieldValue("competitors", competitors as any);
+    }
+    if ((!Array.isArray(formValues.brandToneSocial) || formValues.brandToneSocial.length === 0) && brandToneSocial.length > 0) {
+      form.setFieldValue("brandToneSocial", brandToneSocial as any);
+    }
+    if ((!Array.isArray(formValues.brandToneWeb) || formValues.brandToneWeb.length === 0) && brandToneWeb.length > 0) {
+      form.setFieldValue("brandToneWeb", brandToneWeb as any);
     }
   }, [businessId, form, formValues, jobQuery.data, jobQuery.isFetched, locationOptions, locationsLoading, profileData, profileDataLoading]);
 
@@ -513,12 +539,45 @@ export function PitchProfileTemplate() {
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
-                <ProfileStepCard
-                  title="Basic Details"
-                  description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
-                  className="flex-1"
-                  scrollableContent
-                  contentClassName="pb-6"
+                <ProfileFormTabs
+                  form={form}
+                  businessId={businessId ?? null}
+                  value={profileTab}
+                  onValueChange={setProfileTab}
+                  disableWebsiteLock
+                  primaryLocationAction={
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-block">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="default"
+                            onClick={handleAutofillProfile}
+                            disabled={
+                              isAutofillLoading ||
+                              !(formValues?.website ?? "").toString().trim() ||
+                              !(formValues?.primaryLocation ?? "").toString().trim() ||
+                              !(formValues?.serviceAreaType ?? "").toString().trim()
+                            }
+                            className="gap-2 border-general-border-three text-general-foreground"
+                          >
+                            {isAutofillLoading ? (
+                              <>
+                                <Loader2 className="size-4 animate-spin" />
+                                Autofilling...
+                              </>
+                            ) : (
+                              "Autofill Profile"
+                            )}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {!(formValues?.website ?? "").toString().trim() ? (
+                        <TooltipContent>Enter Website URL to proceed</TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                  }
                   rightAction={
                     <div className="flex items-center gap-2">
                       <Button
@@ -550,72 +609,7 @@ export function PitchProfileTemplate() {
                       </Button>
                     </div>
                   }
-                >
-                  <BusinessInfoForm
-                    form={form}
-                    embedded
-                    embeddedVariant="full"
-                    disableWebsiteLock
-                    primaryLocationAction={
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-block">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="default"
-                              onClick={handleAutofillProfile}
-                              disabled={
-                                isAutofillLoading ||
-                                !(formValues?.website ?? "").toString().trim()
-                              }
-                              className="gap-2 border-general-border-three text-general-foreground"
-                            >
-                              {isAutofillLoading ? (
-                                <>
-                                  <Loader2 className="size-4 animate-spin" />
-                                  Autofilling...
-                                </>
-                              ) : (
-                                "Autofill Profile"
-                              )}
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        {!(formValues?.website ?? "").toString().trim() ? (
-                          <TooltipContent>Enter Website URL to proceed</TooltipContent>
-                        ) : null}
-                      </Tooltip>
-                    }
-                  />
-                  <OfferingsForm
-                    form={form}
-                    businessId={businessId ?? null}
-                    embedded
-                  />
-                  <div className="w-full md:w-3/4">
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-foreground">
-                        Brand terms that best describe your business
-                      </div>
-                      <form.Field
-                        name="brandTerms"
-                        children={(field: any) => {
-                          const currentValue = Array.isArray(field.state.value)
-                            ? field.state.value
-                            : [];
-                          return (
-                            <TagsInput
-                              value={currentValue}
-                              onChange={(next) => field.handleChange(next)}
-                              placeholder="Type a term and press Enter"
-                            />
-                          );
-                        }}
-                      />
-                    </div>
-                  </div>
-                </ProfileStepCard>
+                />
               </form>
             </div>
           </div>

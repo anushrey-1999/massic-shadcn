@@ -757,6 +757,13 @@ const ProfileTemplate = ({
           });
         }
 
+        Object.keys(mappedValues).forEach((key) => {
+          form.setFieldMeta(key as any, (prev: any) => ({
+            ...prev,
+            isTouched: false,
+          }));
+        });
+
         // Clear the saved offerings ref after processing (so next update can proceed normally)
         if (apiOfferingsMatchSaved) {
           lastSavedOfferingsRef.current = null;
@@ -806,6 +813,10 @@ const ProfileTemplate = ({
 
     if (!currentIsValid && resolved !== current) {
       form.setFieldValue("primaryLocation", resolved);
+      form.setFieldMeta("primaryLocation", (prev: any) => ({
+        ...prev,
+        isTouched: false,
+      }));
       initialValuesRef.current = stableStringify({
         ...form.state.values,
         primaryLocation: resolved,

@@ -136,7 +136,7 @@ export const BusinessInfoForm = React.memo(({
   const detailSection = React.useCallback(
     (title: string, children: React.ReactNode, action?: React.ReactNode) => (
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
           <Typography variant="h4" className="text-base font-semibold">
             {title}
           </Typography>

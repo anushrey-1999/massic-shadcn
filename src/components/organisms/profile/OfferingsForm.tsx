@@ -42,6 +42,7 @@ type BusinessInfoFormData = {
     name: string;
     description: string;
     link: string;
+    pricePositioning?: string;
   }>;
   offeringsSavedIndices?: number[];
 };
@@ -138,6 +139,7 @@ export const OfferingsForm = ({
     { key: "name", label: "Name", validation: { required: true } },
     { key: "description", label: "Description", validation: { required: false } },
     { key: "link", label: "Link", validation: { required: false, url: true } },
+    { key: "pricePositioning", label: "Price Positioning", validation: { required: false } },
   ], []);
 
   // Own handlers - encapsulated logic
@@ -149,7 +151,12 @@ export const OfferingsForm = ({
     data: offeringsData,
     formFieldName: "offeringsList",
     setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({ name: "", description: "", link: "" }),
+    emptyRowFactory: () => ({
+      name: "",
+      description: "",
+      link: "",
+      pricePositioning: "",
+    }),
   });
 
   // Handle fetch offerings from website
@@ -204,6 +211,7 @@ export const OfferingsForm = ({
         name: (offering.name || offering.offering || "").trim(),
         description: (offering.description || "").trim(),
         link: normalizeOfferingLink(offering.url || offering.link),
+        pricePositioning: (offering.price_positioning || offering.priceRange || "").trim(),
       }))
       .filter((offering) => offering.name !== ""); // Filter out empty names
 

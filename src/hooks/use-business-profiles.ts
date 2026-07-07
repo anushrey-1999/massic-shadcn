@@ -162,8 +162,8 @@ interface CreateBusinessPayload {
   website: string;
   businessName: string;
   primaryLocation: string; // Format: "Location,Country" or just "Location"
-  serveCustomers: "local" | "online";
-  offerType: "products" | "services";
+  serveCustomers: "local" | "online" | "both";
+  offerType: "products" | "services" | "both";
   isPitch?: boolean; // Set to true when created from /create-pitch
   locationOptions?: LocationOption[];
 }

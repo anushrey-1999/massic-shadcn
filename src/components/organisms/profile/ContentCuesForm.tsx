@@ -22,7 +22,7 @@ type BusinessInfoFormData = {
   usps?: string;
   ctas?: Array<{ buttonText: string; url: string }>;
   ctasSavedIndices?: number[];
-  stakeholders?: Array<{ name: string; title: string }>;
+  stakeholders?: Array<{ name: string; title: string; bio?: string }>;
   stakeholdersSavedIndices?: number[];
   calendarEvents?: Array<{ eventName: string; startDate: string | null; endDate: string | null }>;
   calendarEventsSavedIndices?: number[];
@@ -65,7 +65,8 @@ export const ContentCuesForm = ({
 
   const stakeholdersColumns: Column<StakeholderRow>[] = useMemo(() => [
     { key: "name", label: "Name", validation: { required: false } },
-    { key: "title", label: "Title", validation: { required: false } },
+    { key: "title", label: "Role", validation: { required: false } },
+    { key: "bio", label: "Bio", validation: { required: false } },
   ], []);
 
   // Own handlers - encapsulated logic
@@ -88,7 +89,7 @@ export const ContentCuesForm = ({
     data: stakeholdersData,
     formFieldName: "stakeholders",
     setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({ name: "", title: "" }),
+    emptyRowFactory: () => ({ name: "", title: "", bio: "" }),
   });
 
   const {

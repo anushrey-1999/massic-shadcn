@@ -8,26 +8,62 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { GenericInput } from "@/components/ui/generic-input";
+import { TagsInput } from "@/components/ui/tags-input";
 import { Typography } from "@/components/ui/typography";
 import { Boxes, Laptop, Store } from "lucide-react";
 import { useBusinessStore } from "@/store/business-store";
 import { useShallow } from "zustand/react/shallow";
 import { useStore } from "@tanstack/react-form";
+import {
+  CustomAddRowTable,
+  type Column,
+} from "@/components/organisms/CustomAddRowTable";
 
 type BusinessInfoFormData = {
   website: string;
+  legalName?: string;
   businessName: string;
+  foundingDate?: string;
+  logoUrl?: string;
+  siteName?: string;
+  alternateName?: string;
+  siteSearchUrlPattern?: string;
   businessDescription: string;
   primaryLocation: string;
+  businessCategory?: string;
+  serviceAreaType?: string;
+  serviceAreas?: string[];
   serviceType: "physical" | "online" | "both";
   lifetimeValue: "" | "high" | "low";
+  b2bB2c?: string;
+  segment?: string;
   offerings: "products" | "services" | "both";
   offeringsList?: Array<{
     name: string;
     description: string;
     link: string;
+    pricePositioning?: string;
   }>;
+  detailedLocations?: Array<Record<string, string>>;
+  licensesCompliance?: string[];
+  awardsCertifications?: string[];
+  reviewRating?: string;
+  reviewCount?: string;
+  testimonials?: string[];
+  colorsFontsCss?: string;
+  imagePhotoLibrary?: string[];
+  socialProfiles?: Array<Record<string, string>>;
+  directoryProfiles?: Array<Record<string, string>>;
+  supportEmail?: string;
+  commsEmail?: string;
 };
+
+const SERVICE_AREA_TYPE_OPTIONS = [
+  { value: "international", label: "International" },
+  { value: "national", label: "National" },
+  { value: "state_regional", label: "State-Regional" },
+  { value: "city_local", label: "City-Local" },
+] as const;
 
 interface BusinessInfoFormProps {
   form: any; // TanStack Form instance
@@ -49,8 +85,101 @@ export const BusinessInfoForm = React.memo(({
   disabledFields,
 }: BusinessInfoFormProps) => {
   const websiteValue = useStore(form.store, (state: any) => state.values?.website || "");
+  const serviceAreasValue = useStore(form.store, (state: any) => state.values?.serviceAreas || []);
+  const detailedLocationsValue = useStore(form.store, (state: any) => state.values?.detailedLocations || []);
+  const licensesComplianceValue = useStore(form.store, (state: any) => state.values?.licensesCompliance || []);
+  const awardsCertificationsValue = useStore(form.store, (state: any) => state.values?.awardsCertifications || []);
+  const testimonialsValue = useStore(form.store, (state: any) => state.values?.testimonials || []);
+  const imagePhotoLibraryValue = useStore(form.store, (state: any) => state.values?.imagePhotoLibrary || []);
+  const socialProfilesValue = useStore(form.store, (state: any) => state.values?.socialProfiles || []);
+  const directoryProfilesValue = useStore(form.store, (state: any) => state.values?.directoryProfiles || []);
   const isWebsiteLocked =
     !disableWebsiteLock && String(websiteValue || "").trim().length > 0;
+
+  const updateRowField = React.useCallback(
+    (fieldName: keyof BusinessInfoFormData, rowIndex: number, field: string, value: string) => {
+      const currentRows = Array.isArray(form.state.values?.[fieldName])
+        ? [...form.state.values[fieldName]]
+        : [];
+      currentRows[rowIndex] = {
+        ...(currentRows[rowIndex] || {}),
+        [field]: value,
+      };
+      form.setFieldValue(fieldName as any, currentRows as any);
+    },
+    [form]
+  );
+
+  const addRow = React.useCallback(
+    (fieldName: keyof BusinessInfoFormData, emptyRow: Record<string, string>) => {
+      const currentRows = Array.isArray(form.state.values?.[fieldName])
+        ? form.state.values[fieldName]
+        : [];
+      form.setFieldValue(fieldName as any, [...currentRows, emptyRow] as any);
+    },
+    [form]
+  );
+
+  const deleteRow = React.useCallback(
+    (fieldName: keyof BusinessInfoFormData, rowIndex: number) => {
+      const currentRows = Array.isArray(form.state.values?.[fieldName])
+        ? form.state.values[fieldName]
+        : [];
+      form.setFieldValue(
+        fieldName as any,
+        currentRows.filter((_: unknown, index: number) => index !== rowIndex) as any
+      );
+    },
+    [form]
+  );
+
+  const detailSection = React.useCallback(
+    (title: string, children: React.ReactNode, action?: React.ReactNode) => (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <Typography variant="h4" className="text-base font-semibold">
+            {title}
+          </Typography>
+          {action}
+        </div>
+        {children}
+      </div>
+    ),
+    []
+  );
+
+  const detailedLocationColumns = React.useMemo<Column<Record<string, string>>[]>(
+    () => [
+      { key: "streetAddress", label: "Street Address" },
+      { key: "city", label: "City" },
+      { key: "state", label: "State" },
+      { key: "zip", label: "ZIP" },
+      { key: "country", label: "Country" },
+      { key: "phone", label: "Phone" },
+      { key: "email", label: "Email" },
+      { key: "mapLink", label: "Map Link", validation: { url: true } },
+      { key: "hours", label: "Hours" },
+      { key: "holidayHours", label: "Special Hours" },
+      { key: "primaryFlag", label: "Primary" },
+    ],
+    []
+  );
+
+  const socialProfileColumns = React.useMemo<Column<Record<string, string>>[]>(
+    () => [
+      { key: "platform", label: "Platform" },
+      { key: "url", label: "URL", validation: { url: true } },
+    ],
+    []
+  );
+
+  const directoryProfileColumns = React.useMemo<Column<Record<string, string>>[]>(
+    () => [
+      { key: "name", label: "Directory" },
+      { key: "url", label: "URL", validation: { url: true } },
+    ],
+    []
+  );
 
   // Own Zustand selectors - isolated selector for better performance
   const { locationOptions, locationsLoading } = useBusinessStore(
@@ -94,6 +223,20 @@ export const BusinessInfoForm = React.memo(({
               </div>
             </CardContent>
           </Card>
+          <Card variant="profileCard">
+            <CardContent>
+              <div className="w-1/2">
+                <GenericInput<BusinessInfoFormData>
+                  form={form as any}
+                  fieldName="businessCategory"
+                  type="input"
+                  inputVariant="noBorder"
+                  label="Business Category"
+                  placeholder="E.g. Plumbing Services"
+                />
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Row 2 */}
           <Card variant="profileCard">
@@ -133,7 +276,6 @@ export const BusinessInfoForm = React.memo(({
               </div>
             </CardContent>
           </Card>
-
           {/* Row 3 */}
           <Card variant="profileCard">
             <CardContent>
@@ -142,7 +284,7 @@ export const BusinessInfoForm = React.memo(({
                   form={form as any}
                   fieldName="serviceType"
                   type="radio-cards"
-                  label="Where do you primarily serve your customers?"
+                  label="Market"
                   required={true}
                   orientation="horizontal"
                   radioCardSize="sm"
@@ -152,9 +294,9 @@ export const BusinessInfoForm = React.memo(({
                     both: <Boxes className="size-7" strokeWidth={1.5} />,
                   }}
                   options={[
-                    { value: "physical", label: "Physical" },
+                    { value: "physical", label: "Local" },
                     { value: "online", label: "Online" },
-                    { value: "both", label: "Both" },
+                    { value: "both", label: "Hybrid" },
                   ]}
                 />
               </div>
@@ -175,6 +317,36 @@ export const BusinessInfoForm = React.memo(({
                     { value: "high", label: "High" },
                     { value: "low", label: "Low" },
                   ]}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <Card variant="profileCard">
+            <CardContent>
+              <div className="w-3/4">
+                <GenericInput<BusinessInfoFormData>
+                  form={form as any}
+                  fieldName="serviceAreaType"
+                  type="select"
+                  inputVariant="noBorder"
+                  label="Service Area Type"
+                  required
+                  placeholder="Select service area type"
+                  options={[...SERVICE_AREA_TYPE_OPTIONS]}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <Card variant="profileCard">
+            <CardContent>
+              <div className="w-3/4">
+                <Typography variant="small" className="mb-2 block text-sm font-medium">
+                  Service Areas
+                </Typography>
+                <TagsInput
+                  value={Array.isArray(serviceAreasValue) ? serviceAreasValue : []}
+                  onChange={(next) => form.setFieldValue("serviceAreas" as any, next as any)}
+                  placeholder="Type a service area and press Enter"
                 />
               </div>
             </CardContent>
@@ -209,6 +381,16 @@ export const BusinessInfoForm = React.memo(({
           disabled={locationsLoading || disabledFields?.primaryLocation}
           loading={locationsLoading}
         />
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
+          fieldName="serviceAreaType"
+          type="select"
+          label="Service Area Type"
+          required
+          placeholder="Select service area type"
+          options={[...SERVICE_AREA_TYPE_OPTIONS]}
+          disabled={disabledFields?.serviceAreaType}
+        />
         {primaryLocationAction && (
           <div className="flex flex-col gap-2 pt-1">
             {primaryLocationAction}
@@ -223,22 +405,70 @@ export const BusinessInfoForm = React.memo(({
 
   const embeddedContent = (
     <div id="business-info" className="flex flex-col gap-7">
-      <div className="flex items-end gap-4 w-full">
-        <div className="w-1/2 min-w-0">
+      {detailSection(
+        "Identity",
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
           <GenericInput<BusinessInfoFormData>
             form={form as any}
-            fieldName="website"
-            type="url"
-            label="Website"
-            required={true}
-            placeholder="Provide the official url of your business website"
-            disabled={isWebsiteLocked || disabledFields?.website}
+            fieldName="legalName"
+            type="input"
+            label="Legal Business Name"
+            placeholder="Registered legal business name"
+            disabled={disabledFields?.legalName}
           />
-        </div>
-        <div className="flex-1 min-w-0" />
-        <div className="shrink-0">
-          {primaryLocationAction}
-        </div>
+          <GenericInput<BusinessInfoFormData>
+            form={form as any}
+            fieldName="foundingDate"
+            type="input"
+            label="Year Founded"
+            placeholder="E.g. 2018"
+            disabled={disabledFields?.foundingDate}
+          />
+          <GenericInput<BusinessInfoFormData>
+            form={form as any}
+            fieldName="logoUrl"
+            type="url"
+            label="Logo URL"
+            placeholder="https://example.com/logo.png"
+            disabled={disabledFields?.logoUrl}
+          />
+          <GenericInput<BusinessInfoFormData>
+            form={form as any}
+            fieldName="siteName"
+            type="input"
+            label="Site Name"
+            placeholder="Website or site name"
+            disabled={disabledFields?.siteName}
+          />
+          <GenericInput<BusinessInfoFormData>
+            form={form as any}
+            fieldName="alternateName"
+            type="input"
+            label="Alternate Name"
+            placeholder="Alternate brand name"
+            disabled={disabledFields?.alternateName}
+          />
+          <GenericInput<BusinessInfoFormData>
+            form={form as any}
+            fieldName="siteSearchUrlPattern"
+            type="input"
+            label="Site Search URL Pattern"
+            placeholder="https://example.com/search?q={search_term_string}"
+            disabled={disabledFields?.siteSearchUrlPattern}
+          />
+        </div>,
+        primaryLocationAction
+      )}
+      <div className="w-1/2">
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
+          fieldName="website"
+          type="url"
+          label="Website"
+          required={true}
+          placeholder="Provide the official url of your business website"
+          disabled={isWebsiteLocked || disabledFields?.website}
+        />
       </div>
       <div className="w-1/2">
         <GenericInput<BusinessInfoFormData>
@@ -260,6 +490,18 @@ export const BusinessInfoForm = React.memo(({
       <div className="w-1/2">
         <GenericInput<BusinessInfoFormData>
           form={form as any}
+          fieldName="serviceAreaType"
+          type="select"
+          label="Service Area Type"
+          required
+          placeholder="Select service area type"
+          options={[...SERVICE_AREA_TYPE_OPTIONS]}
+          disabled={disabledFields?.serviceAreaType}
+        />
+      </div>
+      <div className="w-1/2">
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
           fieldName="businessName"
           type="input"
           label="Business Name"
@@ -271,9 +513,19 @@ export const BusinessInfoForm = React.memo(({
       <div className="w-1/2">
         <GenericInput<BusinessInfoFormData>
           form={form as any}
+          fieldName="businessCategory"
+          type="input"
+          label="Business Category"
+          placeholder="E.g. Plumbing Services"
+          disabled={disabledFields?.businessCategory}
+        />
+      </div>
+      <div className="w-1/2">
+        <GenericInput<BusinessInfoFormData>
+          form={form as any}
           fieldName="serviceType"
           type="radio-cards"
-          label="Where do you primarily serve your customers?"
+          label="Market"
           required={true}
           orientation="horizontal"
           disabled={disabledFields?.serviceType}
@@ -284,10 +536,47 @@ export const BusinessInfoForm = React.memo(({
             both: <Boxes className="size-7" strokeWidth={1.5} />,
           }}
           options={[
-            { value: "physical", label: "Physical" },
+            { value: "physical", label: "Local" },
             { value: "online", label: "Online" },
-            { value: "both", label: "Both" },
+            { value: "both", label: "Hybrid" },
           ]}
+        />
+      </div>
+      {detailSection(
+        "Classification",
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+          <GenericInput<BusinessInfoFormData>
+            form={form as any}
+            fieldName="b2bB2c"
+            type="select"
+            label="B2B / B2C"
+            placeholder="Select audience"
+            options={[
+              { value: "b2b", label: "B2B" },
+              { value: "b2c", label: "B2C" },
+              { value: "both", label: "Both" },
+            ]}
+            disabled={disabledFields?.b2bB2c}
+          />
+          <GenericInput<BusinessInfoFormData>
+            form={form as any}
+            fieldName="segment"
+            type="input"
+            label="Segment"
+            placeholder="Segment 1-16"
+            disabled={disabledFields?.segment}
+          />
+        </div>
+      )}
+      <div className="w-3/4">
+        <Typography variant="small" className="mb-2 block text-sm font-medium">
+          Service Areas
+        </Typography>
+        <TagsInput
+          value={Array.isArray(serviceAreasValue) ? serviceAreasValue : []}
+          onChange={(next) => form.setFieldValue("serviceAreas" as any, next as any)}
+          placeholder="Type a service area and press Enter"
+          disabled={disabledFields?.serviceAreas}
         />
       </div>
       <div className="w-1/2">
@@ -306,6 +595,156 @@ export const BusinessInfoForm = React.memo(({
           ]}
         />
       </div>
+      {detailSection(
+        "Locations",
+        <CustomAddRowTable
+          columns={detailedLocationColumns}
+          data={Array.isArray(detailedLocationsValue) ? detailedLocationsValue : []}
+          onAddRow={() =>
+            addRow("detailedLocations", {
+              streetAddress: "",
+              city: "",
+              state: "",
+              zip: "",
+              country: "",
+              phone: "",
+              email: "",
+              mapLink: "",
+              hours: "",
+              holidayHours: "",
+              primaryFlag: "",
+            })
+          }
+          onRowChange={(rowIndex, field, value) =>
+            updateRowField("detailedLocations", rowIndex, field, value)
+          }
+          onDeleteRow={(rowIndex) => deleteRow("detailedLocations", rowIndex)}
+          addButtonText="Add Location"
+          variant="card"
+        />
+      )}
+      {detailSection(
+        "Trust & People",
+        <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+            <div>
+              <Typography variant="small" className="mb-2 block text-sm font-medium">
+                Licenses / Compliance
+              </Typography>
+              <TagsInput
+                value={Array.isArray(licensesComplianceValue) ? licensesComplianceValue : []}
+                onChange={(next) => form.setFieldValue("licensesCompliance" as any, next as any)}
+                placeholder="Type a license or compliance item and press Enter"
+              />
+            </div>
+            <div>
+              <Typography variant="small" className="mb-2 block text-sm font-medium">
+                Awards / Certifications / Affiliations
+              </Typography>
+              <TagsInput
+                value={Array.isArray(awardsCertificationsValue) ? awardsCertificationsValue : []}
+                onChange={(next) => form.setFieldValue("awardsCertifications" as any, next as any)}
+                placeholder="Type an award or certification and press Enter"
+              />
+            </div>
+            <GenericInput<BusinessInfoFormData>
+              form={form as any}
+              fieldName="reviewRating"
+              type="input"
+              label="Reviews — Rating"
+              placeholder="E.g. 4.8"
+              disabled={disabledFields?.reviewRating}
+            />
+            <GenericInput<BusinessInfoFormData>
+              form={form as any}
+              fieldName="reviewCount"
+              type="input"
+              label="Reviews — Count"
+              placeholder="E.g. 124"
+              disabled={disabledFields?.reviewCount}
+            />
+            <div className="md:col-span-2">
+              <Typography variant="small" className="mb-2 block text-sm font-medium">
+                Testimonials
+              </Typography>
+              <TagsInput
+                value={Array.isArray(testimonialsValue) ? testimonialsValue : []}
+                onChange={(next) => form.setFieldValue("testimonials" as any, next as any)}
+                placeholder="Type a testimonial and press Enter"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {detailSection(
+        "Brand Assets",
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+          <GenericInput<BusinessInfoFormData>
+            form={form as any}
+            fieldName="colorsFontsCss"
+            type="textarea"
+            label="Colors / Fonts / CSS"
+            placeholder="Brand colors, font names, or CSS notes"
+            rows={4}
+            disabled={disabledFields?.colorsFontsCss}
+          />
+          <div>
+            <Typography variant="small" className="mb-2 block text-sm font-medium">
+              Image / Photo Library
+            </Typography>
+            <TagsInput
+              value={Array.isArray(imagePhotoLibraryValue) ? imagePhotoLibraryValue : []}
+              onChange={(next) => form.setFieldValue("imagePhotoLibrary" as any, next as any)}
+              placeholder="Type an image URL and press Enter"
+            />
+          </div>
+        </div>
+      )}
+      {detailSection(
+        "Channels & Profiles",
+        <div className="flex flex-col gap-5">
+          <CustomAddRowTable
+            columns={socialProfileColumns}
+            data={Array.isArray(socialProfilesValue) ? socialProfilesValue : []}
+            onAddRow={() => addRow("socialProfiles", { platform: "", url: "" })}
+            onRowChange={(rowIndex, field, value) =>
+              updateRowField("socialProfiles", rowIndex, field, value)
+            }
+            onDeleteRow={(rowIndex) => deleteRow("socialProfiles", rowIndex)}
+            addButtonText="Add Social Profile"
+            variant="card"
+          />
+          <CustomAddRowTable
+            columns={directoryProfileColumns}
+            data={Array.isArray(directoryProfilesValue) ? directoryProfilesValue : []}
+            onAddRow={() => addRow("directoryProfiles", { name: "", url: "" })}
+            onRowChange={(rowIndex, field, value) =>
+              updateRowField("directoryProfiles", rowIndex, field, value)
+            }
+            onDeleteRow={(rowIndex) => deleteRow("directoryProfiles", rowIndex)}
+            addButtonText="Add Directory Profile"
+            variant="card"
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+            <GenericInput<BusinessInfoFormData>
+              form={form as any}
+              fieldName="supportEmail"
+              type="email"
+              label="Support Email"
+              placeholder="support@example.com"
+              disabled={disabledFields?.supportEmail}
+            />
+            <GenericInput<BusinessInfoFormData>
+              form={form as any}
+              fieldName="commsEmail"
+              type="email"
+              label="Comms Email"
+              placeholder="reports@example.com"
+              disabled={disabledFields?.commsEmail}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 

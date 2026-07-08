@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
 import type {
-  AccessRequest,
-  AccessRequestListResponse,
-  CreateAccessRequestPayload,
+ AccessRequest,
+ AccessRequestShare,
+ AccessRequestListResponse,
+ CreateAccessRequestPayload,
 } from "@/types/access-request";
 
 interface ApiResponse<T> {
@@ -55,6 +56,10 @@ export function useAccessRequestDetail(requestId: string | null) {
       return res.data;
     },
     enabled: !!requestId,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
   });
 }
 
@@ -82,5 +87,41 @@ export function useCreateAccessRequest() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["access-requests"] });
     },
-  });
+ });
+}
+
+export function useShareAccessRequest(requestId: string | null) {
+ const queryClient = useQueryClient();
+
+ return useMutation<AccessRequestShare[], Error, { emails: string[]; requestId?: string }>({
+ mutationFn: async ({ emails, requestId: requestIdOverride }) => {
+ const targetRequestId = requestIdOverride || requestId;
+ if (!targetRequestId) {
+ throw new Error("Access request is required");
+ }
+
+ try {
+ const res = await api.post<ApiResponse<AccessRequestShare[]>>(
+ `/access-request/${encodeURIComponent(targetRequestId)}/share`,
+ "node",
+ { emails }
+ );
+ if (!res.success) {
+ throw new Error(res.message || "Failed to share access request");
+ }
+ return res.data;
+ } catch (error) {
+ throw new Error(
+ getApiErrorMessage(error, "Failed to share access request")
+ );
+ }
+ },
+ onSuccess: (_data, variables) => {
+ queryClient.invalidateQueries({ queryKey: ["access-requests"] });
+ const targetRequestId = variables.requestId || requestId;
+ if (targetRequestId) {
+ queryClient.invalidateQueries({ queryKey: ["access-request-detail", targetRequestId] });
+ }
+ },
+ });
 }

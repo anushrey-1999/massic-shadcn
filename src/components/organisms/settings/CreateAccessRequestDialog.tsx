@@ -27,15 +27,19 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Copy, Check } from "lucide-react";
 import { useAgencyInfo } from "@/hooks/use-agency-settings";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
-import { useCreateAccessRequest } from "@/hooks/use-access-requests";
+import { useCreateAccessRequest, useShareAccessRequest } from "@/hooks/use-access-requests";
+import { useFetchBusinesses, type FetchBusinessesResponse } from "@/hooks/use-linked-businesses";
 import { PRODUCT_CONFIG, ALL_PRODUCTS } from "@/config/access-request";
 import { ProductIcon } from "@/components/organisms/access-request/ProductIcon";
+import { MultiEmailInput } from "@/components/molecules/MultiEmailInput";
 import type { Product, AccessRequest } from "@/types/access-request";
 import { isValidWebsiteUrl as isWebsiteUrlFormatValid } from "@/utils/utils";
+import { findExistingAccess, type ExistingAccessMatch } from "@/utils/existing-access-match";
 
 interface CreateAccessRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  linkedBusinessesData?: FetchBusinessesResponse;
 }
 
 type AccessRequestFormValues = {
@@ -57,10 +61,14 @@ function getWebsiteUrlError(value: string) {
 export function CreateAccessRequestDialog({
   open,
   onOpenChange,
+  linkedBusinessesData,
 }: CreateAccessRequestDialogProps) {
-  const { agencyDetails } = useAgencyInfo();
-  const { connectGoogleAccount } = useGoogleAccounts();
-  const createMutation = useCreateAccessRequest();
+ const { agencyDetails } = useAgencyInfo();
+ const { connectGoogleAccount } = useGoogleAccounts();
+ const createMutation = useCreateAccessRequest();
+ const shareMutation = useShareAccessRequest(null);
+ const { data: fetchedBusinessesData } = useFetchBusinesses();
+ const businessesData = linkedBusinessesData ?? fetchedBusinessesData;
   const form = useForm({
     defaultValues: {
       websiteUrl: "",
@@ -70,9 +78,11 @@ export function CreateAccessRequestDialog({
   const [selectedEmail, setSelectedEmail] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
   const [roles, setRoles] = useState<Partial<Record<Product, string>>>({});
-  const [expiresInDays, setExpiresInDays] = useState(30);
-  const [createdRequest, setCreatedRequest] = useState<AccessRequest | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+ const [expiresInDays, setExpiresInDays] = useState(30);
+ const [createdRequest, setCreatedRequest] = useState<AccessRequest | null>(null);
+ const [linkCopied, setLinkCopied] = useState(false);
+ const [shareEmails, setShareEmails] = useState<string[]>([]);
+ const [existingAccessMatches, setExistingAccessMatches] = useState<ExistingAccessMatch[] | null>(null);
 
   const linkedAccounts = useMemo(() => {
     if (
@@ -114,10 +124,12 @@ export function CreateAccessRequestDialog({
     form.reset();
     setSelectedProducts([]);
     setRoles({});
-    setExpiresInDays(30);
-    setCreatedRequest(null);
-    setLinkCopied(false);
-  }
+ setExpiresInDays(30);
+ setCreatedRequest(null);
+ setLinkCopied(false);
+ setShareEmails([]);
+ setExistingAccessMatches(null);
+ }
 
   function handleClose(isOpen: boolean) {
     if (!isOpen) resetForm();
@@ -153,16 +165,31 @@ export function CreateAccessRequestDialog({
       return;
     }
 
+    const matches = findExistingAccess(currentWebsiteUrl.trim(), businessesData, selectedProducts);
+    if (matches.length > 0) {
+      setExistingAccessMatches(matches);
+      return;
+    }
+
+    await performCreate();
+  }
+
+  async function performCreate() {
     try {
       const result = await createMutation.mutateAsync({
         agencyEmail: selectedEmail,
-        websiteUrl: currentWebsiteUrl.trim(),
+        websiteUrl: trimmedWebsiteUrl,
         products: selectedProducts,
         roles,
         expiresInDays,
       });
-    setCreatedRequest(result);
-    toast.success("Access request created successfully");
+ setCreatedRequest(result);
+ if (shareEmails.length > 0) {
+ await shareMutation.mutateAsync({ requestId: result.id, emails: shareEmails });
+ toast.success("Access request created and shared successfully");
+ } else {
+ toast.success("Access request created successfully");
+ }
   } catch (err: any) {
     toast.error(err?.message || "Failed to create request");
   }
@@ -179,7 +206,81 @@ export function CreateAccessRequestDialog({
     setTimeout(() => setLinkCopied(false), 2000);
   }
 
-  const isSubmitting = createMutation.isPending;
+ const isSubmitting = createMutation.isPending || shareMutation.isPending;
+
+  if (existingAccessMatches) {
+    return (
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>You may already have access</DialogTitle>
+            <DialogDescription>
+              One or more linked Google accounts can already access {trimmedWebsiteUrl}. Here&apos;s
+              exactly what was found.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[420px] space-y-5 overflow-y-auto pr-1">
+            {existingAccessMatches.map((match) => (
+              <div key={match.product} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <ProductIcon product={match.product} size={18} />
+                  <span className="text-sm font-medium">{PRODUCT_CONFIG[match.product].label}</span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {match.details.length} {match.details.length === 1 ? "match" : "matches"}
+                  </Badge>
+                </div>
+                <div className="space-y-1.5">
+                  {match.details.map((detail, index) => (
+                    <div
+                      key={`${match.product}-${detail.name}-${index}`}
+                      className="rounded-lg border border-general-border px-3 py-2.5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{detail.name}</p>
+                          {detail.subLabel && (
+                            <p className="truncate text-xs text-general-muted-foreground">
+                              {detail.subLabel}
+                            </p>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-xs text-general-muted-foreground">
+                          {detail.emailId ? `via ${detail.emailId}` : "already linked"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExistingAccessMatches(null)}>
+              Go back
+            </Button>
+            <Button
+              disabled={isSubmitting}
+              onClick={async () => {
+                setExistingAccessMatches(null);
+                await performCreate();
+              }}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create request anyway"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   if (createdRequest) {
     const requestUrl =
@@ -401,12 +502,26 @@ export function CreateAccessRequestDialog({
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          </div>
+ })}
+ </div>
+ </div>
 
-          {/* Expiry */}
-          <div className="space-y-2">
+ {/* Share */}
+ <div className="space-y-2">
+ <Label className="text-sm font-medium">Share with client contacts</Label>
+ <MultiEmailInput
+ value={shareEmails}
+ onChange={setShareEmails}
+ disabled={isSubmitting}
+ placeholder="owner@example.com, developer@example.com"
+ />
+ <p className="text-xs text-general-muted-foreground">
+ Optional. Each recipient gets their own access link.
+ </p>
+ </div>
+
+ {/* Expiry */}
+ <div className="space-y-2">
             <Label className="text-sm font-medium">Link Expiry (days)</Label>
             <Input
               type="number"

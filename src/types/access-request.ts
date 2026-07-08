@@ -28,6 +28,20 @@ export interface AccessRequestStep {
   updatedAt: string;
 }
 
+export interface AccessRequestShare {
+  id: string;
+  requestId: string;
+  email: string;
+  status: "pending" | "sent" | "opened" | "failed" | string;
+  sendCount: number;
+  lastSentAt: string | null;
+  firstOpenedAt: string | null;
+  lastOpenedAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AccessRequest {
   id: string;
   token: string;
@@ -43,6 +57,10 @@ export interface AccessRequest {
   updatedAt: string;
   steps: AccessRequestStep[];
   requestUrl?: string;
+  aggregate?: Partial<Record<Product, AccessProductAggregate>>;
+ contributors?: AccessContributor[];
+ accessEvents?: AccessEvent[];
+ shares?: AccessRequestShare[];
 }
 
 export interface AccessRequestListResponse {
@@ -104,4 +122,114 @@ export interface CreateAccessRequestPayload {
   products: Product[];
   roles: Partial<Record<Product, string>>;
   expiresInDays?: number;
+}
+
+export type AccessCheckStatus =
+  | "connected"
+  | "can_grant"
+  | "partial_access"
+  | "viewer_only"
+  | "wrong_property"
+  | "no_access_found"
+  | "manual_required"
+  | "multiple_possible_matches"
+  | "manual_review"
+  | "manual_match_selected"
+  | "pending"
+  | "failed";
+
+export interface AccessCheck {
+  id: string;
+  requestId: string;
+  contributorId: string;
+  systemType: Product;
+  status: AccessCheckStatus;
+  matchedResourceId: string | null;
+  matchedResourceName: string | null;
+  matchedResourceUrl: string | null;
+  permissionLevel: string | null;
+  canGrantAccess: boolean;
+  confidenceScore: string | number | null;
+  matchType: string | null;
+  discoveredAssets: Record<string, unknown> | null;
+  selectedAssets: Record<string, unknown>[] | null;
+  message: string | null;
+  errorCode: string | null;
+  errorMessageInternal: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccessGrant {
+  id: string;
+  requestId: string;
+  contributorId: string;
+  systemType: Product;
+  resourceId: string | null;
+  resourceName: string | null;
+  grantStatus: string;
+  grantedToEmailOrAccount: string | null;
+  selectedAssets: Record<string, unknown>[] | null;
+  grantedAt: string | null;
+  verifiedAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccessContributor {
+  id: string;
+  name: string | null;
+  email?: string | null;
+  googleAccountEmail: string | null;
+  status: string;
+  firstClickedAt?: string | null;
+  oauthCompletedAt?: string | null;
+  lastSeenAt?: string | null;
+  checks?: AccessCheck[];
+  grants?: AccessGrant[];
+}
+
+export interface AccessEvent {
+  id: string;
+  requestId: string;
+  contributorId: string | null;
+  eventType: string;
+  systemType: Product | null;
+  message: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AccessProductAggregate {
+  product: Product;
+  status: AccessCheckStatus;
+  contributorId: string | null;
+  checkCount: number;
+  grantCount: number;
+}
+
+export interface AccessRequestVisitResponse {
+  sessionToken: string;
+  aggregate: Partial<Record<Product, AccessProductAggregate>>;
+}
+
+export interface ContributorStatusResponse {
+  request: {
+    id: string;
+    agencyName?: string;
+    agencyEmail: string;
+    products: Product[];
+    status: RequestStatus;
+    websiteUrl?: string | null;
+    expiresAt: string;
+  };
+  contributor: {
+    id: string;
+    name: string | null;
+    googleAccountEmail: string | null;
+    status: string;
+  } | null;
+  checks: AccessCheck[];
+  aggregate: Partial<Record<Product, AccessProductAggregate>>;
 }

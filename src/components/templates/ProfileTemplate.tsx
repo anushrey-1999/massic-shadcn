@@ -681,6 +681,10 @@ const ProfileTemplate = ({
             description: off.description || "",
             link: off.link || "",
             pricePositioning: off.pricePositioning || "",
+            offeringType: (off as any).offeringType || "",
+            priceRange: (off as any).priceRange || "",
+            duration: (off as any).duration || "",
+            inclusions: (off as any).inclusions || [],
           })
         );
 

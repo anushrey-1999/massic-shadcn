@@ -15,6 +15,13 @@ export interface Offering {
   link?: string;
   url?: string;
   page_url?: string;
+  price_positioning?: string;
+  offering_type?: string;
+  offeringType?: string;
+  price_range?: string;
+  priceRange?: string;
+  duration?: string;
+  inclusions?: string[] | string;
   [key: string]: unknown;
 }
 
@@ -48,6 +55,7 @@ export interface BusinessProfilePayload {
   service_area_type?: string | null;
   ServiceAreas?: string[] | null;
   service_areas?: string[] | null;
+  StructuredServiceAreas?: Array<{ name?: string; kind?: string; rank?: number } | string> | null;
   ProfileLocation?: string | null;
   location?: string | null;
   ProfileCountry?: string | null;
@@ -58,6 +66,26 @@ export interface BusinessProfilePayload {
   b2b_b2c?: string | null;
   Competitors?: Array<{ website?: string; Website?: string; url?: string }> | string[] | null;
   competitors?: Array<{ website?: string; Website?: string; url?: string }> | string[] | null;
+  LegalName?: string | null;
+  FoundingDate?: string | null;
+  LogoUrl?: string | null;
+  SiteName?: string | null;
+  AlternateName?: string | null;
+  SiteSearchUrlPattern?: string | null;
+  Locations?: Array<Record<string, unknown>> | null;
+  DetailedLocations?: Array<Record<string, unknown>> | null;
+  StructuredLocations?: Array<Record<string, unknown>> | null;
+  KeyPeople?: Array<Record<string, unknown>> | null;
+  LicensesCompliance?: string[] | null;
+  AwardsCertifications?: string[] | null;
+  ReviewRating?: string | number | null;
+  ReviewCount?: string | number | null;
+  Testimonials?: string[] | null;
+  ColorsFontsCss?: string | null;
+  ImagePhotoLibrary?: Array<string | Record<string, unknown>> | null;
+  SocialProfiles?: Array<string | Record<string, unknown>> | null;
+  DirectoryProfiles?: Array<string | Record<string, unknown>> | null;
+  SupportEmail?: string | null;
   [key: string]: any; // Allow other fields
 }
 
@@ -74,6 +102,10 @@ export interface JobDetails {
     description?: string;
     url?: string;
     link?: string;
+    offering_type?: string;
+    price_range?: string;
+    duration?: string;
+    inclusions?: string[];
   }>;
   usps?: string[];
   ctas?: Array<{ text?: string; url?: string }> | {
@@ -173,19 +205,44 @@ function normalizeCtas(value: BusinessProfilePayload["CTAs"]): Array<{ text: str
     .filter((cta): cta is { text: string; url: string } => Boolean(cta));
 }
 
+function normalizeInclusions(value: unknown): string[] | undefined {
+  if (!value) return undefined;
+  if (Array.isArray(value)) {
+    const inclusions = value.map((item) => String(item).trim()).filter(Boolean);
+    return inclusions.length > 0 ? inclusions : undefined;
+  }
+  if (typeof value === "string") {
+    const inclusions = value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    return inclusions.length > 0 ? inclusions : undefined;
+  }
+  return undefined;
+}
+
 function normalizeOfferings(offerings: Offering[]): Array<Record<string, unknown>> {
   return offerings
     .map((offering) => {
       const name = String(offering.name ?? offering.offering ?? "").trim();
       const description = String(offering.description ?? "").trim();
       const pageUrl = String(offering.page_url ?? offering.url ?? offering.link ?? "").trim();
+      const offeringType = String(offering.offering_type ?? offering.offeringType ?? "").trim();
+      const priceRange = String(
+        offering.price_range ?? offering.priceRange ?? offering.price_positioning ?? ""
+      ).trim();
+      const duration = String(offering.duration ?? "").trim();
       return compactObject({
-        name,
+        offering: name,
         description: description || undefined,
-        page_url: pageUrl || undefined,
+        url: pageUrl || undefined,
+        offering_type: offeringType || undefined,
+        price_range: priceRange || undefined,
+        duration: duration || undefined,
+        inclusions: normalizeInclusions(offering.inclusions),
       });
     })
-    .filter((offering) => Boolean(offering.name));
+    .filter((offering) => Boolean(offering.offering));
 }
 
 function normalizeAov(value: unknown): number | undefined {
@@ -218,6 +275,181 @@ function normalizeCompetitors(value: unknown): string[] | undefined {
     })
     .filter(Boolean);
   return competitors.length > 0 ? competitors : undefined;
+}
+
+function normalizeServiceAreasForJob(value: unknown, fallback: unknown): Array<Record<string, unknown>> | undefined {
+  const raw = Array.isArray(value) && value.length > 0 ? value : fallback;
+  if (!Array.isArray(raw)) return undefined;
+  const areas = raw
+    .map((item, index) => {
+      if (typeof item === "string") {
+        const name = item.trim();
+        return name ? { name, rank: index + 1 } : null;
+      }
+      if (item && typeof item === "object") {
+        const area = item as Record<string, unknown>;
+        const name = String(area.name ?? area.value ?? "").trim();
+        const kind = String(area.kind ?? "").trim();
+        const rank = Number(area.rank);
+        return name
+          ? compactObject({
+            name,
+            kind: kind || undefined,
+            rank: Number.isFinite(rank) ? rank : index + 1,
+          })
+          : null;
+      }
+      const name = String(item ?? "").trim();
+      return name ? { name, rank: index + 1 } : null;
+    })
+    .filter((area): area is Record<string, unknown> => Boolean(area));
+  return areas.length > 0 ? areas : undefined;
+}
+
+function parseStructuredJson(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeLocationsForJob(
+  locations: unknown,
+  detailedLocations: unknown,
+  structuredLocations: unknown
+): Array<Record<string, unknown>> | undefined {
+  const structured = Array.isArray(structuredLocations) ? structuredLocations : [];
+  const detailed = Array.isArray(detailedLocations) ? detailedLocations : [];
+  const basic = Array.isArray(locations) ? locations : [];
+  const source = structured.length > 0 ? structured : detailed.length > 0 ? detailed : basic;
+
+  const normalized = source
+    .map((item, index) => {
+      if (!item || typeof item !== "object") {
+        const display = String(item ?? "").trim();
+        return display ? { display } : null;
+      }
+
+      const location = item as Record<string, unknown>;
+      const basicLocation = basic[index] as Record<string, unknown> | undefined;
+      const display = String(
+        location.display ??
+          location.DisplayName ??
+          location.Name ??
+          location.name ??
+          basicLocation?.DisplayName ??
+          basicLocation?.Name ??
+          ""
+      ).trim();
+      const streetAddress = String(
+        location.street_address ??
+          location.streetAddress ??
+          location.Address1 ??
+          location.address ??
+          basicLocation?.Address1 ??
+          basicLocation?.address ??
+          ""
+      ).trim();
+      const hours = parseStructuredJson(location.hours) ?? location.hours;
+      const specialHours =
+        parseStructuredJson(location.special_hours ?? location.holidayHours) ??
+        location.special_hours ??
+        location.holidayHours;
+
+      return compactObject({
+        display: display || undefined,
+        street_address: streetAddress || undefined,
+        city: String(location.city ?? "").trim() || undefined,
+        state: String(location.state ?? "").trim() || undefined,
+        postal_code:
+          String(location.postal_code ?? location.postalCode ?? location.zip ?? "").trim() ||
+          undefined,
+        country: String(location.country ?? "").trim() || undefined,
+        phone: String(location.phone ?? "").trim() || undefined,
+        email: String(location.email ?? "").trim() || undefined,
+        map_url: String(location.map_url ?? location.mapUrl ?? location.mapLink ?? "").trim() || undefined,
+        hours: hours && typeof hours === "object" ? hours : undefined,
+        special_hours: specialHours && typeof specialHours === "object" ? specialHours : undefined,
+      });
+    })
+    .filter((location): location is Record<string, unknown> =>
+      Boolean(location && Object.keys(location).length > 0)
+    );
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeProfileLinks(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const links = value
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") {
+        const link = item as Record<string, unknown>;
+        return String(link.url ?? link.href ?? link.link ?? "").trim();
+      }
+      return "";
+    })
+    .filter(Boolean);
+  return links.length > 0 ? links : undefined;
+}
+
+function normalizeNonEmptyStringArray(value: unknown): string[] | undefined {
+  const values = normalizeStringArray(value);
+  return values.length > 0 ? values : undefined;
+}
+
+function normalizeKeyPeople(
+  value: unknown
+): Array<{ name: string; role: string; bio: string }> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const people = value
+    .map((item): { name: string; role: string; bio: string } | null => {
+      if (!item || typeof item !== "object") return null;
+      const person = item as Record<string, unknown>;
+      const name = String(person.name ?? person.personName ?? "").trim();
+      const role = String(person.role ?? person.title ?? person.personDescription ?? "").trim();
+      const bio = String(person.bio ?? "").trim();
+      return name || role || bio ? { name, role, bio } : null;
+    })
+    .filter((person): person is { name: string; role: string; bio: string } =>
+      Boolean(person)
+    );
+  return people.length > 0 ? people : undefined;
+}
+
+function normalizeBrandAssets(payload: BusinessProfilePayload): Record<string, unknown> | undefined {
+  const stylesheets = normalizeStringArray(payload.ColorsFontsCss)
+    .flatMap((item) => item.split(/\n+/))
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const imageLibrary = Array.isArray(payload.ImagePhotoLibrary)
+    ? payload.ImagePhotoLibrary
+      .map((item) => {
+        if (typeof item === "string") {
+          const url = item.trim();
+          return url ? { url } : null;
+        }
+        if (item && typeof item === "object") {
+          const image = item as Record<string, unknown>;
+          const url = String(image.url ?? image.src ?? "").trim();
+          const alt = String(image.alt ?? "").trim();
+          return url ? compactObject({ url, alt: alt || undefined }) : null;
+        }
+        return null;
+      })
+      .filter((item): item is Record<string, unknown> => Boolean(item))
+    : [];
+
+  const assets = compactObject({
+    stylesheets: stylesheets.length > 0 ? stylesheets : undefined,
+    image_library: imageLibrary.length > 0 ? imageLibrary : undefined,
+  });
+  return Object.keys(assets).length > 0 ? assets : undefined;
 }
 
 function mapBusinessProfilePayloadToJobBody(
@@ -282,16 +514,40 @@ function mapBusinessProfilePayloadToJobBody(
     businessProfilePayload.BusinessCategory ?? businessProfilePayload.business_category;
   const serviceAreaType =
     businessProfilePayload.ServiceAreaType ?? businessProfilePayload.service_area_type;
-  const serviceAreas = normalizeStringArray(
+  const serviceAreas = normalizeServiceAreasForJob(
+    businessProfilePayload.StructuredServiceAreas,
     businessProfilePayload.ServiceAreas ?? businessProfilePayload.service_areas
   );
   const profileLocation =
     businessProfilePayload.ProfileLocation ?? businessProfilePayload.location;
-  const country = businessProfilePayload.PrimaryLocation?.Country;
+  const country =
+    businessProfilePayload.PrimaryLocation?.Country ??
+    businessProfilePayload.ProfileCountry ??
+    businessProfilePayload.country;
   const segment = businessProfilePayload.Segment ?? businessProfilePayload.segment;
   const b2bB2c = businessProfilePayload.B2bB2c ?? businessProfilePayload.b2b_b2c;
   const competitors =
     businessProfilePayload.Competitors ?? businessProfilePayload.competitors;
+  const locations = normalizeLocationsForJob(
+    businessProfilePayload.Locations,
+    businessProfilePayload.DetailedLocations,
+    businessProfilePayload.StructuredLocations
+  );
+  const aggregateRating = compactObject({
+    rating_value:
+      businessProfilePayload.ReviewRating !== undefined &&
+      businessProfilePayload.ReviewRating !== null &&
+      String(businessProfilePayload.ReviewRating).trim() !== ""
+        ? String(businessProfilePayload.ReviewRating).trim()
+        : undefined,
+    review_count:
+      businessProfilePayload.ReviewCount !== undefined &&
+      businessProfilePayload.ReviewCount !== null &&
+      String(businessProfilePayload.ReviewCount).trim() !== ""
+        ? String(businessProfilePayload.ReviewCount).trim()
+        : undefined,
+  });
+  const brandAssets = normalizeBrandAssets(businessProfilePayload);
 
   const body: Record<string, unknown> = compactObject({
     business_id: isUpdate ? undefined : businessId,
@@ -336,10 +592,27 @@ function mapBusinessProfilePayloadToJobBody(
     profile_id: profileId || undefined,
     business_category: businessCategory || undefined,
     service_area_type: serviceAreaType || undefined,
-    service_areas: serviceAreas.length > 0 ? serviceAreas : undefined,
+    service_areas: serviceAreas,
+    locations,
     segment: segment !== undefined && segment !== null ? String(segment) : undefined,
     b2b_b2c: b2bB2c || undefined,
     competitors: normalizeCompetitors(competitors),
+    legal_business_name: businessProfilePayload.LegalName || undefined,
+    year_founded: businessProfilePayload.FoundingDate || undefined,
+    site_name: businessProfilePayload.SiteName || undefined,
+    alternate_name: businessProfilePayload.AlternateName || undefined,
+    site_search_url_pattern: businessProfilePayload.SiteSearchUrlPattern || undefined,
+    logo_url: businessProfilePayload.LogoUrl || undefined,
+    support_email: businessProfilePayload.SupportEmail || undefined,
+    social_profiles: normalizeProfileLinks(businessProfilePayload.SocialProfiles),
+    directory_profiles: normalizeProfileLinks(businessProfilePayload.DirectoryProfiles),
+    licenses: normalizeNonEmptyStringArray(businessProfilePayload.LicensesCompliance),
+    testimonials: normalizeNonEmptyStringArray(businessProfilePayload.Testimonials),
+    awards: normalizeNonEmptyStringArray(businessProfilePayload.AwardsCertifications),
+    key_people: normalizeKeyPeople(businessProfilePayload.KeyPeople),
+    aggregate_rating:
+      Object.keys(aggregateRating).length > 0 ? aggregateRating : undefined,
+    brand_assets: brandAssets,
   });
 
   if (includeOfferings) {

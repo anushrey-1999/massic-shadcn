@@ -74,6 +74,10 @@ export type OfferingRow = {
   description: string;
   link: string;
   pricePositioning?: string;
+  offeringType?: string;
+  priceRange?: string;
+  duration?: string;
+  inclusions?: string[] | string;
 };
 
 export type CTARow = {
@@ -114,12 +118,10 @@ export type KeyPersonRow = {
 };
 
 export type SocialProfileRow = {
-  platform: string;
   url: string;
 };
 
 export type DirectoryProfileRow = {
-  name: string;
   url: string;
 };
 

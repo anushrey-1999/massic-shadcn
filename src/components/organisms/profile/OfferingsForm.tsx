@@ -43,6 +43,10 @@ type BusinessInfoFormData = {
     description: string;
     link: string;
     pricePositioning?: string;
+    offeringType?: string;
+    priceRange?: string;
+    duration?: string;
+    inclusions?: string[] | string;
   }>;
   offeringsSavedIndices?: number[];
 };
@@ -212,6 +216,14 @@ export const OfferingsForm = ({
         description: (offering.description || "").trim(),
         link: normalizeOfferingLink(offering.url || offering.link),
         pricePositioning: (offering.price_positioning || offering.priceRange || "").trim(),
+        offeringType: (offering.offering_type || offering.offeringType || "").trim(),
+        priceRange: (offering.price_range || offering.priceRange || "").trim(),
+        duration: (offering.duration || "").trim(),
+        inclusions: Array.isArray(offering.inclusions)
+          ? offering.inclusions.map((item: unknown) => String(item).trim()).filter(Boolean)
+          : typeof offering.inclusions === "string"
+            ? offering.inclusions
+            : [],
       }))
       .filter((offering) => offering.name !== ""); // Filter out empty names
 

@@ -84,6 +84,11 @@ const extractOfferingsFromWebsite = async (
         description?: string;
         url?: string;
         link?: string;
+        offering_type?: string;
+        price_range?: string;
+        price_positioning?: string;
+        duration?: string;
+        inclusions?: string[] | string;
       }>;
       error?: string;
       errors?: string[];
@@ -104,6 +109,14 @@ const extractOfferingsFromWebsite = async (
           name: String(offering.name || offering.offering || "").trim(),
           description: String(offering.description || "").trim(),
           link: String(offering.url || offering.link || "").trim(),
+          offering_type: String(offering.offering_type || "").trim(),
+          price_range: String(offering.price_range || offering.price_positioning || "").trim(),
+          duration: String(offering.duration || "").trim(),
+          inclusions: Array.isArray(offering.inclusions)
+            ? offering.inclusions.map((item) => String(item).trim()).filter(Boolean)
+            : typeof offering.inclusions === "string"
+              ? offering.inclusions
+              : [],
         }))
         .filter((offering) => Boolean(offering.name));
     }
@@ -122,6 +135,14 @@ const mergeOfferings = (...groups: Array<Offering[] | undefined>): Offering[] =>
       name: String(offering.name || offering.offering || "").trim(),
       description: String(offering.description || "").trim(),
       link: String(offering.link || offering.url || offering.page_url || "").trim(),
+      offering_type: String(offering.offering_type || offering.offeringType || "").trim(),
+      price_range: String(offering.price_range || offering.priceRange || offering.price_positioning || "").trim(),
+      duration: String(offering.duration || "").trim(),
+      inclusions: Array.isArray(offering.inclusions)
+        ? offering.inclusions.map((item) => String(item).trim()).filter(Boolean)
+        : typeof offering.inclusions === "string"
+          ? offering.inclusions
+          : [],
     }))
     .filter((offering) => {
       if (!offering.name) return false;
@@ -223,6 +244,14 @@ export default function CreateBusinessPage() {
               name: String(row.name || ""),
               description: String(row.description || ""),
               link: String(row.link || ""),
+              offering_type: String((row as any).offeringType || ""),
+              price_range: String((row as any).priceRange || row.pricePositioning || ""),
+              duration: String((row as any).duration || ""),
+              inclusions: Array.isArray((row as any).inclusions)
+                ? (row as any).inclusions
+                : typeof (row as any).inclusions === "string"
+                  ? (row as any).inclusions
+                  : [],
             }))
           : [];
         const offerings =

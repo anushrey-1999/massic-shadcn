@@ -5,6 +5,26 @@ type ProfileCell<T = unknown> = {
   [key: string]: unknown;
 };
 
+export type StructuredServiceArea = {
+  name: string;
+  kind?: string;
+  rank?: number;
+};
+
+export type StructuredProfileLocation = {
+  display?: string;
+  street_address?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  country?: string;
+  phone?: string;
+  email?: string;
+  map_url?: string;
+  hours?: unknown;
+  special_hours?: unknown;
+};
+
 type ProfileStatusResponse = {
   status?: "success" | "error" | "processing" | "pending" | string;
   profile_id?: string;
@@ -45,15 +65,17 @@ export type NormalizedProfileResult = {
   socialBrandVoice: string[];
   usps: string[];
   locations: string[];
+  structuredLocations: StructuredProfileLocation[];
   serviceAreaType?: string;
   serviceAreas: string[];
+  structuredServiceAreas: StructuredServiceArea[];
   competitors: string[];
   ctas: Array<{ text: string; url: string }>;
   offerings: Array<Record<string, unknown>>;
   colorsFontsCss?: string;
   imagePhotoLibrary: string[];
-  socialProfiles: Array<{ platform: string; url: string }>;
-  directoryProfiles: Array<{ name: string; url: string }>;
+  socialProfiles: Array<{ url: string }>;
+  directoryProfiles: Array<{ url: string }>;
   supportEmail?: string;
   licenses: string[];
   awards: string[];
@@ -172,6 +194,83 @@ function normalizeServiceAreas(value: unknown): string[] {
     .map((area) => area.name);
 }
 
+function normalizeStructuredServiceAreas(value: unknown): StructuredServiceArea[] {
+  const unwrapped = unwrapProfileCell(value);
+  if (!Array.isArray(unwrapped)) return [];
+  return unwrapped
+    .map((item, index) => {
+      const area = unwrapProfileCell(item);
+      if (isObject(area)) {
+        const name = toStringValue(unwrapProfileCell(area.name));
+        const kind = toStringValue(unwrapProfileCell(area.kind));
+        const rawRank = Number(unwrapProfileCell(area.rank));
+        return {
+          name,
+          kind: kind || undefined,
+          rank: Number.isFinite(rawRank) ? rawRank : index + 1,
+        };
+      }
+      const name = toStringValue(area);
+      return { name, rank: index + 1 };
+    })
+    .filter((area) => Boolean(area.name))
+    .sort((a, b) => {
+      if (Number.isFinite(a.rank) && Number.isFinite(b.rank)) {
+        return Number(a.rank) - Number(b.rank);
+      }
+      return 0;
+    });
+}
+
+function normalizeStructuredLocations(value: unknown): StructuredProfileLocation[] {
+  const unwrapped = unwrapProfileCell(value);
+  if (!Array.isArray(unwrapped)) return [];
+  return unwrapped
+    .map((item) => unwrapProfileCell(item))
+    .map((item): StructuredProfileLocation | null => {
+      if (!isObject(item)) {
+        const display = toStringValue(item);
+        return display ? { display } : null;
+      }
+      const location = {
+        display: toStringValue(item.display ?? item.name ?? item.DisplayName),
+        street_address: toStringValue(item.street_address ?? item.streetAddress ?? item.address),
+        city: toStringValue(item.city),
+        state: toStringValue(item.state),
+        postal_code: toStringValue(item.postal_code ?? item.postalCode ?? item.zip),
+        country: toStringValue(item.country),
+        phone: toStringValue(item.phone),
+        email: toStringValue(item.email),
+        map_url: toStringValue(item.map_url ?? item.mapUrl ?? item.mapLink),
+        hours: item.hours,
+        special_hours: item.special_hours ?? item.specialHours ?? item.holidayHours,
+      };
+      const compacted = Object.fromEntries(
+        Object.entries(location).filter(([, entry]) => {
+          if (Array.isArray(entry)) return entry.length > 0;
+          return entry !== undefined && entry !== null && String(entry).trim() !== "";
+        })
+      ) as StructuredProfileLocation;
+      return Object.keys(compacted).length > 0 ? compacted : null;
+    })
+    .filter((location): location is StructuredProfileLocation => Boolean(location));
+}
+
+function normalizeLocationNames(value: unknown): string[] {
+  const structuredLocations = normalizeStructuredLocations(value);
+  if (structuredLocations.length > 0) {
+    return structuredLocations
+      .map((location) =>
+        toStringValue(
+          location.display ||
+            [location.city, location.state, location.country].filter(Boolean).join(", ")
+        )
+      )
+      .filter(Boolean);
+  }
+  return toStringArray(value);
+}
+
 function normalizeOfferings(value: unknown): Array<Record<string, unknown>> {
   const unwrapped = unwrapProfileCell(value);
   if (!Array.isArray(unwrapped)) return [];
@@ -180,10 +279,7 @@ function normalizeOfferings(value: unknown): Array<Record<string, unknown>> {
     .filter(isObject);
 }
 
-function normalizeProfileLinks(
-  value: unknown,
-  nameKey: "platform" | "name"
-): Array<{ platform: string; url: string } | { name: string; url: string }> {
+function normalizeProfileLinks(value: unknown): Array<{ url: string }> {
   const unwrapped = unwrapProfileCell(value);
   if (!Array.isArray(unwrapped)) return [];
   return unwrapped
@@ -191,13 +287,12 @@ function normalizeProfileLinks(
     .map((item) => {
       if (isObject(item)) {
         const url = toStringValue(item.url ?? item.href ?? item.link);
-        const name = toStringValue(item[nameKey] ?? item.name ?? item.platform);
-        return url ? { [nameKey]: name, url } : null;
+        return url ? { url } : null;
       }
       const url = toStringValue(item);
-      return url ? { [nameKey]: "", url } : null;
+      return url ? { url } : null;
     })
-    .filter(Boolean) as Array<{ platform: string; url: string } | { name: string; url: string }>;
+    .filter((item): item is { url: string } => Boolean(item));
 }
 
 function normalizeKeyPeople(value: unknown): Array<{ name: string; role: string; bio: string }> {
@@ -308,25 +403,25 @@ export function normalizeProfileResult(
     webBrandVoice: toStringArray(firstValue(result, ["web_brand_voice", "tone_web", "web_tone"])),
     socialBrandVoice: toStringArray(firstValue(result, ["social_brand_voice", "social_tone"])),
     usps: toStringArray(firstValue(result, ["usps"])),
-    locations: toStringArray(firstValue(result, ["locations", "location"])),
+    locations: normalizeLocationNames(firstValue(result, ["locations", "location"])),
+    structuredLocations: normalizeStructuredLocations(
+      firstValue(result, ["locations", "location"])
+    ),
     serviceAreaType:
       toStringValue(firstValue(result, ["service_area_type"])) ||
       toStringValue(response.metadata?.service_area_type) ||
       undefined,
     serviceAreas: normalizeServiceAreas(firstValue(result, ["service_areas"])),
+    structuredServiceAreas: normalizeStructuredServiceAreas(
+      firstValue(result, ["service_areas"])
+    ),
     competitors: toStringArray(firstValue(result, ["competitors"])),
     ctas: normalizeCtas(firstValue(result, ["ctas"])),
     offerings: normalizeOfferings(firstValue(result, ["offerings"])),
     colorsFontsCss: brandAssets.colorsFontsCss,
     imagePhotoLibrary: brandAssets.imagePhotoLibrary,
-    socialProfiles: normalizeProfileLinks(
-      firstValue(result, ["social_profiles"]),
-      "platform"
-    ) as Array<{ platform: string; url: string }>,
-    directoryProfiles: normalizeProfileLinks(
-      firstValue(result, ["directory_profiles"]),
-      "name"
-    ) as Array<{ name: string; url: string }>,
+    socialProfiles: normalizeProfileLinks(firstValue(result, ["social_profiles"])),
+    directoryProfiles: normalizeProfileLinks(firstValue(result, ["directory_profiles"])),
     supportEmail: toStringValue(firstValue(result, ["support_email"])) || undefined,
     licenses: toStringArray(firstValue(result, ["licenses"])),
     awards: toStringArray(firstValue(result, ["awards"])),
@@ -344,6 +439,10 @@ export function profileOfferingsToRows(
   description: string;
   link: string;
   pricePositioning: string;
+  offeringType: string;
+  priceRange: string;
+  duration: string;
+  inclusions: string[];
 }> {
   return offerings
     .map((offering) => ({
@@ -351,6 +450,17 @@ export function profileOfferingsToRows(
       description: toStringValue(offering.description),
       link: toStringValue(offering.page_url ?? offering.url ?? offering.link),
       pricePositioning: toStringValue(offering.price_positioning ?? offering.priceRange),
+      offeringType: toStringValue(offering.offering_type ?? offering.offeringType),
+      priceRange: toStringValue(offering.price_range ?? offering.priceRange),
+      duration: toStringValue(offering.duration),
+      inclusions: Array.isArray(offering.inclusions)
+        ? offering.inclusions.map((item) => toStringValue(item)).filter(Boolean)
+        : toStringValue(offering.inclusions)
+          ? toStringValue(offering.inclusions)
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+          : [],
     }))
     .filter((offering) => Boolean(offering.name));
 }

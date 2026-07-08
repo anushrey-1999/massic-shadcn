@@ -58,6 +58,10 @@ export const businessInfoSchema = z.object({
             { message: "Please enter a valid URL" }
           ),
         pricePositioning: z.string().optional(),
+        offeringType: z.string().optional(),
+        priceRange: z.string().optional(),
+        duration: z.string().optional(),
+        inclusions: z.union([z.array(z.string()), z.string()]).optional(),
       })
     )
     .optional(),
@@ -130,7 +134,6 @@ export const businessInfoSchema = z.object({
   socialProfiles: z
     .array(
       z.object({
-        platform: z.string().optional(),
         url: z.string().optional(),
       })
     )
@@ -138,7 +141,6 @@ export const businessInfoSchema = z.object({
   directoryProfiles: z
     .array(
       z.object({
-        name: z.string().optional(),
         url: z.string().optional(),
       })
     )

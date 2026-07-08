@@ -153,6 +153,17 @@ export default function BusinessProfilePage() {
           name: String(offering?.offering ?? offering?.name ?? "").trim(),
           description: String(offering?.description ?? "").trim(),
           link: String(offering?.url ?? offering?.link ?? "").trim(),
+          offering_type: String(offering?.offering_type ?? offering?.offeringType ?? "").trim(),
+          price_range: String(offering?.price_range ?? offering?.priceRange ?? "").trim(),
+          duration: String(offering?.duration ?? "").trim(),
+          inclusions: Array.isArray(offering?.inclusions)
+            ? offering.inclusions.map((item: unknown) => String(item).trim()).filter(Boolean)
+            : typeof offering?.inclusions === "string"
+              ? offering.inclusions
+                .split(",")
+                .map((item: string) => item.trim())
+                .filter(Boolean)
+              : [],
         }))
         .filter((offering) => Boolean(offering.name))
     }
@@ -180,6 +191,17 @@ export default function BusinessProfilePage() {
             name: offering.name || "",
             description: offering.description || "",
             link: offering.link || "",
+            offering_type: String(offering.offeringType || ""),
+            price_range: String(offering.priceRange || offering.pricePositioning || ""),
+            duration: String(offering.duration || ""),
+            inclusions: Array.isArray(offering.inclusions)
+              ? offering.inclusions
+              : typeof offering.inclusions === "string"
+                ? offering.inclusions
+                  .split(",")
+                  .map((item: string) => item.trim())
+                  .filter(Boolean)
+                : [],
           }))
         : []
       const jobOfferings = normalizeOfferings(jobDetails?.offerings)

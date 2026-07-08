@@ -167,7 +167,6 @@ export const BusinessInfoForm = React.memo(({
 
   const socialProfileColumns = React.useMemo<Column<Record<string, string>>[]>(
     () => [
-      { key: "platform", label: "Platform" },
       { key: "url", label: "URL", validation: { url: true } },
     ],
     []
@@ -175,7 +174,6 @@ export const BusinessInfoForm = React.memo(({
 
   const directoryProfileColumns = React.useMemo<Column<Record<string, string>>[]>(
     () => [
-      { key: "name", label: "Directory" },
       { key: "url", label: "URL", validation: { url: true } },
     ],
     []
@@ -706,7 +704,7 @@ export const BusinessInfoForm = React.memo(({
           <CustomAddRowTable
             columns={socialProfileColumns}
             data={Array.isArray(socialProfilesValue) ? socialProfilesValue : []}
-            onAddRow={() => addRow("socialProfiles", { platform: "", url: "" })}
+            onAddRow={() => addRow("socialProfiles", { url: "" })}
             onRowChange={(rowIndex, field, value) =>
               updateRowField("socialProfiles", rowIndex, field, value)
             }
@@ -717,7 +715,7 @@ export const BusinessInfoForm = React.memo(({
           <CustomAddRowTable
             columns={directoryProfileColumns}
             data={Array.isArray(directoryProfilesValue) ? directoryProfilesValue : []}
-            onAddRow={() => addRow("directoryProfiles", { name: "", url: "" })}
+            onAddRow={() => addRow("directoryProfiles", { url: "" })}
             onRowChange={(rowIndex, field, value) =>
               updateRowField("directoryProfiles", rowIndex, field, value)
             }

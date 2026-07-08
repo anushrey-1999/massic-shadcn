@@ -157,8 +157,135 @@ export function mapFormOfferingsToJobOfferings(
           name: String(row.name || ""),
           description: String(row.description || ""),
           link: String(row.link || ""),
+          price_positioning: String(row.pricePositioning || ""),
+          offering_type: String((row as any).offeringType || ""),
+          price_range: String((row as any).priceRange || row.pricePositioning || ""),
+          duration: String((row as any).duration || ""),
+          inclusions: Array.isArray((row as any).inclusions)
+            ? (row as any).inclusions
+            : typeof (row as any).inclusions === "string"
+              ? (row as any).inclusions
+                .split(",")
+                .map((item: string) => item.trim())
+                .filter(Boolean)
+              : [],
         }))
     : [];
+}
+
+function normalizeOfferingsToRows(rawOfferings: unknown): OfferingRow[] {
+  if (!Array.isArray(rawOfferings)) return [];
+  return rawOfferings
+    .map((offering: any): OfferingRow => ({
+      name: String(offering?.offering ?? offering?.name ?? "").trim(),
+      description: String(offering?.description ?? "").trim(),
+      link: String(offering?.url ?? offering?.link ?? offering?.page_url ?? "").trim(),
+      pricePositioning: String(
+        offering?.price_positioning ?? offering?.priceRange ?? offering?.price_range ?? ""
+      ).trim(),
+      offeringType: String(offering?.offering_type ?? offering?.offeringType ?? "").trim(),
+      priceRange: String(offering?.price_range ?? offering?.priceRange ?? "").trim(),
+      duration: String(offering?.duration ?? "").trim(),
+      inclusions: Array.isArray(offering?.inclusions)
+        ? offering.inclusions.map((item: unknown) => String(item).trim()).filter(Boolean)
+        : typeof offering?.inclusions === "string"
+          ? offering.inclusions
+            .split(",")
+            .map((item: string) => item.trim())
+            .filter(Boolean)
+          : [],
+    }))
+    .filter((offering) => Boolean(offering.name));
+}
+
+function normalizeServiceAreaNames(raw: unknown): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          return String((item as any).name ?? (item as any).value ?? "").trim();
+        }
+        return String(item ?? "").trim();
+      })
+      .filter(Boolean);
+  }
+  return normalizeStringArray(raw);
+}
+
+function mapJobLocationsToLocationRows(raw: unknown): Array<{ name: string; address: string; timezone: string }> {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((location: any, index) => ({
+      name: String(location?.display || location?.name || `Location ${index + 1}`).trim(),
+      address: String(location?.street_address || location?.address || "").trim(),
+      timezone: String(location?.timezone || "").trim(),
+    }))
+    .filter((location) => Boolean(location.name || location.address || location.timezone));
+}
+
+function mapJobLocationsToDetailedRows(raw: unknown): BusinessInfoFormData["detailedLocations"] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((location: any) => ({
+      streetAddress: String(location?.street_address || location?.streetAddress || "").trim(),
+      city: String(location?.city || "").trim(),
+      state: String(location?.state || "").trim(),
+      zip: String(location?.postal_code || location?.postalCode || location?.zip || "").trim(),
+      country: String(location?.country || "").trim(),
+      phone: String(location?.phone || "").trim(),
+      email: String(location?.email || "").trim(),
+      mapLink: String(location?.map_url || location?.mapUrl || location?.mapLink || "").trim(),
+      hours:
+        typeof location?.hours === "string"
+          ? location.hours
+          : location?.hours
+            ? JSON.stringify(location.hours)
+            : "",
+      holidayHours:
+        typeof location?.special_hours === "string"
+          ? location.special_hours
+          : location?.special_hours
+            ? JSON.stringify(location.special_hours)
+            : "",
+      primaryFlag: String(location?.primaryFlag || "").trim(),
+    }))
+    .filter((location) =>
+      Object.values(location).some((value) => String(value ?? "").trim().length > 0)
+    );
+}
+
+function normalizeImageLibrary(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return normalizeStringArray(raw);
+  return raw
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") {
+        const image = item as Record<string, unknown>;
+        return String(image.url ?? image.src ?? image.href ?? "").trim();
+      }
+      return String(item ?? "").trim();
+    })
+    .filter(Boolean);
+}
+
+function normalizeProfileUrlRows(raw: unknown): Array<{ url: string }> {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (typeof item === "string") {
+        const url = item.trim();
+        return url ? { url } : null;
+      }
+      if (item && typeof item === "object") {
+        const profile = item as Record<string, unknown>;
+        const url = String(profile.url ?? profile.href ?? profile.link ?? "").trim();
+        return url ? { url } : null;
+      }
+      return null;
+    })
+    .filter((item): item is { url: string } => Boolean(item));
 }
 
 export function mapAutofillResultToFormValues(
@@ -185,7 +312,11 @@ export function mapAutofillResultToFormValues(
       profile.siteSearchUrlPattern || currentValues.siteSearchUrlPattern,
     serviceAreaType: profile.serviceAreaType || currentValues.serviceAreaType,
     serviceAreas:
-      profile.serviceAreas.length > 0 ? profile.serviceAreas : currentValues.serviceAreas,
+      profile.serviceAreas.length > 0
+        ? profile.serviceAreas
+        : profile.structuredServiceAreas.length > 0
+          ? profile.structuredServiceAreas.map((area) => area.name)
+          : currentValues.serviceAreas,
     serviceType: profile.serviceType || currentValues.serviceType,
     offerings: profile.sell || currentValues.offerings,
     lifetimeValue: profile.ltv || currentValues.lifetimeValue,
@@ -227,6 +358,14 @@ export function mapAutofillResultToFormValues(
       profile.offerings.length > 0
         ? profileOfferingsToRows(profile.offerings)
         : currentValues.offeringsList,
+    locations:
+      profile.structuredLocations.length > 0
+        ? mapJobLocationsToLocationRows(profile.structuredLocations)
+        : currentValues.locations,
+    detailedLocations:
+      profile.structuredLocations.length > 0
+        ? mapJobLocationsToDetailedRows(profile.structuredLocations)
+        : currentValues.detailedLocations,
     usps: profile.usps.length > 0 ? profile.usps.join(", ") : currentValues.usps,
     ctas:
       profile.ctas.length > 0
@@ -271,16 +410,10 @@ export function mapProfileDataToFormValues(
   if (!profileData) return { ...profileFormEditDefaults };
 
   const profileAny = profileData as any;
+  const jobAny = jobDetails as any;
   const jobExists = Boolean(jobDetails?.job_id);
   const offeringsList = jobExists
-    ? ((jobDetails?.offerings ?? []) as any[]).map(
-        (offering): OfferingRow => ({
-          name: offering.offering || offering.name || "",
-          description: offering.description || "",
-          link: offering.url || offering.link || "",
-          pricePositioning: offering.price_positioning || offering.priceRange || "",
-        })
-      )
+    ? normalizeOfferingsToRows(jobDetails?.offerings)
     : [];
 
   const primaryLocation = profileAny?.PrimaryLocation
@@ -312,6 +445,11 @@ export function mapProfileDataToFormValues(
       timezone: location.TimeZone || location.timezone || "",
     })
   );
+  const jobLocationsList = mapJobLocationsToLocationRows(jobAny?.locations);
+  const detailedLocationsList = parseArrayField<any>(profileAny.DetailedLocations) as NonNullable<
+    BusinessInfoFormData["detailedLocations"]
+  >;
+  const jobDetailedLocationsList = mapJobLocationsToDetailedRows(jobAny?.locations);
   const competitorsList = parseArrayField<any>(profileData.Competitors)
     .map((competitor) => ({
       url: cleanWebsiteUrl(
@@ -329,23 +467,33 @@ export function mapProfileDataToFormValues(
       profileAny.LegalName ||
       profileAny.legalName ||
       profileAny.legal_business_name ||
+      jobAny?.legal_business_name ||
       "",
     businessName: profileData.Name || profileData.DisplayName || "",
     businessCategory:
       profileAny.BusinessCategory ||
       profileAny.business_category ||
-      (jobDetails as any)?.business_category ||
+      jobAny?.business_category ||
       "",
     foundingDate:
-      profileAny.FoundingDate || profileAny.foundingDate || profileAny.year_founded || "",
-    logoUrl: profileAny.LogoUrl || profileAny.logoUrl || profileAny.logo_url || "",
-    siteName: profileAny.SiteName || profileAny.siteName || profileAny.site_name || "",
+      profileAny.FoundingDate ||
+      profileAny.foundingDate ||
+      profileAny.year_founded ||
+      jobAny?.year_founded ||
+      "",
+    logoUrl: profileAny.LogoUrl || profileAny.logoUrl || profileAny.logo_url || jobAny?.logo_url || "",
+    siteName: profileAny.SiteName || profileAny.siteName || profileAny.site_name || jobAny?.site_name || "",
     alternateName:
-      profileAny.AlternateName || profileAny.alternateName || profileAny.alternate_name || "",
+      profileAny.AlternateName ||
+      profileAny.alternateName ||
+      profileAny.alternate_name ||
+      jobAny?.alternate_name ||
+      "",
     siteSearchUrlPattern:
       profileAny.SiteSearchUrlPattern ||
       profileAny.siteSearchUrlPattern ||
       profileAny.site_search_url_pattern ||
+      jobAny?.site_search_url_pattern ||
       "",
     businessDescription:
       profileData.UserDefinedBusinessDescription || profileData.Description || "",
@@ -353,10 +501,10 @@ export function mapProfileDataToFormValues(
     serviceAreaType:
       profileAny.ServiceAreaType ||
       profileAny.service_area_type ||
-      (jobDetails as any)?.service_area_type ||
+      jobAny?.service_area_type ||
       "",
-    serviceAreas: normalizeStringArray(
-      profileAny.ServiceAreas ?? profileAny.service_areas ?? (jobDetails as any)?.service_areas
+    serviceAreas: normalizeServiceAreaNames(
+      profileAny.ServiceAreas ?? profileAny.service_areas ?? jobAny?.service_areas
     ),
     serviceType: (() => {
       const objective = String(profileData.BusinessObjective || "").toLowerCase();
@@ -370,9 +518,9 @@ export function mapProfileDataToFormValues(
       return value === "high" || value === "low" ? value : "";
     })(),
     b2bB2c:
-      profileAny.B2bB2c || profileAny.b2b_b2c || (jobDetails as any)?.b2b_b2c || "",
+      profileAny.B2bB2c || profileAny.b2b_b2c || jobAny?.b2b_b2c || "",
     segment: String(
-      profileAny.Segment ?? profileAny.segment ?? (jobDetails as any)?.segment ?? ""
+      profileAny.Segment ?? profileAny.segment ?? jobAny?.segment ?? ""
     ),
     offerings: (() => {
       const locationType = String(profileData.LocationType || "").toLowerCase();
@@ -384,32 +532,49 @@ export function mapProfileDataToFormValues(
     usps,
     ctas: ctasList,
     brandTerms: normalizeStringArray(
-      profileAny.BrandTerms ?? profileAny.brand_terms ?? (jobDetails as any)?.brand_terms
+      profileAny.BrandTerms ?? profileAny.brand_terms ?? jobAny?.brand_terms
     ),
     stakeholders: stakeholdersList,
-    locations: locationsList,
-    detailedLocations: parseArrayField(profileAny.DetailedLocations),
-    keyPeople: parseArrayField(profileAny.KeyPeople),
-    licensesCompliance: normalizeStringArray(profileAny.LicensesCompliance ?? profileAny.licenses),
-    awardsCertifications: normalizeStringArray(profileAny.AwardsCertifications ?? profileAny.awards),
+    locations: locationsList.length > 0 ? locationsList : jobLocationsList,
+    detailedLocations:
+      detailedLocationsList.length > 0 ? detailedLocationsList : jobDetailedLocationsList,
+    keyPeople: parseArrayField(profileAny.KeyPeople ?? jobAny?.key_people),
+    licensesCompliance: normalizeStringArray(
+      profileAny.LicensesCompliance ?? profileAny.licenses ?? jobAny?.licenses
+    ),
+    awardsCertifications: normalizeStringArray(
+      profileAny.AwardsCertifications ?? profileAny.awards ?? jobAny?.awards
+    ),
     reviewRating: String(
       profileAny.ReviewRating ??
         profileAny.aggregate_rating?.rating ??
         profileAny.aggregate_rating?.ratingValue ??
+        jobAny?.aggregate_rating?.rating_value ??
+        jobAny?.aggregate_rating?.ratingValue ??
+        jobAny?.aggregate_rating?.rating ??
         ""
     ),
     reviewCount: String(
       profileAny.ReviewCount ??
         profileAny.aggregate_rating?.count ??
         profileAny.aggregate_rating?.reviewCount ??
+        jobAny?.aggregate_rating?.review_count ??
+        jobAny?.aggregate_rating?.reviewCount ??
+        jobAny?.aggregate_rating?.count ??
         ""
     ),
-    testimonials: normalizeStringArray(profileAny.Testimonials),
-    colorsFontsCss: String(profileAny.ColorsFontsCss ?? ""),
-    imagePhotoLibrary: normalizeStringArray(profileAny.ImagePhotoLibrary),
-    socialProfiles: parseArrayField(profileAny.SocialProfiles),
-    directoryProfiles: parseArrayField(profileAny.DirectoryProfiles),
-    supportEmail: String(profileAny.SupportEmail ?? ""),
+    testimonials: normalizeStringArray(profileAny.Testimonials ?? jobAny?.testimonials),
+    colorsFontsCss: String(profileAny.ColorsFontsCss ?? jobAny?.brand_assets?.stylesheets?.join?.("\n") ?? ""),
+    imagePhotoLibrary: normalizeImageLibrary(
+      profileAny.ImagePhotoLibrary ?? jobAny?.brand_assets?.image_library
+    ),
+    socialProfiles: normalizeProfileUrlRows(
+      parseArrayField(profileAny.SocialProfiles ?? jobAny?.social_profiles)
+    ),
+    directoryProfiles: normalizeProfileUrlRows(
+      parseArrayField(profileAny.DirectoryProfiles ?? jobAny?.directory_profiles)
+    ),
+    supportEmail: String(profileAny.SupportEmail ?? jobAny?.support_email ?? ""),
     commsEmail: String(profileAny.CommsEmail ?? ""),
     competitors: competitorsList,
     brandToneSocial: normalizeToneOptions(profileAny.SocialBrandVoice),
@@ -496,6 +661,11 @@ export function buildBusinessProfilePayload(
         : autofillResult?.serviceAreas?.length
           ? autofillResult.serviceAreas
           : (existingProfile as any)?.ServiceAreas,
+    StructuredServiceAreas:
+      autofillResult?.structuredServiceAreas?.length
+        ? autofillResult.structuredServiceAreas
+        : (existingProfile as any)?.StructuredServiceAreas ??
+          (existingProfile as any)?.service_areas,
     ProfileLocation: autofillResult?.location ?? (existingProfile as any)?.ProfileLocation,
     ProfileCountry: autofillResult?.country ?? (existingProfile as any)?.ProfileCountry,
     B2bB2c:
@@ -526,6 +696,11 @@ export function buildBusinessProfilePayload(
       TimeZone: locationRow.timezone || "",
     })),
     DetailedLocations: values.detailedLocations || null,
+    StructuredLocations:
+      autofillResult?.structuredLocations?.length
+        ? autofillResult.structuredLocations
+        : (existingProfile as any)?.StructuredLocations ??
+          (existingProfile as any)?.locations,
     KeyPeople: (values.stakeholders || []).map((stakeholder) => ({
       name: stakeholder.name || "",
       role: stakeholder.title || "",

@@ -60,8 +60,7 @@ export function AccessRequestRestoreGate({
     !!token &&
     !requestStatus.isLoading &&
     !requestStatus.isError &&
-    requestState !== "expired" &&
-    requestState !== "completed";
+    requestState !== "expired";
 
   const applySession = useCallback(
     (nextSessionToken: string) => {
@@ -229,16 +228,6 @@ export function AccessRequestRestoreGate({
         tone="expired"
         title="This link has expired"
         description="Please ask the agency for a new link."
-      />
-    );
-  }
-
-  if (requestState === "completed") {
-    return (
-      <AccessRequestStatusCard
-        tone="completed"
-        title="Access connected"
-        description="Massic now has the access it needs. You can close this page."
       />
     );
   }

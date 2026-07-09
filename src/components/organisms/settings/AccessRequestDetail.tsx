@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -50,34 +51,76 @@ interface AccessRequestDetailProps {
 
 type Asset = Record<string, unknown>;
 
-const STATUS_META: Record<string, { label: string; className: string }> = {
-  connected: { label: "Connected", className: "border-green-200 bg-green-50 text-green-700" },
-  can_grant: { label: "Can grant", className: "border-blue-200 bg-blue-50 text-blue-700" },
-  matched_granted: { label: "Connected", className: "border-green-200 bg-green-50 text-green-700" },
-  multiple_possible_matches: {
-    label: "Needs review",
-    className: "border-violet-200 bg-violet-50 text-violet-700",
-  },
-  manual_review: { label: "Needs review", className: "border-amber-200 bg-amber-50 text-amber-700" },
-  manual_match_selected: {
-    label: "Selected manually",
-    className: "border-violet-200 bg-violet-50 text-violet-700",
-  },
-  manual_selection_granted: {
-    label: "Connected",
-    className: "border-green-200 bg-green-50 text-green-700",
-  },
-  partial_access: { label: "Needs higher access", className: "border-amber-200 bg-amber-50 text-amber-700" },
-  viewer_only: { label: "Needs higher access", className: "border-amber-200 bg-amber-50 text-amber-700" },
-  no_access_found: { label: "Missing", className: "border-gray-200 bg-gray-50 text-gray-500" },
-  pending: { label: "Not checked", className: "border-gray-200 bg-gray-50 text-gray-600" },
-  failed: { label: "Needs retry", className: "border-red-200 bg-red-50 text-red-700" },
+const VISIBLE_SCROLLBAR_CLASS =
+  "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400";
+const VISIBLE_SCROLLBAR_STYLE: React.CSSProperties = {
+  scrollbarColor: "#d1d5db transparent",
+  scrollbarWidth: "thin",
 };
+
+function TruncatedText({ text, className }: { text?: string | null; className?: string }) {
+  if (!text) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <p className={cn("truncate", className)}>{text}</p>
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+const FOUR_STATE_META = {
+  granted: { label: "Granted", className: "border-green-200 bg-green-50 text-green-700" },
+  can_grant: { label: "Can grant", className: "border-blue-200 bg-blue-50 text-blue-700" },
+  needs_review: { label: "Needs review", className: "border-amber-200 bg-amber-50 text-amber-700" },
+  cannot_grant: { label: "Cannot grant", className: "border-gray-200 bg-gray-50 text-gray-500" },
+  not_matched: { label: "Not matched", className: "border-gray-200 bg-gray-50 text-gray-500" },
+} as const;
+
+type FourStateKey = keyof typeof FOUR_STATE_META;
+
+const STATUS_TO_FOUR_STATE: Record<string, FourStateKey> = {
+  connected: "granted",
+  matched_granted: "granted",
+  manual_selection_granted: "granted",
+  can_grant: "can_grant",
+  manual_match_selected: "can_grant",
+  multiple_possible_matches: "needs_review",
+  manual_review: "needs_review",
+  partial_access: "needs_review",
+  viewer_only: "needs_review",
+  failed: "needs_review",
+  no_access_found: "cannot_grant",
+  pending: "cannot_grant",
+  not_matched: "not_matched",
+};
+
+const GBP_GRANTABLE_ROLES = new Set(["PRIMARY_OWNER", "OWNER"]);
+const GBP_GRANTABLE_PERMISSION_LEVELS = new Set(["OWNER_LEVEL"]);
+
+function isAssetOwnerGrantable(product: Product | undefined, asset: Asset) {
+  if (product === "gbp") {
+    const role = typeof asset.role === "string" ? asset.role : null;
+    if (role) return GBP_GRANTABLE_ROLES.has(role);
+    const permissionLevel = typeof asset.permissionLevel === "string" ? asset.permissionLevel : null;
+    return Boolean(permissionLevel && GBP_GRANTABLE_PERMISSION_LEVELS.has(permissionLevel));
+  }
+
+  if (product === "gsc") {
+    const permissionLevel = typeof asset.permissionLevel === "string" ? asset.permissionLevel : null;
+    return !permissionLevel || permissionLevel === "siteOwner";
+  }
+
+  return true;
+}
 
 const CONNECTED_GRANT_STATUSES = new Set(["completed", "verified", "connected"]);
 
 function statusMeta(status?: string) {
-  return STATUS_META[status || "pending"] || STATUS_META.pending;
+  const key = STATUS_TO_FOUR_STATE[status || "pending"] || "cannot_grant";
+  return FOUR_STATE_META[key];
 }
 
 function AccessStatusBadge({ status, className }: { status?: string; className?: string }) {
@@ -144,24 +187,16 @@ function assetKey(asset: Asset) {
   );
 }
 
-function assetMatchStatus(asset: Asset, grant?: AccessGrant) {
-  const selectedByGrant = grantIncludesAsset(grant, asset);
-  if (selectedByGrant && asset.matchStatus !== "auto_match") return "Selected manually";
-  if (asset.matchStatus === "auto_match") return "Can grant";
-  if (asset.matchStatus === "manual_selected") return "Selected manually";
-  return "Not matched";
-}
-
-function assetMatchClass(asset: Asset, grant?: AccessGrant) {
-  const selectedByGrant = grantIncludesAsset(grant, asset);
-  if (selectedByGrant && asset.matchStatus !== "auto_match") return "border-violet-200 bg-violet-50 text-violet-700";
-  if (asset.matchStatus === "auto_match") return "border-blue-200 bg-blue-50 text-blue-700";
-  if (asset.matchStatus === "manual_selected") return "border-violet-200 bg-violet-50 text-violet-700";
-  return "border-gray-200 bg-gray-50 text-gray-500";
+function formatAccessLevelValue(value: string) {
+  return value
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function assetAccessLevel(asset: Asset) {
-  return (asset.permissionLevel as string) || (asset.role as string) || "";
+  const raw = (asset.permissionLevel as string) || (asset.role as string) || "";
+  return raw ? formatAccessLevelValue(raw) : "-";
 }
 
 function grantIncludesAsset(grant: AccessGrant | undefined, asset: Asset) {
@@ -170,17 +205,23 @@ function grantIncludesAsset(grant: AccessGrant | undefined, asset: Asset) {
   return selectedKeys.has(assetKey(asset));
 }
 
-function grantStatusForAsset(check: AccessCheck, grant: AccessGrant | undefined, asset: Asset) {
-  if (!grant) return check.status;
-  if (grant.grantStatus === "failed") return "failed";
-  if (!CONNECTED_GRANT_STATUSES.has(grant.grantStatus)) return grant.grantStatus || check.status;
+function assetStatus(asset: Asset, grant?: AccessGrant, product?: Product) {
+  if (grant) {
+    if (grant.grantStatus === "failed") return "failed";
+    if (CONNECTED_GRANT_STATUSES.has(grant.grantStatus)) {
+      const isSelected = grantIncludesAsset(grant, asset);
+      if (isSelected !== false) {
+        if (asset.matchStatus === "manual_selected" || (isSelected && asset.matchStatus !== "auto_match")) {
+          return "manual_selection_granted";
+        }
+        if (asset.matchStatus === "auto_match") return "matched_granted";
+      }
+    }
+  }
 
-  const isSelected = grantIncludesAsset(grant, asset);
-  if (isSelected === false) return check.status;
-  if (asset.matchStatus === "manual_selected") return "manual_selection_granted";
-  if (isSelected && asset.matchStatus !== "auto_match") return "manual_selection_granted";
-  if (asset.matchStatus === "auto_match") return "matched_granted";
-  return check.status;
+  if (asset.matchStatus === "auto_match") return "can_grant";
+  if (asset.matchStatus === "manual_selected") return "manual_match_selected";
+  return isAssetOwnerGrantable(product, asset) ? "not_matched" : "no_access_found";
 }
 
 function grantedAssetNamesForProduct(request: AccessRequest, product: Product) {
@@ -289,7 +330,7 @@ function ShareStatusList({ shares = [] }: { shares?: AccessRequestShare[] }) {
  }
 
  return (
- <div className="max-h-64 divide-y divide-general-border overflow-y-auto">
+ <div className={cn("max-h-64 divide-y divide-general-border overflow-y-auto", VISIBLE_SCROLLBAR_CLASS)} style={VISIBLE_SCROLLBAR_STYLE}>
  {shares.map((share) => {
  const meta = shareStatusMeta(share);
  const lastSentAt = formatDateTime(share.lastSentAt);
@@ -297,7 +338,7 @@ function ShareStatusList({ shares = [] }: { shares?: AccessRequestShare[] }) {
  return (
  <div key={share.id} className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 md:flex-row md:items-center md:justify-between">
  <div className="min-w-0">
- <p className="truncate text-sm font-medium text-general-foreground">{share.email}</p>
+ <TruncatedText text={share.email} className="text-sm font-medium text-general-foreground" />
  <p className="text-xs text-general-muted-foreground">
  {lastSentAt ? `Sent ${lastSentAt}` : "Not sent yet"} ·{" "}
  {lastOpenedAt ? `Opened ${lastOpenedAt}` : "Not opened yet"} ·{" "}
@@ -319,33 +360,45 @@ function ShareStatusList({ shares = [] }: { shares?: AccessRequestShare[] }) {
  );
 }
 
-function ShareAccessSection({
+function AccessLinkCard({
  request,
+ statusConfig,
+ onCopyLink,
  onShared,
 }: {
  request: AccessRequest;
+ statusConfig: { variant: any; className: string; label: string };
+ onCopyLink: () => void;
  onShared: () => void;
 }) {
- const [open, setOpen] = useState(false);
+ const [shareOpen, setShareOpen] = useState(false);
  const shares = request.shares || [];
+ const url =
+ request.requestUrl ||
+ `${typeof window !== "undefined" ? window.location.origin : ""}/google-access/r/${request.token}`;
 
  return (
  <div className="rounded-lg border border-general-border bg-white p-4">
- <div className="flex items-start justify-between gap-3">
- <div>
- <h4 className="flex items-center gap-2 text-sm font-semibold">
- <Mail className="h-4 w-4" />
- Share access link
- </h4>
- <p className="mt-1 text-sm text-general-muted-foreground">
- {shares.length === 0
- ? "Not shared with anyone yet."
- : `Shared with ${shares.length} ${shares.length === 1 ? "person" : "people"}.`}
- </p>
+ <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+ <div className="min-w-0 space-y-1">
+ <p className="text-xs text-general-muted-foreground">Access link</p>
+ <TruncatedText text={url} className="text-sm font-mono" />
+ <div className="flex flex-wrap items-center gap-3 text-xs text-general-muted-foreground">
+ <span>{request.websiteUrl?.replace(/^https?:\/\//, "").replace(/\/$/, "") || "No website"}</span>
+ <span>Agency: {request.agencyEmail}</span>
+ <Badge variant={statusConfig.variant} className={cn("text-[10px]", statusConfig.className)}>
+ {statusConfig.label}
+ </Badge>
  </div>
- <Dialog open={open} onOpenChange={setOpen}>
+ </div>
+ <div className="flex shrink-0 items-center gap-2">
+ <Button type="button" variant="outline" onClick={onCopyLink}>
+ <Copy className="mr-2 h-4 w-4" />
+ Copy link
+ </Button>
+ <Dialog open={shareOpen} onOpenChange={setShareOpen}>
  <DialogTrigger asChild>
- <Button type="button" variant="outline" size="sm" className="shrink-0">
+ <Button type="button" variant="outline">
  <Send className="mr-2 h-4 w-4" />
  Share
  </Button>
@@ -362,9 +415,18 @@ function ShareAccessSection({
  </DialogContent>
  </Dialog>
  </div>
+ </div>
+
+ <div className="mt-4 border-t border-general-border pt-3">
+ <p className="flex items-center gap-2 text-sm text-general-muted-foreground">
+ <Mail className="h-4 w-4" />
+ {shares.length === 0
+ ? "Not shared with anyone yet."
+ : `Shared with ${shares.length} ${shares.length === 1 ? "person" : "people"}.`}
+ </p>
 
  {shares.length > 0 && (
- <div className="mt-3 flex flex-wrap gap-1.5">
+ <div className="mt-2 flex flex-wrap gap-1.5">
  {shares.slice(0, 6).map((share) => {
  const meta = shareStatusMeta(share);
  return (
@@ -381,18 +443,16 @@ function ShareAccessSection({
  </div>
  )}
  </div>
+ </div>
  );
 }
 
 function AccessRequestSummaryCards({ request }: { request: AccessRequest }) {
-  const aggregate = request.aggregate || {};
-
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {(request.products || []).map((product) => {
-        const rollup = aggregate[product];
-        const meta = statusMeta(rollup?.status);
         const grantedAssetNames = grantedAssetNamesForProduct(request, product);
+        const isConnected = grantedAssetNames.length > 0;
 
         return (
           <div key={product} className="rounded-lg border border-general-border bg-white p-4">
@@ -402,26 +462,29 @@ function AccessRequestSummaryCards({ request }: { request: AccessRequest }) {
                 {PRODUCT_CONFIG[product]?.shortLabel || product.toUpperCase()}
               </span>
             </div>
-            <Badge variant="outline" className={cn("text-[10px]", meta.className)}>
-              {meta.label}
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[10px]",
+                isConnected
+                  ? "border-green-200 bg-green-50 text-green-700"
+                  : "border-gray-200 bg-gray-50 text-gray-500"
+              )}
+            >
+              {isConnected ? "Connected" : "Not connected"}
             </Badge>
-            <p className="mt-2 text-xs text-general-muted-foreground">
-              {rollup?.checkCount || 0} checked · {rollup?.grantCount || 0} grants
-            </p>
             <div className="mt-3 border-t border-general-border pt-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-general-muted-foreground">
-                Access connected
+                Connected property
               </p>
               {grantedAssetNames.length > 0 ? (
                 <div className="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
                   {grantedAssetNames.map((name) => (
-                    <p key={name} title={name} className="truncate text-xs font-medium text-general-foreground">
-                      {name}
-                    </p>
+                    <TruncatedText key={name} text={name} className="text-xs font-medium text-general-foreground" />
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-xs text-general-muted-foreground">No access connected yet.</p>
+                <p className="mt-2 text-xs text-gray-400">None</p>
               )}
             </div>
           </div>
@@ -449,11 +512,11 @@ function ContributorMatrix({
   }
 
   return (
-    <Table className="max-h-[420px] rounded-lg border border-general-border">
+    <Table className={cn("max-h-[420px] rounded-lg border border-general-border", VISIBLE_SCROLLBAR_CLASS)} style={VISIBLE_SCROLLBAR_STYLE}>
       <TableElement className="min-w-[860px]">
         <TableHeader className="sticky top-0 z-10">
           <TableRow>
-            <TableHead className="w-[260px] px-3 py-2">Person</TableHead>
+            <TableHead className="w-[260px] px-3 py-2">Contact</TableHead>
             {products.map((product) => (
               <TableHead key={product} className="min-w-[150px] px-3 py-2">
                 {PRODUCT_CONFIG[product]?.shortLabel || product.toUpperCase()}
@@ -475,14 +538,18 @@ function ContributorMatrix({
               >
                 <TableCell className="px-3 py-3 align-top">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-general-primary underline-offset-4 group-hover:underline">
-                      {email}
-                    </p>
-                    <p className="truncate text-xs text-general-muted-foreground">
-                      {contributor.lastSeenAt
-                        ? `Last seen ${new Date(contributor.lastSeenAt).toLocaleDateString()}`
-                        : contributor.name || "Opened link"}
-                    </p>
+                    <TruncatedText
+                      text={email}
+                      className="text-sm font-medium text-general-primary underline-offset-4 group-hover:underline"
+                    />
+                    <TruncatedText
+                      text={
+                        contributor.lastSeenAt
+                          ? `Last seen ${new Date(contributor.lastSeenAt).toLocaleDateString()}`
+                          : contributor.name || "Opened link"
+                      }
+                      className="text-xs text-general-muted-foreground"
+                    />
                   </div>
                 </TableCell>
                 {products.map((product) => {
@@ -493,9 +560,10 @@ function ContributorMatrix({
                       <div className="min-w-0 space-y-1">
                         <AccessStatusBadge status={check?.status} />
                         {shouldShowMatchedResourceName(check) && (
-                          <p className="max-w-[170px] truncate text-xs text-general-muted-foreground">
-                            {check?.matchedResourceName}
-                          </p>
+                          <TruncatedText
+                            text={check?.matchedResourceName}
+                            className="max-w-[170px] text-xs text-general-muted-foreground"
+                          />
                         )}
                       </div>
                     </TableCell>
@@ -527,49 +595,41 @@ function ContributorMatrix({
 
 function AssetRows({
   assets,
-  check,
   grant,
-  showResult = false,
+  product,
 }: {
   assets: Asset[];
-  check: AccessCheck;
   grant?: AccessGrant;
-  showResult?: boolean;
+  product?: Product;
 }) {
-  const showAccessLevel = assets.some((asset) => Boolean(assetAccessLevel(asset)));
-
   return (
-    <Table className="max-h-[320px] rounded-md border border-general-border">
-      <TableElement className={showResult ? "min-w-[760px]" : "min-w-[620px]"}>
+    <Table
+      className={cn("max-h-[320px] rounded-md border border-general-border", VISIBLE_SCROLLBAR_CLASS)}
+      style={VISIBLE_SCROLLBAR_STYLE}
+    >
+      <TableElement className="min-w-[560px]">
         <TableHeader className="sticky top-0 z-10">
           <TableRow>
-            <TableHead className="w-[220px] px-3 py-2">Asset</TableHead>
+            <TableHead className="w-[280px] px-3 py-2">Asset</TableHead>
             <TableHead className="w-[220px] px-3 py-2">Account / URL</TableHead>
-            <TableHead className="w-[150px] px-3 py-2">Match</TableHead>
-            {showAccessLevel && <TableHead className="w-[130px] px-3 py-2">Access level</TableHead>}
-            {showResult && <TableHead className="w-[170px] px-3 py-2">Result</TableHead>}
+            <TableHead className="w-[130px] px-3 py-2">Access level</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {assets.map((asset, index) => (
             <TableRow key={`${assetKey(asset)}-${index}`}>
               <TableCell className="px-3 py-2 align-top font-medium">
-                <span className="block max-w-[220px] truncate">{assetName(asset)}</span>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <TruncatedText text={assetName(asset)} className="max-w-[170px]" />
+                  <AccessStatusBadge status={assetStatus(asset, grant, product)} />
+                </div>
               </TableCell>
               <TableCell className="px-3 py-2 align-top text-general-muted-foreground">
-                <span className="block max-w-[220px] truncate">{assetContext(asset)}</span>
+                <TruncatedText text={assetContext(asset)} className="max-w-[220px]" />
               </TableCell>
-              <TableCell className="px-3 py-2 align-top">
-                <Badge variant="outline" className={cn("text-[10px]", assetMatchClass(asset, grant))}>
-                  {assetMatchStatus(asset, grant)}
-                </Badge>
+              <TableCell className="px-3 py-2 align-top text-general-muted-foreground">
+                {assetAccessLevel(asset)}
               </TableCell>
-              {showAccessLevel && <TableCell className="px-3 py-2 align-top">{assetAccessLevel(asset)}</TableCell>}
-              {showResult && (
-                <TableCell className="px-3 py-2 align-top">
-                  <AccessStatusBadge status={grantStatusForAsset(check, grant, asset)} />
-                </TableCell>
-              )}
             </TableRow>
           ))}
         </TableBody>
@@ -601,12 +661,17 @@ function AssetAccessTable({
       {matchedAssets.length > 0 ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium">Matched to this business</p>
+            <div>
+              <p className="text-sm font-medium">Verified Matches</p>
+              <p className="text-xs text-general-muted-foreground">
+                A matching GA4 property was found and is available to connect.
+              </p>
+            </div>
             <Badge variant="outline" className="border-blue-200 bg-blue-50 text-[10px] text-blue-700">
               {matchedAssets.length} matched
             </Badge>
           </div>
-          <AssetRows assets={matchedAssets} check={check} grant={latestGrant} showResult />
+          <AssetRows assets={matchedAssets} grant={latestGrant} product={check.systemType} />
         </div>
       ) : (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -615,16 +680,16 @@ function AssetAccessTable({
       )}
 
       {otherAssets.length > 0 && (
-        <details className="rounded-lg border border-general-border bg-white">
+        <details className="group rounded-lg border border-general-border bg-white" open={matchedAssets.length === 0}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-medium">
-            Other items this Google account can access
+            Other assets in this account
             <span className="flex items-center gap-2 text-xs font-normal text-general-muted-foreground">
               {otherAssets.length} asset{otherAssets.length === 1 ? "" : "s"}
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
             </span>
           </summary>
           <div className="border-t border-general-border p-4">
-            <AssetRows assets={otherAssets} check={check} grant={latestGrant} />
+            <AssetRows assets={otherAssets} grant={latestGrant} product={check.systemType} />
           </div>
         </details>
       )}
@@ -653,9 +718,16 @@ function ContributorDeepDive({
             <ArrowLeft className="mr-1 h-4 w-4" />
             Back to overview
           </Button>
-          <h3 className="truncate text-lg font-semibold">
-            {contributor.googleAccountEmail || contributor.email || "Unknown Google account"}
-          </h3>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <h3 className="truncate text-lg font-semibold">
+                {contributor.googleAccountEmail || contributor.email || "Unknown Google account"}
+              </h3>
+            </TooltipTrigger>
+            <TooltipContent>
+              {contributor.googleAccountEmail || contributor.email || "Unknown Google account"}
+            </TooltipContent>
+          </Tooltip>
           <p className="text-sm text-general-muted-foreground">
             Google sign-in {contributor.oauthCompletedAt ? "completed" : "not completed"}
             {contributor.oauthCompletedAt ? ` ${new Date(contributor.oauthCompletedAt).toLocaleString()}` : ""}
@@ -723,12 +795,12 @@ export function AccessRequestDetail({ request, onClose }: AccessRequestDetailPro
 
   return (
     <Sheet open={!!request} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-5xl">
+      <SheetContent className={cn("w-full overflow-y-auto p-0 sm:max-w-5xl", VISIBLE_SCROLLBAR_CLASS)} style={VISIBLE_SCROLLBAR_STYLE}>
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-general-border bg-white px-6 py-5">
           <SheetHeader>
-            <SheetTitle>Google access status</SheetTitle>
+            <SheetTitle>Google Account Access Status</SheetTitle>
             <SheetDescription>
-              See who opened the link, what each Google account can access, and what still needs follow-up.
+              Track link activity, connected accounts, and pending permissions requiring review.
             </SheetDescription>
           </SheetHeader>
           <Button
@@ -770,26 +842,12 @@ export function AccessRequestDetail({ request, onClose }: AccessRequestDetailPro
 
         {!isInitialDetailLoading && displayData && (
           <div className="space-y-6 px-6 py-5">
-            <div className="flex flex-col gap-3 rounded-lg border border-general-border bg-white p-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0 space-y-1">
-                <p className="text-xs text-general-muted-foreground">Access link</p>
-                <p className="truncate text-sm font-mono">
-                  {displayData.requestUrl ||
-                    `${typeof window !== "undefined" ? window.location.origin : ""}/google-access/r/${displayData.token}`}
-                </p>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-general-muted-foreground">
-                  <span>{displayData.websiteUrl?.replace(/^https?:\/\//, "").replace(/\/$/, "") || "No website"}</span>
-                  <span>Agency: {displayData.agencyEmail}</span>
-                  <Badge variant={statusConfig.variant} className={cn("text-[10px]", statusConfig.className)}>
-                    {statusConfig.label}
-                  </Badge>
-                </div>
-              </div>
-              <Button variant="outline" onClick={copyLink}>
- <Copy className="mr-2 h-4 w-4" />
- Copy link
- </Button>
- </div>
+            <AccessLinkCard
+              request={displayData}
+              statusConfig={statusConfig}
+              onCopyLink={copyLink}
+              onShared={() => refetchDetail()}
+            />
 
  {selectedContributor ? (
               <ContributorDeepDive
@@ -800,12 +858,11 @@ export function AccessRequestDetail({ request, onClose }: AccessRequestDetailPro
             ) : (
               <>
                 <AccessRequestSummaryCards request={displayData} />
-                <ShareAccessSection request={displayData} onShared={() => refetchDetail()} />
                 <div className="space-y-3">
                   <div>
-                    <h4 className="text-sm font-semibold">People who opened this link</h4>
+                    <h4 className="text-sm font-semibold">Link Activity</h4>
                     <p className="text-sm text-general-muted-foreground">
-                      Select a person to see what their Google account can access.
+                      Select a contact to view their requested Google account permissions.
                     </p>
                   </div>
                   <ContributorMatrix

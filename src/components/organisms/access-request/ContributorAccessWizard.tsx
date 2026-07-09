@@ -42,6 +42,26 @@ type Asset = Record<string, unknown>;
 const GBP_GRANTABLE_ROLES = new Set(["PRIMARY_OWNER", "OWNER"]);
 const GBP_GRANTABLE_PERMISSION_LEVELS = new Set(["OWNER_LEVEL"]);
 
+const VISIBLE_SCROLLBAR_CLASS =
+  "[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300 hover:[&::-webkit-scrollbar-thumb]:bg-gray-400";
+const VISIBLE_SCROLLBAR_STYLE: React.CSSProperties = {
+  scrollbarColor: "#d1d5db transparent",
+  scrollbarWidth: "thin",
+};
+
+function TruncatedText({ text, className }: { text?: string | null; className?: string }) {
+  if (!text) return null;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn("truncate", className)}>{text}</span>
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 const STATUS_COPY: Record<string, { label: string; className: string }> = {
   connected: { label: "Connected", className: "border-green-200 bg-green-50 text-green-700" },
   can_grant: { label: "Can grant", className: "border-blue-200 bg-blue-50 text-blue-700" },
@@ -130,6 +150,17 @@ function getPermissionDisabledReason(product: Product | null | undefined, asset:
     return `You can view Search Console, but only an Owner can add Massic. Your access: ${formatRole(permissionLevel)}.`;
   }
 
+  if (product === "ga4") {
+    const permissionLevel = typeof asset.permissionLevel === "string" ? asset.permissionLevel : null;
+    if (permissionLevel === "admin") return null;
+    // Unlike GSC above, an unconfirmed (null) role is also blocked here -
+    // only an Administrator can manage GA4 user access, and we can only
+    // positively confirm that role, never assume it.
+    return permissionLevel
+      ? `You have access, but only an Administrator can add Massic. Your access: ${formatRole(permissionLevel)}.`
+      : "We could not confirm you're an Administrator on this Google Analytics property. Only Administrators can add Massic.";
+  }
+
   return null;
 }
 
@@ -166,6 +197,19 @@ function mergeAssetKeySets(...sets: Set<string>[]) {
   return new Set(sets.flatMap((set) => [...set]));
 }
 
+function sortAssetsByGrantability(
+  assets: Asset[],
+  product: Product | null | undefined,
+  connectedAssetKeys: Set<string>
+) {
+  return [...assets].sort((a, b) => {
+    const aDisabled = Boolean(getAssetDisabledReason(product, a, connectedAssetKeys));
+    const bDisabled = Boolean(getAssetDisabledReason(product, b, connectedAssetKeys));
+    if (aDisabled === bDisabled) return 0;
+    return aDisabled ? 1 : -1;
+  });
+}
+
 function AssetRow({
   asset,
   checked,
@@ -196,8 +240,8 @@ function AssetRow({
     >
       <Checkbox checked={checked} disabled={disabled} onCheckedChange={onToggle} />
       <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-gray-900">{assetLabel(asset)}</span>
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          <TruncatedText text={assetLabel(asset)} className="max-w-[280px] text-sm font-medium text-gray-900" />
           {isConnectedAsset && (
             <Badge variant="outline" className="border-green-200 bg-green-50 text-[10px] text-green-700">
               Connected
@@ -262,6 +306,7 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
   const gscVerifyInFlightRef = useRef(false);
   const gscInitialVerifyKeyRef = useRef<string | null>(null);
   const successToastShownRef = useRef<Set<Product>>(new Set());
+  const gscInstructionsRef = useRef<HTMLDivElement>(null);
 
   const checksByProduct = useMemo(() => {
     const map = new Map<Product, AccessCheck>();
@@ -274,16 +319,24 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
   const activeAggregate = active ? data?.aggregate?.[active] : undefined;
   const currentContributorId = data?.contributor?.id;
   const connectedAssetKeys = useMemo(() => getConnectedAssetKeys(activeCheck), [activeCheck]);
-  const { matchedAssets, otherAssets, autoSelectedAssetIds } = groupedAssets(activeCheck);
+  const { matchedAssets: rawMatchedAssets, otherAssets: rawOtherAssets, autoSelectedAssetIds } = groupedAssets(activeCheck);
   const aggregateConnectedAssetKeys = useMemo(
     () => activeAggregate?.status === "connected"
-      ? new Set(matchedAssets.map(assetKey))
+      ? new Set(rawMatchedAssets.map(assetKey))
       : new Set<string>(),
-    [activeAggregate?.status, matchedAssets]
+    [activeAggregate?.status, rawMatchedAssets]
   );
   const disabledConnectedAssetKeys = useMemo(
     () => mergeAssetKeySets(connectedAssetKeys, aggregateConnectedAssetKeys),
     [aggregateConnectedAssetKeys, connectedAssetKeys]
+  );
+  const matchedAssets = useMemo(
+    () => sortAssetsByGrantability(rawMatchedAssets, active, disabledConnectedAssetKeys),
+    [rawMatchedAssets, active, disabledConnectedAssetKeys]
+  );
+  const otherAssets = useMemo(
+    () => sortAssetsByGrantability(rawOtherAssets, active, disabledConnectedAssetKeys),
+    [rawOtherAssets, active, disabledConnectedAssetKeys]
   );
   const selected = selectedByProduct[active || ""] || new Set<string>();
   const allVisibleAssets = [...matchedAssets, ...otherAssets];
@@ -305,6 +358,11 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
   const activeStatus = statusCopy(isConnectedByAnyContributor ? "connected" : activeCheck?.status);
   const activeProductLabel = active ? PRODUCT_CONFIG[active].label : "this product";
   const isGscInstructionActive = active === "gsc" && instructionsFor === "gsc";
+
+  useEffect(() => {
+    if (!isGscInstructionActive) return;
+    gscInstructionsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [isGscInstructionActive]);
 
   useEffect(() => {
     if (!active || autoSelectedAssetIds.length === 0 || selectedByProduct[active]) return;
@@ -399,7 +457,9 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
     await selectAssets.mutateAsync({ product: active, selectedAssets });
     if (active === "gsc") {
       setGscLinkOpened(false);
-      setGscVerificationMessage("Open Search Console, add Massic, then return here. We will check automatically.");
+      setGscVerificationMessage(
+        `Please jump over to Search Console to add ${website}. Once you're done, head back here—our system will automatically detect the changes and complete the setup!`
+      );
       setInstructionsFor(active);
       return;
     }
@@ -573,17 +633,25 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
                 </div>
               ) : (
                 <>
-                <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                        <p className="text-sm font-medium text-blue-950">Access found for {website}</p>
-                        <p className="text-xs text-blue-800">Massic found the likely match for this business.</p>
-                      </div>
-                      <Badge variant="outline" className={activeStatus.className}>{activeStatus.label}</Badge>
-                    </div>
-                    {matchedAssets.length > 0 ? (
-                      <div className="max-h-[360px] divide-y overflow-y-auto rounded-md border border-blue-100 bg-white">
-                        {matchedAssets.map((asset) => (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Access found for {website}</p>
+                    <p className="text-xs text-gray-600">
+                      Massic found the following likely matches for this business.
+                    </p>
+                  </div>
+                  <Badge variant="outline" className={activeStatus.className}>{activeStatus.label}</Badge>
+                </div>
+
+                {matchedAssets.length > 0 ? (
+                  <div
+                    className={cn(
+                      "max-h-[360px] divide-y overflow-y-auto rounded-md border border-gray-200 bg-white",
+                      VISIBLE_SCROLLBAR_CLASS
+                    )}
+                    style={VISIBLE_SCROLLBAR_STYLE}
+                  >
+                    {matchedAssets.map((asset) => (
                       <AssetRow
                         key={assetKey(asset)}
                         asset={asset}
@@ -593,24 +661,43 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
                         onToggle={() => toggleAsset(asset)}
                         product={active}
                       />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                        We could not match this website automatically. Select an item only if you recognize it as this business.
-                      </p>
-                    )}
+                    ))}
                   </div>
+                ) : (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-sm text-amber-800">
+                      We could not match this website automatically. Select an item only if you recognize it as this business.
+                    </p>
+                  </div>
+                )}
 
                   {otherAssets.length > 0 && matchedAssets.length === 0 && (
-                    <div className="rounded-lg border border-amber-200 bg-white">
-                      <div className="border-b border-amber-100 bg-amber-50 p-4">
-                        <p className="text-sm font-medium text-amber-950">Other access found</p>
-                        <p className="text-xs text-amber-800">
-                          This Google account can access these items, but Massic could not confirm they belong to {website}.
-                        </p>
+                    <div className="rounded-lg border border-gray-200 bg-white">
+                      <div className="flex items-start justify-between gap-3 border-b border-gray-200 p-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Other access found</p>
+                          <p className="text-xs text-gray-600">
+                            This Google account can access these items, but Massic could not confirm they belong to {website}.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => {
+                            navigator.clipboard.writeText(window.location.href.split("?")[0]);
+                            toast.success("Link copied to clipboard");
+                          }}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copy link
+                        </Button>
                       </div>
-                      <div className="max-h-[360px] divide-y overflow-y-auto">
+                      <div
+                        className={cn("max-h-[360px] divide-y overflow-y-auto", VISIBLE_SCROLLBAR_CLASS)}
+                        style={VISIBLE_SCROLLBAR_STYLE}
+                      >
                         {otherAssets.map((asset) => (
                       <AssetRow
                         key={assetKey(asset)}
@@ -627,12 +714,15 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
                   )}
 
                   {otherAssets.length > 0 && matchedAssets.length > 0 && (
-                    <details className="rounded-lg border border-gray-200 bg-white">
+                    <details className="group rounded-lg border border-gray-200 bg-white">
                       <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-medium">
                         Other items this Google account can access
-                        <ChevronDown className="h-4 w-4 text-gray-500" />
+                        <ChevronDown className="h-4 w-4 text-gray-500 transition-transform duration-200 group-open:rotate-180" />
                       </summary>
-                      <div className="max-h-[360px] overflow-y-auto border-t border-gray-200">
+                      <div
+                        className={cn("max-h-[360px] overflow-y-auto border-t border-gray-200", VISIBLE_SCROLLBAR_CLASS)}
+                        style={VISIBLE_SCROLLBAR_STYLE}
+                      >
                         {otherAssets.map((asset) => (
                       <AssetRow
                         key={assetKey(asset)}
@@ -671,14 +761,33 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
             </div>
 
               {isGscInstructionActive && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-                  <p className="text-sm font-semibold text-blue-900">Search Console needs one manual step.</p>
-                  <ol className="list-decimal pl-5 text-sm text-blue-900 space-y-1">
-                    <li>Open Google Search Console.</li>
-                    <li>Select the property shown above.</li>
-                    <li>Go to Settings, then Users and permissions.</li>
-                    <li>Add <span className="font-mono">{agencyEmail}</span> with Full permission.</li>
-                  </ol>
+                <div ref={gscInstructionsRef} className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-blue-900">Manual Setup Required for Search Console</p>
+                  <ul className="list-disc space-y-1.5 pl-5 text-sm text-blue-900">
+                    <li>
+                      Open <span className="font-semibold">Google Search Console</span> and select your website
+                      property (<span className="font-semibold">{website}</span>) from the top-left dropdown.
+                    </li>
+                    <li>
+                      Click on <span className="font-semibold">Settings</span> in the left-hand navigation menu.
+                    </li>
+                    <li>
+                      Select <span className="font-semibold">Users and permissions</span>.
+                    </li>
+                    <li>
+                      Click the <span className="font-semibold">Add user</span> button and enter:
+                      <ul className="mt-1 list-disc space-y-1 pl-5">
+                        <li>
+                          <span className="font-semibold">Email:</span>{" "}
+                          <span className="font-mono text-blue-700">{agencyEmail}</span>
+                        </li>
+                        <li>
+                          <span className="font-semibold">Permission:</span>{" "}
+                          <span className="font-mono text-green-700">Full</span>
+                        </li>
+                      </ul>
+                    </li>
+                  </ul>
                   <div className="flex flex-wrap gap-2">
                     {selectedAssets.map((asset) => {
                       const resourceId = gscResourceId(asset);
@@ -691,12 +800,19 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
                             rel="noopener noreferrer"
                             onClick={() => {
                               setGscLinkOpened(true);
-                              setGscVerificationMessage("Return here after adding Massic. We will check automatically.");
+                              setGscVerificationMessage(
+                                "Head back here once you're done—our system will automatically detect the changes and complete the setup!"
+                              );
                               navigator.clipboard?.writeText(agencyEmail).catch(() => undefined);
                             }}
                           >
                             <ExternalLink className="h-4 w-4 mr-2" />
-                            <span className="max-w-[220px] truncate">Open {assetLabel(asset)}</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="max-w-[220px] truncate">Open {assetLabel(asset)}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Open {assetLabel(asset)}</TooltipContent>
+                            </Tooltip>
                           </a>
                         </Button>
                       );

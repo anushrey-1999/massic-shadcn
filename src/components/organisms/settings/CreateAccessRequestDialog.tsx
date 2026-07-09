@@ -351,16 +351,19 @@ export function CreateAccessRequestDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Access Request</DialogTitle>
+          <DialogTitle>Request Google Access</DialogTitle>
           <DialogDescription>
-            Generate a link to request access to a client&apos;s Google accounts.
+            Generate an access request link to send to your client.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           {/* Agency Email Selection */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Agency Email</Label>
+            <Label className="text-sm font-medium">
+              <span className="text-destructive mr-0.5">*</span>
+              Agency Email
+            </Label>
             {linkedAccounts.length === 0 ? (
               <div className="rounded-lg border border-dashed border-general-border p-4 text-center">
                 <p className="text-sm text-general-muted-foreground mb-3">
@@ -508,15 +511,15 @@ export function CreateAccessRequestDialog({
 
  {/* Share */}
  <div className="space-y-2">
- <Label className="text-sm font-medium">Share with client contacts</Label>
+ <Label className="text-sm font-medium">Share link via email</Label>
  <MultiEmailInput
  value={shareEmails}
  onChange={setShareEmails}
  disabled={isSubmitting}
- placeholder="owner@example.com, developer@example.com"
+ placeholder="enter.client@email.com, another@email.com"
  />
  <p className="text-xs text-general-muted-foreground">
- Optional. Each recipient gets their own access link.
+ We&apos;ll email a unique access link to each recipient.
  </p>
  </div>
 

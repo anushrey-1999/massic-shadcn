@@ -35,6 +35,7 @@ export interface LinkedBusiness {
   siteUrl: string;
   displayName: string;
   authId: string;
+  emailId?: string | null;
   title?: string;
   matchedGa4?: GA4Property;
   matchedGa4Multiple?: GA4Property[];

@@ -207,6 +207,12 @@ export interface AccessProductAggregate {
   contributorId: string | null;
   checkCount: number;
   grantCount: number;
+  /**
+   * The exact asset(s) recorded on the grant/check that made this product
+   * "connected" - never assume every discovered/name-matched asset is
+   * connected just because the product-level status is.
+   */
+  connectedAssets?: Record<string, unknown>[] | null;
 }
 
 export interface AccessRequestVisitResponse {

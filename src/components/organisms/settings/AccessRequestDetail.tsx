@@ -113,6 +113,11 @@ function isAssetOwnerGrantable(product: Product | undefined, asset: Asset) {
     return !permissionLevel || permissionLevel === "siteOwner";
   }
 
+  if (product === "ga4") {
+    const permissionLevel = typeof asset.permissionLevel === "string" ? asset.permissionLevel : null;
+    return permissionLevel === "admin";
+  }
+
   return true;
 }
 
@@ -157,6 +162,8 @@ function assetName(asset: Asset) {
     (asset.name as string) ||
     (asset.siteUrl as string) ||
     (asset.title as string) ||
+    (asset.location as string) ||
+    (asset.locationId as string) ||
     (asset.publicId as string) ||
     (asset.id as string) ||
     "Unknown asset"
@@ -168,6 +175,7 @@ function assetContext(asset: Asset) {
     (asset.accountDisplayName as string) ||
     (asset.accountName as string) ||
     (asset.websiteUri as string) ||
+    (asset.location as string) ||
     (asset.publicId as string) ||
     (asset.path as string) ||
     "-"
@@ -219,9 +227,14 @@ function assetStatus(asset: Asset, grant?: AccessGrant, product?: Product) {
     }
   }
 
-  if (asset.matchStatus === "auto_match") return "can_grant";
-  if (asset.matchStatus === "manual_selected") return "manual_match_selected";
-  return isAssetOwnerGrantable(product, asset) ? "not_matched" : "no_access_found";
+  // A domain/name match only means the asset belongs to this website - it
+  // says nothing about whether this Google account's role on it is actually
+  // sufficient to grant Massic access (e.g. GSC siteFullUser matches the
+  // site but, unlike siteOwner, can't manage other users).
+  const ownerGrantable = isAssetOwnerGrantable(product, asset);
+  if (asset.matchStatus === "auto_match") return ownerGrantable ? "can_grant" : "partial_access";
+  if (asset.matchStatus === "manual_selected") return ownerGrantable ? "manual_match_selected" : "partial_access";
+  return ownerGrantable ? "not_matched" : "no_access_found";
 }
 
 function grantedAssetNamesForProduct(request: AccessRequest, product: Product) {

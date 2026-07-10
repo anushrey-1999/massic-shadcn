@@ -135,6 +135,7 @@ export type AccessCheckStatus =
   | "multiple_possible_matches"
   | "manual_review"
   | "manual_match_selected"
+  | "pending_acceptance"
   | "pending"
   | "failed";
 

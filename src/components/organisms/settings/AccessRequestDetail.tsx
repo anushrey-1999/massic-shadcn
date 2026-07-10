@@ -30,7 +30,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAccessRequestDetail, useShareAccessRequest } from "@/hooks/use-access-requests";
+import {
+  useAccessRequestDetail,
+  useRefreshAccessRequestProduct,
+  useShareAccessRequest,
+} from "@/hooks/use-access-requests";
 import { PRODUCT_CONFIG, STATUS_CONFIG } from "@/config/access-request";
 import type {
  AccessCheck,
@@ -92,6 +96,7 @@ const STATUS_TO_FOUR_STATE: Record<string, FourStateKey> = {
   partial_access: "needs_review",
   viewer_only: "needs_review",
   failed: "needs_review",
+  pending_acceptance: "needs_review",
   no_access_found: "cannot_grant",
   pending: "cannot_grant",
   not_matched: "not_matched",
@@ -157,6 +162,8 @@ function assetName(asset: Asset) {
     (asset.name as string) ||
     (asset.siteUrl as string) ||
     (asset.title as string) ||
+    (asset.location as string) ||
+    (asset.locationId as string) ||
     (asset.publicId as string) ||
     (asset.id as string) ||
     "Unknown asset"
@@ -168,6 +175,7 @@ function assetContext(asset: Asset) {
     (asset.accountDisplayName as string) ||
     (asset.accountName as string) ||
     (asset.websiteUri as string) ||
+    (asset.location as string) ||
     (asset.publicId as string) ||
     (asset.path as string) ||
     "-"
@@ -447,7 +455,15 @@ function AccessLinkCard({
  );
 }
 
-function AccessRequestSummaryCards({ request }: { request: AccessRequest }) {
+function AccessRequestSummaryCards({
+  request,
+  onRefreshProduct,
+  refreshingProduct,
+}: {
+  request: AccessRequest;
+  onRefreshProduct: (product: Product) => void;
+  refreshingProduct?: Product | null;
+}) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {(request.products || []).map((product) => {
@@ -456,12 +472,27 @@ function AccessRequestSummaryCards({ request }: { request: AccessRequest }) {
 
         return (
           <div key={product} className="rounded-lg border border-general-border bg-white p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <ProductIcon product={product} size={22} />
-              <span className="text-sm font-medium">
-                {PRODUCT_CONFIG[product]?.shortLabel || product.toUpperCase()}
-              </span>
-            </div>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <ProductIcon product={product} size={22} />
+            <span className="text-sm font-medium">
+              {PRODUCT_CONFIG[product]?.shortLabel || product.toUpperCase()}
+            </span>
+          </div>
+          {product === "gbp" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onRefreshProduct(product)}
+              disabled={refreshingProduct === product}
+              title="Refresh GBP verification"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", refreshingProduct === product && "animate-spin")} />
+            </Button>
+          )}
+        </div>
             <Badge
               variant="outline"
               className={cn(
@@ -776,6 +807,7 @@ export function AccessRequestDetail({ request, onClose }: AccessRequestDetailPro
     isLoading: isDetailLoading,
     refetch: refetchDetail,
   } = useAccessRequestDetail(request?.id ?? null);
+  const refreshProduct = useRefreshAccessRequestProduct(request?.id ?? null);
   const displayData = detail;
   const isInitialDetailLoading = Boolean(request?.id && !detail && (isDetailLoading || isDetailFetching));
   const [selectedContributorId, setSelectedContributorId] = useState<string | null>(null);
@@ -789,6 +821,20 @@ export function AccessRequestDetail({ request, onClose }: AccessRequestDetailPro
     const url = displayData.requestUrl || `${window.location.origin}/google-access/r/${displayData.token}`;
     navigator.clipboard.writeText(url);
     toast.success("Link copied to clipboard");
+  }
+
+  async function handleRefreshProduct(product: Product) {
+    try {
+      const result = await refreshProduct.mutateAsync({ product });
+      if (result.verified) {
+        toast.success(`${PRODUCT_CONFIG[product]?.shortLabel || product.toUpperCase()} access is connected.`);
+      } else {
+        toast.info(result.message || "Access is still pending acceptance.");
+      }
+      await refetchDetail();
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to refresh access");
+    }
   }
 
   const statusConfig = displayData ? STATUS_CONFIG[displayData.status] || STATUS_CONFIG.pending : STATUS_CONFIG.pending;
@@ -857,7 +903,11 @@ export function AccessRequestDetail({ request, onClose }: AccessRequestDetailPro
               />
             ) : (
               <>
-                <AccessRequestSummaryCards request={displayData} />
+                <AccessRequestSummaryCards
+                  request={displayData}
+                  onRefreshProduct={handleRefreshProduct}
+                  refreshingProduct={refreshProduct.isPending ? refreshProduct.variables?.product || null : null}
+                />
                 <div className="space-y-3">
                   <div>
                     <h4 className="text-sm font-semibold">Link Activity</h4>

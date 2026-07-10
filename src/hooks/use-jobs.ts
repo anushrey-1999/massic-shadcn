@@ -423,6 +423,13 @@ function normalizeKeyPeople(
 }
 
 function normalizeBrandAssets(payload: BusinessProfilePayload): Record<string, unknown> | undefined {
+  const unwrapValue = (value: unknown): unknown => {
+    if (value && typeof value === "object" && "value" in (value as Record<string, unknown>)) {
+      return (value as Record<string, unknown>).value;
+    }
+    return value;
+  };
+
   const stylesheets = normalizeStringArray(payload.ColorsFontsCss)
     .flatMap((item) => item.split(/\n+/))
     .map((item) => item.trim())
@@ -436,8 +443,8 @@ function normalizeBrandAssets(payload: BusinessProfilePayload): Record<string, u
         }
         if (item && typeof item === "object") {
           const image = item as Record<string, unknown>;
-          const url = String(image.url ?? image.src ?? "").trim();
-          const alt = String(image.alt ?? "").trim();
+          const url = String(unwrapValue(image.url ?? image.src) ?? "").trim();
+          const alt = String(unwrapValue(image.alt) ?? "").trim();
           return url ? compactObject({ url, alt: alt || undefined }) : null;
         }
         return null;

@@ -1127,12 +1127,10 @@ const ProfileTemplate = ({
     !(formValues?.website ?? "").toString().trim() ||
     !(formValues?.primaryLocation ?? "").toString().trim();
 
+  const isSaveChangesAction = !isJobCreated || hasChanges;
+
   // Always prioritize showing "Save Changes" when there are changes, regardless of workflow state
-  const buttonText = !isJobCreated
-    ? isSaving
-      ? "Saving..."
-      : "Save Changes"
-    : hasChanges
+  const buttonText = isSaveChangesAction
     ? isSaving
       ? "Saving..."
       : "Save Changes"
@@ -1184,12 +1182,7 @@ const ProfileTemplate = ({
   // Disable button logic:
   // - For "Save Changes": disable if loading, saving, or has any validation errors
   // - For "Confirm & Proceed": disable if loading, saving, triggering, workflow processing, or no job exists
-  const isButtonDisabled = !isJobCreated
-    ? externalLoading ||
-      isSaving ||
-      isAutofillWorkflowInProgress ||
-      hasAnyValidationErrors
-    : hasChanges
+  const isButtonDisabled = isSaveChangesAction
     ? externalLoading ||
       isSaving ||
       isAutofillWorkflowInProgress ||
@@ -1205,7 +1198,7 @@ const ProfileTemplate = ({
   const buttonHelperText = useMemo(() => {
     if (!isButtonDisabled) return undefined;
 
-    if (hasChanges) {
+    if (isSaveChangesAction) {
       if (externalLoading) return "Please wait for the profile to finish loading.";
       if (isSaving) return "Saving in progress.";
       if (isAutofillWorkflowInProgress) return "Autofill is in progress. Please wait.";
@@ -1213,7 +1206,6 @@ const ProfileTemplate = ({
       return "Unable to save right now.";
     }
 
-    if (!isJobCreated) return "Save the profile to create the job before proceeding.";
     if (!externalJobDetails?.job_id) return "Add offerings first to proceed to Strategy.";
     if (isWorkflowProcessing) return "Workflows are under process. Please wait till they are done.";
     if (isAutofillWorkflowInProgress) return "Autofill is in progress. Please wait.";
@@ -1224,12 +1216,11 @@ const ProfileTemplate = ({
     return "Unable to proceed right now.";
   }, [
     isButtonDisabled,
-    hasChanges,
+    isSaveChangesAction,
     externalLoading,
     isSaving,
     isAutofillWorkflowInProgress,
     hasAnyValidationErrors,
-    isJobCreated,
     externalJobDetails?.job_id,
     isWorkflowProcessing,
     isCheckingPlan,
@@ -1277,16 +1268,7 @@ const ProfileTemplate = ({
   );
 
   const handlePrimaryButtonClick = useCallback(async () => {
-    if (!isJobCreated) {
-      try {
-        await handleSaveChanges();
-      } catch {
-        toast.error("Something went wrong. Please try again.");
-      }
-      return;
-    }
-
-    if (hasChanges) {
+    if (isSaveChangesAction) {
       try {
         await handleSaveChanges();
       } catch (e) {
@@ -1297,7 +1279,7 @@ const ProfileTemplate = ({
 
     if (!guardAcceptPlan()) return;
     setIsStrategyConfirmOpen(true);
-  }, [handleSaveChanges, hasChanges, isJobCreated, guardAcceptPlan]);
+  }, [handleSaveChanges, isSaveChangesAction, guardAcceptPlan]);
 
   // Determine loading state and message
   const isLoading =
@@ -1609,15 +1591,10 @@ const ProfileTemplate = ({
                           type="button"
                           className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
                           onClick={handlePrimaryButtonClick}
-                          disabled={
-                            externalLoading ||
-                            isSaving ||
-                            hasAnyValidationErrors ||
-                            isAutofillWorkflowInProgress
-                          }
+                          disabled={isButtonDisabled}
                           title={buttonHelperText}
                         >
-                          {isSaving ? "Saving..." : "Save Changes"}
+                          {buttonText}
                           <ChevronRight className="size-4 shrink-0" />
                         </Button>
                       }

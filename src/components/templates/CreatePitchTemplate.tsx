@@ -120,10 +120,7 @@ export function CreatePitchTemplate() {
       }
 
       const offeringsFromForm = mapFormOfferingsToJobOfferings(value);
-      const offerings =
-        offeringsFromForm.length > 0
-          ? offeringsFromForm
-          : ((autofillProfileResult?.offerings ?? []) as typeof offeringsFromForm);
+      const offerings = offeringsFromForm;
       const businessProfilePayload = buildBusinessProfilePayload(value, {
         autofillResult: autofillProfileResult,
         locationOptions,

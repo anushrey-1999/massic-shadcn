@@ -10,8 +10,9 @@ import {
 } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { FieldLabel, FieldError } from "@/components/ui/field";
-import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
+
 import { CTARow, StakeholderRow } from "@/store/business-store";
 import { MicVocal } from "lucide-react";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
@@ -40,8 +41,16 @@ export const ContentCuesForm = ({
 }: ContentCuesFormProps) => {
   // Subscribe only to specific fields this component cares about
   // Component will only re-render when these fields change
+  const uspsValue = useStore(form.store, (state: any) => (state.values?.usps || "") as string);
   const ctasData = useStore(form.store, (state: any) => (state.values?.ctas || []) as CTARow[]);
   const stakeholdersData = useStore(form.store, (state: any) => (state.values?.stakeholders || []) as StakeholderRow[]);
+
+  const uspChips = useMemo(() => {
+    return String(uspsValue ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }, [uspsValue]);
 
   // Track CTA validation errors
   const [hasCtaErrors, setHasCtaErrors] = React.useState(false);
@@ -134,22 +143,23 @@ export const ContentCuesForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-1/2">
-            <form.Field
-              name="usps"
-              children={(field: any) => {
-                return (
-                  <Textarea
-                    value={field.state.value || ""}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="Add the top benefits or features you want customers to notice"
-                    className="w-full min-h-[100px] resize-none"
-                    disabled
-                  />
-                );
-              }}
-            />
-            </div>
+            {uspChips.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {uspChips.map((usp, index) => (
+                  <Badge
+                    key={`${usp}-${index}`}
+                    variant="outline"
+                    className="rounded-full px-3 py-1 text-xs font-medium"
+                  >
+                    {usp}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <Typography variant="small" className="text-general-muted-foreground">
+                No USPs found.
+              </Typography>
+            )}
           </CardContent>
         </Card>
 

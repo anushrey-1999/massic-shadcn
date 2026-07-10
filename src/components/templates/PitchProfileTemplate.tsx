@@ -2,9 +2,11 @@
 
 import React, { useCallback, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { api } from "@/hooks/use-api";
 import { useLocations } from "@/hooks/use-locations";
 import { useBusinessStore } from "@/store/business-store";
 import {
@@ -52,6 +54,7 @@ import {
 
 export function PitchProfileTemplate() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useParams();
   const businessId = (params as any)?.id as string | undefined;
 
@@ -71,6 +74,7 @@ export function PitchProfileTemplate() {
   const guardConvertPitch = useFeatureActionGuard("business.convertPitch");
 
   const [isConvertConfirmOpen, setIsConvertConfirmOpen] = useState(false);
+  const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [autofillProfileResult, setAutofillProfileResult] =
     useState<NormalizedProfileResult | null>(null);
   const [profileTab, setProfileTab] = useState<ProfileFormTabId>(
@@ -233,20 +237,44 @@ export function PitchProfileTemplate() {
   const isSavingJob = createJobMutation.isPending || updateJobMutation.isPending;
   const isSubmitting = useStore(form.store, (state: any) => state.isSubmitting === true);
 
-  const isLoading = isSavingBusiness || isSavingJob || isAutofillLoading;
+  const isLoading =
+    isSavingBusiness || isSavingJob || isAutofillLoading || isTriggeringWorkflow;
   const loadingMessage = React.useMemo(() => {
     if (isAutofillLoading) return "Autofilling profile...";
+    if (isTriggeringWorkflow) return "Triggering workflow...";
     if (isSavingJob) return "Saving job...";
     if (isSavingBusiness) return "Saving business...";
     return undefined;
-  }, [isAutofillLoading, isSavingBusiness, isSavingJob]);
+  }, [isAutofillLoading, isSavingBusiness, isSavingJob, isTriggeringWorkflow]);
 
   const handleConfirmAndProceed = React.useCallback(async () => {
-    await form.handleSubmit();
-    if (businessId) {
+    if (!businessId) return;
+
+    try {
+      await form.handleSubmit();
+      setIsTriggeringWorkflow(true);
+
+      await api.post("/jobs/run", "python", {
+        business_id: businessId,
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", "detail", businessId],
+      });
+
+      toast.success("Workflow triggered successfully!");
       router.push(`/pitches/${businessId}/strategy`);
+    } catch (error: any) {
+      toast.error("Error triggering workflow", {
+        description:
+          error?.response?.data?.detail ||
+          error?.message ||
+          "Please try again.",
+      });
+    } finally {
+      setIsTriggeringWorkflow(false);
     }
-  }, [businessId, form, router]);
+  }, [businessId, form, queryClient, router]);
 
   const handleConvertToBusiness = React.useCallback(async () => {
     if (!guardConvertPitch()) return;
@@ -331,12 +359,17 @@ export function PitchProfileTemplate() {
                         type="button"
                         className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
                         onClick={handleConfirmAndProceed}
-                        disabled={!canConfirmAndProceed || isSubmitting || isLoading || convertPitchMutation.isPending}
+                        disabled={
+                          !canConfirmAndProceed ||
+                          isSubmitting ||
+                          isLoading ||
+                          convertPitchMutation.isPending
+                        }
                       >
-                        {isSubmitting ? (
+                        {isSubmitting || isTriggeringWorkflow ? (
                           <>
                             <Loader2 className="size-4 animate-spin" />
-                            Saving...
+                            {isTriggeringWorkflow ? "Triggering..." : "Saving..."}
                           </>
                         ) : (
                           "Confirm and proceed to Strategy"

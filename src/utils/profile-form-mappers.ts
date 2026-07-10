@@ -11,10 +11,7 @@ import {
   primaryLocationFromProfile,
   resolvePrimaryLocationFormValue,
 } from "@/utils/primary-location";
-import {
-  profileOfferingsToRows,
-  type NormalizedProfileResult,
-} from "@/utils/profile-result";
+import type { NormalizedProfileResult } from "@/utils/profile-result";
 
 type LocationOption = {
   value: string;
@@ -256,18 +253,30 @@ function mapJobLocationsToDetailedRows(raw: unknown): BusinessInfoFormData["deta
     );
 }
 
-function normalizeImageLibrary(raw: unknown): string[] {
+function normalizeImageLibrary(
+  raw: unknown
+): NonNullable<BusinessInfoFormData["imagePhotoLibrary"]> {
+  const unwrapValue = (value: unknown): unknown => {
+    if (value && typeof value === "object" && "value" in (value as Record<string, unknown>)) {
+      return (value as Record<string, unknown>).value;
+    }
+    return value;
+  };
+
   if (!Array.isArray(raw)) return normalizeStringArray(raw);
   return raw
     .map((item) => {
-      if (typeof item === "string") return item.trim();
-      if (item && typeof item === "object") {
-        const image = item as Record<string, unknown>;
-        return String(image.url ?? image.src ?? image.href ?? "").trim();
+      const unwrappedItem = unwrapValue(item);
+      if (typeof unwrappedItem === "string") return unwrappedItem.trim();
+      if (unwrappedItem && typeof unwrappedItem === "object") {
+        const image = unwrappedItem as Record<string, unknown>;
+        const url = String(unwrapValue(image.url ?? image.src ?? image.href) ?? "").trim();
+        const alt = String(unwrapValue(image.alt) ?? "").trim();
+        return url ? { alt, url } : null;
       }
-      return String(item ?? "").trim();
+      return String(unwrappedItem ?? "").trim();
     })
-    .filter(Boolean);
+    .filter((item): item is string | { alt?: string; url: string } => Boolean(item));
 }
 
 function normalizeProfileUrlRows(raw: unknown): Array<{ url: string }> {
@@ -354,10 +363,7 @@ export function mapAutofillResultToFormValues(
       profile.testimonials.length > 0
         ? profile.testimonials
         : currentValues.testimonials,
-    offeringsList:
-      profile.offerings.length > 0
-        ? profileOfferingsToRows(profile.offerings)
-        : currentValues.offeringsList,
+    offeringsList: currentValues.offeringsList,
     locations:
       profile.structuredLocations.length > 0
         ? mapJobLocationsToLocationRows(profile.structuredLocations)
@@ -564,7 +570,11 @@ export function mapProfileDataToFormValues(
         ""
     ),
     testimonials: normalizeStringArray(profileAny.Testimonials ?? jobAny?.testimonials),
-    colorsFontsCss: String(profileAny.ColorsFontsCss ?? jobAny?.brand_assets?.stylesheets?.join?.("\n") ?? ""),
+    colorsFontsCss: String(
+      String(profileAny.ColorsFontsCss ?? "").trim() ||
+        jobAny?.brand_assets?.stylesheets?.join?.("\n") ||
+        ""
+    ),
     imagePhotoLibrary: normalizeImageLibrary(
       profileAny.ImagePhotoLibrary ?? jobAny?.brand_assets?.image_library
     ),

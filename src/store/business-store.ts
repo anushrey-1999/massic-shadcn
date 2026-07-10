@@ -39,7 +39,7 @@ export interface BusinessProfile {
   ReviewCount?: string | null;
   Testimonials?: string[] | null;
   ColorsFontsCss?: string | null;
-  ImagePhotoLibrary?: string[] | null;
+  ImagePhotoLibrary?: Array<string | { alt?: string; url: string }> | null;
   SocialProfiles?: SocialProfileRow[] | null;
   DirectoryProfiles?: DirectoryProfileRow[] | null;
   SupportEmail?: string | null;

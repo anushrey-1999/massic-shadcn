@@ -10,6 +10,14 @@ const isValidCtaUrl = (val: string): boolean => {
   return false;
 };
 
+const imageLibraryItemSchema = z.union([
+  z.string().trim().min(1),
+  z.object({
+    alt: z.string().optional(),
+    url: z.string().trim().min(1),
+  }),
+]);
+
 export const businessInfoSchema = z.object({
   website: z
     .string()
@@ -130,7 +138,7 @@ export const businessInfoSchema = z.object({
   reviewCount: z.string().optional(),
   testimonials: z.array(z.string().trim().min(1)).optional(),
   colorsFontsCss: z.string().optional(),
-  imagePhotoLibrary: z.array(z.string().trim().min(1)).optional(),
+  imagePhotoLibrary: z.array(imageLibraryItemSchema).optional(),
   socialProfiles: z
     .array(
       z.object({

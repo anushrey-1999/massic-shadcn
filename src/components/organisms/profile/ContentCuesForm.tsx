@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
-import { FieldLabel, FieldError } from "@/components/ui/field";
+import { FieldLabel } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
 
@@ -221,168 +221,65 @@ export const ContentCuesForm = ({
           <CardHeader className="">
             <CardTitle>
               <FieldLabel className="gap-0">
-                What is the tone of your brand's content?<span className="text-general-muted-foreground pl-1">Select upto 3 per channel.</span>
+                What is the tone of your brand's content?<span className="text-general-muted-foreground pl-1">Add up to 3 per channel.</span>
               </FieldLabel>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="w-1/2">
-            <form.Field
-              name="brandToneSocial"
-              children={(socialField: any) => (
-                <form.Field
-                  name="brandToneWeb"
-                  children={(webField: any) => {
-                    const toneOptions = [
-                      { value: "professional", label: "Professional" },
-                      { value: "bold", label: "Bold" },
-                      { value: "friendly", label: "Friendly" },
-                      { value: "innovative", label: "Innovative" },
-                      { value: "playful", label: "Playful" },
-                      { value: "trustworthy", label: "Trustworthy" },
-                    ];
+            <div className="w-full md:w-3/4">
+              <div className="flex flex-col gap-3">
+                <Card variant="profileCard" className="bg-white shadow-none p-0 overflow-hidden">
+                  <CardHeader className="bg-foreground-light pt-2 px-2.5">
+                    <CardTitle>
+                      <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Social</FieldLabel>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form.Field
+                      name="brandToneSocial"
+                      children={(field: any) => {
+                        const currentValue = Array.isArray(field.state.value)
+                          ? field.state.value.slice(0, 3)
+                          : [];
+                        return (
+                          <TagsInput
+                            value={currentValue}
+                            onChange={(next) => field.handleChange(next.slice(0, 3))}
+                            placeholder="Type a social tone and press Enter"
+                            maxItems={3}
+                          />
+                        );
+                      }}
+                    />
+                  </CardContent>
+                </Card>
 
-                    const socialValues = Array.isArray(socialField.state.value)
-                      ? socialField.state.value
-                      : [];
-                    const webValues = Array.isArray(webField.state.value)
-                      ? webField.state.value
-                      : [];
-
-                    const socialHasError = socialValues.length > 3;
-                    const webHasError = webValues.length > 3;
-                    const hasError = socialHasError || webHasError;
-
-                    const handleSocialChange = (value: string, checked: boolean) => {
-                      let newValues: string[];
-                      if (checked) {
-                        if (socialValues.length >= 3) {
-                          return;
-                        }
-                        newValues = [...socialValues, value];
-                      } else {
-                        newValues = socialValues.filter((v: string) => v !== value);
-                      }
-                      socialField.handleChange(newValues);
-                    };
-
-                    const handleWebChange = (value: string, checked: boolean) => {
-                      let newValues: string[];
-                      if (checked) {
-                        if (webValues.length >= 3) {
-                          return;
-                        }
-                        newValues = [...webValues, value];
-                      } else {
-                        newValues = webValues.filter((v: string) => v !== value);
-                      }
-                      webField.handleChange(newValues);
-                    };
-
-                    return (
-                      <>
-                        <div className="flex flex-col gap-3">
-                          <Card variant={'profileCard'} className="bg-white shadow-none p-0 overflow-hidden">
-                            <CardHeader className="bg-foreground-light pt-2 px-2.5">
-                              <CardTitle>
-                                <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Social</FieldLabel>
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="grid grid-cols-3 gap-3 p-2">
-                                {toneOptions.map((option) => {
-                                  const isChecked = socialValues.includes(option.value);
-                                  return (
-                                    <label
-                                      key={option.value}
-                                      className="flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={(e) =>
-                                          handleSocialChange(option.value, e.target.checked)
-                                        }
-                                        disabled={
-                                          !isChecked && socialValues.length >= 3
-                                        }
-                                        className="h-4 w-4 shrink-0 rounded border border-input bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer transition-colors aria-invalid:border-destructive"
-                                        style={{
-                                          backgroundImage: isChecked
-                                            ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'white\' stroke-width=\'3\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'20 6 9 17 4 12\'%3E%3C/polyline%3E%3C/svg%3E")'
-                                            : "none",
-                                          backgroundPosition: "center",
-                                          backgroundRepeat: "no-repeat",
-                                          backgroundColor: isChecked
-                                            ? "var(--foreground)"
-                                            : "transparent",
-                                        }}
-                                      />
-                                      <span className="text-sm">{option.label}</span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </CardContent>
-                          </Card>
-
-                          <Card variant={'profileCard'} className="bg-white shadow-none p-0 overflow-hidden">
-                            <CardHeader className="bg-foreground-light pt-2 px-2.5">
-                              <CardTitle>
-                                <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Web</FieldLabel>
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="grid grid-cols-3 gap-3 p-2">
-                                {toneOptions.map((option) => {
-                                  const isChecked = webValues.includes(option.value);
-                                  return (
-                                    <label
-                                      key={option.value}
-                                      className="flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={(e) =>
-                                          handleWebChange(option.value, e.target.checked)
-                                        }
-                                        disabled={
-                                          !isChecked && webValues.length >= 3
-                                        }
-                                        className="h-4 w-4 rounded border border-input bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none cursor-pointer transition-colors aria-invalid:border-destructive"
-                                        style={{
-                                          backgroundImage: isChecked
-                                            ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'white\' stroke-width=\'3\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'20 6 9 17 4 12\'%3E%3C/polyline%3E%3C/svg%3E")'
-                                            : "none",
-                                          backgroundPosition: "center",
-                                          backgroundRepeat: "no-repeat",
-                                          backgroundColor: isChecked
-                                            ? "var(--foreground)"
-                                            : "transparent",
-                                        }}
-                                      />
-                                      <span className="text-sm">{option.label}</span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </div>
-                        {hasError && (
-                          <div className="mt-4">
-                            <FieldError className="text-xs">
-                              You can only select upto 3 options.
-                            </FieldError>
-                          </div>
-                        )}
-                      </>
-                    );
-                  }}
-                />
-              )}
-            />
+                <Card variant="profileCard" className="bg-white shadow-none p-0 overflow-hidden">
+                  <CardHeader className="bg-foreground-light pt-2 px-2.5">
+                    <CardTitle>
+                      <FieldLabel className="gap-0 font-mono text-xs text-muted-foreground">Web</FieldLabel>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form.Field
+                      name="brandToneWeb"
+                      children={(field: any) => {
+                        const currentValue = Array.isArray(field.state.value)
+                          ? field.state.value.slice(0, 3)
+                          : [];
+                        return (
+                          <TagsInput
+                            value={currentValue}
+                            onChange={(next) => field.handleChange(next.slice(0, 3))}
+                            placeholder="Type a web tone and press Enter"
+                            maxItems={3}
+                          />
+                        );
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
             </div>
          
           </CardContent>

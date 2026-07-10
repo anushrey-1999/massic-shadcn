@@ -38,7 +38,6 @@ type BusinessInfoFormData = {
   serviceType: "physical" | "online" | "both";
   lifetimeValue: "" | "high" | "low";
   b2bB2c?: string;
-  segment?: string;
   offerings: "products" | "services" | "both";
   offeringsList?: Array<{
     name: string;
@@ -630,14 +629,6 @@ export const BusinessInfoForm = React.memo(({
               { value: "both", label: "Both" },
             ]}
             disabled={disabledFields?.b2bB2c}
-          />
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="segment"
-            type="input"
-            label="Segment"
-            placeholder="Segment 1-16"
-            disabled={disabledFields?.segment}
           />
         </div>
       )}

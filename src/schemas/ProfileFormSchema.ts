@@ -43,7 +43,6 @@ export const businessInfoSchema = z.object({
     .union([z.enum(["high", "low"]), z.literal("")])
     .optional(),
   b2bB2c: z.string().optional(),
-  segment: z.string().optional(),
   offerings: z.enum(["products", "services", "both"]),
   offeringsList: z
     .array(

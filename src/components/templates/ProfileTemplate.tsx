@@ -197,7 +197,6 @@ const ProfileTemplate = ({
         serviceType: "physical",
         lifetimeValue: "",
         b2bB2c: "",
-        segment: "",
         offerings: "products",
         offeringsList: [],
         usps: "",
@@ -347,26 +346,16 @@ const ProfileTemplate = ({
     );
     const usps = uspsFromJob.join(", ");
 
-    // Brand Voice from business API - convert to lowercase for checkboxes
-    // IMPORTANT: Checkboxes in ContentCuesForm expect lowercase values (e.g., "professional", "bold")
-    const validOptions = [
-      "professional",
-      "bold",
-      "friendly",
-      "innovative",
-      "playful",
-      "trustworthy",
-    ];
     const brandToneSocial = (profileData as any).SocialBrandVoice
       ? (profileData as any).SocialBrandVoice.map((s: string) =>
-        s.toLowerCase().trim()
-      ).filter((s: string) => validOptions.includes(s))
+        s.trim()
+      ).filter(Boolean).slice(0, 3)
       : [];
 
     const brandToneWeb = (profileData as any).WebBrandVoice
       ? (profileData as any).WebBrandVoice.map((s: string) =>
-        s.toLowerCase().trim()
-      ).filter((s: string) => validOptions.includes(s))
+        s.trim()
+      ).filter(Boolean).slice(0, 3)
       : [];
 
     return {
@@ -441,13 +430,6 @@ const ProfileTemplate = ({
         (profileData as any).b2b_b2c ||
         (jobDetails as any)?.b2b_b2c ||
         "",
-      segment:
-        String(
-          (profileData as any).Segment ??
-            (profileData as any).segment ??
-            (jobDetails as any)?.segment ??
-            ""
-        ),
       offerings: (() => {
         const locationType = profileData.LocationType?.toLowerCase();
         return locationType === "products"

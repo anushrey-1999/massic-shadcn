@@ -46,7 +46,6 @@ export const profileFormDefaults: BusinessInfoFormData = {
   serviceType: "" as BusinessInfoFormData["serviceType"],
   lifetimeValue: "",
   b2bB2c: "",
-  segment: "",
   offerings: "" as BusinessInfoFormData["offerings"],
   offeringsList: [],
   usps: "",
@@ -118,19 +117,10 @@ export function normalizeStringArray(raw: unknown): string[] {
 }
 
 export function normalizeToneOptions(raw: unknown): string[] {
-  const allowedToneOptions = new Set([
-    "professional",
-    "bold",
-    "friendly",
-    "innovative",
-    "playful",
-    "trustworthy",
-  ]);
-
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((value) => String(value).toLowerCase().trim())
-    .filter((value) => allowedToneOptions.has(value))
+    .map((value) => String(value).trim())
+    .filter(Boolean)
     .slice(0, 3);
 }
 
@@ -330,7 +320,6 @@ export function mapAutofillResultToFormValues(
     offerings: profile.sell || currentValues.offerings,
     lifetimeValue: profile.ltv || currentValues.lifetimeValue,
     b2bB2c: profile.b2bB2c || currentValues.b2bB2c,
-    segment: profile.segment || currentValues.segment,
     colorsFontsCss: profile.colorsFontsCss || currentValues.colorsFontsCss,
     imagePhotoLibrary:
       profile.imagePhotoLibrary.length > 0
@@ -525,9 +514,6 @@ export function mapProfileDataToFormValues(
     })(),
     b2bB2c:
       profileAny.B2bB2c || profileAny.b2b_b2c || jobAny?.b2b_b2c || "",
-    segment: String(
-      profileAny.Segment ?? profileAny.segment ?? jobAny?.segment ?? ""
-    ),
     offerings: (() => {
       const locationType = String(profileData.LocationType || "").toLowerCase();
       if (locationType === "services") return "services";
@@ -682,10 +668,7 @@ export function buildBusinessProfilePayload(
       values.b2bB2c?.trim() ||
       autofillResult?.b2bB2c ||
       (existingProfile as any)?.B2bB2c,
-    Segment:
-      values.segment?.trim() ||
-      autofillResult?.segment ||
-      (existingProfile as any)?.Segment,
+    Segment: autofillResult?.segment || (existingProfile as any)?.Segment,
     LTV:
       values.lifetimeValue === "high" || values.lifetimeValue === "low"
         ? values.lifetimeValue

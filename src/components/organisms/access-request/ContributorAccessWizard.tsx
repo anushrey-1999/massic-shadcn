@@ -72,7 +72,6 @@ const STATUS_COPY: Record<string, { label: string; className: string }> = {
   viewer_only: { label: "Needs higher access", className: "border-amber-200 bg-amber-50 text-amber-700" },
   no_access_found: { label: "No access here", className: "border-gray-200 bg-gray-50 text-gray-500" },
   failed: { label: "Needs retry", className: "border-red-200 bg-red-50 text-red-700" },
-  pending_acceptance: { label: "Pending acceptance", className: "border-blue-200 bg-blue-50 text-blue-700" },
   pending: { label: "Not checked", className: "border-gray-200 bg-gray-50 text-gray-600" },
 };
 
@@ -268,7 +267,11 @@ function AssetRow({
       )}
       title={disabledReason || undefined}
     >
-      <Checkbox checked={checked} disabled={disabled} onCheckedChange={onToggle} />
+      <Checkbox
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onToggle}
+      />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           <TruncatedText text={assetLabel(asset)} className="max-w-[280px] text-sm font-medium text-gray-900" />
@@ -315,7 +318,9 @@ function AssetRow({
           )}
         </span>
         {assetSubtext(asset) && <span className="block text-xs text-gray-500">{assetSubtext(asset)}</span>}
-        {disabledReason && <span className="mt-1 block text-xs text-gray-500">{disabledReason}</span>}
+        {disabledReason && (
+          <span className="mt-1 block text-xs text-gray-500">{disabledReason}</span>
+        )}
       </span>
     </label>
   );
@@ -334,17 +339,19 @@ function AssetList({
   disabledConnectedAssetKeys: Set<string>;
   onToggle: (asset: Asset) => void;
 }) {
-  const renderAsset = (asset: Asset) => (
-    <AssetRow
-      key={assetKey(asset)}
-      asset={asset}
-      checked={selected.has(assetKey(asset)) || disabledConnectedAssetKeys.has(assetKey(asset))}
-      disabledReason={getAssetDisabledReason(product, asset, disabledConnectedAssetKeys)}
-      isConnectedAsset={disabledConnectedAssetKeys.has(assetKey(asset))}
-      onToggle={() => onToggle(asset)}
-      product={product}
-    />
-  );
+  const renderAsset = (asset: Asset) => {
+    return (
+      <AssetRow
+        key={assetKey(asset)}
+        asset={asset}
+        checked={selected.has(assetKey(asset)) || disabledConnectedAssetKeys.has(assetKey(asset))}
+        disabledReason={getAssetDisabledReason(product, asset, disabledConnectedAssetKeys)}
+        isConnectedAsset={disabledConnectedAssetKeys.has(assetKey(asset))}
+        onToggle={() => onToggle(asset)}
+        product={product}
+      />
+    );
+  };
 
   if (product !== "gbp") {
     return <>{assets.map(renderAsset)}</>;
@@ -396,11 +403,14 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
   const currentContributorId = data?.contributor?.id;
   const connectedAssetKeys = useMemo(() => getConnectedAssetKeys(activeCheck), [activeCheck]);
   const { matchedAssets: rawMatchedAssets, otherAssets: rawOtherAssets, autoSelectedAssetIds } = groupedAssets(activeCheck);
+  // Aggregate status can be "connected" because a *different* contributor
+  // already granted this product - only the specific asset(s) recorded on
+  // that grant/check are actually connected, never every asset this
+  // contributor's own discovery happens to name/domain-match (a business can
+  // have several GBP locations, or GA4 properties, sharing the same name).
   const aggregateConnectedAssetKeys = useMemo(
-    () => activeAggregate?.status === "connected"
-      ? new Set(rawMatchedAssets.map(assetKey))
-      : new Set<string>(),
-    [activeAggregate?.status, rawMatchedAssets]
+    () => new Set(((activeAggregate?.connectedAssets as Asset[] | null | undefined) || []).map(assetKey)),
+    [activeAggregate?.connectedAssets]
   );
   const disabledConnectedAssetKeys = useMemo(
     () => mergeAssetKeySets(connectedAssetKeys, aggregateConnectedAssetKeys),
@@ -540,17 +550,12 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
         setInstructionsFor(active);
         return;
       }
-      const grantResult = await executeGrant.mutateAsync({ product: active });
+      await executeGrant.mutateAsync({ product: active });
       await refetch();
 
       if (!successToastShownRef.current.has(active)) {
         successToastShownRef.current.add(active);
-        const result = grantResult?.result as { status?: string; message?: string } | undefined;
-        if (result?.status === "pending_acceptance") {
-          toast.info(result.message || `${PRODUCT_CONFIG[active].shortLabel} invite sent. Accept it in Google to finish linking.`);
-        } else {
-          toast.success(`${PRODUCT_CONFIG[active].shortLabel} access connected.`);
-        }
+        toast.success(`${PRODUCT_CONFIG[active].shortLabel} access connected.`);
       }
     } catch (error) {
       // Surface backend grant failures (e.g. the grant-time permission

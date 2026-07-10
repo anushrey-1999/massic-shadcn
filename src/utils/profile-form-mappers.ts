@@ -11,10 +11,7 @@ import {
   primaryLocationFromProfile,
   resolvePrimaryLocationFormValue,
 } from "@/utils/primary-location";
-import {
-  profileOfferingsToRows,
-  type NormalizedProfileResult,
-} from "@/utils/profile-result";
+import type { NormalizedProfileResult } from "@/utils/profile-result";
 
 type LocationOption = {
   value: string;
@@ -49,7 +46,6 @@ export const profileFormDefaults: BusinessInfoFormData = {
   serviceType: "" as BusinessInfoFormData["serviceType"],
   lifetimeValue: "",
   b2bB2c: "",
-  segment: "",
   offerings: "" as BusinessInfoFormData["offerings"],
   offeringsList: [],
   usps: "",
@@ -121,19 +117,10 @@ export function normalizeStringArray(raw: unknown): string[] {
 }
 
 export function normalizeToneOptions(raw: unknown): string[] {
-  const allowedToneOptions = new Set([
-    "professional",
-    "bold",
-    "friendly",
-    "innovative",
-    "playful",
-    "trustworthy",
-  ]);
-
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((value) => String(value).toLowerCase().trim())
-    .filter((value) => allowedToneOptions.has(value))
+    .map((value) => String(value).trim())
+    .filter(Boolean)
     .slice(0, 3);
 }
 
@@ -256,18 +243,34 @@ function mapJobLocationsToDetailedRows(raw: unknown): BusinessInfoFormData["deta
     );
 }
 
-function normalizeImageLibrary(raw: unknown): string[] {
+function normalizeImageLibrary(
+  raw: unknown
+): NonNullable<BusinessInfoFormData["imagePhotoLibrary"]> {
+  const unwrapValue = (value: unknown): unknown => {
+    if (value && typeof value === "object" && "value" in (value as Record<string, unknown>)) {
+      return (value as Record<string, unknown>).value;
+    }
+    return value;
+  };
+
   if (!Array.isArray(raw)) return normalizeStringArray(raw);
   return raw
-    .map((item) => {
-      if (typeof item === "string") return item.trim();
-      if (item && typeof item === "object") {
-        const image = item as Record<string, unknown>;
-        return String(image.url ?? image.src ?? image.href ?? "").trim();
+    .map((item): string | { alt?: string; url: string } | null => {
+      const unwrappedItem = unwrapValue(item);
+      if (typeof unwrappedItem === "string") {
+        const url = unwrappedItem.trim();
+        return url || null;
       }
-      return String(item ?? "").trim();
+      if (unwrappedItem && typeof unwrappedItem === "object") {
+        const image = unwrappedItem as Record<string, unknown>;
+        const url = String(unwrapValue(image.url ?? image.src ?? image.href) ?? "").trim();
+        const alt = String(unwrapValue(image.alt) ?? "").trim();
+        return url ? { url, ...(alt ? { alt } : {}) } : null;
+      }
+      const url = String(unwrappedItem ?? "").trim();
+      return url || null;
     })
-    .filter(Boolean);
+    .filter((item): item is string | { alt?: string; url: string } => item !== null);
 }
 
 function normalizeProfileUrlRows(raw: unknown): Array<{ url: string }> {
@@ -321,7 +324,6 @@ export function mapAutofillResultToFormValues(
     offerings: profile.sell || currentValues.offerings,
     lifetimeValue: profile.ltv || currentValues.lifetimeValue,
     b2bB2c: profile.b2bB2c || currentValues.b2bB2c,
-    segment: profile.segment || currentValues.segment,
     colorsFontsCss: profile.colorsFontsCss || currentValues.colorsFontsCss,
     imagePhotoLibrary:
       profile.imagePhotoLibrary.length > 0
@@ -354,10 +356,7 @@ export function mapAutofillResultToFormValues(
       profile.testimonials.length > 0
         ? profile.testimonials
         : currentValues.testimonials,
-    offeringsList:
-      profile.offerings.length > 0
-        ? profileOfferingsToRows(profile.offerings)
-        : currentValues.offeringsList,
+    offeringsList: currentValues.offeringsList,
     locations:
       profile.structuredLocations.length > 0
         ? mapJobLocationsToLocationRows(profile.structuredLocations)
@@ -519,9 +518,6 @@ export function mapProfileDataToFormValues(
     })(),
     b2bB2c:
       profileAny.B2bB2c || profileAny.b2b_b2c || jobAny?.b2b_b2c || "",
-    segment: String(
-      profileAny.Segment ?? profileAny.segment ?? jobAny?.segment ?? ""
-    ),
     offerings: (() => {
       const locationType = String(profileData.LocationType || "").toLowerCase();
       if (locationType === "services") return "services";
@@ -564,7 +560,11 @@ export function mapProfileDataToFormValues(
         ""
     ),
     testimonials: normalizeStringArray(profileAny.Testimonials ?? jobAny?.testimonials),
-    colorsFontsCss: String(profileAny.ColorsFontsCss ?? jobAny?.brand_assets?.stylesheets?.join?.("\n") ?? ""),
+    colorsFontsCss: String(
+      String(profileAny.ColorsFontsCss ?? "").trim() ||
+        jobAny?.brand_assets?.stylesheets?.join?.("\n") ||
+        ""
+    ),
     imagePhotoLibrary: normalizeImageLibrary(
       profileAny.ImagePhotoLibrary ?? jobAny?.brand_assets?.image_library
     ),
@@ -672,10 +672,7 @@ export function buildBusinessProfilePayload(
       values.b2bB2c?.trim() ||
       autofillResult?.b2bB2c ||
       (existingProfile as any)?.B2bB2c,
-    Segment:
-      values.segment?.trim() ||
-      autofillResult?.segment ||
-      (existingProfile as any)?.Segment,
+    Segment: autofillResult?.segment || (existingProfile as any)?.Segment,
     LTV:
       values.lifetimeValue === "high" || values.lifetimeValue === "low"
         ? values.lifetimeValue

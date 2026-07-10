@@ -127,32 +127,6 @@ const extractOfferingsFromWebsite = async (
   return [];
 };
 
-const mergeOfferings = (...groups: Array<Offering[] | undefined>): Offering[] => {
-  const seen = new Set<string>();
-  return groups
-    .flatMap((group) => group ?? [])
-    .map((offering) => ({
-      name: String(offering.name || offering.offering || "").trim(),
-      description: String(offering.description || "").trim(),
-      link: String(offering.link || offering.url || offering.page_url || "").trim(),
-      offering_type: String(offering.offering_type || offering.offeringType || "").trim(),
-      price_range: String(offering.price_range || offering.priceRange || offering.price_positioning || "").trim(),
-      duration: String(offering.duration || "").trim(),
-      inclusions: Array.isArray(offering.inclusions)
-        ? offering.inclusions.map((item) => String(item).trim()).filter(Boolean)
-        : typeof offering.inclusions === "string"
-          ? offering.inclusions
-          : [],
-    }))
-    .filter((offering) => {
-      if (!offering.name) return false;
-      const key = offering.name.toLowerCase();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-};
-
 export default function CreateBusinessPage() {
   const allowed = useRoleGuard({
     allowedRoles: [ACCOUNT_ROLES.OWNER, ACCOUNT_ROLES.ADMIN],
@@ -254,10 +228,7 @@ export default function CreateBusinessPage() {
                   : [],
             }))
           : [];
-        const offerings =
-          formOfferings.length > 0
-            ? formOfferings
-            : ((activeAutofillData?.offerings ?? []) as Offering[]);
+        const offerings = formOfferings;
         const businessProfilePayload = buildBusinessProfilePayload(values, {
           autofillResult: activeAutofillData,
           locationOptions,
@@ -337,17 +308,13 @@ export default function CreateBusinessPage() {
       if (!result) return;
 
       const extractedOfferings = await offeringsPromise;
-      const mergedOfferings = mergeOfferings(
-        result.values.offeringsList as Offering[] | undefined,
-        result.profile.offerings as Offering[] | undefined,
-        extractedOfferings
-      );
+      const extractedOnlyOfferings = extractedOfferings;
       const values = {
         ...result.values,
-        offeringsList: mergedOfferings,
+        offeringsList: extractedOnlyOfferings,
       } as FormData;
 
-      form.setFieldValue("offeringsList" as any, mergedOfferings as any);
+      form.setFieldValue("offeringsList" as any, extractedOnlyOfferings as any);
       await handleSubmitCreate({
         values,
         autofillData: result.profile,

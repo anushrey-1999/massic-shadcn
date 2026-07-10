@@ -85,6 +85,8 @@ function assetLabel(asset: Asset) {
     (asset.name as string) ||
     (asset.siteUrl as string) ||
     (asset.title as string) ||
+    (asset.location as string) ||
+    (asset.locationId as string) ||
     (asset.publicId as string) ||
     (asset.id as string) ||
     "Unknown asset"
@@ -95,11 +97,32 @@ function assetSubtext(asset: Asset) {
   const parts = [
     asset.accountDisplayName || asset.accountName,
     asset.websiteUri,
+    asset.location,
     asset.permissionLevel,
     asset.role,
     asset.publicId,
   ].filter(Boolean);
   return parts.join(" · ");
+}
+
+function gbpAccountLabel(asset: Asset) {
+  return String(asset.accountName || asset.accountDisplayName || asset.account || "Google Business Profile account");
+}
+
+function groupGbpAssets(assets: Asset[]) {
+  const groups = new Map<string, { label: string; assets: Asset[] }>();
+  for (const asset of assets) {
+    const key = String(asset.account || asset.accountId || "unknown");
+    const current = groups.get(key);
+    if (current) {
+      current.assets.push(asset);
+    } else {
+      groups.set(key, { label: gbpAccountLabel(asset), assets: [asset] });
+    }
+  }
+  return Array.from(groups.entries())
+    .map(([key, group]) => ({ key, ...group }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 }
 
 function assetKey(asset: Asset) {
@@ -115,7 +138,9 @@ function getEffectiveGbpRole(asset: Asset): string | null {
   if (role) return role;
 
   const permissionLevel = typeof asset.permissionLevel === "string" && asset.permissionLevel ? asset.permissionLevel : null;
-  if (permissionLevel === "OWNER_LEVEL") return "PRIMARY_OWNER";
+  // PermissionLevel only has two values (OWNER_LEVEL / MEMBER_LEVEL) and can't
+  // distinguish Primary Owner from a regular Owner, so don't overclaim "Primary".
+  if (permissionLevel === "OWNER_LEVEL") return "OWNER";
   if (permissionLevel === "MEMBER_LEVEL") return "MANAGER";
   return permissionLevel;
 }
@@ -197,6 +222,10 @@ function mergeAssetKeySets(...sets: Set<string>[]) {
   return new Set(sets.flatMap((set) => [...set]));
 }
 
+// Enabled (grantable) assets first, disabled ones below - within each of
+// those two groups, alphabetical by display name. GBP grouping (groupGbpAssets)
+// is applied on top of this and preserves this relative order within each
+// account group, since it only partitions the already-sorted array by key.
 function sortAssetsByGrantability(
   assets: Asset[],
   product: Product | null | undefined,
@@ -205,8 +234,8 @@ function sortAssetsByGrantability(
   return [...assets].sort((a, b) => {
     const aDisabled = Boolean(getAssetDisabledReason(product, a, connectedAssetKeys));
     const bDisabled = Boolean(getAssetDisabledReason(product, b, connectedAssetKeys));
-    if (aDisabled === bDisabled) return 0;
-    return aDisabled ? 1 : -1;
+    if (aDisabled !== bDisabled) return aDisabled ? 1 : -1;
+    return assetLabel(a).localeCompare(assetLabel(b), undefined, { sensitivity: "base" });
   });
 }
 
@@ -238,7 +267,11 @@ function AssetRow({
       )}
       title={disabledReason || undefined}
     >
-      <Checkbox checked={checked} disabled={disabled} onCheckedChange={onToggle} />
+      <Checkbox
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onToggle}
+      />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           <TruncatedText text={assetLabel(asset)} className="max-w-[280px] text-sm font-medium text-gray-900" />
@@ -285,9 +318,59 @@ function AssetRow({
           )}
         </span>
         {assetSubtext(asset) && <span className="block text-xs text-gray-500">{assetSubtext(asset)}</span>}
-        {disabledReason && <span className="mt-1 block text-xs text-gray-500">{disabledReason}</span>}
+        {disabledReason && (
+          <span className="mt-1 block text-xs text-gray-500">{disabledReason}</span>
+        )}
       </span>
     </label>
+  );
+}
+
+function AssetList({
+  assets,
+  product,
+  selected,
+  disabledConnectedAssetKeys,
+  onToggle,
+}: {
+  assets: Asset[];
+  product: Product;
+  selected: Set<string>;
+  disabledConnectedAssetKeys: Set<string>;
+  onToggle: (asset: Asset) => void;
+}) {
+  const renderAsset = (asset: Asset) => {
+    return (
+      <AssetRow
+        key={assetKey(asset)}
+        asset={asset}
+        checked={selected.has(assetKey(asset)) || disabledConnectedAssetKeys.has(assetKey(asset))}
+        disabledReason={getAssetDisabledReason(product, asset, disabledConnectedAssetKeys)}
+        isConnectedAsset={disabledConnectedAssetKeys.has(assetKey(asset))}
+        onToggle={() => onToggle(asset)}
+        product={product}
+      />
+    );
+  };
+
+  if (product !== "gbp") {
+    return <>{assets.map(renderAsset)}</>;
+  }
+
+  return (
+    <>
+      {groupGbpAssets(assets).map((group) => (
+        <div key={group.key} className="divide-y divide-gray-100">
+          <div className="bg-gray-50 px-3 py-2">
+            <p className="truncate text-xs font-semibold text-gray-700">{group.label}</p>
+            <p className="text-[11px] text-gray-400">
+              {group.assets.length} location{group.assets.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          {group.assets.map(renderAsset)}
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -320,11 +403,14 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
   const currentContributorId = data?.contributor?.id;
   const connectedAssetKeys = useMemo(() => getConnectedAssetKeys(activeCheck), [activeCheck]);
   const { matchedAssets: rawMatchedAssets, otherAssets: rawOtherAssets, autoSelectedAssetIds } = groupedAssets(activeCheck);
+  // Aggregate status can be "connected" because a *different* contributor
+  // already granted this product - only the specific asset(s) recorded on
+  // that grant/check are actually connected, never every asset this
+  // contributor's own discovery happens to name/domain-match (a business can
+  // have several GBP locations, or GA4 properties, sharing the same name).
   const aggregateConnectedAssetKeys = useMemo(
-    () => activeAggregate?.status === "connected"
-      ? new Set(rawMatchedAssets.map(assetKey))
-      : new Set<string>(),
-    [activeAggregate?.status, rawMatchedAssets]
+    () => new Set(((activeAggregate?.connectedAssets as Asset[] | null | undefined) || []).map(assetKey)),
+    [activeAggregate?.connectedAssets]
   );
   const disabledConnectedAssetKeys = useMemo(
     () => mergeAssetKeySets(connectedAssetKeys, aggregateConnectedAssetKeys),
@@ -454,21 +540,29 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
   async function handleGrant() {
     if (!active) return;
     if (selectedAssets.length === 0) return;
-    await selectAssets.mutateAsync({ product: active, selectedAssets });
-    if (active === "gsc") {
-      setGscLinkOpened(false);
-      setGscVerificationMessage(
-        `Please jump over to Search Console to add ${website}. Once you're done, head back here—our system will automatically detect the changes and complete the setup!`
-      );
-      setInstructionsFor(active);
-      return;
-    }
-    await executeGrant.mutateAsync({ product: active });
-    await refetch();
+    try {
+      await selectAssets.mutateAsync({ product: active, selectedAssets });
+      if (active === "gsc") {
+        setGscLinkOpened(false);
+        setGscVerificationMessage(
+          `Please jump over to Search Console to add ${website}. Once you're done, head back here—our system will automatically detect the changes and complete the setup!`
+        );
+        setInstructionsFor(active);
+        return;
+      }
+      await executeGrant.mutateAsync({ product: active });
+      await refetch();
 
-    if (!successToastShownRef.current.has(active)) {
-      successToastShownRef.current.add(active);
-      toast.success(`${PRODUCT_CONFIG[active].shortLabel} access connected.`);
+      if (!successToastShownRef.current.has(active)) {
+        successToastShownRef.current.add(active);
+        toast.success(`${PRODUCT_CONFIG[active].shortLabel} access connected.`);
+      }
+    } catch (error) {
+      // Surface backend grant failures (e.g. the grant-time permission
+      // preflight blocking a non-owner role on a specific location) as a
+      // toast instead of letting them bubble up as an unhandled rejection.
+      await refetch();
+      toast.error(error instanceof Error ? error.message : `Could not grant ${PRODUCT_CONFIG[active].shortLabel} access. Please try again.`);
     }
   }
 
@@ -651,17 +745,13 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
                     )}
                     style={VISIBLE_SCROLLBAR_STYLE}
                   >
-                    {matchedAssets.map((asset) => (
-                      <AssetRow
-                        key={assetKey(asset)}
-                        asset={asset}
-                        checked={selected.has(assetKey(asset)) || disabledConnectedAssetKeys.has(assetKey(asset))}
-                        disabledReason={getAssetDisabledReason(active, asset, disabledConnectedAssetKeys)}
-                        isConnectedAsset={disabledConnectedAssetKeys.has(assetKey(asset))}
-                        onToggle={() => toggleAsset(asset)}
-                        product={active}
-                      />
-                    ))}
+                    <AssetList
+                      assets={matchedAssets}
+                      product={active}
+                      selected={selected}
+                      disabledConnectedAssetKeys={disabledConnectedAssetKeys}
+                      onToggle={toggleAsset}
+                    />
                   </div>
                 ) : (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
@@ -698,17 +788,13 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
                         className={cn("max-h-[360px] divide-y overflow-y-auto", VISIBLE_SCROLLBAR_CLASS)}
                         style={VISIBLE_SCROLLBAR_STYLE}
                       >
-                        {otherAssets.map((asset) => (
-                      <AssetRow
-                        key={assetKey(asset)}
-                        asset={asset}
-                        checked={selected.has(assetKey(asset)) || disabledConnectedAssetKeys.has(assetKey(asset))}
-                        disabledReason={getAssetDisabledReason(active, asset, disabledConnectedAssetKeys)}
-                        isConnectedAsset={disabledConnectedAssetKeys.has(assetKey(asset))}
-                        onToggle={() => toggleAsset(asset)}
-                        product={active}
-                      />
-                        ))}
+                        <AssetList
+                          assets={otherAssets}
+                          product={active}
+                          selected={selected}
+                          disabledConnectedAssetKeys={disabledConnectedAssetKeys}
+                          onToggle={toggleAsset}
+                        />
                       </div>
                     </div>
                   )}
@@ -723,17 +809,13 @@ export function ContributorAccessWizard({ token, sessionToken }: ContributorAcce
                         className={cn("max-h-[360px] overflow-y-auto border-t border-gray-200", VISIBLE_SCROLLBAR_CLASS)}
                         style={VISIBLE_SCROLLBAR_STYLE}
                       >
-                        {otherAssets.map((asset) => (
-                      <AssetRow
-                        key={assetKey(asset)}
-                        asset={asset}
-                        checked={selected.has(assetKey(asset)) || disabledConnectedAssetKeys.has(assetKey(asset))}
-                        disabledReason={getAssetDisabledReason(active, asset, disabledConnectedAssetKeys)}
-                        isConnectedAsset={disabledConnectedAssetKeys.has(assetKey(asset))}
-                        onToggle={() => toggleAsset(asset)}
-                        product={active}
-                      />
-                        ))}
+                        <AssetList
+                          assets={otherAssets}
+                          product={active}
+                          selected={selected}
+                          disabledConnectedAssetKeys={disabledConnectedAssetKeys}
+                          onToggle={toggleAsset}
+                        />
                       </div>
                     </details>
                   )}

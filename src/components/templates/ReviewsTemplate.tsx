@@ -19,6 +19,7 @@ import {
   Sparkles,
   Star,
   MessageSquareText,
+  Mail,
   Users,
   MapPin,
   Settings,
@@ -29,6 +30,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ResponderSettingsModal } from "@/components/molecules/ResponderSettingsModal"
 import { CustomersTableClient } from "@/components/organisms/ReviewsCustomersTable/customers-table-client"
 import { CampaignsTableClient } from "@/components/organisms/ReviewsCampaignTable/campaigns-table-client"
+import {
+  BusinessEmailSenderStatusBanner,
+  BusinessEmailSettingsPanel,
+} from "@/components/organisms/ReviewsEmailSettings/business-email-settings-panel"
 import { useBusinessProfileById } from "@/hooks/use-business-profiles"
 import {
   useReviews,
@@ -53,7 +58,7 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
 
-  const [activeTab, setActiveTab] = React.useState<"reviews" | "campaign" | "customers">("reviews")
+  const [activeTab, setActiveTab] = React.useState<"reviews" | "campaign" | "customers" | "email">("reviews")
   const hasMountedRef = React.useRef(false)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortBy, setSortBy] = React.useState<ReviewSortBy>("recent")
@@ -75,14 +80,14 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
   // Initialize tab from URL query parameter
   React.useEffect(() => {
     const tabParam = searchParams.get("tab")
-    if (tabParam === "reviews" || tabParam === "campaign" || tabParam === "customers") {
+    if (tabParam === "reviews" || tabParam === "campaign" || tabParam === "customers" || tabParam === "email") {
       setActiveTab(tabParam)
     }
   }, [searchParams])
 
   // Update URL when tab changes
   const handleTabChange = React.useCallback((value: string) => {
-    const newTab = value as "reviews" | "campaign" | "customers"
+    const newTab = value as "reviews" | "campaign" | "customers" | "email"
     setActiveTab(newTab)
     const params = new URLSearchParams(searchParams)
     params.set("tab", newTab)
@@ -240,6 +245,10 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                 <TabsTrigger value="customers">
                   <Users />
                   Customers
+                </TabsTrigger>
+                <TabsTrigger value="email">
+                  <Mail />
+                  Email
                 </TabsTrigger>
               </TabsList>
 
@@ -465,11 +474,14 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                     />
                   </div>
                 ) : (
-                  <CampaignsTableClient
-                    businessId={businessId}
-                    currentTab={activeTab}
-                    selectedLocationIdForApi={selectedLocationIdForApi}
-                  />
+                  <>
+                    <BusinessEmailSenderStatusBanner businessId={businessId} />
+                    <CampaignsTableClient
+                      businessId={businessId}
+                      currentTab={activeTab}
+                      selectedLocationIdForApi={selectedLocationIdForApi}
+                    />
+                  </>
                 )}
               </div>
             </TabsContent>
@@ -491,6 +503,13 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                   />
                 )}
               </div>
+            </TabsContent>
+            <TabsContent value="email" className={cn("flex-1 min-h-0 overflow-hidden", "mt-4")}>
+              <BusinessEmailSettingsPanel
+                businessId={businessId}
+                businessName={businessName}
+                businessWebsite={profileData?.Website || null}
+              />
             </TabsContent>
           </Tabs>
         </div>

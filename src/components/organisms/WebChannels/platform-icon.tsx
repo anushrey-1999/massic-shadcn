@@ -8,6 +8,7 @@ const FAVICON_URL = "https://www.google.com/s2/favicons?domain=";
 const PLATFORM_DOMAINS = {
   wordpress: "wordpress.com",
   webflow: "webflow.com",
+  sanity: "sanity.io",
   shopify: "shopify.com",
 } as const;
 

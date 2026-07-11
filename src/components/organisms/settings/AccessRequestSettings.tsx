@@ -23,6 +23,7 @@ import { Typography } from "@/components/ui/typography";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { Plus, Copy, Eye, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAccessRequests } from "@/hooks/use-access-requests";
+import { useFetchBusinesses } from "@/hooks/use-linked-businesses";
 import { PRODUCT_CONFIG, STATUS_CONFIG } from "@/config/access-request";
 import { CreateAccessRequestDialog } from "./CreateAccessRequestDialog";
 import { AccessRequestDetail } from "./AccessRequestDetail";
@@ -98,6 +99,7 @@ export function AccessRequestSettings({ isActive = true }: AccessRequestSettings
   const [createOpen, setCreateOpen] = useState(false);
   const [detailRequest, setDetailRequest] = useState<AccessRequest | null>(null);
   const { data, isLoading, refetch } = useAccessRequests(page, 20);
+  const { data: linkedBusinessesData } = useFetchBusinesses();
 
   const requests = data?.requests || [];
   const pagination = data?.pagination;
@@ -237,6 +239,7 @@ export function AccessRequestSettings({ isActive = true }: AccessRequestSettings
       <CreateAccessRequestDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
+        linkedBusinessesData={linkedBusinessesData}
       />
 
       <AccessRequestDetail

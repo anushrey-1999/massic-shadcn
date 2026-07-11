@@ -1,13 +1,14 @@
 
 'use client'
 import React from 'react'
-import { Settings, Bell, LogOut, BarChart3, Target, Star, User, Link2, Globe, Tv, Share2, FileText, Wrench } from 'lucide-react'
+import { Settings, Bell, LogOut, BarChart3, Target, Star, User, Link2, Globe, Tv, Share2, FileText, Wrench, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
 import { useBusinessProfiles } from '@/hooks/use-business-profiles'
 import { useAuthStore } from '@/store/auth-store'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import {
   Sidebar,
   SidebarContent,
@@ -74,18 +75,19 @@ interface NavItemProps {
   isActive: boolean
   disabled?: boolean
   onClick?: () => void
+  isCollapsed?: boolean
 }
 
-function NavItem({ href, icon: Icon, label, isActive, disabled, onClick }: NavItemProps) {
+function NavItem({ href, icon: Icon, label, isActive, disabled, onClick, isCollapsed }: NavItemProps) {
   if (disabled) {
     return (
       <SidebarMenuItem>
         <SidebarMenuButton
           disabled
-          className="py-4 pl-4 opacity-40 cursor-not-allowed"
+          className={cn('py-4 opacity-40 cursor-not-allowed', isCollapsed ? 'justify-center pl-0' : 'pl-4')}
         >
-          <Icon className="h-4 w-4" />
-          <span>{label}</span>
+          <Icon className="h-4 w-4 shrink-0" />
+          {!isCollapsed && <span>{label}</span>}
         </SidebarMenuButton>
       </SidebarMenuItem>
     )
@@ -94,18 +96,18 @@ function NavItem({ href, icon: Icon, label, isActive, disabled, onClick }: NavIt
   return (
     <SidebarMenuItem>
       <div className="relative">
-        {isActive && (
+        {isActive && !isCollapsed && (
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white rounded-r-full z-10" />
         )}
         <SidebarMenuButton
           asChild
           isActive={isActive}
-          className="py-4 pl-4 cursor-pointer"
+          className={cn('py-4 cursor-pointer', isCollapsed ? 'justify-center pl-0' : 'pl-4')}
           onClick={onClick}
         >
           <Link href={href}>
-            <Icon className="h-4 w-4" />
-            <span>{label}</span>
+            <Icon className="h-4 w-4 shrink-0" />
+            {!isCollapsed && <span>{label}</span>}
           </Link>
         </SidebarMenuButton>
       </div>
@@ -119,33 +121,34 @@ interface FooterActionProps {
   label: string
   isActive: boolean
   onClick?: () => void
+  isCollapsed?: boolean
 }
 
-function FooterAction({ href, icon: Icon, label, isActive, onClick }: FooterActionProps) {
+function FooterAction({ href, icon: Icon, label, isActive, onClick, isCollapsed }: FooterActionProps) {
   return (
     <SidebarMenuItem>
       <div className="relative">
-        {isActive && (
+        {isActive && !isCollapsed && (
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-black dark:bg-white rounded-r-full z-10" />
         )}
         {onClick ? (
           <SidebarMenuButton
             onClick={onClick}
             isActive={isActive}
-            className="py-4 pl-4 cursor-pointer w-full"
+            className={cn('py-4 cursor-pointer w-full', isCollapsed ? 'justify-center pl-0' : 'pl-4')}
           >
-            <Icon className="h-4 w-4" />
-            <span>{label}</span>
+            <Icon className="h-4 w-4 shrink-0" />
+            {!isCollapsed && <span>{label}</span>}
           </SidebarMenuButton>
         ) : (
           <SidebarMenuButton
             asChild
             isActive={isActive}
-            className="py-4 pl-4 cursor-pointer"
+            className={cn('py-4 cursor-pointer', isCollapsed ? 'justify-center pl-0' : 'pl-4')}
           >
             <Link href={href!}>
-              <Icon className="h-4 w-4" />
-              <span>{label}</span>
+              <Icon className="h-4 w-4 shrink-0" />
+              {!isCollapsed && <span>{label}</span>}
             </Link>
           </SidebarMenuButton>
         )}
@@ -162,9 +165,10 @@ export default function SingleBusinessSidebar() {
 
   const { profiles, sidebarDataLoading } = useBusinessProfiles()
 
+  const [isCollapsed, setIsCollapsed] = React.useState(false)
+
   const userName = user?.username || user?.email || 'User'
 
-  // For single business users, we only show the first business
   const business = profiles[0]
   const hasBusinessConnected = !!business
 
@@ -224,15 +228,15 @@ export default function SingleBusinessSidebar() {
   const renderBusinessSection = () => {
     if (sidebarDataLoading) {
       return (
-        <div className="px-4 space-y-3">
-          <div className="flex items-center gap-3 py-2">
-            <Skeleton className="h-8 w-8 rounded-md" />
-            <Skeleton className="h-4 w-32" />
+        <div className={cn('space-y-3', isCollapsed ? 'px-1' : 'px-4')}>
+          <div className={cn('flex items-center gap-3 py-2', isCollapsed && 'justify-center')}>
+            <Skeleton className="h-8 w-8 rounded-md shrink-0" />
+            {!isCollapsed && <Skeleton className="h-4 w-32" />}
           </div>
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex items-center gap-2 py-2 pl-2">
-              <Skeleton className="h-4 w-4 rounded" />
-              <Skeleton className="h-4 w-20" />
+            <div key={i} className={cn('flex items-center gap-2 py-2', isCollapsed ? 'justify-center' : 'pl-2')}>
+              <Skeleton className="h-4 w-4 rounded shrink-0" />
+              {!isCollapsed && <Skeleton className="h-4 w-20" />}
             </div>
           ))}
         </div>
@@ -242,27 +246,40 @@ export default function SingleBusinessSidebar() {
     if (!hasBusinessConnected) {
       return (
         <div className="px-2">
-          {/* Connect Business CTA */}
-          <SidebarMenuItem className="mb-2">
-            <SidebarMenuButton
-              asChild
-              className="py-4 pl-3 cursor-pointer bg-primary/5 hover:bg-primary/10 border border-dashed border-primary/30 rounded-lg"
-            >
-              <Link href="/settings" className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 border border-primary/20">
-                  <Link2 className="h-4 w-4 text-primary" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-medium text-sm">Connect Business</span>
-                  <span className="text-xs text-muted-foreground">Link your Google accounts</span>
-                </div>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {isCollapsed ? (
+            <SidebarMenuItem className="mb-2 list-none">
+              <SidebarMenuButton
+                asChild
+                className="py-4 justify-center cursor-pointer bg-primary/5 hover:bg-primary/10 border border-dashed border-primary/30 rounded-lg"
+              >
+                <Link href="/settings">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 border border-primary/20">
+                    <Link2 className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : (
+            <SidebarMenuItem className="mb-2 list-none">
+              <SidebarMenuButton
+                asChild
+                className="py-4 pl-3 cursor-pointer bg-primary/5 hover:bg-primary/10 border border-dashed border-primary/30 rounded-lg"
+              >
+                <Link href="/settings" className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 border border-primary/20">
+                    <Link2 className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium text-sm">Connect Business</span>
+                    <span className="text-xs text-muted-foreground">Link your Google accounts</span>
+                  </div>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
 
-          <SidebarSeparator className="my-3" />
+          {!isCollapsed && <SidebarSeparator className="my-3" />}
 
-          {/* Disabled menu items */}
           <SidebarMenu className="gap-0.5">
             {businessNavItems.map((item) => (
               <NavItem
@@ -272,6 +289,7 @@ export default function SingleBusinessSidebar() {
                 label={item.label}
                 isActive={false}
                 disabled={true}
+                isCollapsed={isCollapsed}
               />
             ))}
           </SidebarMenu>
@@ -307,6 +325,7 @@ export default function SingleBusinessSidebar() {
                   icon={item.icon}
                   label={item.label}
                   isActive={isActive}
+                  isCollapsed={isCollapsed}
                 />
               )
             })}
@@ -317,22 +336,29 @@ export default function SingleBusinessSidebar() {
 
     return (
       <div className="px-2">
-        {/* Business Header */}
-        <div className="flex items-center gap-3 px-3 py-3 mb-2 rounded-lg bg-sidebar-accent/50">
-          <BusinessIcon website={business.Website} name={business.Name} size="md" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium text-sm truncate" title={business.Name || business.DisplayName}>
-              {business.Name || business.DisplayName}
-            </p>
-            {business.Website && (
-              <p className="text-xs text-muted-foreground truncate">
-                {business.Website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-              </p>
-            )}
+        {isCollapsed ? (
+          <div className={cn(
+            'flex justify-center py-2 mb-2 mx-1 rounded-md',
+            isBusinessRoute && 'bg-sidebar-accent'
+          )}>
+            <BusinessIcon website={business.Website} name={business.Name} size="md" />
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-3 px-3 py-3 mb-2 rounded-lg bg-sidebar-accent/50">
+            <BusinessIcon website={business.Website} name={business.Name} size="md" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-sm truncate" title={business.Name || business.DisplayName}>
+                {business.Name || business.DisplayName}
+              </p>
+              {business.Website && (
+                <p className="text-xs text-muted-foreground truncate">
+                  {business.Website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
-        {/* Business Navigation */}
         <SidebarMenu className="gap-0.5">
           {businessNavItems.map((item) => {
             const itemHref = `/business/${business.UniqueId}/${item.slug}`
@@ -358,6 +384,7 @@ export default function SingleBusinessSidebar() {
                 icon={item.icon}
                 label={item.label}
                 isActive={isActive}
+                isCollapsed={isCollapsed}
               />
             )
           })}
@@ -368,10 +395,23 @@ export default function SingleBusinessSidebar() {
 
   return (
     <>
-      <Sidebar collapsible="none" className="h-screen bg-white">
+      <Sidebar
+        collapsible="none"
+        className="h-screen bg-white overflow-x-hidden transition-[width] duration-200"
+        style={{ width: isCollapsed ? '3.5rem' : undefined }}
+      >
         <SidebarHeader className="border-b border-sidebar-border shrink-0">
-          <div className="px-4 py-4.5">
-            <h1 className="text-lg font-semibold text-foreground">Massic</h1>
+          <div className={cn('flex items-center py-4', isCollapsed ? 'justify-center px-2' : 'justify-between px-4')}>
+            {!isCollapsed && <h1 className="text-lg font-semibold text-foreground">Massic</h1>}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md hover:bg-sidebar-accent transition-colors cursor-pointer"
+            >
+              {isCollapsed
+                ? <ChevronRight className="h-4 w-4" />
+                : <ChevronLeft className="h-4 w-4" />
+              }
+            </button>
           </div>
         </SidebarHeader>
 
@@ -386,9 +426,11 @@ export default function SingleBusinessSidebar() {
         <SidebarSeparator />
 
         <SidebarFooter className="px-1 py-5 shrink-0">
-          <div className="mb-1 px-4">
-            <p className="text-sm font-medium text-foreground">{userName}</p>
-          </div>
+          {!isCollapsed && (
+            <div className="mb-1 px-4">
+              <p className="text-sm font-medium text-foreground">{userName}</p>
+            </div>
+          )}
           <SidebarMenu className="gap-1">
             {footerItems.map((item) => (
               <FooterAction
@@ -398,6 +440,7 @@ export default function SingleBusinessSidebar() {
                 label={item.label}
                 isActive={item.href ? pathname === item.href : false}
                 onClick={item.onClick}
+                isCollapsed={isCollapsed}
               />
             ))}
           </SidebarMenu>

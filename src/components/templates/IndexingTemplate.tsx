@@ -60,6 +60,7 @@ import {
   useIndexingStatus,
   useIndexingSummary,
   useTriggerIndexing,
+  type IndexingSeriesPoint,
 } from "@/hooks/use-gsc-indexing"
 import {
   formatDateTime,
@@ -217,7 +218,8 @@ export function IndexingTemplate() {
     wasIngestionActive.current = ingestionActive
   }, [ingestionActive, status?.status, queryClient])
   const hasRunBefore = Boolean(status?.lastRunAt)
-  const triggerDisabled = ingestionActive || triggerIndexing.isPending
+  const quotaUnavailable = Boolean(status && status.quotaRemaining <= 0)
+  const triggerDisabled = ingestionActive || triggerIndexing.isPending || quotaUnavailable
 
   const handleStartIndexing = () => {
     triggerIndexing.mutate(undefined, {
@@ -285,7 +287,7 @@ export function IndexingTemplate() {
           <div>
             <h1 className="text-lg font-semibold text-foreground">Indexing</h1>
             <p className="text-xs text-general-muted-foreground">
-              Google index status every known URL, refreshed daily.
+              Latest known Google index status, monitored incrementally each day.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -310,7 +312,9 @@ export function IndexingTemplate() {
                   title={
                     ingestionActive
                       ? "An indexing run is already in progress"
-                      : undefined
+                      : quotaUnavailable
+                        ? "Today’s safe inspection quota is used; monitoring resumes tomorrow"
+                        : undefined
                   }
                 >
                   {triggerDisabled ? (
@@ -333,11 +337,12 @@ export function IndexingTemplate() {
                       : "Start indexing this site?"}
                   </AlertDialogTitle>
                   <AlertDialogDescription>
-                    We&apos;ll inspect every tracked URL against Google Search
-                    Console and record its index status. The URL Inspection API
-                    is capped at about 2,000 URLs per day, so large sites reach
-                    full coverage over several days. This runs in the background
-                    and progress will update here automatically.
+                    We&apos;ll inspect the highest-priority URLs that are due and
+                    update their latest known Google status. Large sites rotate
+                    through URLs over multiple days within the property quota.
+                    {status
+                      ? ` ${formatNumber(status.quotaRemaining)} of ${formatNumber(status.quotaLimit)} safe requests remain today.`
+                      : ""}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -379,8 +384,8 @@ export function IndexingTemplate() {
                   : `${formatNumber(status?.runProcessed)} of ${formatNumber(
                       status?.runTotal
                     )} URLs inspected this run (${status?.runProgress ?? 0}%).`}{" "}
-                URL Inspection API is capped at 2,000 URLs/day, so large sites
-                reach full coverage over days.
+                Large sites are refreshed incrementally within Google&apos;s daily
+                property quota.
               </p>
               <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-general-border">
                 <div
@@ -433,9 +438,17 @@ export function IndexingTemplate() {
 
           <SectionCard
             title="Index status over time"
-            description="Daily count URLs in each index state."
+            description="Latest known index status of tracked URLs."
           >
             <div className="p-3">
+              {!summaryQuery.isLoading && status?.totalTracked ? (
+                <div className="mb-3 rounded-md border border-general-border bg-foreground-light px-3 py-2 text-xs text-general-muted-foreground">
+                  {status.initialCoverageComplete
+                    ? `Based on latest known status. ${status.coverageProgress}% of tracked URLs have been inspected; ${formatNumber(status.dueCount)} are due for refresh.`
+                    : `Building initial coverage: ${formatNumber(status.inspectedCount)} of ${formatNumber(status.totalTracked)} URLs inspected. Partial dates are not full-site snapshots.`}
+                  {` ${formatNumber(status.quotaRemaining)} safe requests remain today.`}
+                </div>
+              ) : null}
               {summaryQuery.isLoading ? (
                 <div className="flex h-[280px] items-center justify-center">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -466,9 +479,23 @@ export function IndexingTemplate() {
                       <ChartTooltip
                         content={
                           <ChartTooltipContent
-                            labelFormatter={(value) =>
-                              formatShortDate(value as string)
-                            }
+                            labelFormatter={(value, payload) => {
+                              const point = payload?.[0]?.payload as
+                                | IndexingSeriesPoint
+                                | undefined
+                              return (
+                                <div>
+                                  <div>{formatShortDate(value as string)}</div>
+                                  {point ? (
+                                    <div className="mt-1 font-normal text-general-muted-foreground">
+                                      {point.isPartial
+                                        ? `Partial coverage: ${formatNumber(point.knownCount)} of ${formatNumber(point.trackedCount)} URLs`
+                                        : `${formatNumber(point.inspectedToday)} inspected that day · ${formatNumber(point.freshCount)} fresh`}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )
+                            }}
                           />
                         }
                       />
@@ -516,7 +543,7 @@ export function IndexingTemplate() {
 
           <SectionCard
             title="Recent movements"
-            description="URLs whose index status changed day-over-day."
+            description="URLs whose status changed between consecutive inspections."
           >
             {movementsQuery.isLoading ? (
               <div className="flex h-[200px] items-center justify-center">

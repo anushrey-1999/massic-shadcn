@@ -35,7 +35,13 @@ export interface IndexingPagesResult {
 
 export interface IndexingSeriesPoint {
   date: string
-  [bucket: string]: number | string
+  trackedCount: number
+  knownCount: number
+  freshCount: number
+  coveragePercent: number
+  inspectedToday: number
+  isPartial: boolean
+  [bucket: string]: number | string | boolean
 }
 
 export interface IndexingSummaryResult {
@@ -74,6 +80,14 @@ export interface IndexingStatusResult {
   runTotal: number
   runProgress: number
   lastSnapshot: string | null
+  initialCoverageComplete: boolean
+  dueCount: number
+  oldestInspectionAt: string | null
+  nextScheduledRun: string | null
+  rotationEstimateDays: number
+  quotaUsed: number
+  quotaLimit: number
+  quotaRemaining: number
 }
 
 export interface IndexingRunResult {

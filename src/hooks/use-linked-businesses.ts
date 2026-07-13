@@ -131,7 +131,7 @@ export class InsufficientGscAccessError extends Error {
   constructor(message?: string) {
     super(
       message ||
-        "Full user or Owner access is required in Google Search Console before connecting this business."
+        "Verified Search Console access with permission to view property data is required before connecting this business."
     );
     this.name = "InsufficientGscAccessError";
     this.code = "INSUFFICIENT_GSC_ACCESS";
@@ -377,7 +377,7 @@ export function useCreateAgencyBusiness() {
         return;
       }
       if (error instanceof InsufficientGscAccessError) {
-        toast.error("Additional Search Console access required", {
+        toast.error("Verified Search Console access required", {
           description: error.message,
         });
         queryClient.invalidateQueries({ queryKey: [LINKED_BUSINESSES_KEY] });

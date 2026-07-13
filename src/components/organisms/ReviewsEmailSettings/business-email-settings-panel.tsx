@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Check,
   CheckCircle2,
+  CircleAlert,
   Copy,
   Globe2,
   Loader2,
@@ -90,10 +91,16 @@ function StatusBadge({ status }: { status: string }) {
     pending_verification: "bg-amber-50 text-amber-700 border-amber-200",
     failed: "bg-red-50 text-red-700 border-red-200",
   };
+  const labels: Record<string, string> = {
+    verified: "Verified",
+    pending_dns: "Pending DNS",
+    pending_verification: "Pending verification",
+    failed: "Failed",
+  };
 
   return (
-    <Badge className={cn("capitalize", classes[status] || "bg-slate-50 text-slate-700 border-slate-200")}>
-      {status.replace(/_/g, " ")}
+    <Badge className={cn(classes[status] || "bg-slate-50 text-slate-700 border-slate-200")}>
+      {labels[status] || status.replace(/_/g, " ")}
     </Badge>
   );
 }
@@ -183,9 +190,25 @@ function SetupSteps({ steps }: { steps: SetupStep[] }) {
 }
 
 function DnsRecords({ domain }: { domain: BusinessEmailDomain }) {
-  const copy = async (value: string) => {
-    await navigator.clipboard.writeText(value);
-    toast.success("Copied");
+  const [copiedRecordKey, setCopiedRecordKey] = React.useState<string | null>(null);
+  const copyResetTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (copyResetTimeout.current) clearTimeout(copyResetTimeout.current);
+    };
+  }, []);
+
+  const copy = async (recordKey: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedRecordKey(recordKey);
+      if (copyResetTimeout.current) clearTimeout(copyResetTimeout.current);
+      copyResetTimeout.current = setTimeout(() => setCopiedRecordKey(null), 1800);
+      toast.success("DNS value copied");
+    } catch {
+      toast.error("Could not copy DNS value");
+    }
   };
 
   if (!domain.dnsRecords?.length) {
@@ -194,28 +217,50 @@ function DnsRecords({ domain }: { domain: BusinessEmailDomain }) {
 
   return (
     <div className="overflow-hidden rounded-lg border">
-      <div className="grid grid-cols-[72px_minmax(0,1fr)_44px] gap-2 bg-muted px-3 py-2 text-xs font-medium text-muted-foreground md:grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_44px]">
+      <div className="grid grid-cols-[72px_minmax(0,1fr)_88px] gap-2 bg-muted px-3 py-2 text-xs font-medium text-muted-foreground md:grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_88px]">
         <span>Type</span>
         <span>Host</span>
         <span className="hidden md:block">Value</span>
-        <span />
+        <span className="sr-only">Actions</span>
       </div>
-      {domain.dnsRecords.map((record) => (
-        <div
-          key={`${record.key}-${record.host}`}
-          className="grid grid-cols-[72px_minmax(0,1fr)_44px] items-center gap-2 border-t px-3 py-3 text-sm md:grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_44px]"
-        >
-          <span className="font-medium">{record.type}</span>
-          <span className="break-all text-muted-foreground">{record.host}</span>
-          <span className="hidden break-all text-muted-foreground md:block">{record.value}</span>
-          <Button type="button" variant="ghost" size="icon" onClick={() => copy(record.value)} aria-label="Copy DNS value">
-            <Copy className="h-4 w-4" />
-          </Button>
-          <span className="col-span-3 break-all text-xs text-muted-foreground md:hidden">{record.value}</span>
-        </div>
-      ))}
+      {domain.dnsRecords.map((record) => {
+        const recordKey = `${record.key}-${record.host}`;
+        const copied = copiedRecordKey === recordKey;
+
+        return (
+          <div
+            key={recordKey}
+            className="grid grid-cols-[72px_minmax(0,1fr)_88px] items-center gap-2 border-t px-3 py-3 text-sm md:grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_88px]"
+          >
+            <span className="font-medium">{record.type}</span>
+            <span className="break-all text-muted-foreground">{record.host}</span>
+            <span className="hidden break-all text-muted-foreground md:block">{record.value}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => copy(recordKey, record.value)}
+              aria-label={copied ? "DNS value copied" : "Copy DNS value"}
+              className={cn(
+                "w-full justify-center transition-all active:scale-[0.97]",
+                copied && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
+              )}
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copied" : "Copy"}
+            </Button>
+            <span className="col-span-3 break-all text-xs text-muted-foreground md:hidden">{record.value}</span>
+          </div>
+        );
+      })}
     </div>
   );
+}
+
+function validationFailureReasons(domain: BusinessEmailDomain) {
+  return Object.values(domain.validationResults?.validation_results || {})
+    .filter((result) => result?.valid === false && result.reason)
+    .map((result) => result.reason as string);
 }
 
 function SenderRow({
@@ -310,7 +355,9 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
   const isSavingReplyTo = updateSettings.isPending && Object.prototype.hasOwnProperty.call(updateSettings.variables || {}, "massicReplyToEmail");
   const activeSender = data.senders.find((sender) => sender.id === data.settings.defaultReviewSenderId);
   const verifiedDomain = data.domains.find((item) => item.status === "verified");
-  const pendingDomain = data.domains.find((item) => item.status === "pending_dns") || data.domains[0];
+  const pendingDomain = data.domains.find((item) => ["pending_dns", "failed"].includes(item.status)) || data.domains[0];
+  const pendingDomainFailed = pendingDomain?.status === "failed";
+  const pendingDomainFailureReasons = pendingDomain ? validationFailureReasons(pendingDomain) : [];
   const hasVerifiedSender = Boolean(activeSender?.status === "verified");
   const customReady = mode === "custom_domain" && hasVerifiedSender;
   const senderPreview =
@@ -482,32 +529,54 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
 
               {!verifiedDomain ? (
                 <div className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="email-domain">Business domain</Label>
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Input
-                        id="email-domain"
-                        value={domain}
-                        onChange={(event) => setDomain(event.target.value)}
-                        placeholder="business.com"
-                        disabled={!data.customSendersEnabled}
-                      />
-                      <Button
-                        type="button"
-                        disabled={!data.customSendersEnabled || createDomain.isPending || !domain.trim()}
-                        onClick={() => createDomain.mutate(domain.trim())}
-                      >
-                        {createDomain.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                        {createDomain.isPending ? "Creating" : "Create DNS records"}
-                      </Button>
+                  {!pendingDomain ? (
+                    <div className="grid gap-2">
+                      <Label htmlFor="email-domain">Business domain</Label>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          id="email-domain"
+                          value={domain}
+                          onChange={(event) => {
+                            if (createDomain.isError) createDomain.reset();
+                            setDomain(event.target.value);
+                          }}
+                          placeholder="business.com"
+                          disabled={!data.customSendersEnabled}
+                          aria-invalid={createDomain.isError}
+                          aria-describedby={createDomain.isError ? "email-domain-error email-domain-helper" : "email-domain-helper"}
+                        />
+                        <Button
+                          type="button"
+                          disabled={!data.customSendersEnabled || createDomain.isPending || !domain.trim()}
+                          onClick={() => createDomain.mutate(domain.trim())}
+                        >
+                          {createDomain.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                          {createDomain.isPending ? "Creating" : "Create DNS records"}
+                        </Button>
+                      </div>
+                      {createDomain.isError ? (
+                        <div
+                          id="email-domain-error"
+                          role="alert"
+                          className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                        >
+                          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                          <p>{createDomain.error.message}</p>
+                        </div>
+                      ) : null}
+                      <p id="email-domain-helper" className="text-xs text-muted-foreground">
+                        Do not enter Gmail or Outlook here. Use the business website domain.
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Do not enter Gmail or Outlook here. Use the business website domain.
-                    </p>
-                  </div>
+                  ) : null}
 
                   {pendingDomain ? (
-                    <div className="space-y-3 rounded-lg border p-3">
+                    <div
+                      className={cn(
+                        "space-y-3 rounded-lg border p-3",
+                        pendingDomainFailed && "border-red-200 bg-red-50/40"
+                      )}
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="break-all text-sm font-semibold">{pendingDomain.domain}</p>
@@ -536,6 +605,18 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
                           </Button>
                         </div>
                       </div>
+                      <p className={cn("text-sm text-muted-foreground", pendingDomainFailed && "text-red-700")}>
+                        {pendingDomainFailed
+                          ? "SendGrid could not verify these DNS records. Fix the missing or mismatched records, then check DNS again."
+                          : "DNS records are already created for this domain. Add any missing records at your DNS provider, then check DNS again."}
+                      </p>
+                      {pendingDomainFailureReasons.length > 0 ? (
+                        <ul className="space-y-1 text-xs text-red-700">
+                          {pendingDomainFailureReasons.map((reason) => (
+                            <li key={reason}>• {reason}</li>
+                          ))}
+                        </ul>
+                      ) : null}
                       <DnsRecords domain={pendingDomain} />
                     </div>
                   ) : null}

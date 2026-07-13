@@ -10,7 +10,9 @@ export type BusinessEmailDomain = {
   sendGridDomainId: number | null;
   status: "pending_dns" | "verified" | "failed" | "disabled";
   dnsRecords: Array<{ key: string; type: string; host: string; value: string; valid?: boolean }>;
-  validationResults: unknown;
+  validationResults: {
+    validation_results?: Record<string, { valid?: boolean; reason?: string }>;
+  } | null;
   lastValidatedAt: string | null;
 };
 
@@ -100,7 +102,7 @@ export function useBusinessEmailSettings(businessId: string | null) {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(key(businessId), data);
-      toast.success("Domain setup created");
+      toast.success("DNS setup ready");
     },
     onError: (error: Error) => toast.error(error.message),
   });

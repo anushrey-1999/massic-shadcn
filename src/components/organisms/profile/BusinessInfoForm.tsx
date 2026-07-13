@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/card";
 import { GenericInput } from "@/components/ui/generic-input";
 import { TagsInput } from "@/components/ui/tags-input";
+import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Typography } from "@/components/ui/typography";
+import { cn } from "@/lib/utils";
 import { Boxes, Laptop, Store } from "lucide-react";
 import { useBusinessStore } from "@/store/business-store";
 import { useShallow } from "zustand/react/shallow";
@@ -36,7 +38,6 @@ type BusinessInfoFormData = {
   serviceType: "physical" | "online" | "both";
   lifetimeValue: "" | "high" | "low";
   b2bB2c?: string;
-  segment?: string;
   offerings: "products" | "services" | "both";
   offeringsList?: Array<{
     name: string;
@@ -51,7 +52,7 @@ type BusinessInfoFormData = {
   reviewCount?: string;
   testimonials?: string[];
   colorsFontsCss?: string;
-  imagePhotoLibrary?: string[];
+  imagePhotoLibrary?: Array<string | { alt?: string; url: string }>;
   socialProfiles?: Array<Record<string, string>>;
   directoryProfiles?: Array<Record<string, string>>;
   supportEmail?: string;
@@ -90,6 +91,7 @@ export const BusinessInfoForm = React.memo(({
   const licensesComplianceValue = useStore(form.store, (state: any) => state.values?.licensesCompliance || []);
   const awardsCertificationsValue = useStore(form.store, (state: any) => state.values?.awardsCertifications || []);
   const testimonialsValue = useStore(form.store, (state: any) => state.values?.testimonials || []);
+  const colorsFontsCssValue = useStore(form.store, (state: any) => state.values?.colorsFontsCss || "");
   const imagePhotoLibraryValue = useStore(form.store, (state: any) => state.values?.imagePhotoLibrary || []);
   const socialProfilesValue = useStore(form.store, (state: any) => state.values?.socialProfiles || []);
   const directoryProfilesValue = useStore(form.store, (state: any) => state.values?.directoryProfiles || []);
@@ -132,6 +134,10 @@ export const BusinessInfoForm = React.memo(({
     },
     [form]
   );
+
+  const openExternalLink = React.useCallback((url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, []);
 
   const detailSection = React.useCallback(
     (title: string, children: React.ReactNode, action?: React.ReactNode) => (
@@ -178,6 +184,74 @@ export const BusinessInfoForm = React.memo(({
     ],
     []
   );
+
+  const imageLibraryItems = React.useMemo(() => {
+    const unwrapValue = (value: unknown): unknown => {
+      if (value && typeof value === "object" && "value" in (value as Record<string, unknown>)) {
+        return (value as Record<string, unknown>).value;
+      }
+      return value;
+    };
+
+    return (Array.isArray(imagePhotoLibraryValue) ? imagePhotoLibraryValue : [])
+      .map((item: unknown) => {
+        const unwrappedItem = unwrapValue(item);
+        if (typeof unwrappedItem === "string") {
+          const url = unwrappedItem.trim();
+          return url ? { label: url, url } : null;
+        }
+        if (unwrappedItem && typeof unwrappedItem === "object") {
+          const image = unwrappedItem as Record<string, unknown>;
+          const url = String(unwrapValue(image.url) ?? "").trim();
+          const alt = String(unwrapValue(image.alt) ?? "").trim();
+          return url ? { label: alt || url, url } : null;
+        }
+        return null;
+      })
+      .filter((item): item is { label: string; url: string } => Boolean(item));
+  }, [imagePhotoLibraryValue]);
+
+  const brandAssetItems = React.useMemo(() => {
+    const rawValue = String(colorsFontsCssValue ?? "").trim();
+    if (!rawValue) return [];
+
+    const parsedItems = rawValue
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const isUrl = /^https?:\/\//i.test(line);
+        // Only attempt prefix:value split when the line is NOT a URL
+        const prefixed = !isUrl ? line.match(/^([^:]+):\s*(.+)$/) : null;
+        const prefix = prefixed?.[1]?.trim().toLowerCase();
+        const value = isUrl ? line : (prefixed?.[2] || line).trim();
+        const lowerValue = value.toLowerCase();
+        const kind =
+          prefix?.includes("color")
+            ? "Colors"
+            : prefix?.includes("font") || lowerValue.includes("font")
+              ? "Fonts"
+              : prefix?.includes("css") || lowerValue.includes(".css") || isUrl
+                ? "CSS"
+                : "Brand Asset";
+
+        return { kind, value, url: isUrl ? value : undefined };
+      });
+
+    const totals = parsedItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.kind] = (acc[item.kind] || 0) + 1;
+      return acc;
+    }, {});
+    const seen: Record<string, number> = {};
+
+    return parsedItems.map((item) => {
+      seen[item.kind] = (seen[item.kind] || 0) + 1;
+      return {
+        ...item,
+        label: totals[item.kind] > 1 ? `${item.kind} ${seen[item.kind]}` : item.kind,
+      };
+    });
+  }, [colorsFontsCssValue]);
 
   // Own Zustand selectors - isolated selector for better performance
   const { locationOptions, locationsLoading } = useBusinessStore(
@@ -556,14 +630,6 @@ export const BusinessInfoForm = React.memo(({
             ]}
             disabled={disabledFields?.b2bB2c}
           />
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="segment"
-            type="input"
-            label="Segment"
-            placeholder="Segment 1-16"
-            disabled={disabledFields?.segment}
-          />
         </div>
       )}
       <div className="w-3/4">
@@ -677,24 +743,70 @@ export const BusinessInfoForm = React.memo(({
       {detailSection(
         "Brand Assets",
         <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="colorsFontsCss"
-            type="textarea"
-            label="Colors / Fonts / CSS"
-            placeholder="Brand colors, font names, or CSS notes"
-            rows={4}
-            disabled={disabledFields?.colorsFontsCss}
-          />
+          <div>
+            <Typography variant="small" className="mb-2 block text-sm font-medium">
+              Colors / Fonts / CSS
+            </Typography>
+            {brandAssetItems.length > 0 ? (
+              <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2 shadow-xs">
+                {brandAssetItems.map((asset, index) => (
+                  asset.url ? (
+                    <button
+                      key={`${asset.kind}-${asset.value}-${index}`}
+                      type="button"
+                      title={asset.value}
+                      onClick={() => openExternalLink(asset.url!)}
+                      className={cn(
+                        badgeVariants({ variant: "outline" }),
+                        "max-w-full rounded-full px-2 py-1 text-xs hover:text-general-primary cursor-pointer"
+                      )}
+                    >
+                      <span className="truncate">{asset.label}</span>
+                    </button>
+                  ) : (
+                    <Badge
+                      key={`${asset.kind}-${asset.value}-${index}`}
+                      variant="outline"
+                      className="max-w-full rounded-full px-2 py-1 text-xs"
+                      title={asset.value}
+                    >
+                      <span className="truncate">{asset.label}</span>
+                    </Badge>
+                  )
+                ))}
+              </div>
+            ) : (
+              <Typography variant="small" className="text-general-muted-foreground">
+                No brand assets found.
+              </Typography>
+            )}
+          </div>
           <div>
             <Typography variant="small" className="mb-2 block text-sm font-medium">
               Image / Photo Library
             </Typography>
-            <TagsInput
-              value={Array.isArray(imagePhotoLibraryValue) ? imagePhotoLibraryValue : []}
-              onChange={(next) => form.setFieldValue("imagePhotoLibrary" as any, next as any)}
-              placeholder="Type an image URL and press Enter"
-            />
+            {imageLibraryItems.length > 0 ? (
+              <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2 shadow-xs">
+                {imageLibraryItems.map((image, index) => (
+                  <button
+                    key={`${image.url}-${index}`}
+                    type="button"
+                    title={image.url}
+                    onClick={() => openExternalLink(image.url)}
+                    className={cn(
+                      badgeVariants({ variant: "outline" }),
+                      "max-w-full rounded-full px-2 py-1 text-xs hover:text-general-primary cursor-pointer"
+                    )}
+                  >
+                    <span className="truncate">{image.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <Typography variant="small" className="text-general-muted-foreground">
+                No images found.
+              </Typography>
+            )}
           </div>
         </div>
       )}

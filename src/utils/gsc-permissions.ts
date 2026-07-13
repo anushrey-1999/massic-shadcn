@@ -14,7 +14,11 @@ const GSC_PERMISSION_LABELS: Record<GscPermissionLevel, string> = {
 export function hasRequiredGscAccess(
   permissionLevel: string | null | undefined
 ): boolean {
-  return permissionLevel === "siteOwner" || permissionLevel === "siteFullUser";
+  return (
+    permissionLevel === "siteOwner" ||
+    permissionLevel === "siteFullUser" ||
+    permissionLevel === "siteRestrictedUser"
+  );
 }
 
 export function formatGscPermissionLevel(

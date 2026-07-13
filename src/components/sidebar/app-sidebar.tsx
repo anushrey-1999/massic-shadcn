@@ -1,9 +1,9 @@
 'use client'
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Home, LineChart, Settings, Bell, LogOut, Plus, Search, ChevronRight, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Home, LineChart, Settings, LogOut, Plus, Search, ChevronRight, X, ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useLogout } from '@/hooks/use-auth'
 import { useBusinessProfileById, useBusinessProfiles } from '@/hooks/use-business-profiles'
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import {
   Sidebar,
   SidebarContent,
@@ -82,19 +83,23 @@ interface NavItemProps {
   icon: React.ComponentType<{ className?: string }>
   label: string
   isActive: boolean
+  isCollapsed?: boolean
 }
 
-function NavItem({ href, icon: Icon, label, isActive }: NavItemProps) {
+function NavItem({ href, icon: Icon, label, isActive, isCollapsed }: NavItemProps) {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         asChild
         isActive={isActive}
-        className="py-4 pl-3 cursor-pointer hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+        className={cn(
+          'py-4 cursor-pointer hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt',
+          isCollapsed ? 'justify-center pl-0' : 'pl-3'
+        )}
       >
         <Link href={href}>
-          <Icon className="h-5 w-5" />
-          <span className="font-medium text-general-unofficial-foreground-alt">{label}</span>
+          <Icon className="h-5 w-5 shrink-0" />
+          {!isCollapsed && <span className="font-medium text-general-unofficial-foreground-alt">{label}</span>}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -108,9 +113,10 @@ interface FooterActionProps {
   isActive: boolean
   onClick?: () => void
   className?: string
+  isCollapsed?: boolean
 }
 
-function FooterAction({ href, icon: Icon, label, isActive, onClick, className }: FooterActionProps) {
+function FooterAction({ href, icon: Icon, label, isActive, onClick, className, isCollapsed }: FooterActionProps) {
   const isLogout = label === 'Logout'
   const labelClassName = isLogout
     ? 'transition-colors group-hover:text-general-unofficial-foreground-alt'
@@ -121,20 +127,26 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick, className }:
         <SidebarMenuButton
           onClick={onClick}
           isActive={isActive}
-          className={`group py-4 pl-3 cursor-pointer w-full hover:bg-general-border data-[active=true]:bg-general-border ${className ?? ''}`}
+          className={cn(
+            `group py-4 cursor-pointer w-full hover:bg-general-border data-[active=true]:bg-general-border ${className ?? ''}`,
+            isCollapsed ? 'justify-center pl-0' : 'pl-3'
+          )}
         >
-          <Icon className="h-5 w-5" />
-          <span className={labelClassName}>{label}</span>
+          <Icon className="h-5 w-5 shrink-0" />
+          {!isCollapsed && <span className={labelClassName}>{label}</span>}
         </SidebarMenuButton>
       ) : (
         <SidebarMenuButton
           asChild
           isActive={isActive}
-          className={`group py-4 pl-3 cursor-pointer hover:bg-general-border data-[active=true]:bg-general-border ${className ?? ''}`}
+          className={cn(
+            `group py-4 cursor-pointer hover:bg-general-border data-[active=true]:bg-general-border ${className ?? ''}`,
+            isCollapsed ? 'justify-center pl-0' : 'pl-3'
+          )}
         >
           <Link href={href!}>
-            <Icon className="h-5 w-5" />
-            <span className={labelClassName}>{label}</span>
+            <Icon className="h-5 w-5 shrink-0" />
+            {!isCollapsed && <span className={labelClassName}>{label}</span>}
           </Link>
         </SidebarMenuButton>
       )}
@@ -144,7 +156,6 @@ function FooterAction({ href, icon: Icon, label, isActive, onClick, className }:
 
 
 export default function AppSidebar() {
-  // ...existing code...
   const pathname = usePathname()
   const router = useRouter()
   const logout = useLogout()
@@ -153,6 +164,30 @@ export default function AppSidebar() {
 
   const businessesScrollRef = useRef<HTMLDivElement>(null)
 
+  const [isCollapsed, setIsCollapsed] = useState(false)
+
+  const [flyoutBusinessId, setFlyoutBusinessId] = useState<string | null>(null)
+  const [flyoutTop, setFlyoutTop] = useState(0)
+  const flyoutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const openFlyout = useCallback((uniqueId: string, el: HTMLElement) => {
+    if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current)
+    setFlyoutTop(el.getBoundingClientRect().top)
+    setFlyoutBusinessId(uniqueId)
+  }, [])
+
+  const scheduleFlyoutClose = useCallback(() => {
+    flyoutTimeoutRef.current = setTimeout(() => setFlyoutBusinessId(null), 150)
+  }, [])
+
+  const cancelFlyoutClose = useCallback(() => {
+    if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current)
+  }, [])
+
+  useEffect(() => () => {
+    if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current)
+  }, [])
+
   const {
     profiles,
     sidebarDataLoading,
@@ -160,10 +195,8 @@ export default function AppSidebar() {
   } = useBusinessProfiles()
 
   const setExpandedBusinessId = useBusinessStore((state) => state.setExpandedBusinessId)
-  // Scroll active business into view on mount or when expandedBusinessId changes
   useEffect(() => {
     if (!expandedBusinessId || sidebarDataLoading) return;
-    // Defer scroll until after DOM update
     const timeout = setTimeout(() => {
       const container = businessesScrollRef.current;
       if (!container) return;
@@ -176,11 +209,9 @@ export default function AppSidebar() {
     return () => clearTimeout(timeout);
   }, [expandedBusinessId, sidebarDataLoading]);
 
-  // Search state
   const [isSearchMode, setIsSearchMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Scroll blur effect hook
   const { handleScroll, blurEffectClassName, blurEffectStyle } = useScrollBlurEffect({ fadeZone: 60 })
 
   const navItems = [
@@ -189,11 +220,6 @@ export default function AppSidebar() {
       icon: Home,
       label: 'Home',
     },
-    // {
-    //   href: '/proposals',
-    //   icon: LineChart,
-    //   label: 'Proposal',
-    // },
     {
       href: '/pitches',
       icon: LineChart,
@@ -220,7 +246,6 @@ export default function AppSidebar() {
     { label: 'Profile', slug: 'profile' },
   ]
 
-  // Filter businesses based on search query
   const filteredProfiles = useMemo(() => {
     if (!searchQuery.trim()) return profiles
 
@@ -276,8 +301,6 @@ export default function AppSidebar() {
 
   useEffect(() => {
 
-    // Utility: check if an element is fully visible in a scroll container
-    // (moved helpers to component scope)
   }, [])
 
   useEffect(() => {
@@ -299,7 +322,6 @@ export default function AppSidebar() {
     }
   }, [pathname, isBusinessRoute, profiles, expandedBusinessId])
 
-  // Utility: check if an element is fully visible in a scroll container
   const isFullyVisible = (container: HTMLElement, target: HTMLElement) => {
     const cTop = container.scrollTop
     const cBottom = cTop + container.clientHeight
@@ -308,12 +330,9 @@ export default function AppSidebar() {
     return tTop >= cTop && tBottom <= cBottom
   }
 
-  // Utility: smooth scroll to center target in container
-  // Scroll so the target is near the top (with a small offset)
   const smoothScrollToCenter = (container: HTMLElement, target: HTMLElement, duration = 650) => {
     const containerRect = container.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
-    // Offset from the top (e.g., 16px)
     const offset = 16;
     const targetTopY = targetRect.top - containerRect.top + container.scrollTop - offset;
     const desiredScrollTop = Math.max(0, targetTopY);
@@ -335,7 +354,6 @@ export default function AppSidebar() {
     requestAnimationFrame(animate);
   }
 
-  // Handler to scroll after accordion opens
   const handleBusinessAccordionOpen = useCallback((uniqueId: string, open: boolean) => {
     setExpandedBusinessId(open ? uniqueId : null)
     if (open) {
@@ -347,7 +365,7 @@ export default function AppSidebar() {
         if (!isFullyVisible(container, target)) {
           smoothScrollToCenter(container, target)
         }
-      }, 0) // Run after DOM update
+      }, 0)
     }
   }, [setExpandedBusinessId])
 
@@ -376,8 +394,6 @@ export default function AppSidebar() {
       toast.success('Logged out successfully')
       router.push('/login')
     } catch (error) {
-      // Error is handled in the hook (onError clears local state)
-      // Still show success message and redirect since local state is cleared
       toast.success('Logged out successfully')
       router.push('/login')
     }
@@ -394,11 +410,6 @@ export default function AppSidebar() {
       icon: Settings,
       label: 'Settings',
     },
-    // {
-    //   href: '/notifications',
-    //   icon: Bell,
-    //   label: 'Notifications',
-    // },
     {
       icon: LogOut,
       label: 'Logout',
@@ -409,14 +420,27 @@ export default function AppSidebar() {
 
   return (
     <>
-      <Sidebar collapsible="none" className="h-screen bg-foreground-light py-3">
-        <SidebarHeader className="shrink-0 pb-3 px-4">
-          <div className="">
-            <h1 className="text-lg font-semibold text-foreground">Massic</h1>
+      <Sidebar
+        collapsible="none"
+        className="h-screen bg-foreground-light py-3 overflow-x-hidden transition-[width] duration-200"
+        style={{ width: isCollapsed ? '3.5rem' : undefined }}
+      >
+        <SidebarHeader className={cn('shrink-0 pb-3', isCollapsed ? 'px-0' : 'px-4')}>
+          <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'justify-between')}>
+            {!isCollapsed && <h1 className="text-lg font-semibold text-foreground">Massic</h1>}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md hover:bg-general-border transition-colors cursor-pointer"
+            >
+              {isCollapsed
+                ? <ChevronRight className="h-4 w-4" />
+                : <ChevronLeft className="h-4 w-4" />
+              }
+            </button>
           </div>
         </SidebarHeader>
         <SidebarContent className="flex-1 flex flex-col overflow-hidden gap-0">
-          <SidebarGroup className="shrink-0 py-0 pb-3 px-4">
+          <SidebarGroup className={cn('shrink-0 py-0 pb-3', isCollapsed ? 'px-1' : 'px-4')}>
             <SidebarGroupContent>
               <SidebarMenu className="gap-2">
                 {navItems.map((item) => {
@@ -428,6 +452,7 @@ export default function AppSidebar() {
                         icon={item.icon}
                         label={item.label}
                         isActive={isNavItemActive(item.href)}
+                        isCollapsed={isCollapsed}
                       />
                     )
                   }
@@ -444,6 +469,7 @@ export default function AppSidebar() {
                         icon={item.icon}
                         label={item.label}
                         isActive={isPitchBusinessRoute ? false : isNavItemActive(item.href)}
+                        isCollapsed={isCollapsed}
                       />
 
                       {isPitchBusinessRoute ? (
@@ -451,39 +477,46 @@ export default function AppSidebar() {
                           <SidebarMenuButton
                             asChild
                             isActive={false}
-                            className="py-4 pl-3 cursor-pointer hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                            className={cn(
+                              'py-4 cursor-pointer hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt',
+                              isCollapsed ? 'justify-center pl-0' : 'pl-3'
+                            )}
                           >
                             <Link href={getPitchSubItemHref('reports')}>
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className={cn('flex items-center gap-2', !isCollapsed && 'min-w-0 flex-1')}>
                                 <BusinessIcon
                                   website={pitchBusinessProfile?.Website}
                                   name={pitchBusinessProfile?.Name || pitchBusinessProfile?.DisplayName}
                                 />
-                                <span
-                                  className="truncate font-medium text-general-unofficial-foreground-alt"
-                                  title={businessLabel}
-                                >
-                                  {businessLabel}
-                                </span>
+                                {!isCollapsed && (
+                                  <span
+                                    className="truncate font-medium text-general-unofficial-foreground-alt"
+                                    title={businessLabel}
+                                  >
+                                    {businessLabel}
+                                  </span>
+                                )}
                               </div>
                             </Link>
                           </SidebarMenuButton>
 
-                          <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
-                            {pitchBusinessSubItems.map((subItem) => (
-                              <SidebarMenuSubItem key={subItem.slug}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={isPitchSubItemActive(subItem.slug)}
-                                  className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
-                                >
-                                  <Link href={getPitchSubItemHref(subItem.slug)}>
-                                    <span>{subItem.label}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
+                          {!isCollapsed && (
+                            <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
+                              {pitchBusinessSubItems.map((subItem) => (
+                                <SidebarMenuSubItem key={subItem.slug}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={isPitchSubItemActive(subItem.slug)}
+                                    className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                                  >
+                                    <Link href={getPitchSubItemHref(subItem.slug)}>
+                                      <span>{subItem.label}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+                            </SidebarMenuSub>
+                          )}
                         </SidebarMenuItem>
                       ) : null}
                     </React.Fragment>
@@ -493,142 +526,161 @@ export default function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          <div className="px-4">
+          <div className={cn(isCollapsed ? 'px-1' : 'px-4')}>
             <Separator className="bg-general-border" />
           </div>
 
           <SidebarGroup className="flex-1 flex flex-col overflow-hidden py-3 p-0">
-            <div className="relative flex items-center justify-between shrink-0 py-3 px-4">
-              {isSearchMode ? (
-                <div className="flex items-center gap-2 flex-1">
-                  <Input
-                    placeholder="Search businesses..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 h-8 text-sm"
-                    autoFocus
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleSearchClose}
-                    className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <SidebarGroupLabel className="flex-1 text-xs text-general-muted-foreground">
-                    Businesses
-                  </SidebarGroupLabel>
-                  <div className="flex items-center gap-2 ml-auto">
-                    {canManageLinkedBusinesses && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => router.push('/create-business')}
-                        className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+            {!isCollapsed && (
+              <div className="relative flex items-center justify-between shrink-0 py-3 px-4">
+                {isSearchMode ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      placeholder="Search businesses..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="flex-1 h-8 text-sm"
+                      autoFocus
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={handleSearchClick}
+                      onClick={handleSearchClose}
                       className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
                     >
-                      <Search className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                </>
-              )}
-            </div>
+                ) : (
+                  <>
+                    <SidebarGroupLabel className="flex-1 text-xs text-general-muted-foreground">
+                      Businesses
+                    </SidebarGroupLabel>
+                    <div className="flex items-center gap-2 ml-auto">
+                      {canManageLinkedBusinesses && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => router.push('/create-business')}
+                          className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleSearchClick}
+                        className="h-6 w-6 bg-foreground-light hover:bg-sidebar-accent/80 rounded-sm"
+                      >
+                        <Search className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             <div className="relative flex-1 overflow-hidden">
               <SidebarGroupContent
                 ref={businessesScrollRef}
                 className="flex-1 overflow-y-auto py-0 h-full px-0"
                 onScroll={handleScroll}
               >
-                <SidebarMenu className="gap-1 px-4 pb-3">
+                <SidebarMenu className={cn('gap-1 pb-3', isCollapsed ? 'px-1' : 'px-4')}>
                   {sidebarDataLoading ? (
                     <>
                       {[1, 2, 3].map((i) => (
                         <SidebarMenuItem key={i}>
-                          <div className="flex items-center gap-2 ">
-                            <Skeleton className="h-4 w-4 rounded-xs" />
-                            <Skeleton className="h-4 w-24" />
+                          <div className={cn('flex items-center gap-2', isCollapsed && 'justify-center')}>
+                            <Skeleton className="h-4 w-4 rounded-xs shrink-0" />
+                            {!isCollapsed && <Skeleton className="h-4 w-24" />}
                           </div>
                         </SidebarMenuItem>
                       ))}
                     </>
                   ) : filteredProfiles.length === 0 ? (
-                    <SidebarMenuItem>
-                      <div className=" text-sm text-muted-foreground">
-                        {searchQuery ? 'No matching businesses found' : 'No businesses found'}
-                      </div>
-                    </SidebarMenuItem>
+                    !isCollapsed ? (
+                      <SidebarMenuItem>
+                        <div className="text-sm text-muted-foreground">
+                          {searchQuery ? 'No matching businesses found' : 'No businesses found'}
+                        </div>
+                      </SidebarMenuItem>
+                    ) : null
                   ) : (
                     filteredProfiles.map((business) => {
                       const isOpen = expandedBusinessId === business.UniqueId
                       return (
                         <Collapsible
                           key={business.UniqueId}
-                          open={isOpen}
+                          open={isCollapsed ? false : isOpen}
                           onOpenChange={(open) => toggleBusiness(business.UniqueId, open)}
                         >
                           <SidebarMenuItem>
-                            <div className="relative">
+                            <div
+                              className="relative"
+                              onMouseEnter={(e) => isCollapsed && openFlyout(business.UniqueId, e.currentTarget)}
+                              onMouseLeave={() => isCollapsed && scheduleFlyoutClose()}
+                            >
                               <CollapsibleTrigger asChild>
                                 <SidebarMenuButton
-                                  isActive={false}
+                                  isActive={isCollapsed && pathname.startsWith(`/business/${business.UniqueId}/`)}
                                   data-business-id={business.UniqueId}
-                                  className="py-4 pl-3 group/business w-full justify-between cursor-pointer overflow-hidden rounded-md"
+                                  className={cn(
+                                    'py-4 group/business w-full cursor-pointer overflow-hidden rounded-md data-[active=true]:bg-general-border',
+                                    isCollapsed ? 'justify-center pl-0' : 'pl-3 justify-between'
+                                  )}
                                 >
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <div className={cn('flex items-center gap-2', !isCollapsed && 'min-w-0 flex-1')}>
                                     <BusinessIcon website={business.Website} name={business.Name} />
-                                    <span className="truncate font-medium text-general-unofficial-foreground-alt" title={business.Name || business.DisplayName}>{business.Name || business.DisplayName}</span>
+                                    {!isCollapsed && (
+                                      <span className="truncate font-medium text-general-unofficial-foreground-alt" title={business.Name || business.DisplayName}>
+                                        {business.Name || business.DisplayName}
+                                      </span>
+                                    )}
                                   </div>
-                                  <ChevronRight className={`shrink-0 ml-auto h-4 w-4 text-general-border-three opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
+                                  {!isCollapsed && (
+                                    <ChevronRight className={`shrink-0 ml-auto h-4 w-4 text-general-border-three opacity-0 group-hover/business:opacity-100 transition-all duration-200 ${isOpen ? 'rotate-90 opacity-100' : ''}`} />
+                                  )}
                                 </SidebarMenuButton>
                               </CollapsibleTrigger>
                             </div>
-                            <CollapsibleContent>
-                              <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
-                                {businessSubItems.map((subItem) => {
-                                  const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
-                                  const reportsPath = `/business/${business.UniqueId}/reports`
-                                  const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
-                                  const itemBasePath = `/business/${business.UniqueId}/${subItem.slug}`
-                                  let isActive = false
-                                  if (subItem.slug === 'analytics') {
-                                    isActive =
-                                      pathname === subItemHref ||
-                                      pathname.startsWith(reportsPath) ||
-                                      pathname.startsWith(organicDeepdivePath)
-                                  } else if (subItem.slug === 'profile') {
-                                    isActive = pathname === subItemHref
-                                  } else {
-                                    isActive = pathname.startsWith(itemBasePath)
-                                  }
-                                  
-                                  return (
-                                    <SidebarMenuSubItem key={subItem.slug}>
-                                      <SidebarMenuSubButton
-                                        asChild
-                                        isActive={isActive}
-                                        className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
-                                      >
-                                        <Link href={subItemHref}>
-                                          <span>{subItem.label}</span>
-                                        </Link>
-                                      </SidebarMenuSubButton>
-                                    </SidebarMenuSubItem>
-                                  )
-                                })}
-                              </SidebarMenuSub>
-                            </CollapsibleContent>
+                            {!isCollapsed && (
+                              <CollapsibleContent>
+                                <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
+                                  {businessSubItems.map((subItem) => {
+                                    const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
+                                    const reportsPath = `/business/${business.UniqueId}/reports`
+                                    const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
+                                    const itemBasePath = `/business/${business.UniqueId}/${subItem.slug}`
+                                    let isActive = false
+                                    if (subItem.slug === 'analytics') {
+                                      isActive =
+                                        pathname === subItemHref ||
+                                        pathname.startsWith(reportsPath) ||
+                                        pathname.startsWith(organicDeepdivePath)
+                                    } else if (subItem.slug === 'profile') {
+                                      isActive = pathname === subItemHref
+                                    } else {
+                                      isActive = pathname.startsWith(itemBasePath)
+                                    }
+                                    
+                                    return (
+                                      <SidebarMenuSubItem key={subItem.slug}>
+                                        <SidebarMenuSubButton
+                                          asChild
+                                          isActive={isActive}
+                                          className="w-full cursor-pointer py-4 text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt data-[active=true]:bg-general-border data-[active=true]:text-general-unofficial-foreground-alt"
+                                        >
+                                          <Link href={subItemHref}>
+                                            <span>{subItem.label}</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                    )
+                                  })}
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            )}
                           </SidebarMenuItem>
                         </Collapsible>
                       )
@@ -636,7 +688,6 @@ export default function AppSidebar() {
                   )}
                 </SidebarMenu>
               </SidebarGroupContent>
-              {/* Blur fade effect at bottom */}
               <div
                 className={blurEffectClassName}
                 style={blurEffectStyle}
@@ -644,15 +695,16 @@ export default function AppSidebar() {
             </div>
           </SidebarGroup>
         </SidebarContent>
-        {/* <SidebarSeparator /> */}
-        <div className="px-4">
+        <div className={cn(isCollapsed ? 'px-1' : 'px-4')}>
           <Separator className="bg-general-border" />
         </div>
 
-        <SidebarFooter className="pt-3 pb-0 shrink-0 px-4">
-          <div className="mb-1">
-            <p className="text-sm font-medium text-general-muted-foreground">{userName}</p>
-          </div>
+        <SidebarFooter className={cn('pt-3 pb-0 shrink-0', isCollapsed ? 'px-1' : 'px-4')}>
+          {!isCollapsed && (
+            <div className="mb-1">
+              <p className="text-sm font-medium text-general-muted-foreground">{userName}</p>
+            </div>
+          )}
           <SidebarMenu className="">
             {footerItems.map((item) => (
               <FooterAction
@@ -663,11 +715,67 @@ export default function AppSidebar() {
                 isActive={item.href ? pathname === item.href : false}
                 onClick={item.onClick}
                 className={item.className}
+                isCollapsed={isCollapsed}
               />
             ))}
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
+
+      {isCollapsed && flyoutBusinessId && typeof document !== 'undefined' && createPortal(
+        (() => {
+          const business = profiles.find((b) => b.UniqueId === flyoutBusinessId)
+          if (!business) return null
+          return (
+            <div
+              className="fixed z-50 bg-white border border-general-border rounded-lg shadow-lg py-2 min-w-[180px]"
+              style={{ left: 'calc(3.5rem + 6px)', top: flyoutTop }}
+              onMouseEnter={cancelFlyoutClose}
+              onMouseLeave={scheduleFlyoutClose}
+            >
+              <div className="px-3 py-1.5 flex items-center gap-2">
+                <BusinessIcon website={business.Website} name={business.Name} />
+                <p className="text-xs font-semibold text-foreground truncate max-w-[140px]">
+                  {business.Name || business.DisplayName}
+                </p>
+              </div>
+              <div className="h-px bg-general-border mx-2 mb-1 mt-1" />
+              {businessSubItems.map((subItem) => {
+                const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
+                const reportsPath = `/business/${business.UniqueId}/reports`
+                const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
+                let isActive = false
+                if (subItem.slug === 'analytics') {
+                  isActive =
+                    pathname === subItemHref ||
+                    pathname.startsWith(reportsPath) ||
+                    pathname.startsWith(organicDeepdivePath)
+                } else if (subItem.slug === 'profile') {
+                  isActive = pathname === subItemHref
+                } else {
+                  isActive = pathname.startsWith(subItemHref)
+                }
+                return (
+                  <Link
+                    key={subItem.slug}
+                    href={subItemHref}
+                    onClick={() => setFlyoutBusinessId(null)}
+                    className={cn(
+                      'flex items-center px-3 py-1.5 text-sm rounded-md mx-1 cursor-pointer transition-colors',
+                      isActive
+                        ? 'bg-general-border font-medium text-general-unofficial-foreground-alt'
+                        : 'text-general-muted-foreground hover:bg-general-border hover:text-general-unofficial-foreground-alt'
+                    )}
+                  >
+                    {subItem.label}
+                  </Link>
+                )
+              })}
+            </div>
+          )
+        })(),
+        document.body
+      )}
 
       <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
         <DialogContent>

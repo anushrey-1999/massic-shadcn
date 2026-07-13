@@ -25,6 +25,8 @@ export type StructuredProfileLocation = {
   special_hours?: unknown;
 };
 
+type ImageLibraryItem = string | { alt?: string; url: string };
+
 type ProfileStatusResponse = {
   status?: "success" | "error" | "processing" | "pending" | string;
   profile_id?: string;
@@ -73,7 +75,7 @@ export type NormalizedProfileResult = {
   ctas: Array<{ text: string; url: string }>;
   offerings: Array<Record<string, unknown>>;
   colorsFontsCss?: string;
-  imagePhotoLibrary: string[];
+  imagePhotoLibrary: ImageLibraryItem[];
   socialProfiles: Array<{ url: string }>;
   directoryProfiles: Array<{ url: string }>;
   supportEmail?: string;
@@ -331,21 +333,37 @@ function normalizeAggregateRating(value: unknown): { rating: string; count: stri
 
 function normalizeBrandAssets(value: unknown): {
   colorsFontsCss?: string;
-  imagePhotoLibrary: string[];
+  imagePhotoLibrary: ImageLibraryItem[];
 } {
   const assets = unwrapProfileCell(value);
   if (!isObject(assets)) return { imagePhotoLibrary: [] };
   const colors = toStringValue(assets.colors);
   const fonts = toStringValue(assets.fonts);
   const css = toStringValue(assets.css);
+  const stylesheets = toStringArray(assets.stylesheets);
   const summary = [
     colors ? `Colors: ${colors}` : "",
     fonts ? `Fonts: ${fonts}` : "",
     css ? `CSS: ${css}` : "",
+    ...stylesheets,
   ].filter(Boolean).join("\n");
-  const images = toStringArray(
+  const imageSource = unwrapProfileCell(
     assets.image_library ?? assets.images ?? assets.photos ?? assets.photo_library
   );
+  const images = Array.isArray(imageSource)
+    ? imageSource
+        .map((item): ImageLibraryItem | null => {
+          const unwrapped = unwrapProfileCell(item);
+          if (typeof unwrapped === "string") return unwrapped.trim() || null;
+          if (isObject(unwrapped)) {
+            const url = toStringValue(unwrapProfileCell(unwrapped.url ?? unwrapped.src ?? unwrapped.href));
+            const alt = toStringValue(unwrapProfileCell(unwrapped.alt));
+            return url ? { alt, url } : null;
+          }
+          return null;
+        })
+        .filter((item): item is ImageLibraryItem => Boolean(item))
+    : [];
   return {
     colorsFontsCss: summary || undefined,
     imagePhotoLibrary: images,

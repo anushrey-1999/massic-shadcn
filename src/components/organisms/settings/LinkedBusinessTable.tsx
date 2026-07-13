@@ -47,6 +47,7 @@ import {
   Loader2,
   ChevronDown,
   Crown,
+  Eye,
   Link2,
   UserRoundCheck,
   X,
@@ -493,8 +494,8 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       return;
     }
     if (!hasRequiredGscAccess(row.permissionLevel)) {
-      toast.error("Additional Search Console access is required", {
-        description: "Ask an Owner to grant Full user access.",
+      toast.error("Verified Search Console access is required", {
+        description: "This Google account must be able to view the property data.",
       });
       return;
     }
@@ -684,7 +685,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             : isPendingAcceptance
               ? "Accept this business to enable linking or unlinking."
               : isBlockedRelink
-                ? "Full user or Owner access is required to re-link this business."
+                ? "Verified Search Console access is required to re-link this business."
                 : `${nextActionLabel} business`;
 
           return (
@@ -766,11 +767,17 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           );
           const isConnected = row.original.businessProfile?.IsActive === true;
           const isOwner = row.original.permissionLevel === "siteOwner";
-          const accessTooltip = hasRequiredAccess
-            ? `${permissionLabel} access — this business can be connected.`
-            : isConnected
-              ? `${permissionLabel} — this business is connected, but Search Console access is limited.`
-              : `${permissionLabel} — Full user or Owner access is required.`;
+          const isRestricted =
+            row.original.permissionLevel === "siteRestrictedUser";
+          const accessTooltip = isOwner
+            ? "Owner — full Search Console access."
+            : row.original.permissionLevel === "siteFullUser"
+              ? "Full user — all Search Console data is available."
+              : isRestricted
+                ? "Restricted user — performance data is available; user management is not."
+                : isConnected
+                  ? `${permissionLabel} — current access cannot be verified; existing data may be historical.`
+                  : `${permissionLabel} — verified access is required to connect.`;
 
           return (
             <div className="flex min-w-[220px] max-w-[300px] items-center gap-2 py-1">
@@ -789,13 +796,17 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
                       className={cn(
                         "flex size-7 shrink-0 cursor-help items-center justify-center rounded-md border",
                         hasRequiredAccess
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          ? isRestricted
+                            ? "border-sky-200 bg-sky-50 text-sky-700"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-700"
                           : "border-border bg-muted text-amber-500"
                       )}
                     >
                       {hasRequiredAccess ? (
                         isOwner ? (
                           <Crown className="size-4" aria-hidden="true" />
+                        ) : isRestricted ? (
+                          <Eye className="size-4" aria-hidden="true" />
                         ) : (
                           <UserRoundCheck className="size-4" aria-hidden="true" />
                         )
@@ -1138,7 +1149,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             ((!hasBusinessProfile && hasGsc) || (hasBusinessProfile && hasChanges))
           ) {
             const accessRequiredMessage =
-              "Full user or Owner access is required to connect this business.";
+              "Verified Search Console access is required to connect this business.";
             return (
               <TooltipProvider>
                 <Tooltip>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -47,6 +47,10 @@ export function CustomSelect({
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
 
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
   const selectedOptions = options.filter((opt) => value.includes(opt.value));
 
   const handleSelect = (optionValue: string) => {
@@ -84,26 +88,34 @@ export function CustomSelect({
       title={option.label}
     >
       <span className="truncate max-w-40 font-normal text-[10px] text-general-secondary-foreground">{option.label}</span>
-      <span
-        onClick={(e) => handleRemove(option.value, e)}
-        className="hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center shrink-0"
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            handleRemove(option.value);
-          }
-        }}
-      >
-        <X className="h-2 w-2" />
-      </span>
+      {!disabled ? (
+        <span
+          onClick={(e) => handleRemove(option.value, e)}
+          className="hover:bg-muted rounded-full p-0.5 cursor-pointer inline-flex items-center shrink-0"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              handleRemove(option.value);
+            }
+          }}
+        >
+          <X className="h-2 w-2" />
+        </span>
+      ) : null}
     </Badge>
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={false}>
+    <Popover
+      open={!disabled && open}
+      onOpenChange={(nextOpen) => {
+        if (!disabled) setOpen(nextOpen);
+      }}
+      modal={false}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"

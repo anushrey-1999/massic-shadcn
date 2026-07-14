@@ -11,6 +11,7 @@ type TagsInputProps = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  maxItems?: number;
 };
 
 function splitToTokens(raw: string): string[] {
@@ -38,6 +39,7 @@ export function TagsInput({
   placeholder = "Type and press Enter",
   disabled = false,
   className,
+  maxItems,
 }: TagsInputProps) {
   const [draft, setDraft] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -54,10 +56,13 @@ export function TagsInput({
     (raw: string) => {
       const tokens = splitToTokens(raw);
       if (tokens.length === 0) return;
-      const next = dedupeCaseInsensitive([...normalizedValue, ...tokens]);
+      const next = dedupeCaseInsensitive([...normalizedValue, ...tokens]).slice(
+        0,
+        maxItems ?? undefined
+      );
       onChange(next);
     },
-    [normalizedValue, onChange]
+    [maxItems, normalizedValue, onChange]
   );
 
   const removeAt = React.useCallback(
@@ -82,7 +87,7 @@ export function TagsInput({
         inputRef.current?.focus();
       }}
     >
-      {normalizedValue.map((t, idx) => (
+      {normalizedValue.slice(0, maxItems ?? undefined).map((t, idx) => (
         <Badge
           key={`${t.toLowerCase()}-${idx}`}
           variant="outline"
@@ -109,7 +114,7 @@ export function TagsInput({
       <input
         ref={inputRef}
         value={draft}
-        disabled={disabled}
+        disabled={disabled || (maxItems !== undefined && normalizedValue.length >= maxItems)}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           if (disabled) return;

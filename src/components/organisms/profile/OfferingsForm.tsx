@@ -42,6 +42,11 @@ type BusinessInfoFormData = {
     name: string;
     description: string;
     link: string;
+    pricePositioning?: string;
+    offeringType?: string;
+    priceRange?: string;
+    duration?: string;
+    inclusions?: string[] | string;
   }>;
   offeringsSavedIndices?: number[];
 };
@@ -138,6 +143,7 @@ export const OfferingsForm = ({
     { key: "name", label: "Name", validation: { required: true } },
     { key: "description", label: "Description", validation: { required: false } },
     { key: "link", label: "Link", validation: { required: false, url: true } },
+    { key: "pricePositioning", label: "Price Positioning", validation: { required: false } },
   ], []);
 
   // Own handlers - encapsulated logic
@@ -149,7 +155,12 @@ export const OfferingsForm = ({
     data: offeringsData,
     formFieldName: "offeringsList",
     setFormFieldValue: (name: string, value: any) => form.setFieldValue(name as keyof BusinessInfoFormData, value),
-    emptyRowFactory: () => ({ name: "", description: "", link: "" }),
+    emptyRowFactory: () => ({
+      name: "",
+      description: "",
+      link: "",
+      pricePositioning: "",
+    }),
   });
 
   // Handle fetch offerings from website
@@ -204,6 +215,15 @@ export const OfferingsForm = ({
         name: (offering.name || offering.offering || "").trim(),
         description: (offering.description || "").trim(),
         link: normalizeOfferingLink(offering.url || offering.link),
+        pricePositioning: (offering.price_positioning || offering.priceRange || "").trim(),
+        offeringType: (offering.offering_type || offering.offeringType || "").trim(),
+        priceRange: (offering.price_range || offering.priceRange || "").trim(),
+        duration: (offering.duration || "").trim(),
+        inclusions: Array.isArray(offering.inclusions)
+          ? offering.inclusions.map((item: unknown) => String(item).trim()).filter(Boolean)
+          : typeof offering.inclusions === "string"
+            ? offering.inclusions
+            : [],
       }))
       .filter((offering) => offering.name !== ""); // Filter out empty names
 
@@ -217,19 +237,7 @@ export const OfferingsForm = ({
     // Mark this task as processed
     processedTaskIdRef.current = taskId;
 
-    // Get existing offerings - preserve all existing ones
-    const existingOfferings = offeringsData || [];
-    
-    // Filter out only completely empty offerings
-    const validExistingOfferings = existingOfferings.filter(
-      (offering) => offering && (offering.name?.trim() || offering.description?.trim() || offering.link?.trim())
-    );
-
-    // Combine existing and extracted offerings
-    const combinedOfferings = [...validExistingOfferings, ...transformedOfferings];
-
-    // Remove duplicates based on name (case-insensitive)
-    const uniqueOfferings = combinedOfferings.filter(
+    const uniqueOfferings = transformedOfferings.filter(
       (offering, index, self) =>
         index ===
         self.findIndex(
@@ -239,23 +247,17 @@ export const OfferingsForm = ({
         )
     );
 
-    // Calculate counts for toast message
-    const existingCount = validExistingOfferings.length;
-    const newCount = transformedOfferings.length;
-    const totalCount = uniqueOfferings.length;
-    const duplicateCount = newCount - (totalCount - existingCount);
-
-    // Update form with merged offerings
     form.setFieldValue("offeringsList", uniqueOfferings);
 
-    // Show toast message
+    const duplicateCount = transformedOfferings.length - uniqueOfferings.length;
+
     if (duplicateCount > 0) {
       toast.success(
-        `Added ${newCount - duplicateCount} new offerings from website (${duplicateCount} duplicates skipped). Total: ${totalCount} offerings.`
+        `Updated offerings from website (${duplicateCount} duplicates skipped). Total: ${uniqueOfferings.length} offerings.`
       );
     } else {
       toast.success(
-        `Added ${newCount} new offerings from website. Total: ${totalCount} offerings.`
+        `Updated offerings from website. Total: ${uniqueOfferings.length} offerings.`
       );
     }
 

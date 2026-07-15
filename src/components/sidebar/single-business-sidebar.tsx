@@ -395,25 +395,31 @@ export default function SingleBusinessSidebar() {
 
   return (
     <>
-      <Sidebar
-        collapsible="none"
-        className="h-screen bg-white overflow-x-hidden transition-[width] duration-200"
-        style={{ width: isCollapsed ? '3.5rem' : undefined }}
-      >
-        <SidebarHeader className="border-b border-sidebar-border shrink-0">
-          <div className={cn('flex items-center py-4', isCollapsed ? 'justify-center px-2' : 'justify-between px-4')}>
-            {!isCollapsed && <h1 className="text-lg font-semibold text-foreground">Massic</h1>}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md hover:bg-sidebar-accent transition-colors cursor-pointer"
-            >
-              {isCollapsed
-                ? <ChevronRight className="h-4 w-4" />
-                : <ChevronLeft className="h-4 w-4" />
-              }
-            </button>
-          </div>
-        </SidebarHeader>
+      <div className="relative">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="fixed top-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white border border-sidebar-border hover:bg-sidebar-accent transition-colors cursor-pointer shadow-sm z-[100]"
+          style={{ left: isCollapsed ? 'calc(3.5rem - 12px)' : 'calc(var(--sidebar-width, 16rem) - 12px)' }}
+        >
+          {isCollapsed
+            ? <ChevronRight className="h-4 w-4" />
+            : <ChevronLeft className="h-4 w-4" />
+          }
+        </button>
+        <Sidebar
+          collapsible="none"
+          className="h-screen bg-white overflow-x-hidden transition-[width] duration-200"
+          style={{ width: isCollapsed ? '3.5rem' : undefined }}
+        >
+          <SidebarHeader className="border-b border-sidebar-border shrink-0">
+            <div className={cn('flex items-center py-4', isCollapsed ? 'justify-center px-2' : 'justify-start px-4')}>
+              {isCollapsed ? (
+                <img src="/massic-logo-green.svg" alt="Massic" className="h-6 w-6 opacity-60" style={{ filter: 'brightness(0)' }} />
+              ) : (
+                <h1 className="text-lg font-semibold text-foreground">Massic</h1>
+              )}
+            </div>
+          </SidebarHeader>
 
         <SidebarContent className="flex-1 flex flex-col overflow-hidden">
           <SidebarGroup className="px-1 flex-1 flex flex-col overflow-hidden pt-4">
@@ -465,6 +471,7 @@ export default function SingleBusinessSidebar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </>
   )
 }

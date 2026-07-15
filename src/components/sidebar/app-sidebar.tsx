@@ -172,7 +172,17 @@ export default function AppSidebar() {
 
   const openFlyout = useCallback((uniqueId: string, el: HTMLElement) => {
     if (flyoutTimeoutRef.current) clearTimeout(flyoutTimeoutRef.current)
-    setFlyoutTop(el.getBoundingClientRect().top)
+    const rect = el.getBoundingClientRect()
+    const flyoutHeight = 300
+    const viewportHeight = window.innerHeight
+    const spaceBelow = viewportHeight - rect.top
+    
+    let topPosition = rect.top
+    if (spaceBelow < flyoutHeight && rect.top > flyoutHeight) {
+      topPosition = Math.max(16, rect.bottom - flyoutHeight)
+    }
+    
+    setFlyoutTop(topPosition)
     setFlyoutBusinessId(uniqueId)
   }, [])
 
@@ -420,25 +430,31 @@ export default function AppSidebar() {
 
   return (
     <>
-      <Sidebar
-        collapsible="none"
-        className="h-screen bg-foreground-light py-3 overflow-x-hidden transition-[width] duration-200"
-        style={{ width: isCollapsed ? '3.5rem' : undefined }}
-      >
-        <SidebarHeader className={cn('shrink-0 pb-3', isCollapsed ? 'px-0' : 'px-4')}>
-          <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'justify-between')}>
-            {!isCollapsed && <h1 className="text-lg font-semibold text-foreground">Massic</h1>}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md hover:bg-general-border transition-colors cursor-pointer"
-            >
-              {isCollapsed
-                ? <ChevronRight className="h-4 w-4" />
-                : <ChevronLeft className="h-4 w-4" />
-              }
-            </button>
-          </div>
-        </SidebarHeader>
+      <div className="relative">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="fixed top-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground-light border border-general-border hover:bg-general-border transition-colors cursor-pointer shadow-sm z-[100]"
+          style={{ left: isCollapsed ? 'calc(3.5rem - 12px)' : 'calc(var(--sidebar-width, 16rem) - 12px)' }}
+        >
+          {isCollapsed
+            ? <ChevronRight className="h-4 w-4" />
+            : <ChevronLeft className="h-4 w-4" />
+          }
+        </button>
+        <Sidebar
+          collapsible="none"
+          className="h-screen bg-foreground-light py-3 overflow-x-hidden transition-[width] duration-200"
+          style={{ width: isCollapsed ? '3.5rem' : undefined }}
+        >
+          <SidebarHeader className={cn('shrink-0 pb-3', isCollapsed ? 'px-0' : 'px-4')}>
+            <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'justify-start')}>
+              {isCollapsed ? (
+                <img src="/massic-logo-green.svg" alt="Massic" className="h-6 w-6 opacity-60" style={{ filter: 'brightness(0)' }} />
+              ) : (
+                <h1 className="text-lg font-semibold text-foreground">Massic</h1>
+              )}
+            </div>
+          </SidebarHeader>
         <SidebarContent className="flex-1 flex flex-col overflow-hidden gap-0">
           <SidebarGroup className={cn('shrink-0 py-0 pb-3', isCollapsed ? 'px-1' : 'px-4')}>
             <SidebarGroupContent>
@@ -607,7 +623,18 @@ export default function AppSidebar() {
                       </SidebarMenuItem>
                     ) : null
                   ) : (
-                    filteredProfiles.map((business) => {
+                    <>
+                      {isCollapsed && canManageLinkedBusinesses && (
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            onClick={() => router.push('/create-business')}
+                            className="py-4 cursor-pointer hover:bg-general-border hover:text-general-unofficial-foreground-alt justify-center pl-0"
+                          >
+                            <Plus className="h-5 w-5 shrink-0" />
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      )}
+                      {filteredProfiles.map((business) => {
                       const isOpen = expandedBusinessId === business.UniqueId
                       return (
                         <Collapsible
@@ -684,7 +711,8 @@ export default function AppSidebar() {
                           </SidebarMenuItem>
                         </Collapsible>
                       )
-                    })
+                    })}
+                    </>
                   )}
                 </SidebarMenu>
               </SidebarGroupContent>
@@ -728,7 +756,7 @@ export default function AppSidebar() {
           if (!business) return null
           return (
             <div
-              className="fixed z-50 bg-white border border-general-border rounded-lg shadow-lg py-2 min-w-[180px]"
+              className="fixed z-50 bg-white border border-general-border rounded-lg shadow-lg py-2 min-w-[180px] max-h-[calc(100vh-32px)] overflow-y-auto"
               style={{ left: 'calc(3.5rem + 6px)', top: flyoutTop }}
               onMouseEnter={cancelFlyoutClose}
               onMouseLeave={scheduleFlyoutClose}
@@ -795,7 +823,7 @@ export default function AppSidebar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
+      </div>
     </>
   )
 }

@@ -1,16 +1,14 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 
 import { useLocations } from "@/hooks/use-locations";
 import { useBusinessStore } from "@/store/business-store";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { useCreateBusiness, useBusinessProfiles, usePitchBusinesses, fetchPitchBusinessProfiles } from "@/hooks/use-business-profiles";
-import { useCreateJob, type Offering, type BusinessProfilePayload } from "@/hooks/use-jobs";
-import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
+import { useCreateJob } from "@/hooks/use-jobs";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,42 +21,21 @@ import {
 } from "@/components/ui/dialog";
 import PageHeader from "@/components/molecules/PageHeader";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
-import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
 import { LoaderOverlay } from "@/components/ui/loader";
 import { ProfileStepCard } from "@/components/ui/profile-step-card";
+import { ProfileFormTabs } from "@/components/templates/ProfileFormTabs";
 import { useAuthStore } from "@/store/auth-store";
 import { api } from "@/hooks/use-api";
 import { Loader2 } from "lucide-react";
-import { cleanWebsiteUrl } from "@/utils/utils";
-import { getAutofillErrorMessage } from "@/utils/profile-autofill";
+import {
+  buildBusinessProfilePayload,
+  mapFormOfferingsToJobOfferings,
+  PROFILE_FORM_TABS,
+  profileFormDefaults,
+  type ProfileFormTabId,
+} from "@/utils/profile-form-mappers";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
-import { TagsInput } from "@/components/ui/tags-input";
-
-interface ProfileAutofillResponse {
-  business_url?: string;
-  profile_autofill?: {
-    business_name?: string;
-    url?: string;
-    market?: string;
-    ltv?: string;
-    sell?: string;
-    b2b_b2c?: string;
-    competitors?: string[];
-    segment?: number;
-    ctas?: Array<{ text?: string; url?: string }>;
-    brand_terms?: string[];
-    web_tone?: string[];
-    social_tone?: string[];
-    error?: string | null;
-    reason?: string | null;
-    recommendation?: string | null;
-    [key: string]: unknown;
-  };
-  errors?: string | string[] | null;
-  error?: string | null;
-  message?: string | null;
-  detail?: string | null;
-}
+import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
 
 export function CreatePitchTemplate() {
   const router = useRouter();
@@ -78,6 +55,9 @@ export function CreatePitchTemplate() {
 
   const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
   const [existingBusinessId, setExistingBusinessId] = useState<string | null>(null);
+  const [profileTab, setProfileTab] = useState<ProfileFormTabId>(
+    PROFILE_FORM_TABS[0].id
+  );
   React.useEffect(() => {
     resetProfileForm();
     return () => resetProfileForm();
@@ -88,27 +68,23 @@ export function CreatePitchTemplate() {
     setLocationsLoading(locationsLoading);
   }, [locationOptions, locationsLoading, setLocationOptions, setLocationsLoading]);
 
-  const defaultValues = {
-    website: "",
-    businessName: "",
-    businessDescription: "",
-    primaryLocation: "",
-    serviceType: "",
-    lifetimeValue: "",
-    offerings: "",
-    offeringsList: [],
-    brandTerms: [],
-  } as unknown as BusinessInfoFormData;
-
   const form = useForm({
-    defaultValues,
+    defaultValues: profileFormDefaults,
     onSubmit: async ({ value }) => {
       console.log("[CreatePitch] onSubmit called with values:", value);
-      const normalizedOfferType: "products" | "services" =
-        value.offerings === "products" ? "products" : "services";
+      const normalizedOfferType: "products" | "services" | "both" =
+        value.offerings === "products"
+          ? "products"
+          : value.offerings === "both"
+            ? "both"
+            : "services";
 
-      const normalizedServeCustomers: "local" | "online" =
-        value.serviceType === "physical" ? "local" : "online";
+      const normalizedServeCustomers: "local" | "online" | "both" =
+        value.serviceType === "physical"
+          ? "local"
+          : value.serviceType === "both"
+            ? "both"
+            : "online";
 
       const result = await createBusiness.mutateAsync({
         website: value.website,
@@ -143,42 +119,12 @@ export function CreatePitchTemplate() {
         return;
       }
 
-      const { Location: location, Country: country } = parsePrimaryLocationForPayload(
-        value.primaryLocation,
-        locationOptions
-      );
-
-      const offerings: Offering[] = Array.isArray(value.offeringsList)
-        ? value.offeringsList
-            .filter((row) => Boolean(row?.name?.trim()))
-            .map((row) => ({
-              name: String(row.name || ""),
-              description: String(row.description || ""),
-              link: String(row.link || ""),
-            }))
-        : [];
-
-      const brandTermsArray = Array.isArray(value.brandTerms)
-        ? value.brandTerms.map((t) => String(t).trim()).filter(Boolean)
-        : [];
-
-      const businessProfilePayload: BusinessProfilePayload = {
-        Website: value.website,
-        Name: value.businessName,
-        Description: value.businessDescription,
-        UserDefinedBusinessDescription: value.businessDescription,
-        PrimaryLocation: {
-          Location: location,
-          Country: country,
-        },
-        BusinessObjective: normalizedServeCustomers,
-        LocationType: normalizedOfferType,
-        LTV:
-          value.lifetimeValue === "high" || value.lifetimeValue === "low"
-            ? value.lifetimeValue
-            : null,
-        BrandTerms: brandTermsArray.length > 0 ? brandTermsArray : null,
-      };
+      const offeringsFromForm = mapFormOfferingsToJobOfferings(value);
+      const offerings = offeringsFromForm;
+      const businessProfilePayload = buildBusinessProfilePayload(value, {
+        autofillResult: autofillProfileResult,
+        locationOptions,
+      });
 
       await api.post(
         "/profile/update-business-profile",
@@ -196,172 +142,36 @@ export function CreatePitchTemplate() {
     },
   });
 
-  const [isAutofillLoading, setIsAutofillLoading] = useState(false);
-
   const normalizeUrl = (url: string) =>
     url.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "").trim();
 
-  const handleAutofillProfile = useCallback(async () => {
-    const values = form.state.values as BusinessInfoFormData;
-    const website = cleanWebsiteUrl(values?.website || "").trim();
-    if (!website) {
-      toast.error("Please enter a website URL first");
-      return;
-    }
-
-    const normalizedInput = normalizeUrl(website);
-    const match = pitchBusinesses.find((b) => {
-      const bWebsite = normalizeUrl(b.Website || "");
-      return bWebsite && (bWebsite === normalizedInput || bWebsite.includes(normalizedInput) || normalizedInput.includes(bWebsite));
-    });
-    if (match) {
-      setExistingBusinessId(match.UniqueId);
-      return;
-    }
-
-    setIsAutofillLoading(true);
-    // Start offerings extraction in parallel (same click as Profile Autofill)
-    // Do not await here so Profile Autofill UX isn't blocked.
-    void offeringsExtractor.startExtraction(website).catch(() => {});
-    try {
-      const res = await api.post<ProfileAutofillResponse>(
-        "/tools/autofill-profile",
-        "python",
-        { business_url: website },
-        { timeout: 120000 }
-      );
-      const autofillErrorMessage = getAutofillErrorMessage(res, "");
-      if (autofillErrorMessage) {
-        toast.error(autofillErrorMessage);
-        return;
-      }
-      const pa = res?.profile_autofill;
-      if (!pa) {
-        const fallbackMessage = String(res?.message ?? res?.detail ?? "").trim();
-        toast.error(fallbackMessage || "Failed to autofill profile");
-        return;
-      }
-
-      const ensureHttpsUrl = (raw: unknown): string => {
-        const s = String(raw ?? "")
-          .replace(/^sc-domain:/i, "")
-          .trim();
-        if (!s) return "";
-        if (/^(tel:|mailto:)/i.test(s)) return s;
-        if (/^https?:\/\//i.test(s)) {
-          return s.replace(/^http:\/\//i, "https://");
+  const { autofillProfile: handleAutofillProfile, autofillProfileResult, isAutofillLoading } =
+    useProfileAutofillForm({
+      form,
+      locationOptions,
+      onBeforeAutofill: (website) => {
+        const normalizedInput = normalizeUrl(website);
+        const match = pitchBusinesses.find((business) => {
+          const businessWebsite = normalizeUrl(business.Website || "");
+          return (
+            businessWebsite &&
+            (businessWebsite === normalizedInput ||
+              businessWebsite.includes(normalizedInput) ||
+              normalizedInput.includes(businessWebsite))
+          );
+        });
+        if (match) {
+          setExistingBusinessId(match.UniqueId);
+          return false;
         }
-        return `https://${s}`;
-      };
-
-      const nextWebsite = (() => {
-        const raw = pa.url || res?.business_url || website;
-        return cleanWebsiteUrl(String(raw ?? ""));
-      })();
-      if (nextWebsite) {
-        form.setFieldValue("website" as any, nextWebsite as any);
-      }
-
-      const nextBusinessName = String(pa.business_name ?? "").trim();
-      if (nextBusinessName) {
-        form.setFieldValue("businessName" as any, nextBusinessName as any);
-      }
-
-      const market = (pa.market ?? "").toString().trim().toLowerCase();
-      const nextServiceType =
-        market === "online"
-          ? "online"
-          : market === "local"
-            ? "physical"
-            : market === "hybrid"
-              ? "both"
-              : undefined;
-      if (nextServiceType) {
-        form.setFieldValue("serviceType" as any, nextServiceType as any);
-      }
-
-      const ltvFromAutofill = (pa.ltv ?? "").toString().trim().toLowerCase();
-      form.setFieldValue(
-        "lifetimeValue" as any,
-        (ltvFromAutofill === "high" || ltvFromAutofill === "low"
-          ? ltvFromAutofill
-          : "") as any
-      );
-
-      const sell = (pa.sell ?? "products").toString().trim().toLowerCase();
-      const nextOfferings =
-        sell === "services"
-          ? "services"
-          : sell === "both"
-            ? "both"
-            : "products";
-      form.setFieldValue("offerings" as any, nextOfferings as any);
-
-      const competitorsFromApi = Array.isArray(pa.competitors)
-        ? pa.competitors
-          .filter((url): url is string => Boolean(url && String(url).trim()))
-          .map((url) => cleanWebsiteUrl(String(url)))
-          .filter(Boolean)
-        : [];
-      form.setFieldValue(
-        "competitors" as any,
-        competitorsFromApi.map((url) => ({ url })) as any
-      );
-
-      const ctasFromApi = Array.isArray(pa.ctas)
-        ? pa.ctas
-          .map((cta) => ({
-            buttonText: String(cta?.text ?? "").trim(),
-            url: ensureHttpsUrl(cta?.url),
-          }))
-          .filter((cta) => Boolean(cta.buttonText && cta.url))
-        : [];
-      form.setFieldValue("ctas" as any, ctasFromApi as any);
-
-      const brandTermsFromApi = Array.isArray(pa.brand_terms)
-        ? pa.brand_terms.map((t) => String(t).trim()).filter(Boolean)
-        : [];
-      form.setFieldValue("brandTerms" as any, brandTermsFromApi as any);
-
-      const allowedToneOptions = new Set([
-        "professional",
-        "bold",
-        "friendly",
-        "innovative",
-        "playful",
-        "trustworthy",
-      ]);
-      const normalizeTones = (raw: unknown): string[] => {
-        if (!Array.isArray(raw)) return [];
-        return raw
-          .map((v) => String(v).toLowerCase().trim())
-          .filter((v) => allowedToneOptions.has(v))
-          .slice(0, 3);
-      };
-      form.setFieldValue("brandToneWeb" as any, normalizeTones(pa.web_tone) as any);
-      form.setFieldValue(
-        "brandToneSocial" as any,
-        normalizeTones(pa.social_tone) as any
-      );
-
-      setHasAutofilledProfile(true);
-      toast.success("Profile fields updated from website");
-    } catch (error: any) {
-      const fallbackMessage = String(
-        error?.response?.data?.message ??
-        error?.response?.data?.detail ??
-        error?.message ??
-        ""
-      ).trim();
-      toast.error(
-        getAutofillErrorMessage(error?.response?.data ?? error, "") ||
-        fallbackMessage ||
-        "Failed to autofill profile"
-      );
-    } finally {
-      setIsAutofillLoading(false);
-    }
-  }, [form, offeringsExtractor]);
+        void offeringsExtractor.startExtraction(website).catch(() => {});
+        return true;
+      },
+      onAutofillSuccess: () => {
+        setHasAutofilledProfile(true);
+        setProfileTab("basic-details");
+      },
+    });
 
   const breadcrumbs = [
     { label: "Home", href: "/" },
@@ -394,6 +204,7 @@ export function CreatePitchTemplate() {
 
   const canConfirmAndProceed =
     hasAutofilledProfile &&
+    !offeringsExtractor.isExtracting &&
     !hasRequiredFieldErrors &&
     !hasOfferingsValidationErrors &&
     hasAtLeastOneOffering;
@@ -423,6 +234,7 @@ export function CreatePitchTemplate() {
       isCreatingBusiness,
       isCreatingJob,
       isAutofillLoading,
+      isOfferingsExtracting: offeringsExtractor.isExtracting,
     });
     if (hasRequiredFieldErrors) {
       const { website, businessName, primaryLocation, serviceType, offerings } = formValues;
@@ -474,7 +286,7 @@ export function CreatePitchTemplate() {
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+            <PageHeader breadcrumbs={breadcrumbs} />
           </div>
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
@@ -486,50 +298,29 @@ export function CreatePitchTemplate() {
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
-                <ProfileStepCard
-                  title={!hasAutofilledProfile ? "Let's set up your pitch" : "Create Pitch"}
-                  description={
-                    !hasAutofilledProfile
-                      ? "Enter your website URL and primary location, then click Autofill Profile — we'll automatically populate your business details."
-                      : "Add basic details so we can generate a pitch and tailored recommendations."
-                  }
-                  className="flex-1"
-                  scrollableContent
-                  contentClassName="pb-6"
-                  rightAction={
-                    hasAutofilledProfile ? (
-                      <Button
-                        type="button"
-                        className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                        onClick={handleConfirmAndProceed}
-                        disabled={!canConfirmAndProceed || isSubmitting || isLoading}
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            Proceeding...
-                          </>
-                        ) : (
-                          "Confirm and Proceed"
-                        )}
-                      </Button>
-                    ) : undefined
-                  }
-                >
-                  <BusinessInfoForm
-                    form={form}
-                    embedded
-                    embeddedVariant={hasAutofilledProfile ? "full" : "autofillGate"}
-                    disableWebsiteLock
-                    primaryLocationAction={
-                      !hasAutofilledProfile ? (
+                {!hasAutofilledProfile ? (
+                  <ProfileStepCard
+                    title="Let's set up your pitch"
+                    description="Enter your website URL and primary location, then click Autofill Profile — we'll automatically populate your business details."
+                    className="flex-1"
+                    scrollableContent
+                    contentClassName="pb-6"
+                  >
+                    <BusinessInfoForm
+                      form={form}
+                      embedded
+                      embeddedVariant="autofillGate"
+                      disableWebsiteLock
+                      primaryLocationAction={
                         <Button
                           type="button"
                           onClick={handleAutofillProfile}
                           disabled={
                             isAutofillLoading ||
                             offeringsExtractor.isExtracting ||
-                            !(formValues?.website ?? "").toString().trim()
+                            !(formValues?.website ?? "").toString().trim() ||
+                            !(formValues?.primaryLocation ?? "").toString().trim() ||
+                            !(formValues?.serviceAreaType ?? "").toString().trim()
                           }
                           className="w-full gap-2"
                         >
@@ -542,67 +333,65 @@ export function CreatePitchTemplate() {
                             "Autofill Profile"
                           )}
                         </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="default"
-                          onClick={handleAutofillProfile}
-                          disabled={
-                            isAutofillLoading ||
-                            offeringsExtractor.isExtracting ||
-                            !(formValues?.website ?? "").toString().trim()
-                          }
-                          className="gap-2 border-general-border-three text-general-foreground"
-                        >
-                          {isAutofillLoading ? (
-                            <>
-                              <Loader2 className="size-4 animate-spin" />
-                              Autofilling...
-                            </>
-                          ) : (
-                            "Autofill Profile"
-                          )}
-                        </Button>
-                      )
+                      }
+                    />
+                  </ProfileStepCard>
+                ) : (
+                  <ProfileFormTabs
+                    form={form}
+                    businessId="create-pitch"
+                    value={profileTab}
+                    onValueChange={setProfileTab}
+                    disableWebsiteLock
+                    hideFetchOfferingsFromWebsite
+                    extractionController={offeringsExtractor}
+                    basicDetailsDescription="Add basic details so we can generate a pitch and tailored recommendations."
+                    primaryLocationAction={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="default"
+                        onClick={handleAutofillProfile}
+                        disabled={
+                          isAutofillLoading ||
+                          offeringsExtractor.isExtracting ||
+                          !(formValues?.website ?? "").toString().trim() ||
+                          !(formValues?.primaryLocation ?? "").toString().trim() ||
+                          !(formValues?.serviceAreaType ?? "").toString().trim()
+                        }
+                        className="gap-2 border-general-border-three text-general-foreground"
+                      >
+                        {isAutofillLoading ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Autofilling...
+                          </>
+                        ) : (
+                          "Autofill Profile"
+                        )}
+                      </Button>
+                    }
+                    rightAction={
+                      <Button
+                        type="button"
+                        className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                        onClick={handleConfirmAndProceed}
+                        disabled={!canConfirmAndProceed || isSubmitting || isLoading}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Proceeding...
+                          </>
+                        ) : offeringsExtractor.isExtracting ? (
+                          "Extracting offerings..."
+                        ) : (
+                          "Confirm and Proceed"
+                        )}
+                      </Button>
                     }
                   />
-
-                  {hasAutofilledProfile && (
-                    <>
-                      <OfferingsForm
-                        form={form}
-                        businessId="create-pitch"
-                        embedded
-                        hideFetchOfferingsFromWebsite
-                        extractionController={offeringsExtractor}
-                      />
-
-                      <div className="w-full md:w-3/4">
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium text-foreground">
-                            Brand terms that best describe your business
-                          </div>
-                          <form.Field
-                            name="brandTerms"
-                            children={(field: any) => {
-                              const currentValue = Array.isArray(field.state.value)
-                                ? field.state.value
-                                : [];
-                              return (
-                                <TagsInput
-                                  value={currentValue}
-                                  onChange={(next) => field.handleChange(next)}
-                                  placeholder="Type a term and press Enter"
-                                />
-                              );
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </ProfileStepCard>
+                )}
               </form>
             </div>
           </div>

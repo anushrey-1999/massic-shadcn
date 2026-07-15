@@ -1,0 +1,159 @@
+export type AdminAvailabilityState = "available" | "partial" | "unavailable";
+
+export interface AdminAvailability {
+  state: AdminAvailabilityState;
+  reason: string | null;
+}
+
+export interface AdminRange {
+  key: AdminRangeKey;
+  currentStart: string;
+  currentEnd: string;
+  previousStart: string;
+  previousEnd: string;
+}
+
+export type AdminRangeKey =
+  | "last_7_days"
+  | "last_28_days"
+  | "mtd"
+  | "last_month"
+  | "qtd"
+  | "ytd"
+  | "lifetime";
+
+export type AdminModuleKey =
+  | "network-performance"
+  | "growth"
+  | "api-cost"
+  | "industry"
+  | "category-insights"
+  | "platform-totals"
+  | "subscription";
+
+export interface AdminKpi {
+  key: string;
+  label: string;
+  value: number | null;
+  previous: number | null;
+  changePct: number | null;
+  trend: Array<{ date: string; value: number }>;
+  availability: AdminAvailability;
+}
+
+export interface AdminBreakdownRow {
+  group: string;
+  current: number | null;
+  previous: number | null;
+  delta: number | null;
+  changePct: number | null;
+  sharePct: number;
+  trend: number[];
+}
+
+export interface AdminModuleData {
+  meta: {
+    module: AdminModuleKey;
+    label: string;
+    range: AdminRange;
+    freshnessDate: string | null;
+    completedAt: string | null;
+    watermark: string;
+    metric: string;
+    groupBy: string;
+    sourceFreshness?: AdminSourceFreshness;
+    cacheState?: AdminCacheState;
+    entityStatus?: "strong" | "dip" | "check" | "no_signal";
+  };
+  kpis: AdminKpi[];
+  breakdown: {
+    rows: AdminBreakdownRow[];
+    total: number;
+    page: number;
+    pageSize: number;
+  };
+}
+
+export interface AdminSourceFreshness {
+  gscThrough: string | null;
+  ga4Through: string | null;
+}
+
+export type AdminCacheState = "fresh" | "stale";
+
+export interface AdminIndustrySyncRun {
+  id: string;
+  trigger: "manual" | "scheduled";
+  status: "queued" | "running" | "completed" | "partial" | "failed";
+  requestedBy: string | null;
+  totalBusinesses: number;
+  resolvedCount: number;
+  missingCount: number;
+  errorCount: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  errorDetails: Array<{ message: string; source?: string }> | null;
+}
+
+export interface AdminBusiness {
+  business_id: string;
+  business_name: string;
+  website: string | null;
+  agency_id: string | null;
+  agency_name: string | null;
+  industry: string;
+  cms: string;
+  state: string;
+  country: string;
+  plan: string;
+  subscription_state: string | null;
+  connected_gsc: boolean;
+  connected_ga4: boolean;
+  connected_gbp: boolean;
+  connected_cms: boolean;
+  publishing_enabled: boolean;
+  freshness_date: string | null;
+  impressions: number | null;
+  clicks: number | null;
+  organic_users: number | null;
+  goals: number | null;
+  status: "strong" | "dip" | "check" | "no_signal";
+  mrr: number | null;
+}
+
+export interface AdminBusinessesData {
+  rows: AdminBusiness[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  analyticsRange: {
+    start: string;
+    end: string;
+    days: number;
+  };
+}
+
+export interface AdminSessionUser {
+  userId: number;
+  email: string;
+  name: string;
+  role: "SUPER_ADMIN";
+  grantId: number;
+}
+
+export interface AdminOverviewData {
+  meta: {
+    freshnessDate: string | null;
+    completedAt: string | null;
+    watermark: string;
+    sourceFreshness?: AdminSourceFreshness;
+    cacheState?: AdminCacheState;
+  };
+  network: AdminModuleData;
+  growth: AdminModuleData;
+  platform: AdminModuleData;
+  subscription: AdminModuleData;
+  businesses: AdminBusinessesData;
+}

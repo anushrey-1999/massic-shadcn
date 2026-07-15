@@ -8,7 +8,9 @@ import {
   Copy,
   Globe2,
   Loader2,
+  LockKeyhole,
   Mail,
+  Pencil,
   RefreshCw,
   Send,
   ShieldCheck,
@@ -53,6 +55,12 @@ type SetupStep = {
 function isValidEmail(value: string) {
   if (!value.trim()) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function emailName(email: string, domain: string) {
+  const suffix = `@${domain}`;
+  if (email.toLowerCase().endsWith(suffix.toLowerCase())) return email.slice(0, -suffix.length);
+  return email.split("@")[0] || "";
 }
 
 function normalizeDomainFromWebsite(value?: string | null) {
@@ -189,8 +197,18 @@ function SetupSteps({ steps }: { steps: SetupStep[] }) {
   );
 }
 
+function dnsProviderHost(host: string, domain: string) {
+  const normalizedHost = host.replace(/\.+$/, "");
+  const normalizedDomain = domain.replace(/\.+$/, "");
+  const domainSuffix = `.${normalizedDomain}`;
+
+  if (normalizedHost === normalizedDomain) return "@";
+  if (normalizedHost.endsWith(domainSuffix)) return normalizedHost.slice(0, -domainSuffix.length);
+  return normalizedHost;
+}
+
 function DnsRecords({ domain }: { domain: BusinessEmailDomain }) {
-  const [copiedRecordKey, setCopiedRecordKey] = React.useState<string | null>(null);
+  const [copiedFieldKey, setCopiedFieldKey] = React.useState<string | null>(null);
   const copyResetTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
@@ -199,15 +217,15 @@ function DnsRecords({ domain }: { domain: BusinessEmailDomain }) {
     };
   }, []);
 
-  const copy = async (recordKey: string, value: string) => {
+  const copy = async (fieldKey: string, value: string, label: "short host" | "full host" | "value") => {
     try {
       await navigator.clipboard.writeText(value);
-      setCopiedRecordKey(recordKey);
+      setCopiedFieldKey(fieldKey);
       if (copyResetTimeout.current) clearTimeout(copyResetTimeout.current);
-      copyResetTimeout.current = setTimeout(() => setCopiedRecordKey(null), 1800);
-      toast.success("DNS value copied");
+      copyResetTimeout.current = setTimeout(() => setCopiedFieldKey(null), 1800);
+      toast.success(`DNS ${label} copied`);
     } catch {
-      toast.error("Could not copy DNS value");
+      toast.error(`Could not copy DNS ${label}`);
     }
   };
 
@@ -216,43 +234,98 @@ function DnsRecords({ domain }: { domain: BusinessEmailDomain }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <div className="grid grid-cols-[72px_minmax(0,1fr)_88px] gap-2 bg-muted px-3 py-2 text-xs font-medium text-muted-foreground md:grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_88px]">
-        <span>Type</span>
-        <span>Host</span>
-        <span className="hidden md:block">Value</span>
-        <span className="sr-only">Actions</span>
+    <div className="space-y-2">
+      <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+        <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+        <p>
+          Use <span className="font-medium">Short</span> if your provider adds .{domain.domain}; otherwise use{" "}
+          <span className="font-medium">Full</span>.
+        </p>
       </div>
-      {domain.dnsRecords.map((record) => {
-        const recordKey = `${record.key}-${record.host}`;
-        const copied = copiedRecordKey === recordKey;
+      <div className="overflow-hidden rounded-lg border">
+        <div className="grid grid-cols-[72px_minmax(0,1fr)_88px] gap-2 bg-muted px-3 py-2 text-xs font-medium text-muted-foreground md:grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_88px]">
+          <span>Type</span>
+          <span>Host formats</span>
+          <span className="hidden md:block">Value</span>
+          <span className="sr-only">Value actions</span>
+        </div>
+        {domain.dnsRecords.map((record) => {
+          const recordKey = `${record.key}-${record.host}`;
+          const shortHostFieldKey = `${recordKey}-short-host`;
+          const fullHostFieldKey = `${recordKey}-full-host`;
+          const valueFieldKey = `${recordKey}-value`;
+          const providerHost = dnsProviderHost(record.host, domain.domain);
+          const hasShortHost = providerHost !== record.host;
+          const shortHostCopied = copiedFieldKey === shortHostFieldKey;
+          const fullHostCopied = copiedFieldKey === fullHostFieldKey;
+          const valueCopied = copiedFieldKey === valueFieldKey;
 
-        return (
-          <div
-            key={recordKey}
-            className="grid grid-cols-[72px_minmax(0,1fr)_88px] items-center gap-2 border-t px-3 py-3 text-sm md:grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_88px]"
-          >
-            <span className="font-medium">{record.type}</span>
-            <span className="break-all text-muted-foreground">{record.host}</span>
-            <span className="hidden break-all text-muted-foreground md:block">{record.value}</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => copy(recordKey, record.value)}
-              aria-label={copied ? "DNS value copied" : "Copy DNS value"}
-              className={cn(
-                "w-full justify-center transition-all active:scale-[0.97]",
-                copied && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
-              )}
+          return (
+            <div
+              key={recordKey}
+              className="grid grid-cols-[72px_minmax(0,1fr)_88px] items-center gap-2 border-t px-3 py-3 text-sm md:grid-cols-[72px_minmax(0,1fr)_minmax(0,1fr)_88px]"
             >
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copied" : "Copy"}
-            </Button>
-            <span className="col-span-3 break-all text-xs text-muted-foreground md:hidden">{record.value}</span>
-          </div>
-        );
-      })}
+              <span className="font-medium">{record.type}</span>
+              <span className="grid min-w-0 gap-1">
+                {hasShortHost ? (
+                  <span className="flex min-w-0 items-center gap-1">
+                    <span className="w-9 shrink-0 text-[11px] font-medium text-muted-foreground">Short</span>
+                    <code className="min-w-0 flex-1 break-all text-xs text-general-foreground">{providerHost}</code>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => copy(shortHostFieldKey, providerHost, "short host")}
+                      aria-label={shortHostCopied ? "Short DNS host copied" : `Copy short DNS host ${providerHost}`}
+                      title={shortHostCopied ? "Short host copied" : `Copy short host: ${providerHost}`}
+                      className={cn(
+                        "h-7 w-7 shrink-0 transition-all active:scale-[0.97]",
+                        shortHostCopied && "bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
+                      )}
+                    >
+                      {shortHostCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </span>
+                ) : null}
+                <span className="flex min-w-0 items-center gap-1">
+                  <span className="w-9 shrink-0 text-[11px] font-medium text-muted-foreground">Full</span>
+                  <code className="min-w-0 flex-1 break-all text-xs text-general-foreground">{record.host}</code>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => copy(fullHostFieldKey, record.host, "full host")}
+                    aria-label={fullHostCopied ? "Full DNS host copied" : `Copy full DNS host ${record.host}`}
+                    title={fullHostCopied ? "Full host copied" : `Copy full host: ${record.host}`}
+                    className={cn(
+                      "h-7 w-7 shrink-0 transition-all active:scale-[0.97]",
+                      fullHostCopied && "bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
+                    )}
+                  >
+                    {fullHostCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </span>
+              </span>
+              <span className="hidden break-all text-muted-foreground md:block">{record.value}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => copy(valueFieldKey, record.value, "value")}
+                aria-label={valueCopied ? "DNS value copied" : `Copy DNS value for ${record.host}`}
+                className={cn(
+                  "w-full justify-center transition-all active:scale-[0.97]",
+                  valueCopied && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
+                )}
+              >
+                {valueCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {valueCopied ? "Copied" : "Copy"}
+              </Button>
+              <span className="col-span-3 break-all text-xs text-muted-foreground md:hidden">{record.value}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -265,22 +338,35 @@ function validationFailureReasons(domain: BusinessEmailDomain) {
 
 function SenderRow({
   sender,
+  active,
   onResend,
   onDefault,
-  loading,
+  resending,
+  selecting,
+  actionsDisabled,
 }: {
   sender: BusinessEmailSender;
+  active: boolean;
   onResend: () => void;
   onDefault: () => void;
-  loading: boolean;
+  resending: boolean;
+  selecting: boolean;
+  actionsDisabled: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white px-3 py-3">
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white px-3 py-3",
+        active && "border-emerald-200 bg-emerald-50/60"
+      )}
+    >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="break-all text-sm font-medium text-general-foreground">{sender.email}</p>
           <StatusBadge status={sender.status} />
-          {sender.defaultForReviews ? <Badge variant="outline">Review sender</Badge> : null}
+          {active ? (
+            <Badge className="border-emerald-200 bg-emerald-100 text-emerald-800">In use</Badge>
+          ) : null}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           Reply-To: {sender.replyToEmail || sender.email}
@@ -288,15 +374,17 @@ function SenderRow({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {sender.status === "pending_verification" ? (
-          <Button type="button" variant="outline" size="sm" onClick={onResend} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-            {loading ? "Sending" : "Resend"}
+          <Button type="button" variant="outline" size="sm" onClick={onResend} disabled={actionsDisabled}>
+            <RefreshCw className={cn("h-4 w-4", resending && "animate-spin")} />
+            {resending ? "Sending" : "Resend"}
           </Button>
         ) : null}
-        <Button type="button" variant="outline" size="sm" onClick={onDefault} disabled={loading || sender.status !== "verified"}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-          {loading ? "Saving" : "Use"}
-        </Button>
+        {!active && sender.status === "verified" ? (
+          <Button type="button" variant="outline" size="sm" onClick={onDefault} disabled={actionsDisabled}>
+            {selecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            {selecting ? "Selecting" : "Use this sender"}
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -323,7 +411,25 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
   const [senderName, setSenderName] = React.useState("");
   const [senderReplyTo, setSenderReplyTo] = React.useState("");
   const [pendingModeToConfirm, setPendingModeToConfirm] = React.useState<SendingMode | null>(null);
+  const lastSenderStatusRefreshAt = React.useRef(0);
+  const senderStatusRefreshInFlight = React.useRef(false);
   const suggestedDomain = React.useMemo(() => normalizeDomainFromWebsite(businessWebsite), [businessWebsite]);
+  const shouldWatchSenderVerification = Boolean(
+    data?.settings.sendingMode === "custom_domain" &&
+    data.domains.some((item) => item.status === "verified") &&
+    data.senders.some((sender) => sender.status === "pending_verification")
+  );
+  const refreshSenderVerificationStatus = React.useCallback(async () => {
+    if (senderStatusRefreshInFlight.current) return null;
+
+    senderStatusRefreshInFlight.current = true;
+    lastSenderStatusRefreshAt.current = Date.now();
+    try {
+      return await refetch();
+    } finally {
+      senderStatusRefreshInFlight.current = false;
+    }
+  }, [refetch]);
 
   React.useEffect(() => {
     setReplyTo(data?.settings.massicReplyToEmail || "");
@@ -341,6 +447,23 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
     if (verifiedDomain) setSenderEmail(`hello@${verifiedDomain.domain}`);
   }, [data?.domains, senderEmail]);
 
+  React.useEffect(() => {
+    if (!shouldWatchSenderVerification) return;
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastSenderStatusRefreshAt.current < 1500) return;
+      void refreshSenderVerificationStatus();
+    };
+
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+    };
+  }, [refreshSenderVerificationStatus, shouldWatchSenderVerification]);
+
   if (isLoading || !data) {
     return (
       <div className="flex h-full items-center justify-center rounded-lg bg-white">
@@ -355,9 +478,14 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
   const isSavingReplyTo = updateSettings.isPending && Object.prototype.hasOwnProperty.call(updateSettings.variables || {}, "massicReplyToEmail");
   const activeSender = data.senders.find((sender) => sender.id === data.settings.defaultReviewSenderId);
   const verifiedDomain = data.domains.find((item) => item.status === "verified");
+  const senderEmailName = verifiedDomain ? emailName(senderEmail, verifiedDomain.domain) : "";
   const pendingDomain = data.domains.find((item) => ["pending_dns", "failed"].includes(item.status)) || data.domains[0];
   const pendingDomainFailed = pendingDomain?.status === "failed";
   const pendingDomainFailureReasons = pendingDomain ? validationFailureReasons(pendingDomain) : [];
+  const pendingSenderIds = data.senders
+    .filter((sender) => sender.status === "pending_verification")
+    .map((sender) => sender.id);
+  const hasPendingSender = pendingSenderIds.length > 0;
   const hasVerifiedSender = Boolean(activeSender?.status === "verified");
   const customReady = mode === "custom_domain" && hasVerifiedSender;
   const senderPreview =
@@ -417,6 +545,24 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
       fromName: senderName.trim() || businessName,
       replyToEmail: senderReplyTo.trim(),
     });
+  };
+
+  const checkEmailVerification = async () => {
+    const result = await refreshSenderVerificationStatus();
+    if (!result) return;
+    if (result.isError) {
+      toast.error("Could not check email verification");
+      return;
+    }
+
+    const newlyVerified = result.data?.senders.some(
+      (sender) => pendingSenderIds.includes(sender.id) && sender.status === "verified"
+    );
+    if (newlyVerified) {
+      toast.success("Email verification confirmed");
+    } else {
+      toast.info("Email is still awaiting verification");
+    }
   };
 
   return (
@@ -646,19 +792,71 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
                   <Separator />
 
                   <div className="grid gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-general-foreground">Sender address</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Add the exact email customers should see in the From field.
-                      </p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-general-foreground">Sender details</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">Customers see the From email and name.</p>
+                      </div>
+                      {hasPendingSender ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void checkEmailVerification()}
+                          disabled={isFetching}
+                        >
+                          <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+                          {isFetching ? "Checking" : "Check verification"}
+                        </Button>
+                      ) : null}
                     </div>
-                    <div className="grid gap-2 md:grid-cols-3">
-                      <Input value={senderEmail} onChange={(event) => setSenderEmail(event.target.value)} placeholder={`hello@${verifiedDomain.domain}`} />
-                      <Input value={senderName} onChange={(event) => setSenderName(event.target.value)} placeholder={businessName || "From name"} />
-                      <Input value={senderReplyTo} onChange={(event) => setSenderReplyTo(event.target.value)} placeholder="Reply-To optional" />
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="sender-email" className="flex items-center justify-between gap-2">
+                          <span>From email</span>
+                          <span className="text-xs font-normal text-muted-foreground">Name editable</span>
+                        </Label>
+                        <div className="flex h-10 overflow-hidden rounded-md border border-input bg-white shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+                          <Input
+                            id="sender-email"
+                            value={senderEmailName}
+                            onChange={(event) => setSenderEmail(`${event.target.value}@${verifiedDomain.domain}`)}
+                            placeholder="hello"
+                            className="h-full !h-full min-w-[80px] rounded-none border-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
+                          />
+                          <span
+                            className="flex max-w-[58%] shrink-0 items-center gap-1.5 border-l bg-muted/60 px-3 text-sm text-muted-foreground"
+                            title={`Verified domain: ${verifiedDomain.domain}`}
+                          >
+                            <LockKeyhole className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">@{verifiedDomain.domain}</span>
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="sender-name">From name</Label>
+                        <Input
+                          id="sender-name"
+                          value={senderName}
+                          onChange={(event) => setSenderName(event.target.value)}
+                          placeholder={businessName || "Business name"}
+                        />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="sender-reply-to">
+                          Reply-to email <span className="font-normal text-muted-foreground">(optional)</span>
+                        </Label>
+                        <Input
+                          id="sender-reply-to"
+                          type="email"
+                          value={senderReplyTo}
+                          onChange={(event) => setSenderReplyTo(event.target.value)}
+                          placeholder={`replies@${verifiedDomain.domain}`}
+                        />
+                      </div>
                     </div>
                     <div>
-                      <Button type="button" disabled={createSender.isPending || !senderEmail.trim()} onClick={addSender}>
+                      <Button type="button" disabled={createSender.isPending || !senderEmailName.trim()} onClick={addSender}>
                         {createSender.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         {createSender.isPending ? "Sending" : "Send verification email"}
                       </Button>
@@ -674,7 +872,10 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
                           <SenderRow
                             key={sender.id}
                             sender={sender}
-                            loading={resendVerification.isPending || setDefaultReviewSender.isPending}
+                            active={sender.id === data.settings.defaultReviewSenderId && sender.status === "verified"}
+                            resending={resendVerification.isPending && resendVerification.variables === sender.id}
+                            selecting={setDefaultReviewSender.isPending && setDefaultReviewSender.variables === sender.id}
+                            actionsDisabled={resendVerification.isPending || setDefaultReviewSender.isPending}
                             onResend={() => resendVerification.mutate(sender.id)}
                             onDefault={() => setDefaultReviewSender.mutate(sender.id)}
                           />
@@ -725,7 +926,7 @@ export function BusinessEmailSettingsPanel({ businessId, businessName, businessW
   );
 }
 
-export function BusinessEmailSenderStatusBanner({ businessId }: { businessId: string }) {
+export function BusinessEmailSenderStatusBanner({ businessId, onEdit }: { businessId: string; onEdit: () => void }) {
   const { data, isLoading } = useBusinessEmailSettings(businessId);
 
   if (isLoading || !data) return null;
@@ -735,17 +936,66 @@ export function BusinessEmailSenderStatusBanner({ businessId }: { businessId: st
 
   if (data.settings.sendingMode === "custom_domain" && !customReady) {
     return (
-      <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-        Custom domain sending is selected, but no verified sender is ready. Finish setup or switch to Massic email.
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <CircleAlert className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-amber-950">Business email setup incomplete</p>
+            <p className="mt-0.5 text-xs text-amber-800">Choose a verified sender before sending review campaigns.</p>
+          </div>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={onEdit} className="bg-white">
+          Finish setup
+        </Button>
+      </div>
+    );
+  }
+
+  if (customReady && activeSender) {
+    return (
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <ShieldCheck className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium text-emerald-950">Business email active</p>
+              <Badge className="border-emerald-200 bg-white text-emerald-700">In use</Badge>
+            </div>
+            <p className="mt-0.5 break-all text-sm text-emerald-900">
+              Review campaigns will send from <span className="font-medium">{activeSender.email}</span>
+            </p>
+          </div>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={onEdit} className="bg-white">
+          <Pencil className="h-4 w-4" />
+          Edit configuration
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="mb-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-      {customReady
-        ? `Review emails send from ${activeSender.email}.`
-        : `Review emails send via Massic${data.settings.massicReplyToEmail ? `; replies go to ${data.settings.massicReplyToEmail}` : ""}.`}
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-white text-muted-foreground">
+          <Mail className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-general-foreground">Massic email active</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Review campaigns send via Massic
+            {data.settings.massicReplyToEmail ? `; replies go to ${data.settings.massicReplyToEmail}` : ""}.
+          </p>
+        </div>
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={onEdit} className="bg-white">
+        <Pencil className="h-4 w-4" />
+        Edit configuration
+      </Button>
     </div>
   );
 }

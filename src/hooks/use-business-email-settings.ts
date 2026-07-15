@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isAxiosError } from "axios";
 import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 
@@ -9,7 +10,13 @@ export type BusinessEmailDomain = {
   domain: string;
   sendGridDomainId: number | null;
   status: "pending_dns" | "verified" | "failed" | "disabled";
-  dnsRecords: Array<{ key: string; type: string; host: string; value: string; valid?: boolean }>;
+  dnsRecords: Array<{
+    key: string;
+    type: string;
+    host: string;
+    value: string;
+    valid?: boolean;
+  }>;
   validationResults: {
     validation_results?: Record<string, { valid?: boolean; reason?: string }>;
   } | null;
@@ -49,7 +56,8 @@ export type BusinessEmailSettingsResponse = {
 
 type ApiEnvelope<T> = { err?: boolean; data?: T; message?: string };
 
-const key = (businessId: string | null) => ["business-email-settings", businessId] as const;
+const key = (businessId: string | null) =>
+  ["business-email-settings", businessId] as const;
 
 function unwrap<T>(response: ApiEnvelope<T>): T {
   if (response.err || !response.data) {
@@ -58,32 +66,53 @@ function unwrap<T>(response: ApiEnvelope<T>): T {
   return response.data;
 }
 
+async function requestEmailApi<T>(
+  operation: () => Promise<ApiEnvelope<T>>,
+): Promise<T> {
+  try {
+    return unwrap(await operation());
+  } catch (error) {
+    if (isAxiosError<ApiEnvelope<unknown>>(error)) {
+      const message = error.response?.data?.message;
+      if (message) {
+        throw new Error(message);
+      }
+    }
+
+    throw error;
+  }
+}
+
 export function useBusinessEmailSettings(businessId: string | null) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: key(businessId),
     enabled: Boolean(businessId),
-    queryFn: async () => {
-      const response = await api.get<ApiEnvelope<BusinessEmailSettingsResponse>>(
-        `/businesses/${businessId}/email-settings`,
-        "node"
-      );
-      return unwrap(response);
-    },
+    queryFn: () =>
+      requestEmailApi(() =>
+        api.get<ApiEnvelope<BusinessEmailSettingsResponse>>(
+          `/businesses/${businessId}/email-settings`,
+          "node",
+        ),
+      ),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: key(businessId) });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: key(businessId) });
 
   const updateSettings = useMutation({
-    mutationFn: async (payload: { sendingMode?: SendingMode; massicReplyToEmail?: string | null }) => {
-      const response = await api.patch<ApiEnvelope<BusinessEmailSettingsResponse>>(
-        `/businesses/${businessId}/email-settings`,
-        "node",
-        payload
-      );
-      return unwrap(response);
-    },
+    mutationFn: (payload: {
+      sendingMode?: SendingMode;
+      massicReplyToEmail?: string | null;
+    }) =>
+      requestEmailApi(() =>
+        api.patch<ApiEnvelope<BusinessEmailSettingsResponse>>(
+          `/businesses/${businessId}/email-settings`,
+          "node",
+          payload,
+        ),
+      ),
     onSuccess: (data) => {
       queryClient.setQueryData(key(businessId), data);
       toast.success("Email settings saved");
@@ -92,14 +121,14 @@ export function useBusinessEmailSettings(businessId: string | null) {
   });
 
   const createDomain = useMutation({
-    mutationFn: async (domain: string) => {
-      const response = await api.post<ApiEnvelope<BusinessEmailSettingsResponse>>(
-        `/businesses/${businessId}/email-domains`,
-        "node",
-        { domain }
-      );
-      return unwrap(response);
-    },
+    mutationFn: (domain: string) =>
+      requestEmailApi(() =>
+        api.post<ApiEnvelope<BusinessEmailSettingsResponse>>(
+          `/businesses/${businessId}/email-domains`,
+          "node",
+          { domain },
+        ),
+      ),
     onSuccess: (data) => {
       queryClient.setQueryData(key(businessId), data);
       toast.success("DNS setup ready");
@@ -108,13 +137,13 @@ export function useBusinessEmailSettings(businessId: string | null) {
   });
 
   const validateDomain = useMutation({
-    mutationFn: async (domainId: number) => {
-      const response = await api.post<ApiEnvelope<BusinessEmailSettingsResponse>>(
-        `/businesses/${businessId}/email-domains/${domainId}/validate`,
-        "node"
-      );
-      return unwrap(response);
-    },
+    mutationFn: (domainId: number) =>
+      requestEmailApi(() =>
+        api.post<ApiEnvelope<BusinessEmailSettingsResponse>>(
+          `/businesses/${businessId}/email-domains/${domainId}/validate`,
+          "node",
+        ),
+      ),
     onSuccess: (data) => {
       queryClient.setQueryData(key(businessId), data);
       toast.success("DNS status refreshed");
@@ -123,13 +152,13 @@ export function useBusinessEmailSettings(businessId: string | null) {
   });
 
   const deleteDomain = useMutation({
-    mutationFn: async (domainId: number) => {
-      const response = await api.delete<ApiEnvelope<BusinessEmailSettingsResponse>>(
-        `/businesses/${businessId}/email-domains/${domainId}`,
-        "node"
-      );
-      return unwrap(response);
-    },
+    mutationFn: (domainId: number) =>
+      requestEmailApi(() =>
+        api.delete<ApiEnvelope<BusinessEmailSettingsResponse>>(
+          `/businesses/${businessId}/email-domains/${domainId}`,
+          "node",
+        ),
+      ),
     onSuccess: (data) => {
       queryClient.setQueryData(key(businessId), data);
       toast.success("Domain removed");
@@ -138,14 +167,18 @@ export function useBusinessEmailSettings(businessId: string | null) {
   });
 
   const createSender = useMutation({
-    mutationFn: async (payload: { email: string; fromName?: string; replyToEmail?: string }) => {
-      const response = await api.post<ApiEnvelope<BusinessEmailSettingsResponse>>(
-        `/businesses/${businessId}/email-senders`,
-        "node",
-        payload
-      );
-      return unwrap(response);
-    },
+    mutationFn: (payload: {
+      email: string;
+      fromName?: string;
+      replyToEmail?: string;
+    }) =>
+      requestEmailApi(() =>
+        api.post<ApiEnvelope<BusinessEmailSettingsResponse>>(
+          `/businesses/${businessId}/email-senders`,
+          "node",
+          payload,
+        ),
+      ),
     onSuccess: (data) => {
       queryClient.setQueryData(key(businessId), data);
       toast.success("Verification email sent");
@@ -154,13 +187,13 @@ export function useBusinessEmailSettings(businessId: string | null) {
   });
 
   const resendVerification = useMutation({
-    mutationFn: async (senderId: number) => {
-      const response = await api.post<ApiEnvelope<BusinessEmailSettingsResponse>>(
-        `/businesses/${businessId}/email-senders/${senderId}/resend-verification`,
-        "node"
-      );
-      return unwrap(response);
-    },
+    mutationFn: (senderId: number) =>
+      requestEmailApi(() =>
+        api.post<ApiEnvelope<BusinessEmailSettingsResponse>>(
+          `/businesses/${businessId}/email-senders/${senderId}/resend-verification`,
+          "node",
+        ),
+      ),
     onSuccess: (data) => {
       queryClient.setQueryData(key(businessId), data);
       toast.success("Verification email resent");
@@ -169,17 +202,17 @@ export function useBusinessEmailSettings(businessId: string | null) {
   });
 
   const setDefaultReviewSender = useMutation({
-    mutationFn: async (senderId: number) => {
-      const response = await api.patch<ApiEnvelope<BusinessEmailSettingsResponse>>(
-        `/businesses/${businessId}/email-senders/${senderId}/default-review`,
-        "node",
-        {}
-      );
-      return unwrap(response);
-    },
+    mutationFn: (senderId: number) =>
+      requestEmailApi(() =>
+        api.patch<ApiEnvelope<BusinessEmailSettingsResponse>>(
+          `/businesses/${businessId}/email-senders/${senderId}/default-review`,
+          "node",
+          {},
+        ),
+      ),
     onSuccess: (data) => {
       queryClient.setQueryData(key(businessId), data);
-      toast.success("Default review sender updated");
+      toast.success("Review emails will use this sender");
     },
     onError: (error: Error) => toast.error(error.message),
   });

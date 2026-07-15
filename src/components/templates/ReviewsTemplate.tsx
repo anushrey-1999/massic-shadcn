@@ -475,7 +475,10 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
                   </div>
                 ) : (
                   <>
-                    <BusinessEmailSenderStatusBanner businessId={businessId} />
+                    <BusinessEmailSenderStatusBanner
+                      businessId={businessId}
+                      onEdit={() => handleTabChange("email")}
+                    />
                     <CampaignsTableClient
                       businessId={businessId}
                       currentTab={activeTab}

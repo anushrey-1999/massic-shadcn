@@ -42,6 +42,5 @@ next-env.d.ts
 
 #agent
 .agent
-.cursorrules
 .github
 .antigravity

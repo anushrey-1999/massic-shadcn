@@ -18,4 +18,5 @@ export const routePrefixesWithoutSidebar: string[] = [
   "/r/",
   "/admin",
   "/agent",
+  "/email/verify",
 ];

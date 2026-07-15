@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isTokenExpired } from "@/utils/jwt";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/team-signup", "/google-access", "/r", "/admin/login"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/team-signup", "/google-access", "/r", "/admin/login", "/email/verify"];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

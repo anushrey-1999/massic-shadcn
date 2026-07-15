@@ -103,7 +103,17 @@ export interface IndexingMovementRow {
 export interface IndexingMovementsResult {
   rows: IndexingMovementRow[]
   pagination: { total: number; limit: number; offset: number }
-  context: { inspected: number; changed: number; runId: string | null }
+  context: {
+    inspected: number
+    attempted?: number
+    succeeded?: number
+    firstTime?: number
+    rechecked?: number
+    failed?: number
+    movementDenominator?: number
+    changed: number
+    runId: string | null
+  }
 }
 
 export interface IndexingStatusResult {

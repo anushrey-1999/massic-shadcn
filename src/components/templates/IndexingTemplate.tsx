@@ -246,6 +246,12 @@ export function IndexingTemplate() {
   const status = statusQuery.data
   const summary = summaryQuery.data
   const movements = movementsQuery.data
+  const movementDenominator = movements
+    ? movements.context.movementDenominator ?? movements.context.rechecked ?? movements.context.inspected
+    : 0
+  const movementSuccesses = movements
+    ? movements.context.succeeded ?? movements.context.inspected
+    : 0
   const ingestionActive =
     status?.status === "queued" || status?.status === "in_progress"
 
@@ -743,9 +749,9 @@ export function IndexingTemplate() {
               </div>
             ) : movements?.rows.length ? (
               <div>
-                {movements.context.inspected > 0 ? (
+                {movementDenominator > 0 ? (
                   <div className="border-b border-general-border bg-foreground-light px-3 py-2 text-xs text-general-muted-foreground">
-                    {formatNumber(movements.context.changed)} changes detected among {formatNumber(movements.context.inspected)} rechecked URLs in the latest run.
+                    {formatNumber(movements.context.changed)} changes detected among {formatNumber(movementDenominator)} rechecked URLs in the latest run. {formatNumber(movementSuccesses)} total inspections succeeded.
                   </div>
                 ) : null}
                 <div className="overflow-x-auto">

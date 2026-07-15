@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isTokenExpired } from "@/utils/jwt";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/team-signup", "/google-access", "/r"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/team-signup", "/google-access", "/r", "/admin/login", "/email/verify"];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -16,7 +16,7 @@ export function proxy(request: NextRequest) {
   const hasExpiredToken = token && isTokenExpired(token);
 
   if ((!token || hasExpiredToken) && !isPublicRoute) {
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = new URL(pathname.startsWith("/admin") ? "/admin/login" : "/login", request.url);
     const fullPathWithQuery = `${pathname}${search || ""}`;
     loginUrl.searchParams.set("redirect", fullPathWithQuery);
 

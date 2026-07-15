@@ -48,6 +48,7 @@ import {
   normalizeWebsiteSnapshotReport,
   type WebsiteSnapshotReport,
 } from "@/utils/website-snapshot-report";
+import { formatDate, formatVolume } from "@/lib/format";
 
 function isSnapshotWorkflowProcessing(status: unknown): boolean {
   return [
@@ -499,6 +500,82 @@ export default function PitchReportsPage() {
     snapshotExistingQuery.data,
   ]);
 
+  const snapshotProfileTags = React.useMemo(() => {
+    const tags: { label: string; value: string }[] = [];
+
+    const objective = String((businessProfile as any)?.BusinessObjective || "").trim().toLowerCase();
+    const market =
+      objective === "local"
+        ? "Local"
+        : objective === "online"
+          ? "Online"
+          : "";
+    if (market) tags.push({ label: "Market", value: market });
+
+    const locationType = String((businessProfile as any)?.LocationType || "").trim().toLowerCase();
+    const sells =
+      locationType === "products"
+        ? "Products"
+        : locationType === "services"
+          ? "Services"
+          : locationType === "both"
+            ? "Both"
+            : "";
+    if (sells) tags.push({ label: "Sells", value: sells });
+
+    const ltvRaw = (businessProfile as any)?.LTV ?? (businessProfile as any)?.ltv;
+    const ltvNum = typeof ltvRaw === "number" ? ltvRaw : Number(ltvRaw);
+    if (Number.isFinite(ltvNum) && ltvNum > 0) {
+      tags.push({ label: "LTV", value: `$${formatVolume(ltvNum)}` });
+    } else {
+      const ltvStr = String(ltvRaw ?? "").trim();
+      if (ltvStr) tags.push({ label: "LTV", value: ltvStr });
+    }
+
+    return tags;
+  }, [businessProfile]);
+
+  const snapshotCompetitors = React.useMemo(() => {
+    const rows = (businessProfile as any)?.Competitors;
+    if (!Array.isArray(rows)) return [];
+    return rows
+      .map((c: any) => ({
+        name: String(c?.name || "").trim() || null,
+        website: String(c?.website || "").trim(),
+      }))
+      .filter((c: any) => c.website);
+  }, [businessProfile]);
+
+  const snapshotFooterSummary = React.useMemo(() => {
+    const parts: string[] = [];
+
+    for (const t of snapshotProfileTags) {
+      const label = String(t.label || "").trim().toLowerCase();
+      const value = String(t.value || "").trim();
+      if (!value) continue;
+
+      if (label === "ltv") {
+        const v = value.toLowerCase();
+        if (v === "high" || v === "medium" || v === "low") {
+          parts.push(`${v.charAt(0).toUpperCase()}${v.slice(1)} LTV`);
+          continue;
+        }
+      }
+
+      parts.push(value);
+    }
+
+    return parts.join(" · ");
+  }, [snapshotProfileTags]);
+
+  const snapshotGeneratedAt = React.useMemo(() => {
+    const fromHistory = latestSuccessfulSnapshotCreatedAt
+      ? formatDate(latestSuccessfulSnapshotCreatedAt, "MMMM d, yyyy")
+      : "";
+    if (fromHistory) return fromHistory;
+    return formatDate(new Date(), "MMMM d, yyyy");
+  }, [latestSuccessfulSnapshotCreatedAt]);
+
   const quickEvaluationBusinessUrl = React.useMemo(() => {
     const fromSnapshot = String(websiteSnapshotReport?.meta?.url || "").trim();
     if (fromSnapshot) return fromSnapshot;
@@ -871,7 +948,7 @@ export default function PitchReportsPage() {
 
   return (
     <div className="flex flex-col h-screen">
-      <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+      <PageHeader breadcrumbs={breadcrumbs} />
 
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5">
         {showReportView ? (

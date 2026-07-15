@@ -1,6 +1,21 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.35s ease-out both;
+}
+
 @keyframes loaderWave {
   0% {
     transform: scaleY(0);
@@ -21,7 +36,8 @@
 }
 
 @keyframes floatUpDown {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0);
   }
   50% {
@@ -31,6 +47,172 @@
 
 .animate-float-up-down {
   animation: floatUpDown 2s ease-in-out infinite;
+}
+
+@keyframes adminPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes adminLivePulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0
+      color-mix(in srgb, var(--general-primary) 30%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+.admin-page-surface {
+  background-color: var(--general-primary-foreground);
+  background-image:
+    radial-gradient(
+      circle at 8% -8%,
+      color-mix(in srgb, var(--general-primary-gradient-to) 14%, transparent) 0,
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 92% 4%,
+      color-mix(in srgb, var(--general-primary) 8%, transparent) 0,
+      transparent 27%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--general-primary-foreground) 94%, white) 0%,
+      color-mix(
+          in srgb,
+          var(--general-primary-foreground) 88%,
+          var(--general-primary) 12%
+        )
+        100%
+    );
+  background-attachment: fixed;
+}
+
+.admin-sidebar-surface {
+  background:
+    radial-gradient(
+      circle at 18% -6%,
+      color-mix(in srgb, var(--general-primary-gradient-to) 32%, transparent) 0,
+      transparent 32%
+    ),
+    linear-gradient(
+      165deg,
+      color-mix(
+          in srgb,
+          var(--general-primary) 86%,
+          var(--general-secondary-foreground)
+        )
+        0%,
+      var(--general-primary) 52%,
+      color-mix(
+          in srgb,
+          var(--general-primary) 74%,
+          var(--general-secondary-foreground)
+        )
+        100%
+    );
+  box-shadow: 8px 0 28px
+    color-mix(in srgb, var(--general-primary) 10%, transparent);
+}
+
+.admin-page-enter {
+  animation: adminPageEnter 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.admin-panel {
+  background: color-mix(in srgb, white 94%, var(--general-primary) 6%);
+  border-color: color-mix(
+    in srgb,
+    var(--general-border) 84%,
+    var(--general-primary) 16%
+  );
+  box-shadow:
+    0 1px 2px rgba(10, 10, 10, 0.04),
+    0 10px 28px color-mix(in srgb, var(--general-primary) 4%, transparent);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.admin-panel-hover:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--general-border) 58%,
+    var(--general-primary) 42%
+  );
+  box-shadow:
+    0 2px 4px rgba(10, 10, 10, 0.05),
+    0 14px 34px color-mix(in srgb, var(--general-primary) 8%, transparent);
+  transform: translateY(-1px);
+}
+
+.admin-toolbar {
+  background: color-mix(in srgb, white 88%, var(--general-primary) 12%);
+  border-color: color-mix(
+    in srgb,
+    var(--general-border) 76%,
+    var(--general-primary) 24%
+  );
+  backdrop-filter: blur(12px);
+}
+
+.admin-live-dot {
+  animation: adminLivePulse 2.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-page-enter,
+  .admin-live-dot {
+    animation: none;
+  }
+
+  .admin-panel,
+  .admin-panel-hover {
+    transition: none;
+    transform: none;
+  }
+
+  .admin-sidebar-frame,
+  .admin-content-frame,
+  .admin-sidebar-surface,
+  .admin-sidebar-surface * {
+    transition: none !important;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes massicLoaderPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  8% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  40% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -83,7 +265,9 @@
   --color-chart-static-green: var(--chart-static-green);
   --color-general-border-three: var(--general-border-three);
   --color-general-secondary-foreground: var(--general-secondary-foreground);
-  --color-general-unofficial-foreground-alt: var(--general-unofficial-foreground-alt);
+  --color-general-unofficial-foreground-alt: var(
+    --general-unofficial-foreground-alt
+  );
   --color-general-border-four: var(--general-border-four);
   /* Added by me  */
   --radius-sm: calc(var(--radius) - 4px);
@@ -101,13 +285,13 @@
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
-  --foreground-light: #F5F5F5;
+  --foreground-light: #f5f5f5;
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: #DC2626;
+  --destructive: #dc2626;
   --destructive-foreground: var(--general-primary-foreground);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
@@ -128,19 +312,19 @@
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   /* General design system colors */
-  --general-primary-foreground: #FAFAFA;
-  --general-border: #E5E5E5;
-  --general-foreground: #0A0A0A;
-  --general-unofficial-outline: #0000000D;
-  --schemes-on-surface: #171D1A;
-  --general-primary: #2E6A56;
-  --general-primary-gradient-to: #56A48A;
+  --general-primary-foreground: #fafafa;
+  --general-border: #e5e5e5;
+  --general-foreground: #0a0a0a;
+  --general-unofficial-outline: #0000000d;
+  --schemes-on-surface: #171d1a;
+  --general-primary: #2e6a56;
+  --general-primary-gradient-to: #56a48a;
   --general-muted-foreground: #737373;
   --chart-static-green: #016630;
-  --general-border-three: #D4D4D4;
+  --general-border-three: #d4d4d4;
   --general-secondary-foreground: #171717;
   --general-unofficial-foreground-alt: #404040;
-  --general-border-four: #A3A3A3
+  --general-border-four: #a3a3a3;
 }
 
 .dark {
@@ -158,7 +342,7 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: #DC2626;
+  --destructive: #dc2626;
   --destructive-foreground: var(--general-primary-foreground);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
@@ -177,15 +361,15 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
   /* General design system colors - dark mode */
-  --general-primary-foreground: #FAFAFA;
-  --general-border: #E5E5E5;
-  --general-foreground: #FAFAFA;
-  --general-unofficial-outline: #FFFFFF1A;
-  --schemes-on-surface: #FAFAFA;
-  --general-primary: #2E6A56;
-  --general-muted-foreground: #A3A3A3;
-  --general-primary-gradient-to: #56A48A;
-  --general-border-three: #D4D4D4;
+  --general-primary-foreground: #fafafa;
+  --general-border: #e5e5e5;
+  --general-foreground: #fafafa;
+  --general-unofficial-outline: #ffffff1a;
+  --schemes-on-surface: #fafafa;
+  --general-primary: #2e6a56;
+  --general-muted-foreground: #a3a3a3;
+  --general-primary-gradient-to: #56a48a;
+  --general-border-three: #d4d4d4;
   --general-unofficial-foreground-alt: #404040;
 }
 
@@ -250,7 +434,6 @@ body::-webkit-scrollbar,
 }
 
 @layer components {
-
   /* Tailwind preflight resets headings to inherit; force hierarchy inside TipTap only. */
   .tiptap-content {
     font-size: 0.875rem;

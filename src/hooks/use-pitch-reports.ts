@@ -8,9 +8,13 @@ import {
   seoSnapshotReportToMarkdown,
   type SeoSnapshotReport,
 } from "@/utils/seo-snapshot-report";
+import {
+  normalizeWebsiteSnapshotReport,
+  websiteSnapshotReportToMarkdown,
+  type WebsiteSnapshotReport,
+} from "@/utils/website-snapshot-report";
 
-const SEO_SNAPSHOT_ENDPOINT = "/reports/seo-snapshot";
-const LEGACY_SNAPSHOT_ENDPOINT = "/reports/snapshot";
+const WEBSITE_SNAPSHOT_ENDPOINT = "/reports/website-snapshot";
 
 export type ExpressPitchTactic = {
   priority: number;
@@ -344,6 +348,9 @@ function extractReportText(payload: unknown): string {
   if (payload == null) return "";
   if (typeof payload === "string") return payload;
 
+  const websiteSnapshot = normalizeWebsiteSnapshotReport(payload);
+  if (websiteSnapshot) return websiteSnapshotReportToMarkdown(websiteSnapshot);
+
   const seoSnapshotReport = normalizeSeoSnapshotReport(payload);
   if (seoSnapshotReport) return seoSnapshotReportToMarkdown(seoSnapshotReport);
 
@@ -449,13 +456,13 @@ function is403Error(error: any): boolean {
 
 export function useStartQuickyReport() {
   const queryClient = useQueryClient();
-  return useMutation<ReportStatusResponse, Error, { businessId: string; body?: SeoSnapshotRequestBody }>({
-    mutationFn: async ({ businessId, body }) => {
+  return useMutation<ReportStatusResponse, Error, { businessId: string }>({
+    mutationFn: async ({ businessId }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
 
-      return api.post<ReportStatusResponse>(SEO_SNAPSHOT_ENDPOINT, "python", body, {
+      return api.post<ReportStatusResponse>(WEBSITE_SNAPSHOT_ENDPOINT, "python", {}, {
         params: { business_id: businessId },
       });
     },
@@ -492,16 +499,12 @@ export function useQuickyReportStatus(params: {
     queryFn: async () => {
       if (!businessId) return null;
       try {
-        return await api.get<ReportStatusResponse>(SEO_SNAPSHOT_ENDPOINT, "python", {
+        return await api.get<ReportStatusResponse>(WEBSITE_SNAPSHOT_ENDPOINT, "python", {
           params: { business_id: businessId },
         });
       } catch (error: any) {
         if (error?.response?.status === 403) return null;
-        if (error?.response?.status === 404) {
-          return await api.get<ReportStatusResponse>(LEGACY_SNAPSHOT_ENDPOINT, "python", {
-            params: { business_id: businessId },
-          });
-        }
+        if (error?.response?.status === 404) return null;
         throw error;
       }
     },
@@ -521,6 +524,7 @@ export function useFetchReportFromDownloadUrl() {
       content: string;
       expressPitch: ExpressPitch | null;
       seoSnapshotReport: SeoSnapshotReport | null;
+      websiteSnapshotReport: WebsiteSnapshotReport | null;
       payload: unknown;
     },
     Error,
@@ -536,6 +540,7 @@ export function useFetchReportFromDownloadUrl() {
         content: cleanEscapedContent(extractReportText(response)),
         expressPitch: extractExpressPitch(response),
         seoSnapshotReport: normalizeSeoSnapshotReport(response),
+        websiteSnapshotReport: normalizeWebsiteSnapshotReport(response),
         payload: response,
       };
     },
@@ -549,13 +554,13 @@ export function useFetchReportFromDownloadUrl() {
 
 export function useGenerateQuickyReport() {
   const queryClient = useQueryClient();
-  return useMutation<string, Error, { businessId: string; body?: SeoSnapshotRequestBody }>({
-    mutationFn: async ({ businessId, body }) => {
+  return useMutation<string, Error, { businessId: string }>({
+    mutationFn: async ({ businessId }) => {
       if (!businessId) {
         throw new Error("Business ID is required");
       }
 
-      const response = await api.post(SEO_SNAPSHOT_ENDPOINT, "python", body, {
+      const response = await api.post(WEBSITE_SNAPSHOT_ENDPOINT, "python", {}, {
         params: { business_id: businessId },
       });
       return cleanEscapedContent(extractReportText(response));
@@ -623,14 +628,14 @@ export function usePitchSummary(
       if (!businessId) return null;
 
       try {
-        const response = await api.get<ReportStatusResponse>(SEO_SNAPSHOT_ENDPOINT, "python", {
+        const response = await api.get<ReportStatusResponse>(WEBSITE_SNAPSHOT_ENDPOINT, "python", {
           params: { business_id: businessId },
         });
 
         const status = normalizeStatus(response?.status);
 
         let content = "";
-        const snapshotMarkdown = extractSnapshotSectionsMarkdown(response);
+        const snapshotMarkdown = cleanEscapedContent(extractReportText(response));
 
         if (snapshotMarkdown) {
           content = snapshotMarkdown;
@@ -647,29 +652,7 @@ export function usePitchSummary(
           status,
         };
       } catch (error: any) {
-        if (error?.response?.status === 404) {
-          try {
-            const response = await api.get<ReportStatusResponse>(LEGACY_SNAPSHOT_ENDPOINT, "python", {
-              params: { business_id: businessId },
-            });
-            const status = normalizeStatus(response?.status);
-            let content = "";
-            const snapshotMarkdown = extractSnapshotSectionsMarkdown(response);
-            if (snapshotMarkdown) {
-              content = snapshotMarkdown;
-            } else {
-              const downloadUrl = response?.output_data?.download_url;
-              if (downloadUrl) {
-                const reportResponse = await api.get(downloadUrl, "python");
-                content = cleanEscapedContent(extractReportText(reportResponse));
-              }
-            }
-            return { content, status };
-          } catch (legacyError: any) {
-            if (legacyError?.response?.status === 404) return null;
-            throw legacyError;
-          }
-        }
+        if (error?.response?.status === 404) return null;
         throw error;
       }
     },

@@ -9,6 +9,7 @@ export type IndexingSortKey =
   | "last_crawl"
   | "last_inspected"
   | "rich_results"
+  | "freshness"
 
 export type IndexingSortDir = "asc" | "desc"
 
@@ -55,14 +56,17 @@ export function shortUrl(url: string): string {
 
 function parseDate(value: string | null | undefined): Date | null {
   if (!value) return null
-  const date = new Date(value)
+  const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const date = dateOnlyMatch
+    ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+    : new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
 }
 
 export function formatAbsoluteDate(value: string | null | undefined): string {
   const date = parseDate(value)
   if (!date) return "-"
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString(undefined, {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -72,7 +76,7 @@ export function formatAbsoluteDate(value: string | null | undefined): string {
 export function formatShortDate(value: string | null | undefined): string {
   const date = parseDate(value)
   if (!date) return "-"
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -82,11 +86,13 @@ export function formatShortDate(value: string | null | undefined): string {
 export function formatDateTime(value: string | null | undefined): string {
   const date = parseDate(value)
   if (!date) return "-"
-  return date.toLocaleString("en-US", {
+  return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
+    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZoneName: "short",
   })
 }
 

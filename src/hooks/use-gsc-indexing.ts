@@ -25,6 +25,16 @@ export interface IndexingPageRow {
   last_inspected_time: string | null
   clicks: number
   impressions: number
+  known_status: boolean
+  freshness_state: "pending" | "fresh" | "due" | "overdue"
+  inspection_tier: "new" | "critical" | "priority" | "routine"
+  next_inspection_at: string | null
+  last_selection_reason: string | null
+  last_status_changed_at: string | null
+  consecutive_failures: number
+  last_inspection_error: string | null
+  issue_types: string[]
+  primary_issue: string | null
 }
 
 export interface IndexingPagesResult {
@@ -52,6 +62,30 @@ export interface IndexingSummaryResult {
   distribution: Record<string, number>
   lastSnapshot: string | null
   series: IndexingSeriesPoint[]
+  activity: Array<{
+    date: string
+    successful: number
+    firstTime: number
+    rechecked: number
+    changed: number
+    unchanged: number
+    failed: number
+  }>
+  insights: Array<{
+    key: string
+    severity: "critical" | "high" | "medium"
+    label: string
+    explanation: string
+    recommendation: string
+    count: number
+    clicks: number
+    impressions: number
+    filters: { issueTypes: string[] }
+  }>
+  coverage: { tracked: number; known: number; pending: number; percent: number; complete: boolean }
+  freshness: { fresh: number; percent: number }
+  needsAttentionCount: number
+  highImpactAttentionCount: number
   window: { from: string; to: string }
 }
 
@@ -62,11 +96,14 @@ export interface IndexingMovementRow {
   before_bucket: string | null
   after_bucket: string | null
   detected_at: string
+  change_type: string
+  changed_fields: Record<string, unknown> | null
 }
 
 export interface IndexingMovementsResult {
   rows: IndexingMovementRow[]
   pagination: { total: number; limit: number; offset: number }
+  context: { inspected: number; changed: number; runId: string | null }
 }
 
 export interface IndexingStatusResult {
@@ -88,6 +125,26 @@ export interface IndexingStatusResult {
   quotaUsed: number
   quotaLimit: number
   quotaRemaining: number
+  coverage: { tracked: number; known: number; pending: number; percent: number; baselineComplete: boolean }
+  freshness: { withinSla: number; due: number; overdue: number; stale30d: number; percent: number; oldestInspectionAt: string | null }
+  quota: { limit: number; attempted: number; remaining: number; resetAt: string }
+  backlog: { total: number; new: number; critical: number; priority: number; routine: number; estimatedRuns: number }
+  lastRun: null | {
+    id: string; trigger: string; status: string; selected: number; attempted: number
+    succeeded: number; failed: number; firstTime: number; rechecked: number; changed: number
+    startedAt: string; finishedAt: string | null
+  }
+  discovery: null | {
+    total: number; new: number; deactivated: number; sitemap: number; gsc: number
+    both: number; truncated: boolean; runAt: string
+  }
+}
+
+export interface IndexingPageDetailsResult {
+  tracked: Record<string, unknown>
+  latest: Record<string, unknown> | null
+  history: Array<Record<string, unknown>>
+  movements: IndexingMovementRow[]
 }
 
 export interface IndexingRunResult {
@@ -123,6 +180,12 @@ export interface IndexingPagesParams {
   dir?: "asc" | "desc"
   limit?: number
   offset?: number
+  freshness?: string | null
+  inspectionTier?: string | null
+  source?: string | null
+  issueTypes?: string[] | null
+  selectionReason?: string | null
+  coverageState?: "known" | "pending" | null
 }
 
 export function useIndexingSummary(
@@ -238,6 +301,49 @@ export function useTriggerIndexing(
       queryClient.invalidateQueries({
         queryKey: ["indexing-status", businessUniqueId, website],
       })
+    },
+  })
+}
+
+export function useIndexingPageDetails(
+  businessUniqueId: string | null,
+  website: string | null,
+  pageUrl: string | null
+) {
+  return useQuery<IndexingPageDetailsResult>({
+    queryKey: ["indexing-page-details", businessUniqueId, pageUrl],
+    queryFn: async () => {
+      const res = await api.post<ApiEnvelope<IndexingPageDetailsResult>>(
+        "/analytics/gsc/indexing/page-details",
+        "node",
+        { ...basePayload(businessUniqueId, website), pageUrl }
+      )
+      return res.data
+    },
+    enabled: Boolean(pageUrl && (businessUniqueId || website)),
+  })
+}
+
+export function useExportIndexing(
+  businessUniqueId: string | null,
+  website: string | null
+) {
+  return useMutation<void, Error, IndexingPagesParams>({
+    mutationFn: async (params) => {
+      const blob = await api.post<Blob>(
+        "/analytics/gsc/indexing/pages/export",
+        "node",
+        { ...basePayload(businessUniqueId, website), ...params },
+        { responseType: "blob", timeout: 120000 }
+      )
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement("a")
+      anchor.href = url
+      anchor.download = `indexing-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
     },
   })
 }

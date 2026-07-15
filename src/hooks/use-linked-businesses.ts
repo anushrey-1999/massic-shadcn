@@ -3,6 +3,7 @@ import { api } from "@/hooks/use-api";
 import { useAuthStore } from "@/store/auth-store";
 import { useBusinessStore } from "@/store/business-store";
 import { toast } from "sonner";
+import type { GscPermissionLevel } from "@/utils/gsc-permissions";
 
 const LINKED_BUSINESSES_KEY = "linkedBusinesses";
 
@@ -36,6 +37,7 @@ export interface LinkedBusiness {
   displayName: string;
   authId: string;
   emailId?: string | null;
+  permissionLevel?: GscPermissionLevel | null;
   title?: string;
   matchedGa4?: GA4Property;
   matchedGa4Multiple?: GA4Property[];
@@ -120,6 +122,19 @@ export class CreateBusinessConflictError extends Error {
     this.name = "CreateBusinessConflictError";
     this.code = "BUSINESS_ALREADY_EXISTS";
     this.conflict = conflict;
+  }
+}
+
+export class InsufficientGscAccessError extends Error {
+  code: "INSUFFICIENT_GSC_ACCESS";
+
+  constructor(message?: string) {
+    super(
+      message ||
+        "Verified Search Console access with permission to view property data is required before connecting this business."
+    );
+    this.name = "InsufficientGscAccessError";
+    this.code = "INSUFFICIENT_GSC_ACCESS";
   }
 }
 
@@ -307,6 +322,9 @@ export function useCreateAgencyBusiness() {
           );
 
           if (response.err === true || response.success === false) {
+            if (response.code === "INSUFFICIENT_GSC_ACCESS") {
+              throw new InsufficientGscAccessError(response.message);
+            }
             if (response.code === "BUSINESS_ALREADY_EXISTS") {
               const conflict: ExistingBusinessConflict = {
                 code: "BUSINESS_ALREADY_EXISTS",
@@ -326,6 +344,9 @@ export function useCreateAgencyBusiness() {
           }
           if (error.response?.data) {
             const errorData = error.response.data as any;
+            if (errorData.code === "INSUFFICIENT_GSC_ACCESS") {
+              throw new InsufficientGscAccessError(errorData.message);
+            }
             if (errorData.code === "BUSINESS_ALREADY_EXISTS") {
               const conflict: ExistingBusinessConflict = {
                 code: "BUSINESS_ALREADY_EXISTS",
@@ -353,6 +374,13 @@ export function useCreateAgencyBusiness() {
         variables?.suppressDuplicateToast &&
         error instanceof CreateBusinessConflictError
       ) {
+        return;
+      }
+      if (error instanceof InsufficientGscAccessError) {
+        toast.error("Verified Search Console access required", {
+          description: error.message,
+        });
+        queryClient.invalidateQueries({ queryKey: [LINKED_BUSINESSES_KEY] });
         return;
       }
       toast.error("Failed to connect businesses", {

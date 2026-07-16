@@ -26,13 +26,14 @@ import { AdminRangeSelect } from "../components/admin-range-select";
 import { AdminErrorState, AdminPageLoading } from "../components/admin-states";
 import { useAdminQueryState } from "../hooks/use-admin-query-state";
 import type { AdminModuleKey } from "../types";
+import { AdminApiCostView } from "./admin-api-cost-view";
 
 const descriptions: Record<AdminModuleKey, string> = {
   "network-performance":
     "Search and organic performance across every active Massic business.",
   growth: "Business health signals and product activity across the network.",
   "api-cost":
-    "Provider spend will appear here when the cost service is connected.",
+    "Lifetime OpenAI and Anthropic usage recorded across Massic businesses.",
   industry:
     "Compare performance by Infer-enriched industry, with business profile category as fallback.",
   "category-insights":
@@ -59,29 +60,13 @@ export function AdminModuleView({ module }: { module: AdminModuleKey }) {
   const [requestedSyncId, setRequestedSyncId] = useState<string | null>(null);
   const { range, groupBy, metric, agencyId, industry, plan, status, setQuery } =
     useAdminQueryState();
+  const moduleQuery =
+    module === "api-cost"
+      ? ({ range: "lifetime" } as const)
+      : { range, groupBy, metric, agencyId, industry, plan, status };
   const query = useQuery({
-    queryKey: [
-      "admin",
-      "module",
-      module,
-      range,
-      groupBy,
-      metric,
-      agencyId,
-      industry,
-      plan,
-      status,
-    ],
-    queryFn: () =>
-      getAdminModule(module, {
-        range,
-        groupBy,
-        metric,
-        agencyId,
-        industry,
-        plan,
-        status,
-      }),
+    queryKey: ["admin", "module", module, moduleQuery],
+    queryFn: () => getAdminModule(module, moduleQuery),
     staleTime: 60_000,
   });
   const exportMutation = useMutation({
@@ -158,7 +143,7 @@ export function AdminModuleView({ module }: { module: AdminModuleKey }) {
       />
     );
   const data = query.data.data;
-  const hidesBreakdown = ["platform-totals", "api-cost"].includes(module);
+  const hidesBreakdown = module === "platform-totals";
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1500px]">
       <AdminPageHeader
@@ -167,7 +152,7 @@ export function AdminModuleView({ module }: { module: AdminModuleKey }) {
         freshnessDate={data.meta.freshnessDate}
         sourceFreshness={data.meta.sourceFreshness}
         cacheState={data.meta.cacheState}
-        actions={
+        actions={module === "api-cost" ? undefined : (
           <>
             {module === "industry" && (
               <Button
@@ -207,7 +192,7 @@ export function AdminModuleView({ module }: { module: AdminModuleKey }) {
               </Button>
             )}
           </>
-        }
+        )}
       />
 
       {module === "industry" && syncRun && (
@@ -244,60 +229,70 @@ export function AdminModuleView({ module }: { module: AdminModuleKey }) {
         </div>
       )}
 
-      <AdminFilterBar />
+      {module === "api-cost" ? (
+        <AdminApiCostView
+          data={data}
+          onRetry={() => query.refetch()}
+          pending={query.isFetching}
+        />
+      ) : (
+        <>
+          <AdminFilterBar />
 
-      <AdminKpiGrid kpis={data.kpis} />
+          <AdminKpiGrid kpis={data.kpis} />
 
-      {!hidesBreakdown && (
-        <section className="mt-6" aria-labelledby="breakdown-title">
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 id="breakdown-title" className="text-sm font-medium">
-                Breakdown
-              </h2>
-              <p className="mt-1 text-xs text-general-muted-foreground">
-                Current and previous periods use the same filters.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Select
-                value={data.meta.metric}
-                onValueChange={(value) => setQuery({ metric: value })}
-              >
-                <SelectTrigger className="h-9 min-w-[160px] rounded-md bg-white/90 shadow-xs transition-colors hover:border-general-primary/35">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {data.kpis.map((kpi) => (
-                    <SelectItem key={kpi.key} value={kpi.key}>
-                      {kpi.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={data.meta.groupBy}
-                onValueChange={(value) => setQuery({ groupBy: value })}
-                disabled={module === "industry"}
-              >
-                <SelectTrigger className="h-9 min-w-[140px] rounded-md bg-white/90 shadow-xs transition-colors hover:border-general-primary/35">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {groups.map((group) => (
-                    <SelectItem key={group.value} value={group.value}>
-                      {group.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <AdminBreakdownTable
-            rows={data.breakdown.rows}
-            metric={data.meta.metric}
-          />
-        </section>
+          {!hidesBreakdown && (
+            <section className="mt-6" aria-labelledby="breakdown-title">
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 id="breakdown-title" className="text-sm font-medium">
+                    Breakdown
+                  </h2>
+                  <p className="mt-1 text-xs text-general-muted-foreground">
+                    Current and previous periods use the same filters.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Select
+                    value={data.meta.metric}
+                    onValueChange={(value) => setQuery({ metric: value })}
+                  >
+                    <SelectTrigger className="h-9 min-w-[160px] rounded-md bg-white/90 shadow-xs transition-colors hover:border-general-primary/35">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {data.kpis.map((kpi) => (
+                        <SelectItem key={kpi.key} value={kpi.key}>
+                          {kpi.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={data.meta.groupBy}
+                    onValueChange={(value) => setQuery({ groupBy: value })}
+                    disabled={module === "industry"}
+                  >
+                    <SelectTrigger className="h-9 min-w-[140px] rounded-md bg-white/90 shadow-xs transition-colors hover:border-general-primary/35">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {groups.map((group) => (
+                        <SelectItem key={group.value} value={group.value}>
+                          {group.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <AdminBreakdownTable
+                rows={data.breakdown.rows}
+                metric={data.meta.metric}
+              />
+            </section>
+          )}
+        </>
       )}
       {query.isFetching && !query.isLoading && (
         <div

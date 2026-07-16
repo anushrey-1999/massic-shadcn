@@ -19,10 +19,18 @@ import type { AdminKpi } from "../types";
 const CURRENCY_KEYS = new Set([
   "api_cost_total",
   "cost_per_business",
+  "api_cost_openai",
+  "api_cost_anthropic",
   "mrr",
   "arr",
   "new_mrr",
   "retained_mrr",
+]);
+const API_COST_KEYS = new Set([
+  "api_cost_total",
+  "cost_per_business",
+  "api_cost_openai",
+  "api_cost_anthropic",
 ]);
 
 export function formatAdminValue(key: string, value: number | null) {
@@ -32,7 +40,7 @@ export function formatAdminValue(key: string, value: number | null) {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-      maximumFractionDigits: 0,
+      maximumFractionDigits: API_COST_KEYS.has(key) ? 2 : 0,
     }).format(value);
   return new Intl.NumberFormat("en-US", {
     notation: Math.abs(value) >= 100_000 ? "compact" : "standard",
@@ -188,7 +196,9 @@ export function AdminKpiCard({ kpi }: { kpi: AdminKpi }) {
         {unavailable ? (
           <span className="text-general-muted-foreground">Not connected</span>
         ) : kpi.changePct === null ? (
-          <span className="text-general-muted-foreground">No comparison</span>
+          <span className="text-general-muted-foreground">
+            {kpi.contextLabel || "No comparison"}
+          </span>
         ) : (
           <span
             className={cn(

@@ -14,6 +14,7 @@ import {
 import { ArrowLeft, Check, ExternalLink, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAdminBusiness, getAdminIntelligence } from "../api/admin-api";
+import { AdminBusinessFavicon } from "../components/admin-business-favicon";
 import { AdminBenchmarkCard } from "../components/admin-benchmark-card";
 import { AdminKpiGrid } from "../components/admin-kpi-card";
 import { AdminPageHeader } from "../components/admin-page-header";
@@ -22,7 +23,6 @@ import { AdminErrorState, AdminPageLoading } from "../components/admin-states";
 import { AdminStatusBadge } from "../components/status-badge";
 import { useAdminQueryState } from "../hooks/use-admin-query-state";
 import type { AdminKpi } from "../types";
-import { SiteFavicon } from "@/components/organisms/WebChannels/platform-icon";
 
 function availableKpi(
   key: string,
@@ -120,7 +120,12 @@ export function AdminBusinessSnapshot({ id }: { id: string }) {
         freshnessDate={analytics.meta.freshnessDate}
         sourceFreshness={analytics.meta.sourceFreshness}
         cacheState={analytics.meta.cacheState}
-        icon={<SiteFavicon siteUrl={dimension.website} className="size-9" />}
+        icon={
+          <AdminBusinessFavicon
+            siteUrl={dimension.website}
+            className="size-9"
+          />
+        }
         actions={
           <>
             <AdminRangeSelect

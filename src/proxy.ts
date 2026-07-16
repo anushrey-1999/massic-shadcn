@@ -6,9 +6,45 @@ const PUBLIC_ROUTES = ["/login", "/signup", "/team-signup", "/google-access", "/
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+
+  if (isAdminRoute) {
+    const adminToken = request.cookies.get("admin_token")?.value;
+    const hasExpiredAdminToken =
+      Boolean(adminToken) && isTokenExpired(adminToken as string);
+
+    if (pathname === "/admin/login") {
+      if (adminToken && !hasExpiredAdminToken) {
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
+      const response = NextResponse.next();
+      if (hasExpiredAdminToken) {
+        response.cookies.set("admin_token", "", {
+          path: "/admin",
+          maxAge: 0,
+        });
+      }
+      return response;
+    }
+
+    if (!adminToken || hasExpiredAdminToken) {
+      const loginUrl = new URL("/admin/login", request.url);
+      loginUrl.searchParams.set("redirect", `${pathname}${search || ""}`);
+      const response = NextResponse.redirect(loginUrl);
+      if (hasExpiredAdminToken) {
+        response.cookies.set("admin_token", "", {
+          path: "/admin",
+          maxAge: 0,
+        });
+      }
+      return response;
+    }
+
+    return NextResponse.next();
+  }
 
   const isPublicRoute = PUBLIC_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
 
   const token = request.cookies.get("token")?.value;
@@ -16,7 +52,7 @@ export function proxy(request: NextRequest) {
   const hasExpiredToken = token && isTokenExpired(token);
 
   if ((!token || hasExpiredToken) && !isPublicRoute) {
-    const loginUrl = new URL(pathname.startsWith("/admin") ? "/admin/login" : "/login", request.url);
+    const loginUrl = new URL("/login", request.url);
     const fullPathWithQuery = `${pathname}${search || ""}`;
     loginUrl.searchParams.set("redirect", fullPathWithQuery);
 
@@ -30,7 +66,6 @@ export function proxy(request: NextRequest) {
 
     return response;
   }
-
 
   if (token && (pathname === "/login" || pathname === "/signup")) {
     return NextResponse.redirect(new URL("/", request.url));

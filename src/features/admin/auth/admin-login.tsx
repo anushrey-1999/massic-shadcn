@@ -6,13 +6,13 @@ import { CredentialResponse, GoogleLogin } from "@react-oauth/google";
 import { AlertCircle, Loader2, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useAuthStore } from "@/store/auth-store";
 import { adminGoogleLogin } from "../api/admin-api";
+import { useAdminAuthStore } from "./admin-auth-store";
 
 export function AdminLogin() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const setAuth = useAuthStore((state) => state.setAuth);
+  const setAuth = useAdminAuthStore((state) => state.setAuth);
   const [message, setMessage] = useState<string | null>(null);
   const login = useMutation({
     mutationFn: (credential: string) => adminGoogleLogin(credential),
@@ -24,7 +24,7 @@ export function AdminLogin() {
         return;
       }
       queryClient.removeQueries({ queryKey: ["admin", "session"] });
-      setAuth(response.data.token, response.data.user);
+      setAuth(response.data.token, null);
       toast.success("Admin access confirmed");
       router.replace("/admin");
     },

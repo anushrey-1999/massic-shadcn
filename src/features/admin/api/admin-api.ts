@@ -1,7 +1,6 @@
 "use client";
 
-import Cookies from "js-cookie";
-import { api, getBaseURLByPlatform } from "@/hooks/use-api";
+import { adminClient } from "./admin-client";
 import type {
   AdminBusinessesData,
   AdminBusiness,
@@ -40,31 +39,34 @@ function queryString(query: AdminQuery = {}) {
 }
 
 export async function adminGoogleLogin(credential: string) {
-  return api.post<Envelope<{ token: string; user: Record<string, unknown> }>>(
+  return adminClient.post<Envelope<{ token: string; user: AdminSessionUser }>>(
     "/admin/auth/google",
-    "node",
     { credential },
-    { skipAuth: true, suppressUnauthorizedSession: true },
+    { skipAdminAuth: true },
+  );
+}
+
+export async function logoutAdminSession() {
+  return adminClient.post<Envelope<Record<string, never>>>(
+    "/admin/auth/logout",
+    {},
   );
 }
 
 export async function getAdminSession() {
-  return api.get<Envelope<{ user: AdminSessionUser }>>(
+  return adminClient.get<Envelope<{ user: AdminSessionUser }>>(
     "/admin/session",
-    "node",
-    { suppressUnauthorizedSession: true },
   );
 }
 
 export async function getAdminOverview(query: AdminQuery) {
-  return api.get<Envelope<AdminOverviewData>>(
+  return adminClient.get<Envelope<AdminOverviewData>>(
     `/admin/overview${queryString(query)}`,
-    "node",
   );
 }
 
 export async function getAdminFilters() {
-  return api.get<
+  return adminClient.get<
     Envelope<{
       agencies: Array<{ value: string; label: string }>;
       industries: string[];
@@ -73,19 +75,18 @@ export async function getAdminFilters() {
       countries: string[];
       statuses: string[];
     }>
-  >("/admin/filters", "node");
+  >("/admin/filters");
 }
 
 export async function startAdminIndustrySync() {
-  return api.post<
+  return adminClient.post<
     Envelope<{ run: AdminIndustrySyncRun; alreadyRunning: boolean }>
-  >("/admin/industry/sync", "node", {});
+  >("/admin/industry/sync", {});
 }
 
 export async function getAdminIndustrySyncStatus() {
-  return api.get<Envelope<{ run: AdminIndustrySyncRun | null }>>(
+  return adminClient.get<Envelope<{ run: AdminIndustrySyncRun | null }>>(
     "/admin/industry/sync/status",
-    "node",
   );
 }
 
@@ -93,41 +94,39 @@ export async function getAdminModule(
   module: AdminModuleKey,
   query: AdminQuery,
 ) {
-  return api.get<Envelope<AdminModuleData>>(
+  return adminClient.get<Envelope<AdminModuleData>>(
     `/admin/modules/${module}${queryString(query)}`,
-    "node",
   );
 }
 
 export async function getAdminBusinesses(query: AdminQuery) {
-  return api.get<Envelope<AdminBusinessesData>>(
+  return adminClient.get<Envelope<AdminBusinessesData>>(
     `/admin/businesses${queryString(query)}`,
-    "node",
   );
 }
 
 export async function getAdminBusiness(id: string, query: AdminQuery = {}) {
-  return api.get<
+  return adminClient.get<
     Envelope<{
       dimension: AdminBusiness;
       latest: Record<string, unknown> | null;
       analytics: AdminModuleData;
     }>
-  >(`/admin/businesses/${id}${queryString(query)}`, "node");
+  >(`/admin/businesses/${id}${queryString(query)}`);
 }
 
 export async function getAdminAgency(id: string, query: AdminQuery) {
-  return api.get<
+  return adminClient.get<
     Envelope<{
       agency: { id: string; name: string };
       businesses: AdminBusiness[];
       modules: AdminModuleData[];
     }>
-  >(`/admin/agencies/${id}${queryString(query)}`, "node");
+  >(`/admin/agencies/${id}${queryString(query)}`);
 }
 
 export async function getAdminIntelligence(query: AdminQuery) {
-  return api.get<
+  return adminClient.get<
     Envelope<{
       meta: { metric: string; dimension: string; freshnessDate: string | null };
       target: {
@@ -146,26 +145,18 @@ export async function getAdminIntelligence(query: AdminQuery) {
         rankAvailable: boolean;
       };
     }>
-  >(`/admin/intelligence${queryString(query)}`, "node");
+  >(`/admin/intelligence${queryString(query)}`);
 }
 
 export async function downloadAdminExport(
   module: AdminModuleKey,
   query: AdminQuery,
 ) {
-  const token = Cookies.get("token");
-  const response = await fetch(
-    `${getBaseURLByPlatform("node")}/admin/exports/${module}.csv${queryString(query)}`,
-    {
-      headers: token ? { Token: token } : undefined,
-    },
+  const response = await adminClient.download(
+    `/admin/exports/${module}.csv${queryString(query)}`,
   );
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.message || "Export failed");
-  }
-  const blob = await response.blob();
-  const disposition = response.headers.get("content-disposition") || "";
+  const blob = response.data;
+  const disposition = response.headers["content-disposition"] || "";
   const filename =
     disposition.match(/filename="([^"]+)"/)?.[1] || `massic-${module}.csv`;
   const url = URL.createObjectURL(blob);

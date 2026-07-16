@@ -1,9 +1,10 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from "axios";
 import { useCallback, useState } from "react";
 import Cookies from "js-cookie";
-import { decodeJwt, isTokenExpired } from "@/utils/jwt";
+import { isTokenExpired } from "@/utils/jwt";
 import { useAuthStore } from "@/store/auth-store";
 import { useSessionStore } from "@/store/session-store";
+import { shouldRefreshSession } from "@/lib/session-refresh";
 
 export type ApiPlatform = "node" | "python" | "dotnet";
 export interface AppAxiosRequestConfig extends AxiosRequestConfig {
@@ -12,7 +13,6 @@ export interface AppAxiosRequestConfig extends AxiosRequestConfig {
 }
 
 // Refresh only when close to expiry (standard SaaS behavior)
-const REFRESH_WINDOW_SECONDS = 60 * 10 * 60; // 10 minutes
 const REFRESH_COOLDOWN_MS = 60 * 1000; // at most once per minute
 
 const DEFAULT_TIMEOUT_MS: Record<ApiPlatform, number> = {
@@ -107,33 +107,26 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
       // Proactively refresh token before it expires (rolling session) to avoid sudden logout.
       // Skip refreshing on the refresh endpoint itself to avoid loops.
       if (platform === "node" && token && !String(config.url || "").includes("/refresh-token")) {
-        const decoded = decodeJwt(token);
-        const exp = decoded?.exp;
-        if (typeof exp === "number") {
-          const now = Math.floor(Date.now() / 1000);
-          const secondsLeft = exp - now;
+        if (shouldRefreshSession(token)) {
+          const nowMs = Date.now();
 
-          if (secondsLeft > 0 && secondsLeft <= REFRESH_WINDOW_SECONDS) {
-            const nowMs = Date.now();
+          // Throttle refresh attempts to avoid loops when refresh endpoint is down.
+          if (nowMs - lastRefreshAttemptAtMs < REFRESH_COOLDOWN_MS) {
+            // Keep using existing token.
+          } else {
+            lastRefreshAttemptAtMs = nowMs;
 
-            // Throttle refresh attempts to avoid loops when refresh endpoint is down.
-            if (nowMs - lastRefreshAttemptAtMs < REFRESH_COOLDOWN_MS) {
-              // Keep using existing token.
-            } else {
-              lastRefreshAttemptAtMs = nowMs;
+            if (!refreshPromise) {
+              refreshPromise = refreshNodeAccessToken(token).finally(() => {
+                refreshPromise = null;
+              });
+            }
 
-              if (!refreshPromise) {
-                refreshPromise = refreshNodeAccessToken(token).finally(() => {
-                  refreshPromise = null;
-                });
-              }
-
-              const refreshedToken = await refreshPromise;
-              // If refresh fails but the token is still valid, do NOT force logout.
-              // Let the request proceed and only logout on actual expiry/401.
-              if (refreshedToken) {
-                token = refreshedToken;
-              }
+            const refreshedToken = await refreshPromise;
+            // If refresh fails but the token is still valid, do NOT force logout.
+            // Let the request proceed and only logout on actual expiry/401.
+            if (refreshedToken) {
+              token = refreshedToken;
             }
           }
         }

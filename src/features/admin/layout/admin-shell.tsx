@@ -31,15 +31,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { api } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/store/auth-store";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { AdminAuthBoundary } from "../auth/admin-auth-boundary";
+import { useAdminAuthStore } from "../auth/admin-auth-store";
+import { logoutAdminSession } from "../api/admin-api";
 
 const navigation = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
@@ -71,13 +71,13 @@ function NavContent({
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const user = useAuthStore((state) => state.user);
-  const logoutStore = useAuthStore((state) => state.logout);
+  const user = useAdminAuthStore((state) => state.user);
+  const clearAdminAuth = useAdminAuthStore((state) => state.clear);
   const logout = useMutation({
-    mutationFn: () => api.post("/auth/logout", "node"),
+    mutationFn: logoutAdminSession,
     onSettled: () => {
-      logoutStore();
-      queryClient.clear();
+      clearAdminAuth();
+      queryClient.removeQueries({ queryKey: ["admin"] });
       router.replace("/admin/login");
     },
   });

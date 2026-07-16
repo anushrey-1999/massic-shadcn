@@ -37,6 +37,26 @@ function hostFromUrl(value: string): string {
   }
 }
 
+function siteNameFromHost(host: string): string {
+  const cleaned = String(host || "").trim().toLowerCase().replace(/^www\./, "");
+  if (!cleaned) return "";
+
+  const parts = cleaned.split(".").filter(Boolean);
+  const sld = parts.length >= 2 ? parts[parts.length - 2] : parts[0] || cleaned;
+  const tokens = sld.split(/[-_]+/g).filter(Boolean);
+
+  // common brand special-case
+  if (tokens.length === 2 && tokens[0] === "life" && tokens[1] === "time") return "Lifetime";
+
+  const words = tokens.map((t) => {
+    if (!t) return "";
+    if (t.length <= 4 && /^[a-z0-9]+$/.test(t)) return t.toUpperCase();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  });
+
+  return words.filter(Boolean).join("");
+}
+
 function toneClass(tone: string): string {
   const key = String(tone || "").trim().toLowerCase();
   if (key === "green") return "text-emerald-600";
@@ -523,6 +543,7 @@ export function WebsiteSnapshotReportViewer({
                   {search.workhorse.pages.slice(0, 3).map((page, idx) => {
                     const url = String(page.url || "").trim();
                     if (!url) return null;
+                    const urlHost = hostFromUrl(url);
                     const etv = page.etv != null ? Number(page.etv) : null;
                     const terms = Array.isArray(page.top_terms)
                       ? page.top_terms.map((t) => String(t || "").trim()).filter(Boolean)
@@ -540,7 +561,7 @@ export function WebsiteSnapshotReportViewer({
                             rel="noreferrer"
                             className="break-all font-mono text-xs text-general-primary hover:underline"
                           >
-                            {url}
+                            {urlHost || url}
                           </a>
                           {etv != null && Number.isFinite(etv) ? (
                             <span className="text-xs font-bold text-emerald-600">
@@ -604,6 +625,9 @@ export function WebsiteSnapshotReportViewer({
                       ? `#${Number(example.position)}`
                       : "";
                   const exWhy = String((example as any)?.why || "").trim();
+                  const websiteName = siteNameFromHost(domain) || domain;
+                  const competitorHref = `https://${domain}`;
+                  const exampleHref = exUrl || competitorHref;
 
                   return (
                     <div key={`${domain}-${idx}`} className="border-b border-border/40 py-5 last:border-b-0">
@@ -611,7 +635,17 @@ export function WebsiteSnapshotReportViewer({
                         <div>
                           <div className="text-base font-extrabold">{title || domain}</div>
                           {title ? (
-                            <div className="mt-0.5 text-xs text-muted-foreground/70">{domain}</div>
+                            <div className="mt-0.5 text-xs text-muted-foreground/70">
+                              <a
+                                href={competitorHref}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:underline"
+                                style={{ color: "inherit" }}
+                              >
+                                {websiteName}
+                              </a>
+                            </div>
                           ) : null}
                         </div>
                         <div className="text-xs text-muted-foreground/70">
@@ -625,9 +659,14 @@ export function WebsiteSnapshotReportViewer({
                       ) : null}
                       {exUrl || exTerm ? (
                         <div className="mt-3 border-l-2 border-general-primary pl-4">
-                          <div className="break-all font-mono text-xs text-general-primary">
-                            {exUrl || domain}
-                          </div>
+                          <a
+                            href={exampleHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-general-primary hover:underline"
+                          >
+                            {websiteName}
+                          </a>
                           {exTerm || exPos ? (
                             <div className="mt-1 text-xs text-muted-foreground">
                               {[exPos, exTerm].filter(Boolean).join(" · ")}

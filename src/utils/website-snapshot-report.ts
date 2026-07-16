@@ -318,7 +318,30 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
       const note = mdLine(c.note || "");
       if (note) lines.push("", note);
       const ex = c.example || {};
-      const exLine = mdLine([ex.term, ex.url].filter(Boolean).join(" - "));
+      const exUrl = mdLine(String((ex as any)?.url || ""));
+      const exTerm = mdLine(String((ex as any)?.term || ""));
+
+      const domainName = mdLine(
+        String(domain || "")
+          .replace(/^www\./i, "")
+          .split(".")
+          .slice(-2, -1)[0] || domain
+      );
+      const websiteLabel =
+        domainName.toLowerCase() === "lifetime"
+          ? "Lifetime"
+          : domainName
+            ? domainName.charAt(0).toUpperCase() + domainName.slice(1)
+            : domain;
+
+      const exLine = mdLine(
+        [
+          exTerm ? `Term: ${exTerm}` : "",
+          exUrl ? `URL: [${websiteLabel}](${exUrl})` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      );
       if (exLine) lines.push("", `Example: ${exLine}`);
       const why = mdLine(String(ex.why || ""));
       if (why) lines.push("", why);

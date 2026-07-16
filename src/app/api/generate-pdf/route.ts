@@ -968,6 +968,23 @@ function stripProtocol(url: string): string {
   return String(url || "").replace(/^https?:\/\//i, "").replace(/\/$/, "");
 }
 
+function siteNameFromHost(host: string): string {
+  const cleaned = String(host || "").trim().toLowerCase().replace(/^www\./, "");
+  if (!cleaned) return "";
+  const parts = cleaned.split(".").filter(Boolean);
+  const sld = parts.length >= 2 ? parts[parts.length - 2] : parts[0] || cleaned;
+  const tokens = sld.split(/[-_]+/g).filter(Boolean);
+  if (tokens.length === 2 && tokens[0] === "life" && tokens[1] === "time") return "Lifetime";
+  return tokens
+    .map((t) => {
+      if (!t) return "";
+      if (t.length <= 4 && /^[a-z0-9]+$/.test(t)) return t.toUpperCase();
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    })
+    .filter(Boolean)
+    .join("");
+}
+
 function formatMonthYearFromIso(value: unknown): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -1280,7 +1297,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
               return `
                 <div class="wh-page">
                   <div class="wh-top">
-                    <a class="wh-url" href="${escapeHtml(url)}">${escapeHtml(url)}</a>
+                    <a class="wh-url" href="${escapeHtml(url)}">${escapeHtml(stripProtocol(url).split("/")[0] || url)}</a>
                     ${etv != null && Number.isFinite(etv) ? `<span class="wh-etv">~${escapeHtml(formatVolumeShort(Math.round(etv)))}</span>` : ""}
                   </div>
                   ${terms.length ? `<div class="wh-terms">${terms.slice(0, 8).map((t: string) => `<span class="wh-tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
@@ -1310,21 +1327,36 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             const ex = c?.example || {};
             const exUrl = String(ex?.url || "").trim();
             const exWhy = String(ex?.why || "").trim();
+            const websiteName = siteNameFromHost(domain) || domain;
+            const competitorHref = `https://${domain}`;
+            const exampleHref = exUrl || competitorHref;
             return `
               <div class="c">
                 <div class="crow">
                   <div>
                     <span class="dom">${escapeHtml(title || domain)}</span>
-                    ${title ? `<div class="subdom">${escapeHtml(domain)}</div>` : ""}
+                    ${
+                      title
+                        ? `<div class="subdom"><a href="${escapeHtml(competitorHref)}" style="color:inherit;text-decoration:none">${escapeHtml(
+                            websiteName
+                          )}</a></div>`
+                        : ""
+                    }
                   </div>
                   <span class="nums">${[
-                    domain,
+                    websiteName,
                     etv ? `${etv} ETV` : "",
                     kw ? `${kw} kw` : "",
                   ].filter(Boolean).map(escapeHtml).join(" · ")}</span>
                 </div>
                 ${note ? `<p>${escapeHtml(note)}</p>` : ""}
-                ${exUrl ? `<div class="ex"><div class="u">${escapeHtml(exUrl)}</div>${exWhy ? `<div class="why">${escapeHtml(exWhy)}</div>` : ""}</div>` : ""}
+                ${
+                  exampleHref
+                    ? `<div class="ex"><div class="u"><a href="${escapeHtml(exampleHref)}">${escapeHtml(
+                        websiteName
+                      )}</a></div>${exWhy ? `<div class="why">${escapeHtml(exWhy)}</div>` : ""}</div>`
+                    : ""
+                }
               </div>
             `;
           }).join("")}

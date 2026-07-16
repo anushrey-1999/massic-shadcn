@@ -273,19 +273,9 @@ export function WebsiteSnapshotReportViewer({
             <h1 className="mt-4 text-[32px] font-extrabold tracking-tight text-foreground">
               {businessName}
             </h1>
-            {businessDescription ? (
-              <p className="mt-2 text-[15.5px] leading-relaxed text-muted-foreground">
-                {businessDescription}
-              </p>
-            ) : null}
             <p className="mt-3 text-xs text-muted-foreground/70">
               {[website, location].filter(Boolean).join(" · ")}
             </p>
-            {poweredByName ? (
-              <p className="mt-1 text-xs text-muted-foreground/70">
-                Powered by {poweredByName}
-              </p>
-            ) : null}
           </header>
 
           {callouts.length ? (
@@ -455,21 +445,12 @@ export function WebsiteSnapshotReportViewer({
                   {(Array.isArray(search.topics_won) ? search.topics_won : []).slice(0, 5).map((row, idx) => {
                     const term = String(row.term || "").trim();
                     if (!term) return null;
-                    const position = row.position != null ? Number(row.position) : NaN;
-                    const volume = row.volume != null ? formatVolume(Number(row.volume)) : "";
-                    const cluster = String(row.cluster || "").trim();
                     return (
                       <li
                         key={`${term}-${idx}`}
                         className="flex items-baseline justify-between gap-3 border-b border-border/40 py-2 text-sm"
                       >
                         <span className="font-semibold">{term}</span>
-                        <span className="whitespace-nowrap text-xs text-muted-foreground/70">
-                          {Number.isFinite(position) ? (
-                            <span className={cn("font-bold", rankClass(position))}>#{position}</span>
-                          ) : null}{" "}
-                          {volume ? `· ${volume}/mo` : ""} {cluster ? `· ${cluster}` : ""}
-                        </span>
                       </li>
                     );
                   })}
@@ -484,20 +465,12 @@ export function WebsiteSnapshotReportViewer({
                   {(Array.isArray(search.gaps?.near_miss) ? search.gaps?.near_miss : []).slice(0, 5).map((row, idx) => {
                     const term = String(row.term || "").trim();
                     if (!term) return null;
-                    const position = row.position != null ? Number(row.position) : NaN;
-                    const volume = row.volume != null ? formatVolume(Number(row.volume)) : "";
                     return (
                       <li
                         key={`${term}-${idx}`}
                         className="flex items-baseline justify-between gap-3 border-b border-border/40 py-2 text-sm"
                       >
                         <span className="font-semibold">{term}</span>
-                        <span className="whitespace-nowrap text-xs text-muted-foreground/70">
-                          {Number.isFinite(position) ? (
-                            <span className={cn("font-bold", rankClass(position))}>#{position}</span>
-                          ) : null}{" "}
-                          {volume ? `· ${volume}/mo` : ""}
-                        </span>
                       </li>
                     );
                   })}

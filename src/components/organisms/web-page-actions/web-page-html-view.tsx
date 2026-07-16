@@ -158,6 +158,7 @@ import {
   getCmsRateLimitDescription,
   isCmsRateLimitError,
   useCmsPublish,
+  useCmsSanityPageVerification,
   useCmsPublishingChannel,
   useCmsPublishingContentStatus,
   useCmsWordpressPageTemplateStatus,
@@ -174,6 +175,7 @@ import {
   useUploadCmsFeaturedImage,
   type CmsFeaturedImageAsset,
 } from "@/hooks/use-cms-featured-image";
+import { useConfigureSanityPages } from "@/hooks/use-sanity-connector";
 import {
   WebflowPublishConfirmDescription,
   WebflowPublishConfirmHint,
@@ -481,6 +483,43 @@ function detectInlineFormatsAtNode(node: Node | null, container: HTMLElement): {
 
 type HtmlContentType = "page" | "blog";
 
+const SANITY_PAGE_TYPE_ROUTE_PREFIXES: Record<string, string[]> = {
+  "use case": ["use-cases", "solutions", "resources", "pages", "guides"],
+  audience: ["audiences", "for", "solutions", "who-we-help", "pages"],
+  alternative: ["alternatives", "compare", "comparisons", "versus", "pages"],
+  comparison: ["comparisons", "compare", "versus", "alternatives", "pages"],
+  local: ["locations", "areas", "service-areas", "local", "pages"],
+  "product/service page": ["services", "products", "solutions", "offerings", "pages"],
+  benefits: ["benefits", "features", "why", "solutions", "pages"],
+  "reviews section": ["reviews", "testimonials", "customers", "proof", "pages"],
+  "page section": ["sections", "resources", "content", "pages", "landing"],
+  brand: ["brand", "about", "company", "story", "pages"],
+  pricing: ["pricing", "plans", "costs", "packages", "pages"],
+  careers: ["careers", "jobs", "opportunities", "join-us", "pages"],
+};
+
+function getSanityPageTypeRoutePrefixes(pageType: string) {
+  return SANITY_PAGE_TYPE_ROUTE_PREFIXES[pageType.trim().toLowerCase()] || ["pages", "resources", "content", "guides", "landing"];
+}
+
+function getSanityPageRouteError(value: string) {
+  if (!value) return "Page route is required.";
+  if (value !== value.trim()) return "Page route cannot start or end with spaces.";
+  if (value.length > 255) return "Page route cannot exceed 255 characters.";
+  if (value.startsWith("/") || value.endsWith("/")) return "Remove the leading or trailing slash.";
+  if (value.includes("//")) return "Page route cannot contain repeated slashes.";
+  if (/[\\?#\s]/.test(value) || /%2f|%5c/i.test(value)) return "Use a route without spaces, query strings, fragments, or encoded slashes.";
+  if (value !== value.toLowerCase()) return "Page route must use lowercase letters.";
+  const segments = value.split("/");
+  if (segments.length !== 2) return "Use exactly two parts for the page URL: page-type/page-slug.";
+  if (segments.some(segment => segment.length > 63)) return "This page URL is too long. Shorten the slug and try again (maximum 63 characters between slashes).";
+  if (segments.some(segment => !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(segment))) {
+    return "Use only lowercase letters, numbers, and single hyphens in each segment.";
+  }
+  if (["api", "_next", "_vercel", "studio"].includes(segments[0])) return `/${segments[0]} is reserved by the website.`;
+  return null;
+}
+
 export function WebPageHtmlView({
   businessId,
   pageId,
@@ -493,6 +532,7 @@ export function WebPageHtmlView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const keyword = searchParams.get("keyword") || "";
+  const pageType = searchParams.get("pageType") || "";
   const isBlogContent = contentType === "blog";
   const contentLabel = isBlogContent ? "Blog" : "Page";
   const contentLabelLower = contentLabel.toLowerCase();
@@ -514,6 +554,7 @@ export function WebPageHtmlView({
     status: string;
     slug?: string | null;
     previewUrl?: string;
+    siteVerification?: "confirmed" | "pending" | null;
   } | null>(null);
   const [editableSlug, setEditableSlug] = React.useState("");
   const [isSlugEdited, setIsSlugEdited] = React.useState(false);
@@ -524,6 +565,8 @@ export function WebPageHtmlView({
     sameMappedContent: boolean;
     conflict: WordpressSlugConflictInfo | null;
     suggestedSlug?: string | null;
+    suggestions?: string[];
+    blockedPrefix?: string | null;
     mappedToDifferentContent: boolean;
     mappedContentId: string | null;
   } | null>(null);
@@ -583,15 +626,21 @@ export function WebPageHtmlView({
   const isActiveWordpress = activePlatform === "wordpress" && Boolean(activeConnection);
   const isActiveWebflow = activePlatform === "webflow" && Boolean(activeConnection);
   const isActiveSanity = activePlatform === "sanity" && Boolean(activeConnection);
-  const isSanityPageUnsupported = activePlatform === "sanity" && publishType === "page";
   const activeTarget = isActiveWebflow
     ? publishType === "page"
       ? cmsChannel?.targets?.page || null
       : cmsChannel?.targets?.post || cmsChannel?.target || null
-    : cmsChannel?.target || null;
+    : isActiveSanity
+      ? publishType === "page"
+        ? cmsChannel?.targets?.page || null
+        : cmsChannel?.targets?.post || cmsChannel?.target || null
+      : cmsChannel?.target || null;
   const wpConnection = isActiveWordpress ? activeConnection : null;
   const isWpConnected = isActiveWordpress;
   const cmsPublishMutation = useCmsPublish();
+  const sanityPageVerificationMutation = useCmsSanityPageVerification();
+  const sanityPagesSetupMutation = useConfigureSanityPages(businessId || null, { silent: true });
+  const sanityPageSetupCheckKeyRef = React.useRef("");
   const webflowStagingPreviewMutation = useCmsWebflowStagingPreview();
   const webflowRollbackToDraftMutation = useCmsWebflowRollbackToDraft();
   const { mutateAsync: slugCheckMutateAsync } = useCmsSlugCheck();
@@ -600,8 +649,16 @@ export function WebPageHtmlView({
   const wpPublishMutation = useWordpressPublish();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const needsWebflowMappingSetup = isActiveWebflow && !activeTarget?.targetId;
-  const isSanityReady = isActiveSanity && Boolean(activeTarget?.targetId);
-  const needsSanityMappingSetup = isActiveSanity && !activeTarget?.targetId;
+  const isSanityPagePublish = isActiveSanity && publishType === "page";
+  const sanityPageSetupData = sanityPagesSetupMutation.data?.data || null;
+  const isSanityPageSetupChecking = Boolean(
+    isSanityPagePublish && isPublishModalOpen && sanityPagesSetupMutation.isPending
+  );
+  const isSanityPageSetupReady = !isSanityPagePublish || Boolean(
+    !sanityPagesSetupMutation.isError && (sanityPageSetupData ? sanityPageSetupData.ready : activeTarget?.targetId)
+  );
+  const isSanityReady = isActiveSanity && Boolean(activeTarget?.targetId) && isSanityPageSetupReady;
+  const needsSanityMappingSetup = isActiveSanity && publishType === "post" && !activeTarget?.targetId;
   const webflowDomains = isActiveWebflow
     ? publishType === "page"
       ? cmsChannel?.domainsByType?.page || cmsChannel?.domains || []
@@ -803,24 +860,37 @@ export function WebPageHtmlView({
         : normalizeWordpressBlogEditableSlug(generatedSlugFallback),
     [generatedSlugFallback, publishType]
   );
+  const generatedSanityPageRoute = React.useMemo(() => {
+    if (!generatedSlug) return "";
+    const leaf = generatedSlug.split("/").filter(Boolean).pop() || generatedSlug;
+    return `${getSanityPageTypeRoutePrefixes(pageType)[0]}/${leaf}`;
+  }, [generatedSlug, pageType]);
   const effectiveModalSlug = React.useMemo(() => {
     if (!isPersistedTrashed && persistedSlug) return persistedSlug;
     if (!isPersistedTrashed && webflowPersistedSlug) return webflowPersistedSlug;
-    if (!isPersistedTrashed && sanityPersistedContent?.slug) return normalizeWordpressBlogEditableSlug(sanityPersistedContent.slug);
+    if (!isPersistedTrashed && sanityPersistedContent?.slug) {
+      return publishType === "page"
+        ? normalizeWordpressSlugPath(sanityPersistedContent.slug)
+        : normalizeWordpressBlogEditableSlug(sanityPersistedContent.slug);
+    }
     if (!isPersistedTrashed && lastPublishedData?.slug) {
       return publishType === "page"
         ? normalizeWordpressSlugPath(lastPublishedData.slug)
         : normalizeWordpressBlogEditableSlug(lastPublishedData.slug);
     }
-    if (generatedSlug) return generatedSlug;
+    if (generatedSlug) return isSanityPagePublish ? generatedSanityPageRoute : generatedSlug;
     return generatedSlugFallback;
-  }, [generatedSlug, generatedSlugFallback, isPersistedTrashed, lastPublishedData?.slug, persistedSlug, publishType, sanityPersistedContent?.slug, webflowPersistedSlug]);
+  }, [generatedSanityPageRoute, generatedSlug, generatedSlugFallback, isPersistedTrashed, isSanityPagePublish, lastPublishedData?.slug, persistedSlug, publishType, sanityPersistedContent?.slug, webflowPersistedSlug]);
   const normalizedEditableSlug = React.useMemo(
     () =>
       publishType === "page"
         ? normalizeWordpressSlugPath(editableSlug)
         : normalizeWordpressBlogEditableSlug(editableSlug),
     [editableSlug, publishType]
+  );
+  const sanityPageRouteValidationError = React.useMemo(
+    () => isSanityPagePublish ? getSanityPageRouteError(editableSlug) : null,
+    [editableSlug, isSanityPagePublish]
   );
   const hasInvalidBlogSlug = React.useMemo(
     () => Boolean(
@@ -831,9 +901,9 @@ export function WebPageHtmlView({
     [activePlatform, normalizedEditableSlug, publishType]
   );
   const normalizedSlugForPublish = React.useMemo(() => {
-    if (!normalizedEditableSlug || hasInvalidBlogSlug) return "";
+    if (!normalizedEditableSlug || hasInvalidBlogSlug || sanityPageRouteValidationError) return "";
     return normalizedEditableSlug;
-  }, [hasInvalidBlogSlug, normalizedEditableSlug]);
+  }, [hasInvalidBlogSlug, normalizedEditableSlug, sanityPageRouteValidationError]);
   const isPersistedLive = persistedStatus === "publish";
   const isPersistedDraftLike = Boolean(persistedContent && !isPersistedLive && !isPersistedTrashed);
   const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
@@ -874,6 +944,8 @@ export function WebPageHtmlView({
   );
   const isPublishBusy =
     cmsPublishMutation.isPending ||
+    sanityPagesSetupMutation.isPending ||
+    sanityPageVerificationMutation.isPending ||
     webflowStagingPreviewMutation.isPending ||
     webflowRollbackToDraftMutation.isPending ||
     wpPreviewMutation.isPending ||
@@ -930,6 +1002,10 @@ export function WebPageHtmlView({
           "/blog/{slug}"
       );
       if (!baseUrl || !slugForPreview) return null;
+      if (publishType === "page") {
+        const path = slugForPreview.split("/").map(encodeURIComponent).join("/");
+        return `${baseUrl}/${path}`;
+      }
       const path = pattern.includes("{slug}") ? pattern.replace(/\{slug\}/g, encodeURIComponent(slugForPreview)) : `/${slugForPreview}`;
       return `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
     }
@@ -940,7 +1016,7 @@ export function WebPageHtmlView({
     ).replace(/\/+$/, "");
     if (!siteUrl || !slugForPreview) return null;
     return `${siteUrl}/${slugForPreview}`;
-  }, [activeConnection?.metadata, activeConnection?.siteUrl, activePlatform, activeTarget?.metadata, normalizedSlugForPublish, slugCheckResult?.slug, webflowStagingDomain?.url]);
+  }, [activeConnection?.metadata, activeConnection?.siteUrl, activePlatform, activeTarget?.metadata, normalizedSlugForPublish, publishType, slugCheckResult?.slug, webflowStagingDomain?.url]);
   const webflowStagingPreviewUrl =
     lastPublishedData?.previewUrl || webflowPersistedContent?.previewUrl || publishUrlPreview || null;
   const webflowLiveUrl =
@@ -1522,6 +1598,7 @@ export function WebPageHtmlView({
         workflowPayload: data || {},
         contentId: String(publishContentId),
         type: publishType,
+        pageType: publishType === "page" ? pageType : null,
         title: String(publishTitle),
         slug: normalizedSlugForPublish || null,
         contentMarkdown: isBlogContent
@@ -1586,6 +1663,7 @@ export function WebPageHtmlView({
       publishSeoTitle,
       publishTitle,
       publishType,
+      pageType,
       normalizedSlugForPublish,
       businessId,
     ]
@@ -1597,6 +1675,12 @@ export function WebPageHtmlView({
       if (!normalizedEditableSlug) {
         setSlugCheckResult(null);
         setSlugCheckError("Slug is required.");
+        lastAutoSlugCheckKeyRef.current = "";
+        return null;
+      }
+      if (sanityPageRouteValidationError) {
+        setSlugCheckResult(null);
+        setSlugCheckError(sanityPageRouteValidationError);
         lastAutoSlugCheckKeyRef.current = "";
         return null;
       }
@@ -1616,6 +1700,7 @@ export function WebPageHtmlView({
           businessId: String(businessId),
           contentId: String(publishContentId),
           type: publishType,
+          pageType: publishType === "page" ? pageType : null,
           slug: normalizedSlugForPublish,
         });
         const result = response?.data || null;
@@ -1637,8 +1722,10 @@ export function WebPageHtmlView({
       hasInvalidBlogSlug,
       normalizedEditableSlug,
       normalizedSlugForPublish,
+      sanityPageRouteValidationError,
       publishContentId,
       publishType,
+      pageType,
       slugCheckMutateAsync,
       contentLabel,
     ]
@@ -1647,8 +1734,12 @@ export function WebPageHtmlView({
   React.useEffect(() => {
     if (!isPublishModalOpen) return;
     if (isSlugEdited) return;
-    setEditableSlug(normalizeWordpressBlogEditableSlug(effectiveModalSlug));
-  }, [effectiveModalSlug, isPublishModalOpen, isSlugEdited]);
+    setEditableSlug(
+      publishType === "page"
+        ? normalizeWordpressSlugPath(effectiveModalSlug)
+        : normalizeWordpressBlogEditableSlug(effectiveModalSlug)
+    );
+  }, [effectiveModalSlug, isPublishModalOpen, isSlugEdited, publishType]);
 
   React.useEffect(() => {
     if (isPublishModalOpen) {
@@ -1657,6 +1748,23 @@ export function WebPageHtmlView({
     }
     setPollingDisabled(false);
   }, [isPublishModalOpen]);
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen || !isSanityPagePublish || !activeConnection?.connectionId) {
+      if (!isPublishModalOpen) sanityPageSetupCheckKeyRef.current = "";
+      return;
+    }
+    const checkKey = `${activeConnection.connectionId}:${String(publishContentId || "")}`;
+    if (sanityPageSetupCheckKeyRef.current === checkKey) return;
+    sanityPageSetupCheckKeyRef.current = checkKey;
+    void sanityPagesSetupMutation.mutateAsync({ connectionId: activeConnection.connectionId }).catch(() => null);
+  }, [
+    activeConnection?.connectionId,
+    isPublishModalOpen,
+    isSanityPagePublish,
+    publishContentId,
+    sanityPagesSetupMutation,
+  ]);
 
   React.useEffect(() => {
     if (isPublishModalOpen) return;
@@ -1689,9 +1797,16 @@ export function WebPageHtmlView({
 
   React.useEffect(() => {
     if (!isPublishModalOpen || !cmsChannel?.connected || !publishContentId) return;
+    if (isSanityPagePublish && (!isSanityPageSetupReady || isSanityPageSetupChecking || !activeTarget?.targetId)) return;
     if (!normalizedEditableSlug) {
       setSlugCheckResult(null);
       setSlugCheckError(isSlugEdited ? "Slug is required." : null);
+      lastAutoSlugCheckKeyRef.current = "";
+      return;
+    }
+    if (sanityPageRouteValidationError) {
+      setSlugCheckResult(null);
+      setSlugCheckError(sanityPageRouteValidationError);
       lastAutoSlugCheckKeyRef.current = "";
       return;
     }
@@ -1704,12 +1819,35 @@ export function WebPageHtmlView({
     const delayMs = isSlugEdited ? 350 : 0;
     const timer = window.setTimeout(() => void runSlugCheck(), delayMs);
     return () => window.clearTimeout(timer);
-  }, [isPublishModalOpen, hasInvalidBlogSlug, cmsChannel?.connected, isSlugEdited, normalizedEditableSlug, publishContentId, runSlugCheck, contentLabel]);
+  }, [activeTarget?.targetId, contentLabel, cmsChannel?.connected, hasInvalidBlogSlug, isPublishModalOpen, isSanityPagePublish, isSanityPageSetupChecking, isSanityPageSetupReady, isSlugEdited, normalizedEditableSlug, publishContentId, runSlugCheck, sanityPageRouteValidationError]);
 
   const handleRedirectToChannels = React.useCallback(() => {
     router.push(`/business/${businessId}/web?integrations=1`);
     setIsPublishModalOpen(false);
   }, [businessId, router]);
+
+  const handleVerifySanityPageWebsite = React.useCallback(async () => {
+    if (!businessId || !publishContentId) return;
+    try {
+      const response = await sanityPageVerificationMutation.mutateAsync({
+        businessId: String(businessId),
+        contentId: String(publishContentId),
+      });
+      const verification = response.data?.siteVerification || "pending";
+      setLastPublishedData(previous => previous ? { ...previous, siteVerification: verification } : previous);
+      if (verification === "confirmed") {
+        toast.success("Website update confirmed");
+      } else {
+        toast.info("Website update is still pending", {
+          description: "Check that the Sanity revalidation webhook is configured, then try again.",
+        });
+      }
+    } catch (error) {
+      toast.error("Couldn't verify the live page", {
+        description: (error as Error)?.message || "Please try again.",
+      });
+    }
+  }, [businessId, publishContentId, sanityPageVerificationMutation]);
 
   const saveFeaturedImageAltText = React.useCallback(async () => {
     if (!isCmsImagePublish || !businessId || !featuredImageContentId || !activeFeaturedImage) return;
@@ -1878,7 +2016,7 @@ export function WebPageHtmlView({
     if (!cmsChannel?.connected || !hasFinalContent) return;
     const check = await runSlugCheck({ force: true });
     if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
-      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use the suggested slug or edit manually.`);
+      setSlugCheckError(null);
       toast.error("Slug conflict: choose a unique slug");
       return;
     }
@@ -1905,7 +2043,6 @@ export function WebPageHtmlView({
       const e = error as CmsPublishError;
       if (e?.code === "slug_conflict") {
         const details = e?.details || {};
-        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
         setSlugCheckResult({
           slug: normalizedSlugForPublish,
           publishUrl: publishUrlPreview || null,
@@ -1913,13 +2050,15 @@ export function WebPageHtmlView({
           sameMappedContent: false,
           conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
           suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          suggestions: Array.isArray(details?.suggestions) ? details.suggestions.filter((value: unknown): value is string => typeof value === "string") : [],
+          blockedPrefix: typeof details?.blockedPrefix === "string" ? details.blockedPrefix : null,
           mappedToDifferentContent: false,
           mappedContentId: null,
         });
-        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       } else if (isCmsRateLimitError(e)) {
-        setPublishRateLimitMessage(getCmsRateLimitDescription(e));
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : "WordPress"));
       }
       return;
     }
@@ -1933,6 +2072,7 @@ export function WebPageHtmlView({
       status: published.status || "draft",
       slug: published.slug || normalizedSlugForPublish || null,
       previewUrl: published.previewUrl || undefined,
+      siteVerification: published.siteVerification || null,
     });
     toast.success(activePlatform === "webflow" ? "Webflow draft saved" : activePlatform === "sanity" ? "Sanity draft saved" : "Draft pushed to WordPress");
     if (activePlatform === "webflow") {
@@ -1957,7 +2097,7 @@ export function WebPageHtmlView({
     if (!isWebflowReady || !businessId || !publishContentId || !cmsChannel?.connected || !hasFinalContent) return;
     const check = await runSlugCheck({ force: true });
     if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
-      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use the suggested slug or edit manually.`);
+      setSlugCheckError(null);
       toast.error("Slug conflict: choose a unique slug");
       return;
     }
@@ -2013,10 +2153,9 @@ export function WebPageHtmlView({
     } catch (error) {
       const e = error as CmsPublishError;
       if (isCmsRateLimitError(e)) {
-        setPublishRateLimitMessage(getCmsRateLimitDescription(e));
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e, "Webflow"));
       } else if (e?.code === "slug_conflict") {
         const details = e?.details || {};
-        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
         setSlugCheckResult({
           slug: normalizedSlugForPublish,
           publishUrl: publishUrlPreview || null,
@@ -2024,10 +2163,12 @@ export function WebPageHtmlView({
           sameMappedContent: false,
           conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
           suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          suggestions: Array.isArray(details?.suggestions) ? details.suggestions.filter((value: unknown): value is string => typeof value === "string") : [],
+          blockedPrefix: typeof details?.blockedPrefix === "string" ? details.blockedPrefix : null,
           mappedToDifferentContent: false,
           mappedContentId: null,
         });
-        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       }
     }
@@ -2060,7 +2201,7 @@ export function WebPageHtmlView({
     } catch (error) {
       const e = error as CmsPublishError;
       if (isCmsRateLimitError(e)) {
-        setPublishRateLimitMessage(getCmsRateLimitDescription(e));
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e, "Webflow"));
       }
     }
   }, [
@@ -2087,7 +2228,7 @@ export function WebPageHtmlView({
     }
     const check = await runSlugCheck({ force: true });
     if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
-      setSlugCheckError(`This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use the suggested slug or edit manually.`);
+      setSlugCheckError(null);
       toast.error("Slug conflict: choose a unique slug");
       return;
     }
@@ -2124,7 +2265,6 @@ export function WebPageHtmlView({
       const e = error as CmsPublishError;
       if (e?.code === "slug_conflict") {
         const details = e?.details || {};
-        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
         setSlugCheckResult({
           slug: normalizedSlugForPublish,
           publishUrl: publishUrlPreview || null,
@@ -2132,13 +2272,15 @@ export function WebPageHtmlView({
           sameMappedContent: false,
           conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
           suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          suggestions: Array.isArray(details?.suggestions) ? details.suggestions.filter((value: unknown): value is string => typeof value === "string") : [],
+          blockedPrefix: typeof details?.blockedPrefix === "string" ? details.blockedPrefix : null,
           mappedToDifferentContent: false,
           mappedContentId: null,
         });
-        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       } else if (isCmsRateLimitError(e)) {
-        setPublishRateLimitMessage(getCmsRateLimitDescription(e));
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : "WordPress"));
       }
       return;
     }
@@ -2152,13 +2294,19 @@ export function WebPageHtmlView({
       editUrl: published.editUrl || null,
       status: published.status || (activePlatform === "webflow" || activePlatform === "sanity" ? "published" : "publish"),
       slug: published.slug || normalizedSlugForPublish || null,
+      siteVerification: published.siteVerification || null,
     }));
     toast.success(activePlatform === "webflow" ? "Published live to Webflow" : activePlatform === "sanity" ? "Published live to Sanity" : "Published live to WordPress");
     if (activePlatform === "sanity") {
+      if (publishType === "page" && published.siteVerification !== "confirmed") {
+        toast.info("Published in Sanity; website update not confirmed yet", {
+          description: "Your site may still be revalidating. Use View live to check again shortly.",
+        });
+      }
       const liveUrl = published.externalUrl || published.previewUrl;
       openWebflowPreview(liveUrl, {
         delayMs: SANITY_LIVE_PUBLISH_OPEN_DELAY_MS,
-        subject: "live Sanity post",
+        subject: publishType === "page" ? "live Sanity page" : "live Sanity post",
         waitingHint: "Sanity may need a few seconds to finish publishing.",
       });
     }
@@ -2178,7 +2326,6 @@ export function WebPageHtmlView({
       const e = error as CmsPublishError;
       if (e?.code === "slug_conflict") {
         const details = e?.details || {};
-        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
         setSlugCheckResult({
           slug: normalizedSlugForPublish,
           publishUrl: publishUrlPreview || null,
@@ -2186,10 +2333,12 @@ export function WebPageHtmlView({
           sameMappedContent: false,
           conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
           suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          suggestions: Array.isArray(details?.suggestions) ? details.suggestions.filter((value: unknown): value is string => typeof value === "string") : [],
+          blockedPrefix: typeof details?.blockedPrefix === "string" ? details.blockedPrefix : null,
           mappedToDifferentContent: false,
           mappedContentId: null,
         });
-        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       }
       return;
@@ -2219,7 +2368,6 @@ export function WebPageHtmlView({
       const e = error as CmsPublishError;
       if (e?.code === "slug_conflict") {
         const details = e?.details || {};
-        const reason = (typeof details?.reason === "string" ? details.reason : (details?.conflict as WordpressSlugConflictInfo | null)?.reason) || null;
         setSlugCheckResult({
           slug: normalizedSlugForPublish,
           publishUrl: publishUrlPreview || null,
@@ -2227,10 +2375,12 @@ export function WebPageHtmlView({
           sameMappedContent: false,
           conflict: (details?.conflict as WordpressSlugConflictInfo) || null,
           suggestedSlug: typeof details?.suggestedSlug === "string" ? details.suggestedSlug : null,
+          suggestions: Array.isArray(details?.suggestions) ? details.suggestions.filter((value: unknown): value is string => typeof value === "string") : [],
+          blockedPrefix: typeof details?.blockedPrefix === "string" ? details.blockedPrefix : null,
           mappedToDifferentContent: false,
           mappedContentId: null,
         });
-        setSlugCheckError(reason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
+        setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       }
       return;
@@ -2303,15 +2453,24 @@ export function WebPageHtmlView({
     else if (action === "update-draft") await handleUpdateDraft();
   }, [confirmPublishAction, guardPublish, handlePreviewWebflowStaging, handlePublishDraft, handlePublishLive, handleRepublish, handleRollbackWebflowToDraft, handleUpdateDraft]);
 
-  const autoResolveSlug = React.useCallback(async () => {
-    if (!slugCheckResult?.suggestedSlug || isSlugActionBusy) return;
+  const applySuggestedSlug = React.useCallback((suggestion: string) => {
+    if (!suggestion || isSlugActionBusy) return;
     setIsAutoResolvingSlug(true);
-    setEditableSlug(normalizeWordpressBlogEditableSlug(slugCheckResult.suggestedSlug));
-    setIsSlugEdited(false);
+    setEditableSlug(
+      publishType === "page"
+        ? normalizeWordpressSlugPath(suggestion)
+        : normalizeWordpressBlogEditableSlug(suggestion)
+    );
+    setIsSlugEdited(true);
+    setSlugCheckResult(null);
+    setSlugCheckError(null);
     lastAutoSlugCheckKeyRef.current = "";
-    await runSlugCheck({ force: true });
     setIsAutoResolvingSlug(false);
-  }, [isSlugActionBusy, runSlugCheck, slugCheckResult?.suggestedSlug]);
+  }, [isSlugActionBusy, publishType]);
+
+  const autoResolveSlug = React.useCallback(() => {
+    if (slugCheckResult?.suggestedSlug) applySuggestedSlug(slugCheckResult.suggestedSlug);
+  }, [applySuggestedSlug, slugCheckResult?.suggestedSlug]);
 
   // Manage innerHTML via ref instead of dangerouslySetInnerHTML so that
   // re-renders (from hover/selection state changes) never recreate iframes.
@@ -4705,31 +4864,17 @@ export function WebPageHtmlView({
                 </TooltipTrigger><TooltipContent>Copy Text</TooltipContent></Tooltip>
               </>
             )}
-            {isSanityPageUnsupported ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button className="gap-2" type="button" disabled>
-                      <Globe className="h-4 w-4" />
-                      Actions
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Sanity supports blog publishing only. Connect WordPress or Webflow to publish pages.</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Button
-                className="gap-2"
-                type="button"
-                onClick={() => {
-                  if (guardPublish()) setIsPublishModalOpen(true);
-                }}
-                disabled={isProcessing || !hasFinalContent}
-              >
-                <Globe className="h-4 w-4" />
-                Actions
-              </Button>
-            )}
+            <Button
+              className="gap-2"
+              type="button"
+              onClick={() => {
+                if (guardPublish()) setIsPublishModalOpen(true);
+              }}
+              disabled={isProcessing || !hasFinalContent}
+            >
+              <Globe className="h-4 w-4" />
+              Actions
+            </Button>
           </div>
         </div>
       </div>
@@ -4790,6 +4935,56 @@ export function WebPageHtmlView({
                 </div>
                 {activePlatform !== "webflow" && publishStateLabel !== "Live" ? (
                   <p className="text-sm text-muted-foreground">{publishStateHint}</p>
+                ) : null}
+                {isSanityPagePublish && lastPublishedData?.siteVerification === "pending" ? (
+                  <div className="flex flex-col gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                    <span>Published in Sanity; the website update is not confirmed yet. Revalidation can take a few seconds.</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => void handleVerifySanityPageWebsite()}
+                      disabled={sanityPageVerificationMutation.isPending}
+                    >
+                      {sanityPageVerificationMutation.isPending ? "Checking…" : "Check website"}
+                    </Button>
+                  </div>
+                ) : null}
+                {isSanityPagePublish && (isSanityPageSetupChecking || (!sanityPageSetupData && !activeTarget?.targetId)) ? (
+                  <div className="rounded-md border border-border bg-background p-3 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Checking Sanity page setup…</span>
+                    </div>
+                  </div>
+                ) : null}
+                {isSanityPagePublish && !isSanityPageSetupChecking && sanityPageSetupData && !sanityPageSetupData.ready ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <Typography className="text-sm font-medium text-amber-950">
+                      Massic Pages isn&apos;t set up in this Sanity project
+                    </Typography>
+                    <Typography className="mt-1 text-xs text-amber-900">
+                      Add and deploy the <span className="font-medium">massicPage</span> schema before publishing pages.
+                    </Typography>
+                    {sanityPageSetupData.errors?.length ? (
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
+                        {sanityPageSetupData.errors.map(error => <li key={error}>{error}</li>)}
+                      </ul>
+                    ) : null}
+                    <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
+                      Open Sanity setup
+                    </Button>
+                  </div>
+                ) : null}
+                {isSanityPagePublish && sanityPagesSetupMutation.isError ? (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                    <p className="font-medium">Couldn&apos;t verify Sanity page setup</p>
+                    <p className="mt-1 text-xs">Retry from Integrations before publishing this page.</p>
+                    <Button className="mt-3" size="sm" variant="outline" onClick={handleRedirectToChannels}>
+                      Open Sanity setup
+                    </Button>
+                  </div>
                 ) : null}
                 {needsWebflowMappingSetup || needsSanityMappingSetup ? (
                   <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -5132,13 +5327,29 @@ export function WebPageHtmlView({
                   <div className="wrap-break-word">
                     {slugConflictReason === "parent_type_conflict"
                       ? "This nested page path is blocked. Change the parent path."
+                      : slugConflictReason === "parent_route_conflict"
+                        ? `A page already exists at /${slugCheckResult?.blockedPrefix || normalizedSlugForPublish.split("/")[0]}. Choose a different first part of the URL.`
+                      : slugConflictReason === "static_route_conflict"
+                        ? `Your website already uses /${slugCheckResult?.blockedPrefix || normalizedSlugForPublish}. Choose another route.`
                       : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use a unique slug.`}
                   </div>
-                  {slugCheckResult?.suggestedSlug ? (
-                    <Button size="sm" variant="outline" className="h-auto w-full justify-start whitespace-normal break-all text-left" onClick={autoResolveSlug} disabled={isSlugActionBusy}>
-                      {isAutoResolvingSlug ? "Resolving..." : `Use ${wordpressSlugToDisplay(slugCheckResult.suggestedSlug, "/next-available")}`}
+                  {(slugCheckResult?.suggestions?.length
+                    ? slugCheckResult.suggestions
+                    : slugCheckResult?.suggestedSlug
+                      ? [slugCheckResult.suggestedSlug]
+                      : []
+                  ).map((suggestion, index) => (
+                    <Button
+                      key={suggestion}
+                      size="sm"
+                      variant="outline"
+                      className="h-auto w-full justify-start whitespace-normal break-all text-left"
+                      onClick={() => index === 0 ? autoResolveSlug() : applySuggestedSlug(suggestion)}
+                      disabled={isSlugActionBusy}
+                    >
+                      {isAutoResolvingSlug ? "Applying…" : `Use ${wordpressSlugToDisplay(suggestion, "/next-available")}`}
                     </Button>
-                  ) : null}
+                  ))}
                 </div>
               ) : null}
             </div>
@@ -5485,7 +5696,7 @@ export function WebPageHtmlView({
                   ) : confirmPublishAction === "sanity-live" ? (
                     `This will create or update the published Sanity document at ${publishUrlPreview || "the configured route"}.`
                   ) : confirmPublishAction === "sanity-draft" ? (
-                    "This will save a draft to Sanity. Drafts aren't visible on your live website — open the post in Sanity Studio to preview it."
+                    `This will save a draft to Sanity. Drafts aren't visible on your live website — open the ${publishType === "page" ? "page" : "post"} in Sanity Studio to preview it.`
                   ) : confirmPublishAction === "republish" ? (
                     `This will push your latest content and images to the live post at ${publishUrlPreview || "the selected route"}.`
                   ) : confirmPublishAction === "update-draft" ? (

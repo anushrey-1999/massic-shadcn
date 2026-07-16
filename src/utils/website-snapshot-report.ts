@@ -49,6 +49,9 @@ export type WebsiteSnapshotGoal = {
   dominant_cta?: string | null;
   inferred_goal?: string;
   funnel_end?: string;
+  /** New key (preferred). */
+  body?: string | null;
+  /** Old key (backward compatible). */
   goal_body?: string | null;
   funnel_steps?: string[];
 };
@@ -100,10 +103,11 @@ export type WebsiteSnapshotSearch = {
 
 export type WebsiteSnapshotCompetitor = {
   domain?: string;
+  title?: string;
   etv?: number;
   keyword_count?: number;
   note?: string;
-  example?: { url?: string; term?: string; position?: number };
+  example?: { url?: string; term?: string; position?: number; why?: string };
 };
 
 export type WebsiteSnapshotUnderTheHood = {
@@ -120,6 +124,8 @@ export type WebsiteSnapshotIssue = {
 export type WebsiteSnapshotLadderRung = {
   rung?: number;
   title?: string;
+  headline?: string;
+  body?: string;
   status?: "in_place" | "partly" | "needs_work" | "missing" | string;
   example?: string;
 };
@@ -132,10 +138,14 @@ export type WebsiteSnapshotReport = {
   tier?: WebsiteSnapshotTier;
   goal?: WebsiteSnapshotGoal;
   search?: WebsiteSnapshotSearch;
+  competitors_intro?: string;
   competitors?: WebsiteSnapshotCompetitor[];
+  competitors_throughline?: string;
   under_the_hood?: WebsiteSnapshotUnderTheHood;
   issues?: WebsiteSnapshotIssue[];
+  ladder_intro?: string;
   ladder?: WebsiteSnapshotLadderRung[];
+  ladder_summary?: string;
   plan?: WebsiteSnapshotPlanStep[];
   takeaway?: string;
 };
@@ -237,16 +247,12 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
 
   if (report.goal) {
     const g = report.goal;
-    const cta = mdLine(String(g.dominant_cta ?? ""));
-    const inferred = mdLine(g.inferred_goal || "");
     const funnelEnd = mdLine(g.funnel_end || "");
-    const goalBody = mdLine(g.goal_body || "");
+    const goalBody = mdLine(String(g.body ?? g.goal_body ?? ""));
     const steps = Array.isArray(g.funnel_steps) ? g.funnel_steps.map((s) => mdLine(String(s))) : [];
-    if (cta || inferred || funnelEnd || goalBody || steps.length) {
+    if (funnelEnd || goalBody || steps.length) {
       lines.push("", "## Goal");
       if (goalBody) lines.push("", goalBody);
-      if (cta) lines.push("", `Dominant CTA: ${cta}`);
-      if (inferred) lines.push("", `Inferred goal: ${inferred}`);
       if (steps.length) {
         lines.push("", "Funnel:");
         for (const step of steps.filter(Boolean)) lines.push(`- ${step}`);
@@ -297,20 +303,51 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
   const competitors = Array.isArray(report.competitors) ? report.competitors : [];
   if (competitors.length) {
     lines.push("", "## Competitors");
+    const intro = mdLine(String(report.competitors_intro ?? ""));
+    if (intro) lines.push("", intro);
     for (const c of competitors) {
       const domain = mdLine(c.domain || "");
       if (!domain) continue;
+      const title = mdLine(c.title || "");
       const etv = c.etv != null ? `ETV ${Math.round(c.etv).toLocaleString()}` : "";
       const kw = c.keyword_count != null ? `${c.keyword_count.toLocaleString()} keywords` : "";
-      lines.push("", `### ${domain}`);
+      lines.push("", `### ${title || domain}`);
+      if (title && domain) lines.push("", domain);
       const stats = [etv, kw].filter(Boolean).join(" · ");
       if (stats) lines.push("", stats);
       const note = mdLine(c.note || "");
       if (note) lines.push("", note);
       const ex = c.example || {};
-      const exLine = mdLine([ex.term, ex.url].filter(Boolean).join(" - "));
+      const exUrl = mdLine(String((ex as any)?.url || ""));
+      const exTerm = mdLine(String((ex as any)?.term || ""));
+
+      const domainName = mdLine(
+        String(domain || "")
+          .replace(/^www\./i, "")
+          .split(".")
+          .slice(-2, -1)[0] || domain
+      );
+      const websiteLabel =
+        domainName.toLowerCase() === "lifetime"
+          ? "Lifetime"
+          : domainName
+            ? domainName.charAt(0).toUpperCase() + domainName.slice(1)
+            : domain;
+
+      const exLine = mdLine(
+        [
+          exTerm ? `Term: ${exTerm}` : "",
+          exUrl ? `URL: [${websiteLabel}](${exUrl})` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      );
       if (exLine) lines.push("", `Example: ${exLine}`);
+      const why = mdLine(String(ex.why || ""));
+      if (why) lines.push("", why);
     }
+    const throughline = mdLine(String(report.competitors_throughline ?? ""));
+    if (throughline) lines.push("", throughline);
   }
 
   const u = report.under_the_hood || {};
@@ -348,14 +385,18 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
   const ladder = Array.isArray(report.ladder) ? report.ladder : [];
   if (ladder.length) {
     lines.push("", "## Content ladder");
+    const intro = mdLine(String(report.ladder_intro ?? ""));
+    if (intro) lines.push("", intro);
     for (const rung of ladder) {
-      const title = mdLine(rung.title || "");
+      const title = mdLine(String(rung.headline || rung.title || ""));
       const status = mdLine(rung.status || "");
-      const example = mdLine(rung.example || "");
+      const body = mdLine(String(rung.body || rung.example || ""));
       const label = `Rung ${rung.rung ?? ""}`.trim();
       lines.push(`- ${[label, title, status ? `(${status})` : ""].filter(Boolean).join(" ")}`);
-      if (example) lines.push(`  - Example: ${example}`);
+      if (body) lines.push(`  - ${body}`);
     }
+    const summary = mdLine(String(report.ladder_summary ?? ""));
+    if (summary) lines.push("", summary);
   }
 
   const plan = Array.isArray(report.plan) ? report.plan : [];

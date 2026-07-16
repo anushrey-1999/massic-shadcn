@@ -19,6 +19,7 @@ import {
   stripUrlProtocol,
   type SeoSnapshotReport,
 } from "@/utils/seo-snapshot-report";
+import type { WebsiteSnapshotReport } from "@/utils/website-snapshot-report";
 
 const CHROMIUM_URL =
   "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar";
@@ -845,6 +846,115 @@ const SEO_SNAPSHOT_CSS = `
   .foot { padding-top: 24px; text-align: center; color: #737373; font-size: 10px; font-weight: 400; line-height: 1.5; letter-spacing: 0.15px; }
 `;
 
+const WEBSITE_SNAPSHOT_CSS = `
+  :root{
+    --ink:#1b2227;--muted:#6a747d;--faint:#9aa4ac;--line:#ececec;--line2:#f4f5f5;--brand:#0f5c4d;
+    --green:#1f8a53;--amber:#b7791f;--red:#bf3f2c;--paper:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:56px 26px 72px}
+  h1,h2,h3{margin:0;line-height:1.25}
+  p{margin:0}
+  a{color:var(--brand)}
+  .num{font-variant-numeric:tabular-nums}
+  .brandrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  h1{font-size:32px;font-weight:800;margin:18px 0 8px;letter-spacing:-.01em}
+  .meta{color:var(--faint);font-size:13px;margin-top:12px}
+  section{margin-top:52px}
+  .sec-h{display:flex;align-items:baseline;gap:12px;border-top:1px solid var(--line);padding-top:22px;margin-bottom:18px}
+  .sec-h h2{font-size:22px;font-weight:800;letter-spacing:-.01em}
+  .lead{color:var(--muted);font-size:15px;margin:-6px 0 20px}
+  .reads{display:grid;grid-template-columns:1fr 1fr;gap:26px 34px}
+  .read .dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:8px;vertical-align:middle}
+  .read h3{font-size:16.5px;font-weight:700;display:flex;align-items:center}
+  .read p{color:var(--muted);font-size:14px;margin-top:5px}
+  .d-red{background:var(--red)} .d-amber{background:var(--amber)} .d-green{background:var(--green)}
+  .tier-k{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--green);font-weight:700}
+  .tier h3{font-size:19px;font-weight:800;margin:10px 0 8px;letter-spacing:-.01em}
+  .tier p{color:var(--muted);font-size:15px}
+  .goal{border-left:3px solid var(--brand);padding:2px 0 2px 20px}
+  .goal .k{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);font-weight:700}
+  .goal p{font-size:16px;margin-top:8px}
+  .funnel{margin-top:12px;color:var(--muted);font-size:14px}
+  .funnel b{color:var(--ink);font-weight:600} .funnel .win{color:var(--green);font-weight:700}
+  .funnel .sep{color:var(--faint);margin:0 8px}
+  .stats{display:flex;gap:40px;flex-wrap:wrap}
+  .stat .v{font-size:28px;font-weight:800;letter-spacing:-.02em}
+  .stat .v.good{color:var(--green)}
+  .stat .l{color:var(--muted);font-size:13.5px}
+  .after{color:var(--muted);font-size:14.5px;margin-top:16px}
+  .chartcap{color:var(--faint);font-size:13px;margin:26px 0 6px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+  .kw{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:26px}
+  .kw .h{font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;margin-bottom:8px}
+  .kw .h.win{color:var(--green)} .kw .h.miss{color:var(--amber)}
+  .kw ul{list-style:none;padding:0;margin:0}
+  .kw li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .kw li:last-child{border-bottom:none} .kw .term{font-weight:600}
+  .wh-page{padding:13px 0;border-bottom:1px solid var(--line)} .wh-page:last-child{border-bottom:none}
+  .wh-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .wh-url{font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;color:var(--brand)}
+  .wh-etv{font-size:13px;font-weight:700;color:var(--green);white-space:nowrap}
+  .wh-terms{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+  .wh-tag{font-size:12px;background:var(--line2);color:var(--muted);padding:2px 8px;border-radius:20px}
+  .comp{margin-top:6px}
+  .comp .c{padding:20px 0;border-bottom:1px solid var(--line)} .comp .c:last-child{border-bottom:none}
+  .comp .crow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .comp .dom{font-weight:800;font-size:16px}
+  .comp .nums{color:var(--faint);font-size:13px;font-variant-numeric:tabular-nums}
+  .comp .subdom{color:var(--faint);font-size:12.5px;margin-top:2px}
+  .comp p{color:var(--muted);font-size:14.5px;margin-top:6px}
+  .comp .ex{margin-top:10px;padding-left:14px;border-left:2px solid var(--brand)}
+  .comp .u{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;color:var(--brand);word-break:break-all}
+  .comp .why{color:var(--muted);font-size:13.5px;margin-top:3px}
+  .throughline{margin-top:20px;font-size:15px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  td,th{text-align:left;padding:11px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:700}
+  td.k{font-weight:700;white-space:nowrap;padding-right:20px} td.mean{color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  .pills{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}
+  .pill{font-size:11.5px;padding:2px 9px;border-radius:20px;border:1px solid;color:var(--faint)}
+  .pill.good{border-color:var(--green);color:var(--green)}
+  .pill.none{border-color:var(--red);color:var(--red)}
+  .issue{padding:15px 0;border-bottom:1px solid var(--line)} .issue:last-child{border-bottom:none}
+  .issue h3{font-size:15.5px;font-weight:700}
+  .issue .sev{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-right:10px}
+  .sev.high,.sev.High,.sev.crit{color:var(--red)} .sev.med,.sev.Medium{color:var(--amber)} .sev.low,.sev.Low{color:var(--faint)}
+  .issue p{color:var(--muted);font-size:14px;margin-top:5px}
+  .ladder{margin-top:4px}
+  .rung{display:grid;grid-template-columns:24px 1fr;gap:16px;align-items:baseline;padding:15px 0;border-bottom:1px solid var(--line)}
+  .rung:last-child{border-bottom:none}
+  .rung .rn{color:var(--faint);font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+  .rung .body h3{font-size:15.5px;font-weight:700}
+  .rung .body p{color:var(--muted);font-size:14px;margin-top:3px}
+  .badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin:3px 0 4px}
+  .badge.in_place{background:#f0faf4;color:var(--green)}
+  .badge.partly{background:#fdf8ef;color:var(--amber)}
+  .badge.needs_work{background:#fff7ed;color:var(--amber)}
+  .badge.missing{background:#fef2f2;color:var(--red)}
+  .plan{margin-top:4px}
+  .step{display:grid;grid-template-columns:26px 1fr;gap:16px;padding:15px 0;border-bottom:1px solid var(--line)}
+  .step:last-child{border-bottom:none}
+  .step .sn{color:var(--brand);font-weight:800;font-variant-numeric:tabular-nums}
+  .step h3{font-size:15.5px;font-weight:700}
+  .step p{color:var(--muted);font-size:14px;margin-top:4px}
+  .takeaway{border-left:3px solid var(--brand);padding:4px 0 4px 20px;margin-top:8px}
+  .takeaway .k{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);font-weight:700}
+  .takeaway p{font-size:16px;margin-top:8px}
+  .foot{margin-top:56px;border-top:1px solid var(--line);padding-top:22px;color:var(--faint);font-size:12.5px}
+  @media(max-width:620px){
+    .reads,.kw{grid-template-columns:1fr;gap:20px}
+    .wrap{padding:40px 20px 56px}
+    h1{font-size:27px}
+    .stats{gap:26px}
+  }
+`;
+
 function escapeHtml(input: string): string {
   return String(input || "")
     .replace(/&/g, "&amp;")
@@ -856,6 +966,569 @@ function escapeHtml(input: string): string {
 
 function stripProtocol(url: string): string {
   return String(url || "").replace(/^https?:\/\//i, "").replace(/\/$/, "");
+}
+
+function siteNameFromHost(host: string): string {
+  const cleaned = String(host || "").trim().toLowerCase().replace(/^www\./, "");
+  if (!cleaned) return "";
+  const parts = cleaned.split(".").filter(Boolean);
+  const sld = parts.length >= 2 ? parts[parts.length - 2] : parts[0] || cleaned;
+  const tokens = sld.split(/[-_]+/g).filter(Boolean);
+  if (tokens.length === 2 && tokens[0] === "life" && tokens[1] === "time") return "Lifetime";
+  return tokens
+    .map((t) => {
+      if (!t) return "";
+      if (t.length <= 4 && /^[a-z0-9]+$/.test(t)) return t.toUpperCase();
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function formatMonthYearFromIso(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(dt);
+}
+
+function formatDayMonthYearFromIso(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(dt);
+}
+
+function formatVolumeShort(n: number): string {
+  if (!Number.isFinite(n)) return "";
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return `${m.toFixed(m % 1 === 0 ? 0 : 1)}M`;
+  }
+  if (n >= 10_000) {
+    const k = n / 1000;
+    return `${k.toFixed(k % 1 === 0 ? 0 : 1)}K`;
+  }
+  return Math.round(n).toLocaleString();
+}
+
+function websiteSnapshotToneDot(tone: unknown): string {
+  const key = String(tone || "").trim().toLowerCase();
+  if (key === "green") return "d-green";
+  if (key === "amber") return "d-amber";
+  if (key === "red") return "d-red";
+  return "d-amber";
+}
+
+function websiteSnapshotStatusClass(status: unknown): string {
+  const key = String(status || "").trim().toLowerCase();
+  if (key === "in_place") return "in_place";
+  if (key === "partly") return "partly";
+  if (key === "missing") return "missing";
+  if (key === "needs_work") return "needs_work";
+  return "partly";
+}
+
+function websiteSnapshotStatusLabel(status: unknown): string {
+  const key = String(status || "").trim().toLowerCase();
+  if (key === "in_place") return "In place";
+  if (key === "partly") return "Partly done";
+  if (key === "missing") return "Missing";
+  if (key === "needs_work") return "Needs work";
+  return String(status || "Status") || "Status";
+}
+
+function websiteSnapshotTrendChart(points: any[]): string {
+  const rows = Array.isArray(points)
+    ? points
+        .map((p) => ({
+          year: Number(p?.year),
+          month: Number(p?.month),
+          etv: Number(p?.etv),
+        }))
+        .filter((p) => Number.isFinite(p.year) && Number.isFinite(p.month) && Number.isFinite(p.etv))
+    : [];
+  if (rows.length < 2) return "";
+
+  const width = 680;
+  const height = 200;
+  const padL = 50;
+  const padR = 18;
+  const padT = 20;
+  const padB = 36;
+
+  const max = Math.max(...rows.map((r) => r.etv), 0);
+  const top = Math.max(1, max);
+
+  const y0 = height - padB;
+  const y1 = padT;
+  const x = (i: number) => {
+    const span = (width - padL - padR) / (rows.length - 1);
+    return padL + span * i;
+  };
+  const y = (v: number) => {
+    const t = Math.max(0, Math.min(1, v / top));
+    return y0 - t * (y0 - y1);
+  };
+
+  const ticks = [0, Math.round(top / 2), Math.round(top)];
+  const polyPoints = rows.map((r, i) => `${x(i)},${y(r.etv)}`).join(" ");
+  const monthLabel = (p: { year: number; month: number }) => {
+    try {
+      return new Intl.DateTimeFormat("en-US", { month: "short" }).format(
+        new Date(p.year, Math.max(0, (p.month || 1) - 1), 1)
+      );
+    } catch {
+      return String(p.month || "");
+    }
+  };
+  const fmtTick = (n: number) => {
+    if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+    return String(n);
+  };
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Monthly organic traffic trend">
+      <g font-size="11" fill="#b7bec4">
+        ${ticks
+          .map((t) => {
+            const yy = y(t);
+            return `
+              <line x1="${padL}" y1="${yy}" x2="${width - padR}" y2="${yy}" stroke="#f0f0f0"></line>
+              <text x="${padL - 6}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#b7bec4">${escapeHtml(
+                fmtTick(t)
+              )}</text>
+            `;
+          })
+          .join("")}
+      </g>
+      <polyline fill="none" stroke="#1f8a53" stroke-width="2.5" points="${escapeHtml(polyPoints)}"></polyline>
+      <g fill="#1f8a53">
+        ${rows
+          .map((r, i) => `<circle cx="${x(i)}" cy="${y(r.etv)}" r="3.5" fill="#1f8a53"></circle>`)
+          .join("")}
+      </g>
+      <g font-size="12" fill="#9aa4ac" text-anchor="middle">
+        ${rows
+          .map(
+            (r, i) =>
+              `<text x="${x(i)}" y="${height - 8}" text-anchor="middle" font-size="12" fill="#9aa4ac">${escapeHtml(
+                monthLabel(r)
+              )}</text>`
+          )
+          .join("")}
+      </g>
+    </svg>
+  `;
+}
+
+function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
+  const meta: any = (report as any)?.meta || {};
+  const businessName = String(meta.business_name || "").trim() || "Business";
+  const website = String(meta.url || "").trim();
+  const location = String(meta.location || "").trim();
+  const phone = meta.phone != null ? String(meta.phone || "").trim() : "";
+  const reportMonthYear = formatMonthYearFromIso(meta.report_date) || "Website Snapshot";
+
+  const callouts = Array.isArray((report as any)?.overview_callouts) ? (report as any).overview_callouts : [];
+  const tier: any = (report as any)?.tier || {};
+  const goal: any = (report as any)?.goal || {};
+  const goalBody = String(goal.body ?? goal.goal_body ?? "").trim();
+  const funnelSteps = Array.isArray(goal.funnel_steps)
+    ? goal.funnel_steps.map((s: any) => String(s || "").trim()).filter(Boolean).slice(0, 3)
+    : [];
+  const funnelEnd = String(goal.funnel_end || "").trim();
+
+  const search: any = (report as any)?.search || {};
+  const competitorsIntro = String((report as any)?.competitors_intro || "").trim();
+  const competitorsThroughline = String((report as any)?.competitors_throughline || "").trim();
+  const competitors = Array.isArray((report as any)?.competitors) ? (report as any).competitors : [];
+
+  const under: any = (report as any)?.under_the_hood || {};
+  const issues = Array.isArray((report as any)?.issues) ? (report as any).issues : [];
+  const ladderIntro = String((report as any)?.ladder_intro || "").trim();
+  const ladderSummary = String((report as any)?.ladder_summary || "").trim();
+  const ladder = Array.isArray((report as any)?.ladder) ? (report as any).ladder : [];
+  const plan = Array.isArray((report as any)?.plan) ? (report as any).plan : [];
+  const takeaway = String((report as any)?.takeaway || "").trim();
+
+  const monthYearTop = formatMonthYearFromIso(meta.report_date) || reportMonthYear;
+  const metaParts = [website, location].filter(Boolean);
+  const metaHtml = `
+    <p class="meta">
+      ${metaParts.map((p) => escapeHtml(p)).join(" &nbsp;·&nbsp; ")}
+      ${
+        phone
+          ? ` &nbsp;·&nbsp; <a href="tel:${escapeHtml(phone)}" style="color:inherit;text-decoration:none">${escapeHtml(
+              phone
+            )}</a>`
+          : ""
+      }
+    </p>
+  `.trim();
+
+  const calloutsHtml = callouts.length
+    ? `
+      <section>
+        <div class="sec-h"><h2>Quick overview</h2></div>
+        <div class="reads">
+          ${callouts
+            .slice(0, 4)
+            .map((c: any) => {
+              const tone = websiteSnapshotToneDot(c?.tone);
+              const title = String(c?.title || "").trim();
+              const body = String(c?.body || "").trim();
+              if (!title && !body) return "";
+              return `<div class="read">
+                <h3><span class="dot ${tone}"></span>${escapeHtml(title || "Callout")}</h3>
+                ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+              </div>`;
+            })
+            .filter(Boolean)
+            .join("")}
+        </div>
+      </section>
+    `
+    : "";
+
+  const tierLabel = String(tier?.label || "").trim();
+  const tierReason = String(tier?.reasoning || "").trim();
+  const tierHtml =
+    tierLabel || tierReason
+      ? `
+      <section>
+        <div class="sec-h"><h2>What SEO can do for you</h2></div>
+        <div class="tier">
+          ${tierLabel ? `<span class="tier-k">${escapeHtml(tierLabel)}</span>` : ""}
+          ${tierReason ? `<p>${escapeHtml(tierReason)}</p>` : ""}
+          ${String(tier?.tier_caveat || "").trim() ? `<p class="lead" style="margin-top:10px">${escapeHtml(String(tier.tier_caveat))}</p>` : ""}
+        </div>
+      </section>
+    `
+      : "";
+
+  const goalHtml =
+    goalBody || funnelSteps.length || funnelEnd
+      ? `
+      <section style="margin-top:36px">
+        <div class="goal">
+          <div class="k">Your goal, read from your own site</div>
+          ${goalBody ? `<p>${escapeHtml(goalBody)}</p>` : ""}
+          ${
+            funnelSteps.length || funnelEnd
+              ? `<div class="funnel">
+                ${funnelSteps[0] ? `<b>${escapeHtml(funnelSteps[0])}</b>` : ""}
+                ${funnelSteps[1] ? `<span class="sep">›</span><b>${escapeHtml(funnelSteps[1])}</b>` : ""}
+                ${funnelSteps[2] ? `<span class="sep">›</span><b>${escapeHtml(funnelSteps[2])}</b>` : ""}
+                ${funnelEnd ? `<span class="sep">›</span><span class="win">${escapeHtml(funnelEnd)}</span>` : ""}
+              </div>`
+              : ""
+          }
+        </div>
+      </section>
+    `
+      : "";
+
+  const statsHtml = `
+    <section>
+      <div class="sec-h"><h2>Where you stand in search today</h2></div>
+      <p class="lead">Real organic search data for your site, from the U.S. Google index.</p>
+      <div class="stats">
+        <div class="stat"><div class="v num">${search.keywords_count != null ? escapeHtml(formatVolumeShort(Number(search.keywords_count))) : "—"}</div><div class="l">keywords ranked</div></div>
+        <div class="stat"><div class="v num good">${search.etv != null ? escapeHtml("~" + formatVolumeShort(Math.round(Number(search.etv)))) : "—"}</div><div class="l">visits a month</div></div>
+        <div class="stat"><div class="v num good">${search.top10 != null ? escapeHtml(formatVolumeShort(Number(search.top10))) : "—"}</div><div class="l">in Google's top 10</div></div>
+        <div class="stat"><div class="v num">${search.referring_domains != null ? escapeHtml(formatVolumeShort(Number(search.referring_domains))) : "—"}</div><div class="l">sites linking to you</div></div>
+      </div>
+      ${
+        String(search.traffic_read || "").trim()
+          ? `<p class="after">${escapeHtml(String(search.traffic_read || "").trim())}</p>`
+          : ""
+      }
+      ${
+        Array.isArray(search?.trend?.points) && search.trend.points.length
+          ? `<div class="chartcap">Monthly organic traffic, ${escapeHtml(String(search?.trend?.window || "").trim() || "available history")}</div>
+             ${websiteSnapshotTrendChart(search.trend.points)}`
+          : ""
+      }
+      <div class="kw">
+        <div>
+          <div class="h win">You win</div>
+          <ul>
+            ${(Array.isArray(search?.topics_won) ? search.topics_won : [])
+              .slice(0, 5)
+              .map((row: any, idx: number) => {
+                const term = String(row?.term || "").trim();
+                if (!term) return "";
+                return `<li><span class="term">${escapeHtml(term)}</span></li>`;
+              })
+              .filter(Boolean)
+              .join("")}
+          </ul>
+        </div>
+        <div>
+          <div class="h miss">Striking distance</div>
+          <ul>
+            ${(Array.isArray(search?.gaps?.near_miss) ? search.gaps.near_miss : [])
+              .slice(0, 5)
+              .map((row: any, idx: number) => {
+                const term = String(row?.term || "").trim();
+                if (!term) return "";
+                return `<li><span class="term">${escapeHtml(term)}</span></li>`;
+              })
+              .filter(Boolean)
+              .join("")}
+          </ul>
+        </div>
+      </div>
+      ${
+        Array.isArray(search?.workhorse?.pages) && search.workhorse.pages.length
+          ? `
+          <section style="margin-top:32px">
+            <div class="sec-h"><h2 style="font-size:18px">Workhorse pages</h2></div>
+            ${(search.workhorse.pages as any[]).slice(0, 3).map((page: any) => {
+              const url = String(page?.url || "").trim();
+              if (!url) return "";
+              const etv = page?.etv != null ? Number(page.etv) : null;
+              const terms = Array.isArray(page?.top_terms)
+                ? page.top_terms.map((t: any) => String(t || "").trim()).filter(Boolean)
+                : [];
+              return `
+                <div class="wh-page">
+                  <div class="wh-top">
+                    <a class="wh-url" href="${escapeHtml(url)}">${escapeHtml(stripProtocol(url).split("/")[0] || url)}</a>
+                    ${etv != null && Number.isFinite(etv) ? `<span class="wh-etv">~${escapeHtml(formatVolumeShort(Math.round(etv)))}</span>` : ""}
+                  </div>
+                  ${terms.length ? `<div class="wh-terms">${terms.slice(0, 8).map((t: string) => `<span class="wh-tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+                </div>
+              `;
+            }).join("")}
+          </section>
+        `
+          : ""
+      }
+    </section>
+  `.trim();
+
+  const competitorsHtml = competitors.length
+    ? `
+      <section>
+        <div class="sec-h"><h2>Who's winning, and the pages doing it</h2></div>
+        ${competitorsIntro ? `<p class="lead">${escapeHtml(competitorsIntro)}</p>` : ""}
+        <div class="comp">
+          ${competitors.slice(0, 4).map((c: any, idx: number) => {
+            const domain = String(c?.domain || "").trim();
+            if (!domain) return "";
+            const title = String(c?.title || "").trim();
+            const note = String(c?.note || "").trim();
+            const etv = c?.etv != null ? formatVolumeShort(Math.round(Number(c.etv))) : "";
+            const kw = c?.keyword_count != null ? formatVolumeShort(Number(c.keyword_count)) : "";
+            const ex = c?.example || {};
+            const exUrl = String(ex?.url || "").trim();
+            const exWhy = String(ex?.why || "").trim();
+            const websiteName = siteNameFromHost(domain) || domain;
+            const competitorHref = `https://${domain}`;
+            const exampleHref = exUrl || competitorHref;
+            return `
+              <div class="c">
+                <div class="crow">
+                  <div>
+                    <span class="dom">${escapeHtml(title || domain)}</span>
+                    ${
+                      title
+                        ? `<div class="subdom"><a href="${escapeHtml(competitorHref)}" style="color:inherit;text-decoration:none">${escapeHtml(
+                            websiteName
+                          )}</a></div>`
+                        : ""
+                    }
+                  </div>
+                  <span class="nums">${[
+                    websiteName,
+                    etv ? `${etv} ETV` : "",
+                    kw ? `${kw} kw` : "",
+                  ].filter(Boolean).map(escapeHtml).join(" · ")}</span>
+                </div>
+                ${note ? `<p>${escapeHtml(note)}</p>` : ""}
+                ${
+                  exampleHref
+                    ? `<div class="ex"><div class="u"><a href="${escapeHtml(exampleHref)}">${escapeHtml(
+                        websiteName
+                      )}</a></div>${exWhy ? `<div class="why">${escapeHtml(exWhy)}</div>` : ""}</div>`
+                    : ""
+                }
+              </div>
+            `;
+          }).join("")}
+        </div>
+        ${competitorsThroughline ? `<p class="throughline">${escapeHtml(competitorsThroughline)}</p>` : ""}
+      </section>
+    `
+    : "";
+
+  const underRows = Array.isArray(under?.rows) ? under.rows : [];
+  const underPills = Array.isArray(under?.pills) ? under.pills : [];
+  const underHtml =
+    underRows.length || underPills.length
+      ? `
+      <section>
+        <div class="sec-h"><h2>Under the hood</h2></div>
+        <p class="lead">What the site runs on, and how it's set up to be found.</p>
+        ${
+          underRows.length
+            ? `<table>
+              <tr><th>Layer</th><th>What we found</th></tr>
+              ${underRows
+                .map((row: any) => {
+                  const layer = String(row?.layer || "").trim();
+                  const verdict = String(row?.verdict || "").trim();
+                  const detail = String(row?.detail || "").trim();
+                  if (!layer && !verdict && !detail) return "";
+                  return `<tr>
+                    <td class="k">${escapeHtml(layer || "Layer")}</td>
+                    <td class="mean">${verdict ? `<b>${escapeHtml(verdict)}</b>` : ""}${detail ? `${verdict ? " — " : ""}${escapeHtml(detail)}` : ""}</td>
+                  </tr>`;
+                })
+                .filter(Boolean)
+                .join("")}
+            </table>`
+            : ""
+        }
+        ${
+          underPills.length
+            ? `<div class="pills">
+              ${underPills
+                .slice(0, 24)
+                .map((p: any, idx: number) => {
+                  const name = String(p?.name || "").trim();
+                  if (!name) return "";
+                  const st = String(p?.status || "").trim().toLowerCase();
+                  const cls = st === "good" ? "good" : st === "none" ? "none" : "";
+                  return `<span class="pill ${cls}">${escapeHtml(name)}</span>`;
+                })
+                .filter(Boolean)
+                .join("")}
+            </div>`
+            : ""
+        }
+      </section>
+    `
+      : "";
+
+  const issuesHtml = issues.length
+    ? `
+      <section>
+        <div class="sec-h"><h2>What's holding the site back</h2></div>
+        <p class="lead">Concrete, fixable items. None are hard, and together they're capping your momentum.</p>
+        <div>
+          ${issues
+            .map((it: any, idx: number) => {
+              const title = String(it?.title || "").trim();
+              const body = String(it?.body || "").trim();
+              const sev = String(it?.severity || "").trim();
+              if (!title && !body) return "";
+              return `<div class="issue">
+                <h3>${sev ? `<span class="sev ${escapeHtml(sev)}">${escapeHtml(sev)}</span>` : ""}${escapeHtml(title || "Issue")}</h3>
+                ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+              </div>`;
+            })
+            .filter(Boolean)
+            .join("")}
+        </div>
+      </section>
+    `
+    : "";
+
+  const ladderHtml = ladder.length
+    ? `
+      <section>
+        <div class="sec-h"><h2>Where your content should grow</h2></div>
+        ${ladderIntro ? `<p class="lead">${escapeHtml(ladderIntro)}</p>` : `<p class="lead">Build in this order.</p>`}
+        <div class="ladder">
+          ${ladder
+            .map((r: any, idx: number) => {
+              const rung = r?.rung ?? idx + 1;
+              const heading = String(r?.headline || r?.title || "").trim();
+              const body = String(r?.body || r?.example || "").trim();
+              const st = websiteSnapshotStatusClass(r?.status);
+              const stLabel = websiteSnapshotStatusLabel(r?.status);
+              return `<div class="rung">
+                <span class="rn">${escapeHtml(String(rung))}</span>
+                <div class="body">
+                  <h3>${escapeHtml(heading || "Rung")}</h3>
+                  <span class="badge ${escapeHtml(st)}">${escapeHtml(stLabel)}</span>
+                  ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+                </div>
+              </div>`;
+            })
+            .filter(Boolean)
+            .join("")}
+        </div>
+        ${ladderSummary ? `<p class="after">${escapeHtml(ladderSummary)}</p>` : ""}
+      </section>
+    `
+    : "";
+
+  const planHtml = plan.length
+    ? `
+      <section>
+        <div class="sec-h"><h2>The plan, in order</h2></div>
+        <p class="lead">Sequenced for your site's current stage and biggest opportunities.</p>
+        <div class="plan">
+          ${plan
+            .map((s: any, idx: number) => {
+              const stepNum = s?.step ?? idx + 1;
+              const title = String(s?.title || "").trim();
+              const body = String(s?.body || "").trim();
+              if (!title && !body) return "";
+              return `<div class="step">
+                <span class="sn">${escapeHtml(String(stepNum))}</span>
+                <div>
+                  <h3>${escapeHtml(title || "Step")}</h3>
+                  ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+                </div>
+              </div>`;
+            })
+            .filter(Boolean)
+            .join("")}
+        </div>
+      </section>
+    `
+    : "";
+
+  const takeawayHtml = takeaway
+    ? `
+      <section style="margin-top:44px">
+        <div class="takeaway">
+          <div class="k">The honest takeaway</div>
+          <p>${escapeHtml(takeaway)}</p>
+        </div>
+      </section>
+    `
+    : "";
+
+  const foot = `<div class="foot"><p>Built from your live site and public search data. A starting point, not a full audit.${formatDayMonthYearFromIso(meta.report_date) ? ` (Report date: ${escapeHtml(formatDayMonthYearFromIso(meta.report_date))})` : ""}</p></div>`;
+
+  return `
+    <div class="wrap">
+      <header>
+        <div class="brandrow"><span>Website Snapshot</span><span>${escapeHtml(monthYearTop)}</span></div>
+        <h1>${escapeHtml(businessName)}</h1>
+        ${metaHtml}
+      </header>
+      ${calloutsHtml}
+      ${tierHtml}
+      ${goalHtml}
+      ${statsHtml}
+      ${competitorsHtml}
+      ${underHtml}
+      ${issuesHtml}
+      ${ladderHtml}
+      ${planHtml}
+      ${takeawayHtml}
+      ${foot}
+    </div>
+  `;
 }
 
 function isNonNullObject(value: unknown): value is Record<string, any> {
@@ -1814,6 +2487,7 @@ export async function POST(request: NextRequest) {
     const normalizedTitle = String(title || "Document");
     const isSnapshotTemplate = template === "snapshot" && !!expressPitch;
     const isSeoSnapshotTemplate = template === "seo-snapshot";
+    const isWebsiteSnapshotTemplate = template === "website-snapshot";
     const isPerformanceV2Template = template === "performance-v2";
     const isBillingReconciliationTemplate = template === "billing-reconciliation";
 
@@ -1832,6 +2506,15 @@ export async function POST(request: NextRequest) {
         poweredByName: String(poweredByName || ""),
       });
       css = SNAPSHOT_CSS;
+    } else if (isWebsiteSnapshotTemplate) {
+      if (!report) {
+        return NextResponse.json(
+          { error: "report JSON payload is required for template website-snapshot" },
+          { status: 400 }
+        );
+      }
+      bodyHtml = websiteSnapshotHtmlFromReport(report as WebsiteSnapshotReport);
+      css = WEBSITE_SNAPSHOT_CSS;
     } else if (isSeoSnapshotTemplate) {
       if (!report) {
         return NextResponse.json(

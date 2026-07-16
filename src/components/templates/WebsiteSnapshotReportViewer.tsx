@@ -10,6 +10,7 @@ import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import { formatDate, formatVolume, parseUtcDate } from "@/lib/format";
 import { copyToClipboard } from "@/utils/clipboard";
+import { generatePdfFromWebsiteSnapshotReport } from "@/utils/pdf-generator";
 import {
   type WebsiteSnapshotReport,
   websiteSnapshotReportToMarkdown,
@@ -189,7 +190,6 @@ export function WebsiteSnapshotReportViewer({
 
   const meta = report.meta || {};
   const businessName = String(meta.business_name || "").trim() || "Business";
-  const businessDescription = String(meta.business_description || "").trim();
   const website = String(meta.url || "").trim();
   const location = String(meta.location || "").trim();
   const phone = meta.phone != null ? String(meta.phone || "").trim() : "";
@@ -199,6 +199,9 @@ export function WebsiteSnapshotReportViewer({
   const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
   const tier = report.tier || {};
   const goal = report.goal || {};
+  const goalBody = String((goal as any)?.body ?? (goal as any)?.goal_body ?? "").trim();
+  const funnelStepsRaw = Array.isArray((goal as any)?.funnel_steps) ? (goal as any).funnel_steps : [];
+  const funnelSteps = funnelStepsRaw.map((s: any) => String(s || "").trim()).filter(Boolean).slice(0, 3);
   const search = report.search || {};
   const competitors = Array.isArray(report.competitors) ? report.competitors : [];
   const underTheHood = report.under_the_hood || {};
@@ -275,6 +278,15 @@ export function WebsiteSnapshotReportViewer({
             </h1>
             <p className="mt-3 text-xs text-muted-foreground/70">
               {[website, location].filter(Boolean).join(" · ")}
+              {phone ? (
+                <>
+                  {" "}
+                  ·{" "}
+                  <a href={`tel:${phone}`} className="hover:underline" style={{ color: "inherit" }}>
+                    {phone}
+                  </a>
+                </>
+              ) : null}
             </p>
           </header>
 
@@ -355,23 +367,44 @@ export function WebsiteSnapshotReportViewer({
             </section>
           )}
 
-          {(goal.dominant_cta || goal.funnel_end) && (
+          {(goalBody || funnelSteps.length || goal.funnel_end || goal.dominant_cta) && (
             <section className="mt-9">
               <div className="border-l-4 border-general-primary pl-5">
                 <div className="text-xs font-bold uppercase tracking-[.14em] text-general-primary">
                   Your goal, read from your own site
                 </div>
-                <div className="mt-3 text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">
-                    {String(goal.dominant_cta || "").trim() || "Goal"}
-                  </span>
-                  {goal.funnel_end ? (
-                    <>
-                      <span className="mx-2 text-muted-foreground/60">›</span>
-                      <span className="font-bold text-emerald-600">{goal.funnel_end}</span>
-                    </>
-                  ) : null}
-                </div>
+                {goalBody ? (
+                  <p className="mt-3 text-[15.5px] leading-relaxed text-foreground">
+                    {goalBody}
+                  </p>
+                ) : goal.dominant_cta ? (
+                  <p className="mt-3 text-[15.5px] leading-relaxed text-foreground">
+                    {String(goal.dominant_cta || "").trim()}
+                  </p>
+                ) : null}
+                {funnelSteps.length || goal.funnel_end ? (
+                  <div className="mt-3 text-sm text-muted-foreground">
+                    {funnelSteps[0] ? <span className="font-semibold text-foreground">{funnelSteps[0]}</span> : null}
+                    {funnelSteps[1] ? (
+                      <>
+                        <span className="mx-2 text-muted-foreground/60">›</span>
+                        <span className="font-semibold text-foreground">{funnelSteps[1]}</span>
+                      </>
+                    ) : null}
+                    {funnelSteps[2] ? (
+                      <>
+                        <span className="mx-2 text-muted-foreground/60">›</span>
+                        <span className="font-semibold text-foreground">{funnelSteps[2]}</span>
+                      </>
+                    ) : null}
+                    {goal.funnel_end ? (
+                      <>
+                        <span className="mx-2 text-muted-foreground/60">›</span>
+                        <span className="font-bold text-emerald-600">{goal.funnel_end}</span>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </section>
           )}
@@ -543,10 +576,17 @@ export function WebsiteSnapshotReportViewer({
                 </Typography>
               </div>
 
+              {String((report as any)?.competitors_intro || "").trim() ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {String((report as any).competitors_intro).trim()}
+                </p>
+              ) : null}
+
               <div className="mt-4">
                 {competitors.slice(0, 4).map((c, idx) => {
                   const domain = String(c.domain || "").trim();
                   if (!domain) return null;
+                  const title = String((c as any)?.title || "").trim();
                   const note = String(c.note || "").trim();
                   const keywordCount =
                     c.keyword_count != null && Number.isFinite(Number(c.keyword_count))
@@ -563,11 +603,17 @@ export function WebsiteSnapshotReportViewer({
                     example.position != null && Number.isFinite(Number(example.position))
                       ? `#${Number(example.position)}`
                       : "";
+                  const exWhy = String((example as any)?.why || "").trim();
 
                   return (
                     <div key={`${domain}-${idx}`} className="border-b border-border/40 py-5 last:border-b-0">
                       <div className="flex flex-wrap items-baseline justify-between gap-3">
-                        <div className="text-base font-extrabold">{domain}</div>
+                        <div>
+                          <div className="text-base font-extrabold">{title || domain}</div>
+                          {title ? (
+                            <div className="mt-0.5 text-xs text-muted-foreground/70">{domain}</div>
+                          ) : null}
+                        </div>
                         <div className="text-xs text-muted-foreground/70">
                           {[etv ? `~${etv}/mo` : "", keywordCount ? `${keywordCount} keywords` : ""]
                             .filter(Boolean)
@@ -587,12 +633,23 @@ export function WebsiteSnapshotReportViewer({
                               {[exPos, exTerm].filter(Boolean).join(" · ")}
                             </div>
                           ) : null}
+                          {exWhy ? (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {exWhy}
+                            </p>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
                   );
                 })}
               </div>
+
+              {String((report as any)?.competitors_throughline || "").trim() ? (
+                <p className="mt-5 text-sm text-muted-foreground">
+                  {String((report as any).competitors_throughline).trim()}
+                </p>
+              ) : null}
             </section>
           ) : null}
 
@@ -723,12 +780,18 @@ export function WebsiteSnapshotReportViewer({
                   Where your content should grow
                 </Typography>
               </div>
-              <p className="mt-3 text-sm text-muted-foreground">Build in this order.</p>
+              {String((report as any)?.ladder_intro || "").trim() ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {String((report as any).ladder_intro).trim()}
+                </p>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">Build in this order.</p>
+              )}
 
               <div className="mt-4">
                 {ladder.map((rung, idx) => {
-                  const title = String(rung.title || "").trim();
-                  const example = String(rung.example || "").trim();
+                  const title = String((rung as any)?.headline || rung.title || "").trim();
+                  const body = String((rung as any)?.body || rung.example || "").trim();
                   const st = statusBadge(String(rung.status || ""));
                   return (
                     <div
@@ -743,12 +806,18 @@ export function WebsiteSnapshotReportViewer({
                         <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide", st.className)}>
                           {st.label}
                         </span>
-                        {example ? <p className="mt-2 text-sm text-muted-foreground">{example}</p> : null}
+                        {body ? <p className="mt-2 text-sm text-muted-foreground">{body}</p> : null}
                       </div>
                     </div>
                   );
                 })}
               </div>
+
+              {String((report as any)?.ladder_summary || "").trim() ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  {String((report as any).ladder_summary).trim()}
+                </p>
+              ) : null}
             </section>
           ) : null}
 
@@ -811,6 +880,9 @@ export function WebsiteSnapshotReportViewer({
         onClose={() => setIsDownloadDialogOpen(false)}
         markdownContent={markdownForExport}
         defaultFilename={defaultFilename}
+        onDownloadPdf={async (filename) => {
+          await generatePdfFromWebsiteSnapshotReport({ report, filename });
+        }}
       />
     </div>
   );

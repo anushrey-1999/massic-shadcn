@@ -67,6 +67,8 @@ export interface IndexingSummaryResult {
     successful: number
     firstTime: number
     rechecked: number
+    dueRechecked: number
+    surveillanceRechecked: number
     changed: number
     unchanged: number
     failed: number
@@ -139,9 +141,20 @@ export interface IndexingStatusResult {
   freshness: { withinSla: number; due: number; overdue: number; stale30d: number; percent: number; oldestInspectionAt: string | null }
   quota: { limit: number; attempted: number; remaining: number; resetAt: string }
   backlog: { total: number; new: number; critical: number; priority: number; routine: number; estimatedRuns: number }
+  surveillance?: {
+    targetDays: number
+    eligiblePages: number
+    dailyUniqueTarget: number
+    uniqueCheckedToday: number
+    remainingTarget: number
+    eligibleNow: number
+    estimatedFullCycleDays: number
+    nextTopUpAt: string | null
+  }
   lastRun: null | {
     id: string; trigger: string; status: string; selected: number; attempted: number
     succeeded: number; failed: number; firstTime: number; rechecked: number; changed: number
+    dailyUniqueTarget: number; dueSelected: number; surveillanceSelected: number
     startedAt: string; finishedAt: string | null
   }
   discovery: null | {

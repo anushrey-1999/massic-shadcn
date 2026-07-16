@@ -5,13 +5,7 @@ import { ImageIcon, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Typography } from "@/components/ui/typography";
 import type { SanityDocumentType, SanityField } from "@/hooks/use-sanity-connector";
@@ -36,7 +30,11 @@ const CORE_CONTENT_FIELDS = [
   { value: "slug", label: "Slug", hint: "Slug field" },
   { value: "bodyHtml", label: "Body", hint: "Portable Text field" },
   { value: "metaTitle", label: "Meta title", hint: "SEO/title text field" },
-  { value: "metaDescription", label: "Meta description", hint: "SEO description field" },
+  {
+    value: "metaDescription",
+    label: "Meta description",
+    hint: "SEO description field"
+  }
 ] as const;
 
 interface SanityPublishSetupProps {
@@ -75,7 +73,7 @@ function makeCustomRow(): SanityMappingRow {
     sanityFieldPath: "",
     staticValue: "",
     sourcePath: "",
-    type: "string",
+    type: "string"
   };
 }
 
@@ -97,8 +95,9 @@ export function SanityPublishSetup({
   canSave,
   isSaving,
   hasSavedTarget,
-  onSave,
+  onSave
 }: SanityPublishSetupProps) {
+  const [enterDocumentTypeManually, setEnterDocumentTypeManually] = React.useState(false);
   const fieldByPath = React.useMemo(() => {
     const map = new Map<string, SanityField>();
     fields.forEach(field => {
@@ -109,7 +108,7 @@ export function SanityPublishSetup({
   const imageFields = React.useMemo(() => fields.filter(field => field.possibleImage || field.type === "image"), [fields]);
   const coreRows = CORE_CONTENT_FIELDS.map(field => ({
     ...field,
-    row: mappings.find(row => row.massicField === field.value),
+    row: mappings.find(row => row.massicField === field.value)
   }));
   const customRows = mappings.filter(row => row.massicField === "__static" || row.massicField === "__custom");
   const mappedCount = mappings.filter(row => row.sanityFieldPath).length;
@@ -130,35 +129,46 @@ export function SanityPublishSetup({
   );
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="sanity-document-type">Document type</Label>
-          <div className="grid gap-2">
+    <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="space-y-1.5">
+          <div className="flex min-h-5 items-center justify-between gap-2">
+            <Label htmlFor="sanity-document-type">Document type</Label>
             {documentTypes.length > 0 ? (
-              <Select value={selectedDocumentType || undefined} onValueChange={onDocumentTypeChange} disabled={documentTypesLoading}>
-                <SelectTrigger id="sanity-document-type" className="w-full cursor-pointer">
-                  <SelectValue placeholder={documentTypesLoading ? "Loading types..." : "Select document type"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {documentTypes.map(type => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name || type.id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <button
+                type="button"
+                className="cursor-pointer text-xs text-general-muted-foreground underline-offset-4 hover:text-general-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                onClick={() => setEnterDocumentTypeManually(value => !value)}
+              >
+                {enterDocumentTypeManually ? "Choose detected type" : "Enter manually"}
+              </button>
             ) : null}
+          </div>
+          {documentTypes.length > 0 && !enterDocumentTypeManually ? (
+            <Select value={selectedDocumentType || undefined} onValueChange={onDocumentTypeChange} disabled={documentTypesLoading}>
+              <SelectTrigger id="sanity-document-type" className="w-full cursor-pointer">
+                <SelectValue placeholder={documentTypesLoading ? "Loading types..." : "Select document type"} />
+              </SelectTrigger>
+              <SelectContent>
+                {documentTypes.map(type => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name || type.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
             <Input
+              id="sanity-document-type"
               value={selectedDocumentType}
               onChange={event => onDocumentTypeChange(event.target.value)}
-              placeholder="post"
+              placeholder="blogPost"
               disabled={documentTypesLoading}
             />
-          </div>
+          )}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="sanity-preview-base-url">Preview base URL</Label>
           <Input
             id="sanity-preview-base-url"
@@ -168,7 +178,7 @@ export function SanityPublishSetup({
           />
         </div>
 
-        <div className="space-y-2 sm:col-span-2">
+        <div className="space-y-1.5 md:col-span-2 xl:col-span-1">
           <Label htmlFor="sanity-url-pattern">Blog URL pattern</Label>
           <Input
             id="sanity-url-pattern"
@@ -187,39 +197,71 @@ export function SanityPublishSetup({
       )}
 
       {selectedDocumentType ? (
-        <div className="space-y-5">
-          <div>
-            <Typography variant="small" className="font-medium text-general-foreground">
-              Publishing fields
-            </Typography>
-            <p className="mt-0.5 text-sm text-general-muted-foreground">
-              Map Massic content into your Sanity document fields. Field paths can be inferred or typed manually.
-            </p>
-            <p className="mt-1 text-xs text-general-muted-foreground">
-              Newly added empty Sanity schema fields may not appear in the picker until a document has a value. Type the
-              field path manually when needed.
-            </p>
-            <p className="mt-2 text-xs text-general-muted-foreground">
-              {mappedCount} fields mapped · {imageFields.length} image fields detected
+        <div className="space-y-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+            <div>
+              <Typography variant="small" className="font-medium text-general-foreground">
+                Publishing fields
+              </Typography>
+              <p className="mt-0.5 text-xs text-general-muted-foreground">Choose a detected field or enter its Sanity path manually.</p>
+            </div>
+            <p className="shrink-0 text-xs text-general-muted-foreground">
+              {mappedCount} mapped · {imageFields.length} image fields
             </p>
           </div>
 
           <ul className="space-y-2">
-            {coreRows.map(({ value, label, hint, row }) => (
-              <li
-                key={value}
-                className="grid gap-2 rounded-lg border border-general-border bg-white p-3 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)] sm:items-center"
-              >
-                <div className="min-w-0">
-                  <Typography className="text-sm font-medium text-general-foreground">{label}</Typography>
-                  <Typography className="text-xs text-general-muted-foreground">{hint}</Typography>
-                </div>
-                <div className="grid gap-2">
-                  {fieldOptionsFor(value).length > 0 ? (
-                    <Select
-                      value={row?.sanityFieldPath || undefined}
-                      onValueChange={nextValue => {
-                        const field = fieldByPath.get(nextValue);
+            {coreRows.map(({ value, label, hint, row }) => {
+              const fieldOptions = fieldOptionsFor(value);
+              const detectedValue = fieldOptions.some(field => field.fieldPath === row?.sanityFieldPath) ? row?.sanityFieldPath : undefined;
+              return (
+                <li
+                  key={value}
+                  className="grid gap-2 rounded-lg border border-general-border bg-white p-2.5 sm:grid-cols-[minmax(0,150px)_minmax(0,1fr)] sm:items-center"
+                >
+                  <div className="min-w-0">
+                    <Typography className="text-sm font-medium text-general-foreground">{label}</Typography>
+                    <Typography className="text-xs text-general-muted-foreground">{hint}</Typography>
+                  </div>
+                  <div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1.2fr)]">
+                    {fieldOptions.length > 0 ? (
+                      <Select
+                        value={detectedValue}
+                        onValueChange={nextValue => {
+                          const field = fieldByPath.get(nextValue);
+                          onMappingsChange(prev => {
+                            const exists = prev.some(item => item.massicField === value);
+                            const nextRow = {
+                              id: value,
+                              massicField: value,
+                              sanityFieldPath: nextValue,
+                              staticValue: "",
+                              sourcePath: "",
+                              type: value === "slug" ? "slug" : field?.type || (value === "bodyHtml" ? "portableText" : "string")
+                            };
+                            return exists
+                              ? prev.map(item => (item.massicField === value ? { ...item, ...nextRow } : item))
+                              : [...prev, nextRow];
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="w-full cursor-pointer">
+                          <SelectValue placeholder="Choose detected field" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {fieldOptions.map(field => (
+                            <SelectItem key={field.fieldPath} value={field.fieldPath}>
+                              {getFieldLabel(field)}
+                              {field.type ? ` · ${field.type}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : null}
+                    <Input
+                      value={row?.sanityFieldPath || ""}
+                      onChange={event => {
+                        const nextValue = event.target.value;
                         onMappingsChange(prev => {
                           const exists = prev.some(item => item.massicField === value);
                           const nextRow = {
@@ -228,51 +270,20 @@ export function SanityPublishSetup({
                             sanityFieldPath: nextValue,
                             staticValue: "",
                             sourcePath: "",
-                            type: value === "slug" ? "slug" : field?.type || (value === "bodyHtml" ? "portableText" : "string"),
+                            type: value === "bodyHtml" ? "portableText" : value === "slug" ? "slug" : "string"
                           };
                           return exists
                             ? prev.map(item => (item.massicField === value ? { ...item, ...nextRow } : item))
                             : [...prev, nextRow];
                         });
                       }}
-                    >
-                      <SelectTrigger className="w-full cursor-pointer">
-                        <SelectValue placeholder="Choose Sanity field" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fieldOptionsFor(value).map(field => (
-                          <SelectItem key={field.fieldPath} value={field.fieldPath}>
-                            {getFieldLabel(field)}
-                            {field.type ? ` · ${field.type}` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : null}
-                  <Input
-                    value={row?.sanityFieldPath || ""}
-                    onChange={event => {
-                      const nextValue = event.target.value;
-                      onMappingsChange(prev => {
-                        const exists = prev.some(item => item.massicField === value);
-                        const nextRow = {
-                          id: value,
-                          massicField: value,
-                          sanityFieldPath: nextValue,
-                          staticValue: "",
-                          sourcePath: "",
-                          type: value === "bodyHtml" ? "portableText" : value === "slug" ? "slug" : "string",
-                        };
-                        return exists
-                          ? prev.map(item => (item.massicField === value ? { ...item, ...nextRow } : item))
-                          : [...prev, nextRow];
-                      });
-                    }}
-                    placeholder="field.path"
-                  />
-                </div>
-              </li>
-            ))}
+                      placeholder="Sanity field path"
+                      aria-label={`${label} Sanity field path`}
+                    />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
 
           <div className="space-y-3">
@@ -286,9 +297,7 @@ export function SanityPublishSetup({
                 </p>
               </div>
               {imageFields.length > 0 ? (
-                <Typography className="shrink-0 text-xs text-general-muted-foreground">
-                  {enabledImageCount} enabled
-                </Typography>
+                <Typography className="shrink-0 text-xs text-general-muted-foreground">{enabledImageCount} enabled</Typography>
               ) : null}
             </div>
 
@@ -300,13 +309,11 @@ export function SanityPublishSetup({
                   const enabled = destination?.enabled ?? true;
                   return (
                     <li key={key} className="flex items-center gap-3 rounded-lg border border-general-border bg-white p-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-general-border bg-muted/40">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-general-border bg-muted/40">
                         <ImageIcon className="size-4 text-general-muted-foreground" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <Typography className="truncate text-sm font-medium text-general-foreground">
-                          {getFieldLabel(field)}
-                        </Typography>
+                        <Typography className="truncate text-sm font-medium text-general-foreground">{getFieldLabel(field)}</Typography>
                         <Typography className="text-xs text-general-muted-foreground">
                           Sanity asset image · {getFieldType(field) || "image"}
                         </Typography>
@@ -318,7 +325,14 @@ export function SanityPublishSetup({
                             const exists = prev.some(row => row.sanityFieldPath === key);
                             return exists
                               ? prev.map(row => (row.sanityFieldPath === key ? { ...row, enabled: checked } : row))
-                              : [...prev, { id: `image-${key}`, sanityFieldPath: key, enabled: checked }];
+                              : [
+                                  ...prev,
+                                  {
+                                    id: `image-${key}`,
+                                    sanityFieldPath: key,
+                                    enabled: checked
+                                  }
+                                ];
                           });
                         }}
                         aria-label={`Use Massic image for ${getFieldLabel(field)}`}
@@ -347,18 +361,25 @@ export function SanityPublishSetup({
             {customRows.length > 0 ? (
               <ul className="space-y-2">
                 {customRows.map(row => (
-                  <li key={row.id} className="grid gap-2 rounded-lg border border-general-border bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center">
+                  <li
+                    key={row.id}
+                    className="grid gap-2 rounded-lg border border-general-border bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center"
+                  >
                     <Input
                       value={row.sanityFieldPath}
                       onChange={event =>
-                        onMappingsChange(prev => prev.map(item => (item.id === row.id ? { ...item, sanityFieldPath: event.target.value } : item)))
+                        onMappingsChange(prev =>
+                          prev.map(item => (item.id === row.id ? { ...item, sanityFieldPath: event.target.value } : item))
+                        )
                       }
                       placeholder="Sanity field path"
                     />
                     <Input
                       value={row.staticValue}
                       onChange={event =>
-                        onMappingsChange(prev => prev.map(item => (item.id === row.id ? { ...item, staticValue: event.target.value } : item)))
+                        onMappingsChange(prev =>
+                          prev.map(item => (item.id === row.id ? { ...item, staticValue: event.target.value } : item))
+                        )
                       }
                       placeholder="Static value"
                     />

@@ -132,7 +132,7 @@ export function getIndexingActionState({
     return { disabled: true, label: "Daily quota used", title: "Today’s 2,000-request property quota is used; monitoring resumes tomorrow" }
   }
   if (hasRunBefore && dueCount !== undefined && dueCount <= 0) {
-    return { disabled: true, label: "Everything is up to date", title: "Everything is within its monitoring interval" }
+    return { disabled: true, label: "Everything is within SLA", title: "No URL is formally due; scheduled surveillance continues automatically" }
   }
   return { disabled: false, label: hasRunBefore ? "Check due URLs" : "Start monitoring", title: undefined }
 }
@@ -487,7 +487,7 @@ export function IndexingTemplate() {
 
           {status?.coverage?.tracked ? (
             <div className="rounded-lg border border-general-border bg-white p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     {status.coverage.baselineComplete ? <CheckCircle2 className="h-4 w-4" /> : <Loader2 className="h-4 w-4" />}
@@ -502,9 +502,18 @@ export function IndexingTemplate() {
                       : ` · ${formatNumber(status.freshness.overdue)} overdue`}.
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4 text-xs sm:grid-cols-4 lg:min-w-[570px]">
+                <div className="grid grid-cols-2 gap-4 text-xs md:grid-cols-3 xl:min-w-[700px] xl:grid-cols-5">
                   <div><p className="text-general-muted-foreground">Within SLA</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.freshness.withinSla)}</p></div>
                   <div><p className="text-general-muted-foreground">Due backlog</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.backlog.total)} · {status.backlog.estimatedRuns} run{status.backlog.estimatedRuns === 1 ? "" : "s"}</p></div>
+                  <div>
+                    <p className="text-general-muted-foreground">Today&apos;s coverage target</p>
+                    <p className="mt-1 font-medium text-foreground">
+                      {status.surveillance
+                        ? `${formatNumber(status.surveillance.uniqueCheckedToday)} of ${formatNumber(status.surveillance.dailyUniqueTarget)}`
+                        : "Not available"}
+                    </p>
+                    {status.surveillance ? <p className="mt-0.5 text-[11px] text-general-muted-foreground">unique pages · ~{status.surveillance.estimatedFullCycleDays}-day full cycle</p> : null}
+                  </div>
                   <div><p className="text-general-muted-foreground">Quota today</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.quota.attempted)} / {formatNumber(status.quota.limit)}</p>{status.quota.remaining <= 0 ? <p className="mt-0.5 text-[11px] text-general-muted-foreground">Resets {formatDateTime(status.quota.resetAt)}</p> : null}</div>
                   <div><p className="text-general-muted-foreground">Next scheduled run</p><p className="mt-1 font-medium text-foreground">{formatDateTime(status.nextScheduledRun)}</p></div>
                 </div>
@@ -557,7 +566,7 @@ export function IndexingTemplate() {
 
           <SectionCard
             title={chartMode === "status" ? "Index status over time" : "Inspection activity"}
-            description={chartMode === "status" ? "Latest known index status of tracked URLs." : "First inspections, rechecks, detected changes, and failed requests."}
+            description={chartMode === "status" ? "Latest known index status of tracked URLs." : "First inspections, due rechecks, adaptive surveillance, changes, and failures."}
           >
             <div className="p-3">
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -586,20 +595,21 @@ export function IndexingTemplate() {
               ) : chartMode === "activity" ? (
                 summary?.activity?.length ? (
                   <>
-                    <ChartContainer config={{ firstTime: { label: "First-time", color: "var(--chart-1)" }, rechecked: { label: "Rechecked", color: "var(--chart-2)" }, changed: { label: "Changed", color: "var(--chart-3)" }, failed: { label: "Failed", color: "var(--chart-5)" } }} className="h-[280px] w-full">
+                    <ChartContainer config={{ firstTime: { label: "First-time", color: "var(--chart-1)" }, dueRechecked: { label: "Due rechecks", color: "var(--chart-2)" }, surveillanceRechecked: { label: "Adaptive surveillance", color: "var(--chart-4)" }, changed: { label: "Changed", color: "var(--chart-3)" }, failed: { label: "Failed", color: "var(--chart-5)" } }} className="h-[280px] w-full">
                       <ComposedChart data={summary.activity} margin={{ left: 8, right: 8 }}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="date" tickLine={false} axisLine={false} tickFormatter={(value) => formatShortDate(value)} />
                         <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
                         <ChartTooltip content={<ChartTooltipContent labelFormatter={(value) => <div><div>{formatShortDate(value as string)}</div>{!summary.coverage.complete ? <div className="mt-1 font-normal text-general-muted-foreground">Partial coverage</div> : null}</div>} />} />
                         <Bar dataKey="firstTime" stackId="activity" fill="var(--color-firstTime)" />
-                        <Bar dataKey="rechecked" stackId="activity" fill="var(--color-rechecked)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="dueRechecked" stackId="activity" fill="var(--color-dueRechecked)" />
+                        <Bar dataKey="surveillanceRechecked" stackId="activity" fill="var(--color-surveillanceRechecked)" radius={[4, 4, 0, 0]} />
                         <Line type="monotone" dataKey="changed" stroke="var(--color-changed)" strokeWidth={2} dot={false} />
                         <Line type="monotone" dataKey="failed" stroke="var(--color-failed)" strokeWidth={2} strokeDasharray="4 3" dot={false} />
                       </ComposedChart>
                     </ChartContainer>
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-general-muted-foreground">
-                      <span>Bars: first-time and rechecked</span><span>Solid line: changed</span><span>Dashed line: failed</span>
+                      <span>Bars: first-time, due rechecks, and adaptive surveillance</span><span>Solid line: changed</span><span>Dashed line: failed</span>
                     </div>
                   </>
                 ) : <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">No inspection activity in this range.</div>

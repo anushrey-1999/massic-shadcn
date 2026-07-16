@@ -119,7 +119,11 @@ const SELECTION_REASON_OPTIONS = [
   { value: "critical_issue", label: "Critical issue" },
   { value: "traffic_or_nonindexed", label: "Traffic or non-indexed" },
   { value: "routine_refresh", label: "Routine refresh" },
+  { value: "adaptive_surveillance", label: "Adaptive surveillance" },
 ]
+const SELECTION_REASON_LABELS = new Map(
+  SELECTION_REASON_OPTIONS.map((option) => [option.value, option.label])
+)
 
 interface IndexingPagesTableProps {
   businessId: string | null
@@ -1006,7 +1010,18 @@ export function IndexingPagesTable({
                     <DetailField label="Tier" value={formatDetailValue(detailsQuery.data.tracked.inspection_tier, "New")} />
                     <DetailField label="Freshness" value={selectedPage?.freshness_state === "fresh" ? "Within SLA" : formatDetailValue(selectedPage?.freshness_state, "Pending")} />
                     <DetailField label="Next inspection" value={formatDateTime(detailsQuery.data.tracked.next_inspection_at as string)} />
-                    <DetailField label="Last selection reason" value={formatDetailValue(detailsQuery.data.tracked.last_selection_reason, "Not selected yet")} />
+                    <DetailField
+                      label="Last selection reason"
+                      value={
+                        SELECTION_REASON_LABELS.get(String(detailsQuery.data.tracked.last_selection_reason || "")) ||
+                        formatDetailValue(
+                          detailsQuery.data.tracked.last_selection_reason,
+                          detailsQuery.data.tracked.last_inspected_at
+                            ? "Legacy inspection — reason not recorded"
+                            : "Not selected yet"
+                        )
+                      }
+                    />
                   </dl>
                 </section>
 

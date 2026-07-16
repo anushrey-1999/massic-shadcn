@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { ArrowRight, Check, Minus } from "lucide-react";
 import { AdminEmptyState } from "../components/admin-states";
+import { AdminBusinessFavicon } from "../components/admin-business-favicon";
 import { AdminStatusBadge } from "../components/status-badge";
 import { formatAdminValue } from "../components/admin-kpi-card";
-import { SiteFavicon } from "@/components/organisms/WebChannels/platform-icon";
 import { cn } from "@/lib/utils";
 import type { AdminBusiness } from "../types";
 
@@ -90,7 +90,10 @@ export function AdminBusinessTable({
                     href={`/admin/businesses/${row.business_id}`}
                     className="flex min-w-0 items-center gap-2.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-general-primary"
                   >
-                    <SiteFavicon siteUrl={row.website} className="size-8" />
+                    <AdminBusinessFavicon
+                      siteUrl={row.website}
+                      className="size-8"
+                    />
                     <span className="min-w-0">
                       <span className="block truncate font-medium transition-colors group-hover:text-general-primary">
                         {row.business_name}

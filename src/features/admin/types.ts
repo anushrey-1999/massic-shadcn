@@ -39,6 +39,7 @@ export interface AdminKpi {
   changePct: number | null;
   trend: Array<{ date: string; value: number }>;
   availability: AdminAvailability;
+  contextLabel?: string;
 }
 
 export interface AdminBreakdownRow {
@@ -64,6 +65,7 @@ export interface AdminModuleData {
     sourceFreshness?: AdminSourceFreshness;
     cacheState?: AdminCacheState;
     entityStatus?: "strong" | "dip" | "check" | "no_signal";
+    scope?: "lifetime_llm";
   };
   kpis: AdminKpi[];
   breakdown: {
@@ -71,6 +73,73 @@ export interface AdminModuleData {
     total: number;
     page: number;
     pageSize: number;
+  };
+  apiCost?: AdminApiCostData;
+}
+
+export interface AdminApiCostProvider {
+  key: "api_cost_openai" | "api_cost_anthropic";
+  label: string;
+  cost: number;
+  sharePct: number;
+}
+
+export interface AdminApiCostBusiness {
+  businessId: string;
+  businessName: string | null;
+  website: string | null;
+  displayName: string;
+  agencyId: string | null;
+  agencyName: string | null;
+  isPitch: boolean;
+  cost: number;
+  percentOfTotal: number;
+  attributed: boolean;
+}
+
+export interface AdminApiCostWorkflow {
+  workflowName: string;
+  displayName: string;
+  cost: number;
+  percentOfTotal: number;
+}
+
+export interface AdminApiCostAgency {
+  agencyId: string | null;
+  agencyName: string | null;
+  displayName: string;
+  cost: number;
+  percentOfTotal: number;
+  businessCount: number;
+  attributed: boolean;
+}
+
+export interface AdminCostRankRow {
+  id: string;
+  label: string;
+  sublabel?: string;
+  badge?: string;
+  siteUrl?: string | null;
+  cost: number;
+  sharePct: number;
+}
+
+export interface AdminApiCostData {
+  scope: "lifetime_llm";
+  fetchedAt: string;
+  coverage: string;
+  trackedBusinessCount: number;
+  providers: AdminApiCostProvider[];
+  businesses: AdminApiCostBusiness[];
+  workflows: AdminApiCostWorkflow[];
+  agencies: AdminApiCostAgency[];
+  agencyAttributionAvailable: boolean;
+  unattributedCost: number;
+  unknownBusinessCost: number;
+  reconciliation: {
+    businessBreakdownTotal: number;
+    inferTotalCost: number;
+    delta: number;
   };
 }
 

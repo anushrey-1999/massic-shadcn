@@ -4,11 +4,11 @@ import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { AdminRangeKey } from "../types";
 
-export function useAdminQueryState() {
+export function useAdminQueryState(defaultRange: AdminRangeKey = "last_28_days") {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const range = (searchParams.get("range") || "last_28_days") as AdminRangeKey;
+  const range = (searchParams.get("range") || defaultRange) as AdminRangeKey;
   const groupBy = searchParams.get("groupBy") || undefined;
   const metric = searchParams.get("metric") || undefined;
   const agencyId = searchParams.get("agencyId") || undefined;

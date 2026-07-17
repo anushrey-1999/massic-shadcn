@@ -132,7 +132,7 @@ export function getIndexingActionState({
     return { disabled: true, label: "Daily quota used", title: "Today’s 2,000-request property quota is used; monitoring resumes tomorrow" }
   }
   if (hasRunBefore && dueCount !== undefined && dueCount <= 0) {
-    return { disabled: true, label: "Everything is within SLA", title: "No URL is formally due; scheduled surveillance continues automatically" }
+    return { disabled: true, label: "Everything is on schedule", title: "No URL is due; scheduled surveillance continues automatically" }
   }
   return { disabled: false, label: hasRunBefore ? "Check due URLs" : "Start monitoring", title: undefined }
 }
@@ -503,7 +503,7 @@ export function IndexingTemplate() {
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-xs md:grid-cols-3 xl:min-w-[700px] xl:grid-cols-5">
-                  <div><p className="text-general-muted-foreground">Within SLA</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.freshness.withinSla)}</p></div>
+                  <div><p className="text-general-muted-foreground">On schedule</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.freshness.withinSla)}</p></div>
                   <div><p className="text-general-muted-foreground">Due backlog</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.backlog.total)} · {status.backlog.estimatedRuns} run{status.backlog.estimatedRuns === 1 ? "" : "s"}</p></div>
                   <div>
                     <p className="text-general-muted-foreground">Today&apos;s coverage target</p>
@@ -555,9 +555,9 @@ export function IndexingTemplate() {
                   partial={!summary?.coverage?.complete}
                 />
                 <StatCard
-                  label="Freshness"
+                  label="Monitoring"
                   value={`${summary?.freshness?.percent ?? 0}%`}
-                  hint={`${formatNumber(summary?.freshness?.fresh)} within tier SLA`}
+                  hint={`${formatNumber(summary?.freshness?.fresh)} URLs on schedule`}
                   partial={!summary?.coverage?.complete}
                 />
               </>

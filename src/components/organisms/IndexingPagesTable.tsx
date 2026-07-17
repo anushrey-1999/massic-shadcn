@@ -472,7 +472,7 @@ function PagesTableBody({
                   </TableCell>
                   <TableCell className="px-3 py-2">
                     <div className="text-xs font-medium capitalize text-foreground">
-                      {row.freshness_state === "pending" ? "Waiting for first inspection" : row.freshness_state === "fresh" ? "Within SLA" : row.freshness_state}
+                      {row.freshness_state === "pending" ? "Waiting for first inspection" : row.freshness_state === "fresh" ? "On schedule" : row.freshness_state}
                     </div>
                     <div className="mt-0.5 text-[11px] capitalize text-general-muted-foreground">
                       {row.inspection_tier} tier
@@ -727,13 +727,13 @@ export function IndexingPagesTable({
                         </SelectContent>
                       </Select>
                     </CompactFilterRow>
-                    <CompactFilterRow label="Freshness">
+                    <CompactFilterRow label="Inspection timing">
                       <Select value={freshness} onValueChange={(value) => { setFreshness(value); resetPage() }}>
                         <SelectTrigger size="sm" className="w-full bg-white text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Any freshness</SelectItem>
+                          <SelectItem value="all">Any timing</SelectItem>
                           <SelectItem value="pending">Pending first check</SelectItem>
-                          <SelectItem value="fresh">Within SLA</SelectItem>
+                          <SelectItem value="fresh">On schedule</SelectItem>
                           <SelectItem value="due">Due</SelectItem>
                           <SelectItem value="overdue">Overdue</SelectItem>
                         </SelectContent>
@@ -975,7 +975,7 @@ export function IndexingPagesTable({
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge variant="secondary" className="rounded capitalize">{selectedPage?.inspection_tier || "new"} tier</Badge>
-                      <Badge variant="outline" className="rounded capitalize">{selectedPage?.freshness_state === "fresh" ? "Within SLA" : selectedPage?.freshness_state || "pending"}</Badge>
+                      <Badge variant="outline" className="rounded capitalize">{selectedPage?.freshness_state === "fresh" ? "On schedule" : selectedPage?.freshness_state || "pending"}</Badge>
                       <Badge variant="outline" className="rounded capitalize">{selectedPage?.source || "tracked"}</Badge>
                     </div>
                   </div>
@@ -1008,7 +1008,7 @@ export function IndexingPagesTable({
                   <h3 className="text-sm font-medium text-foreground">Monitoring schedule</h3>
                   <dl className="mt-2 grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-general-border bg-general-border sm:grid-cols-2">
                     <DetailField label="Tier" value={formatDetailValue(detailsQuery.data.tracked.inspection_tier, "New")} />
-                    <DetailField label="Freshness" value={selectedPage?.freshness_state === "fresh" ? "Within SLA" : formatDetailValue(selectedPage?.freshness_state, "Pending")} />
+                    <DetailField label="Schedule status" value={selectedPage?.freshness_state === "fresh" ? "On schedule" : formatDetailValue(selectedPage?.freshness_state, "Pending")} />
                     <DetailField label="Next inspection" value={formatDateTime(detailsQuery.data.tracked.next_inspection_at as string)} />
                     <DetailField
                       label="Last selection reason"

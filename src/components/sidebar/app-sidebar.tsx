@@ -430,11 +430,10 @@ export default function AppSidebar() {
 
   return (
     <>
-      <div className="relative">
+      <div className="relative h-svh shrink-0">
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="fixed top-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground-light border border-general-border hover:bg-general-border transition-colors cursor-pointer shadow-sm z-[100]"
-          style={{ left: isCollapsed ? 'calc(3.5rem - 12px)' : 'calc(var(--sidebar-width, 16rem) - 12px)' }}
+          className="absolute top-4 -right-3 z-30 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground-light border border-general-border hover:bg-general-border transition-colors cursor-pointer shadow-sm"
         >
           {isCollapsed
             ? <ChevronRight className="h-4 w-4" />

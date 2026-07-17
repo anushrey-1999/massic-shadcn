@@ -247,8 +247,9 @@ export interface AdminBusiness {
   status: "strong" | "dip" | "check" | "no_signal";
   mrr: number | null;
   billing_plan?: string | null;
-  access_type?: "paid" | "whitelisted" | "no_plan";
+  access_type?: "paid" | "trial" | "whitelisted" | "no_plan";
   is_whitelisted?: boolean;
+  trial_end_date?: string | null;
 }
 
 export interface AdminBusinessesData {

@@ -24,25 +24,27 @@ import { AdminStatusBadge } from "../components/status-badge";
 import { useAdminQueryState } from "../hooks/use-admin-query-state";
 import type { AdminKpi } from "../types";
 
-function availableKpi(
-  key: string,
-  label: string,
-  value: unknown,
-  unavailableReason = "This source is not available for the selected range.",
-): AdminKpi {
-  return {
-    key,
-    label,
-    value: value === null || value === undefined ? null : Number(value),
-    previous: null,
-    changePct: null,
-    trend: [],
-    availability: {
-      state:
-        value === null || value === undefined ? "unavailable" : "available",
-      reason: value === null || value === undefined ? unavailableReason : null,
-    },
-  };
+function readablePlan(plan: string | null) {
+  if (!plan) return "Paid plan";
+  return plan
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function billingContext({
+  accessType,
+  plan,
+  asOfDate,
+}: {
+  accessType: "paid" | "trial" | "whitelisted" | "no_plan";
+  plan: string | null;
+  asOfDate: string;
+}) {
+  if (accessType === "trial") return "Trial access · excluded from MRR";
+  if (accessType === "whitelisted")
+    return "Whitelisted access · no recurring revenue";
+  if (accessType === "no_plan") return "No paid plan";
+  return `${readablePlan(plan)} · as of ${asOfDate}`;
 }
 
 function ConnectionRow({
@@ -94,15 +96,23 @@ export function AdminBusinessSnapshot({ id }: { id: string }) {
         pending={query.isFetching}
       />
     );
-  const { dimension, analytics } = query.data.data;
+  const { dimension, billing, analytics } = query.data.data;
+  const nonPaidAccess = billing?.accessType !== "paid";
+  const mrrKpi: AdminKpi | null = billing
+    ? {
+        key: "mrr",
+        label: "MRR",
+        value: billing.currentMrr,
+        previous: nonPaidAccess ? null : billing.previousMrr,
+        changePct: nonPaidAccess ? null : billing.changePct,
+        trend: [],
+        contextLabel: billingContext(billing),
+        availability: billing.availability,
+      }
+    : null;
   const kpis = [
     ...analytics.kpis,
-    availableKpi(
-      "mrr",
-      "MRR",
-      null,
-      "Stripe billing is not connected to the live business snapshot yet.",
-    ),
+    ...(mrrKpi ? [mrrKpi] : []),
   ];
   const clickTrend =
     analytics.kpis.find((kpi) => kpi.key === "clicks")?.trend || [];
@@ -272,13 +282,15 @@ export function AdminBusinessSnapshot({ id }: { id: string }) {
       {benchmark.data?.data && (
         <div className="mt-4">
           <AdminBenchmarkCard
-            title="Industry benchmark"
+            title="CTR compared with similar businesses"
             metric="ctr"
             target={benchmark.data.data.target.value}
             median={benchmark.data.data.cohort.median}
             rank={benchmark.data.data.target.percentileRank}
             cohortCount={benchmark.data.data.cohort.count}
             cohort={benchmark.data.data.target.cohort}
+            entityKind="business"
+            period={analytics.meta.range}
           />
         </div>
       )}

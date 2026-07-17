@@ -110,6 +110,20 @@ export async function getAdminBusiness(id: string, query: AdminQuery = {}) {
     Envelope<{
       dimension: AdminBusiness;
       latest: Record<string, unknown> | null;
+      billing?: {
+        currentMrr: number | null;
+        previousMrr: number | null;
+        changePct: number | null;
+        asOfDate: string;
+        previousAsOfDate: string;
+        plan: string | null;
+        accessType: "paid" | "trial" | "whitelisted" | "no_plan";
+        currency: string | null;
+        availability: {
+          state: "available" | "unavailable";
+          reason: string | null;
+        };
+      };
       analytics: AdminModuleData;
     }>
   >(`/admin/businesses/${id}${queryString(query)}`);

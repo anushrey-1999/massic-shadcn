@@ -29,6 +29,17 @@ function Connection({
   );
 }
 
+function trialBadgeLabel(endDate: string | null | undefined, trialOnly: boolean) {
+  const prefix = trialOnly ? "Trial access" : "Trial";
+  if (!endDate) return prefix;
+  const remainingDays = Math.max(
+    0,
+    Math.ceil((new Date(endDate).getTime() - Date.now()) / 86_400_000),
+  );
+  if (remainingDays === 0) return `${prefix} · ends today`;
+  return `${prefix} · ${remainingDays} day${remainingDays === 1 ? "" : "s"} left`;
+}
+
 export function AdminBusinessTable({
   rows,
   viewportScroll = false,
@@ -122,7 +133,17 @@ export function AdminBusinessTable({
                 </td>
                 <td className="px-3">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span>{row.plan}</span>
+                    {!(row.access_type === "trial" && !row.billing_plan) && (
+                      <span>{row.billing_plan || row.plan}</span>
+                    )}
+                    {row.access_type === "trial" && (
+                      <Badge
+                        variant="outline"
+                        className="rounded border-amber-200 bg-amber-50 font-normal text-amber-900"
+                      >
+                        {trialBadgeLabel(row.trial_end_date, !row.billing_plan)}
+                      </Badge>
+                    )}
                     {row.is_whitelisted && row.access_type === "paid" && (
                       <Badge variant="outline" className="rounded font-normal">
                         Whitelisted access

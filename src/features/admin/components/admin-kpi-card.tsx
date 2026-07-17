@@ -25,6 +25,7 @@ const CURRENCY_KEYS = new Set([
   "arr",
   "new_mrr",
   "retained_mrr",
+  "execution_credit_revenue",
 ]);
 const API_COST_KEYS = new Set([
   "api_cost_total",

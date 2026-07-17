@@ -7,6 +7,7 @@ import { AdminBusinessFavicon } from "../components/admin-business-favicon";
 import { AdminStatusBadge } from "../components/status-badge";
 import { formatAdminValue } from "../components/admin-kpi-card";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import type { AdminBusiness } from "../types";
 
 function Connection({
@@ -119,7 +120,16 @@ export function AdminBusinessTable({
                 <td className="px-3">
                   <AdminStatusBadge status={row.status} />
                 </td>
-                <td className="px-3 capitalize">{row.plan}</td>
+                <td className="px-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span>{row.plan}</span>
+                    {row.is_whitelisted && row.access_type === "paid" && (
+                      <Badge variant="outline" className="rounded font-normal">
+                        Whitelisted access
+                      </Badge>
+                    )}
+                  </div>
+                </td>
                 <td className="px-3">
                   <div className="flex gap-2">
                     <Connection connected={row.connected_gsc} label="GSC" />

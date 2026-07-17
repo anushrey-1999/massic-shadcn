@@ -14,9 +14,6 @@ export interface BusinessProfile {
   LegalName?: string | null;
   FoundingDate?: string | null;
   LogoUrl?: string | null;
-  SiteName?: string | null;
-  AlternateName?: string | null;
-  SiteSearchUrlPattern?: string | null;
   Description?: string;
   UserDefinedBusinessDescription?: string;
   AOV?: number | null;

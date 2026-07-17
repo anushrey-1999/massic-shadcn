@@ -27,9 +27,6 @@ type BusinessInfoFormData = {
   businessName: string;
   foundingDate?: string;
   logoUrl?: string;
-  siteName?: string;
-  alternateName?: string;
-  siteSearchUrlPattern?: string;
   businessDescription: string;
   primaryLocation: string;
   businessCategory?: string;
@@ -503,30 +500,6 @@ export const BusinessInfoForm = React.memo(({
             label="Logo URL"
             placeholder="https://example.com/logo.png"
             disabled={disabledFields?.logoUrl}
-          />
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="siteName"
-            type="input"
-            label="Site Name"
-            placeholder="Website or site name"
-            disabled={disabledFields?.siteName}
-          />
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="alternateName"
-            type="input"
-            label="Alternate Name"
-            placeholder="Alternate brand name"
-            disabled={disabledFields?.alternateName}
-          />
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="siteSearchUrlPattern"
-            type="input"
-            label="Site Search URL Pattern"
-            placeholder="https://example.com/search?q={search_term_string}"
-            disabled={disabledFields?.siteSearchUrlPattern}
           />
         </div>,
         primaryLocationAction

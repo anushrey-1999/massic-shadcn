@@ -36,9 +36,6 @@ export const profileFormDefaults: BusinessInfoFormData = {
   businessCategory: "",
   foundingDate: "",
   logoUrl: "",
-  siteName: "",
-  alternateName: "",
-  siteSearchUrlPattern: "",
   businessDescription: "",
   primaryLocation: "",
   serviceAreaType: "city_local",
@@ -262,11 +259,14 @@ function normalizeImageLibrary(
         const image = unwrappedItem as Record<string, unknown>;
         const url = String(unwrapValue(image.url ?? image.src ?? image.href) ?? "").trim();
         const alt = String(unwrapValue(image.alt) ?? "").trim();
-        return url ? { alt, url } : null;
+        if (!url) return null;
+        return alt ? { alt, url } : { url };
       }
       return String(unwrappedItem ?? "").trim();
     })
-    .filter((item): item is string | { alt?: string; url: string } => Boolean(item));
+    .filter((item): item is string | { alt?: string; url: string } =>
+      Boolean(item && (typeof item === "string" ? item.trim().length > 0 : (item as any).url))
+    );
 }
 
 function normalizeProfileUrlRows(raw: unknown): Array<{ url: string }> {
@@ -305,10 +305,6 @@ export function mapAutofillResultToFormValues(
     businessCategory: profile.businessCategory || currentValues.businessCategory,
     foundingDate: profile.yearFounded || currentValues.foundingDate,
     logoUrl: profile.logoUrl || currentValues.logoUrl,
-    siteName: profile.siteName || currentValues.siteName,
-    alternateName: profile.alternateName || currentValues.alternateName,
-    siteSearchUrlPattern:
-      profile.siteSearchUrlPattern || currentValues.siteSearchUrlPattern,
     serviceAreaType: profile.serviceAreaType || currentValues.serviceAreaType,
     serviceAreas:
       profile.serviceAreas.length > 0
@@ -477,19 +473,6 @@ export function mapProfileDataToFormValues(
       jobAny?.year_founded ||
       "",
     logoUrl: profileAny.LogoUrl || profileAny.logoUrl || profileAny.logo_url || jobAny?.logo_url || "",
-    siteName: profileAny.SiteName || profileAny.siteName || profileAny.site_name || jobAny?.site_name || "",
-    alternateName:
-      profileAny.AlternateName ||
-      profileAny.alternateName ||
-      profileAny.alternate_name ||
-      jobAny?.alternate_name ||
-      "",
-    siteSearchUrlPattern:
-      profileAny.SiteSearchUrlPattern ||
-      profileAny.siteSearchUrlPattern ||
-      profileAny.site_search_url_pattern ||
-      jobAny?.site_search_url_pattern ||
-      "",
     businessDescription:
       profileData.UserDefinedBusinessDescription || profileData.Description || "",
     primaryLocation,
@@ -626,9 +609,6 @@ export function buildBusinessProfilePayload(
     Name: values.businessName,
     FoundingDate: values.foundingDate || null,
     LogoUrl: values.logoUrl || null,
-    SiteName: values.siteName || null,
-    AlternateName: values.alternateName || null,
-    SiteSearchUrlPattern: values.siteSearchUrlPattern || null,
     Description: values.businessDescription || "",
     UserDefinedBusinessDescription: values.businessDescription || "",
     PrimaryLocation: {

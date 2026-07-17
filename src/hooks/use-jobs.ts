@@ -69,9 +69,6 @@ export interface BusinessProfilePayload {
   LegalName?: string | null;
   FoundingDate?: string | null;
   LogoUrl?: string | null;
-  SiteName?: string | null;
-  AlternateName?: string | null;
-  SiteSearchUrlPattern?: string | null;
   Locations?: Array<Record<string, unknown>> | null;
   DetailedLocations?: Array<Record<string, unknown>> | null;
   StructuredLocations?: Array<Record<string, unknown>> | null;
@@ -606,9 +603,6 @@ function mapBusinessProfilePayloadToJobBody(
     competitors: normalizeCompetitors(competitors),
     legal_business_name: businessProfilePayload.LegalName || undefined,
     year_founded: businessProfilePayload.FoundingDate || undefined,
-    site_name: businessProfilePayload.SiteName || undefined,
-    alternate_name: businessProfilePayload.AlternateName || undefined,
-    site_search_url_pattern: businessProfilePayload.SiteSearchUrlPattern || undefined,
     logo_url: businessProfilePayload.LogoUrl || undefined,
     support_email: businessProfilePayload.SupportEmail || undefined,
     social_profiles: normalizeProfileLinks(businessProfilePayload.SocialProfiles),

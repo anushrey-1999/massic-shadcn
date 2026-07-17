@@ -51,9 +51,6 @@ export type NormalizedProfileResult = {
   businessCategory?: string;
   yearFounded?: string;
   logoUrl?: string;
-  siteName?: string;
-  alternateName?: string;
-  siteSearchUrlPattern?: string;
   serve?: "local" | "online" | "both";
   serviceType?: "physical" | "online" | "both";
   sell?: "products" | "services" | "both";
@@ -403,12 +400,6 @@ export function normalizeProfileResult(
       toStringValue(firstValue(result, ["year_founded", "founding_date", "foundingDate"])) ||
       undefined,
     logoUrl: toStringValue(firstValue(result, ["logo_url", "logo"])) || undefined,
-    siteName:
-      toStringValue(firstValue(result, ["site_name", "WebSite.name"])) || undefined,
-    alternateName:
-      toStringValue(firstValue(result, ["alternate_name", "alternateName"])) || undefined,
-    siteSearchUrlPattern:
-      toStringValue(firstValue(result, ["site_search_url_pattern"])) || undefined,
     serve,
     serviceType: serviceTypeFromServe(serve),
     sell,

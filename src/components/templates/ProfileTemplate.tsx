@@ -188,9 +188,6 @@ const ProfileTemplate = ({
         businessCategory: "",
         foundingDate: "",
         logoUrl: "",
-        siteName: "",
-        alternateName: "",
-        siteSearchUrlPattern: "",
         businessDescription: "",
         primaryLocation: "",
         serviceAreaType: "city_local",
@@ -391,21 +388,6 @@ const ProfileTemplate = ({
         (profileData as any).LogoUrl ||
         (profileData as any).logoUrl ||
         (profileData as any).logo_url ||
-        "",
-      siteName:
-        (profileData as any).SiteName ||
-        (profileData as any).siteName ||
-        (profileData as any).site_name ||
-        "",
-      alternateName:
-        (profileData as any).AlternateName ||
-        (profileData as any).alternateName ||
-        (profileData as any).alternate_name ||
-        "",
-      siteSearchUrlPattern:
-        (profileData as any).SiteSearchUrlPattern ||
-        (profileData as any).siteSearchUrlPattern ||
-        (profileData as any).site_search_url_pattern ||
         "",
       businessDescription:
         profileData.UserDefinedBusinessDescription ||

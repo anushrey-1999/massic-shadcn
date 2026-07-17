@@ -866,6 +866,17 @@ const WEBSITE_SNAPSHOT_CSS = `
   h1{font-size:32px;font-weight:800;margin:18px 0 8px;letter-spacing:-.01em}
   .meta{color:var(--faint);font-size:13px;margin-top:12px}
   section{margin-top:52px}
+  /* PDF pagination rules:
+     Keep "Heading + subheading + content block" together without forcing the
+     entire section to be unbreakable (which can cause awkward whitespace). */
+  .keep{break-inside:avoid;page-break-inside:avoid}
+  .sec-h{break-after:avoid;page-break-after:avoid}
+  .lead{break-after:avoid;page-break-after:avoid}
+  /* Keep repeated “cards” together (fixes orphaned subheadings). */
+  .read,.wh-page,.c,.ex,.issue,.rung,.step,table,tr{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
   .sec-h{display:flex;align-items:baseline;gap:12px;border-top:1px solid var(--line);padding-top:22px;margin-bottom:18px}
   .sec-h h2{font-size:22px;font-weight:800;letter-spacing:-.01em}
   .lead{color:var(--muted);font-size:15px;margin:-6px 0 20px}
@@ -1172,22 +1183,24 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const calloutsHtml = callouts.length
     ? `
       <section>
-        <div class="sec-h"><h2>Quick overview</h2></div>
-        <div class="reads">
-          ${callouts
-            .slice(0, 4)
-            .map((c: any) => {
-              const tone = websiteSnapshotToneDot(c?.tone);
-              const title = String(c?.title || "").trim();
-              const body = String(c?.body || "").trim();
-              if (!title && !body) return "";
-              return `<div class="read">
-                <h3><span class="dot ${tone}"></span>${escapeHtml(title || "Callout")}</h3>
-                ${body ? `<p>${escapeHtml(body)}</p>` : ""}
-              </div>`;
-            })
-            .filter(Boolean)
-            .join("")}
+        <div class="keep">
+          <div class="sec-h"><h2>Quick overview</h2></div>
+          <div class="reads">
+            ${callouts
+              .slice(0, 4)
+              .map((c: any) => {
+                const tone = websiteSnapshotToneDot(c?.tone);
+                const title = String(c?.title || "").trim();
+                const body = String(c?.body || "").trim();
+                if (!title && !body) return "";
+                return `<div class="read">
+                  <h3><span class="dot ${tone}"></span>${escapeHtml(title || "Callout")}</h3>
+                  ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+                </div>`;
+              })
+              .filter(Boolean)
+              .join("")}
+          </div>
         </div>
       </section>
     `
@@ -1199,11 +1212,13 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
     tierLabel || tierReason
       ? `
       <section>
-        <div class="sec-h"><h2>What SEO can do for you</h2></div>
-        <div class="tier">
-          ${tierLabel ? `<span class="tier-k">${escapeHtml(tierLabel)}</span>` : ""}
-          ${tierReason ? `<p>${escapeHtml(tierReason)}</p>` : ""}
-          ${String(tier?.tier_caveat || "").trim() ? `<p class="lead" style="margin-top:10px">${escapeHtml(String(tier.tier_caveat))}</p>` : ""}
+        <div class="keep">
+          <div class="sec-h"><h2>What SEO can do for you</h2></div>
+          <div class="tier">
+            ${tierLabel ? `<span class="tier-k">${escapeHtml(tierLabel)}</span>` : ""}
+            ${tierReason ? `<p>${escapeHtml(tierReason)}</p>` : ""}
+            ${String(tier?.tier_caveat || "").trim() ? `<p class="lead" style="margin-top:10px">${escapeHtml(String(tier.tier_caveat))}</p>` : ""}
+          </div>
         </div>
       </section>
     `
@@ -1233,13 +1248,15 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const statsHtml = `
     <section>
-      <div class="sec-h"><h2>Where you stand in search today</h2></div>
-      <p class="lead">Real organic search data for your site, from the U.S. Google index.</p>
-      <div class="stats">
-        <div class="stat"><div class="v num">${search.keywords_count != null ? escapeHtml(formatVolumeShort(Number(search.keywords_count))) : "—"}</div><div class="l">keywords ranked</div></div>
-        <div class="stat"><div class="v num good">${search.etv != null ? escapeHtml("~" + formatVolumeShort(Math.round(Number(search.etv)))) : "—"}</div><div class="l">visits a month</div></div>
-        <div class="stat"><div class="v num good">${search.top10 != null ? escapeHtml(formatVolumeShort(Number(search.top10))) : "—"}</div><div class="l">in Google's top 10</div></div>
-        <div class="stat"><div class="v num">${search.referring_domains != null ? escapeHtml(formatVolumeShort(Number(search.referring_domains))) : "—"}</div><div class="l">sites linking to you</div></div>
+      <div class="keep">
+        <div class="sec-h"><h2>Where you stand in search today</h2></div>
+        <p class="lead">Real organic search data for your site, from the U.S. Google index.</p>
+        <div class="stats">
+          <div class="stat"><div class="v num">${search.keywords_count != null ? escapeHtml(formatVolumeShort(Number(search.keywords_count))) : "—"}</div><div class="l">keywords ranked</div></div>
+          <div class="stat"><div class="v num good">${search.etv != null ? escapeHtml("~" + formatVolumeShort(Math.round(Number(search.etv)))) : "—"}</div><div class="l">visits a month</div></div>
+          <div class="stat"><div class="v num good">${search.top10 != null ? escapeHtml(formatVolumeShort(Number(search.top10))) : "—"}</div><div class="l">in Google's top 10</div></div>
+          <div class="stat"><div class="v num">${search.referring_domains != null ? escapeHtml(formatVolumeShort(Number(search.referring_domains))) : "—"}</div><div class="l">sites linking to you</div></div>
+        </div>
       </div>
       ${
         String(search.traffic_read || "").trim()
@@ -1248,62 +1265,66 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
       }
       ${
         Array.isArray(search?.trend?.points) && search.trend.points.length
-          ? `<div class="chartcap">Monthly organic traffic, ${escapeHtml(String(search?.trend?.window || "").trim() || "available history")}</div>
-             ${websiteSnapshotTrendChart(search.trend.points)}`
+          ? `<div class="keep"><div class="chartcap">Monthly organic traffic, ${escapeHtml(String(search?.trend?.window || "").trim() || "available history")}</div>
+             ${websiteSnapshotTrendChart(search.trend.points)}</div>`
           : ""
       }
-      <div class="kw">
-        <div>
-          <div class="h win">You win</div>
-          <ul>
-            ${(Array.isArray(search?.topics_won) ? search.topics_won : [])
-              .slice(0, 5)
-              .map((row: any, idx: number) => {
-                const term = String(row?.term || "").trim();
-                if (!term) return "";
-                return `<li><span class="term">${escapeHtml(term)}</span></li>`;
-              })
-              .filter(Boolean)
-              .join("")}
-          </ul>
-        </div>
-        <div>
-          <div class="h miss">Striking distance</div>
-          <ul>
-            ${(Array.isArray(search?.gaps?.near_miss) ? search.gaps.near_miss : [])
-              .slice(0, 5)
-              .map((row: any, idx: number) => {
-                const term = String(row?.term || "").trim();
-                if (!term) return "";
-                return `<li><span class="term">${escapeHtml(term)}</span></li>`;
-              })
-              .filter(Boolean)
-              .join("")}
-          </ul>
+      <div class="keep">
+        <div class="kw">
+          <div>
+            <div class="h win">You win</div>
+            <ul>
+              ${(Array.isArray(search?.topics_won) ? search.topics_won : [])
+                .slice(0, 5)
+                .map((row: any, idx: number) => {
+                  const term = String(row?.term || "").trim();
+                  if (!term) return "";
+                  return `<li><span class="term">${escapeHtml(term)}</span></li>`;
+                })
+                .filter(Boolean)
+                .join("")}
+            </ul>
+          </div>
+          <div>
+            <div class="h miss">Striking distance</div>
+            <ul>
+              ${(Array.isArray(search?.gaps?.near_miss) ? search.gaps.near_miss : [])
+                .slice(0, 5)
+                .map((row: any, idx: number) => {
+                  const term = String(row?.term || "").trim();
+                  if (!term) return "";
+                  return `<li><span class="term">${escapeHtml(term)}</span></li>`;
+                })
+                .filter(Boolean)
+                .join("")}
+            </ul>
+          </div>
         </div>
       </div>
       ${
         Array.isArray(search?.workhorse?.pages) && search.workhorse.pages.length
           ? `
           <section style="margin-top:32px">
-            <div class="sec-h"><h2 style="font-size:18px">Workhorse pages</h2></div>
-            ${(search.workhorse.pages as any[]).slice(0, 3).map((page: any) => {
-              const url = String(page?.url || "").trim();
-              if (!url) return "";
-              const etv = page?.etv != null ? Number(page.etv) : null;
-              const terms = Array.isArray(page?.top_terms)
-                ? page.top_terms.map((t: any) => String(t || "").trim()).filter(Boolean)
-                : [];
-              return `
-                <div class="wh-page">
-                  <div class="wh-top">
-                    <a class="wh-url" href="${escapeHtml(url)}">${escapeHtml(stripProtocol(url).split("/")[0] || url)}</a>
-                    ${etv != null && Number.isFinite(etv) ? `<span class="wh-etv">~${escapeHtml(formatVolumeShort(Math.round(etv)))}</span>` : ""}
+            <div class="keep">
+              <div class="sec-h"><h2 style="font-size:18px">Workhorse pages</h2></div>
+              ${(search.workhorse.pages as any[]).slice(0, 3).map((page: any) => {
+                const url = String(page?.url || "").trim();
+                if (!url) return "";
+                const etv = page?.etv != null ? Number(page.etv) : null;
+                const terms = Array.isArray(page?.top_terms)
+                  ? page.top_terms.map((t: any) => String(t || "").trim()).filter(Boolean)
+                  : [];
+                return `
+                  <div class="wh-page">
+                    <div class="wh-top">
+                      <a class="wh-url" href="${escapeHtml(url)}">${escapeHtml(stripProtocol(url).split("/")[0] || url)}</a>
+                      ${etv != null && Number.isFinite(etv) ? `<span class="wh-etv">~${escapeHtml(formatVolumeShort(Math.round(etv)))}</span>` : ""}
+                    </div>
+                    ${terms.length ? `<div class="wh-terms">${terms.slice(0, 8).map((t: string) => `<span class="wh-tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
                   </div>
-                  ${terms.length ? `<div class="wh-terms">${terms.slice(0, 8).map((t: string) => `<span class="wh-tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
-                </div>
-              `;
-            }).join("")}
+                `;
+              }).join("")}
+            </div>
           </section>
         `
           : ""
@@ -1314,8 +1335,10 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const competitorsHtml = competitors.length
     ? `
       <section>
-        <div class="sec-h"><h2>Who's winning, and the pages doing it</h2></div>
-        ${competitorsIntro ? `<p class="lead">${escapeHtml(competitorsIntro)}</p>` : ""}
+        <div class="keep">
+          <div class="sec-h"><h2>Who's winning, and the pages doing it</h2></div>
+          ${competitorsIntro ? `<p class="lead">${escapeHtml(competitorsIntro)}</p>` : ""}
+        </div>
         <div class="comp">
           ${competitors.slice(0, 4).map((c: any, idx: number) => {
             const domain = String(c?.domain || "").trim();
@@ -1372,8 +1395,10 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
     underRows.length || underPills.length
       ? `
       <section>
-        <div class="sec-h"><h2>Under the hood</h2></div>
-        <p class="lead">What the site runs on, and how it's set up to be found.</p>
+        <div class="keep">
+          <div class="sec-h"><h2>Under the hood</h2></div>
+          <p class="lead">What the site runs on, and how it's set up to be found.</p>
+        </div>
         ${
           underRows.length
             ? `<table>
@@ -1418,8 +1443,10 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const issuesHtml = issues.length
     ? `
       <section>
-        <div class="sec-h"><h2>What's holding the site back</h2></div>
-        <p class="lead">Concrete, fixable items. None are hard, and together they're capping your momentum.</p>
+        <div class="keep">
+          <div class="sec-h"><h2>What's holding the site back</h2></div>
+          <p class="lead">Concrete, fixable items. None are hard, and together they're capping your momentum.</p>
+        </div>
         <div>
           ${issues
             .map((it: any, idx: number) => {
@@ -1442,8 +1469,10 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const ladderHtml = ladder.length
     ? `
       <section>
-        <div class="sec-h"><h2>Where your content should grow</h2></div>
-        ${ladderIntro ? `<p class="lead">${escapeHtml(ladderIntro)}</p>` : `<p class="lead">Build in this order.</p>`}
+        <div class="keep">
+          <div class="sec-h"><h2>Where your content should grow</h2></div>
+          ${ladderIntro ? `<p class="lead">${escapeHtml(ladderIntro)}</p>` : `<p class="lead">Build in this order.</p>`}
+        </div>
         <div class="ladder">
           ${ladder
             .map((r: any, idx: number) => {
@@ -1472,8 +1501,10 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const planHtml = plan.length
     ? `
       <section>
-        <div class="sec-h"><h2>The plan, in order</h2></div>
-        <p class="lead">Sequenced for your site's current stage and biggest opportunities.</p>
+        <div class="keep">
+          <div class="sec-h"><h2>The plan, in order</h2></div>
+          <p class="lead">Sequenced for your site's current stage and biggest opportunities.</p>
+        </div>
         <div class="plan">
           ${plan
             .map((s: any, idx: number) => {

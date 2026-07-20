@@ -75,6 +75,63 @@ export interface AdminModuleData {
     pageSize: number;
   };
   apiCost?: AdminApiCostData;
+  subscription?: AdminSubscriptionData;
+}
+
+export interface AdminSubscriptionSummary {
+  snapshotDate: string | null;
+  mrr: number;
+  arr: number;
+  newMrr: number;
+  retainedMrr: number;
+  payingAgencies: number;
+  activeBusinessPlans: number;
+  activeAgencyPlans: number;
+  executionCreditRevenue: number;
+  previousExecutionCreditRevenue: number;
+}
+
+export interface AdminSubscriptionRecurringRow {
+  scope: "business" | "agency" | "unknown";
+  planKey: string;
+  planLabel: string;
+  activeCount: number;
+  mrr: number;
+  arr: number;
+  newMrr: number;
+  retainedMrr: number;
+}
+
+export interface AdminExecutionCreditAgency {
+  agencyId: string | null;
+  agencyName: string;
+  revenue: number;
+  refunded: number;
+  credits: number;
+  purchases: number;
+}
+
+export interface AdminSubscriptionData {
+  summary: AdminSubscriptionSummary | null;
+  recurringBreakdown: AdminSubscriptionRecurringRow[];
+  executionCredits: {
+    totalRevenue: number;
+    totalRefunded: number;
+    totalCredits: number;
+    purchases: number;
+    agencies: AdminExecutionCreditAgency[];
+  };
+  coverage: {
+    available: boolean;
+    reason: string | null;
+    accountId: string | null;
+    livemode: boolean | null;
+    lastSuccessfulSync: string | null;
+    unresolvedCount: number;
+    currency: string;
+    cronEnabled?: boolean;
+  };
+  stripeDashboardUrl: string;
 }
 
 export interface AdminApiCostProvider {
@@ -189,6 +246,10 @@ export interface AdminBusiness {
   goals: number | null;
   status: "strong" | "dip" | "check" | "no_signal";
   mrr: number | null;
+  billing_plan?: string | null;
+  access_type?: "paid" | "trial" | "whitelisted" | "no_plan";
+  is_whitelisted?: boolean;
+  trial_end_date?: string | null;
 }
 
 export interface AdminBusinessesData {

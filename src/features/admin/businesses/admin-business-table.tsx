@@ -7,6 +7,7 @@ import { AdminBusinessFavicon } from "../components/admin-business-favicon";
 import { AdminStatusBadge } from "../components/status-badge";
 import { formatAdminValue } from "../components/admin-kpi-card";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import type { AdminBusiness } from "../types";
 
 function Connection({
@@ -26,6 +27,17 @@ function Connection({
       <span className="sr-only sm:not-sr-only">{label}</span>
     </span>
   );
+}
+
+function trialBadgeLabel(endDate: string | null | undefined, trialOnly: boolean) {
+  const prefix = trialOnly ? "Trial access" : "Trial";
+  if (!endDate) return prefix;
+  const remainingDays = Math.max(
+    0,
+    Math.ceil((new Date(endDate).getTime() - Date.now()) / 86_400_000),
+  );
+  if (remainingDays === 0) return `${prefix} · ends today`;
+  return `${prefix} · ${remainingDays} day${remainingDays === 1 ? "" : "s"} left`;
 }
 
 export function AdminBusinessTable({
@@ -119,7 +131,26 @@ export function AdminBusinessTable({
                 <td className="px-3">
                   <AdminStatusBadge status={row.status} />
                 </td>
-                <td className="px-3 capitalize">{row.plan}</td>
+                <td className="px-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {!(row.access_type === "trial" && !row.billing_plan) && (
+                      <span>{row.billing_plan || row.plan}</span>
+                    )}
+                    {row.access_type === "trial" && (
+                      <Badge
+                        variant="outline"
+                        className="rounded border-amber-200 bg-amber-50 font-normal text-amber-900"
+                      >
+                        {trialBadgeLabel(row.trial_end_date, !row.billing_plan)}
+                      </Badge>
+                    )}
+                    {row.is_whitelisted && row.access_type === "paid" && (
+                      <Badge variant="outline" className="rounded font-normal">
+                        Whitelisted access
+                      </Badge>
+                    )}
+                  </div>
+                </td>
                 <td className="px-3">
                   <div className="flex gap-2">
                     <Connection connected={row.connected_gsc} label="GSC" />

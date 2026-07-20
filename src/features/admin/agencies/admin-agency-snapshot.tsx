@@ -83,13 +83,15 @@ export function AdminAgencySnapshot({ id }: { id: string }) {
       {benchmark.data?.data && (
         <div className="mt-4">
           <AdminBenchmarkCard
-            title="Leave-one-out network benchmark"
+            title="Agency CTR compared with the network"
             metric="ctr"
             target={benchmark.data.data.target.value}
             median={benchmark.data.data.cohort.median}
             rank={benchmark.data.data.target.percentileRank}
             cohortCount={benchmark.data.data.cohort.count}
             cohort={benchmark.data.data.target.cohort}
+            entityKind="agency"
+            period={network?.meta.range}
           />
         </div>
       )}

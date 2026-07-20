@@ -27,6 +27,7 @@ import { AdminErrorState, AdminPageLoading } from "../components/admin-states";
 import { useAdminQueryState } from "../hooks/use-admin-query-state";
 import type { AdminModuleKey } from "../types";
 import { AdminApiCostView } from "./admin-api-cost-view";
+import { AdminSubscriptionView } from "./admin-subscription-view";
 
 const descriptions: Record<AdminModuleKey, string> = {
   "network-performance":
@@ -59,7 +60,7 @@ export function AdminModuleView({ module }: { module: AdminModuleKey }) {
   const queryClient = useQueryClient();
   const [requestedSyncId, setRequestedSyncId] = useState<string | null>(null);
   const { range, groupBy, metric, agencyId, industry, plan, status, setQuery } =
-    useAdminQueryState();
+    useAdminQueryState(module === "subscription" ? "lifetime" : "last_28_days");
   const moduleQuery =
     module === "api-cost"
       ? ({ range: "lifetime" } as const)
@@ -143,6 +144,20 @@ export function AdminModuleView({ module }: { module: AdminModuleKey }) {
       />
     );
   const data = query.data.data;
+  if (module === "subscription") {
+    return (
+      <AdminSubscriptionView
+        data={data}
+        range={range}
+        agencyId={agencyId}
+        plan={plan}
+        fetching={query.isFetching && !query.isLoading}
+        exporting={exportMutation.isPending}
+        onExport={() => exportMutation.mutate()}
+        setQuery={setQuery}
+      />
+    );
+  }
   const hidesBreakdown = module === "platform-totals";
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1500px]">

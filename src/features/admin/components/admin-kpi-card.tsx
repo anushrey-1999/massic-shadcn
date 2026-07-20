@@ -25,6 +25,7 @@ const CURRENCY_KEYS = new Set([
   "arr",
   "new_mrr",
   "retained_mrr",
+  "execution_credit_revenue",
 ]);
 const API_COST_KEYS = new Set([
   "api_cost_total",
@@ -194,7 +195,7 @@ export function AdminKpiCard({ kpi }: { kpi: AdminKpi }) {
       </div>
       <div className="mt-4 flex min-h-7 items-center justify-between gap-3 border-t border-general-border/80 pt-3 text-xs">
         {unavailable ? (
-          <span className="text-general-muted-foreground">Not connected</span>
+          <span className="text-general-muted-foreground">Unavailable</span>
         ) : kpi.changePct === null ? (
           <span className="text-general-muted-foreground">
             {kpi.contextLabel || "No comparison"}

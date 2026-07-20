@@ -2298,4 +2298,3 @@ The Navbar and Footer are shared components instantiated from the design system.
 ---
 
 *Last updated from Figma: April 2025. File: `lBmramVkYiT3KTHIizSswO`.*
-

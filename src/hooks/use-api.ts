@@ -6,7 +6,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useSessionStore } from "@/store/session-store";
 import { shouldRefreshSession } from "@/lib/session-refresh";
 
-export type ApiPlatform = "node" | "python" | "dotnet";
+export type ApiPlatform = "node" | "python";
 export interface AppAxiosRequestConfig extends AxiosRequestConfig {
   skipAuth?: boolean;
   suppressUnauthorizedSession?: boolean;
@@ -17,7 +17,6 @@ const REFRESH_COOLDOWN_MS = 60 * 1000; // at most once per minute
 
 const DEFAULT_TIMEOUT_MS: Record<ApiPlatform, number> = {
   node: 120000,
-  dotnet: 120000,
   python: 300000,
 };
 
@@ -62,9 +61,6 @@ export function getBaseURLByPlatform(platform: ApiPlatform): string {
 
     case "python":
       return process.env.NEXT_PUBLIC_PYTHON_API_URL || "https://infer.seedinternaldev.xyz/v2";
-
-    case "dotnet":
-      return process.env.NEXT_PUBLIC_DOTNET_API_URL || "https://seedcore.seedinternaldev.xyz/api";
 
     default:
       return "";
@@ -133,11 +129,7 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
       }
 
       if (token && config.headers) {
-        if (platform === "dotnet") {
-          config.headers.Authorization = `Bearer ${token}`;
-        } else {
-          config.headers.Token = token;
-        }
+        config.headers.Token = token;
       }
       return config;
     },

@@ -116,17 +116,46 @@ export function getIndexingActionState({
   ingestionActive,
   mutationPending,
   quotaRemaining,
+  quotaState,
+  blockedUntil,
   dueCount,
   hasRunBefore,
 }: {
   ingestionActive: boolean
   mutationPending: boolean
   quotaRemaining?: number
+  quotaState?: "available" | "paused" | "daily_exhausted" | "rate_limited" | "live_disabled"
+  blockedUntil?: string | null
   dueCount?: number
   hasRunBefore: boolean
 }) {
   if (ingestionActive || mutationPending) {
     return { disabled: true, label: "Indexing...", title: "An indexing run is already in progress" }
+  }
+  if (quotaState === "live_disabled") {
+    return {
+      disabled: true,
+      label: "Live checks off in QA",
+      title: "QA live checks are limited to dedicated test properties",
+    }
+  }
+  if (quotaState === "paused" || quotaState === "rate_limited") {
+    return {
+      disabled: true,
+      label: "Google checks paused",
+      title: blockedUntil
+        ? `Checks can resume after ${formatDateTime(blockedUntil)}`
+        : "Google temporarily limited inspections for this property",
+    }
+  }
+  if (quotaState === "daily_exhausted") {
+    return {
+      disabled: true,
+      label: "Daily quota unavailable",
+      title: blockedUntil
+        ? `Google property checks can resume after ${formatDateTime(blockedUntil)}`
+        : "Google's daily property quota is unavailable",
+    }
   }
   if (quotaRemaining !== undefined && quotaRemaining <= 0) {
     return { disabled: true, label: "Daily quota used", title: "Today’s 2,000-request property quota is used; monitoring resumes tomorrow" }
@@ -275,6 +304,8 @@ export function IndexingTemplate() {
     ingestionActive,
     mutationPending: triggerIndexing.isPending,
     quotaRemaining: status?.quotaRemaining,
+    quotaState: status?.quota?.state,
+    blockedUntil: status?.quota?.blockedUntil,
     dueCount: status?.dueCount,
     hasRunBefore,
   })
@@ -455,11 +486,12 @@ export function IndexingTemplate() {
                 property quota.
               </p>
               {status?.lastRun ? (
-                <div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
+                <div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3 lg:grid-cols-7">
                   <div><p className="text-general-muted-foreground">Discovered</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.discovery?.total)}</p></div>
                   <div><p className="text-general-muted-foreground">Selected</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.lastRun.selected)}</p></div>
                   <div><p className="text-general-muted-foreground">Successful</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.lastRun.succeeded)}</p></div>
-                  <div><p className="text-general-muted-foreground">Failed</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.lastRun.failed)}</p></div>
+                  <div><p className="text-general-muted-foreground">Page failures</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.lastRun.failed)}</p></div>
+                  <div><p className="text-general-muted-foreground">Rate-limited</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.lastRun.rateLimitedAttempts)}</p></div>
                   <div><p className="text-general-muted-foreground">Attempts</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.lastRun.attempted)}</p></div>
                   <div><p className="text-general-muted-foreground">Quota used</p><p className="mt-1 font-medium text-foreground">{formatNumber(status.quota.attempted)} / {formatNumber(status.quota.limit)}</p></div>
                 </div>
@@ -471,6 +503,50 @@ export function IndexingTemplate() {
                     width: `${Math.min(100, status?.runProgress ?? 0)}%`,
                   }}
                 />
+              </div>
+            </div>
+          ) : null}
+
+          {status?.quota?.state && (
+            status.quota.state !== "available" ||
+            Number(status.lastRun?.rateLimitedAttempts) > 0
+          ) ? (
+            <div className="flex items-start gap-3 rounded-lg border border-general-border bg-white p-4" role="status">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-general-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">
+                  {status.quota.state === "available"
+                    ? status.lastRun?.stopReason
+                      ? "The previous run was rate-limited"
+                      : "Google briefly limited the previous run"
+                    : status.quota.state === "daily_exhausted"
+                    ? "Google daily property quota unavailable"
+                    : status.quota.state === "live_disabled"
+                      ? "Live Google checks are off in QA"
+                      : status.quota.blockReason === "upstream_unavailable"
+                        ? "Google inspections are temporarily unavailable"
+                        : "Google temporarily limited inspections"}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-general-muted-foreground">
+                  {status.quota.state === "available"
+                    ? status.lastRun?.stopReason
+                      ? "Massic stopped the previous run early to protect this property’s Google quota. Checks are available again, and affected URLs are still due."
+                      : "Massic paused, confirmed Google was available, and completed at a safer rate. No URLs were counted as page failures because of the throttle."
+                    : status.quota.state === "live_disabled"
+                    ? "Different OAuth credentials do not create a separate URL Inspection quota for the same Google project and site property. Existing reports remain available; QA live checks are limited to dedicated test properties."
+                    : "Massic stopped the run early to protect this property’s Google quota. Rate-limited URLs remain due and are not counted as page failures."}
+                  {status.quota.state !== "available" && status.quota.blockedUntil
+                    ? ` Checks can resume after ${formatDateTime(status.quota.blockedUntil)}.`
+                    : ""}
+                </p>
+                {status.lastRun ? (
+                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs">
+                    <span><span className="text-general-muted-foreground">Attempts</span> <span className="ml-1 font-medium text-foreground">{formatNumber(status.lastRun.attempted)}</span></span>
+                    <span><span className="text-general-muted-foreground">Successful</span> <span className="ml-1 font-medium text-foreground">{formatNumber(status.lastRun.succeeded)}</span></span>
+                    <span><span className="text-general-muted-foreground">Rate-limited</span> <span className="ml-1 font-medium text-foreground">{formatNumber(status.lastRun.rateLimitedAttempts)}</span></span>
+                    <span><span className="text-general-muted-foreground">Page failures</span> <span className="ml-1 font-medium text-foreground">{formatNumber(status.lastRun.failed)}</span></span>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}

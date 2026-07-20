@@ -64,7 +64,9 @@ export interface IndexingSummaryResult {
   series: IndexingSeriesPoint[]
   activity: Array<{
     date: string
+    attempted: number
     successful: number
+    rateLimited: number
     firstTime: number
     rechecked: number
     dueRechecked: number
@@ -139,7 +141,16 @@ export interface IndexingStatusResult {
   quotaRemaining: number
   coverage: { tracked: number; known: number; pending: number; percent: number; baselineComplete: boolean }
   freshness: { withinSla: number; due: number; overdue: number; stale30d: number; percent: number; oldestInspectionAt: string | null }
-  quota: { limit: number; attempted: number; remaining: number; resetAt: string }
+  quota: {
+    limit: number
+    attempted: number
+    remaining: number
+    resetAt: string
+    state?: "available" | "paused" | "daily_exhausted" | "rate_limited" | "live_disabled"
+    blockedUntil?: string | null
+    blockReason?: string | null
+    googleQuotaScope?: string | null
+  }
   backlog: { total: number; new: number; critical: number; priority: number; routine: number; estimatedRuns: number }
   surveillance?: {
     targetDays: number
@@ -155,6 +166,8 @@ export interface IndexingStatusResult {
     id: string; trigger: string; status: string; selected: number; attempted: number
     succeeded: number; failed: number; firstTime: number; rechecked: number; changed: number
     dailyUniqueTarget: number; dueSelected: number; surveillanceSelected: number
+    stopReason?: string | null; rateLimitedAttempts?: number; first429At?: string | null
+    googleQuotaScope?: string | null; retryAfterAt?: string | null
     startedAt: string; finishedAt: string | null
   }
   discovery: null | {
@@ -175,6 +188,9 @@ export interface IndexingRunResult {
   message: string
   mode?: "queued" | "inline"
   alreadyRunning?: boolean
+  state?: string
+  retryAt?: string | null
+  blockReason?: string | null
 }
 
 interface ApiEnvelope<T> {

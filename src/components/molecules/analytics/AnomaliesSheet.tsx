@@ -11,10 +11,13 @@ import {
   Info,
   Lightbulb,
   Search,
+  XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -133,7 +136,7 @@ function HeadlinePanel({
   if (displayReels.length === 0 && !bottomLine) return null;
 
   return (
-    <div className="rounded-lg bg-background/55 px-3 py-2">
+    <div className="rounded-lg bg-background/55 py-2">
       {displayReels.length > 0 ? (
         <p className="text-[14px] leading-[1.45]">
           {displayReels.map((reel, idx) => (
@@ -364,9 +367,7 @@ function ChannelBlock({
   isTraffic = false,
 }: ChannelBlockProps) {
   const isPositive = anchorDelta >= 0;
-  const headerClass = isPositive
-    ? "bg-[#F0FDFA] border-b border-[#9FE1CB]"
-    : "bg-[#FEF2F2] border-b border-[#F7C1C1]";
+  const headerClass = "bg-white border-b border-border/40";
   const accentBar = isPositive ? "bg-[#1D9E75]" : "bg-[#E24B4A]";
   const visibleSources = sources
     .filter((source) => Math.abs(Number(source.delta_goals || source.delta_sessions || 0)) > 0)
@@ -431,7 +432,7 @@ function ChannelBlock({
 function PartialBaselineChip({ historyDays }: { historyDays: number }) {
   const weeks = Math.floor(historyDays / 7);
   return (
-    <span className={cn("inline-flex h-6 items-center gap-1 rounded border px-2 text-[10px] font-medium leading-none", WARNING_PILL_CLASS)}>
+    <span className={cn("inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[10px] font-medium leading-none", WARNING_PILL_CLASS)}>
       <Info className="h-3 w-3" />
       Limited history ({weeks} {weeks === 1 ? "week" : "weeks"})
     </span>
@@ -587,7 +588,7 @@ function PositivePointCards({ wins }: { wins: Win[] }) {
         <TruncatedTooltipText
           key={`${win.text}-${idx}`}
           text={win.text}
-          className={cn(SINGLE_LINE_PILL_CLASS, "rounded-md font-medium", POSITIVE_PILL_CLASS)}
+          className={cn(SINGLE_LINE_PILL_CLASS, "font-medium", POSITIVE_PILL_CLASS)}
         />
       ))}
     </div>
@@ -709,7 +710,10 @@ function GoalCard({ goal, open, onToggle }: GoalCardProps) {
   const isPartial = goal.baselineStatus === "PARTIAL";
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-shadow duration-200 ease-out">
+    <div className={cn(
+      "min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-[border-color] duration-200 ease-out",
+      open && "border-border/90",
+    )}>
       <button
         type="button"
         onClick={onToggle}
@@ -899,7 +903,10 @@ function TrafficCard({ traffic, open, onToggle }: TrafficCardProps) {
   const dailyPeaks = (traffic.detection?.daily_peaks || []) as DailyPeak[];
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-shadow duration-200 ease-out">
+    <div className={cn(
+      "min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-[border-color] duration-200 ease-out",
+      open && "border-border/90",
+    )}>
       <button
         type="button"
         onClick={onToggle}
@@ -1093,18 +1100,33 @@ export function AnomaliesSheet({
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent className="w-full gap-0 overflow-hidden border-l border-general-border p-0 pt-8 sm:max-w-2xl">
-        <SheetHeader className="shrink-0 border-b border-general-border bg-background px-6 py-4">
+      <SheetContent showClose={false} className="w-full gap-0 overflow-hidden border-l border-general-border p-0 sm:max-w-2xl">
+        <SheetHeader className="shrink-0 border-b border-general-border bg-background px-6 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <SheetTitle className="min-w-0 flex-1 text-base font-semibold tracking-tight">
               Anomalies Detected
             </SheetTitle>
-            <div className="shrink-0 w-[200px] sm:w-[230px]">
-              <AlertDateSelector
-                selectedDate={localDate}
-                onDateChange={handleDateChange}
-                className="w-full"
-              />
+            <div className="flex shrink-0 items-center gap-1.5">
+              <div className="w-[200px] sm:w-[230px]">
+                <AlertDateSelector
+                  selectedDate={localDate}
+                  onDateChange={handleDateChange}
+                  className="w-full"
+                />
+              </div>
+
+              <SheetClose asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  aria-label="Close"
+                  title="Close"
+                >
+                  <XIcon className="h-4 w-4" />
+                </Button>
+              </SheetClose>
             </div>
           </div>
 
@@ -1171,7 +1193,7 @@ export function AnomaliesSheet({
           </Tabs>
         </SheetHeader>
 
-        <div className="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-5 sm:px-6">
+        <div className="min-w-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6">
           <Tabs
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as "goals" | "traffic")}

@@ -854,11 +854,11 @@ const WEBSITE_SNAPSHOT_CSS = `
   }
   *{box-sizing:border-box}
   body{
-    margin:0;background:#f2f2ec;color:var(--ink);
+    margin:0;background:#ffffff;color:var(--ink);
     font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:900px;margin:0 auto;padding:28px}
+  .wrap{max-width:900px;margin:0 auto;padding:20px 0}
   h1,h2,h3{margin:0;line-height:1.25}
   p{margin:0}
   a{color:var(--brand)}
@@ -869,41 +869,41 @@ const WEBSITE_SNAPSHOT_CSS = `
     background:var(--paper);
     border:1px solid var(--line);
     border-radius:8px;
-    padding:56px 0;
+    padding:40px 0;
     margin-bottom:28px;
     break-inside:avoid;
     page-break-inside:avoid;
   }
   
   /* Cover */
-  .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:32px;padding:0 56px}
+  .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:32px;padding:0 30px}
   .cover-label{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;color:var(--green)}
   .cover-date{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);margin-top:4px}
   .cover-meta{text-align:right;font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--muted)}
   .divider-thick{border:0;border-top:2px solid var(--green);margin:32px 0;width:100%}
   .divider-thin{border:0;border-top:1px solid var(--line);margin:32px 0;width:100%}
-  .page-title{font-size:34px;font-weight:700;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);padding:0 56px}
-  .business-desc{color:var(--muted);font-size:15px;margin-top:16px;line-height:1.5;padding:0 56px}
+  .page-title{font-size:34px;font-weight:700;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);padding:0 30px}
+  .business-desc{color:var(--muted);font-size:15px;margin-top:16px;line-height:1.5;padding:0 30px}
   
   /* Hero */
-  .eyebrow{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);margin-bottom:20px;padding:0 56px}
-  .hero-number{font-size:120px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--green);margin:20px 0;padding:0 56px}
-  .hero-label{font-size:21px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);max-width:46ch;margin-bottom:16px;padding:0 56px}
-  .hero-desc{font-size:15px;line-height:1.5;color:var(--muted);padding:0 56px}
+  .eyebrow{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);margin-bottom:20px;padding:0 30px}
+  .hero-number{font-size:120px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--green);margin:20px 0;padding:0 30px}
+  .hero-label{font-size:21px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);max-width:46ch;margin-bottom:16px;padding:0 30px}
+  .hero-desc{font-size:15px;line-height:1.5;color:var(--muted);padding:0 30px}
   
   /* Callouts */
-  .callouts-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 44px;margin-top:32px;padding:0 56px}
+  .callouts-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 44px;margin-top:32px;padding:0 30px}
   .callout-item{padding:20px 0;border-top:1px solid var(--line)}
   .callout-title{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;line-height:1.3;color:var(--ink);margin-bottom:10px}
   .callout-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
   .callout-body{font-size:14px;line-height:1.5;color:var(--muted)}
   
   /* Section Headers */
-  .section-title{font-size:23px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:12px;padding:0 56px}
-  .section-lead{font-size:14.5px;line-height:1.4;color:var(--muted);max-width:60ch;padding:0 56px}
+  .section-title{font-size:23px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:12px;padding:0 30px}
+  .section-lead{font-size:14.5px;line-height:1.4;color:var(--muted);max-width:60ch;padding:0 30px}
   
   /* Tier Cards */
-  .tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:32px;padding:0 56px}
+  .tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:32px;padding:0 30px}
   .tier-card{border:1px solid var(--line);border-radius:4px;padding:18px;position:relative;background:var(--paper)}
   .tier-selected{border-color:var(--green);background:#fbfdfb}
   .tier-badge{position:absolute;top:14px;right:14px;font:9.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;padding:4px 8px;border-radius:2px;background:var(--green);color:var(--paper)}
@@ -912,7 +912,7 @@ const WEBSITE_SNAPSHOT_CSS = `
   .tier-desc{font-size:12.5px;line-height:1.5;color:var(--muted)}
   
   /* Goal Box */
-  .goal-box{margin:28px 56px 0;border-left:3px solid var(--green);border-radius:4px;padding:22px;background:var(--greenSoft)}
+  .goal-box{margin:28px 30px 0;border-left:3px solid var(--green);border-radius:4px;padding:22px;background:var(--greenSoft)}
   .goal-label{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:var(--greenLine);margin-bottom:10px}
   .goal-body{font-size:14px;line-height:1.4;color:var(--ink);margin-bottom:12px}
   .goal-funnel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px}
@@ -921,7 +921,7 @@ const WEBSITE_SNAPSHOT_CSS = `
   .funnel-end{border-radius:4px;padding:6px 12px;background:var(--green);color:var(--paper);font-weight:600}
   
   /* Stats Grid */
-  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:28px;padding:0 56px}
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:28px;padding:0 30px}
   .stat-item{padding:0 20px;border-left:1px solid var(--line)}
   .stat-item:first-child{padding-left:0;border-left:0}
   .stat-label{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
@@ -930,11 +930,11 @@ const WEBSITE_SNAPSHOT_CSS = `
   .stat-caption{font-size:12px;color:var(--muted);margin-top:8px}
   
   /* Chart */
-  .chart-section{margin-top:32px;padding:0 56px}
+  .chart-section{margin-top:32px;padding:0 30px}
   .chart-caption{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.02em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px}
   
   /* Brand & Intent Mix */
-  .brand-intent-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding:0 56px}
+  .brand-intent-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding:0 30px}
   .mix-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px}
   .brand-bar,.intent-bar{display:flex;height:40px;border-radius:4px;overflow:hidden}
   .brand-segment,.intent-segment{display:flex;align-items:center;justify-content:center;color:var(--paper);font-size:12px;font-weight:600}
@@ -945,6 +945,17 @@ const WEBSITE_SNAPSHOT_CSS = `
   .intent-info{background:#7a8c7e;flex-direction:column;padding:8px}
   .intent-nav{background:#9aa8a0;flex-direction:column;padding:8px}
   .intent-label{font-size:10px;margin-top:2px}
+  
+  /* You Win vs Missing */
+  .win-missing-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding:0 30px}
+  .win-missing-title{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:16px}
+  .win-title{color:var(--green)}
+  .missing-title{color:var(--red)}
+  .win-group{margin-bottom:20px}
+  .win-group-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:8px}
+  .win-examples{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+  .win-example{background:#fbfbf9;color:var(--muted);padding:4px 8px;border-radius:4px;font-size:11px;border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  .win-blurb{color:var(--muted);font-size:13.5px;line-height:1.5}
   
   /* PDF pagination rules:
      Keep "Heading + subheading + content block" together without forcing the
@@ -1221,7 +1232,13 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const businessDescription = String(meta.business_description || "").trim();
   const website = String(meta.url || "").trim();
   const location = String(meta.location || "").trim();
-  const phone = meta.phone != null ? String(meta.phone || "").trim() : "";
+  const phone = meta.phone != null ? (() => {
+    try {
+      return decodeURIComponent(String(meta.phone || "").trim());
+    } catch {
+      return String(meta.phone || "").trim();
+    }
+  })() : "";
   const reportMonthYear = formatMonthYearFromIso(meta.report_date) || "Website Snapshot";
 
   const callouts = Array.isArray((report as any)?.overview_callouts) ? (report as any).overview_callouts : [];
@@ -1246,7 +1263,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const ladderIntro = String((report as any)?.ladder_intro || "").trim();
   const ladderSummary = String((report as any)?.ladder_summary || "").trim();
   const ladder = Array.isArray((report as any)?.ladder) ? (report as any).ladder : [];
-  const plan = Array.isArray((report as any)?.plan) ? (report as any).plan : [];
+  const tactics = Array.isArray((report as any)?.tactics) ? (report as any).tactics : [];
   const takeaway = String((report as any)?.takeaway || "").trim();
 
   const monthYearTop = formatMonthYearFromIso(meta.report_date) || reportMonthYear;
@@ -1419,6 +1436,57 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             </div>`
           : ""
       }
+      
+      ${
+        (Array.isArray(search?.you_win) && search.you_win.length > 0) || 
+        (Array.isArray(search?.buyers_elsewhere) && search.buyers_elsewhere.length > 0)
+          ? `<hr class="divider-thin" />
+            <div class="win-missing-grid">
+              ${Array.isArray(search?.you_win) && search.you_win.length > 0
+                ? `<div>
+                    <div class="win-missing-title win-title">▲ You win</div>
+                    ${search.you_win.map((group: any) => {
+                      const cluster = String(group?.cluster || "").trim();
+                      const examples = Array.isArray(group?.examples) ? group.examples : [];
+                      const blurb = String(group?.blurb || "").trim();
+                      return `<div class="win-group">
+                        ${cluster ? `<div class="win-group-title">${escapeHtml(cluster)}</div>` : ""}
+                        ${examples.length > 0 
+                          ? `<div class="win-examples">
+                              ${examples.map((ex: any) => `<span class="win-example">${escapeHtml(String(ex || "").trim())}</span>`).join("")}
+                            </div>`
+                          : ""
+                        }
+                        ${blurb ? `<div class="win-blurb">${escapeHtml(blurb)}</div>` : ""}
+                      </div>`;
+                    }).join("")}
+                  </div>`
+                : ""
+              }
+              ${Array.isArray(search?.buyers_elsewhere) && search.buyers_elsewhere.length > 0
+                ? `<div>
+                    <div class="win-missing-title missing-title">▼ What you're missing</div>
+                    ${search.buyers_elsewhere.map((group: any) => {
+                      const cluster = String(group?.cluster || "").trim();
+                      const examples = Array.isArray(group?.examples) ? group.examples : [];
+                      const blurb = String(group?.blurb || "").trim();
+                      return `<div class="win-group">
+                        ${cluster ? `<div class="win-group-title">${escapeHtml(cluster)}</div>` : ""}
+                        ${examples.length > 0 
+                          ? `<div class="win-examples">
+                              ${examples.map((ex: any) => `<span class="win-example">${escapeHtml(String(ex || "").trim())}</span>`).join("")}
+                            </div>`
+                          : ""
+                        }
+                        ${blurb ? `<div class="win-blurb">${escapeHtml(blurb)}</div>` : ""}
+                      </div>`;
+                    }).join("")}
+                  </div>`
+                : ""
+              }
+            </div>`
+          : ""
+      }
     </div>
   `.trim();
 
@@ -1427,16 +1495,18 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const gap = String(competitorBuckets?.gap || "").trim();
   const directCompetitors = Array.isArray(showsUp?.direct_competitors) ? showsUp.direct_competitors : [];
   const directNote = String(showsUp?.direct_note || "").trim();
+  const similarElsewhere = Array.isArray(showsUp?.similar_elsewhere) ? showsUp.similar_elsewhere : [];
+  const similarElsewhereNote = String(showsUp?.similar_elsewhere_note || "").trim();
   const noise = Array.isArray(showsUp?.noise) ? showsUp.noise : [];
   const noiseNote = String(showsUp?.noise_note || "").trim();
 
-  const competitorsHtml = directCompetitors.length || shouldBe.length || noise.length
+  const competitorsHtml = directCompetitors.length || similarElsewhere.length || shouldBe.length || noise.length
     ? `
       <div class="page-card">
         <div class="eyebrow">Who shows up in your market</div>
         ${
           directCompetitors.length
-            ? `<div class="keep" style="margin-top:20px;padding:0 56px">
+            ? `<div class="keep" style="margin-top:20px;padding:0 30px">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Direct Competitors</h3>
                 ${directNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(directNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
@@ -1458,8 +1528,22 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             : ""
         }
         ${
+          similarElsewhere.length
+            ? `<div class="keep" style="margin-top:20px;padding:0 30px">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Similar, elsewhere</h3>
+                ${similarElsewhereNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(similarElsewhereNote)}</p>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  ${similarElsewhere.map((item: any) => {
+                    const domain = String(item?.domain || "").trim();
+                    return domain ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(domain)}</span>` : "";
+                  }).filter(Boolean).join("")}
+                </div>
+              </div>`
+            : ""
+        }
+        ${
           noise.length
-            ? `<div class="keep" style="margin-top:20px;padding:0 56px">
+            ? `<div class="keep" style="margin-top:20px;padding:0 30px">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Noise</h3>
                 ${noiseNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(noiseNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
@@ -1474,7 +1558,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           shouldBe.length
-            ? `<div class="keep" style="margin-top:20px;padding:0 56px">
+            ? `<div class="keep" style="margin-top:20px;padding:0 30px">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Who Should Be There</h3>
                 ${shouldBe.map((c: any) => {
                   const name = String(c?.name || "").trim();
@@ -1492,7 +1576,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           gap
-            ? `<div class="keep" style="margin:20px 56px 0;padding:16px;background:#f6e9ec;border-left:3px solid #b0566b;border-radius:4px">
+            ? `<div class="keep" style="margin:20px 30px 0;padding:16px;background:#f6e9ec;border-left:3px solid #b0566b;border-radius:4px">
                 <p style="color:#1c1f1d;font-size:14px"><b>The gap:</b> ${escapeHtml(gap)}</p>
               </div>`
             : ""
@@ -1511,7 +1595,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         <h2 class="section-title">What the site runs on, and how it's set up to be found.</h2>
         ${
           underRows.length
-            ? `<div style="padding:0 56px"><table style="border:none">
+            ? `<div style="padding:0 30px"><table style="border:none">
               <tr><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 0">Layer</th><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 12px">Status</th><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 12px">What we found</th></tr>
               ${underRows
                 .map((row: any) => {
@@ -1534,7 +1618,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           underPills.length
-            ? `<div class="pills" style="padding:0 56px">
+            ? `<div class="pills" style="padding:0 30px">
               ${underPills
                 .slice(0, 24)
                 .map((p: any, idx: number) => {
@@ -1555,112 +1639,158 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const issuesHtml = issues.length
     ? `
-      <section>
-        <div class="keep">
-          <div class="sec-h"><h2>What's holding the site back</h2></div>
-          <p class="lead">Concrete, fixable items. None are hard, and together they're capping your momentum.</p>
-        </div>
-        <div>
+      <div class="page-card">
+        <div class="eyebrow">What's holding the site back</div>
+        <h2 class="section-title">Concrete, fixable items — none of them hard.</h2>
+        <p class="section-lead">Separate from the plumbing. These are what's capping your momentum, in priority order.</p>
+        
+        <div style="margin-top:14px;padding:0 30px">
           ${issues
             .map((it: any, idx: number) => {
               const title = String(it?.title || "").trim();
               const body = String(it?.body || "").trim();
               const sev = String(it?.severity || "").trim();
               if (!title && !body) return "";
-              return `<div class="issue">
-                <h3>${sev ? `<span class="sev ${escapeHtml(sev)}">${escapeHtml(sev)}</span>` : ""}${escapeHtml(title || "Issue")}</h3>
-                ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+              
+              const sevBg = sev === "high" ? "#f6e9ec" : sev === "med" ? "#f5eeda" : "#eef0eb";
+              const sevColor = sev === "high" ? "#b0566b" : sev === "med" ? "#9c7a2f" : "#6d726f";
+              
+              return `<div style="padding:18px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:64px 1fr;gap:16px">
+                <div style="background:${sevBg};color:${sevColor};font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;text-align:center;padding:4px 0;border-radius:4px;height:fit-content;font-weight:600">${escapeHtml(sev.toUpperCase())}</div>
+                <div>
+                  <div style="font-size:14.5px;font-weight:600;color:var(--ink);margin-bottom:6px">${escapeHtml(title || "Issue")}</div>
+                  ${body ? `<div style="font-size:13.5px;color:var(--muted);line-height:1.5">${escapeHtml(body)}</div>` : ""}
+                </div>
               </div>`;
             })
             .filter(Boolean)
             .join("")}
         </div>
-      </section>
+      </div>
     `
     : "";
 
   const ladderHtml = ladder.length
     ? `
-      <section>
-        <div class="keep">
-          <div class="sec-h"><h2>Where your content should grow</h2></div>
-          ${ladderIntro ? `<p class="lead">${escapeHtml(ladderIntro)}</p>` : `<p class="lead">Build in this order.</p>`}
-        </div>
-        <div class="ladder">
+      <div class="page-card">
+        <div class="eyebrow">Where your content should grow</div>
+        <h2 class="section-title">The full opportunity map.</h2>
+        ${ladderIntro ? `<p class="section-lead">${escapeHtml(ladderIntro)}</p>` : ""}
+        
+        <div style="margin-top:12px;padding:0 30px">
           ${ladder
             .map((r: any, idx: number) => {
               const rung = r?.rung ?? idx + 1;
               const heading = String(r?.headline || r?.title || "").trim();
               const body = String(r?.body || r?.example || "").trim();
-              const st = websiteSnapshotStatusClass(r?.status);
-              const stLabel = websiteSnapshotStatusLabel(r?.status);
-              return `<div class="rung">
-                <span class="rn">${escapeHtml(String(rung))}</span>
-                <div class="body">
-                  <h3>${escapeHtml(heading || "Rung")}</h3>
-                  <span class="badge ${escapeHtml(st)}">${escapeHtml(stLabel)}</span>
-                  ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+              const status = String(r?.status || "").trim();
+              
+              const statusBg = status === "in_place" ? "#e7efe9" : 
+                              (status === "partly" || status === "needs_work") ? "#f5eeda" : "#f6e9ec";
+              const statusColor = status === "in_place" ? "#123c28" :
+                                 (status === "partly" || status === "needs_work") ? "#9c7a2f" : "#b0566b";
+              const statusLabel = status === "in_place" ? "In place" :
+                                 status === "partly" ? "Thin" :
+                                 status === "needs_work" ? "Needs work" : "Missing";
+              
+              return `<div style="padding:18px 0;border-top:1px solid var(--line)">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                  <span style="font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--faint)">${String(rung).padStart(2, '0')}</span>
+                  <span style="font-size:14.5px;font-weight:600;color:var(--ink);flex:1">${escapeHtml(heading || "Rung")}</span>
+                  <span style="background:${statusBg};color:${statusColor};font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;padding:4px 10px;border-radius:4px;font-weight:600">${escapeHtml(statusLabel)}</span>
                 </div>
+                ${body ? `<div style="font-size:13.5px;color:var(--muted);line-height:1.5;padding-left:24px">${escapeHtml(body)}</div>` : ""}
               </div>`;
             })
             .filter(Boolean)
             .join("")}
         </div>
         ${ladderSummary ? `<p class="after">${escapeHtml(ladderSummary)}</p>` : ""}
-      </section>
+      </div>
     `
     : "";
 
-  const planHtml = plan.length
+  const tacticsHtml = tactics.length
     ? `
-      <section>
-        <div class="keep">
-          <div class="sec-h"><h2>The plan, in order</h2></div>
-          <p class="lead">Sequenced for your site's current stage and biggest opportunities.</p>
-        </div>
-        <div class="plan">
-          ${plan
-            .map((s: any, idx: number) => {
-              const stepNum = s?.step ?? idx + 1;
-              const title = String(s?.title || "").trim();
-              const body = String(s?.body || "").trim();
-              if (!title && !body) return "";
-              return `<div class="step">
-                <span class="sn">${escapeHtml(String(stepNum))}</span>
-                <div>
-                  <h3>${escapeHtml(title || "Step")}</h3>
-                  ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+      <div class="page-card">
+        <div class="eyebrow">The plan, in order</div>
+        <h2 class="section-title">Where we would start, and why.</h2>
+        <p class="section-lead">A focused route through the map, sequenced for your stage.</p>
+        
+        ${(() => {
+          let currentPhase = "";
+          let stepInPhase = 0;
+          return tactics.map((tactic: any, i: number) => {
+            const phase = String(tactic?.phase || "").trim();
+            const isNewPhase = phase !== currentPhase;
+            
+            if (isNewPhase) {
+              currentPhase = phase;
+              stepInPhase = 0;
+            } else {
+              stepInPhase++;
+            }
+            
+            const title = String(tactic?.title || "").trim();
+            const body = String(tactic?.body || "").trim();
+            
+            if (isNewPhase && phase) {
+              // Phase header
+              return `
+                ${i > 0 ? '<hr class="divider-thin" />' : ''}
+                <div style="padding:0 30px;margin-top:${i > 0 ? '32px' : '20px'}">
+                  <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+                    <span style="background:var(--green);color:var(--paper);font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;padding:6px 12px;border-radius:4px;font-weight:600">${escapeHtml(phase.toUpperCase())}</span>
+                    <span style="font-size:15px;font-weight:600;color:var(--ink)">${escapeHtml(title)}</span>
+                    <span style="margin-left:auto;font-size:12px;color:var(--faint)">the ceiling right now</span>
+                  </div>
                 </div>
-              </div>`;
-            })
-            .filter(Boolean)
-            .join("")}
-        </div>
-      </section>
+              `;
+            } else if (!isNewPhase && title) {
+              // Numbered step
+              return `
+                <div style="padding:0 30px;border-top:1px solid var(--line);padding-top:14px;padding-bottom:14px;display:grid;grid-template-columns:26px 1fr;gap:12px">
+                  <div style="font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:600;color:var(--green)">${stepInPhase}</div>
+                  <div>
+                    <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">${escapeHtml(title)}</div>
+                    ${body ? `<div style="font-size:13px;color:var(--muted);line-height:1.5">${escapeHtml(body)}</div>` : ""}
+                  </div>
+                </div>
+              `;
+            }
+            return "";
+          }).filter(Boolean).join("");
+        })()}
+      </div>
     `
     : "";
 
   const takeawayHtml = takeaway
     ? `
-      <section style="margin-top:44px">
-        <div class="takeaway">
-          <div class="k">The honest takeaway</div>
-          <p>${escapeHtml(takeaway)}</p>
-        </div>
-      </section>
+      <div style="background:var(--green);color:#eaf1ec;border-radius:8px;padding:44px 30px;margin-top:28px">
+        <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#8fb8a1;margin-bottom:20px">The honest takeaway</div>
+        <p style="font-size:15.5px;line-height:1.5;margin:0">
+          ${(() => {
+            const firstSentence = takeaway.split('.')[0];
+            const rest = takeaway.substring(takeaway.indexOf('.') + 1);
+            return firstSentence 
+              ? `<span style="color:var(--paper);font-weight:600">${escapeHtml(firstSentence)}.</span>${escapeHtml(rest)}`
+              : escapeHtml(takeaway);
+          })()}
+        </p>
+      </div>
     `
     : "";
 
   const poweredByName = String((report as any)?.powered_by_name || "").trim() || "Kanahiku";
   const footerDate = formatMonthYearFromIso(meta.report_date) || "July 2026";
-  const foot = `<div class="foot"><p>Snapshot by ${escapeHtml(poweredByName)}. Built from your live site and public search data · ${escapeHtml(footerDate)}</p></div>`;
+  const foot = `<div style="text-align:center;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--faint);padding:14px 0">Snapshot by ${escapeHtml(poweredByName)}. Built from your live site and public search data · ${escapeHtml(footerDate)}</div>`;
 
   // Page 1: Cover + Hero + Quick Overview
   const page1Html = `
     <div class="page-card">
       <div class="cover-top">
         <div>
-          <div class="cover-label">SNAPSHOT</div>
           <div class="cover-date">Website Snapshot · ${escapeHtml(monthYearTop)}</div>
         </div>
         <div class="cover-meta">
@@ -1725,7 +1855,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
       ${underHtml}
       ${issuesHtml}
       ${ladderHtml}
-      ${planHtml}
+      ${tacticsHtml}
       ${takeawayHtml}
       ${foot}
     </div>

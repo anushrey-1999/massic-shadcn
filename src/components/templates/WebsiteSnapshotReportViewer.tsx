@@ -3,12 +3,18 @@
 import * as React from "react";
 import { ArrowLeft, Copy, Download } from "lucide-react";
 import { toast } from "sonner";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
 
 import { DownloadReportDialog } from "@/components/organisms/ReportDetail/download-report-dialog";
 import { Button } from "@/components/ui/button";
-import { Typography } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
-import { formatDate, formatVolume, parseUtcDate } from "@/lib/format";
 import { copyToClipboard } from "@/utils/clipboard";
 import { generatePdfFromWebsiteSnapshotReport } from "@/utils/pdf-generator";
 import {
@@ -26,180 +32,28 @@ function stripUrlProtocol(value: string): string {
   return String(value || "").replace(/^https?:\/\//i, "").replace(/\/$/i, "");
 }
 
-function hostFromUrl(value: string): string {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  try {
-    const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
-    return url.hostname.replace(/^www\./i, "");
-  } catch {
-    return stripUrlProtocol(raw).split("/")[0] || raw;
-  }
-}
-
-function siteNameFromHost(host: string): string {
-  const cleaned = String(host || "").trim().toLowerCase().replace(/^www\./, "");
-  if (!cleaned) return "";
-
-  const parts = cleaned.split(".").filter(Boolean);
-  const sld = parts.length >= 2 ? parts[parts.length - 2] : parts[0] || cleaned;
-  const tokens = sld.split(/[-_]+/g).filter(Boolean);
-
-  // common brand special-case
-  if (tokens.length === 2 && tokens[0] === "life" && tokens[1] === "time") return "Lifetime";
-
-  const words = tokens.map((t) => {
-    if (!t) return "";
-    if (t.length <= 4 && /^[a-z0-9]+$/.test(t)) return t.toUpperCase();
-    return t.charAt(0).toUpperCase() + t.slice(1);
-  });
-
-  return words.filter(Boolean).join("");
-}
-
-function toneClass(tone: string): string {
-  const key = String(tone || "").trim().toLowerCase();
-  if (key === "green") return "text-emerald-600";
-  if (key === "amber") return "text-amber-600";
-  if (key === "red") return "text-red-600";
-  return "text-muted-foreground";
-}
-
-function formatMonthYear(value: unknown): string {
-  const dt = parseUtcDate(value);
-  return formatDate(dt || new Date(), "MMMM yyyy");
-}
-
-function formatDayMonthYear(value: unknown): string {
-  const dt = parseUtcDate(value);
-  return dt ? formatDate(dt, "MMMM d, yyyy") : "";
-}
-
-function splitFirstSentence(value: string): { headline: string; rest: string } {
-  const text = String(value || "").trim();
-  if (!text) return { headline: "", rest: "" };
-  const idx = text.indexOf(". ");
-  if (idx === -1) return { headline: text, rest: "" };
-  return { headline: text.slice(0, idx + 1).trim(), rest: text.slice(idx + 2).trim() };
-}
-
-function rankTone(position: number): "hi" | "mid" | "lo" {
-  if (!Number.isFinite(position)) return "lo";
-  if (position <= 3) return "hi";
-  if (position <= 10) return "mid";
-  return "lo";
-}
-
-function rankClass(position: number): string {
-  const tone = rankTone(position);
-  if (tone === "hi") return "text-emerald-600";
-  if (tone === "mid") return "text-amber-600";
-  return "text-red-600";
-}
-
-function statusBadge(status: string): { label: string; className: string } {
-  const key = String(status || "").trim().toLowerCase();
-  if (key === "in_place") return { label: "In place", className: "bg-emerald-50 text-emerald-600" };
-  if (key === "partly") return { label: "Partly", className: "bg-amber-50 text-amber-700" };
-  if (key === "missing") return { label: "Missing", className: "bg-red-50 text-red-600" };
-  if (key === "needs_work") return { label: "Needs work", className: "bg-amber-50 text-amber-700" };
-  return { label: status || "Status", className: "bg-neutral-100 text-muted-foreground" };
-}
-
-function TrendChart({
-  points,
-  label,
-}: {
-  points: { year: number; month: number; etv: number }[];
-  label: string;
-}) {
-  const rows = Array.isArray(points) ? points.filter((p) => Number.isFinite(p?.etv)) : [];
-  if (rows.length < 2) return null;
-
-  const width = 680;
-  const height = 200;
-  const padL = 50;
-  const padR = 18;
-  const padT = 20;
-  const padB = 36;
-
-  const max = Math.max(...rows.map((r) => Number(r.etv) || 0), 0);
-  const top = Math.max(1, max);
-
-  const y0 = height - padB;
-  const y1 = padT;
-
-  const x = (i: number) => {
-    const span = (width - padL - padR) / (rows.length - 1);
-    return padL + span * i;
-  };
-
-  const y = (v: number) => {
-    const t = Math.max(0, Math.min(1, (Number(v) || 0) / top));
-    return y0 - t * (y0 - y1);
-  };
-
-  const ticks = [0, Math.round(top / 2), Math.round(top)];
-  const polyPoints = rows.map((r, i) => `${x(i)},${y(r.etv)}`).join(" ");
-
-  const monthLabel = (p: { year: number; month: number }) => {
-    try {
-      return new Intl.DateTimeFormat("en-US", { month: "short" }).format(
-        new Date(p.year, Math.max(0, (p.month || 1) - 1), 1)
-      );
-    } catch {
-      return String(p.month || "");
-    }
-  };
-
-  return (
-    <div className="mt-6">
-      <Typography
-        variant="muted"
-        className="text-xs font-semibold tracking-wide uppercase text-muted-foreground/70"
-      >
-        {label}
-      </Typography>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        width="100%"
-        role="img"
-        aria-label="Monthly organic traffic trend"
-        className="mt-2"
-      >
-        <g fontSize="11" fill="#b7bec4">
-          {ticks.map((t) => {
-            const yy = y(t);
-            return (
-              <g key={t}>
-                <line x1={padL} y1={yy} x2={width - padR} y2={yy} stroke="#f0f0f0" />
-                <text x={padL - 6} y={yy + 4} textAnchor="end" fontSize="11" fill="#b7bec4">
-                  {t.toLocaleString()}
-                </text>
-              </g>
-            );
-          })}
-        </g>
-
-        <polyline fill="none" stroke="#1f8a53" strokeWidth="2.5" points={polyPoints} />
-
-        <g fill="#1f8a53">
-          {rows.map((r, i) => (
-            <circle key={`${r.year}-${r.month}-${i}`} cx={x(i)} cy={y(r.etv)} r="3.5" />
-          ))}
-        </g>
-
-        <g fontSize="12" fill="#9aa4ac" textAnchor="middle">
-          {rows.map((r, i) => (
-            <text key={`${r.year}-${r.month}-label-${i}`} x={x(i)} y={height - 8} fill="#9aa4ac">
-              {monthLabel(r)}
-            </text>
-          ))}
-        </g>
-      </svg>
-    </div>
-  );
-}
+/**
+ * Website Snapshot Report Viewer matching the updated HTML mockup design
+ * Based on Snapshot-Mockup-Wares.html and Snapshot-FE-Field-Map.md
+ */
+/**
+ * Color system from Snapshot-Mockup-Wares.html
+ */
+const COLORS = {
+  green: '#123c28',
+  greenSoft: '#e7efe9',
+  greenLine: '#2f6b4a',
+  red: '#b0566b',
+  redSoft: '#f6e9ec',
+  amber: '#9c7a2f',
+  amberSoft: '#f5eeda',
+  ink: '#1c1f1d',
+  muted: '#6d726f',
+  faint: '#9aa09c',
+  hair: '#e6e8e3',
+  paper: '#ffffff',
+  bg: '#f2f2ec',
+} as const;
 
 export function WebsiteSnapshotReportViewer({
   report,
@@ -207,35 +61,105 @@ export function WebsiteSnapshotReportViewer({
   onBack,
 }: WebsiteSnapshotReportViewerProps) {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
-
+  
+  // Debug: Verify component is loading
+  React.useEffect(() => {
+    console.log('🎯 WebsiteSnapshotReportViewer loaded!');
+    console.log('Report meta:', report.meta);
+    console.log('Render flags:', report.render);
+    console.log('Goal data:', report.goal);
+    console.log('Search data:', report.search);
+    console.log('Intent mix:', report.intent_mix);
+    console.log('Brand share:', report.search?.brand_share);
+  }, [report]);
+  
   const meta = report.meta || {};
-  const businessName = String(meta.business_name || "").trim() || "Business";
-  const website = String(meta.url || "").trim();
-  const location = String(meta.location || "").trim();
-  const phone = meta.phone != null ? String(meta.phone || "").trim() : "";
-  const reportDateMonthYear = formatMonthYear(meta.report_date);
-  const reportDateFull = formatDayMonthYear(meta.report_date);
-
-  const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
+  const businessName = meta.business_name || "Business";
+  const website = stripUrlProtocol(meta.url || "");
+  const location = meta.location || "";
+  const phone = meta.phone || "";
+  const reportDate = meta.report_date || "";
+  const businessDescription = meta.business_description || "";
+  
+  // If render flags are missing, default to showing all sections
+  const render = report.render || {
+    hero: true,
+    stats_row: true,
+    trend_chart: true,
+    brand_split: true,
+    intent_mix: true,
+    scale_comparison: true,
+    goal_chain: true,
+    health_table: true,
+    technology_chips: true,
+    coverage_map: true,
+    tactics: true,
+  };
+  
   const tier = report.tier || {};
   const goal = report.goal || {};
-  const goalBody = String((goal as any)?.body ?? (goal as any)?.goal_body ?? "").trim();
-  const funnelStepsRaw = Array.isArray((goal as any)?.funnel_steps) ? (goal as any).funnel_steps : [];
-  const funnelSteps = funnelStepsRaw.map((s: any) => String(s || "").trim()).filter(Boolean).slice(0, 3);
   const search = report.search || {};
-  const competitors = Array.isArray(report.competitors) ? report.competitors : [];
+  const intentMix = report.intent_mix || {};
+  const scaleComparison = report.scale_comparison;
+  const competitorBuckets = report.competitor_buckets || {};
+  const showsUp = (competitorBuckets as any).shows_up || {};
+  const shouldBe = Array.isArray((competitorBuckets as any).should_be) ? (competitorBuckets as any).should_be : [];
   const underTheHood = report.under_the_hood || {};
   const issues = Array.isArray(report.issues) ? report.issues : [];
   const ladder = Array.isArray(report.ladder) ? report.ladder : [];
-  const plan = Array.isArray(report.plan) ? report.plan : [];
+  const tactics = Array.isArray(report.tactics) ? report.tactics : [];
+  const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
+  
+  // Derive hero from search.brand_share if hero object is missing
+  const hero = React.useMemo(() => {
+    if (report.hero && report.hero.display) {
+      return report.hero;
+    }
+    
+    // Fallback: derive from brand_share if available
+    if (search.brand_share !== undefined) {
+      const brandSharePct = Math.round(search.brand_share * 100);
+      return {
+        display: `${brandSharePct}%`,
+        label: "of your traffic is people already searching for you by name.",
+        description: `Most of your organic visitors already know ${businessName} and look you up directly — which means strangers in your market searching for your services aren't finding you yet. That gap is the whole opportunity.`,
+      };
+    }
+    
+    return {};
+  }, [report.hero, search.brand_share, businessName]);
+  
+  // Generate diagnosis (eyebrow text) if missing
+  const diagnosis = React.useMemo(() => {
+    // Use existing diagnosis if provided
+    if (report.diagnosis) {
+      return report.diagnosis;
+    }
+    
+    // Fallback: generate based on brand_share
+    if (search.brand_share !== undefined) {
+      const brandSharePct = search.brand_share * 100;
+      
+      if (brandSharePct >= 60) {
+        return "Beloved but invisible";
+      } else if (brandSharePct >= 40) {
+        return "Known locally, but not widely";
+      } else if (brandSharePct >= 20) {
+        return "Building awareness";
+      } else {
+        return "Discovery opportunity";
+      }
+    }
+    
+    return null;
+  }, [report.diagnosis, search.brand_share]);
 
   const markdownForExport = React.useMemo(() => {
     return websiteSnapshotReportToMarkdown(report);
   }, [report]);
 
   const defaultFilename = React.useMemo(() => {
-    const host = hostFromUrl(website);
-    return host ? `Website Snapshot Report - ${host}` : "Website Snapshot Report";
+    return website ? `Website Snapshot - ${website.split("/")[0]}` : "Website Snapshot Report";
   }, [website]);
 
   const handleCopy = React.useCallback(async () => {
@@ -257,659 +181,844 @@ export function WebsiteSnapshotReportViewer({
     }
   }, [markdownForExport]);
 
+  const formatReportDate = (date: string) => {
+    if (!date) return "";
+    try {
+      return new Date(date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    } catch {
+      return date;
+    }
+  };
+
   return (
-    <div className="h-full bg-white rounded-lg px-20 py-6 flex flex-col gap-6 overflow-hidden">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" className="gap-2" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
+    <div className="h-full overflow-hidden rounded-lg bg-[#f2f2ec] p-10">
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" className="gap-2" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={handleCopy}
-            disabled={!String(markdownForExport || "").trim()}
-          >
-            <Copy className="h-4 w-4" />
-            Copy
-          </Button>
-          <Button
-            className="gap-2"
-            onClick={() => setIsDownloadDialogOpen(true)}
-            disabled={!String(markdownForExport || "").trim()}
-          >
-            <Download className="h-4 w-4" />
-            Download
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={handleCopy}>
+              <Copy className="h-4 w-4" />
+              Copy
+            </Button>
+            <Button className="gap-2" onClick={() => setIsDownloadDialogOpen(true)}>
+              <Download className="h-4 w-4" />
+              Download
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-6">
-        <div className="w-full pb-12">
-          <header>
-            <div className="flex items-center justify-between text-xs uppercase tracking-[.14em] text-muted-foreground/70">
-              <span>Website Snapshot</span>
-              <span>{reportDateMonthYear}</span>
-            </div>
-            <h1 className="mt-4 text-[32px] font-extrabold tracking-tight text-foreground">
-              {businessName}
-            </h1>
-            <p className="mt-3 text-xs text-muted-foreground/70">
-              {[website, location].filter(Boolean).join(" · ")}
-              {phone ? (
-                <>
-                  {" "}
-                  ·{" "}
-                  <a href={`tel:${phone}`} className="hover:underline" style={{ color: "inherit" }}>
-                    {phone}
-                  </a>
-                </>
-              ) : null}
-            </p>
-          </header>
-
-          {callouts.length ? (
-            <section className="mt-12">
-              <div className="border-t border-border/40 pt-6">
-                <Typography variant="h4" className="text-foreground">
-                  Quick overview
-                </Typography>
-              </div>
-              <div className="mt-5 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
-                {callouts.slice(0, 4).map((c, idx) => {
-                  const tone = String(c.tone || "").trim().toLowerCase();
-                  const title = String(c.title || "").trim();
-                  const body = String(c.body || "").trim();
-                  if (!title && !body) return null;
-                  const dotClass =
-                    tone === "green"
-                      ? "bg-emerald-600"
-                      : tone === "amber"
-                        ? "bg-amber-600"
-                        : tone === "red"
-                          ? "bg-red-600"
-                          : "bg-neutral-400";
-
-                  return (
-                    <div key={`${title}-${idx}`}>
-                      <h3 className="flex items-center text-[16.5px] font-bold">
-                        <span className={cn("mr-2 inline-block h-2 w-2 rounded-sm", dotClass)} />
-                        {title}
-                      </h3>
-                      {body ? (
-                        <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          {(tier.label || tier.reasoning) && (
-            <section className="mt-12">
-              <div className="border-t border-border/40 pt-6">
-                <Typography variant="h4" className="text-foreground">
-                  What SEO can do for you
-                </Typography>
-              </div>
-              <div className="mt-4">
-                {tier.label ? (
-                  <div className="text-xs font-bold uppercase tracking-[.14em] text-emerald-600">
-                    {tier.label}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto  space-y-7">
+            {/* PAGE 1: Cover + Hero + Quick Overview */}
+            <div className="rounded-lg border p-14 shadow-sm" style={{ 
+              borderColor: COLORS.hair, 
+              background: COLORS.paper 
+            }}>
+              {/* Cover Top */}
+              <div className="flex items-start justify-between gap-5 mb-8">
+                <div>
+                  <div className="font-mono text-[11px] font-medium tracking-[0.16em]" style={{ color: COLORS.green }}>
+                    SNAPSHOT
                   </div>
-                ) : null}
-                {tier.reasoning ? (
-                  (() => {
-                    const split = splitFirstSentence(String(tier.reasoning || ""));
-                    return (
-                      <>
-                        {split.headline ? (
-                          <h3 className="mt-2 text-[19px] font-extrabold tracking-tight text-foreground">
-                            {split.headline}
-                          </h3>
-                        ) : null}
-                        {split.rest ? (
-                          <p className="mt-2 text-[15px] text-muted-foreground">
-                            {split.rest}
-                          </p>
-                        ) : null}
-                      </>
-                    );
-                  })()
-                ) : null}
-                {tier.tier_caveat ? (
-                  <p className="mt-4 text-xs text-muted-foreground/70">{tier.tier_caveat}</p>
-                ) : null}
-              </div>
-            </section>
-          )}
-
-          {(goalBody || funnelSteps.length || goal.funnel_end || goal.dominant_cta) && (
-            <section className="mt-9">
-              <div className="border-l-4 border-general-primary pl-5">
-                <div className="text-xs font-bold uppercase tracking-[.14em] text-general-primary">
-                  Your goal, read from your own site
-                </div>
-                {goalBody ? (
-                  <p className="mt-3 text-[15.5px] leading-relaxed text-foreground">
-                    {goalBody}
-                  </p>
-                ) : goal.dominant_cta ? (
-                  <p className="mt-3 text-[15.5px] leading-relaxed text-foreground">
-                    {String(goal.dominant_cta || "").trim()}
-                  </p>
-                ) : null}
-                {funnelSteps.length || goal.funnel_end ? (
-                  <div className="mt-3 text-sm text-muted-foreground">
-                    {funnelSteps[0] ? <span className="font-semibold text-foreground">{funnelSteps[0]}</span> : null}
-                    {funnelSteps[1] ? (
-                      <>
-                        <span className="mx-2 text-muted-foreground/60">›</span>
-                        <span className="font-semibold text-foreground">{funnelSteps[1]}</span>
-                      </>
-                    ) : null}
-                    {funnelSteps[2] ? (
-                      <>
-                        <span className="mx-2 text-muted-foreground/60">›</span>
-                        <span className="font-semibold text-foreground">{funnelSteps[2]}</span>
-                      </>
-                    ) : null}
-                    {goal.funnel_end ? (
-                      <>
-                        <span className="mx-2 text-muted-foreground/60">›</span>
-                        <span className="font-bold text-emerald-600">{goal.funnel_end}</span>
-                      </>
-                    ) : null}
+                  <div className="mt-1 font-mono text-[11px] tracking-[0.14em] uppercase" style={{ color: COLORS.faint }}>
+                    Website Snapshot · {formatReportDate(reportDate) || "2026"}
                   </div>
-                ) : null}
-              </div>
-            </section>
-          )}
-
-          <section className="mt-12">
-            <div className="border-t border-border/40 pt-6">
-              <Typography variant="h4" className="text-foreground">
-                Where you stand in search today
-              </Typography>
-            </div>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Real organic search data for your site, from the U.S. Google index.
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-x-10 gap-y-6">
-              <div>
-                <div className="text-[28px] font-extrabold tracking-tight">
-                  {search.keywords_count != null ? formatVolume(search.keywords_count) : "—"}
                 </div>
-                <div className="text-sm text-muted-foreground">keywords ranked</div>
-              </div>
-              <div>
-                <div className="text-[28px] font-extrabold tracking-tight text-emerald-600">
-                  {search.etv != null ? `~${formatVolume(Math.round(search.etv))}` : "—"}
-                </div>
-                <div className="text-sm text-muted-foreground">visits a month</div>
-              </div>
-              <div>
-                <div className="text-[28px] font-extrabold tracking-tight text-emerald-600">
-                  {search.top10 != null ? formatVolume(search.top10) : "—"}
-                </div>
-                <div className="text-sm text-muted-foreground">in Google's top 10</div>
-              </div>
-              <div>
-                <div className="text-[28px] font-extrabold tracking-tight">
-                  {search.referring_domains != null ? formatVolume(search.referring_domains) : "—"}
-                </div>
-                <div className="text-sm text-muted-foreground">sites linking to you</div>
-              </div>
-            </div>
-
-            {search.traffic_read ? (
-              <p className="mt-4 text-sm text-muted-foreground">
-                {search.traffic_read}
-                {search.trend?.pct_change != null && Number.isFinite(search.trend?.pct_change) ? (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <span className="font-bold text-emerald-600">
-                      {String(search.trend?.pct_change || 0).trim().startsWith("-") ? "↓" : "↑"}{" "}
-                      {Math.abs(Number(search.trend?.pct_change)).toFixed(1)}%
-                    </span>
-                  </>
-                ) : null}
-              </p>
-            ) : null}
-
-            {Array.isArray(search.trend?.points) && search.trend?.points?.length ? (
-              <TrendChart
-                points={search.trend.points}
-                label={`Monthly organic traffic, ${String(search.trend.window || "").trim() || "available history"}`}
-              />
-            ) : null}
-
-            <div className="mt-7 grid grid-cols-1 gap-8 sm:grid-cols-2">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-emerald-600">
-                  You win
-                </div>
-                <ul className="mt-2">
-                  {(Array.isArray(search.topics_won) ? search.topics_won : []).slice(0, 5).map((row, idx) => {
-                    const term = String(row.term || "").trim();
-                    if (!term) return null;
-                    return (
-                      <li
-                        key={`${term}-${idx}`}
-                        className="flex items-baseline justify-between gap-3 border-b border-border/40 py-2 text-sm"
-                      >
-                        <span className="font-semibold">{term}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-amber-600">
-                  Striking distance
-                </div>
-                <ul className="mt-2">
-                  {(Array.isArray(search.gaps?.near_miss) ? search.gaps?.near_miss : []).slice(0, 5).map((row, idx) => {
-                    const term = String(row.term || "").trim();
-                    if (!term) return null;
-                    return (
-                      <li
-                        key={`${term}-${idx}`}
-                        className="flex items-baseline justify-between gap-3 border-b border-border/40 py-2 text-sm"
-                      >
-                        <span className="font-semibold">{term}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </div>
-
-            {Array.isArray(search.workhorse?.pages) && search.workhorse?.pages?.length ? (
-              <div className="mt-8">
-                <Typography
-                  variant="muted"
-                  className="text-xs font-semibold tracking-wide uppercase text-muted-foreground/70"
-                >
-                  Workhorse pages
-                </Typography>
-                <div className="mt-2">
-                  {search.workhorse.pages.slice(0, 3).map((page, idx) => {
-                    const url = String(page.url || "").trim();
-                    if (!url) return null;
-                    const urlHost = hostFromUrl(url);
-                    const etv = page.etv != null ? Number(page.etv) : null;
-                    const terms = Array.isArray(page.top_terms)
-                      ? page.top_terms.map((t) => String(t || "").trim()).filter(Boolean)
-                      : [];
-
-                    return (
-                      <div
-                        key={`${url}-${idx}`}
-                        className="border-b border-border/40 py-3 last:border-b-0"
-                      >
-                        <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="break-all font-mono text-xs text-general-primary hover:underline"
-                          >
-                            {urlHost || url}
-                          </a>
-                          {etv != null && Number.isFinite(etv) ? (
-                            <span className="text-xs font-bold text-emerald-600">
-                              ~{formatVolume(Math.round(etv))}
-                            </span>
-                          ) : null}
-                        </div>
-                        {terms.length ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {terms.slice(0, 8).map((term) => (
-                              <span
-                                key={term}
-                                className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                              >
-                                {term}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                <div className="text-right font-mono text-[11.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                  {website && <div>{website}</div>}
+                  {location && <div>{location}</div>}
+                  {phone && <div>{phone}</div>}
                 </div>
               </div>
-            ) : null}
-          </section>
 
-          {competitors.length ? (
-            <section className="mt-12">
-              <div className="border-t border-border/40 pt-6">
-                <Typography variant="h4" className="text-foreground">
-                  Who's winning, and the pages doing it
-                </Typography>
-              </div>
+              <hr className="border-0 border-t-2 my-8" style={{ borderColor: COLORS.green }} />
 
-              {String((report as any)?.competitors_intro || "").trim() ? (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {String((report as any).competitors_intro).trim()}
+              <h1 className="text-[34px] font-bold tracking-tight leading-tight" style={{ color: COLORS.ink }}>
+                {businessName}
+              </h1>
+              {businessDescription && (
+                <p className="text-[15px] mt-4 leading-relaxed" style={{ color: COLORS.muted }}>
+                  {businessDescription}
                 </p>
-              ) : null}
-
-              <div className="mt-4">
-                {competitors.slice(0, 4).map((c, idx) => {
-                  const domain = String(c.domain || "").trim();
-                  if (!domain) return null;
-                  const title = String((c as any)?.title || "").trim();
-                  const note = String(c.note || "").trim();
-                  const keywordCount =
-                    c.keyword_count != null && Number.isFinite(Number(c.keyword_count))
-                      ? formatVolume(Number(c.keyword_count))
-                      : "";
-                  const etv =
-                    c.etv != null && Number.isFinite(Number(c.etv))
-                      ? formatVolume(Math.round(Number(c.etv)))
-                      : "";
-                  const example = c.example || {};
-                  const exUrl = String(example.url || "").trim();
-                  const exTerm = String(example.term || "").trim();
-                  const exPos =
-                    example.position != null && Number.isFinite(Number(example.position))
-                      ? `#${Number(example.position)}`
-                      : "";
-                  const exWhy = String((example as any)?.why || "").trim();
-                  const websiteName = siteNameFromHost(domain) || domain;
-                  const competitorHref = `https://${domain}`;
-                  const exampleHref = exUrl || competitorHref;
-
-                  return (
-                    <div key={`${domain}-${idx}`} className="border-b border-border/40 py-5 last:border-b-0">
-                      <div className="flex flex-wrap items-baseline justify-between gap-3">
-                        <div>
-                          <div className="text-base font-extrabold">{title || domain}</div>
-                          {title ? (
-                            <div className="mt-0.5 text-xs text-muted-foreground/70">
-                              <a
-                                href={competitorHref}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="hover:underline"
-                                style={{ color: "inherit" }}
-                              >
-                                {websiteName}
-                              </a>
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="text-xs text-muted-foreground/70">
-                          {[etv ? `~${etv}/mo` : "", keywordCount ? `${keywordCount} keywords` : ""]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
-                      </div>
-                      {note ? (
-                        <p className="mt-2 text-sm text-muted-foreground">{note}</p>
-                      ) : null}
-                      {exUrl || exTerm ? (
-                        <div className="mt-3 border-l-2 border-general-primary pl-4">
-                          <a
-                            href={exampleHref}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs text-general-primary hover:underline"
-                          >
-                            {websiteName}
-                          </a>
-                          {exTerm || exPos ? (
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {[exPos, exTerm].filter(Boolean).join(" · ")}
-                            </div>
-                          ) : null}
-                          {exWhy ? (
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              {exWhy}
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {String((report as any)?.competitors_throughline || "").trim() ? (
-                <p className="mt-5 text-sm text-muted-foreground">
-                  {String((report as any).competitors_throughline).trim()}
-                </p>
-              ) : null}
-            </section>
-          ) : null}
-
-          {(underTheHood.rows?.length || underTheHood.pills?.length) && (
-            <section className="mt-12">
-              <div className="border-t border-border/40 pt-6">
-                <Typography variant="h4" className="text-foreground">
-                  Under the hood
-                </Typography>
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">
-                What the site runs on, and how it's set up to be found.
-              </p>
-
-              {Array.isArray(underTheHood.rows) && underTheHood.rows.length ? (
-                <div className="mt-5 overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-border/40">
-                        <th className="py-3 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground/70">
-                          Layer
-                        </th>
-                        <th className="py-3 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground/70">
-                          What we found
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {underTheHood.rows.map((row, idx) => {
-                        const layer = String(row.layer || "").trim();
-                        const verdict = String(row.verdict || "").trim();
-                        const detail = String(row.detail || "").trim();
-                        if (!layer && !verdict && !detail) return null;
-                        return (
-                          <tr key={`${layer}-${idx}`} className="border-b border-border/40 last:border-b-0">
-                            <td className="py-3 pr-5 font-bold whitespace-nowrap">{layer}</td>
-                            <td className="py-3 text-muted-foreground">
-                              {verdict ? (
-                                <span className="font-semibold text-foreground">{verdict}</span>
-                              ) : null}
-                              {detail ? (
-                                <span>
-                                  {verdict ? " — " : ""}
-                                  {detail}
-                                </span>
-                              ) : null}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-
-              {Array.isArray(underTheHood.pills) && underTheHood.pills.length ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {underTheHood.pills.slice(0, 18).map((pill, idx) => {
-                    const name = String(pill.name || "").trim();
-                    if (!name) return null;
-                    const status = String(pill.status || "").trim().toLowerCase();
-                    const cls =
-                      status === "good"
-                        ? "border-emerald-200 text-emerald-700"
-                        : status === "none"
-                          ? "border-red-200 text-red-700"
-                          : "border-border text-muted-foreground";
-                    return (
-                      <span
-                        key={`${name}-${idx}`}
-                        className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold", cls)}
-                      >
-                        {name}
-                      </span>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </section>
-          )}
-
-          {issues.length ? (
-            <section className="mt-12">
-              <div className="border-t border-border/40 pt-6">
-                <Typography variant="h4" className="text-foreground">
-                  What's holding the site back
-                </Typography>
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Concrete, fixable items. None are hard, and together they're capping your momentum.
-              </p>
-
-              <div className="mt-5">
-                {issues.map((it, idx) => {
-                  const title = String(it.title || "").trim();
-                  const body = String(it.body || "").trim();
-                  const sev = String(it.severity || "").trim();
-                  if (!title && !body) return null;
-                  const sevKey = sev.toLowerCase();
-                  const sevCls =
-                    sevKey === "high" || sevKey === "crit"
-                      ? "text-red-600"
-                      : sevKey === "med" || sevKey === "medium"
-                        ? "text-amber-600"
-                        : "text-muted-foreground";
-                  return (
-                    <div key={`${title}-${idx}`} className="border-b border-border/40 py-4 last:border-b-0">
-                      <h3 className="text-[15.5px] font-bold">
-                        {sev ? (
-                          <span className={cn("mr-2 text-xs font-extrabold uppercase tracking-wide", sevCls)}>
-                            {sev}
-                          </span>
-                        ) : null}
-                        {title}
-                      </h3>
-                      {body ? <p className="mt-2 text-sm text-muted-foreground">{body}</p> : null}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
-
-          {ladder.length ? (
-            <section className="mt-12">
-              <div className="border-t border-border/40 pt-6">
-                <Typography variant="h4" className="text-foreground">
-                  Where your content should grow
-                </Typography>
-              </div>
-              {String((report as any)?.ladder_intro || "").trim() ? (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {String((report as any).ladder_intro).trim()}
-                </p>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">Build in this order.</p>
               )}
 
-              <div className="mt-4">
-                {ladder.map((rung, idx) => {
-                  const title = String((rung as any)?.headline || rung.title || "").trim();
-                  const body = String((rung as any)?.body || rung.example || "").trim();
-                  const st = statusBadge(String(rung.status || ""));
-                  return (
-                    <div
-                      key={`${rung.rung}-${idx}`}
-                      className="grid grid-cols-[24px_1fr] gap-4 border-b border-border/40 py-4 last:border-b-0"
-                    >
-                      <div className="text-sm font-bold text-muted-foreground/70">
-                        {rung.rung ?? idx + 1}
-                      </div>
-                      <div>
-                        <h3 className="text-[15.5px] font-bold">{title || "Rung"}</h3>
-                        <span className={cn("mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide", st.className)}>
-                          {st.label}
-                        </span>
-                        {body ? <p className="mt-2 text-sm text-muted-foreground">{body}</p> : null}
-                      </div>
+              {/* Hero Section - The "Search Thing Big" */}
+              {render.hero !== false && hero.display && (
+                <>
+                  <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
+                  {/* Eyebrow label - diagnostic headline (e.g., "Beloved but invisible") */}
+                  {diagnosis && (
+                    <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: COLORS.faint }}>
+                      {diagnosis}
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                  {/* Hero number - make it REALLY BIG as in mockup */}
+                  <div className="text-[120px] font-bold tracking-tight leading-[0.85] my-5" style={{ color: COLORS.green }}>
+                    {hero.display}
+                  </div>
+                  {/* Hero label - what the number means */}
+                  {hero.label && (
+                    <p className="text-[21px] font-semibold tracking-tight max-w-[46ch] mb-4 leading-tight" style={{ color: COLORS.ink }}>
+                      {hero.label}
+                    </p>
+                  )}
+                  {/* Hero description - the deeper explanation */}
+                  {hero.description && (
+                    <p className="text-[15px] leading-relaxed" style={{ color: COLORS.muted }}>
+                      {hero.description}
+                    </p>
+                  )}
+                </>
+              )}
 
-              {String((report as any)?.ladder_summary || "").trim() ? (
-                <p className="mt-4 text-sm text-muted-foreground">
-                  {String((report as any).ladder_summary).trim()}
+              {/* Quick Overview Callouts */}
+              {callouts.length > 0 && (
+                <div className="mt-8 grid grid-cols-2 gap-x-11 gap-y-4">
+                  {callouts.map((callout, index) => {
+                    const dotColor = 
+                      callout.tone === "green" ? COLORS.green :
+                      callout.tone === "amber" ? COLORS.amber :
+                      callout.tone === "red" ? COLORS.red : COLORS.faint;
+                    
+                    return (
+                      <div key={index} className="py-5 border-t" style={{ borderColor: COLORS.hair }}>
+                        <div className="flex items-center gap-2.5 text-[15px] font-semibold mb-2.5 leading-normal" style={{ color: COLORS.ink }}>
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: dotColor }} />
+                          {callout.title}
+                        </div>
+                        <div className="text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
+                          {callout.body}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* PAGE 2: What SEO Can Do */}
+            {(tier.name || goal.body) && (
+              <div className="rounded-lg border p-14 shadow-sm" style={{ 
+                borderColor: COLORS.hair, 
+                background: COLORS.paper 
+              }}>
+                <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: COLORS.faint }}>
+                  What SEO can do for you
+                </div>
+                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3" style={{ color: COLORS.ink }}>
+                  {tier.name || (tier as any).label || "Your SEO opportunity tier"}
+                </h2>
+                {tier.reasoning && (
+                  <p className="text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
+                    {tier.reasoning}
+                  </p>
+                )}
+
+                <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
+
+                {/* Tier Cards */}
+                <div className="grid grid-cols-3 gap-3.5 mt-8">
+                  {[1, 2, 3].map((level) => {
+                    // API provides tier.level
+                    const isSelected = tier.level === level;
+                    return (
+                      <div 
+                        key={level} 
+                        className="border rounded p-4.5 relative" 
+                        style={{ 
+                          borderColor: isSelected ? COLORS.green : COLORS.hair,
+                          background: isSelected ? '#fbfdfb' : COLORS.paper
+                        }}
+                      >
+                        {isSelected && (
+                          <div 
+                            className="absolute top-3.5 right-3.5 font-mono text-[9.5px] tracking-wider px-2 py-1 rounded-sm" 
+                            style={{ background: COLORS.green, color: COLORS.paper }}
+                          >
+                            YOUR FIT
+                          </div>
+                        )}
+                        <div className="font-mono text-[10px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                          Tier {level}
+                        </div>
+                        <div className="font-semibold text-[15px] my-2.5" style={{ color: COLORS.ink }}>
+                          {level === 1 ? "A growth channel" : level === 2 ? "A competitive channel" : "A visibility channel"}
+                        </div>
+                        <div className="text-[12.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                          {level === 1 ? "Search can bring real customers. You rank #1 for your name; the next wins are service and location pages that capture buyers who don't know you yet." :
+                           level === 2 ? "Leads are possible but depend on local competition and demand. Start focused, evaluate at six months." :
+                           "Supports credibility more than acquisition. Not you — a six-county consumer market rewards being found."}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Goal Box */}
+                {goal.body && (
+                  <div className="mt-7 border-l-[3px] p-5.5 rounded" style={{ 
+                    borderColor: COLORS.green, 
+                    background: COLORS.greenSoft 
+                  }}>
+                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.greenLine }}>
+                      Your goal, read from your own site
+                    </div>
+                    <p className="text-[14px] mb-3 leading-normal" style={{ color: COLORS.ink }}>{goal.body}</p>
+                    {Array.isArray(goal.funnel_steps) && goal.funnel_steps.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+                        {goal.funnel_steps.map((step, i) => (
+                          <React.Fragment key={i}>
+                            <div className="border rounded px-3 py-1.5" style={{ 
+                              background: COLORS.paper, 
+                              borderColor: COLORS.hair,
+                              color: COLORS.ink
+                            }}>
+                              {step}
+                            </div>
+                            {i < goal.funnel_steps!.length - 1 && (
+                              <span style={{ color: COLORS.faint }}>›</span>
+                            )}
+                          </React.Fragment>
+                        ))}
+                        {goal.funnel_end && (
+                          <>
+                            <span style={{ color: COLORS.faint }}>›</span>
+                            <div className="font-semibold rounded px-3 py-1.5" style={{ 
+                              background: COLORS.green, 
+                              color: COLORS.paper 
+                            }}>
+                              {goal.funnel_end}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PAGE 3: Where You Stand */}
+            {(render.stats_row !== false || search.traffic_read) && (
+              <div className="rounded-lg border p-14 shadow-sm" style={{ 
+                borderColor: COLORS.hair, 
+                background: COLORS.paper 
+              }}>
+                <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: COLORS.faint }}>
+                  Where you stand in search today
+                </div>
+                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3" style={{ color: COLORS.ink }}>
+                  Real organic search data, from the U.S. Google index.
+                </h2>
+                <p className="text-[14.5px] max-w-[60ch] leading-normal" style={{ color: COLORS.muted }}>
+                  Organic positions only · six months of available history · {formatReportDate(reportDate) || "2026"}.
                 </p>
-              ) : null}
-            </section>
-          ) : null}
 
-          {plan.length ? (
-            <section className="mt-12">
-              <div className="border-t border-border/40 pt-6">
-                <Typography variant="h4" className="text-foreground">
-                  The plan, in order
-                </Typography>
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Sequenced for your site's current stage and biggest opportunities.
-              </p>
-
-              <div className="mt-4">
-                {plan.map((step, idx) => {
-                  const title = String(step.title || "").trim();
-                  const body = String(step.body || "").trim();
-                  if (!title && !body) return null;
-                  const num = step.step ?? idx + 1;
-                  return (
-                    <div
-                      key={`${num}-${idx}`}
-                      className="grid grid-cols-[26px_1fr] gap-4 border-b border-border/40 py-4 last:border-b-0"
-                    >
-                      <div className="text-sm font-extrabold text-general-primary">{num}</div>
-                      <div>
-                        <h3 className="text-[15.5px] font-bold">{title || "Step"}</h3>
-                        {body ? <p className="mt-2 text-sm text-muted-foreground">{body}</p> : null}
+                {/* Stats Row */}
+                {render.stats_row !== false && (
+                  <div className="grid grid-cols-4 gap-0 mt-7">
+                    <div className="px-5 border-l first:pl-0 first:border-l-0" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Keywords</div>
+                      <div className="text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.keywords_count || 0}</div>
+                      <div className="text-[12px] mt-2" style={{ color: COLORS.muted }}>terms ranked</div>
+                    </div>
+                    <div className="px-5 border-l" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Traffic</div>
+                      <div className="text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.green }}>
+                        ~{typeof search.etv === 'number' ? Math.round(search.etv).toLocaleString() : search.etv || 0}
+                      </div>
+                      <div className="text-[12px] mt-2" style={{ color: COLORS.muted }}>
+                        visits a month
+                        {search.trend?.pct_change ? `, ${search.trend.direction === "growing" ? "up" : search.trend.direction === "declining" ? "down" : ""} ${Math.abs(search.trend.pct_change).toFixed(1)}%` : ""}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-          ) : null}
+                    <div className="px-5 border-l" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Top 10</div>
+                      <div className="text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.top10 || 0}</div>
+                      <div className="text-[12px] mt-2" style={{ color: COLORS.muted }}>in Google's top 10</div>
+                    </div>
+                    <div className="px-5 border-l" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Authority</div>
+                      <div className="text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.referring_domains || 0}</div>
+                      <div className="text-[12px] mt-2" style={{ color: COLORS.muted }}>sites linking to you</div>
+                    </div>
+                  </div>
+                )}
 
-          {String(report.takeaway || "").trim() ? (
-            <section className="mt-11">
-              <div className="border-l-4 border-general-primary pl-5">
-                <div className="text-xs font-bold uppercase tracking-[.14em] text-general-primary">
+                {/* Trend Chart */}
+                {render.trend_chart !== false && search.trend?.points && search.trend.points.length > 0 && (
+                  <div className="mt-8">
+                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
+                      Traffic trend · {search.trend.window || "6 months"}
+                    </div>
+                    <div className="h-[200px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart 
+                          data={search.trend.points.map((point) => ({
+                            label: `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][point.month - 1]} '${String(point.year).slice(-2)}`,
+                            etv: Math.round(point.etv)
+                          }))}
+                          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                        >
+                          <XAxis 
+                            dataKey="label" 
+                            tick={{ fill: COLORS.muted, fontSize: 11 }}
+                            axisLine={{ stroke: COLORS.hair }}
+                            tickLine={false}
+                          />
+                          <YAxis 
+                            tick={{ fill: COLORS.muted, fontSize: 11 }}
+                            axisLine={{ stroke: COLORS.hair }}
+                            tickLine={false}
+                            tickFormatter={(value) => `${(value / 1000).toFixed(1)}k`}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              background: COLORS.paper, 
+                              border: `1px solid ${COLORS.hair}`,
+                              borderRadius: '6px',
+                              fontSize: '13px'
+                            }}
+                            labelStyle={{ color: COLORS.ink, fontWeight: 600 }}
+                            formatter={(value: number) => [`${value.toLocaleString()} visits`, 'Traffic']}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="etv" 
+                            stroke={COLORS.green} 
+                            strokeWidth={2.5}
+                            dot={{ fill: COLORS.green, r: 4 }}
+                            activeDot={{ r: 6 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    {search.trend.pct_change && (
+                      <div className="mt-3 text-[13px]" style={{ color: COLORS.muted }}>
+                        {search.trend.direction === "growing" ? "↑" : search.trend.direction === "declining" ? "↓" : "→"}{" "}
+                        <span style={{ color: COLORS.ink, fontWeight: 600 }}>
+                          {Math.abs(search.trend.pct_change).toFixed(1)}%
+                        </span>
+                        {" "}{search.trend.direction === "growing" ? "growth" : search.trend.direction === "declining" ? "decline" : "change"} over the period
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Brand vs Non-brand & Intent Mix */}
+                {(search.brand_share != null || Object.keys(intentMix).length > 0) && (
+                  <div className="grid grid-cols-2 gap-10 mt-7">
+                    {search.brand_share != null && (
+                      <div>
+                        <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
+                          Brand vs non-brand
+                        </div>
+                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
+                          <div 
+                            className="flex items-center justify-center"
+                            style={{ 
+                              background: COLORS.green,
+                              width: `${Math.round(search.brand_share * 100)}%` 
+                            }}
+                          >
+                            Branded {Math.round(search.brand_share * 100)}%
+                          </div>
+                          <div 
+                            className="flex items-center justify-center"
+                            style={{ 
+                              background: '#7a9d8a',
+                              width: `${Math.round((1 - search.brand_share) * 100)}%` 
+                            }}
+                          >
+                            Non-brand {Math.round((1 - search.brand_share) * 100)}%
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {Object.keys(intentMix).length > 0 && (
+                      <div>
+                        <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
+                          Search intent mix
+                        </div>
+                        <div className="flex h-7 rounded font-mono text-[11px] overflow-hidden" style={{ color: COLORS.paper }}>
+                          {intentMix.transactional != null && intentMix.transactional > 0 && (
+                            <div className="flex items-center justify-center" style={{ 
+                              background: COLORS.green, 
+                              width: `${Math.round(intentMix.transactional * 100)}%` 
+                            }}>
+                              Transactional {Math.round(intentMix.transactional * 100)}%
+                            </div>
+                          )}
+                          {intentMix.commercial != null && intentMix.commercial > 0 && (
+                            <div className="flex items-center justify-center" style={{ 
+                              background: '#4a7c59', 
+                              width: `${Math.round(intentMix.commercial * 100)}%` 
+                            }}>
+                              Commercial {Math.round(intentMix.commercial * 100)}%
+                            </div>
+                          )}
+                          {intentMix.informational != null && intentMix.informational > 0 && (
+                            <div className="flex items-center justify-center" style={{ 
+                              background: '#7a8c7e', 
+                              width: `${Math.round(intentMix.informational * 100)}%` 
+                            }}>
+                              Informational {Math.round(intentMix.informational * 100)}%
+                            </div>
+                          )}
+                          {intentMix.navigational != null && intentMix.navigational > 0 && (
+                            <div className="flex items-center justify-center" style={{ 
+                              background: '#9aa8a0', 
+                              width: `${Math.round(intentMix.navigational * 100)}%` 
+                            }}>
+                              Nav {Math.round(intentMix.navigational * 100)}%
+                            </div>
+                          )}
+                        </div>
+                        {intentMix.local_share != null && (
+                          <div className="text-[12.5px] mt-2" style={{ color: COLORS.muted }}>
+                            Local pack share: <b style={{ color: COLORS.ink }}>{Math.round(intentMix.local_share * 100)}%</b> — buyers, not browsers.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
+
+                {/* You Win vs Missing Columns */}
+                {(search.you_win?.length || search.buyers_elsewhere?.length) && (
+                  <div className="grid grid-cols-2 gap-10">
+                    <div>
+                      <div className="font-mono text-[11px] tracking-wider uppercase mb-4" style={{ color: COLORS.green }}>
+                        ▲ You win
+                      </div>
+                      {Array.isArray(search.you_win) && search.you_win.map((group, i) => (
+                        <div key={i} className="mb-5">
+                          {group.cluster && (
+                            <div className="font-semibold text-[14px] mb-2">{group.cluster}</div>
+                          )}
+                          {Array.isArray(group.examples) && group.examples.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {group.examples.map((ex, j) => (
+                                <span key={j} className="font-mono text-[11px] text-gray-600 border border-[#e6e8e3] rounded px-2 py-0.5 bg-[#fbfbf9]">
+                                  {ex}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {group.blurb && (
+                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{group.blurb}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div>
+                      <div className="font-mono text-[11px] tracking-wider text-red-600 uppercase mb-4">
+                        ▼ What you're missing
+                      </div>
+                      {Array.isArray(search.buyers_elsewhere) && search.buyers_elsewhere.map((group, i) => (
+                        <div key={i} className="mb-5">
+                          {group.cluster && (
+                            <div className="font-semibold text-[14px] mb-2">{group.cluster}</div>
+                          )}
+                          {Array.isArray(group.examples) && group.examples.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {group.examples.map((ex, j) => (
+                                <span key={j} className="font-mono text-[11px] text-gray-600 border border-[#e6e8e3] rounded px-2 py-0.5 bg-[#fbfbf9]">
+                                  {ex}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {group.blurb && (
+                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{group.blurb}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PAGE 4: Who Shows Up */}
+            {(Object.keys(showsUp).length > 0 || shouldBe.length > 0) && (
+              <div className="rounded-lg border p-14 shadow-sm" style={{
+                borderColor: COLORS.hair,
+                background: COLORS.paper
+              }}>
+                <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: COLORS.faint }}>
+                  Who shows up in your market
+                </div>
+                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3" style={{ color: COLORS.ink }}>
+                  {showsUp.direct_note || "Your competitive landscape."}
+                </h2>
+                <p className="text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
+                  {competitorBuckets.setup?.market}
+                  {competitorBuckets.setup?.delivery && ` · ${competitorBuckets.setup.delivery}`}
+                </p>
+
+                {/* Direct Competitors */}
+                {Array.isArray(showsUp.direct_competitors) && showsUp.direct_competitors.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Similar, elsewhere
+                    </div>
+                    {showsUp.direct_note && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {showsUp.direct_note}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {showsUp.direct_competitors.map((item: any, i: number) => (
+                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{ 
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          {item.domain}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Similar Elsewhere */}
+                {Array.isArray(showsUp.similar_elsewhere) && showsUp.similar_elsewhere.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Similar, elsewhere
+                    </div>
+                    {showsUp.similar_elsewhere_note && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {showsUp.similar_elsewhere_note}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {showsUp.similar_elsewhere.map((item: any, i: number) => (
+                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{ 
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          {item.domain}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Noise */}
+                {Array.isArray(showsUp.noise) && showsUp.noise.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Noise
+                    </div>
+                    {showsUp.noise_note && (
+                      <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                        {showsUp.noise_note}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {showsUp.noise.slice(0, 6).map((item: any, i: number) => (
+                        <span key={i} className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          {item}
+                        </span>
+                      ))}
+                      {showsUp.noise.length > 6 && (
+                        <span className="font-mono text-[11px] border rounded px-2 py-0.5" style={{
+                          color: COLORS.muted,
+                          borderColor: COLORS.hair,
+                          background: '#fbfbf9'
+                        }}>
+                          + {showsUp.noise.length - 6} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Who Should Be There */}
+                {shouldBe.length > 0 && (
+                  <div className="mt-7">
+                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
+                      Who should be there
+                    </div>
+                    <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+                      {(competitorBuckets as any).should_be_note || "The competitors your customers actually choose between — every one of them in your market."}
+                    </p>
+                    <div className="space-y-0">
+                      {shouldBe.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between gap-5 py-3 border-t text-[13.5px]" style={{ borderColor: COLORS.hair }}>
+                          <div>
+                            <div className="font-semibold mb-0.5" style={{ color: COLORS.ink }}>{item.name}</div>
+                            {item.where && (
+                              <div className="text-[12px]" style={{ color: COLORS.faint }}>{item.where}</div>
+                            )}
+                          </div>
+                          <div className="text-right max-w-[52%]" style={{ color: COLORS.muted }}>{item.note}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Gap Box */}
+                {competitorBuckets.gap && (
+                  <div className="mt-6 border-l-[3px] p-4 rounded text-[14px] leading-relaxed" style={{
+                    borderColor: COLORS.red,
+                    background: COLORS.redSoft,
+                    color: COLORS.ink
+                  }}>
+                    <b>The gap:</b> {competitorBuckets.gap}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PAGE 5: Under the Hood */}
+            {render.health_table !== false && (underTheHood.rows?.length || underTheHood.pills?.length) && (
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-14 shadow-sm">
+                <div className="font-mono text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-5">
+                  Under the hood
+                </div>
+                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3">
+                  What the site runs on, and how it's set up to be found.
+                </h2>
+                <p className="text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                  The technical inventory — the plumbing, not the content. Green is fine, amber needs a look, red is a problem.
+                </p>
+
+                {/* Table */}
+                {Array.isArray(underTheHood.rows) && underTheHood.rows.length > 0 && (
+                  <div className="mt-6">
+                    <table className="w-full text-[13.5px]">
+                      <thead>
+                        <tr>
+                          <th className="px-0 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                            Layer
+                          </th>
+                          <th className="px-3 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                            Status
+                          </th>
+                          <th className="px-3 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                            What we found
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {underTheHood.rows.map((row, i) => (
+                          <tr key={i} className="border-b" style={{ borderColor: COLORS.hair }}>
+                            <td className="px-0 py-3.5 font-semibold align-top" style={{ color: COLORS.ink }}>{row.layer}</td>
+                            <td className="px-3 py-3.5 align-top">
+                              <span className={cn(
+                                "inline-block font-mono text-[10.5px] tracking-wider px-2.5 py-1 rounded",
+                                row.verdict === "Fine" ? "bg-[#e7efe9]" :
+                                row.verdict === "Gap" ? "bg-[#f5eeda]" :
+                                row.verdict === "Critical" ? "bg-[#f6e9ec]" :
+                                "bg-gray-100"
+                              )}
+                              style={{
+                                color: row.verdict === "Fine" ? COLORS.green :
+                                       row.verdict === "Gap" ? COLORS.amber :
+                                       row.verdict === "Critical" ? COLORS.red :
+                                       COLORS.muted
+                              }}>
+                                {row.verdict}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3.5 align-top" style={{ color: COLORS.muted }}>{row.detail}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Tech Pills */}
+                {render.technology_chips !== false && Array.isArray(underTheHood.pills) && underTheHood.pills.length > 0 && (
+                  <div className="mt-5.5 flex flex-wrap gap-2">
+                    {underTheHood.pills.map((pill, i) => (
+                      <span key={i} className={cn(
+                        "font-mono text-[11px] border rounded px-2 py-0.5",
+                        pill.status === "warn" ? "bg-[#f5eeda] text-amber-700 border-transparent" :
+                        "text-gray-600 border-[#e6e8e3] bg-white"
+                      )}>
+                        {pill.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PAGE 6: What's Holding Back */}
+            {issues.length > 0 && (
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-14 shadow-sm">
+                <div className="font-mono text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-5">
+                  What's holding the site back
+                </div>
+                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3">
+                  Concrete, fixable items — none of them hard.
+                </h2>
+                <p className="text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                  Separate from the plumbing. These are what's capping your momentum, in priority order.
+                </p>
+
+                <div className="mt-3.5 space-y-0">
+                  {issues.map((issue, i) => (
+                    <div key={i} className="py-4.5 border-t border-[#e6e8e3] grid grid-cols-[64px_1fr] gap-4">
+                      <div className={cn(
+                        "font-mono text-[10px] tracking-wider text-center py-1 rounded h-fit",
+                        issue.severity === "high" ? "bg-[#f6e9ec] text-red-600" :
+                        issue.severity === "med" ? "bg-[#f5eeda] text-amber-700" :
+                        "bg-[#eef0eb] text-gray-600"
+                      )}>
+                        {issue.severity?.toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-[14.5px] mb-1.5">{issue.title}</div>
+                        <div className="text-[13.5px] text-gray-600 leading-relaxed">{issue.body}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* PAGE 7: Content Map */}
+            {render.coverage_map !== false && ladder.length > 0 && (
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-14 shadow-sm">
+                <div className="font-mono text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-5">
+                  Where your content should grow
+                </div>
+                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3">
+                  The full opportunity map.
+                </h2>
+                {report.ladder_intro && (
+                  <p className="text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                    {report.ladder_intro}
+                  </p>
+                )}
+
+                <div className="mt-3 space-y-0">
+                  {ladder.map((rung, i) => (
+                    <div key={i} className="py-4.5 border-t border-[#e6e8e3]">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-mono text-[12px] text-gray-400">{String(rung.rung || i + 1).padStart(2, '0')}</span>
+                        <span className="font-semibold text-[14.5px]">{rung.headline || rung.title}</span>
+                        <span className="ml-auto">
+                          <span className={cn(
+                            "inline-block font-mono text-[10.5px] tracking-wider px-2.5 py-1 rounded",
+                            rung.status === "in_place" ? "bg-[#e7efe9]" :
+                            rung.status === "partly" || rung.status === "needs_work" ? "bg-[#f5eeda]" :
+                            "bg-[#f6e9ec]"
+                          )}
+                          style={{
+                            color: rung.status === "in_place" ? COLORS.green :
+                                   rung.status === "partly" || rung.status === "needs_work" ? COLORS.amber :
+                                   COLORS.red
+                          }}>
+                            {rung.status === "in_place" ? "In place" :
+                             rung.status === "partly" ? "Thin" :
+                             rung.status === "needs_work" ? "Needs work" :
+                             "Missing"}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="text-[13.5px] text-gray-600 leading-relaxed pl-6">{rung.body}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* PAGE 8: Tactics */}
+            {render.tactics !== false && tactics.length > 0 && (
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-14 shadow-sm">
+                <div className="font-mono text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-5">
+                  The plan, in order
+                </div>
+                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3">
+                  Where we would start, and why.
+                </h2>
+                <p className="text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                  A focused route through the map, sequenced for your stage. Everything you rank for sits on one page today — so we build pages first, then optimize.
+                </p>
+
+                {(() => {
+                  let currentPhase = "";
+                  let stepInPhase = 0;
+                  return tactics.map((tactic, i) => {
+                    const isNewPhase = tactic.phase !== currentPhase;
+                    if (isNewPhase) {
+                      currentPhase = tactic.phase || "";
+                      stepInPhase = 1;
+                    } else {
+                      stepInPhase++;
+                    }
+
+                    return (
+                      <React.Fragment key={i}>
+                        {isNewPhase && tactic.phase && (
+                          <div className="flex items-center gap-3.5 mt-8 mb-1.5">
+                            <span className="font-mono text-[11px] tracking-wider text-white px-3 py-1.5 rounded" style={{ background: COLORS.green }}>
+                              {tactic.phase.toUpperCase()}
+                            </span>
+                            <span className="font-semibold text-[15px]">{tactic.title}</span>
+                            <span className="ml-auto text-[12px] text-gray-400">the ceiling right now</span>
+                          </div>
+                        )}
+                        {isNewPhase && <hr className="border-0 border-t border-[#e6e8e3] my-2.5" />}
+                        {!isNewPhase && (
+                          <div className="grid grid-cols-[26px_1fr] gap-3 py-3.5 border-b border-[#e6e8e3]">
+                            <div className="font-mono text-[13px] font-medium" style={{ color: COLORS.green }}>{stepInPhase}</div>
+                            <div>
+                              <div className="font-semibold text-[14px] mb-1">{tactic.title}</div>
+                              <div className="text-[13px] text-gray-600 leading-relaxed">{tactic.body}</div>
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
+              </div>
+            )}
+
+            {/* PAGE 9: Takeaway */}
+            {report.takeaway && (
+              <div className="rounded-lg p-11 border-0" style={{ 
+                background: COLORS.green,
+                color: '#eaf1ec'
+              }}>
+                <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: '#8fb8a1' }}>
                   The honest takeaway
                 </div>
-                <p className="mt-3 text-[15.5px] leading-relaxed text-foreground">
-                  {String(report.takeaway)}
+                <p className="text-[15.5px] leading-relaxed">
+                  {report.takeaway.split('.')[0] && (
+                    <span style={{ color: COLORS.paper, fontWeight: 600 }}>{report.takeaway.split('.')[0]}.</span>
+                  )}
+                  {report.takeaway.substring(report.takeaway.indexOf('.') + 1)}
                 </p>
               </div>
-            </section>
-          ) : null}
+            )}
 
-          <div className="mt-12 border-t border-border/40 pt-6 text-xs text-muted-foreground/70">
-            Built from your live site and public search data. A starting point, not a full audit.
-            {reportDateFull ? ` (Report date: ${reportDateFull})` : ""}
+            {/* Footer */}
+            <div className="text-center font-mono text-[11px] text-gray-400 leading-relaxed py-3.5">
+              Snapshot by {poweredByName || "Kanahiku"}. Built from your live site and public search data · {formatReportDate(reportDate) || "July 2026"}
+            </div>
           </div>
         </div>
       </div>
@@ -926,4 +1035,3 @@ export function WebsiteSnapshotReportViewer({
     </div>
   );
 }
-

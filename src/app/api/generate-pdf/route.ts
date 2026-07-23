@@ -123,7 +123,7 @@ const CSS = `
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     font-size: 14px;
     line-height: 1.6;
-    color: #1a1a1a;
+    color: #1c1f1d;
     padding: 40px;
   }
   
@@ -848,24 +848,104 @@ const SEO_SNAPSHOT_CSS = `
 
 const WEBSITE_SNAPSHOT_CSS = `
   :root{
-    --ink:#1b2227;--muted:#6a747d;--faint:#9aa4ac;--line:#ececec;--line2:#f4f5f5;--brand:#0f5c4d;
-    --green:#1f8a53;--amber:#b7791f;--red:#bf3f2c;--paper:#ffffff;
+    --ink:#1c1f1d;--muted:#6d726f;--faint:#9aa09c;--line:#e6e8e3;--line2:#f2f2ec;--brand:#123c28;
+    --green:#123c28;--greenLine:#2f6b4a;--greenSoft:#e7efe9;--amber:#9c7a2f;--amberSoft:#f5eeda;
+    --red:#b0566b;--redSoft:#f6e9ec;--paper:#ffffff;
   }
   *{box-sizing:border-box}
   body{
-    margin:0;background:var(--paper);color:var(--ink);
+    margin:0;background:#f2f2ec;color:var(--ink);
     font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:720px;margin:0 auto;padding:56px 26px 72px}
+  .wrap{max-width:900px;margin:0 auto;padding:28px}
   h1,h2,h3{margin:0;line-height:1.25}
   p{margin:0}
   a{color:var(--brand)}
   .num{font-variant-numeric:tabular-nums}
-  .brandrow{display:flex;justify-content:space-between;align-items:center;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
-  h1{font-size:32px;font-weight:800;margin:18px 0 8px;letter-spacing:-.01em}
-  .meta{color:var(--faint);font-size:13px;margin-top:12px}
-  section{margin-top:52px}
+  
+  /* Page Card */
+  .page-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:56px 0;
+    margin-bottom:28px;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+  
+  /* Cover */
+  .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:32px;padding:0 56px}
+  .cover-label{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;color:var(--green)}
+  .cover-date{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);margin-top:4px}
+  .cover-meta{text-align:right;font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--muted)}
+  .divider-thick{border:0;border-top:2px solid var(--green);margin:32px 0;width:100%}
+  .divider-thin{border:0;border-top:1px solid var(--line);margin:32px 0;width:100%}
+  .page-title{font-size:34px;font-weight:700;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);padding:0 56px}
+  .business-desc{color:var(--muted);font-size:15px;margin-top:16px;line-height:1.5;padding:0 56px}
+  
+  /* Hero */
+  .eyebrow{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);margin-bottom:20px;padding:0 56px}
+  .hero-number{font-size:120px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--green);margin:20px 0;padding:0 56px}
+  .hero-label{font-size:21px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);max-width:46ch;margin-bottom:16px;padding:0 56px}
+  .hero-desc{font-size:15px;line-height:1.5;color:var(--muted);padding:0 56px}
+  
+  /* Callouts */
+  .callouts-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 44px;margin-top:32px;padding:0 56px}
+  .callout-item{padding:20px 0;border-top:1px solid var(--line)}
+  .callout-title{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;line-height:1.3;color:var(--ink);margin-bottom:10px}
+  .callout-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .callout-body{font-size:14px;line-height:1.5;color:var(--muted)}
+  
+  /* Section Headers */
+  .section-title{font-size:23px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:12px;padding:0 56px}
+  .section-lead{font-size:14.5px;line-height:1.4;color:var(--muted);max-width:60ch;padding:0 56px}
+  
+  /* Tier Cards */
+  .tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:32px;padding:0 56px}
+  .tier-card{border:1px solid var(--line);border-radius:4px;padding:18px;position:relative;background:var(--paper)}
+  .tier-selected{border-color:var(--green);background:#fbfdfb}
+  .tier-badge{position:absolute;top:14px;right:14px;font:9.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;padding:4px 8px;border-radius:2px;background:var(--green);color:var(--paper)}
+  .tier-num{font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint)}
+  .tier-name{font-size:15px;font-weight:600;color:var(--ink);margin:10px 0}
+  .tier-desc{font-size:12.5px;line-height:1.5;color:var(--muted)}
+  
+  /* Goal Box */
+  .goal-box{margin:28px 56px 0;border-left:3px solid var(--green);border-radius:4px;padding:22px;background:var(--greenSoft)}
+  .goal-label{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:var(--greenLine);margin-bottom:10px}
+  .goal-body{font-size:14px;line-height:1.4;color:var(--ink);margin-bottom:12px}
+  .goal-funnel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px}
+  .funnel-step{border:1px solid var(--line);border-radius:4px;padding:6px 12px;background:var(--paper);color:var(--ink)}
+  .funnel-arrow{color:var(--faint)}
+  .funnel-end{border-radius:4px;padding:6px 12px;background:var(--green);color:var(--paper);font-weight:600}
+  
+  /* Stats Grid */
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:28px;padding:0 56px}
+  .stat-item{padding:0 20px;border-left:1px solid var(--line)}
+  .stat-item:first-child{padding-left:0;border-left:0}
+  .stat-label{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  .stat-value{font-size:34px;font-weight:700;letter-spacing:-0.01em;line-height:1;color:var(--ink)}
+  .stat-green{color:var(--green)}
+  .stat-caption{font-size:12px;color:var(--muted);margin-top:8px}
+  
+  /* Chart */
+  .chart-section{margin-top:32px;padding:0 56px}
+  .chart-caption{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.02em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px}
+  
+  /* Brand & Intent Mix */
+  .brand-intent-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding:0 56px}
+  .mix-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px}
+  .brand-bar,.intent-bar{display:flex;height:40px;border-radius:4px;overflow:hidden}
+  .brand-segment,.intent-segment{display:flex;align-items:center;justify-content:center;color:var(--paper);font-size:12px;font-weight:600}
+  .brand-branded{background:#123c28}
+  .brand-nonbranded{background:#7a9d8a}
+  .intent-trans{background:#123c28;flex-direction:column;padding:8px}
+  .intent-comm{background:#4a7c59;flex-direction:column;padding:8px}
+  .intent-info{background:#7a8c7e;flex-direction:column;padding:8px}
+  .intent-nav{background:#9aa8a0;flex-direction:column;padding:8px}
+  .intent-label{font-size:10px;margin-top:2px}
+  
   /* PDF pagination rules:
      Keep "Heading + subheading + content block" together without forcing the
      entire section to be unbreakable (which can cause awkward whitespace). */
@@ -957,7 +1037,7 @@ const WEBSITE_SNAPSHOT_CSS = `
   .takeaway{border-left:3px solid var(--brand);padding:4px 0 4px 20px;margin-top:8px}
   .takeaway .k{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);font-weight:700}
   .takeaway p{font-size:16px;margin-top:8px}
-  .foot{margin-top:56px;border-top:1px solid var(--line);padding-top:22px;color:var(--faint);font-size:12.5px}
+  .foot{margin-top:56px;border-top:1px solid var(--line);padding:22px 56px 0;color:var(--faint);font-size:12.5px;text-align:center}
   @media(max-width:620px){
     .reads,.kw{grid-template-columns:1fr;gap:20px}
     .wrap{padding:40px 20px 56px}
@@ -1102,30 +1182,30 @@ function websiteSnapshotTrendChart(points: any[]): string {
 
   return `
     <svg viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Monthly organic traffic trend">
-      <g font-size="11" fill="#b7bec4">
+      <g font-size="11" fill="#6d726f">
         ${ticks
           .map((t) => {
             const yy = y(t);
             return `
-              <line x1="${padL}" y1="${yy}" x2="${width - padR}" y2="${yy}" stroke="#f0f0f0"></line>
-              <text x="${padL - 6}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#b7bec4">${escapeHtml(
+              <line x1="${padL}" y1="${yy}" x2="${width - padR}" y2="${yy}" stroke="#e6e8e3"></line>
+              <text x="${padL - 6}" y="${yy + 4}" text-anchor="end" font-size="11" fill="#6d726f">${escapeHtml(
                 fmtTick(t)
               )}</text>
             `;
           })
           .join("")}
       </g>
-      <polyline fill="none" stroke="#1f8a53" stroke-width="2.5" points="${escapeHtml(polyPoints)}"></polyline>
-      <g fill="#1f8a53">
+      <polyline fill="none" stroke="#123c28" stroke-width="2.5" points="${escapeHtml(polyPoints)}"></polyline>
+      <g fill="#123c28">
         ${rows
-          .map((r, i) => `<circle cx="${x(i)}" cy="${y(r.etv)}" r="3.5" fill="#1f8a53"></circle>`)
+          .map((r, i) => `<circle cx="${x(i)}" cy="${y(r.etv)}" r="3.5" fill="#123c28"></circle>`)
           .join("")}
       </g>
-      <g font-size="12" fill="#9aa4ac" text-anchor="middle">
+      <g font-size="12" fill="#9aa09c" text-anchor="middle">
         ${rows
           .map(
             (r, i) =>
-              `<text x="${x(i)}" y="${height - 8}" text-anchor="middle" font-size="12" fill="#9aa4ac">${escapeHtml(
+              `<text x="${x(i)}" y="${height - 8}" text-anchor="middle" font-size="12" fill="#9aa09c">${escapeHtml(
                 monthLabel(r)
               )}</text>`
           )
@@ -1138,6 +1218,7 @@ function websiteSnapshotTrendChart(points: any[]): string {
 function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const meta: any = (report as any)?.meta || {};
   const businessName = String(meta.business_name || "").trim() || "Business";
+  const businessDescription = String(meta.business_description || "").trim();
   const website = String(meta.url || "").trim();
   const location = String(meta.location || "").trim();
   const phone = meta.phone != null ? String(meta.phone || "").trim() : "";
@@ -1145,7 +1226,9 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const callouts = Array.isArray((report as any)?.overview_callouts) ? (report as any).overview_callouts : [];
   const tier: any = (report as any)?.tier || {};
+  const hero: any = (report as any)?.hero || {};
   const goal: any = (report as any)?.goal || {};
+  const diagnosis = String((report as any)?.diagnosis || "").trim();
   const goalBody = String(goal.body ?? goal.goal_body ?? "").trim();
   const funnelSteps = Array.isArray(goal.funnel_steps)
     ? goal.funnel_steps.map((s: any) => String(s || "").trim()).filter(Boolean).slice(0, 3)
@@ -1153,6 +1236,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const funnelEnd = String(goal.funnel_end || "").trim();
 
   const search: any = (report as any)?.search || {};
+  const competitorBuckets: any = (report as any)?.competitor_buckets || {};
   const competitorsIntro = String((report as any)?.competitors_intro || "").trim();
   const competitorsThroughline = String((report as any)?.competitors_throughline || "").trim();
   const competitors = Array.isArray((report as any)?.competitors) ? (report as any).competitors : [];
@@ -1182,32 +1266,46 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const calloutsHtml = callouts.length
     ? `
-      <section>
-        <div class="keep">
-          <div class="sec-h"><h2>Quick overview</h2></div>
-          <div class="reads">
-            ${callouts
-              .slice(0, 4)
-              .map((c: any) => {
-                const tone = websiteSnapshotToneDot(c?.tone);
-                const title = String(c?.title || "").trim();
-                const body = String(c?.body || "").trim();
-                if (!title && !body) return "";
-                return `<div class="read">
-                  <h3><span class="dot ${tone}"></span>${escapeHtml(title || "Callout")}</h3>
-                  ${body ? `<p>${escapeHtml(body)}</p>` : ""}
-                </div>`;
-              })
-              .filter(Boolean)
-              .join("")}
-          </div>
-        </div>
-      </section>
+      <div class="callouts-grid">
+        ${callouts
+          .slice(0, 4)
+          .map((c: any) => {
+            const tone = String(c?.tone || "").trim().toLowerCase();
+            const dotColor = tone === "green" ? "var(--green)" : tone === "amber" ? "var(--amber)" : tone === "red" ? "var(--red)" : "var(--faint)";
+            const title = String(c?.title || "").trim();
+            const body = String(c?.body || "").trim();
+            if (!title && !body) return "";
+            return `<div class="callout-item">
+              <div class="callout-title">
+                <span class="callout-dot" style="background:${dotColor}"></span>${escapeHtml(title || "Callout")}
+              </div>
+              ${body ? `<div class="callout-body">${escapeHtml(body)}</div>` : ""}
+            </div>`;
+          })
+          .filter(Boolean)
+          .join("")}
+      </div>
     `
     : "";
 
-  const tierLabel = String(tier?.label || "").trim();
+  const heroDisplay = String(hero?.display || "").trim();
+  const heroLabel = String(hero?.label || "").trim();
+  const heroDescription = String(hero?.description || "").trim();
+  const heroHtml = heroDisplay || heroLabel || heroDescription ? `
+    <section>
+      <div class="keep">
+        <div class="hero-section">
+          ${heroDisplay ? `<div class="hero-value">${escapeHtml(heroDisplay)}</div>` : ""}
+          ${heroLabel ? `<div class="hero-label">${escapeHtml(heroLabel)}</div>` : ""}
+          ${heroDescription ? `<p class="hero-description">${escapeHtml(heroDescription)}</p>` : ""}
+        </div>
+      </div>
+    </section>
+  ` : "";
+
+  const tierLabel = String(tier?.name || tier?.label || "").trim();
   const tierReason = String(tier?.reasoning || "").trim();
+  const tierLevel = tier?.level != null ? Number(tier.level) : null;
   const tierHtml =
     tierLabel || tierReason
       ? `
@@ -1225,167 +1323,181 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
       : "";
 
   const goalHtml =
-    goalBody || funnelSteps.length || funnelEnd
+    goalBody
       ? `
-      <section style="margin-top:36px">
-        <div class="goal">
-          <div class="k">Your goal, read from your own site</div>
-          ${goalBody ? `<p>${escapeHtml(goalBody)}</p>` : ""}
-          ${
-            funnelSteps.length || funnelEnd
-              ? `<div class="funnel">
-                ${funnelSteps[0] ? `<b>${escapeHtml(funnelSteps[0])}</b>` : ""}
-                ${funnelSteps[1] ? `<span class="sep">›</span><b>${escapeHtml(funnelSteps[1])}</b>` : ""}
-                ${funnelSteps[2] ? `<span class="sep">›</span><b>${escapeHtml(funnelSteps[2])}</b>` : ""}
-                ${funnelEnd ? `<span class="sep">›</span><span class="win">${escapeHtml(funnelEnd)}</span>` : ""}
-              </div>`
-              : ""
-          }
-        </div>
-      </section>
+      <div class="goal-box">
+        <div class="goal-label">Your goal, read from your own site</div>
+        <p class="goal-body">${escapeHtml(goalBody)}</p>
+        ${
+          funnelSteps.length || funnelEnd
+            ? `<div class="goal-funnel">
+              ${funnelSteps.map((step, i) => `
+                <div class="funnel-step">${escapeHtml(step)}</div>
+                ${i < funnelSteps.length - 1 || funnelEnd ? `<span class="funnel-arrow">›</span>` : ""}
+              `).join("")}
+              ${funnelEnd ? `<div class="funnel-end">${escapeHtml(funnelEnd)}</div>` : ""}
+            </div>`
+            : ""
+        }
+      </div>
     `
       : "";
 
+  const brandShare = search.brand_share != null ? Number(search.brand_share) : null;
+  const brandedPercent = brandShare != null ? Math.round(brandShare * 100) : null;
+  const nonBrandedPercent = brandedPercent != null ? (100 - brandedPercent) : null;
+
+  const intentMix: any = (report as any)?.intent_mix || {};
+  const transactional = intentMix.transactional != null ? Math.round(Number(intentMix.transactional) * 100) : 0;
+  const commercial = intentMix.commercial != null ? Math.round(Number(intentMix.commercial) * 100) : 0;
+  const informational = intentMix.informational != null ? Math.round(Number(intentMix.informational) * 100) : 0;
+  const navigational = intentMix.navigational != null ? Math.round(Number(intentMix.navigational) * 100) : 0;
+
+  const trendPctChange = search.trend?.pct_change ? `, ${search.trend.direction === "growing" ? "up" : search.trend.direction === "declining" ? "down" : ""} ${Math.abs(search.trend.pct_change).toFixed(1)}%` : "";
+  
   const statsHtml = `
-    <section>
-      <div class="keep">
-        <div class="sec-h"><h2>Where you stand in search today</h2></div>
-        <p class="lead">Real organic search data for your site, from the U.S. Google index.</p>
-        <div class="stats">
-          <div class="stat"><div class="v num">${search.keywords_count != null ? escapeHtml(formatVolumeShort(Number(search.keywords_count))) : "—"}</div><div class="l">keywords ranked</div></div>
-          <div class="stat"><div class="v num good">${search.etv != null ? escapeHtml("~" + formatVolumeShort(Math.round(Number(search.etv)))) : "—"}</div><div class="l">visits a month</div></div>
-          <div class="stat"><div class="v num good">${search.top10 != null ? escapeHtml(formatVolumeShort(Number(search.top10))) : "—"}</div><div class="l">in Google's top 10</div></div>
-          <div class="stat"><div class="v num">${search.referring_domains != null ? escapeHtml(formatVolumeShort(Number(search.referring_domains))) : "—"}</div><div class="l">sites linking to you</div></div>
+    <div class="page-card">
+      <div class="eyebrow">Where you stand in search today</div>
+      <h2 class="section-title">Real organic search data, from the U.S. Google index.</h2>
+      <p class="section-lead">Organic positions only · six months of available history · ${escapeHtml(formatMonthYearFromIso(meta.report_date) || "2026")}.</p>
+      
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-label">Keywords</div>
+          <div class="stat-value">${search.keywords_count != null ? escapeHtml(String(search.keywords_count)) : "0"}</div>
+          <div class="stat-caption">terms ranked</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Traffic</div>
+          <div class="stat-value stat-green">~${search.etv != null ? escapeHtml(Math.round(Number(search.etv)).toLocaleString()) : "0"}</div>
+          <div class="stat-caption">visits a month${trendPctChange}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Top 10</div>
+          <div class="stat-value">${search.top10 != null ? escapeHtml(String(search.top10)) : "0"}</div>
+          <div class="stat-caption">in Google's top 10</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Authority</div>
+          <div class="stat-value">${search.referring_domains != null ? escapeHtml(String(search.referring_domains)) : "0"}</div>
+          <div class="stat-caption">sites linking to you</div>
         </div>
       </div>
-      ${
-        String(search.traffic_read || "").trim()
-          ? `<p class="after">${escapeHtml(String(search.traffic_read || "").trim())}</p>`
-          : ""
-      }
+      
       ${
         Array.isArray(search?.trend?.points) && search.trend.points.length
-          ? `<div class="keep"><div class="chartcap">Monthly organic traffic, ${escapeHtml(String(search?.trend?.window || "").trim() || "available history")}</div>
-             ${websiteSnapshotTrendChart(search.trend.points)}</div>`
+          ? `<div class="chart-section">
+               <div class="chart-caption">Monthly organic traffic, ${escapeHtml(String(search?.trend?.window || "").trim() || "available history")}</div>
+               ${websiteSnapshotTrendChart(search.trend.points)}
+             </div>`
           : ""
       }
-      <div class="keep">
-        <div class="kw">
-          <div>
-            <div class="h win">You win</div>
-            <ul>
-              ${(Array.isArray(search?.topics_won) ? search.topics_won : [])
-                .slice(0, 5)
-                .map((row: any, idx: number) => {
-                  const term = String(row?.term || "").trim();
-                  if (!term) return "";
-                  return `<li><span class="term">${escapeHtml(term)}</span></li>`;
-                })
-                .filter(Boolean)
-                .join("")}
-            </ul>
-          </div>
-          <div>
-            <div class="h miss">Striking distance</div>
-            <ul>
-              ${(Array.isArray(search?.gaps?.near_miss) ? search.gaps.near_miss : [])
-                .slice(0, 5)
-                .map((row: any, idx: number) => {
-                  const term = String(row?.term || "").trim();
-                  if (!term) return "";
-                  return `<li><span class="term">${escapeHtml(term)}</span></li>`;
-                })
-                .filter(Boolean)
-                .join("")}
-            </ul>
-          </div>
-        </div>
-      </div>
+      
       ${
-        Array.isArray(search?.workhorse?.pages) && search.workhorse.pages.length
-          ? `
-          <section style="margin-top:32px">
-            <div class="keep">
-              <div class="sec-h"><h2 style="font-size:18px">Workhorse pages</h2></div>
-              ${(search.workhorse.pages as any[]).slice(0, 3).map((page: any) => {
-                const url = String(page?.url || "").trim();
-                if (!url) return "";
-                const etv = page?.etv != null ? Number(page.etv) : null;
-                const terms = Array.isArray(page?.top_terms)
-                  ? page.top_terms.map((t: any) => String(t || "").trim()).filter(Boolean)
-                  : [];
-                return `
-                  <div class="wh-page">
-                    <div class="wh-top">
-                      <a class="wh-url" href="${escapeHtml(url)}">${escapeHtml(stripProtocol(url).split("/")[0] || url)}</a>
-                      ${etv != null && Number.isFinite(etv) ? `<span class="wh-etv">~${escapeHtml(formatVolumeShort(Math.round(etv)))}</span>` : ""}
-                    </div>
-                    ${terms.length ? `<div class="wh-terms">${terms.slice(0, 8).map((t: string) => `<span class="wh-tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}
-                  </div>
-                `;
-              }).join("")}
-            </div>
-          </section>
-        `
+        brandedPercent != null && nonBrandedPercent != null
+          ? `<div class="brand-intent-grid">
+              <div>
+                <h3 class="mix-title">Brand vs Non-brand</h3>
+                <div class="brand-bar">
+                  <div class="brand-segment brand-branded" style="flex:${brandedPercent}">${brandedPercent}% Branded</div>
+                  <div class="brand-segment brand-nonbranded" style="flex:${nonBrandedPercent}">${nonBrandedPercent}% Non-brand</div>
+                </div>
+              </div>
+              ${
+                transactional + commercial + informational + navigational > 0
+                  ? `<div>
+                      <h3 class="mix-title">Search Intent Mix</h3>
+                      <div class="intent-bar">
+                        ${transactional > 0 ? `<div class="intent-segment intent-trans" style="flex:${transactional}"><div>${transactional}%</div><div class="intent-label">Trans</div></div>` : ""}
+                        ${commercial > 0 ? `<div class="intent-segment intent-comm" style="flex:${commercial}"><div>${commercial}%</div><div class="intent-label">Comm</div></div>` : ""}
+                        ${informational > 0 ? `<div class="intent-segment intent-info" style="flex:${informational}"><div>${informational}%</div><div class="intent-label">Info</div></div>` : ""}
+                        ${navigational > 0 ? `<div class="intent-segment intent-nav" style="flex:${navigational}"><div>${navigational}%</div><div class="intent-label">Nav</div></div>` : ""}
+                      </div>
+                    </div>`
+                  : ""
+              }
+            </div>`
           : ""
       }
-    </section>
+    </div>
   `.trim();
 
-  const competitorsHtml = competitors.length
+  const showsUp = competitorBuckets?.shows_up || {};
+  const shouldBe = Array.isArray(competitorBuckets?.should_be) ? competitorBuckets.should_be : [];
+  const gap = String(competitorBuckets?.gap || "").trim();
+  const directCompetitors = Array.isArray(showsUp?.direct_competitors) ? showsUp.direct_competitors : [];
+  const directNote = String(showsUp?.direct_note || "").trim();
+  const noise = Array.isArray(showsUp?.noise) ? showsUp.noise : [];
+  const noiseNote = String(showsUp?.noise_note || "").trim();
+
+  const competitorsHtml = directCompetitors.length || shouldBe.length || noise.length
     ? `
-      <section>
-        <div class="keep">
-          <div class="sec-h"><h2>Who's winning, and the pages doing it</h2></div>
-          ${competitorsIntro ? `<p class="lead">${escapeHtml(competitorsIntro)}</p>` : ""}
-        </div>
-        <div class="comp">
-          ${competitors.slice(0, 4).map((c: any, idx: number) => {
-            const domain = String(c?.domain || "").trim();
-            if (!domain) return "";
-            const title = String(c?.title || "").trim();
-            const note = String(c?.note || "").trim();
-            const etv = c?.etv != null ? formatVolumeShort(Math.round(Number(c.etv))) : "";
-            const kw = c?.keyword_count != null ? formatVolumeShort(Number(c.keyword_count)) : "";
-            const ex = c?.example || {};
-            const exUrl = String(ex?.url || "").trim();
-            const exWhy = String(ex?.why || "").trim();
-            const websiteName = siteNameFromHost(domain) || domain;
-            const competitorHref = `https://${domain}`;
-            const exampleHref = exUrl || competitorHref;
-            return `
-              <div class="c">
-                <div class="crow">
-                  <div>
-                    <span class="dom">${escapeHtml(title || domain)}</span>
-                    ${
-                      title
-                        ? `<div class="subdom"><a href="${escapeHtml(competitorHref)}" style="color:inherit;text-decoration:none">${escapeHtml(
-                            websiteName
-                          )}</a></div>`
-                        : ""
-                    }
-                  </div>
-                  <span class="nums">${[
-                    websiteName,
-                    etv ? `${etv} ETV` : "",
-                    kw ? `${kw} kw` : "",
-                  ].filter(Boolean).map(escapeHtml).join(" · ")}</span>
+      <div class="page-card">
+        <div class="eyebrow">Who shows up in your market</div>
+        ${
+          directCompetitors.length
+            ? `<div class="keep" style="margin-top:20px;padding:0 56px">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Direct Competitors</h3>
+                ${directNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(directNote)}</p>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+                  ${directCompetitors.map((c: any) => {
+                    const domain = String(c?.domain || "").trim();
+                    return domain ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(domain)}</span>` : "";
+                  }).filter(Boolean).join("")}
                 </div>
-                ${note ? `<p>${escapeHtml(note)}</p>` : ""}
-                ${
-                  exampleHref
-                    ? `<div class="ex"><div class="u"><a href="${escapeHtml(exampleHref)}">${escapeHtml(
-                        websiteName
-                      )}</a></div>${exWhy ? `<div class="why">${escapeHtml(exWhy)}</div>` : ""}</div>`
-                    : ""
-                }
-              </div>
-            `;
-          }).join("")}
-        </div>
-        ${competitorsThroughline ? `<p class="throughline">${escapeHtml(competitorsThroughline)}</p>` : ""}
-      </section>
+                ${directCompetitors.slice(0, 3).map((c: any) => {
+                  const domain = String(c?.domain || "").trim();
+                  if (!domain) return "";
+                  const whyOutranks = String(c?.why_outranks || "").trim();
+                  return `<div style="margin-bottom:16px;padding:16px;background:#fbfbf9;border-radius:4px;border:1px solid #e6e8e3">
+                    <div style="font-weight:600;font-size:14px;margin-bottom:6px">${escapeHtml(domain)}</div>
+                    ${whyOutranks ? `<p style="color:#6d726f;font-size:13px">${escapeHtml(whyOutranks)}</p>` : ""}
+                  </div>`;
+                }).filter(Boolean).join("")}
+              </div>`
+            : ""
+        }
+        ${
+          noise.length
+            ? `<div class="keep" style="margin-top:20px;padding:0 56px">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Noise</h3>
+                ${noiseNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(noiseNote)}</p>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  ${noise.slice(0, 6).map((domain: any) => {
+                    const d = String(domain || "").trim();
+                    return d ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(d)}</span>` : "";
+                  }).filter(Boolean).join("")}
+                  ${noise.length > 6 ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">+ ${noise.length - 6} more</span>` : ""}
+                </div>
+              </div>`
+            : ""
+        }
+        ${
+          shouldBe.length
+            ? `<div class="keep" style="margin-top:20px;padding:0 56px">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Who Should Be There</h3>
+                ${shouldBe.map((c: any) => {
+                  const name = String(c?.name || "").trim();
+                  const where = String(c?.where || "").trim();
+                  const note = String(c?.note || "").trim();
+                  if (!name) return "";
+                  return `<div style="margin-bottom:16px;padding:16px;background:#fbfbf9;border-radius:4px;border:1px solid #e6e8e3">
+                    <div style="font-weight:600;font-size:14px;margin-bottom:4px">${escapeHtml(name)}</div>
+                    ${where ? `<div style="color:#9aa09c;font-size:12px;margin-bottom:6px">${escapeHtml(where)}</div>` : ""}
+                    ${note ? `<p style="color:#6d726f;font-size:13px">${escapeHtml(note)}</p>` : ""}
+                  </div>`;
+                }).filter(Boolean).join("")}
+              </div>`
+            : ""
+        }
+        ${
+          gap
+            ? `<div class="keep" style="margin:20px 56px 0;padding:16px;background:#f6e9ec;border-left:3px solid #b0566b;border-radius:4px">
+                <p style="color:#1c1f1d;font-size:14px"><b>The gap:</b> ${escapeHtml(gap)}</p>
+              </div>`
+            : ""
+        }
+      </div>
     `
     : "";
 
@@ -1394,34 +1506,35 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const underHtml =
     underRows.length || underPills.length
       ? `
-      <section>
-        <div class="keep">
-          <div class="sec-h"><h2>Under the hood</h2></div>
-          <p class="lead">What the site runs on, and how it's set up to be found.</p>
-        </div>
+      <div class="page-card">
+        <div class="eyebrow">Under the hood</div>
+        <h2 class="section-title">What the site runs on, and how it's set up to be found.</h2>
         ${
           underRows.length
-            ? `<table>
-              <tr><th>Layer</th><th>What we found</th></tr>
+            ? `<div style="padding:0 56px"><table style="border:none">
+              <tr><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 0">Layer</th><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 12px">Status</th><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 12px">What we found</th></tr>
               ${underRows
                 .map((row: any) => {
                   const layer = String(row?.layer || "").trim();
                   const verdict = String(row?.verdict || "").trim();
                   const detail = String(row?.detail || "").trim();
                   if (!layer && !verdict && !detail) return "";
-                  return `<tr>
-                    <td class="k">${escapeHtml(layer || "Layer")}</td>
-                    <td class="mean">${verdict ? `<b>${escapeHtml(verdict)}</b>` : ""}${detail ? `${verdict ? " — " : ""}${escapeHtml(detail)}` : ""}</td>
+                  const verdictColor = verdict === "Fine" ? "#123c28" : verdict === "Gap" ? "#9c7a2f" : verdict === "Critical" ? "#b0566b" : "#6d726f";
+                  const verdictBg = verdict === "Fine" ? "#e7efe9" : verdict === "Gap" ? "#f5eeda" : verdict === "Critical" ? "#f6e9ec" : "#f3f4f6";
+                  return `<tr style="border-bottom:1px solid #e6e8e3">
+                    <td style="padding:12px 0;vertical-align:top;font-weight:600;border:none">${escapeHtml(layer || "Layer")}</td>
+                    <td style="padding:12px;vertical-align:top;border:none">${verdict ? `<span style="display:inline-block;padding:4px 10px;border-radius:4px;font-size:10.5px;text-transform:uppercase;font-weight:600;background:${verdictBg};color:${verdictColor}">${escapeHtml(verdict)}</span>` : ""}</td>
+                    <td style="padding:12px;vertical-align:top;color:#6d726f;border:none">${escapeHtml(detail)}</td>
                   </tr>`;
                 })
                 .filter(Boolean)
                 .join("")}
-            </table>`
+            </table></div>`
             : ""
         }
         ${
           underPills.length
-            ? `<div class="pills">
+            ? `<div class="pills" style="padding:0 56px">
               ${underPills
                 .slice(0, 24)
                 .map((p: any, idx: number) => {
@@ -1436,7 +1549,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
             </div>`
             : ""
         }
-      </section>
+      </div>
     `
       : "";
 
@@ -1538,18 +1651,75 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
     `
     : "";
 
-  const foot = `<div class="foot"><p>Built from your live site and public search data. A starting point, not a full audit.${formatDayMonthYearFromIso(meta.report_date) ? ` (Report date: ${escapeHtml(formatDayMonthYearFromIso(meta.report_date))})` : ""}</p></div>`;
+  const poweredByName = String((report as any)?.powered_by_name || "").trim() || "Kanahiku";
+  const footerDate = formatMonthYearFromIso(meta.report_date) || "July 2026";
+  const foot = `<div class="foot"><p>Snapshot by ${escapeHtml(poweredByName)}. Built from your live site and public search data · ${escapeHtml(footerDate)}</p></div>`;
+
+  // Page 1: Cover + Hero + Quick Overview
+  const page1Html = `
+    <div class="page-card">
+      <div class="cover-top">
+        <div>
+          <div class="cover-label">SNAPSHOT</div>
+          <div class="cover-date">Website Snapshot · ${escapeHtml(monthYearTop)}</div>
+        </div>
+        <div class="cover-meta">
+          ${website ? `<div>${escapeHtml(stripProtocol(website))}</div>` : ""}
+          ${location ? `<div>${escapeHtml(location)}</div>` : ""}
+          ${phone ? `<div>${escapeHtml(phone)}</div>` : ""}
+        </div>
+      </div>
+      <hr class="divider-thick" />
+      <h1 class="page-title">${escapeHtml(businessName)}</h1>
+      ${businessDescription ? `<p class="business-desc">${escapeHtml(businessDescription)}</p>` : ""}
+      
+      ${heroDisplay ? `
+        <hr class="divider-thin" />
+        ${diagnosis ? `<div class="eyebrow">${escapeHtml(diagnosis)}</div>` : ""}
+        <div class="hero-number">${escapeHtml(heroDisplay)}</div>
+        ${heroLabel ? `<p class="hero-label">${escapeHtml(heroLabel)}</p>` : ""}
+        ${heroDescription ? `<p class="hero-desc">${escapeHtml(heroDescription)}</p>` : ""}
+      ` : ""}
+      
+      ${calloutsHtml}
+    </div>
+  `;
+
+  // Page 2: What SEO Can Do
+  const page2Html = (tierLabel || tierReason || goalBody) ? `
+    <div class="page-card">
+      <div class="eyebrow">What SEO can do for you</div>
+      <h2 class="section-title">${escapeHtml(tierLabel || "Your SEO opportunity tier")}</h2>
+      ${tierReason ? `<p class="section-lead">${escapeHtml(tierReason)}</p>` : ""}
+      
+      <hr class="divider-thin" />
+      
+      <div class="tier-grid">
+        ${[1, 2, 3].map((level) => {
+          const isSelected = tierLevel === level;
+          const tierNames = ["A growth channel", "A competitive channel", "A visibility channel"];
+          const tierDescs = [
+            "Search can bring real customers. You rank #1 for your name; the next wins are service and location pages that capture buyers who don't know you yet.",
+            "Leads are possible but depend on local competition and demand. Start focused, evaluate at six months.",
+            "Supports credibility more than acquisition. Not you — a six-county consumer market rewards being found."
+          ];
+          return `<div class="tier-card ${isSelected ? "tier-selected" : ""}">
+            ${isSelected ? `<div class="tier-badge">YOUR FIT</div>` : ""}
+            <div class="tier-num">Tier ${level}</div>
+            <div class="tier-name">${escapeHtml(tierNames[level - 1])}</div>
+            <div class="tier-desc">${escapeHtml(tierDescs[level - 1])}</div>
+          </div>`;
+        }).join("")}
+      </div>
+      
+      ${goalHtml}
+    </div>
+  ` : "";
 
   return `
     <div class="wrap">
-      <header>
-        <div class="brandrow"><span>Website Snapshot</span><span>${escapeHtml(monthYearTop)}</span></div>
-        <h1>${escapeHtml(businessName)}</h1>
-        ${metaHtml}
-      </header>
-      ${calloutsHtml}
-      ${tierHtml}
-      ${goalHtml}
+      ${page1Html}
+      ${page2Html}
       ${statsHtml}
       ${competitorsHtml}
       ${underHtml}

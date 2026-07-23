@@ -1,3 +1,19 @@
+// Updated types based on new backend field mappings
+
+export type WebsiteSnapshotRender = {
+  hero?: boolean;
+  stats_row?: boolean;
+  trend_chart?: boolean;
+  brand_split?: boolean;
+  intent_mix?: boolean;
+  scale_comparison?: boolean;
+  goal_chain?: boolean;
+  health_table?: boolean;
+  technology_chips?: boolean;
+  coverage_map?: boolean;
+  tactics?: boolean;
+};
+
 export type WebsiteSnapshotMetaProfile = {
   segment?: string | null;
   serve?: string | null;
@@ -28,6 +44,7 @@ export type WebsiteSnapshotMeta = {
     competitive_set_thin?: boolean;
     selected_competitors?: string[];
     competitors_domain_count?: number;
+    buckets_input?: any;
   };
   trust_signal_sources?: Record<string, "scraped" | "profile">;
 };
@@ -38,21 +55,25 @@ export type WebsiteSnapshotCallout = {
   body?: string;
 };
 
-export type WebsiteSnapshotTier = {
-  tier?: number;
+export type WebsiteSnapshotHero = {
+  variant?: string;
+  display?: string;
+  value?: number | null;
   label?: string;
+  description?: string;
+};
+
+export type WebsiteSnapshotTier = {
+  level?: 1 | 2 | 3 | number;
+  name?: string;
   reasoning?: string;
-  tier_caveat?: string | null;
 };
 
 export type WebsiteSnapshotGoal = {
   dominant_cta?: string | null;
   inferred_goal?: string;
   funnel_end?: string;
-  /** New key (preferred). */
   body?: string | null;
-  /** Old key (backward compatible). */
-  goal_body?: string | null;
   funnel_steps?: string[];
 };
 
@@ -60,59 +81,90 @@ export type WebsiteSnapshotTrendPoint = { year: number; month: number; etv: numb
 export type WebsiteSnapshotTrend = {
   window?: string;
   pct_change?: number;
-  direction?: "up" | "down" | "flat" | "not_enough_history" | string;
+  direction?: "growing" | "flat" | "declining" | "insufficient-history" | string;
   points?: WebsiteSnapshotTrendPoint[];
 };
 
-export type WebsiteSnapshotTopicWon = {
+export type WebsiteSnapshotIntentMix = {
+  commercial?: number;
+  transactional?: number;
+  informational?: number;
+  navigational?: number;
+  local_share?: number | null;
+};
+
+export type WebsiteSnapshotScaleComparison = {
+  you?: number;
+  peer?: number;
+  ratio?: number;
+} | null;
+
+export type WebsiteSnapshotYouWin = {
   cluster?: string;
-  term?: string;
-  position?: number;
-  volume?: number;
-  etv?: number;
-  url?: string;
+  examples?: string[];
+  blurb?: string;
 };
 
-export type WebsiteSnapshotGaps = {
-  near_miss?: { term?: string; volume?: number; position?: number }[];
-  missing?: any[];
-};
-
-export type WebsiteSnapshotWorkhorse = {
-  top_url?: string;
-  top_url_etv?: number;
-  concentration_ratio?: number;
-  pages?: { url?: string; etv?: number; keyword_count?: number; top_terms?: string[] }[];
+export type WebsiteSnapshotBuyersElsewhere = {
+  cluster?: string;
+  examples?: string[];
+  blurb?: string;
 };
 
 export type WebsiteSnapshotSearch = {
   keywords_count?: number;
   etv?: number;
-  pos_1?: number;
   top10?: number;
-  striking_distance?: number;
   referring_domains?: number | null;
-  paid_value?: number;
   brand_share?: number;
   trend?: WebsiteSnapshotTrend;
   traffic_read?: string;
-  topics_won?: WebsiteSnapshotTopicWon[];
-  gaps?: WebsiteSnapshotGaps;
-  workhorse?: WebsiteSnapshotWorkhorse;
+  you_win?: WebsiteSnapshotYouWin[];
+  buyers_elsewhere?: WebsiteSnapshotBuyersElsewhere[];
 };
 
-export type WebsiteSnapshotCompetitor = {
-  domain?: string;
-  title?: string;
-  etv?: number;
-  keyword_count?: number;
+export type WebsiteSnapshotCompetitorBucketsSetup = {
+  market?: string;
+  delivery?: "place_based" | "remote" | string;
+};
+
+export type WebsiteSnapshotShowsUp = {
+  direct_competitors?: { domain: string }[];
+  direct_note?: string;
+  similar_elsewhere?: { domain: string; where?: string | null }[];
+  similar_elsewhere_note?: string;
+  directories_tools?: string[];
+  directories_tools_note?: string;
+  noise?: string[];
+  noise_note?: string;
+};
+
+export type WebsiteSnapshotShouldBe = {
+  name?: string;
   note?: string;
-  example?: { url?: string; term?: string; position?: number; why?: string };
+  where?: string | null;
+  shows_up_in_results?: boolean;
+};
+
+export type WebsiteSnapshotCompetitorBuckets = {
+  setup?: WebsiteSnapshotCompetitorBucketsSetup;
+  gap?: string;
+};
+
+export type WebsiteSnapshotUnderTheHoodRow = {
+  layer?: string;
+  verdict?: "Fine" | "Gap" | "Critical" | string;
+  detail?: string;
+};
+
+export type WebsiteSnapshotTechPill = {
+  name?: string;
+  status?: "neutral" | "good" | "warn" | "none" | string;
 };
 
 export type WebsiteSnapshotUnderTheHood = {
-  rows?: { layer?: string; verdict?: string; detail?: string }[];
-  pills?: { name?: string; status?: "neutral" | "good" | "none" | string }[];
+  rows?: WebsiteSnapshotUnderTheHoodRow[];
+  pills?: WebsiteSnapshotTechPill[];
 };
 
 export type WebsiteSnapshotIssue = {
@@ -130,23 +182,33 @@ export type WebsiteSnapshotLadderRung = {
   example?: string;
 };
 
-export type WebsiteSnapshotPlanStep = { step?: number; title?: string; body?: string };
+export type WebsiteSnapshotTactic = {
+  phase?: string;
+  title?: string;
+  body?: string;
+  tactic?: string;
+};
 
 export type WebsiteSnapshotReport = {
+  render?: WebsiteSnapshotRender;
   meta?: WebsiteSnapshotMeta;
+  diagnosis?: string;
+  hero?: WebsiteSnapshotHero;
   overview_callouts?: WebsiteSnapshotCallout[];
   tier?: WebsiteSnapshotTier;
   goal?: WebsiteSnapshotGoal;
   search?: WebsiteSnapshotSearch;
-  competitors_intro?: string;
-  competitors?: WebsiteSnapshotCompetitor[];
-  competitors_throughline?: string;
+  intent_mix?: WebsiteSnapshotIntentMix;
+  scale_comparison?: WebsiteSnapshotScaleComparison;
+  shows_up?: WebsiteSnapshotShowsUp;
+  should_be?: WebsiteSnapshotShouldBe[];
+  competitor_buckets?: WebsiteSnapshotCompetitorBuckets;
   under_the_hood?: WebsiteSnapshotUnderTheHood;
   issues?: WebsiteSnapshotIssue[];
   ladder_intro?: string;
   ladder?: WebsiteSnapshotLadderRung[];
   ladder_summary?: string;
-  plan?: WebsiteSnapshotPlanStep[];
+  tactics?: WebsiteSnapshotTactic[];
   takeaway?: string;
 };
 
@@ -220,6 +282,23 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
   const metaLine = mdList([url, location, phone, reportDate]).join(" · ");
   if (metaLine) lines.push("", metaLine);
 
+  if (report.diagnosis) {
+    lines.push("", `## ${report.diagnosis}`);
+  }
+
+  if (report.hero) {
+    const hero = report.hero;
+    const display = mdLine(hero.display || "");
+    const label = mdLine(hero.label || "");
+    const description = mdLine(hero.description || "");
+    if (display || label) {
+      lines.push("", "## Hero");
+      if (display) lines.push("", `**${display}**`);
+      if (label) lines.push("", label);
+      if (description) lines.push("", description);
+    }
+  }
+
   const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
   if (callouts.length) {
     lines.push("", "## Overview");
@@ -234,21 +313,19 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
 
   if (report.tier) {
     const tier = report.tier;
-    const label = mdLine(tier.label || "");
+    const name = mdLine(tier.name || "");
     const reasoning = mdLine(tier.reasoning || "");
-    const caveat = mdLine(tier.tier_caveat || "");
-    if (label || reasoning) {
+    if (name || reasoning) {
       lines.push("", "## What SEO can do for you");
-      if (label) lines.push("", `**${label}**`);
+      if (name) lines.push("", `**${name}**`);
       if (reasoning) lines.push("", reasoning);
-      if (caveat) lines.push("", caveat);
     }
   }
 
   if (report.goal) {
     const g = report.goal;
     const funnelEnd = mdLine(g.funnel_end || "");
-    const goalBody = mdLine(String(g.body ?? g.goal_body ?? ""));
+    const goalBody = mdLine(String(g.body ?? ""));
     const steps = Array.isArray(g.funnel_steps) ? g.funnel_steps.map((s) => mdLine(String(s))) : [];
     if (funnelEnd || goalBody || steps.length) {
       lines.push("", "## Goal");
@@ -264,7 +341,7 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
   const search = report.search || {};
   const trafficRead = mdLine(search.traffic_read || "");
   if (trafficRead) {
-    lines.push("", "## Search");
+    lines.push("", "## Where you stand in search");
     lines.push("", trafficRead);
 
     const trend = search.trend || {};
@@ -275,79 +352,65 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     }
   }
 
-  const topics = Array.isArray(search.topics_won) ? search.topics_won : [];
-  if (topics.length) {
-    lines.push("", "## Topics won");
-    for (const row of topics.slice(0, 10)) {
-      const term = mdLine(row.term || "");
-      if (!term) continue;
-      const position = row.position != null ? `#${row.position}` : "";
-      const volume = row.volume != null ? `${row.volume.toLocaleString()}/mo` : "";
+  const youWin = Array.isArray(search.you_win) ? search.you_win : [];
+  if (youWin.length) {
+    lines.push("", "## You win");
+    for (const row of youWin) {
       const cluster = mdLine(row.cluster || "");
-      lines.push(`- ${[term, position, volume, cluster ? `(${cluster})` : ""].filter(Boolean).join(" · ")}`);
+      const examples = Array.isArray(row.examples) ? row.examples.map(mdLine).filter(Boolean) : [];
+      const blurb = mdLine(row.blurb || "");
+      if (cluster) lines.push("", `### ${cluster}`);
+      if (examples.length) lines.push("", `Examples: ${examples.join(", ")}`);
+      if (blurb) lines.push("", blurb);
     }
   }
 
-  const nearMiss = Array.isArray(search.gaps?.near_miss) ? search.gaps?.near_miss : [];
-  if (nearMiss.length) {
-    lines.push("", "## Near-miss gaps");
-    for (const row of nearMiss.slice(0, 10)) {
-      const term = mdLine(row.term || "");
-      if (!term) continue;
-      const position = row.position != null ? `#${row.position}` : "";
-      const volume = row.volume != null ? `${row.volume.toLocaleString()}/mo` : "";
-      lines.push(`- ${[term, position, volume].filter(Boolean).join(" · ")}`);
+  const buyersElsewhere = Array.isArray(search.buyers_elsewhere) ? search.buyers_elsewhere : [];
+  if (buyersElsewhere.length) {
+    lines.push("", "## What you're missing");
+    for (const row of buyersElsewhere) {
+      const cluster = mdLine(row.cluster || "");
+      const examples = Array.isArray(row.examples) ? row.examples.map(mdLine).filter(Boolean) : [];
+      const blurb = mdLine(row.blurb || "");
+      if (cluster) lines.push("", `### ${cluster}`);
+      if (examples.length) lines.push("", `Examples: ${examples.join(", ")}`);
+      if (blurb) lines.push("", blurb);
     }
   }
 
-  const competitors = Array.isArray(report.competitors) ? report.competitors : [];
-  if (competitors.length) {
-    lines.push("", "## Competitors");
-    const intro = mdLine(String(report.competitors_intro ?? ""));
-    if (intro) lines.push("", intro);
-    for (const c of competitors) {
-      const domain = mdLine(c.domain || "");
-      if (!domain) continue;
-      const title = mdLine(c.title || "");
-      const etv = c.etv != null ? `ETV ${Math.round(c.etv).toLocaleString()}` : "";
-      const kw = c.keyword_count != null ? `${c.keyword_count.toLocaleString()} keywords` : "";
-      lines.push("", `### ${title || domain}`);
-      if (title && domain) lines.push("", domain);
-      const stats = [etv, kw].filter(Boolean).join(" · ");
-      if (stats) lines.push("", stats);
-      const note = mdLine(c.note || "");
-      if (note) lines.push("", note);
-      const ex = c.example || {};
-      const exUrl = mdLine(String((ex as any)?.url || ""));
-      const exTerm = mdLine(String((ex as any)?.term || ""));
-
-      const domainName = mdLine(
-        String(domain || "")
-          .replace(/^www\./i, "")
-          .split(".")
-          .slice(-2, -1)[0] || domain
-      );
-      const websiteLabel =
-        domainName.toLowerCase() === "lifetime"
-          ? "Lifetime"
-          : domainName
-            ? domainName.charAt(0).toUpperCase() + domainName.slice(1)
-            : domain;
-
-      const exLine = mdLine(
-        [
-          exTerm ? `Term: ${exTerm}` : "",
-          exUrl ? `URL: [${websiteLabel}](${exUrl})` : "",
-        ]
-          .filter(Boolean)
-          .join(" · ")
-      );
-      if (exLine) lines.push("", `Example: ${exLine}`);
-      const why = mdLine(String(ex.why || ""));
-      if (why) lines.push("", why);
+  const showsUp = report.shows_up || {};
+  const shouldBe = Array.isArray(report.should_be) ? report.should_be : [];
+  if (Object.keys(showsUp).length || shouldBe.length) {
+    lines.push("", "## Who shows up");
+    
+    const directCompetitors = Array.isArray(showsUp.direct_competitors) ? showsUp.direct_competitors : [];
+    if (directCompetitors.length) {
+      lines.push("", "### Direct competitors");
+      for (const c of directCompetitors) {
+        lines.push(`- ${mdLine(c.domain || "")}`);
+      }
+      if (showsUp.direct_note) lines.push("", mdLine(showsUp.direct_note));
     }
-    const throughline = mdLine(String(report.competitors_throughline ?? ""));
-    if (throughline) lines.push("", throughline);
+
+    const similarElsewhere = Array.isArray(showsUp.similar_elsewhere) ? showsUp.similar_elsewhere : [];
+    if (similarElsewhere.length) {
+      lines.push("", "### Similar elsewhere");
+      for (const c of similarElsewhere) {
+        const domain = mdLine(c.domain || "");
+        const where = c.where ? ` (${mdLine(c.where)})` : "";
+        lines.push(`- ${domain}${where}`);
+      }
+      if (showsUp.similar_elsewhere_note) lines.push("", mdLine(showsUp.similar_elsewhere_note));
+    }
+
+    if (shouldBe.length) {
+      lines.push("", "### Who should be there");
+      for (const item of shouldBe) {
+        const name = mdLine(item.name || "");
+        const note = mdLine(item.note || "");
+        if (name) lines.push(`- ${name}${note ? ` - ${note}` : ""}`);
+      }
+    }
   }
 
   const u = report.under_the_hood || {};
@@ -384,7 +447,7 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
 
   const ladder = Array.isArray(report.ladder) ? report.ladder : [];
   if (ladder.length) {
-    lines.push("", "## Content ladder");
+    lines.push("", "## Where your content should grow");
     const intro = mdLine(String(report.ladder_intro ?? ""));
     if (intro) lines.push("", intro);
     for (const rung of ladder) {
@@ -399,23 +462,31 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     if (summary) lines.push("", summary);
   }
 
-  const plan = Array.isArray(report.plan) ? report.plan : [];
-  if (plan.length) {
-    lines.push("", "## Plan");
-    for (const step of plan) {
+  const tactics = Array.isArray(report.tactics) ? report.tactics : [];
+  if (tactics.length) {
+    lines.push("", "## The plan, in order");
+    let currentPhase = "";
+    for (const step of tactics) {
+      const phase = mdLine(step.phase || "");
       const title = mdLine(step.title || "");
       const body = mdLine(step.body || "");
-      if (!title && !body) continue;
-      lines.push("", `### ${title || `Step ${step.step ?? ""}`.trim()}`);
-      if (body) lines.push("", body);
+      
+      if (phase && phase !== currentPhase) {
+        lines.push("", `### ${phase}`);
+        currentPhase = phase;
+      }
+      
+      if (title || body) {
+        lines.push("", `**${title || "Step"}**`);
+        if (body) lines.push("", body);
+      }
     }
   }
 
   const takeaway = mdLine(report.takeaway || "");
   if (takeaway) {
-    lines.push("", "## Takeaway", "", takeaway);
+    lines.push("", "## Honest takeaway", "", takeaway);
   }
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
-

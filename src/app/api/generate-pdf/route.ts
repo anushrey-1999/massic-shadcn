@@ -1331,7 +1331,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         ${
           funnelSteps.length || funnelEnd
             ? `<div class="goal-funnel">
-              ${funnelSteps.map((step, i) => `
+              ${funnelSteps.map((step: string, i: number) => `
                 <div class="funnel-step">${escapeHtml(step)}</div>
                 ${i < funnelSteps.length - 1 || funnelEnd ? `<span class="funnel-arrow">›</span>` : ""}
               `).join("")}

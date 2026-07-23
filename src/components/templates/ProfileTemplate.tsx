@@ -11,10 +11,6 @@ import { useRouter } from "next/navigation";
 import PageHeader from "../molecules/PageHeader";
 import { useBusinessStore } from "@/store/business-store";
 import { BusinessInfoForm } from "../organisms/profile/BusinessInfoForm";
-import { OfferingsForm } from "../organisms/profile/OfferingsForm";
-import { ContentCuesForm } from "../organisms/profile/ContentCuesForm";
-import { LocationsForm } from "../organisms/profile/LocationsForm";
-import { CompetitorsForm } from "../organisms/profile/CompetitorsForm";
 import { useForm, useStore } from "@tanstack/react-form";
 import { api } from "@/hooks/use-api";
 import { toast } from "sonner";
@@ -37,12 +33,11 @@ import {
 import { primaryLocationFromProfile, resolvePrimaryLocationFormValue } from "@/utils/primary-location";
 import { Button } from "@/components/ui/button";
 import { GenericInput } from "@/components/ui/generic-input";
-import { Stepper } from "@/components/ui/stepper";
-import { ProfileStepCard } from "@/components/ui/profile-step-card";
-import { ProfileFormTabs } from "@/components/templates/ProfileFormTabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronRight, Loader2 } from "lucide-react";
+// Legacy tabs template (replaced by sidebar shell)
+import { ArrowRight, Loader2 } from "lucide-react";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
+import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
+import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
@@ -81,12 +76,6 @@ interface ProfileTemplateProps {
     formValues?: any
   ) => Promise<{ jobExistsAfterSave?: boolean } | void>;
 }
-
-const PROFILE_STEPPER_STEPS = [
-  { id: "basic-details", label: "Basic Details" },
-  { id: "content-cues", label: "Content Cues" },
-  { id: "competitors", label: "Competitors" },
-] as const;
 
 function stableStringify(value: unknown): string {
   const normalize = (input: unknown): unknown => {
@@ -157,7 +146,6 @@ const ProfileTemplate = ({
     refetchData: refetchSubscriptionData,
   } = useSubscription({ isWhitelisted: isAgencyWhitelisted });
   const [showSubmitErrors, setShowSubmitErrors] = useState(false);
-  const [profileStep, setProfileStep] = useState(0);
   const initialValuesRef = useRef<any>(null);
   const hasChangesRef = useRef(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -1045,8 +1033,6 @@ const ProfileTemplate = ({
     ],
     [businessName, businessId]
   );
-  const profileTabValue =
-    PROFILE_STEPPER_STEPS[profileStep]?.id ?? PROFILE_STEPPER_STEPS[0].id;
 
   const profileForInitialFillCheck = externalProfileData || currentProfile;
   const hasPersistedProfileCore = useMemo(() => {
@@ -1070,7 +1056,6 @@ const ProfileTemplate = ({
   }, [profileForInitialFillCheck]);
 
   const isFirstProfileFill = !isJobCreated && !hasPersistedProfileCore;
-  const showFirstFillStepper = isFirstProfileFill;
 
   // Check if workflow is currently processing
   const isWorkflowProcessing = useMemo(() => {
@@ -1126,9 +1111,6 @@ const ProfileTemplate = ({
     hasBasicDetailsSchemaValidationErrors || hasOfferingsValidationErrors;
 
   const isAutofillGateActive = isFirstProfileFill && !hasAutofilledProfile;
-  const canAdvanceFromStep0 =
-    !isAutofillGateActive &&
-    !hasBasicDetailsValidationErrors;
 
   const isAutofillWorkflowInProgress =
     isAutofillLoading || offeringsExtractor.isExtracting;
@@ -1140,8 +1122,6 @@ const ProfileTemplate = ({
   // Combine all validation errors
   const hasAnyValidationErrors =
     hasSchemaValidationErrors || hasCtaValidationErrors || hasOfferingsValidationErrors;
-
-  const canAdvanceFromStep1 = !hasAnyValidationErrors;
 
   // Disable button logic:
   // - For "Save Changes": disable if loading, saving, or has any validation errors
@@ -1190,46 +1170,6 @@ const ProfileTemplate = ({
     isCheckingPlan,
     isTriggeringWorkflow,
   ]);
-
-  const handleStepperStepClick = useCallback(
-    (nextStep: number) => {
-      if (nextStep <= profileStep) {
-        setProfileStep(nextStep);
-        return;
-      }
-
-      if (profileStep === 0) {
-        if (isAutofillGateActive) {
-          toast.error("Please use Autofill Profile before continuing.");
-          return;
-        }
-        if (hasBasicDetailsValidationErrors) {
-          toast.error("Please fix the highlighted fields before continuing.");
-          (["website", "businessName", "primaryLocation"] as const).forEach((key) => {
-            form.setFieldMeta(key as any, (prev: any) => ({
-              ...prev,
-              isTouched: true,
-            }));
-          });
-          return;
-        }
-      }
-
-      if (profileStep === 1 && !canAdvanceFromStep1) {
-        toast.error("Please fix the highlighted fields before continuing.");
-        return;
-      }
-
-      setProfileStep(nextStep);
-    },
-    [
-      form,
-      hasBasicDetailsValidationErrors,
-      canAdvanceFromStep1,
-      isAutofillGateActive,
-      profileStep,
-    ]
-  );
 
   const handlePrimaryButtonClick = useCallback(async () => {
     if (isSaveChangesAction) {
@@ -1385,188 +1325,50 @@ const ProfileTemplate = ({
 
           {/* Content area: takes remaining height, scroll lives inside form column */}
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
-            <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
+            <div
+              className={cn(
+                "w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1",
+                isAutofillGateActive && "justify-center items-center"
+              )}
+            >
           <div className="flex-1 flex flex-col gap-7 min-h-0 min-w-0 overflow-hidden">
-            {showFirstFillStepper ? (
-              <Stepper
-                steps={[...PROFILE_STEPPER_STEPS]}
-                currentStep={profileStep}
-                onStepClick={handleStepperStepClick}
-                isStepEnabled={(idx) => {
-                  if (idx <= profileStep) return true;
-                  if (idx === 1) return canAdvanceFromStep0;
-                  if (idx === 2) return canAdvanceFromStep0 && canAdvanceFromStep1;
-                  return true;
-                }}
-                className="shrink-0"
-              />
-            ) : null}
-
-            {showFirstFillStepper ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  form.handleSubmit();
-                }}
-                className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
-              >
-                  {profileStep === 0 && (
-                    <ProfileStepCard
-                      title={isAutofillGateActive ? "Let's set up your profile" : "Basic Details"}
-                      description={
-                        isAutofillGateActive
-                          ? "Enter your website URL and primary location, then click Autofill Profile — we'll take care of the rest."
-                          : "Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
-                      }
-                      className="flex-1"
-                      scrollableContent
-                      footer={unlinkBusinessFooter}
-                      rightAction={
-                        !isAutofillGateActive ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="inline-block">
-                                <Button
-                                  type="button"
-                                  className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                                  disabled={!canAdvanceFromStep0}
-                                  onClick={() =>
-                                    setProfileStep((s) => Math.min(2, s + 1))
-                                  }
-                                >
-                                  Next
-                                  <ChevronRight className="size-4 shrink-0" />
-                                </Button>
-                              </span>
-                            </TooltipTrigger>
-                          </Tooltip>
-                        ) : undefined
-                      }
-                    >
-                      <BusinessInfoForm
-                        form={form}
-                        embedded
-                        embeddedVariant={isAutofillGateActive ? "autofillGate" : "full"}
-                        disableWebsiteLock={isAutofillGateActive}
-                        primaryLocationAction={
-                          isAutofillGateActive ? (
-                            <Button
-                              type="button"
-                              onClick={handleAutofillProfileClick}
-                              disabled={isAutofillProfileDisabled}
-                              className="w-full gap-2"
-                            >
-                              {isAutofillLoading ? (
-                                <>
-                                  <Loader2 className="size-4 animate-spin" />
-                                  Autofilling...
-                                </>
-                              ) : (
-                                "Autofill Profile"
-                              )}
-                            </Button>
+            {isAutofillGateActive ? (
+              <div className="flex flex-1 items-center justify-center">
+                <ProfileGateCard
+                  title="Add a business"
+                  description="We build the profile from the website. Anything the site can't give us, you fill in after — nothing is guessed."
+                  className="max-w-[490px]"
+                >
+                  <div className="mx-auto w-full max-w-[442px]">
+                    <BusinessInfoForm
+                      form={form}
+                      embedded
+                      embeddedVariant="autofillGate"
+                      disableWebsiteLock
+                      primaryLocationAction={
+                        <Button
+                          type="button"
+                          onClick={handleAutofillProfileClick}
+                          disabled={isAutofillProfileDisabled}
+                          className="w-full gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                        >
+                          {isAutofillLoading ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Autofilling...
+                            </>
                           ) : (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="default"
-                              onClick={handleAutofillProfileClick}
-                              disabled={isAutofillProfileDisabled}
-                              className="gap-2 border-general-border-three text-general-foreground"
-                            >
-                              {isAutofillLoading ? (
-                                <>
-                                  <Loader2 className="size-4 animate-spin" />
-                                  Autofilling...
-                                </>
-                              ) : (
-                                "Autofill Profile"
-                              )}
-                            </Button>
-                          )
-                        }
-                      />
-                      {!isAutofillGateActive && (
-                        <>
-                          <OfferingsForm
-                            form={form}
-                            businessId={businessId}
-                            embedded
-                            hideFetchOfferingsFromWebsite
-                            extractionController={offeringsExtractor}
-                            restrictFetchOfferings
-                          />
-                          <div className="w-1/2">
-                            <GenericInput<BusinessInfoFormData>
-                              form={form as any}
-                              fieldName="businessDescription"
-                              type="textarea"
-                              className="min-h-[160px]"
-                              label={
-                                <>
-                                  Anything else we should know about your business?{" "}
-                                  <span className="text-general-muted-foreground font-normal">
-                                    (optional)
-                                  </span>
-                                </>
-                              }
-                              placeholder="Provide any additional info"
-                              rows={6}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </ProfileStepCard>
-                  )}
-                  {profileStep === 1 && (
-                    <ProfileStepCard
-                      title="Content Cues"
-                      description="Guides tone, messaging, and calls-to-action so content sounds like you and converts better."
-                      className="flex-1"
-                      scrollableContent
-                      footer={unlinkBusinessFooter}
-                      rightAction={
-                        <Button
-                          type="button"
-                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                          disabled={!canAdvanceFromStep1}
-                          onClick={() =>
-                            setProfileStep((s) => Math.min(2, s + 1))
-                          }
-                        >
-                          Next
-                          <ChevronRight className="size-4 shrink-0" />
+                            <>
+                              Autofill Profile
+                              <ArrowRight className="size-4 shrink-0" />
+                            </>
+                          )}
                         </Button>
                       }
-                    >
-                      <ContentCuesForm form={form} embedded />
-                      <LocationsForm form={form} embedded />
-                    </ProfileStepCard>
-                  )}
-                  {profileStep === 2 && (
-                    <ProfileStepCard
-                      title="Competitors"
-                      description="Gives context on your landscape so we can spot gaps, differentiation, and growth opportunities."
-                      className="flex-1"
-                      scrollableContent
-                      footer={unlinkBusinessFooter}
-                      rightAction={
-                        <Button
-                          type="button"
-                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                          onClick={handlePrimaryButtonClick}
-                          disabled={isButtonDisabled}
-                          title={buttonHelperText}
-                        >
-                          {buttonText}
-                          <ChevronRight className="size-4 shrink-0" />
-                        </Button>
-                      }
-                    >
-                      <CompetitorsForm form={form} embedded />
-                    </ProfileStepCard>
-                  )}
-              </form>
+                    />
+                  </div>
+                </ProfileGateCard>
+              </div>
             ) : (
               <form
                 onSubmit={(e) => {
@@ -1575,52 +1377,45 @@ const ProfileTemplate = ({
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
-                <ProfileFormTabs
+                <ProfileAutofillReviewTemplate
                   form={form}
                   businessId={businessId}
-                  value={profileTabValue}
-                  onValueChange={(value) => {
-                    const nextIndex = PROFILE_STEPPER_STEPS.findIndex(
-                      (step) => step.id === value
-                    );
-                    setProfileStep(nextIndex >= 0 ? nextIndex : 0);
-                  }}
-                  footer={unlinkBusinessFooter}
+                  extractionController={offeringsExtractor}
                   hideFetchOfferingsFromWebsite
                   restrictFetchOfferings
-                  extractionController={offeringsExtractor}
-                  includeBusinessDescription
-                  primaryLocationAction={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="default"
-                      onClick={handleAutofillProfileClick}
-                      disabled={isAutofillProfileDisabled}
-                      className="gap-2 border-general-border-three text-general-foreground"
-                    >
-                      {isAutofillLoading ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Autofilling...
-                        </>
-                      ) : (
-                        "Autofill Profile"
-                      )}
-                    </Button>
+                  onSaveChanges={() => {
+                    void handleSaveChanges();
+                  }}
+                  onSaveAndUpdateStrategy={() => {
+                    void (async () => {
+                      if (isSaveChangesAction) {
+                        await handleSaveChanges();
+                      }
+                      if (!externalJobDetails?.job_id) return;
+                      if (!guardAcceptPlan()) return;
+                      setIsStrategyConfirmOpen(true);
+                    })();
+                  }}
+                  onAutofillProfile={() => {
+                    void handleAutofillProfileClick();
+                  }}
+                  autofillDisabled={isAutofillProfileDisabled}
+                  autofillLoading={isAutofillLoading}
+                  onUnlinkBusiness={() => {
+                    if (!guardUnlinkBusiness()) return;
+                    setIsUnlinkBusinessConfirmOpen(true);
+                  }}
+                  unlinkBusinessDisabled={
+                    externalLoading || toggleBusinessStatusMutation.isPending
                   }
-                  rightAction={
-                    <Button
-                      type="button"
-                      className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                      onClick={handlePrimaryButtonClick}
-                      disabled={isButtonDisabled}
-                      title={buttonHelperText}
-                    >
-                      {buttonText}
-                      <ChevronRight className="size-4 shrink-0" />
-                    </Button>
+                  saveDisabled={
+                    externalLoading ||
+                    isSaving ||
+                    isAutofillWorkflowInProgress ||
+                    hasAnyValidationErrors
                   }
+                  proceedDisabled={isButtonDisabled || !externalJobDetails?.job_id}
+                  className="flex-1"
                 />
               </form>
             )}

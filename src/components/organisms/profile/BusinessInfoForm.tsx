@@ -60,7 +60,7 @@ const SERVICE_AREA_TYPE_OPTIONS = [
   { value: "international", label: "International" },
   { value: "national", label: "National" },
   { value: "state_regional", label: "State-Regional" },
-  { value: "city_local", label: "City-Local" },
+  { value: "city_local", label: "City/Local" },
 ] as const;
 
 interface BusinessInfoFormProps {
@@ -425,12 +425,13 @@ export const BusinessInfoForm = React.memo(({
 
   if (embedded && embeddedVariant === "autofillGate") {
     return (
-      <div id="business-info" className="flex flex-col gap-5 w-[480px] max-w-full">
+      <div id="business-info" className="flex w-full flex-col gap-6">
         <GenericInput<BusinessInfoFormData>
           form={form as any}
           fieldName="website"
           type="url"
           label="Website"
+          fieldClassName="gap-0"
           required={true}
           placeholder="Provide the official url of your business website"
           disabled={isWebsiteLocked || disabledFields?.website}
@@ -440,6 +441,7 @@ export const BusinessInfoForm = React.memo(({
           fieldName="primaryLocation"
           type="location-select"
           label="Primary Location"
+          fieldClassName="gap-0"
           required={true}
           placeholder={
             locationsLoading
@@ -454,7 +456,8 @@ export const BusinessInfoForm = React.memo(({
           form={form as any}
           fieldName="serviceAreaType"
           type="select"
-          label="Service Area Type"
+          label="Service-area type"
+          fieldClassName="gap-0"
           required
           placeholder="Select service area type"
           options={[...SERVICE_AREA_TYPE_OPTIONS]}
@@ -463,9 +466,6 @@ export const BusinessInfoForm = React.memo(({
         {primaryLocationAction && (
           <div className="flex flex-col gap-2 pt-1">
             {primaryLocationAction}
-            <p className="text-xs text-general-muted-foreground">
-              We'll auto-fill your business name, service type, brand tone, competitors, and more from your website.
-            </p>
           </div>
         )}
       </div>

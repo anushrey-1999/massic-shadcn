@@ -4,12 +4,12 @@ import React from "react";
 import { useStore } from "@tanstack/react-form";
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/molecules/PageHeader";
-import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { LoaderOverlay } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { ProfileFormTabs } from "@/components/templates/ProfileFormTabs";
+import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
 import {
   PROFILE_FORM_TABS,
   type ProfileFormTabId,
@@ -86,7 +86,13 @@ export function CreateBusinessTemplate({
       variant={variant}
       onClick={onAutofillProfile}
       disabled={isAutofillDisabled}
-      className={className}
+      className={cn(
+        "gap-2",
+        variant
+          ? "border-general-border-three text-general-foreground"
+          : "bg-general-primary text-general-primary-foreground hover:bg-general-primary/90",
+        className
+      )}
     >
       {isAutofillLoading ? (
         <>
@@ -94,7 +100,10 @@ export function CreateBusinessTemplate({
           Autofilling...
         </>
       ) : (
-        "Autofill & Create Business"
+        <>
+          Autofill Profile
+          <ArrowRight className="size-4 shrink-0" />
+        </>
       )}
     </Button>
   );
@@ -117,7 +126,12 @@ export function CreateBusinessTemplate({
           </div>
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
-            <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
+            <div
+              className={cn(
+                "w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1",
+                !hasAutofilledProfile && "justify-center items-center"
+              )}
+            >
               <form
                 id="create-business-form"
                 onSubmit={(e) => {
@@ -127,33 +141,21 @@ export function CreateBusinessTemplate({
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
                 {!hasAutofilledProfile ? (
-                  <ProfileStepCard
-                    title="Let's set up your business"
-                    description="Enter your website URL and location, then click Autofill & Create Business."
-                    className="flex-1"
-                    scrollableContent
-                    contentClassName="pb-6"
-                    rightAction={
-                      <div className="flex items-center gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={onCancel}
-                          disabled={isSubmitting}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    }
+                  <ProfileGateCard
+                    title="Add a business"
+                    description="We build the profile from the website. Anything the site can't give us, you fill in after — nothing is guessed."
+                    className="w-full max-w-[490px] self-center"
                   >
-                    <BusinessInfoForm
-                      form={form}
-                      embedded
-                      embeddedVariant="autofillGate"
-                      disableWebsiteLock
-                      primaryLocationAction={renderAutofillButton({ className: "w-full gap-2" })}
-                    />
-                  </ProfileStepCard>
+                    <div className="mx-auto w-full max-w-[442px]">
+                      <BusinessInfoForm
+                        form={form}
+                        embedded
+                        embeddedVariant="autofillGate"
+                        disableWebsiteLock
+                        primaryLocationAction={renderAutofillButton({ className: "w-full gap-2" })}
+                      />
+                    </div>
+                  </ProfileGateCard>
                 ) : null}
                 {hasAutofilledProfile && (
                   <ProfileFormTabs

@@ -3,7 +3,17 @@
 import { useState, useEffect, useMemo, useCallback, startTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, Eye, MousePointerClick, Target, BarChart3 } from "lucide-react";
+import {
+  AlertCircle,
+  BarChart3,
+  CheckCircle2,
+  Eye,
+  Loader2,
+  MousePointerClick,
+  RefreshCw,
+  Settings2,
+  Target,
+} from "lucide-react";
 import {
   OrganicPerformanceSection,
 } from "@/components/organisms/analytics/OrganicPerformanceSection";
@@ -41,6 +51,12 @@ import { OrganicDeepdiveHeader } from "@/components/organisms/organic-deepdive/O
 import { getFallbackAnalyticsGrouping } from "@/utils/analytics-chart-grouping";
 import { CustomContentGroupsModal } from "@/components/molecules/analytics/CustomContentGroupsModal";
 import { useGscIngestionStatus } from "@/hooks/use-gsc-ingestion-status";
+import {
+  type Ga4IngestionStatus,
+  useGa4Scope,
+} from "@/hooks/use-ga4-scope";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 const CHART_LINE_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
 const METRIC_TOOLTIPS: Record<(typeof CHART_LINE_KEYS)[number], string> = {
@@ -50,6 +66,136 @@ const METRIC_TOOLTIPS: Record<(typeof CHART_LINE_KEYS)[number], string> = {
   goals: "Goals",
 };
 const ALL_GROUP_BY_OPTIONS: AnalyticsGroupBy[] = ["day", "week", "month"];
+
+function formatIngestionStage(stage: string | null | undefined): string {
+  if (!stage) return "Preparing Analytics data";
+  return stage
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function analyticsScopeLabel(path: string | null | undefined): string {
+  return path ? `Landing pages under ${path}` : "Whole GA4 property";
+}
+
+interface Ga4IngestionPanelProps {
+  status: Ga4IngestionStatus;
+  stage?: string | null;
+  progress?: number | null;
+  error?: string | null;
+  retryError?: string | null;
+  isRetrying: boolean;
+  canRetry: boolean;
+  onRetry: () => void;
+  onEditScope: () => void;
+}
+
+function Ga4IngestionPanel({
+  status,
+  stage,
+  progress,
+  error,
+  retryError,
+  isRetrying,
+  canRetry,
+  onRetry,
+  onEditScope,
+}: Ga4IngestionPanelProps) {
+  const failed = status === "failed";
+  const title =
+    status === "queued"
+      ? "Analytics reimport is queued"
+      : failed
+        ? "Analytics import failed"
+        : "Analytics data is being imported";
+
+  return (
+    <div className="p-7">
+      <Alert
+        variant={failed ? "destructive" : "info"}
+        className="min-h-[240px] p-6"
+        aria-live="polite"
+      >
+        <div className="flex h-full flex-col justify-between gap-6">
+          <div className="flex items-start gap-4">
+            {failed ? (
+              <AlertCircle className="mt-0.5 size-6 shrink-0" aria-hidden="true" />
+            ) : (
+              <Loader2 className="mt-0.5 size-6 shrink-0 animate-spin" aria-hidden="true" />
+            )}
+            <div className="min-w-0 flex-1">
+              <AlertTitle className="text-lg">{title}</AlertTitle>
+              <AlertDescription className="mt-2 max-w-3xl">
+                {failed
+                  ? error || "Massic could not finish importing the selected GA4 data scope."
+                  : "Analytics is temporarily unavailable while Massic replaces the dataset. Google Search Console data and generated reports are unaffected."}
+              </AlertDescription>
+
+              {!failed ? (
+                <div className="mt-6 max-w-2xl">
+                  <div className="mb-2 flex items-center justify-between gap-4 text-sm">
+                    <span className="font-medium">{formatIngestionStage(stage)}</span>
+                    {progress !== null && progress !== undefined ? (
+                      <span>{Math.round(progress)}%</span>
+                    ) : (
+                      <span className="text-muted-foreground">Waiting for progress</span>
+                    )}
+                  </div>
+                  <div
+                    className="h-2 overflow-hidden rounded-full bg-general-border"
+                    role="progressbar"
+                    aria-label="GA4 import progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={progress ?? undefined}
+                    aria-valuetext={
+                      progress === null || progress === undefined
+                        ? formatIngestionStage(stage)
+                        : undefined
+                    }
+                  >
+                    <div
+                      className={cn(
+                        "h-full rounded-full bg-primary transition-[width]",
+                        (progress === null || progress === undefined) && "w-1/4 animate-pulse"
+                      )}
+                      style={
+                        progress !== null && progress !== undefined
+                          ? { width: `${progress}%` }
+                          : undefined
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              {retryError ? (
+                <p className="mt-4 text-sm text-destructive">{retryError}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {failed && canRetry ? (
+              <Button type="button" onClick={onRetry} disabled={isRetrying}>
+                {isRetrying ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <RefreshCw className="size-4" aria-hidden="true" />
+                )}
+                {isRetrying ? "Queuing retry…" : "Retry import"}
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" onClick={onEditScope} disabled={isRetrying}>
+              <Settings2 className="size-4" aria-hidden="true" />
+              Edit scope
+            </Button>
+          </div>
+        </div>
+      </Alert>
+    </div>
+  );
+}
 
 function normalizeBrandTerms(raw: unknown): string[] {
   if (Array.isArray(raw)) {
@@ -125,8 +271,40 @@ export function AnalyticsTemplate() {
     return { businessId: id, businessProfile: profile || null };
   }, [pathname, profiles]);
 
-  const { profileData } = useBusinessProfileById(businessId);
-  const { isIngestionActive } = useGscIngestionStatus(profileData as any);
+  const { profileData, profileDataLoading } = useBusinessProfileById(businessId);
+  const { isIngestionActive: isGscIngestionActive } = useGscIngestionStatus(profileData as any);
+  const profileGa4Status =
+    ((profileData as any)?.Ga4IngestionStatus ??
+      (businessProfile as any)?.Ga4IngestionStatus ??
+      null) as Ga4IngestionStatus;
+  const isBusinessActive =
+    ((profileData as any)?.IsActive ?? (businessProfile as any)?.IsActive) !== false;
+  const ga4ScopeQuery = useGa4Scope(businessId, {
+    enabled: Boolean(businessId && !profileDataLoading && isBusinessActive),
+  });
+  const profileForGa4Scope = (profileData || businessProfile) as any;
+  const ga4IngestionStatus = ga4ScopeQuery.data?.status ?? profileGa4Status;
+  const desiredGa4Scope =
+    ga4ScopeQuery.data?.desiredPagePathScope ??
+    profileForGa4Scope?.Ga4PagePathScope ??
+    null;
+  const currentGa4Scope =
+    ga4ScopeQuery.data?.currentPagePathScope ??
+    profileForGa4Scope?.Ga4IngestedPagePathScope ??
+    null;
+  const desiredGa4ScopeRevision =
+    ga4ScopeQuery.data?.desiredRevision ??
+    Number(profileForGa4Scope?.Ga4ScopeRevision || 0);
+  const currentGa4ScopeRevision =
+    ga4ScopeQuery.data?.currentRevision ??
+    Number(profileForGa4Scope?.Ga4IngestedScopeRevision || 0);
+  const isGa4ScopeReplacementPending = Boolean(
+    desiredGa4ScopeRevision !== currentGa4ScopeRevision ||
+      desiredGa4Scope !== currentGa4Scope
+  );
+  const isGa4DataBlocked =
+    isGa4ScopeReplacementPending && ga4IngestionStatus === "failed";
+  const isToolbarDataBlocked = isGscIngestionActive || isGa4DataBlocked;
   const { prefetchPage1 } = usePrefetchAnalyticsPages(businessId);
   const { fetchStrategyTopicKeywords } = useStrategy(businessId || "");
   const urlTopicName = searchParams.get("topicName")?.trim() || "";
@@ -143,14 +321,19 @@ export function AnalyticsTemplate() {
   } = useQuery({
     queryKey: ["analytics-topic-keywords", businessId, urlTopicName],
     queryFn: () => fetchStrategyTopicKeywords(urlTopicName),
-    enabled: !!businessId && shouldResolveTopicKeywords,
+    enabled: !!businessId && shouldResolveTopicKeywords && !isGa4DataBlocked,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 15,
     retry: 2,
   });
 
   useEffect(() => {
-    if (businessId) {
+    if (
+      businessId &&
+      !isGa4DataBlocked &&
+      !profileDataLoading &&
+      !ga4ScopeQuery.isLoading
+    ) {
       let cleanup: (() => void) | undefined;
       prefetchPage1().then((cleanupFn) => {
         cleanup = cleanupFn;
@@ -159,7 +342,13 @@ export function AnalyticsTemplate() {
         if (cleanup) cleanup();
       };
     }
-  }, [businessId, prefetchPage1]);
+  }, [
+    businessId,
+    ga4ScopeQuery.isLoading,
+    isGa4DataBlocked,
+    prefetchPage1,
+    profileDataLoading,
+  ]);
 
   const isTrialActive =
     ((profileData as any)?.isTrialActive ??
@@ -323,15 +512,16 @@ export function AnalyticsTemplate() {
     "3 months",
   ] as const;
   useEffect(() => {
-    if (!isIngestionActive) return;
+    if (!isGscIngestionActive) return;
     if (!INGESTION_ALLOWED_PERIODS.includes(selectedPeriod as any)) {
       setSelectedPeriod("3 months");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isIngestionActive]);
+  }, [isGscIngestionActive]);
 
   useEffect(() => {
     setShowDeferredSections(false);
+    if (isGa4DataBlocked) return;
 
     let completed = false;
     let timeoutId: number | undefined;
@@ -366,7 +556,7 @@ export function AnalyticsTemplate() {
         window.cancelIdleCallback(idleId);
       }
     };
-  }, [businessId]);
+  }, [businessId, isGa4DataBlocked]);
 
   return (
     <div className="flex flex-col min-h-screen scroll-smooth ">
@@ -420,6 +610,20 @@ export function AnalyticsTemplate() {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
+            {ga4IngestionStatus === "completed" &&
+            !isGa4ScopeReplacementPending &&
+            currentGa4Scope ? (
+              <Badge
+                variant="outline"
+                className="max-w-[180px] gap-1.5 border-general-border bg-general-secondary font-medium text-general-foreground"
+                title={analyticsScopeLabel(currentGa4Scope)}
+              >
+                <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                <span className="truncate">
+                  GA4 · {currentGa4Scope}
+                </span>
+              </Badge>
+            ) : null}
             <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
             <AnalyticsReportsActions
               onPrimaryDrivers={() => {
@@ -440,8 +644,8 @@ export function AnalyticsTemplate() {
               }}
               reportsDisabled={!businessId}
               primaryDriversDisabled={!businessId}
-              isIngestionActive={isIngestionActive}
-              contentGroupsDisabled={!businessId}
+              isIngestionActive={isToolbarDataBlocked}
+              contentGroupsDisabled={!businessId || isGa4DataBlocked}
               indexingDisabled={!businessId}
             />
           </div>
@@ -459,10 +663,10 @@ export function AnalyticsTemplate() {
                         selectedTab !== "all" && !visibleLines[key] && "bg-transparent shadow-none"
                       )}
                       onClick={() => {
-                        if (selectedTab === "all") return;
+                        if (selectedTab === "all" || isGa4DataBlocked) return;
                         handleChartLineToggle(key, !visibleLines[key]);
                       }}
-                      disabled={selectedTab === "all"}
+                      disabled={selectedTab === "all" || isGa4DataBlocked}
                       aria-label={METRIC_TOOLTIPS[key]}
                       aria-pressed={selectedTab === "all" ? true : visibleLines[key]}
                     >
@@ -495,16 +699,17 @@ export function AnalyticsTemplate() {
                     (option) => !availableGroupByOptions.includes(option)
                   )}
                   className="h-10 cursor-pointer rounded-[8px] border-[#d4d4d4] bg-transparent px-4 py-[7.5px] text-sm font-medium tracking-[0.07px] shadow-none"
-                  ingestionActive={isIngestionActive}
+                  ingestionActive={isGscIngestionActive}
+                  disabled={isGa4DataBlocked}
                 />
               }
               keywordScope={keywordScope}
               onKeywordScopeChange={handleKeywordScopeChange}
               showKeywordScope={selectedTab === "organic"}
               hasActiveKeywordScope={keywordScope !== "all"}
-              anomalyHighlightsEnabled={isIngestionActive ? false : showAnomalyHighlights}
-              onAnomalyHighlightsChange={isIngestionActive ? undefined : setShowAnomalyHighlights}
-              isIngestionActive={isIngestionActive}
+              anomalyHighlightsEnabled={isToolbarDataBlocked ? false : showAnomalyHighlights}
+              onAnomalyHighlightsChange={isToolbarDataBlocked ? undefined : setShowAnomalyHighlights}
+              isIngestionActive={isToolbarDataBlocked}
             />
           </div>
         </div>
@@ -520,7 +725,40 @@ export function AnalyticsTemplate() {
 
       {/* Tab Content */}
       <div className="w-full max-w-[1224px] flex flex-col">
-        {topicKeywordLookupPending ? (
+        {isGa4DataBlocked ? (
+          <Ga4IngestionPanel
+            status={ga4IngestionStatus}
+            stage={
+              ga4ScopeQuery.data?.stage ??
+              profileForGa4Scope?.Ga4IngestionStage ??
+              null
+            }
+            progress={ga4ScopeQuery.data?.progress}
+            error={
+              ga4ScopeQuery.data?.error ??
+              profileForGa4Scope?.Ga4IngestionError ??
+              null
+            }
+            retryError={ga4ScopeQuery.saveError?.message}
+            isRetrying={ga4ScopeQuery.isSaving}
+            canRetry={Boolean(businessId && ga4ScopeQuery.data)}
+            onRetry={() => {
+              if (!businessId || !ga4ScopeQuery.data) return;
+              void ga4ScopeQuery
+                .updateScope({
+                  businessUniqueId: businessId,
+                  pagePathScope: ga4ScopeQuery.data.desiredPagePathScope,
+                })
+                .catch(() => undefined);
+            }}
+            onEditScope={() => {
+              if (!businessId) return;
+              router.push(
+                `/settings?ga4ScopeBusinessId=${encodeURIComponent(businessId)}`
+              );
+            }}
+          />
+        ) : topicKeywordLookupPending ? (
           <div className="p-7">
             <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white p-6 text-center text-muted-foreground">
               Loading topic keywords...
@@ -557,20 +795,20 @@ export function AnalyticsTemplate() {
                 ga4TrafficScope={selectedTab}
                 groupBy={groupBy}
                 onAvailableGroupingsChange={setAvailableGroupByOptions}
-                showAnomalyHighlights={isIngestionActive ? false : showAnomalyHighlights}
-                isIngestionActive={isIngestionActive}
+                showAnomalyHighlights={isGscIngestionActive ? false : showAnomalyHighlights}
+                isIngestionActive={isGscIngestionActive}
               />
             </div>
             <DiscoveryPerformanceSection
               period={selectedPeriod}
               visibleMetrics={overviewVisibleLines}
               filters={filtersForApi}
-              onSelectFilter={isIngestionActive ? undefined : handleOverviewFilterSelect}
+              onSelectFilter={isGscIngestionActive ? undefined : handleOverviewFilterSelect}
               onOpenCustomContentGroups={() => setCustomContentGroupsOpen(true)}
               hideTopQueries={selectedTab === "all"}
               hideHowYouRank={selectedTab === "all"}
               ga4TrafficScope={selectedTab}
-              isIngestionActive={isIngestionActive}
+              isIngestionActive={isGscIngestionActive}
             />
             {showDeferredSections ? (
               <>

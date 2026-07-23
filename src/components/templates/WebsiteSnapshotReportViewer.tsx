@@ -77,7 +77,13 @@ export function WebsiteSnapshotReportViewer({
   const businessName = meta.business_name || "Business";
   const website = stripUrlProtocol(meta.url || "");
   const location = meta.location || "";
-  const phone = meta.phone || "";
+  const phone = (() => {
+    try {
+      return meta.phone ? decodeURIComponent(String(meta.phone)) : "";
+    } catch {
+      return meta.phone || "";
+    }
+  })();
   const reportDate = meta.report_date || "";
   const businessDescription = meta.business_description || "";
   

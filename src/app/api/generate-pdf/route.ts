@@ -1232,7 +1232,13 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const businessDescription = String(meta.business_description || "").trim();
   const website = String(meta.url || "").trim();
   const location = String(meta.location || "").trim();
-  const phone = meta.phone != null ? String(meta.phone || "").trim() : "";
+  const phone = meta.phone != null ? (() => {
+    try {
+      return decodeURIComponent(String(meta.phone || "").trim());
+    } catch {
+      return String(meta.phone || "").trim();
+    }
+  })() : "";
   const reportMonthYear = formatMonthYearFromIso(meta.report_date) || "Website Snapshot";
 
   const callouts = Array.isArray((report as any)?.overview_callouts) ? (report as any).overview_callouts : [];

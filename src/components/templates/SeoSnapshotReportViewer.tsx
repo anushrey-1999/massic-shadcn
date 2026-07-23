@@ -1514,7 +1514,7 @@ export function WebsiteSnapshotReportViewer({
                     const isNewPhase = tactic.phase !== currentPhase;
                     if (isNewPhase) {
                       currentPhase = tactic.phase || "";
-                      stepInPhase = 1;
+                      stepInPhase = 0;
                     } else {
                       stepInPhase++;
                     }

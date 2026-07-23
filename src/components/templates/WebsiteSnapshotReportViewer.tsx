@@ -221,10 +221,7 @@ export function WebsiteSnapshotReportViewer({
               {/* Cover Top */}
               <div className="flex items-start justify-between gap-5 mb-8">
                 <div>
-                  <div className="font-mono text-[11px] font-medium tracking-[0.16em]" style={{ color: COLORS.green }}>
-                    SNAPSHOT
-                  </div>
-                  <div className="mt-1 font-mono text-[11px] tracking-[0.14em] uppercase" style={{ color: COLORS.faint }}>
+                  <div className="font-mono text-[11px] tracking-[0.14em] uppercase" style={{ color: COLORS.faint }}>
                     Website Snapshot · {formatReportDate(reportDate) || "2026"}
                   </div>
                 </div>
@@ -964,7 +961,7 @@ export function WebsiteSnapshotReportViewer({
                     const isNewPhase = tactic.phase !== currentPhase;
                     if (isNewPhase) {
                       currentPhase = tactic.phase || "";
-                      stepInPhase = 1;
+                      stepInPhase = 0;
                     } else {
                       stepInPhase++;
                     }

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getSnapshotShareConfig } from "@/lib/server/snapshot-share-config";
+import {
+  getSnapshotShareConfig,
+  isAllowedSnapshotRequestOrigin,
+} from "@/lib/server/snapshot-share-config";
 import {
   assertBusinessSnapshotAccess,
   SnapshotAccessDeniedError,
@@ -55,15 +58,18 @@ async function readRequestBody(request: NextRequest): Promise<unknown> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  let config: ReturnType<typeof getSnapshotShareConfig>;
   try {
-    config = getSnapshotShareConfig();
+    getSnapshotShareConfig();
   } catch {
     return jsonResponse({ error: "Sharing is unavailable." }, 503);
   }
 
-  const requestOrigin = request.headers.get("origin");
-  if (requestOrigin !== new URL(config.appOrigin).origin) {
+  if (
+    !isAllowedSnapshotRequestOrigin(
+      request.headers.get("origin"),
+      request.url,
+    )
+  ) {
     return jsonResponse({ error: "Request not allowed." }, 403);
   }
 

@@ -887,7 +887,7 @@ const WEBSITE_SNAPSHOT_CSS = `
   /* Hero */
   .eyebrow{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);margin-bottom:20px;padding:0}
   .hero-number{font-size:120px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--green);margin:20px 0;padding:0}
-  .hero-label{font-size:21px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);max-width:46ch;margin-bottom:16px;padding:0}
+  .hero-label{font-size:21px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:16px;padding:0}
   .hero-desc{font-size:15px;line-height:1.5;color:var(--muted);padding:0}
   
   /* Callouts */
@@ -899,7 +899,7 @@ const WEBSITE_SNAPSHOT_CSS = `
   
   /* Section Headers */
   .section-title{font-size:23px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:12px;padding:0}
-  .section-lead{font-size:14.5px;line-height:1.4;color:var(--muted);max-width:60ch;padding:0}
+  .section-lead{font-size:14.5px;line-height:1.4;color:var(--muted);padding:0}
   
   /* Tier Cards */
   .tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:32px;padding:0}
@@ -1521,20 +1521,25 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const gap = String(competitorBuckets?.gap || "").trim();
   const directCompetitors = Array.isArray(showsUp?.direct_competitors) ? showsUp.direct_competitors : [];
   const directNote = String(showsUp?.direct_note || "").trim();
+  const directNoteFirstLine = directNote ? (directNote.split(/[.\n]/)[0] + (directNote.includes('.') || directNote.includes('\n') ? '.' : '')) : "Your competitive landscape.";
   const similarElsewhere = Array.isArray(showsUp?.similar_elsewhere) ? showsUp.similar_elsewhere : [];
   const similarElsewhereNote = String(showsUp?.similar_elsewhere_note || "").trim();
   const noise = Array.isArray(showsUp?.noise) ? showsUp.noise : [];
   const noiseNote = String(showsUp?.noise_note || "").trim();
+  const setupMarket = String(competitorBuckets?.setup?.market || "").trim();
+  const setupDelivery = String(competitorBuckets?.setup?.delivery || "").trim();
+  const setupText = [setupMarket, setupDelivery].filter(Boolean).join(" · ");
 
   const competitorsHtml = directCompetitors.length || similarElsewhere.length || shouldBe.length || noise.length
     ? `
       <div class="page-card">
         <div class="eyebrow">Who shows up in your market</div>
+        <h2 class="section-title">${escapeHtml(directNoteFirstLine)}</h2>
+        ${setupText ? `<p class="section-lead">${escapeHtml(setupText)}</p>` : ""}
         ${
           directCompetitors.length
             ? `<div class="keep" style="margin-top:20px;padding:0">
-                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Direct Competitors</h3>
-                ${directNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(directNote)}</p>` : ""}
+                <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Direct Rivals</div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
                   ${directCompetitors.map((c: any) => {
                     const domain = String(c?.domain || "").trim();
@@ -1556,7 +1561,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         ${
           similarElsewhere.length
             ? `<div class="keep" style="margin-top:20px;padding:0">
-                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Direct Rivals</h3>
+                <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Similar, elsewhere</div>
                 ${similarElsewhereNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(similarElsewhereNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
                   ${similarElsewhere.map((item: any) => {
@@ -1570,7 +1575,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         ${
           noise.length
             ? `<div class="keep" style="margin-top:20px;padding:0">
-                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Noise</h3>
+                <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Noise</div>
                 ${noiseNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(noiseNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
                   ${noise.slice(0, 6).map((domain: any) => {
@@ -1585,7 +1590,8 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         ${
           shouldBe.length
             ? `<div class="keep" style="margin-top:20px;padding:0">
-                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Who Should Be There</h3>
+                <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Who should be there</div>
+                <p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(String((competitorBuckets as any).should_be_note || "").trim() || "The competitors your customers actually choose between — every one of them in your market.")}</p>
                 ${shouldBe.map((c: any) => {
                   const name = String(c?.name || "").trim();
                   const where = String(c?.where || "").trim();
@@ -1619,6 +1625,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
       <div class="page-card">
         <div class="eyebrow">Under the hood</div>
         <h2 class="section-title">What the site runs on, and how it's set up to be found.</h2>
+        <p class="section-lead">The technical inventory — the plumbing, not the content. Green is fine, amber needs a look, red is a problem.</p>
         ${
           underRows.length
             ? `<div style="padding:0"><table style="border:none">
@@ -2958,11 +2965,12 @@ export async function POST(request: NextRequest) {
             preferCSSPageSize: true,
           }
         : {
-            format: "A4",
+            format: "Letter",
             printBackground: true,
             margin: isSnapshotTemplate || isPerformanceV2Template || isBillingReconciliationTemplate
               ? { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" }
               : { top: "20mm", right: "20mm", bottom: "20mm", left: "20mm" },
+            preferCSSPageSize: true,
           }
     );
 

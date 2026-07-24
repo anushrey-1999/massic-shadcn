@@ -5,6 +5,7 @@ const LOCAL_NODE_API_URL = "https://seedmain.seedinternaldev.xyz/api/1";
 const LOCAL_INFER_API_URL = "https://infer.seedinternaldev.xyz/v2";
 
 export type SnapshotShareConfig = {
+  allowedAppOrigins: ReadonlySet<string>;
   appOrigin: string;
   encryptionKey: Buffer;
   inferApiUrl: string;
@@ -87,6 +88,18 @@ function parseAssetHosts(value: string | undefined): ReadonlySet<string> {
   return new Set(configuredHosts);
 }
 
+function getAllowedAppOrigins(appOrigin: string): ReadonlySet<string> {
+  const origins = new Set([appOrigin]);
+  const appUrl = new URL(appOrigin);
+
+  if (appUrl.hostname.startsWith("www.")) {
+    appUrl.hostname = appUrl.hostname.slice(4);
+    origins.add(appUrl.origin);
+  }
+
+  return origins;
+}
+
 export function getSnapshotShareConfig(): SnapshotShareConfig {
   if (cachedConfig) return cachedConfig;
 
@@ -116,6 +129,7 @@ export function getSnapshotShareConfig(): SnapshotShareConfig {
   );
 
   cachedConfig = Object.freeze({
+    allowedAppOrigins: getAllowedAppOrigins(appOrigin),
     appOrigin,
     encryptionKey: parseEncryptionKey(keyValue),
     inferApiUrl,
@@ -124,4 +138,20 @@ export function getSnapshotShareConfig(): SnapshotShareConfig {
   });
 
   return cachedConfig;
+}
+
+export function isAllowedSnapshotRequestOrigin(
+  originHeader: string | null,
+): boolean {
+  if (!originHeader) return false;
+
+  try {
+    const origin = new URL(originHeader);
+    if (origin.origin !== originHeader) return false;
+
+    const { allowedAppOrigins } = getSnapshotShareConfig();
+    return allowedAppOrigins.has(origin.origin);
+  } catch {
+    return false;
+  }
 }

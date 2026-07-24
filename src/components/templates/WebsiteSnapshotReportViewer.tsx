@@ -1,7 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeft, Copy, Download } from "lucide-react";
+import {
+  ArrowLeft,
+  Copy,
+  Download,
+  Loader2,
+  Share2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   LineChart,
@@ -25,7 +31,10 @@ import {
 type WebsiteSnapshotReportViewerProps = {
   report: WebsiteSnapshotReport;
   poweredByName?: string;
-  onBack: () => void;
+  mode?: "private" | "public";
+  onBack?: () => void;
+  onShare?: () => void;
+  isSharing?: boolean;
 };
 
 function stripUrlProtocol(value: string): string {
@@ -58,20 +67,13 @@ const COLORS = {
 export function WebsiteSnapshotReportViewer({
   report,
   poweredByName,
+  mode = "private",
   onBack,
+  onShare,
+  isSharing = false,
 }: WebsiteSnapshotReportViewerProps) {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
-  
-  // Debug: Verify component is loading
-  React.useEffect(() => {
-    console.log('🎯 WebsiteSnapshotReportViewer loaded!');
-    console.log('Report meta:', report.meta);
-    console.log('Render flags:', report.render);
-    console.log('Goal data:', report.goal);
-    console.log('Search data:', report.search);
-    console.log('Intent mix:', report.intent_mix);
-    console.log('Brand share:', report.search?.brand_share);
-  }, [report]);
+  const isPublic = mode === "public";
   
   const meta = report.meta || {};
   const businessName = meta.business_name || "Business";
@@ -197,19 +199,51 @@ export function WebsiteSnapshotReportViewer({
   };
 
   return (
-    <div className="h-full overflow-hidden rounded-lg bg-[#f2f2ec] p-10">
+    <div
+      className={cn(
+        "overflow-hidden bg-[#f2f2ec] p-3 sm:p-6 lg:p-10",
+        isPublic ? "h-screen" : "h-full rounded-lg",
+      )}
+    >
       <div className="flex h-full flex-col gap-4">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" className="gap-2" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
+          {!isPublic ? (
+            onBack ? (
+              <Button variant="ghost" className="gap-2" onClick={onBack}>
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+            ) : (
+              <div />
+            )
+          ) : (
+            <div />
+          )}
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2" onClick={handleCopy}>
-              <Copy className="h-4 w-4" />
-              Copy
-            </Button>
+            {!isPublic ? (
+              <>
+                {onShare ? (
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={onShare}
+                    disabled={isSharing}
+                  >
+                    {isSharing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Share2 className="h-4 w-4" />
+                    )}
+                    {isSharing ? "Sharing..." : "Share"}
+                  </Button>
+                ) : null}
+                <Button variant="outline" className="gap-2" onClick={handleCopy}>
+                  <Copy className="h-4 w-4" />
+                  Copy
+                </Button>
+              </>
+            ) : null}
             <Button className="gap-2" onClick={() => setIsDownloadDialogOpen(true)}>
               <Download className="h-4 w-4" />
               Download
@@ -218,7 +252,7 @@ export function WebsiteSnapshotReportViewer({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto  space-y-7">
+          <div className="mx-auto space-y-7">
             {/* PAGE 1: Cover + Hero + Quick Overview */}
             <div className="rounded-lg border p-14 shadow-sm" style={{ 
               borderColor: COLORS.hair, 

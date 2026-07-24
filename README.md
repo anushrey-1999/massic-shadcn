@@ -20,6 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Snapshot sharing configuration
+
+Public snapshot links are encrypted and resolved only by Next.js. Configure these
+server-only environment variables in each deployment:
+
+```bash
+SNAPSHOT_SHARE_KEY=<base64-encoded 32-byte key>
+APP_ORIGIN=https://app.example.com
+NODE_API_URL=https://node-api.example.com/api/1
+INFER_API_URL=https://infer-api.example.com/v2
+```
+
+Generate the encryption key with `openssl rand -base64 32`. Keep the same key
+for the lifetime of shared links; replacing it invalidates all existing links.
+If snapshot artifacts are served from a non-AWS host, add a comma-separated
+allowlist with `SNAPSHOT_REPORT_ASSET_HOSTS`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

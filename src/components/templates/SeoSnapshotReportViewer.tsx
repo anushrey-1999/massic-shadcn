@@ -991,7 +991,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Goal Box */}
                 {goal.body && (
-                  <div className="mt-7 border-l-[3px] p-5.5 rounded" style={{ borderColor: COLORS.green, background: COLORS.greenSoft }}>
+                  <div className="mt-7 border-l-[3px] p-5.5" style={{ borderColor: COLORS.green, background: COLORS.greenSoft }}>
                     <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.greenLine }}>
                       Your goal, read from your own site
                     </div>
@@ -1143,7 +1143,7 @@ export function WebsiteSnapshotReportViewer({
                               width: `${Math.round(search.brand_share * 100)}%` 
                             }}
                           >
-                            Branded {Math.round(search.brand_share * 100)}%
+                            {Math.round(search.brand_share * 100)}%
                           </div>
                           <div 
                             className="flex items-center justify-center"
@@ -1152,7 +1152,17 @@ export function WebsiteSnapshotReportViewer({
                               width: `${Math.round((1 - search.brand_share) * 100)}%` 
                             }}
                           >
-                            Non-brand {Math.round((1 - search.brand_share) * 100)}%
+                            {Math.round((1 - search.brand_share) * 100)}%
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-[11px] text-gray-600 mt-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                            <span>Branded: {Math.round(search.brand_share * 100)}%</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: '#7a9d8a' }} />
+                            <span>Non-brand: {Math.round((1 - search.brand_share) * 100)}%</span>
                           </div>
                         </div>
                       </div>
@@ -1163,25 +1173,51 @@ export function WebsiteSnapshotReportViewer({
                         <div className="font-mono text-[10.5px] tracking-wider text-gray-400 uppercase mb-3">
                           Search intent mix
                         </div>
-                        <div className="flex h-7 rounded font-mono text-[11px] text-white overflow-hidden">
+                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px] text-white">
                           {intentMix.transactional != null && intentMix.transactional > 0 && (
                             <div className="flex items-center justify-center" style={{ width: `${Math.round(intentMix.transactional * 100)}%`, background: COLORS.green }}>
-                              Transactional {Math.round(intentMix.transactional * 100)}%
+                              {Math.round(intentMix.transactional * 100)}%
                             </div>
                           )}
                           {intentMix.commercial != null && intentMix.commercial > 0 && (
                             <div className="flex items-center justify-center" style={{ width: `${Math.round(intentMix.commercial * 100)}%`, background: '#4a7c59' }}>
-                              Commercial {Math.round(intentMix.commercial * 100)}%
+                              {Math.round(intentMix.commercial * 100)}%
                             </div>
                           )}
                           {intentMix.informational != null && intentMix.informational > 0 && (
                             <div className="flex items-center justify-center" style={{ width: `${Math.round(intentMix.informational * 100)}%`, background: '#7a8c7e' }}>
-                              Informational {Math.round(intentMix.informational * 100)}%
+                              {Math.round(intentMix.informational * 100)}%
                             </div>
                           )}
                           {intentMix.navigational != null && intentMix.navigational > 0 && (
-                            <div className="flex items-center justify-center bg-gray-500" style={{ width: `${Math.round(intentMix.navigational * 100)}%` }}>
-                              Nav {Math.round(intentMix.navigational * 100)}%
+                            <div className="flex items-center justify-center" style={{ width: `${Math.round(intentMix.navigational * 100)}%`, background: '#9aa8a0' }}>
+                              {Math.round(intentMix.navigational * 100)}%
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-[11px] text-gray-600 mt-2">
+                          {intentMix.transactional != null && intentMix.transactional > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                              <span>Transactional: {Math.round(intentMix.transactional * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.commercial != null && intentMix.commercial > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#4a7c59' }} />
+                              <span>Commercial: {Math.round(intentMix.commercial * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.informational != null && intentMix.informational > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#7a8c7e' }} />
+                              <span>Informational: {Math.round(intentMix.informational * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.navigational != null && intentMix.navigational > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#9aa8a0' }} />
+                              <span>Nav: {Math.round(intentMix.navigational * 100)}%</span>
                             </div>
                           )}
                         </div>
@@ -1330,7 +1366,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Gap Box */}
                 {report.competitor_buckets?.gap && (
-                  <div className="mt-6 border-l-[3px] border-red-600 bg-[#f6e9ec] p-4 rounded text-[14px] text-gray-900 leading-relaxed">
+                  <div className="mt-6 border-l-[3px] border-red-600 bg-[#f6e9ec] p-4 text-[14px] text-gray-900 leading-relaxed">
                     <b>The gap:</b> {report.competitor_buckets.gap}
                   </div>
                 )}
@@ -1527,7 +1563,6 @@ export function WebsiteSnapshotReportViewer({
                               {tactic.phase.toUpperCase()}
                             </span>
                             <span className="font-semibold text-[15px]">{tactic.title}</span>
-                            <span className="ml-auto text-[12px] text-gray-400">the ceiling right now</span>
                           </div>
                         )}
                         {isNewPhase && <hr className="border-0 border-t border-[#e6e8e3] my-2.5" />}
@@ -1561,12 +1596,6 @@ export function WebsiteSnapshotReportViewer({
                 </p>
               </div>
             )}
-
-            {/* Footer */}
-            <div className="text-center font-mono text-[11px] text-gray-400 leading-relaxed py-3.5">
-              Snapshot by {poweredByName || "Kanahiku"}. Built from your live site and public search data
-              {reportDate && ` · ${new Date(reportDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
-            </div>
           </div>
         </div>
       </div>

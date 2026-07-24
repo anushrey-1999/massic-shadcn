@@ -113,6 +113,7 @@ async function getBrowser(): Promise<Browser> {
 }
 
 const CSS = `
+  @page { size: letter; margin: 0; }
   * {
     margin: 0;
     padding: 0;
@@ -247,6 +248,7 @@ const CSS = `
 `;
 
 const SNAPSHOT_CSS = `
+  @page { size: letter; margin: 0; }
   * {
     margin: 0;
     padding: 0;
@@ -616,7 +618,7 @@ const SNAPSHOT_CSS = `
 `;
 
 const SEO_SNAPSHOT_CSS = `
-  @page { size: 1160px 2800px; margin: 0; }
+  @page { size: letter; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -626,13 +628,13 @@ const SEO_SNAPSHOT_CSS = `
     background: #ffffff;
   }
   .pdfCanvas {
-    width: 1096px;
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
     background: #ffffff;
-    padding: 24px 24px 24px;
+    padding: 20px;
   }
   .reportHeader {
-    width: 1048px;
+    width: 100%;
     height: 72px;
     display: flex;
     align-items: flex-start;
@@ -668,21 +670,19 @@ const SEO_SNAPSHOT_CSS = `
     letter-spacing: 0.18px;
   }
   .contentStack {
-    width: 1048px;
+    width: 100%;
     display: flex;
     flex-direction: column;
     gap: 32px;
     margin-top: 24px;
   }
   .sectionCard {
-    width: 1048px;
+    width: 100%;
     background: #ffffff;
-    border-radius: 8px;
-    padding: 16px;
+    padding: 0;
     display: flex;
     flex-direction: column;
     gap: 16px;
-    box-shadow: 0 2px 2px rgba(0,0,0,0.10), 0 4px 3px rgba(0,0,0,0.10);
     break-inside: avoid;
   }
   .eyebrow {
@@ -703,9 +703,9 @@ const SEO_SNAPSHOT_CSS = `
   }
   .overviewTop { display: flex; gap: 12px; width: 100%; }
   .demandCard {
-    width: 506px;
+    min-width: 506px;
     height: 166px;
-    flex: none;
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 24px;
@@ -847,6 +847,7 @@ const SEO_SNAPSHOT_CSS = `
 `;
 
 const WEBSITE_SNAPSHOT_CSS = `
+  @page { size: letter; margin: 0; }
   :root{
     --ink:#1c1f1d;--muted:#6d726f;--faint:#9aa09c;--line:#e6e8e3;--line2:#f2f2ec;--brand:#123c28;
     --green:#123c28;--greenLine:#2f6b4a;--greenSoft:#e7efe9;--amber:#9c7a2f;--amberSoft:#f5eeda;
@@ -858,7 +859,7 @@ const WEBSITE_SNAPSHOT_CSS = `
     font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:900px;margin:0 auto;padding:20px 0}
+  .wrap{margin:0;padding:20px}
   h1,h2,h3{margin:0;line-height:1.25}
   p{margin:0}
   a{color:var(--brand)}
@@ -867,8 +868,6 @@ const WEBSITE_SNAPSHOT_CSS = `
   /* Page Card */
   .page-card{
     background:var(--paper);
-    border:1px solid var(--line);
-    border-radius:8px;
     padding:40px 0;
     margin-bottom:28px;
     break-inside:avoid;
@@ -876,34 +875,34 @@ const WEBSITE_SNAPSHOT_CSS = `
   }
   
   /* Cover */
-  .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:32px;padding:0 30px}
+  .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:32px;padding:0}
   .cover-label{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;color:var(--green)}
   .cover-date{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.14em;text-transform:uppercase;color:var(--faint);margin-top:4px}
   .cover-meta{text-align:right;font:11.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--muted)}
   .divider-thick{border:0;border-top:2px solid var(--green);margin:32px 0;width:100%}
   .divider-thin{border:0;border-top:1px solid var(--line);margin:32px 0;width:100%}
-  .page-title{font-size:34px;font-weight:700;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);padding:0 30px}
-  .business-desc{color:var(--muted);font-size:15px;margin-top:16px;line-height:1.5;padding:0 30px}
+  .page-title{font-size:34px;font-weight:700;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);padding:0}
+  .business-desc{color:var(--muted);font-size:15px;margin-top:16px;line-height:1.5;padding:0}
   
   /* Hero */
-  .eyebrow{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);margin-bottom:20px;padding:0 30px}
-  .hero-number{font-size:120px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--green);margin:20px 0;padding:0 30px}
-  .hero-label{font-size:21px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);max-width:46ch;margin-bottom:16px;padding:0 30px}
-  .hero-desc{font-size:15px;line-height:1.5;color:var(--muted);padding:0 30px}
+  .eyebrow{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--faint);margin-bottom:20px;padding:0}
+  .hero-number{font-size:120px;font-weight:700;letter-spacing:-0.02em;line-height:0.85;color:var(--green);margin:20px 0;padding:0}
+  .hero-label{font-size:21px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);max-width:46ch;margin-bottom:16px;padding:0}
+  .hero-desc{font-size:15px;line-height:1.5;color:var(--muted);padding:0}
   
   /* Callouts */
-  .callouts-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 44px;margin-top:32px;padding:0 30px}
+  .callouts-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 44px;margin-top:32px;padding:0}
   .callout-item{padding:20px 0;border-top:1px solid var(--line)}
   .callout-title{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;line-height:1.3;color:var(--ink);margin-bottom:10px}
   .callout-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
   .callout-body{font-size:14px;line-height:1.5;color:var(--muted)}
   
   /* Section Headers */
-  .section-title{font-size:23px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:12px;padding:0 30px}
-  .section-lead{font-size:14.5px;line-height:1.4;color:var(--muted);max-width:60ch;padding:0 30px}
+  .section-title{font-size:23px;font-weight:600;letter-spacing:-0.01em;line-height:1.2;color:var(--ink);margin-bottom:12px;padding:0}
+  .section-lead{font-size:14.5px;line-height:1.4;color:var(--muted);max-width:60ch;padding:0}
   
   /* Tier Cards */
-  .tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:32px;padding:0 30px}
+  .tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:32px;padding:0}
   .tier-card{border:1px solid var(--line);border-radius:4px;padding:18px;position:relative;background:var(--paper)}
   .tier-selected{border-color:var(--green);background:#fbfdfb}
   .tier-badge{position:absolute;top:14px;right:14px;font:9.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;padding:4px 8px;border-radius:2px;background:var(--green);color:var(--paper)}
@@ -912,7 +911,7 @@ const WEBSITE_SNAPSHOT_CSS = `
   .tier-desc{font-size:12.5px;line-height:1.5;color:var(--muted)}
   
   /* Goal Box */
-  .goal-box{margin:28px 30px 0;border-left:3px solid var(--green);border-radius:4px;padding:22px;background:var(--greenSoft)}
+  .goal-box{margin:28px 0 0;border-left:3px solid var(--green);padding:22px;background:var(--greenSoft)}
   .goal-label{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:var(--greenLine);margin-bottom:10px}
   .goal-body{font-size:14px;line-height:1.4;color:var(--ink);margin-bottom:12px}
   .goal-funnel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px}
@@ -921,7 +920,7 @@ const WEBSITE_SNAPSHOT_CSS = `
   .funnel-end{border-radius:4px;padding:6px 12px;background:var(--green);color:var(--paper);font-weight:600}
   
   /* Stats Grid */
-  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:28px;padding:0 30px}
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:28px;padding:0}
   .stat-item{padding:0 20px;border-left:1px solid var(--line)}
   .stat-item:first-child{padding-left:0;border-left:0}
   .stat-label{font:10.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
@@ -930,24 +929,23 @@ const WEBSITE_SNAPSHOT_CSS = `
   .stat-caption{font-size:12px;color:var(--muted);margin-top:8px}
   
   /* Chart */
-  .chart-section{margin-top:32px;padding:0 30px}
+  .chart-section{margin-top:32px;padding:0}
   .chart-caption{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.02em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:8px}
   
   /* Brand & Intent Mix */
-  .brand-intent-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding:0 30px}
+  .brand-intent-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding:0}
   .mix-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:12px}
   .brand-bar,.intent-bar{display:flex;height:40px;border-radius:4px;overflow:hidden}
   .brand-segment,.intent-segment{display:flex;align-items:center;justify-content:center;color:var(--paper);font-size:12px;font-weight:600}
   .brand-branded{background:#123c28}
   .brand-nonbranded{background:#7a9d8a}
-  .intent-trans{background:#123c28;flex-direction:column;padding:8px}
-  .intent-comm{background:#4a7c59;flex-direction:column;padding:8px}
-  .intent-info{background:#7a8c7e;flex-direction:column;padding:8px}
-  .intent-nav{background:#9aa8a0;flex-direction:column;padding:8px}
-  .intent-label{font-size:10px;margin-top:2px}
+  .intent-trans{background:#123c28}
+  .intent-comm{background:#4a7c59}
+  .intent-info{background:#7a8c7e}
+  .intent-nav{background:#9aa8a0}
   
   /* You Win vs Missing */
-  .win-missing-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding:0 30px}
+  .win-missing-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding:0}
   .win-missing-title{font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;margin-bottom:16px}
   .win-title{color:var(--green)}
   .missing-title{color:var(--red)}
@@ -1247,7 +1245,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
   const goal: any = (report as any)?.goal || {};
   const diagnosis = String((report as any)?.diagnosis || "").trim();
   const goalBody = String(goal.body ?? goal.goal_body ?? "").trim();
-  const funnelSteps = Array.isArray(goal.funnel_steps)
+  const funnelSteps: string[] = Array.isArray(goal.funnel_steps)
     ? goal.funnel_steps.map((s: any) => String(s || "").trim()).filter(Boolean).slice(0, 3)
     : [];
   const funnelEnd = String(goal.funnel_end || "").trim();
@@ -1416,8 +1414,18 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
               <div>
                 <h3 class="mix-title">Brand vs Non-brand</h3>
                 <div class="brand-bar">
-                  <div class="brand-segment brand-branded" style="flex:${brandedPercent}">${brandedPercent}% Branded</div>
-                  <div class="brand-segment brand-nonbranded" style="flex:${nonBrandedPercent}">${nonBrandedPercent}% Non-brand</div>
+                  <div class="brand-segment brand-branded" style="flex:${brandedPercent}">${brandedPercent}%</div>
+                  <div class="brand-segment brand-nonbranded" style="flex:${nonBrandedPercent}">${nonBrandedPercent}%</div>
+                </div>
+                <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--muted)">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <div style="width:8px;height:8px;border-radius:50%;background:#123c28"></div>
+                    <span>Branded: ${brandedPercent}%</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <div style="width:8px;height:8px;border-radius:50%;background:#7a9d8a"></div>
+                    <span>Non-brand: ${nonBrandedPercent}%</span>
+                  </div>
                 </div>
               </div>
               ${
@@ -1425,10 +1433,28 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
                   ? `<div>
                       <h3 class="mix-title">Search Intent Mix</h3>
                       <div class="intent-bar">
-                        ${transactional > 0 ? `<div class="intent-segment intent-trans" style="flex:${transactional}"><div>${transactional}%</div><div class="intent-label">Trans</div></div>` : ""}
-                        ${commercial > 0 ? `<div class="intent-segment intent-comm" style="flex:${commercial}"><div>${commercial}%</div><div class="intent-label">Comm</div></div>` : ""}
-                        ${informational > 0 ? `<div class="intent-segment intent-info" style="flex:${informational}"><div>${informational}%</div><div class="intent-label">Info</div></div>` : ""}
-                        ${navigational > 0 ? `<div class="intent-segment intent-nav" style="flex:${navigational}"><div>${navigational}%</div><div class="intent-label">Nav</div></div>` : ""}
+                        ${transactional > 0 ? `<div class="intent-segment intent-trans" style="flex:${transactional}">${transactional}%</div>` : ""}
+                        ${commercial > 0 ? `<div class="intent-segment intent-comm" style="flex:${commercial}">${commercial}%</div>` : ""}
+                        ${informational > 0 ? `<div class="intent-segment intent-info" style="flex:${informational}">${informational}%</div>` : ""}
+                        ${navigational > 0 ? `<div class="intent-segment intent-nav" style="flex:${navigational}">${navigational}%</div>` : ""}
+                      </div>
+                      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;font-size:11px;color:var(--muted)">
+                        ${transactional > 0 ? `<div style="display:flex;align-items:center;gap:6px">
+                          <div style="width:8px;height:8px;border-radius:50%;background:#123c28"></div>
+                          <span>Transactional: ${transactional}%</span>
+                        </div>` : ""}
+                        ${commercial > 0 ? `<div style="display:flex;align-items:center;gap:6px">
+                          <div style="width:8px;height:8px;border-radius:50%;background:#4a7c59"></div>
+                          <span>Commercial: ${commercial}%</span>
+                        </div>` : ""}
+                        ${informational > 0 ? `<div style="display:flex;align-items:center;gap:6px">
+                          <div style="width:8px;height:8px;border-radius:50%;background:#7a8c7e"></div>
+                          <span>Informational: ${informational}%</span>
+                        </div>` : ""}
+                        ${navigational > 0 ? `<div style="display:flex;align-items:center;gap:6px">
+                          <div style="width:8px;height:8px;border-radius:50%;background:#9aa8a0"></div>
+                          <span>Nav: ${navigational}%</span>
+                        </div>` : ""}
                       </div>
                     </div>`
                   : ""
@@ -1506,7 +1532,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         <div class="eyebrow">Who shows up in your market</div>
         ${
           directCompetitors.length
-            ? `<div class="keep" style="margin-top:20px;padding:0 30px">
+            ? `<div class="keep" style="margin-top:20px;padding:0">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Direct Competitors</h3>
                 ${directNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(directNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
@@ -1529,8 +1555,8 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           similarElsewhere.length
-            ? `<div class="keep" style="margin-top:20px;padding:0 30px">
-                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Similar, elsewhere</h3>
+            ? `<div class="keep" style="margin-top:20px;padding:0">
+                <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Direct Rivals</h3>
                 ${similarElsewhereNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(similarElsewhereNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
                   ${similarElsewhere.map((item: any) => {
@@ -1543,7 +1569,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           noise.length
-            ? `<div class="keep" style="margin-top:20px;padding:0 30px">
+            ? `<div class="keep" style="margin-top:20px;padding:0">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Noise</h3>
                 ${noiseNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(noiseNote)}</p>` : ""}
                 <div style="display:flex;flex-wrap:wrap;gap:8px">
@@ -1558,7 +1584,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           shouldBe.length
-            ? `<div class="keep" style="margin-top:20px;padding:0 30px">
+            ? `<div class="keep" style="margin-top:20px;padding:0">
                 <h3 style="font-size:16px;font-weight:600;margin-bottom:12px">Who Should Be There</h3>
                 ${shouldBe.map((c: any) => {
                   const name = String(c?.name || "").trim();
@@ -1576,7 +1602,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           gap
-            ? `<div class="keep" style="margin:20px 30px 0;padding:16px;background:#f6e9ec;border-left:3px solid #b0566b;border-radius:4px">
+            ? `<div class="keep" style="margin:20px 0 0;padding:16px;background:#f6e9ec;border-left:3px solid #b0566b">
                 <p style="color:#1c1f1d;font-size:14px"><b>The gap:</b> ${escapeHtml(gap)}</p>
               </div>`
             : ""
@@ -1595,7 +1621,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         <h2 class="section-title">What the site runs on, and how it's set up to be found.</h2>
         ${
           underRows.length
-            ? `<div style="padding:0 30px"><table style="border:none">
+            ? `<div style="padding:0"><table style="border:none">
               <tr><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 0">Layer</th><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 12px">Status</th><th style="background:transparent;border:none;font-size:10.5px;text-transform:uppercase;color:#9aa09c;font-weight:normal;padding:8px 12px">What we found</th></tr>
               ${underRows
                 .map((row: any) => {
@@ -1618,7 +1644,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         }
         ${
           underPills.length
-            ? `<div class="pills" style="padding:0 30px">
+            ? `<div class="pills" style="padding:0">
               ${underPills
                 .slice(0, 24)
                 .map((p: any, idx: number) => {
@@ -1644,7 +1670,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         <h2 class="section-title">Concrete, fixable items — none of them hard.</h2>
         <p class="section-lead">Separate from the plumbing. These are what's capping your momentum, in priority order.</p>
         
-        <div style="margin-top:14px;padding:0 30px">
+        <div style="margin-top:14px;padding:0">
           ${issues
             .map((it: any, idx: number) => {
               const title = String(it?.title || "").trim();
@@ -1677,7 +1703,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
         <h2 class="section-title">The full opportunity map.</h2>
         ${ladderIntro ? `<p class="section-lead">${escapeHtml(ladderIntro)}</p>` : ""}
         
-        <div style="margin-top:12px;padding:0 30px">
+        <div style="margin-top:12px;padding:0">
           ${ladder
             .map((r: any, idx: number) => {
               const rung = r?.rung ?? idx + 1;
@@ -1738,18 +1764,17 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
               // Phase header
               return `
                 ${i > 0 ? '<hr class="divider-thin" />' : ''}
-                <div style="padding:0 30px;margin-top:${i > 0 ? '32px' : '20px'}">
+                <div style="padding:0;margin-top:${i > 0 ? '32px' : '20px'}">
                   <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
                     <span style="background:var(--green);color:var(--paper);font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;padding:6px 12px;border-radius:4px;font-weight:600">${escapeHtml(phase.toUpperCase())}</span>
                     <span style="font-size:15px;font-weight:600;color:var(--ink)">${escapeHtml(title)}</span>
-                    <span style="margin-left:auto;font-size:12px;color:var(--faint)">the ceiling right now</span>
                   </div>
                 </div>
               `;
             } else if (!isNewPhase && title) {
               // Numbered step
               return `
-                <div style="padding:0 30px;border-top:1px solid var(--line);padding-top:14px;padding-bottom:14px;display:grid;grid-template-columns:26px 1fr;gap:12px">
+                <div style="padding:0;border-top:1px solid var(--line);padding-top:14px;padding-bottom:14px;display:grid;grid-template-columns:26px 1fr;gap:12px">
                   <div style="font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:600;color:var(--green)">${stepInPhase}</div>
                   <div>
                     <div style="font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px">${escapeHtml(title)}</div>
@@ -1767,7 +1792,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const takeawayHtml = takeaway
     ? `
-      <div style="background:var(--green);color:#eaf1ec;border-radius:8px;padding:44px 30px;margin-top:28px">
+      <div style="background:var(--green);color:#eaf1ec;border-radius:8px;padding:44px 24px;margin-top:28px">
         <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:#8fb8a1;margin-bottom:20px">The honest takeaway</div>
         <p style="font-size:15.5px;line-height:1.5;margin:0">
           ${(() => {
@@ -1784,7 +1809,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
 
   const poweredByName = String((report as any)?.powered_by_name || "").trim() || "Kanahiku";
   const footerDate = formatMonthYearFromIso(meta.report_date) || "July 2026";
-  const foot = `<div style="text-align:center;font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:var(--faint);padding:14px 0">Snapshot by ${escapeHtml(poweredByName)}. Built from your live site and public search data · ${escapeHtml(footerDate)}</div>`;
+  const foot = ``;
 
   // Page 1: Cover + Hero + Quick Overview
   const page1Html = `

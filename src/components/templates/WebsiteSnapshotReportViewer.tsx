@@ -62,17 +62,6 @@ export function WebsiteSnapshotReportViewer({
 }: WebsiteSnapshotReportViewerProps) {
   const [isDownloadDialogOpen, setIsDownloadDialogOpen] = React.useState(false);
   
-  // Debug: Verify component is loading
-  React.useEffect(() => {
-    console.log('🎯 WebsiteSnapshotReportViewer loaded!');
-    console.log('Report meta:', report.meta);
-    console.log('Render flags:', report.render);
-    console.log('Goal data:', report.goal);
-    console.log('Search data:', report.search);
-    console.log('Intent mix:', report.intent_mix);
-    console.log('Brand share:', report.search?.brand_share);
-  }, [report]);
-  
   const meta = report.meta || {};
   const businessName = meta.business_name || "Business";
   const website = stripUrlProtocol(meta.url || "");
@@ -363,7 +352,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Goal Box */}
                 {goal.body && (
-                  <div className="mt-7 border-l-[3px] p-5.5 rounded" style={{ 
+                  <div className="mt-7 border-l-[3px] p-5.5" style={{ 
                     borderColor: COLORS.green, 
                     background: COLORS.greenSoft 
                   }}>
@@ -528,7 +517,7 @@ export function WebsiteSnapshotReportViewer({
                               width: `${Math.round(search.brand_share * 100)}%` 
                             }}
                           >
-                            Branded {Math.round(search.brand_share * 100)}%
+                            {Math.round(search.brand_share * 100)}%
                           </div>
                           <div 
                             className="flex items-center justify-center"
@@ -537,7 +526,17 @@ export function WebsiteSnapshotReportViewer({
                               width: `${Math.round((1 - search.brand_share) * 100)}%` 
                             }}
                           >
-                            Non-brand {Math.round((1 - search.brand_share) * 100)}%
+                            {Math.round((1 - search.brand_share) * 100)}%
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-[11px] mt-2" style={{ color: COLORS.muted }}>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                            <span>Branded: {Math.round(search.brand_share * 100)}%</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: '#7a9d8a' }} />
+                            <span>Non-brand: {Math.round((1 - search.brand_share) * 100)}%</span>
                           </div>
                         </div>
                       </div>
@@ -548,13 +547,13 @@ export function WebsiteSnapshotReportViewer({
                         <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
                           Search intent mix
                         </div>
-                        <div className="flex h-7 rounded font-mono text-[11px] overflow-hidden" style={{ color: COLORS.paper }}>
+                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
                           {intentMix.transactional != null && intentMix.transactional > 0 && (
                             <div className="flex items-center justify-center" style={{ 
                               background: COLORS.green, 
                               width: `${Math.round(intentMix.transactional * 100)}%` 
                             }}>
-                              Transactional {Math.round(intentMix.transactional * 100)}%
+                              {Math.round(intentMix.transactional * 100)}%
                             </div>
                           )}
                           {intentMix.commercial != null && intentMix.commercial > 0 && (
@@ -562,7 +561,7 @@ export function WebsiteSnapshotReportViewer({
                               background: '#4a7c59', 
                               width: `${Math.round(intentMix.commercial * 100)}%` 
                             }}>
-                              Commercial {Math.round(intentMix.commercial * 100)}%
+                              {Math.round(intentMix.commercial * 100)}%
                             </div>
                           )}
                           {intentMix.informational != null && intentMix.informational > 0 && (
@@ -570,7 +569,7 @@ export function WebsiteSnapshotReportViewer({
                               background: '#7a8c7e', 
                               width: `${Math.round(intentMix.informational * 100)}%` 
                             }}>
-                              Informational {Math.round(intentMix.informational * 100)}%
+                              {Math.round(intentMix.informational * 100)}%
                             </div>
                           )}
                           {intentMix.navigational != null && intentMix.navigational > 0 && (
@@ -578,7 +577,33 @@ export function WebsiteSnapshotReportViewer({
                               background: '#9aa8a0', 
                               width: `${Math.round(intentMix.navigational * 100)}%` 
                             }}>
-                              Nav {Math.round(intentMix.navigational * 100)}%
+                              {Math.round(intentMix.navigational * 100)}%
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-[11px] mt-2" style={{ color: COLORS.muted }}>
+                          {intentMix.transactional != null && intentMix.transactional > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                              <span>Transactional: {Math.round(intentMix.transactional * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.commercial != null && intentMix.commercial > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#4a7c59' }} />
+                              <span>Commercial: {Math.round(intentMix.commercial * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.informational != null && intentMix.informational > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#7a8c7e' }} />
+                              <span>Informational: {Math.round(intentMix.informational * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.navigational != null && intentMix.navigational > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#9aa8a0' }} />
+                              <span>Nav: {Math.round(intentMix.navigational * 100)}%</span>
                             </div>
                           )}
                         </div>
@@ -672,7 +697,7 @@ export function WebsiteSnapshotReportViewer({
                 {Array.isArray(showsUp.direct_competitors) && showsUp.direct_competitors.length > 0 && (
                   <div className="mt-7">
                     <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
-                      Similar, elsewhere
+                      Direct Rivals
                     </div>
                     {showsUp.direct_note && (
                       <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
@@ -779,7 +804,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Gap Box */}
                 {competitorBuckets.gap && (
-                  <div className="mt-6 border-l-[3px] p-4 rounded text-[14px] leading-relaxed" style={{
+                  <div className="mt-6 border-l-[3px] p-4 text-[14px] leading-relaxed" style={{
                     borderColor: COLORS.red,
                     background: COLORS.redSoft,
                     color: COLORS.ink
@@ -980,7 +1005,6 @@ export function WebsiteSnapshotReportViewer({
                               {tactic.phase.toUpperCase()}
                             </span>
                             <span className="font-semibold text-[15px]">{tactic.title}</span>
-                            <span className="ml-auto text-[12px] text-gray-400">the ceiling right now</span>
                           </div>
                         )}
                         {isNewPhase && <hr className="border-0 border-t border-[#e6e8e3] my-2.5" />}
@@ -1018,10 +1042,6 @@ export function WebsiteSnapshotReportViewer({
               </div>
             )}
 
-            {/* Footer */}
-            <div className="text-center font-mono text-[11px] text-gray-400 leading-relaxed py-3.5">
-              Snapshot by {poweredByName || "Kanahiku"}. Built from your live site and public search data · {formatReportDate(reportDate) || "July 2026"}
-            </div>
           </div>
         </div>
       </div>

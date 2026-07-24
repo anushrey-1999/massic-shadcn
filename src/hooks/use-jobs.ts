@@ -66,7 +66,6 @@ export interface BusinessProfilePayload {
   b2b_b2c?: string | null;
   Competitors?: Array<{ website?: string; Website?: string; url?: string }> | string[] | null;
   competitors?: Array<{ website?: string; Website?: string; url?: string }> | string[] | null;
-  LegalName?: string | null;
   FoundingDate?: string | null;
   LogoUrl?: string | null;
   Locations?: Array<Record<string, unknown>> | null;
@@ -75,9 +74,6 @@ export interface BusinessProfilePayload {
   KeyPeople?: Array<Record<string, unknown>> | null;
   LicensesCompliance?: string[] | null;
   AwardsCertifications?: string[] | null;
-  ReviewRating?: string | number | null;
-  ReviewCount?: string | number | null;
-  Testimonials?: string[] | null;
   ColorsFontsCss?: string | null;
   ImagePhotoLibrary?: Array<string | Record<string, unknown>> | null;
   SocialProfiles?: Array<string | Record<string, unknown>> | null;
@@ -352,10 +348,6 @@ function normalizeLocationsForJob(
           ""
       ).trim();
       const hours = parseStructuredJson(location.hours) ?? location.hours;
-      const specialHours =
-        parseStructuredJson(location.special_hours ?? location.holidayHours) ??
-        location.special_hours ??
-        location.holidayHours;
 
       return compactObject({
         display: display || undefined,
@@ -370,7 +362,6 @@ function normalizeLocationsForJob(
         email: String(location.email ?? "").trim() || undefined,
         map_url: String(location.map_url ?? location.mapUrl ?? location.mapLink ?? "").trim() || undefined,
         hours: hours && typeof hours === "object" ? hours : undefined,
-        special_hours: specialHours && typeof specialHours === "object" ? specialHours : undefined,
       });
     })
     .filter((location): location is Record<string, unknown> =>
@@ -537,20 +528,6 @@ function mapBusinessProfilePayloadToJobBody(
     businessProfilePayload.DetailedLocations,
     businessProfilePayload.StructuredLocations
   );
-  const aggregateRating = compactObject({
-    rating_value:
-      businessProfilePayload.ReviewRating !== undefined &&
-      businessProfilePayload.ReviewRating !== null &&
-      String(businessProfilePayload.ReviewRating).trim() !== ""
-        ? String(businessProfilePayload.ReviewRating).trim()
-        : undefined,
-    review_count:
-      businessProfilePayload.ReviewCount !== undefined &&
-      businessProfilePayload.ReviewCount !== null &&
-      String(businessProfilePayload.ReviewCount).trim() !== ""
-        ? String(businessProfilePayload.ReviewCount).trim()
-        : undefined,
-  });
   const brandAssets = normalizeBrandAssets(businessProfilePayload);
 
   const body: Record<string, unknown> = compactObject({
@@ -601,18 +578,14 @@ function mapBusinessProfilePayloadToJobBody(
     segment: segment !== undefined && segment !== null ? String(segment) : undefined,
     b2b_b2c: b2bB2c || undefined,
     competitors: normalizeCompetitors(competitors),
-    legal_business_name: businessProfilePayload.LegalName || undefined,
     year_founded: businessProfilePayload.FoundingDate || undefined,
     logo_url: businessProfilePayload.LogoUrl || undefined,
     support_email: businessProfilePayload.SupportEmail || undefined,
     social_profiles: normalizeProfileLinks(businessProfilePayload.SocialProfiles),
     directory_profiles: normalizeProfileLinks(businessProfilePayload.DirectoryProfiles),
     licenses: normalizeNonEmptyStringArray(businessProfilePayload.LicensesCompliance),
-    testimonials: normalizeNonEmptyStringArray(businessProfilePayload.Testimonials),
     awards: normalizeNonEmptyStringArray(businessProfilePayload.AwardsCertifications),
     key_people: normalizeKeyPeople(businessProfilePayload.KeyPeople),
-    aggregate_rating:
-      Object.keys(aggregateRating).length > 0 ? aggregateRating : undefined,
     brand_assets: brandAssets,
   });
 

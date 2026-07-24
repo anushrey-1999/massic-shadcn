@@ -105,6 +105,7 @@ type InputConfig<TFormData extends Record<string, unknown> = Record<string, unkn
   error?: Array<{ message?: string } | undefined> | React.ReactNode;
   description?: React.ReactNode;
   fieldOrientation?: VariantProps<typeof Field>["orientation"];
+  fieldClassName?: string;
   isInvalid?: boolean;
   required?: boolean;
   // Input variant
@@ -175,6 +176,7 @@ export type FieldConfig = {
   rows?: number;
   orientation?: "horizontal" | "vertical";
   fieldOrientation?: VariantProps<typeof Field>["orientation"];
+  fieldClassName?: string;
   addon?: InputConfig<Record<string, unknown>>["addon"];
   // Additional props that can be passed through
   className?: string;
@@ -202,6 +204,7 @@ function GenericInput<
   error,
   description,
   fieldOrientation,
+  fieldClassName,
   isInvalid,
   id,
   formField,
@@ -937,6 +940,7 @@ function GenericInput<
       <Field
         data-invalid={isInvalid}
         orientation={shouldUseHorizontalField ? "horizontal" : fieldOrientation}
+        className={fieldClassName}
       >
         {renderLabel()}
         {inputElement}
@@ -999,6 +1003,7 @@ export function FormFieldInput<
       rows={config.rows}
       orientation={config.orientation}
       fieldOrientation={config.fieldOrientation}
+      fieldClassName={config.fieldClassName}
       addon={config.addon}
       required={config.required}
       inputVariant={config.inputVariant}

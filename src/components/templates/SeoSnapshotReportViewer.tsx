@@ -991,7 +991,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Goal Box */}
                 {goal.body && (
-                  <div className="mt-7 border-l-[3px] p-5.5 rounded" style={{ borderColor: COLORS.green, background: COLORS.greenSoft }}>
+                  <div className="mt-7 border-l-[3px] p-5.5" style={{ borderColor: COLORS.green, background: COLORS.greenSoft }}>
                     <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.greenLine }}>
                       Your goal, read from your own site
                     </div>
@@ -1143,7 +1143,7 @@ export function WebsiteSnapshotReportViewer({
                               width: `${Math.round(search.brand_share * 100)}%` 
                             }}
                           >
-                            Branded {Math.round(search.brand_share * 100)}%
+                            {Math.round(search.brand_share * 100)}%
                           </div>
                           <div 
                             className="flex items-center justify-center"
@@ -1152,7 +1152,17 @@ export function WebsiteSnapshotReportViewer({
                               width: `${Math.round((1 - search.brand_share) * 100)}%` 
                             }}
                           >
-                            Non-brand {Math.round((1 - search.brand_share) * 100)}%
+                            {Math.round((1 - search.brand_share) * 100)}%
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-[11px] text-gray-600 mt-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                            <span>Branded: {Math.round(search.brand_share * 100)}%</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: '#7a9d8a' }} />
+                            <span>Non-brand: {Math.round((1 - search.brand_share) * 100)}%</span>
                           </div>
                         </div>
                       </div>
@@ -1163,25 +1173,51 @@ export function WebsiteSnapshotReportViewer({
                         <div className="font-mono text-[10.5px] tracking-wider text-gray-400 uppercase mb-3">
                           Search intent mix
                         </div>
-                        <div className="flex h-7 rounded font-mono text-[11px] text-white overflow-hidden">
+                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px] text-white">
                           {intentMix.transactional != null && intentMix.transactional > 0 && (
                             <div className="flex items-center justify-center" style={{ width: `${Math.round(intentMix.transactional * 100)}%`, background: COLORS.green }}>
-                              Transactional {Math.round(intentMix.transactional * 100)}%
+                              {Math.round(intentMix.transactional * 100)}%
                             </div>
                           )}
                           {intentMix.commercial != null && intentMix.commercial > 0 && (
                             <div className="flex items-center justify-center" style={{ width: `${Math.round(intentMix.commercial * 100)}%`, background: '#4a7c59' }}>
-                              Commercial {Math.round(intentMix.commercial * 100)}%
+                              {Math.round(intentMix.commercial * 100)}%
                             </div>
                           )}
                           {intentMix.informational != null && intentMix.informational > 0 && (
                             <div className="flex items-center justify-center" style={{ width: `${Math.round(intentMix.informational * 100)}%`, background: '#7a8c7e' }}>
-                              Informational {Math.round(intentMix.informational * 100)}%
+                              {Math.round(intentMix.informational * 100)}%
                             </div>
                           )}
                           {intentMix.navigational != null && intentMix.navigational > 0 && (
-                            <div className="flex items-center justify-center bg-gray-500" style={{ width: `${Math.round(intentMix.navigational * 100)}%` }}>
-                              Nav {Math.round(intentMix.navigational * 100)}%
+                            <div className="flex items-center justify-center" style={{ width: `${Math.round(intentMix.navigational * 100)}%`, background: '#9aa8a0' }}>
+                              {Math.round(intentMix.navigational * 100)}%
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-[11px] text-gray-600 mt-2">
+                          {intentMix.transactional != null && intentMix.transactional > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                              <span>Transactional: {Math.round(intentMix.transactional * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.commercial != null && intentMix.commercial > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#4a7c59' }} />
+                              <span>Commercial: {Math.round(intentMix.commercial * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.informational != null && intentMix.informational > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#7a8c7e' }} />
+                              <span>Informational: {Math.round(intentMix.informational * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.navigational != null && intentMix.navigational > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#9aa8a0' }} />
+                              <span>Nav: {Math.round(intentMix.navigational * 100)}%</span>
                             </div>
                           )}
                         </div>
@@ -1330,7 +1366,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Gap Box */}
                 {report.competitor_buckets?.gap && (
-                  <div className="mt-6 border-l-[3px] border-red-600 bg-[#f6e9ec] p-4 rounded text-[14px] text-gray-900 leading-relaxed">
+                  <div className="mt-6 border-l-[3px] border-red-600 bg-[#f6e9ec] p-4 text-[14px] text-gray-900 leading-relaxed">
                     <b>The gap:</b> {report.competitor_buckets.gap}
                   </div>
                 )}
@@ -1527,7 +1563,6 @@ export function WebsiteSnapshotReportViewer({
                               {tactic.phase.toUpperCase()}
                             </span>
                             <span className="font-semibold text-[15px]">{tactic.title}</span>
-                            <span className="ml-auto text-[12px] text-gray-400">the ceiling right now</span>
                           </div>
                         )}
                         {isNewPhase && <hr className="border-0 border-t border-[#e6e8e3] my-2.5" />}
@@ -1561,12 +1596,6 @@ export function WebsiteSnapshotReportViewer({
                 </p>
               </div>
             )}
-
-            {/* Footer */}
-            <div className="text-center font-mono text-[11px] text-gray-400 leading-relaxed py-3.5">
-              Snapshot by {poweredByName || "Kanahiku"}. Built from your live site and public search data
-              {reportDate && ` · ${new Date(reportDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
-            </div>
           </div>
         </div>
       </div>
@@ -1685,32 +1714,32 @@ export function SeoSnapshotReportViewer({
   );
 
   return (
-    <div className="h-full overflow-hidden rounded-lg bg-neutral-50 p-6">
+    <div className="h-full overflow-hidden rounded-lg bg-neutral-50 p-3 sm:p-6">
       <div className="flex h-full flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Button variant="ghost" className="gap-2" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
             {hasTalkingPoints ? (
               <Button
                 variant="outline"
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-none"
                 onClick={() => setIsTalkingPointsOpen(true)}
               >
                 <MessagesSquare className="h-4 w-4" />
-                Talking points
+                <span className="hidden sm:inline">Talking points</span>
               </Button>
             ) : null}
-            <Button variant="outline" className="gap-2" onClick={handleCopy}>
+            <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handleCopy}>
               <Copy className="h-4 w-4" />
-              Copy
+              <span className="hidden sm:inline">Copy</span>
             </Button>
-            <Button className="gap-2" onClick={() => setIsDownloadDialogOpen(true)}>
+            <Button className="gap-2 flex-1 sm:flex-none" onClick={() => setIsDownloadDialogOpen(true)}>
               <Download className="h-4 w-4" />
-              Download
+              <span className="hidden sm:inline">Download</span>
             </Button>
           </div>
         </div>
@@ -1740,12 +1769,12 @@ export function SeoSnapshotReportViewer({
 
             <div className="mt-6 flex flex-col gap-8">
               <SnapshotSectionCard eyebrow="OVERVIEW">
-                <div className="flex w-full items-start gap-3">
-                  <div className="flex h-[166px] w-[506px] shrink-0 items-center gap-6 rounded-lg border border-general-border bg-[#fafafa] px-3 py-4">
+                <div className="flex w-full flex-col lg:flex-row items-start gap-3">
+                  <div className="flex w-full lg:h-[166px] lg:w-[506px] shrink-0 items-center gap-4 sm:gap-6 rounded-lg border border-general-border bg-[#fafafa] px-3 py-4">
                     <div
                       className={cn(
-                        "flex h-full shrink-0 flex-col items-start gap-3",
-                        demandLossDigits > 3 ? "w-[205px]" : "w-[181px]"
+                        "flex h-full shrink-0 flex-col items-start gap-3 w-full sm:w-auto",
+                        demandLossDigits > 3 ? "sm:w-[205px]" : "sm:w-[181px]"
                       )}
                     >
                       <div className="flex w-full items-end gap-2 whitespace-nowrap">
@@ -1788,7 +1817,7 @@ export function SeoSnapshotReportViewer({
                     </div>
                   </div>
 
-                  <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
+                  <div className="grid min-w-0 flex-1 grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                     {stats.map((stat) => (
                       <SnapshotMetricTile
                         key={stat.label}
@@ -1807,7 +1836,7 @@ export function SeoSnapshotReportViewer({
                   visible={visibilityCounts.visible}
                 />
 
-                <div className="grid w-full grid-cols-2 gap-3">
+                <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="min-h-[137px] rounded-lg border border-general-border p-3">
                     <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
                       <Binoculars className="size-4" />
@@ -1859,7 +1888,7 @@ export function SeoSnapshotReportViewer({
                 title="Here is what potential customers are searching."
                 description={report.demandIntro}
               >
-                <div className="grid w-full grid-cols-2 gap-x-8">
+                <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-x-8">
                   {report.customerDemand.map((row) => (
                     <div
                       key={row.keyword}

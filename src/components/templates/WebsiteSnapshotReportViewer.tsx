@@ -206,12 +206,12 @@ export function WebsiteSnapshotReportViewer({
       )}
     >
       <div className="flex h-full flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           {!isPublic ? (
             onBack ? (
               <Button variant="ghost" className="gap-2" onClick={onBack}>
                 <ArrowLeft className="h-4 w-4" />
-                Back
+                <span className="hidden sm:inline">Back</span>
               </Button>
             ) : (
               <div />
@@ -220,13 +220,13 @@ export function WebsiteSnapshotReportViewer({
             <div />
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {!isPublic ? (
               <>
                 {onShare ? (
                   <Button
                     variant="outline"
-                    className="gap-2"
+                    className="gap-2 flex-1 sm:flex-none"
                     onClick={onShare}
                     disabled={isSharing}
                   >
@@ -235,50 +235,50 @@ export function WebsiteSnapshotReportViewer({
                     ) : (
                       <Share2 className="h-4 w-4" />
                     )}
-                    {isSharing ? "Sharing..." : "Share"}
+                    <span className="hidden sm:inline">{isSharing ? "Sharing..." : "Share"}</span>
                   </Button>
                 ) : null}
-                <Button variant="outline" className="gap-2" onClick={handleCopy}>
+                <Button variant="outline" className="gap-2 hidden sm:flex" onClick={handleCopy}>
                   <Copy className="h-4 w-4" />
-                  Copy
+                  <span className="hidden sm:inline">Copy</span>
                 </Button>
               </>
             ) : null}
-            <Button className="gap-2" onClick={() => setIsDownloadDialogOpen(true)}>
+            <Button className="gap-2 flex-1 sm:flex-none" onClick={() => setIsDownloadDialogOpen(true)}>
               <Download className="h-4 w-4" />
-              Download
+              <span className="hidden sm:inline">Download</span>
             </Button>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto space-y-7">
+          <div className="mx-auto space-y-4 sm:space-y-7">
             {/* PAGE 1: Cover + Hero + Quick Overview */}
-            <div className="rounded-lg border p-14 shadow-sm" style={{ 
+            <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
               borderColor: COLORS.hair, 
               background: COLORS.paper 
             }}>
               {/* Cover Top */}
-              <div className="flex items-start justify-between gap-5 mb-8">
+              <div className="flex flex-col sm:flex-row items-start justify-between gap-4 sm:gap-5 mb-6 sm:mb-8">
                 <div>
-                  <div className="font-mono text-[11px] tracking-[0.14em] uppercase" style={{ color: COLORS.faint }}>
+                  <div className="font-mono text-[10px] sm:text-[11px] tracking-[0.14em] uppercase" style={{ color: COLORS.faint }}>
                     Website Snapshot · {formatReportDate(reportDate) || "2026"}
                   </div>
                 </div>
-                <div className="text-right font-mono text-[11.5px] leading-relaxed" style={{ color: COLORS.muted }}>
-                  {website && <div>{website}</div>}
+                <div className="text-left sm:text-right font-mono text-[11px] sm:text-[11.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                  {website && <div className="break-all">{website}</div>}
                   {location && <div>{location}</div>}
                   {phone && <div>{phone}</div>}
                 </div>
               </div>
 
-              <hr className="border-0 border-t-2 my-8" style={{ borderColor: COLORS.green }} />
+              <hr className="border-0 border-t-2 my-6 sm:my-8" style={{ borderColor: COLORS.green }} />
 
-              <h1 className="text-[34px] font-bold tracking-tight leading-tight" style={{ color: COLORS.ink }}>
+              <h1 className="text-[24px] sm:text-[28px] lg:text-[34px] font-bold tracking-tight leading-tight" style={{ color: COLORS.ink }}>
                 {businessName}
               </h1>
               {businessDescription && (
-                <p className="text-[15px] mt-4 leading-relaxed" style={{ color: COLORS.muted }}>
+                <p className="text-[14px] sm:text-[15px] mt-3 sm:mt-4 leading-relaxed" style={{ color: COLORS.muted }}>
                   {businessDescription}
                 </p>
               )}
@@ -286,26 +286,26 @@ export function WebsiteSnapshotReportViewer({
               {/* Hero Section - The "Search Thing Big" */}
               {render.hero !== false && hero.display && (
                 <>
-                  <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
+                  <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
                   {/* Eyebrow label - diagnostic headline (e.g., "Beloved but invisible") */}
                   {diagnosis && (
-                    <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: COLORS.faint }}>
+                    <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
                       {diagnosis}
                     </div>
                   )}
                   {/* Hero number - make it REALLY BIG as in mockup */}
-                  <div className="text-[120px] font-bold tracking-tight leading-[0.85] my-5" style={{ color: COLORS.green }}>
+                  <div className="text-[60px] sm:text-[80px] lg:text-[120px] font-bold tracking-tight leading-[0.85] my-4 sm:my-5" style={{ color: COLORS.green }}>
                     {hero.display}
                   </div>
                   {/* Hero label - what the number means */}
                   {hero.label && (
-                    <p className="text-[21px] font-semibold tracking-tight max-w-[46ch] mb-4 leading-tight" style={{ color: COLORS.ink }}>
+                    <p className="text-[16px] sm:text-[18px] lg:text-[21px] font-semibold tracking-tight max-w-[46ch] mb-3 sm:mb-4 leading-tight" style={{ color: COLORS.ink }}>
                       {hero.label}
                     </p>
                   )}
                   {/* Hero description - the deeper explanation */}
                   {hero.description && (
-                    <p className="text-[15px] leading-relaxed" style={{ color: COLORS.muted }}>
+                    <p className="text-[14px] sm:text-[15px] leading-relaxed" style={{ color: COLORS.muted }}>
                       {hero.description}
                     </p>
                   )}
@@ -314,7 +314,7 @@ export function WebsiteSnapshotReportViewer({
 
               {/* Quick Overview Callouts */}
               {callouts.length > 0 && (
-                <div className="mt-8 grid grid-cols-2 gap-x-11 gap-y-4">
+                <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-11 sm:gap-y-4">
                   {callouts.map((callout, index) => {
                     const dotColor = 
                       callout.tone === "green" ? COLORS.green :
@@ -322,12 +322,12 @@ export function WebsiteSnapshotReportViewer({
                       callout.tone === "red" ? COLORS.red : COLORS.faint;
                     
                     return (
-                      <div key={index} className="py-5 border-t" style={{ borderColor: COLORS.hair }}>
-                        <div className="flex items-center gap-2.5 text-[15px] font-semibold mb-2.5 leading-normal" style={{ color: COLORS.ink }}>
+                      <div key={index} className="py-4 sm:py-5 border-t" style={{ borderColor: COLORS.hair }}>
+                        <div className="flex items-center gap-2.5 text-[14px] sm:text-[15px] font-semibold mb-2 sm:mb-2.5 leading-normal" style={{ color: COLORS.ink }}>
                           <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: dotColor }} />
                           {callout.title}
                         </div>
-                        <div className="text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
+                        <div className="text-[13px] sm:text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
                           {callout.body}
                         </div>
                       </div>
@@ -339,26 +339,26 @@ export function WebsiteSnapshotReportViewer({
 
             {/* PAGE 2: What SEO Can Do */}
             {(tier.name || goal.body) && (
-              <div className="rounded-lg border p-14 shadow-sm" style={{ 
+              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
                 borderColor: COLORS.hair, 
                 background: COLORS.paper 
               }}>
-                <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: COLORS.faint }}>
+                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
                   What SEO can do for you
                 </div>
-                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3" style={{ color: COLORS.ink }}>
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
                   {tier.name || (tier as any).label || "Your SEO opportunity tier"}
                 </h2>
                 {tier.reasoning && (
-                  <p className="text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
+                  <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
                     {tier.reasoning}
                   </p>
                 )}
 
-                <hr className="border-0 border-t my-8" style={{ borderColor: COLORS.hair }} />
+                <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
 
                 {/* Tier Cards */}
-                <div className="grid grid-cols-3 gap-3.5 mt-8">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 mt-6 sm:mt-8">
                   {[1, 2, 3].map((level) => {
                     // API provides tier.level
                     const isSelected = tier.level === level;
@@ -397,7 +397,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Goal Box */}
                 {goal.body && (
-                  <div className="mt-7 border-l-[3px] p-5.5 rounded" style={{ 
+                  <div className="mt-7 border-l-[3px] p-5.5" style={{ 
                     borderColor: COLORS.green, 
                     background: COLORS.greenSoft 
                   }}>
@@ -406,10 +406,10 @@ export function WebsiteSnapshotReportViewer({
                     </div>
                     <p className="text-[14px] mb-3 leading-normal" style={{ color: COLORS.ink }}>{goal.body}</p>
                     {Array.isArray(goal.funnel_steps) && goal.funnel_steps.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+                      <div className="flex sm:flex-row flex-col sm:flex-wrap items-center sm:items-center gap-2 text-[12.5px]">
                         {goal.funnel_steps.map((step, i) => (
                           <React.Fragment key={i}>
-                            <div className="border rounded px-3 py-1.5" style={{ 
+                            <div className="border rounded px-3 py-1.5 w-full sm:w-auto text-center sm:text-left" style={{ 
                               background: COLORS.paper, 
                               borderColor: COLORS.hair,
                               color: COLORS.ink
@@ -417,14 +417,14 @@ export function WebsiteSnapshotReportViewer({
                               {step}
                             </div>
                             {i < goal.funnel_steps!.length - 1 && (
-                              <span style={{ color: COLORS.faint }}>›</span>
+                              <span className="rotate-90 sm:rotate-0" style={{ color: COLORS.faint }}>›</span>
                             )}
                           </React.Fragment>
                         ))}
                         {goal.funnel_end && (
                           <>
-                            <span style={{ color: COLORS.faint }}>›</span>
-                            <div className="font-semibold rounded px-3 py-1.5" style={{ 
+                            <span className="rotate-90 sm:rotate-0" style={{ color: COLORS.faint }}>›</span>
+                            <div className="font-semibold rounded px-3 py-1.5 w-full sm:w-auto text-center sm:text-left" style={{ 
                               background: COLORS.green, 
                               color: COLORS.paper 
                             }}>
@@ -441,47 +441,47 @@ export function WebsiteSnapshotReportViewer({
 
             {/* PAGE 3: Where You Stand */}
             {(render.stats_row !== false || search.traffic_read) && (
-              <div className="rounded-lg border p-14 shadow-sm" style={{ 
+              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
                 borderColor: COLORS.hair, 
                 background: COLORS.paper 
               }}>
-                <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: COLORS.faint }}>
+                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
                   Where you stand in search today
                 </div>
-                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3" style={{ color: COLORS.ink }}>
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
                   Real organic search data, from the U.S. Google index.
                 </h2>
-                <p className="text-[14.5px] max-w-[60ch] leading-normal" style={{ color: COLORS.muted }}>
+                <p className="text-[13.5px] sm:text-[14.5px] max-w-[60ch] leading-normal" style={{ color: COLORS.muted }}>
                   Organic positions only · six months of available history · {formatReportDate(reportDate) || "2026"}.
                 </p>
 
                 {/* Stats Row */}
                 {render.stats_row !== false && (
-                  <div className="grid grid-cols-4 gap-0 mt-7">
-                    <div className="px-5 border-l first:pl-0 first:border-l-0" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Keywords</div>
-                      <div className="text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.keywords_count || 0}</div>
-                      <div className="text-[12px] mt-2" style={{ color: COLORS.muted }}>terms ranked</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-0 mt-6 sm:mt-7">
+                    <div className="px-0 sm:px-5 border-l-0 sm:border-l sm:first:pl-0 sm:first:border-l-0 pb-4 sm:pb-0 border-b sm:border-b-0" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Keywords</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.keywords_count || 0}</div>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>terms ranked</div>
                     </div>
-                    <div className="px-5 border-l" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Traffic</div>
-                      <div className="text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.green }}>
+                    <div className="px-0 sm:px-5 sm:border-l pb-4 sm:pb-0 border-b sm:border-b-0" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Traffic</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.green }}>
                         ~{typeof search.etv === 'number' ? Math.round(search.etv).toLocaleString() : search.etv || 0}
                       </div>
-                      <div className="text-[12px] mt-2" style={{ color: COLORS.muted }}>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>
                         visits a month
                         {search.trend?.pct_change ? `, ${search.trend.direction === "growing" ? "up" : search.trend.direction === "declining" ? "down" : ""} ${Math.abs(search.trend.pct_change).toFixed(1)}%` : ""}
                       </div>
                     </div>
-                    <div className="px-5 border-l" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Top 10</div>
-                      <div className="text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.top10 || 0}</div>
-                      <div className="text-[12px] mt-2" style={{ color: COLORS.muted }}>in Google's top 10</div>
+                    <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Top 10</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.top10 || 0}</div>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>in Google's top 10</div>
                     </div>
-                    <div className="px-5 border-l" style={{ borderColor: COLORS.hair }}>
-                      <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Authority</div>
-                      <div className="text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.referring_domains || 0}</div>
-                      <div className="text-[12px] mt-2" style={{ color: COLORS.muted }}>sites linking to you</div>
+                    <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
+                      <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Authority</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.referring_domains || 0}</div>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>sites linking to you</div>
                     </div>
                   </div>
                 )}
@@ -548,7 +548,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Brand vs Non-brand & Intent Mix */}
                 {(search.brand_share != null || Object.keys(intentMix).length > 0) && (
-                  <div className="grid grid-cols-2 gap-10 mt-7">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-10 mt-6 sm:mt-7">
                     {search.brand_share != null && (
                       <div>
                         <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
@@ -562,7 +562,7 @@ export function WebsiteSnapshotReportViewer({
                               width: `${Math.round(search.brand_share * 100)}%` 
                             }}
                           >
-                            Branded {Math.round(search.brand_share * 100)}%
+                            {Math.round(search.brand_share * 100)}%
                           </div>
                           <div 
                             className="flex items-center justify-center"
@@ -571,7 +571,17 @@ export function WebsiteSnapshotReportViewer({
                               width: `${Math.round((1 - search.brand_share) * 100)}%` 
                             }}
                           >
-                            Non-brand {Math.round((1 - search.brand_share) * 100)}%
+                            {Math.round((1 - search.brand_share) * 100)}%
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-[11px] mt-2" style={{ color: COLORS.muted }}>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                            <span>Branded: {Math.round(search.brand_share * 100)}%</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: '#7a9d8a' }} />
+                            <span>Non-brand: {Math.round((1 - search.brand_share) * 100)}%</span>
                           </div>
                         </div>
                       </div>
@@ -582,13 +592,13 @@ export function WebsiteSnapshotReportViewer({
                         <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
                           Search intent mix
                         </div>
-                        <div className="flex h-7 rounded font-mono text-[11px] overflow-hidden" style={{ color: COLORS.paper }}>
+                        <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
                           {intentMix.transactional != null && intentMix.transactional > 0 && (
                             <div className="flex items-center justify-center" style={{ 
                               background: COLORS.green, 
                               width: `${Math.round(intentMix.transactional * 100)}%` 
                             }}>
-                              Transactional {Math.round(intentMix.transactional * 100)}%
+                              {Math.round(intentMix.transactional * 100)}%
                             </div>
                           )}
                           {intentMix.commercial != null && intentMix.commercial > 0 && (
@@ -596,7 +606,7 @@ export function WebsiteSnapshotReportViewer({
                               background: '#4a7c59', 
                               width: `${Math.round(intentMix.commercial * 100)}%` 
                             }}>
-                              Commercial {Math.round(intentMix.commercial * 100)}%
+                              {Math.round(intentMix.commercial * 100)}%
                             </div>
                           )}
                           {intentMix.informational != null && intentMix.informational > 0 && (
@@ -604,7 +614,7 @@ export function WebsiteSnapshotReportViewer({
                               background: '#7a8c7e', 
                               width: `${Math.round(intentMix.informational * 100)}%` 
                             }}>
-                              Informational {Math.round(intentMix.informational * 100)}%
+                              {Math.round(intentMix.informational * 100)}%
                             </div>
                           )}
                           {intentMix.navigational != null && intentMix.navigational > 0 && (
@@ -612,7 +622,33 @@ export function WebsiteSnapshotReportViewer({
                               background: '#9aa8a0', 
                               width: `${Math.round(intentMix.navigational * 100)}%` 
                             }}>
-                              Nav {Math.round(intentMix.navigational * 100)}%
+                              {Math.round(intentMix.navigational * 100)}%
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-[11px] mt-2" style={{ color: COLORS.muted }}>
+                          {intentMix.transactional != null && intentMix.transactional > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
+                              <span>Transactional: {Math.round(intentMix.transactional * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.commercial != null && intentMix.commercial > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#4a7c59' }} />
+                              <span>Commercial: {Math.round(intentMix.commercial * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.informational != null && intentMix.informational > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#7a8c7e' }} />
+                              <span>Informational: {Math.round(intentMix.informational * 100)}%</span>
+                            </div>
+                          )}
+                          {intentMix.navigational != null && intentMix.navigational > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: '#9aa8a0' }} />
+                              <span>Nav: {Math.round(intentMix.navigational * 100)}%</span>
                             </div>
                           )}
                         </div>
@@ -630,7 +666,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* You Win vs Missing Columns */}
                 {(search.you_win?.length || search.buyers_elsewhere?.length) && (
-                  <div className="grid grid-cols-2 gap-10">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-10">
                     <div>
                       <div className="font-mono text-[11px] tracking-wider uppercase mb-4" style={{ color: COLORS.green }}>
                         ▲ You win
@@ -687,14 +723,14 @@ export function WebsiteSnapshotReportViewer({
 
             {/* PAGE 4: Who Shows Up */}
             {(Object.keys(showsUp).length > 0 || shouldBe.length > 0) && (
-              <div className="rounded-lg border p-14 shadow-sm" style={{
+              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{
                 borderColor: COLORS.hair,
                 background: COLORS.paper
               }}>
-                <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: COLORS.faint }}>
+                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
                   Who shows up in your market
                 </div>
-                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3" style={{ color: COLORS.ink }}>
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
                   {showsUp.direct_note || "Your competitive landscape."}
                 </h2>
                 <p className="text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
@@ -706,7 +742,7 @@ export function WebsiteSnapshotReportViewer({
                 {Array.isArray(showsUp.direct_competitors) && showsUp.direct_competitors.length > 0 && (
                   <div className="mt-7">
                     <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
-                      Similar, elsewhere
+                      Direct Rivals
                     </div>
                     {showsUp.direct_note && (
                       <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
@@ -813,7 +849,7 @@ export function WebsiteSnapshotReportViewer({
 
                 {/* Gap Box */}
                 {competitorBuckets.gap && (
-                  <div className="mt-6 border-l-[3px] p-4 rounded text-[14px] leading-relaxed" style={{
+                  <div className="mt-6 border-l-[3px] p-4 text-[14px] leading-relaxed" style={{
                     borderColor: COLORS.red,
                     background: COLORS.redSoft,
                     color: COLORS.ink
@@ -826,21 +862,21 @@ export function WebsiteSnapshotReportViewer({
 
             {/* PAGE 5: Under the Hood */}
             {render.health_table !== false && (underTheHood.rows?.length || underTheHood.pills?.length) && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-14 shadow-sm">
-                <div className="font-mono text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-5">
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
+                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
                   Under the hood
                 </div>
-                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3">
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
                   What the site runs on, and how it's set up to be found.
                 </h2>
-                <p className="text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
                   The technical inventory — the plumbing, not the content. Green is fine, amber needs a look, red is a problem.
                 </p>
 
                 {/* Table */}
                 {Array.isArray(underTheHood.rows) && underTheHood.rows.length > 0 && (
-                  <div className="mt-6">
-                    <table className="w-full text-[13.5px]">
+                  <div className="mt-6 overflow-x-auto -mx-6 sm:-mx-10 lg:-mx-14 px-6 sm:px-10 lg:px-14">
+                    <table className="w-full text-[12.5px] sm:text-[13.5px] min-w-[600px]">
                       <thead>
                         <tr>
                           <th className="px-0 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
@@ -902,20 +938,20 @@ export function WebsiteSnapshotReportViewer({
 
             {/* PAGE 6: What's Holding Back */}
             {issues.length > 0 && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-14 shadow-sm">
-                <div className="font-mono text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-5">
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
+                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
                   What's holding the site back
                 </div>
-                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3">
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
                   Concrete, fixable items — none of them hard.
                 </h2>
-                <p className="text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
                   Separate from the plumbing. These are what's capping your momentum, in priority order.
                 </p>
 
                 <div className="mt-3.5 space-y-0">
                   {issues.map((issue, i) => (
-                    <div key={i} className="py-4.5 border-t border-[#e6e8e3] grid grid-cols-[64px_1fr] gap-4">
+                    <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[56px_1fr] sm:grid-cols-[64px_1fr] gap-3 sm:gap-4">
                       <div className={cn(
                         "font-mono text-[10px] tracking-wider text-center py-1 rounded h-fit",
                         issue.severity === "high" ? "bg-[#f6e9ec] text-red-600" :
@@ -936,11 +972,11 @@ export function WebsiteSnapshotReportViewer({
 
             {/* PAGE 7: Content Map */}
             {render.coverage_map !== false && ladder.length > 0 && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-14 shadow-sm">
-                <div className="font-mono text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-5">
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
+                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
                   Where your content should grow
                 </div>
-                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3">
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
                   The full opportunity map.
                 </h2>
                 {report.ladder_intro && (
@@ -951,13 +987,15 @@ export function WebsiteSnapshotReportViewer({
 
                 <div className="mt-3 space-y-0">
                   {ladder.map((rung, i) => (
-                    <div key={i} className="py-4.5 border-t border-[#e6e8e3]">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="font-mono text-[12px] text-gray-400">{String(rung.rung || i + 1).padStart(2, '0')}</span>
-                        <span className="font-semibold text-[14.5px]">{rung.headline || rung.title}</span>
-                        <span className="ml-auto">
+                    <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3]">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <span className="font-mono text-[12px] text-gray-400">{String(rung.rung || i + 1).padStart(2, '0')}</span>
+                          <span className="font-semibold text-[14px] sm:text-[14.5px]">{rung.headline || rung.title}</span>
+                        </div>
+                        <span className="sm:ml-auto">
                           <span className={cn(
-                            "inline-block font-mono text-[10.5px] tracking-wider px-2.5 py-1 rounded",
+                            "inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2.5 py-1 rounded",
                             rung.status === "in_place" ? "bg-[#e7efe9]" :
                             rung.status === "partly" || rung.status === "needs_work" ? "bg-[#f5eeda]" :
                             "bg-[#f6e9ec]"
@@ -974,7 +1012,7 @@ export function WebsiteSnapshotReportViewer({
                           </span>
                         </span>
                       </div>
-                      <div className="text-[13.5px] text-gray-600 leading-relaxed pl-6">{rung.body}</div>
+                      <div className="text-[13px] sm:text-[13.5px] text-gray-600 leading-relaxed pl-0 sm:pl-6 mt-2">{rung.body}</div>
                     </div>
                   ))}
                 </div>
@@ -983,14 +1021,14 @@ export function WebsiteSnapshotReportViewer({
 
             {/* PAGE 8: Tactics */}
             {render.tactics !== false && tactics.length > 0 && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-14 shadow-sm">
-                <div className="font-mono text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-5">
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
+                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
                   The plan, in order
                 </div>
-                <h2 className="text-[23px] font-semibold tracking-tight leading-tight mb-3">
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
                   Where we would start, and why.
                 </h2>
-                <p className="text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
                   A focused route through the map, sequenced for your stage. Everything you rank for sits on one page today — so we build pages first, then optimize.
                 </p>
 
@@ -1009,22 +1047,28 @@ export function WebsiteSnapshotReportViewer({
                     return (
                       <React.Fragment key={i}>
                         {isNewPhase && tactic.phase && (
-                          <div className="flex items-center gap-3.5 mt-8 mb-1.5">
-                            <span className="font-mono text-[11px] tracking-wider text-white px-3 py-1.5 rounded" style={{ background: COLORS.green }}>
-                              {tactic.phase.toUpperCase()}
-                            </span>
-                            <span className="font-semibold text-[15px]">{tactic.title}</span>
-                            <span className="ml-auto text-[12px] text-gray-400">the ceiling right now</span>
-                          </div>
-                        )}
-                        {isNewPhase && <hr className="border-0 border-t border-[#e6e8e3] my-2.5" />}
-                        {!isNewPhase && (
-                          <div className="grid grid-cols-[26px_1fr] gap-3 py-3.5 border-b border-[#e6e8e3]">
-                            <div className="font-mono text-[13px] font-medium" style={{ color: COLORS.green }}>{stepInPhase}</div>
-                            <div>
-                              <div className="font-semibold text-[14px] mb-1">{tactic.title}</div>
-                              <div className="text-[13px] text-gray-600 leading-relaxed">{tactic.body}</div>
+                          <>
+                            <div className="flex flex-col items-start gap-2 mt-6 sm:mt-8">
+                              <span className="font-mono text-[10px] sm:text-[11px] tracking-wider text-white px-3 py-1.5 rounded w-fit" style={{ background: COLORS.green }}>
+                                {tactic.phase.toUpperCase()}
+                              </span>
+                              <span className="font-semibold text-[15px] sm:text-[16px]">{tactic.title}</span>
                             </div>
+                            <hr className="border-0 border-t border-[#e6e8e3] my-3 sm:my-2.5" />
+                          </>
+                        )}
+                        {!isNewPhase && (
+                          <div className="py-3 sm:py-3.5 border-b border-[#e6e8e3]">
+                            <div className="flex items-baseline gap-2 mb-2">
+                              <span 
+                                className="font-mono text-[12px] sm:text-[13px] font-medium" 
+                                style={{ color: COLORS.green }}
+                              >
+                                {stepInPhase}.
+                              </span>
+                              <span className="font-semibold text-[13.5px] sm:text-[14px]">{tactic.title}</span>
+                            </div>
+                            <div className="text-[12.5px] sm:text-[13px] text-gray-600 leading-relaxed pl-0 sm:pl-6">{tactic.body}</div>
                           </div>
                         )}
                       </React.Fragment>
@@ -1036,14 +1080,14 @@ export function WebsiteSnapshotReportViewer({
 
             {/* PAGE 9: Takeaway */}
             {report.takeaway && (
-              <div className="rounded-lg p-11 border-0" style={{ 
+              <div className="rounded-lg p-6 sm:p-8 lg:p-11 border-0" style={{ 
                 background: COLORS.green,
                 color: '#eaf1ec'
               }}>
-                <div className="font-mono text-[11px] font-medium tracking-[0.16em] uppercase mb-5" style={{ color: '#8fb8a1' }}>
+                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: '#8fb8a1' }}>
                   The honest takeaway
                 </div>
-                <p className="text-[15.5px] leading-relaxed">
+                <p className="text-[14px] sm:text-[15.5px] leading-relaxed">
                   {report.takeaway.split('.')[0] && (
                     <span style={{ color: COLORS.paper, fontWeight: 600 }}>{report.takeaway.split('.')[0]}.</span>
                   )}
@@ -1052,10 +1096,6 @@ export function WebsiteSnapshotReportViewer({
               </div>
             )}
 
-            {/* Footer */}
-            <div className="text-center font-mono text-[11px] text-gray-400 leading-relaxed py-3.5">
-              Snapshot by {poweredByName || "Kanahiku"}. Built from your live site and public search data · {formatReportDate(reportDate) || "July 2026"}
-            </div>
           </div>
         </div>
       </div>

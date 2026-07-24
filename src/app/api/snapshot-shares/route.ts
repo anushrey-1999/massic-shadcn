@@ -64,12 +64,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return jsonResponse({ error: "Sharing is unavailable." }, 503);
   }
 
-  if (
-    !isAllowedSnapshotRequestOrigin(
-      request.headers.get("origin"),
-      request.url,
-    )
-  ) {
+  if (!isAllowedSnapshotRequestOrigin(request.headers.get("origin"))) {
     return jsonResponse({ error: "Request not allowed." }, 403);
   }
 

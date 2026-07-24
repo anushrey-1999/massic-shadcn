@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
-  getSnapshotShareConfig,
-  isAllowedSnapshotRequestOrigin,
-} from "@/lib/server/snapshot-share-config";
-import {
   getLatestPublicSnapshot,
   SnapshotNotAvailableError,
 } from "@/lib/server/snapshot-report-gateway";
@@ -63,23 +59,6 @@ async function readRequestBody(request: NextRequest): Promise<unknown> {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    getSnapshotShareConfig();
-    if (
-      !isAllowedSnapshotRequestOrigin(
-        request.headers.get("origin"),
-        request.url,
-      )
-    ) {
-      return jsonResponse({ error: "This snapshot is not available." }, 403);
-    }
-  } catch {
-    return jsonResponse(
-      { error: "The snapshot service is temporarily unavailable." },
-      503,
-    );
-  }
-
   try {
     const requestBody = requestSchema.parse(await readRequestBody(request));
     const payload = readSnapshotShareToken(requestBody.token);

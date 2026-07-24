@@ -1714,32 +1714,32 @@ export function SeoSnapshotReportViewer({
   );
 
   return (
-    <div className="h-full overflow-hidden rounded-lg bg-neutral-50 p-6">
+    <div className="h-full overflow-hidden rounded-lg bg-neutral-50 p-3 sm:p-6">
       <div className="flex h-full flex-col gap-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Button variant="ghost" className="gap-2" onClick={onBack}>
             <ArrowLeft className="h-4 w-4" />
-            Back
+            <span className="hidden sm:inline">Back</span>
           </Button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
             {hasTalkingPoints ? (
               <Button
                 variant="outline"
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-none"
                 onClick={() => setIsTalkingPointsOpen(true)}
               >
                 <MessagesSquare className="h-4 w-4" />
-                Talking points
+                <span className="hidden sm:inline">Talking points</span>
               </Button>
             ) : null}
-            <Button variant="outline" className="gap-2" onClick={handleCopy}>
+            <Button variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={handleCopy}>
               <Copy className="h-4 w-4" />
-              Copy
+              <span className="hidden sm:inline">Copy</span>
             </Button>
-            <Button className="gap-2" onClick={() => setIsDownloadDialogOpen(true)}>
+            <Button className="gap-2 flex-1 sm:flex-none" onClick={() => setIsDownloadDialogOpen(true)}>
               <Download className="h-4 w-4" />
-              Download
+              <span className="hidden sm:inline">Download</span>
             </Button>
           </div>
         </div>
@@ -1769,12 +1769,12 @@ export function SeoSnapshotReportViewer({
 
             <div className="mt-6 flex flex-col gap-8">
               <SnapshotSectionCard eyebrow="OVERVIEW">
-                <div className="flex w-full items-start gap-3">
-                  <div className="flex h-[166px] w-[506px] shrink-0 items-center gap-6 rounded-lg border border-general-border bg-[#fafafa] px-3 py-4">
+                <div className="flex w-full flex-col lg:flex-row items-start gap-3">
+                  <div className="flex w-full lg:h-[166px] lg:w-[506px] shrink-0 items-center gap-4 sm:gap-6 rounded-lg border border-general-border bg-[#fafafa] px-3 py-4">
                     <div
                       className={cn(
-                        "flex h-full shrink-0 flex-col items-start gap-3",
-                        demandLossDigits > 3 ? "w-[205px]" : "w-[181px]"
+                        "flex h-full shrink-0 flex-col items-start gap-3 w-full sm:w-auto",
+                        demandLossDigits > 3 ? "sm:w-[205px]" : "sm:w-[181px]"
                       )}
                     >
                       <div className="flex w-full items-end gap-2 whitespace-nowrap">
@@ -1817,7 +1817,7 @@ export function SeoSnapshotReportViewer({
                     </div>
                   </div>
 
-                  <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
+                  <div className="grid min-w-0 flex-1 grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                     {stats.map((stat) => (
                       <SnapshotMetricTile
                         key={stat.label}
@@ -1836,7 +1836,7 @@ export function SeoSnapshotReportViewer({
                   visible={visibilityCounts.visible}
                 />
 
-                <div className="grid w-full grid-cols-2 gap-3">
+                <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="min-h-[137px] rounded-lg border border-general-border p-3">
                     <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
                       <Binoculars className="size-4" />
@@ -1888,7 +1888,7 @@ export function SeoSnapshotReportViewer({
                 title="Here is what potential customers are searching."
                 description={report.demandIntro}
               >
-                <div className="grid w-full grid-cols-2 gap-x-8">
+                <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-x-8">
                   {report.customerDemand.map((row) => (
                     <div
                       key={row.keyword}

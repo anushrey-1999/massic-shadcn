@@ -22,6 +22,7 @@ import {
 import { PRODUCT_CONFIG } from "@/config/access-request";
 import { ProductIcon } from "./ProductIcon";
 import type { AccessRequestStep } from "@/types/access-request";
+import { getSearchConsoleUsersUrl } from "@/utils/google-search-console";
 
 interface GscManualStepProps {
   token: string;
@@ -148,10 +149,7 @@ export function GscManualStep({ token, step, agencyEmail, agencyName, onStepComp
 
   async function handleOpenGscSettings(siteUrl: string) {
     await copyEmailToClipboard();
-    window.open(
-      `https://search.google.com/search-console/users?resource_id=${encodeURIComponent(siteUrl)}`,
-      "_blank"
-    );
+    window.open(getSearchConsoleUsersUrl(siteUrl), "_blank");
   }
 
   useEffect(() => {

@@ -86,7 +86,7 @@ const defaultPlansData: PlanData[] = [
     features: [
       { text: "Topics, audience profiles, web and social strategy" },
       {
-        text: "Up to 30 web content pieces/month (blogs, service pages, landing pages)",
+        text: "Up to 20 web content pieces/month (blogs, service pages, landing pages)",
       },
       {
         text: "Up to 30 platform-ready social posts/month aligned to strategy",

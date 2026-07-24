@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils"
 import { getReviewPlatformIconUrl, type ReviewPlatformId } from "@/utils/review-platforms"
 
 export type CustomerStatus =
+  | "unsubscribed"
+  | "link-clicked"
   | "waiting-approval"
   | "pending"
   | "in-progress"
@@ -38,6 +40,16 @@ export interface ReviewCustomerRow {
   campaignName: string
   campaignPlatform: CampaignPlatform
   status: CustomerStatus
+  lifecycleStatus?: CustomerStatus
+  hasClicked?: boolean
+  emailConsentGiven?: boolean | null
+  emailConsentTimestamp?: string | null
+  emailConsentMethod?: string | null
+  smsConsentGiven?: boolean | null
+  smsConsentTimestamp?: string | null
+  smsConsentMethod?: string | null
+  isSuppressed?: boolean
+  suppressedAt?: string | null
   isNew?: boolean
 }
 
@@ -94,16 +106,22 @@ function formatDate(date: Date | null) {
 }
 
 const statusStyles: Record<CustomerStatus, string> = {
-  completed: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  unsubscribed: "bg-[#C0392B]/10 text-[#C0392B] border-[#C0392B]/30",
+  "link-clicked": "bg-[#27AE60]/10 text-[#27AE60] border-[#27AE60]/30",
+  completed: "bg-[#2E5C8A]/10 text-[#2E5C8A] border-[#2E5C8A]/30",
   failed: "bg-red-100 text-red-800 border-red-200",
   pending: "bg-gray-100 text-gray-700 border-gray-200",
-  "in-progress": "bg-sky-100 text-sky-800 border-sky-200",
-  "waiting-approval": "bg-amber-100 text-amber-800 border-amber-200",
+  "in-progress": "bg-[#D4A017]/10 text-[#D4A017] border-[#D4A017]/30",
+  "waiting-approval": "bg-[#7F8C8D]/10 text-[#7F8C8D] border-[#7F8C8D]/30",
   draft: "bg-muted text-muted-foreground border-muted",
 }
 
 function getStatusLabel(status: CustomerStatus) {
   switch (status) {
+    case "unsubscribed":
+      return "Unsubscribed"
+    case "link-clicked":
+      return "Link Clicked"
     case "waiting-approval":
       return "Waiting Approval"
     case "in-progress":

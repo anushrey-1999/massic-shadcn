@@ -24,8 +24,11 @@ interface ProductStepProps {
 function getAssetLabel(asset: Record<string, unknown>): string {
   return (
     (asset.displayName as string) ||
+    (asset.title as string) ||
     (asset.name as string) ||
     (asset.siteUrl as string) ||
+    (asset.location as string) ||
+    (asset.locationId as string) ||
     (asset.id as string) ||
     "Unknown"
   );
@@ -36,6 +39,8 @@ function getAssetId(asset: Record<string, unknown>): string {
     (asset.id as string) ||
     (asset.path as string) ||
     (asset.siteUrl as string) ||
+    (asset.location as string) ||
+    (asset.locationId as string) ||
     (asset.accountId as string) ||
     JSON.stringify(asset)
   );
@@ -59,7 +64,9 @@ function getEffectiveGbpRole(asset: Record<string, unknown>): string | null {
       ? asset.permissionLevel
       : null;
   // Map permissionLevel → role vocabulary so we can render one consistent label.
-  if (permissionLevel === "OWNER_LEVEL") return "PRIMARY_OWNER";
+  // PermissionLevel only has two values (OWNER_LEVEL / MEMBER_LEVEL) and can't
+  // distinguish Primary Owner from a regular Owner, so don't overclaim "Primary".
+  if (permissionLevel === "OWNER_LEVEL") return "OWNER";
   if (permissionLevel === "MEMBER_LEVEL") return "MANAGER";
   return null;
 }
@@ -94,6 +101,34 @@ function getAssetDisabledReason(
   return "Unable to verify your role on this account. Only Primary Owners / Owners can grant access.";
 }
 
+function getGbpAccountLabel(asset: Record<string, unknown>): string {
+  return (
+    (asset.accountName as string) ||
+    (asset.accountDisplayName as string) ||
+    (asset.account as string) ||
+    "Google Business Profile account"
+  );
+}
+
+function groupGbpAssetsByAccount(assets: Record<string, unknown>[]) {
+  const groups = new Map<string, { label: string; assets: Record<string, unknown>[] }>();
+
+  for (const asset of assets) {
+    const key = String(asset.account || asset.accountId || "unknown");
+    const label = getGbpAccountLabel(asset);
+    const current = groups.get(key);
+    if (current) {
+      current.assets.push(asset);
+    } else {
+      groups.set(key, { label, assets: [asset] });
+    }
+  }
+
+  return Array.from(groups.entries())
+    .map(([key, group]) => ({ key, ...group }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+}
+
 export function ProductStep({ token, step, onStepCompleted }: ProductStepProps) {
   const config = PRODUCT_CONFIG[step.product];
   const { data: discoverData, isLoading: discovering, isError: discoverError, error: discoverErrorObj, refetch: rediscover } = useDiscoverAssets(
@@ -112,13 +147,25 @@ export function ProductStep({ token, step, onStepCompleted }: ProductStepProps) 
   const assets = React.useMemo(() => {
     const raw = discoverData?.assets;
     if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
-    // Backend returns assets as { sites: [...] } or { accounts: [...] } — flatten all nested arrays
-    return Object.values(raw).reduce<Record<string, unknown>[]>((acc, val) => {
-      if (Array.isArray(val)) return acc.concat(val);
-      return acc;
-    }, []);
-  }, [discoverData?.assets]);
+    const flat = Array.isArray(raw)
+      ? raw
+      // Backend returns assets as { sites: [...] } or { accounts: [...] } — flatten all nested arrays
+      : Object.values(raw).reduce<Record<string, unknown>[]>((acc, val) => {
+          if (Array.isArray(val)) return acc.concat(val);
+          return acc;
+        }, []);
+
+    // Enabled (grantable) assets first, disabled ones below - within each of
+    // those two groups, alphabetical by display name. For GBP, this ordering
+    // is preserved within each account group by groupGbpAssetsByAccount,
+    // which only partitions this already-sorted array by account key.
+    return [...flat].sort((a, b) => {
+      const aDisabled = Boolean(getAssetDisabledReason(step.product, a));
+      const bDisabled = Boolean(getAssetDisabledReason(step.product, b));
+      if (aDisabled !== bDisabled) return aDisabled ? 1 : -1;
+      return getAssetLabel(a).localeCompare(getAssetLabel(b), undefined, { sensitivity: "base" });
+    });
+  }, [discoverData?.assets, step.product]);
 
   useEffect(() => {
     if (step.status === "completed") {
@@ -384,63 +431,104 @@ export function ProductStep({ token, step, onStepCompleted }: ProductStepProps) 
           </div>
 
           <div className="space-y-2 max-h-[320px] overflow-y-auto">
-            {assets.map((asset) => {
-              const assetId = getAssetId(asset);
-              const isSelected = selectedAssetIds.has(assetId);
-              const disabledReason = getAssetDisabledReason(step.product, asset);
-              const disabled = !!disabledReason;
-              const role = step.product === "gbp" ? getEffectiveGbpRole(asset) : null;
-              return (
-                <div
-                  key={assetId}
-                  className={`rounded-lg border p-3 transition-colors ${
-                    disabled
-                      ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
-                      : isSelected
-                      ? "border-general-primary bg-general-primary/5 cursor-pointer"
-                      : "border-gray-200 hover:border-gray-300 cursor-pointer"
-                  }`}
-                  onClick={() => toggleAsset(assetId, disabled)}
-                  aria-disabled={disabled}
-                  title={disabledReason || undefined}
-                >
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      checked={isSelected}
-                      disabled={disabled}
-                      onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={() => toggleAsset(assetId, disabled)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {getAssetLabel(asset)}
-                        </p>
-                        {step.product === "gbp" && role && (
-                          <span
-                            className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border ${
-                              GBP_GRANTABLE_ROLES.has(role)
-                                ? "border-green-200 bg-green-50 text-green-700"
-                                : "border-gray-200 bg-gray-100 text-gray-600"
+            {step.product === "gbp"
+              ? groupGbpAssetsByAccount(assets).map((group) => (
+                <div key={group.key} className="rounded-lg border border-gray-200 bg-white">
+                  <div className="border-b border-gray-100 bg-gray-50 px-3 py-2">
+                    <p className="truncate text-xs font-semibold text-gray-700">{group.label}</p>
+                    <p className="text-[11px] text-gray-400">
+                      {group.assets.length} location{group.assets.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="space-y-2 p-2">
+                    {group.assets.map((asset) => {
+                      const assetId = getAssetId(asset);
+                      const isSelected = selectedAssetIds.has(assetId);
+                      const disabledReason = getAssetDisabledReason(step.product, asset);
+                      const disabled = !!disabledReason;
+                      const role = getEffectiveGbpRole(asset);
+                      return (
+                        <div
+                          key={assetId}
+                          className={`rounded-md border p-3 transition-colors ${disabled
+                              ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
+                              : isSelected
+                                ? "border-general-primary bg-general-primary/5 cursor-pointer"
+                                : "border-gray-200 hover:border-gray-300 cursor-pointer"
                             }`}
-                          >
-                            {formatGbpRole(role)}
-                          </span>
-                        )}
-                      </div>
-                      {typeof asset.id === "string" && asset.id !== getAssetLabel(asset) && (
-                        <p className="text-xs text-gray-400 font-mono truncate">
-                          {asset.id}
-                        </p>
-                      )}
-                      {disabledReason && (
-                        <p className="text-xs text-gray-500 mt-1">{disabledReason}</p>
-                      )}
-                    </div>
+                          onClick={() => toggleAsset(assetId, disabled)}
+                          aria-disabled={disabled}
+                          title={disabledReason || undefined}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Checkbox
+                              checked={isSelected}
+                              disabled={disabled}
+                              onClick={(e) => e.stopPropagation()}
+                              onCheckedChange={() => toggleAsset(assetId, disabled)}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="truncate text-sm font-medium text-gray-900">{getAssetLabel(asset)}</p>
+                                {role && (
+                                  <span
+                                    className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${GBP_GRANTABLE_ROLES.has(role)
+                                        ? "border-green-200 bg-green-50 text-green-700"
+                                        : "border-gray-200 bg-gray-100 text-gray-600"
+                                      }`}
+                                  >
+                                    {formatGbpRole(role)}
+                                  </span>
+                                )}
+                              </div>
+                              {typeof asset.location === "string" && (
+                                <p className="truncate font-mono text-xs text-gray-400">{asset.location}</p>
+                              )}
+                              {disabledReason && <p className="mt-1 text-xs text-gray-500">{disabledReason}</p>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            })}
+              ))
+              : assets.map((asset) => {
+                const assetId = getAssetId(asset);
+                const isSelected = selectedAssetIds.has(assetId);
+                const disabledReason = getAssetDisabledReason(step.product, asset);
+                const disabled = !!disabledReason;
+                return (
+                  <div
+                    key={assetId}
+                    className={`rounded-lg border p-3 transition-colors ${disabled
+                        ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
+                        : isSelected
+                          ? "border-general-primary bg-general-primary/5 cursor-pointer"
+                          : "border-gray-200 hover:border-gray-300 cursor-pointer"
+                      }`}
+                    onClick={() => toggleAsset(assetId, disabled)}
+                    aria-disabled={disabled}
+                    title={disabledReason || undefined}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={isSelected}
+                        disabled={disabled}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => toggleAsset(assetId, disabled)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{getAssetLabel(asset)}</p>
+                        {typeof asset.id === "string" && asset.id !== getAssetLabel(asset) && (
+                          <p className="text-xs text-gray-400 font-mono truncate">{asset.id}</p>
+                        )}
+                        {disabledReason && <p className="text-xs text-gray-500 mt-1">{disabledReason}</p>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
 
           <Button

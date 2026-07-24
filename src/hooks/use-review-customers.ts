@@ -1,7 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createElement } from "react";
+import { MessageSquareOff } from "lucide-react";
 import { api } from "@/hooks/use-api";
+import { toastPermissionDenied } from "@/lib/toast-permission-denied";
 import { toast } from "sonner";
 
 export type ReviewCustomerStatus =
@@ -27,6 +30,15 @@ export type ReviewCustomerListItem = {
   status: ReviewCustomerStatus;
   locationId?: string | null;
   createdAt: string;
+  hasClicked?: boolean;
+  emailConsentGiven?: boolean | null;
+  emailConsentTimestamp?: string | null;
+  emailConsentMethod?: string | null;
+  smsConsentGiven?: boolean | null;
+  smsConsentTimestamp?: string | null;
+  smsConsentMethod?: string | null;
+  isSuppressed?: boolean;
+  suppressedAt?: string | null;
   campaign: ReviewCustomerCampaign;
 };
 
@@ -53,13 +65,19 @@ export type ReviewCustomerUpsertRow = {
 export type ReviewCustomerUpsertPayload = {
   businessId: string;
   locationId: string;
+  consentAttested?: boolean;
   customers: ReviewCustomerUpsertRow[];
 };
 
 export type ReviewCustomerFieldErrors = Partial<Record<"name" | "phone" | "email" | "campaignId", string>>;
 
+type ReviewCustomerMutationCode =
+  | "CUSTOMER_DUPLICATE"
+  | "CUSTOMER_PREVIOUSLY_MESSAGED"
+  | "CUSTOMER_CONTACT_OPTED_OUT";
+
 export type ReviewCustomerMutationError = Error & {
-  code?: "CUSTOMER_DUPLICATE" | "CUSTOMER_PREVIOUSLY_MESSAGED";
+  code?: ReviewCustomerMutationCode;
   fieldErrors?: ReviewCustomerFieldErrors;
 };
 
@@ -67,9 +85,17 @@ type ReviewCustomerUpsertResponse = {
   err: boolean;
   data?: { created: number; updated: number; total: number };
   message?: string;
-  code?: "CUSTOMER_DUPLICATE" | "CUSTOMER_PREVIOUSLY_MESSAGED";
+  code?: ReviewCustomerMutationCode;
   fieldErrors?: ReviewCustomerFieldErrors;
 };
+
+function isReviewCustomerMutationCode(code: unknown): code is ReviewCustomerMutationCode {
+  return (
+    code === "CUSTOMER_DUPLICATE" ||
+    code === "CUSTOMER_PREVIOUSLY_MESSAGED" ||
+    code === "CUSTOMER_CONTACT_OPTED_OUT"
+  );
+}
 
 type ReviewCustomerDeleteResponse = {
   err: boolean;
@@ -112,6 +138,15 @@ export type ReviewCustomerTimeline = {
   email?: string | null;
   status: ReviewCustomerStatus;
   locationId?: string | null;
+  hasClicked?: boolean;
+  emailConsentGiven?: boolean | null;
+  emailConsentTimestamp?: string | null;
+  emailConsentMethod?: string | null;
+  smsConsentGiven?: boolean | null;
+  smsConsentTimestamp?: string | null;
+  smsConsentMethod?: string | null;
+  isSuppressed?: boolean;
+  suppressedAt?: string | null;
   campaign: { id: string; name: string } | null;
   campaignVersionId?: string | null;
   waitingReason?: string | null;
@@ -145,6 +180,8 @@ export type ReviewCustomerTimeline = {
     campaignActivityVersionId?: string | null;
     skipReason?: string | null;
     errorMessage?: string | null;
+    userUniqueId?: string | null;
+    channel?: "EMAIL" | "SMS" | null;
     activity?: {
       type: "EMAIL" | "SMS";
       orderIndex: number;
@@ -259,7 +296,7 @@ export function useSaveReviewCustomers() {
         const mutationError = new Error(
           data?.message || error?.message || "Failed to save customers"
         ) as ReviewCustomerMutationError;
-        if (data?.code === "CUSTOMER_DUPLICATE" || data?.code === "CUSTOMER_PREVIOUSLY_MESSAGED") {
+        if (isReviewCustomerMutationCode(data?.code)) {
           mutationError.code = data.code;
           mutationError.fieldErrors = data.fieldErrors || {};
         }
@@ -268,7 +305,7 @@ export function useSaveReviewCustomers() {
 
       if (response.err) {
         const mutationError = new Error(response.message || "Failed to save customers") as ReviewCustomerMutationError;
-        if (response.code === "CUSTOMER_DUPLICATE" || response.code === "CUSTOMER_PREVIOUSLY_MESSAGED") {
+        if (isReviewCustomerMutationCode(response.code)) {
           mutationError.code = response.code;
           mutationError.fieldErrors = response.fieldErrors || {};
         }
@@ -280,8 +317,18 @@ export function useSaveReviewCustomers() {
     onSuccess: () => {
       toast.success("Customers saved");
       queryClient.invalidateQueries({ queryKey: ["review-customers"] });
-    },
-    onError: (error) => {
+      },
+      onError: (error) => {
+      if (error.code === "CUSTOMER_CONTACT_OPTED_OUT") {
+        toastPermissionDenied(
+          "This customer opted out and can't be saved.",
+          createElement(MessageSquareOff, {
+            className: "size-4",
+            style: { color: "#DC2626" },
+          })
+        );
+        return;
+      }
       if (error.code === "CUSTOMER_DUPLICATE" || error.code === "CUSTOMER_PREVIOUSLY_MESSAGED") return;
       toast.error(error.message || "Failed to save customers");
     },

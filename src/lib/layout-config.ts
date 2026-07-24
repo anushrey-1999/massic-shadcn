@@ -15,5 +15,7 @@ export const routesWithoutSidebar: string[] = [
  */
 export const routePrefixesWithoutSidebar: string[] = [
   '/google-access',
-  '/r/'
+  '/email/verify',
+  '/r/',
+  '/admin'
 ]

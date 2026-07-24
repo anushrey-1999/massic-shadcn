@@ -4,9 +4,7 @@ import * as React from "react"
 import { AlertCircle, ArrowRight, Star } from "lucide-react"
 import { useParams } from "next/navigation"
 import { api } from "@/hooks/use-api"
-import { normalizeDomainForFavicon } from "@/utils/utils"
-
-const FAVICON_URL = "https://www.google.com/s2/favicons?domain="
+import { PublicBusinessFavicon } from "@/components/public/public-business-favicon"
 
 type ResolveResponse = {
   err: boolean
@@ -16,49 +14,6 @@ type ResolveResponse = {
     businessWebsite?: string | null
   }
   message?: string
-}
-
-function BusinessFavicon({
-  website,
-  businessName,
-  isLoading,
-}: {
-  website?: string | null
-  businessName?: string | null
-  isLoading: boolean
-}) {
-  const [imgError, setImgError] = React.useState(false)
-  const normalizedDomain = normalizeDomainForFavicon(website || undefined)
-  const fallbackInitial = businessName?.trim().charAt(0).toUpperCase() || "M"
-
-  if (isLoading) {
-    return (
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <div className="h-6 w-6 rounded-full border-2 border-neutral-200 border-t-neutral-900 animate-spin" />
-      </div>
-    )
-  }
-
-  if (!normalizedDomain || imgError) {
-    return (
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white text-lg font-semibold text-neutral-700 shadow-sm">
-        {fallbackInitial}
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-      <img
-        src={`${FAVICON_URL}${normalizedDomain}&sz=96`}
-        alt=""
-        width={40}
-        height={40}
-        className="h-full w-full object-contain"
-        onError={() => setImgError(true)}
-      />
-    </div>
-  )
 }
 
 export default function ReviewRedirectPage() {
@@ -133,7 +88,7 @@ export default function ReviewRedirectPage() {
                   <AlertCircle className="h-6 w-6" />
                 </div>
               ) : (
-                <BusinessFavicon
+                <PublicBusinessFavicon
                   website={businessWebsite}
                   businessName={businessName}
                   isLoading={isResolving}

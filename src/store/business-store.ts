@@ -43,6 +43,8 @@ export interface BusinessProfile {
   isWhitelisted?: boolean;
   GscIngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
   Ga4IngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
+  IndexingStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;
+  IndexingLastRunAt?: string | null;
   CreatedDateTime?: string | null;
 }
 

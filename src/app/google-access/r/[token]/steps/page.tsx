@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, AlertTriangle, Clock } from "lucide-react";
 import { useAccessRequestSteps } from "@/hooks/use-access-request-flow";
@@ -9,11 +9,28 @@ import { StepCard } from "@/components/organisms/access-request/StepCard";
 import { ProductStep } from "@/components/organisms/access-request/ProductStep";
 import { GscManualStep } from "@/components/organisms/access-request/GscManualStep";
 import { AccessRequestComplete } from "@/components/organisms/access-request/AccessRequestComplete";
+import { ContributorAccessWizard } from "@/components/organisms/access-request/ContributorAccessWizard";
+import { readAccessSession, writeAccessSession } from "@/utils/access-request-session";
 
 export default function AccessRequestStepsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const token = params.token as string;
+  const querySession = searchParams.get("c");
+  const [storedSession, setStoredSession] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    if (querySession) {
+      writeAccessSession(token, querySession);
+      setStoredSession(querySession);
+      return;
+    }
+    setStoredSession(readAccessSession(token));
+  }, [querySession, token]);
+
   const { data, isLoading, isError, error, refetch } = useAccessRequestSteps(token);
+  const contributorSession = querySession || storedSession;
 
   const steps = data?.steps || [];
   const request = data?.request;
@@ -66,6 +83,10 @@ export default function AccessRequestStepsPage() {
   // failure, where it hid the error UI from the user).
   function handleStepCompleted() {
     refetch();
+  }
+
+  if (contributorSession) {
+    return <ContributorAccessWizard token={token} sessionToken={contributorSession} />;
   }
 
   if (isLoading) {

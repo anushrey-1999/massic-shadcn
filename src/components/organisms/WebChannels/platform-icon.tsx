@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { normalizeDomainForFavicon } from "@/utils/utils";
 
 const FAVICON_URL = "https://www.google.com/s2/favicons?domain=";
 
 const PLATFORM_DOMAINS = {
   wordpress: "wordpress.com",
   webflow: "webflow.com",
+  sanity: "sanity.io",
   shopify: "shopify.com",
 } as const;
 
@@ -41,7 +43,7 @@ function FaviconImage({
 
   return (
     <img
-      src={`${FAVICON_URL}${domain}&sz=64`}
+      src={`${FAVICON_URL}${encodeURIComponent(domain)}&sz=64`}
       alt=""
       width={px}
       height={px}
@@ -79,15 +81,10 @@ export function SiteFavicon({
   siteUrl?: string | null;
   className?: string;
 }) {
-  const host = React.useMemo(() => {
-    if (!siteUrl) return "";
-    try {
-      const normalized = siteUrl.trim().startsWith("http") ? siteUrl.trim() : `https://${siteUrl.trim()}`;
-      return new URL(normalized).hostname.replace(/^www\./, "");
-    } catch {
-      return siteUrl.replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
-    }
-  }, [siteUrl]);
+  const host = React.useMemo(
+    () => normalizeDomainForFavicon(siteUrl || undefined),
+    [siteUrl]
+  );
 
   return (
     <div

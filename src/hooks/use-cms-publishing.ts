@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import type { WordpressSlugConflictInfo } from "@/hooks/use-wordpress-publishing";
 
-export type CmsPublishingPlatform = "wordpress" | "webflow";
+export type CmsPublishingPlatform = "wordpress" | "webflow" | "sanity";
 
 export interface CmsPublishingDomain {
   id: string;
@@ -18,6 +18,7 @@ export interface CmsPublishingTarget {
   targetId: string;
   siteId: string;
   collectionId: string;
+  documentType?: string;
   name: string;
   fieldMapping?: Record<string, any>;
   metadata?: Record<string, any> | null;
@@ -72,6 +73,9 @@ export interface CmsSlugCheckResponse {
     sameMappedContent: boolean;
     conflict: WordpressSlugConflictInfo | null;
     suggestedSlug?: string | null;
+    suggestions?: string[];
+    blockedPrefix?: string | null;
+    routePath?: string;
     mappedToDifferentContent: boolean;
     mappedContentId: string | null;
   };
@@ -95,6 +99,9 @@ export interface CmsPublishResponse {
     editUrl?: string | null;
     status: string;
     slug?: string | null;
+    routePath?: string | null;
+    siteVerification?: "confirmed" | "pending" | null;
+    siteVerificationStatusCode?: number | null;
     domainSelection?: {
       publishToWebflowSubdomain: boolean;
       customDomainIds: string[];
@@ -157,6 +164,20 @@ export interface CmsWebflowRollbackToDraftResponse {
   };
 }
 
+export interface CmsSanityPageVerificationResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    platform: "sanity";
+    contentId: string;
+    routePath: string;
+    externalUrl: string | null;
+    siteVerification: "confirmed" | "pending";
+    siteVerificationStatusCode?: number | null;
+  };
+}
+
 interface ChannelResponse {
   success: boolean;
   err: boolean;
@@ -182,6 +203,7 @@ interface SlugCheckPayload {
   businessId: string;
   contentId: string;
   type?: "post" | "page";
+  pageType?: string | null;
   slug: string;
 }
 
@@ -190,15 +212,23 @@ interface PublishPayload {
   status?: "draft" | "publish";
   contentId?: string;
   type?: "post" | "page";
+  pageType?: string | null;
   title?: string;
   slug?: string | null;
   contentHtml?: string;
+  styledHtml?: string;
+  massicCss?: string;
   contentMarkdown?: string;
   excerpt?: string | null;
   head?: Record<string, any>;
   featuredImageUrl?: string | null;
   featuredImageAlt?: string | null;
   webflowImagesByFieldKey?: Record<string, {
+    assetId?: string;
+    cdnUrl: string;
+    altText?: string | null;
+  }>;
+  sanityImagesByFieldKey?: Record<string, {
     assetId?: string;
     cdnUrl: string;
     altText?: string | null;
@@ -243,10 +273,10 @@ export function isCmsRateLimitError(error: unknown) {
   return e?.code === "too_many_requests" || e?.statusCode === 429;
 }
 
-export function getCmsRateLimitDescription(error: CmsPublishError) {
+export function getCmsRateLimitDescription(error: CmsPublishError, platformLabel = "CMS") {
   const retryAfterSeconds = error.retryAfterSeconds ?? getRetryAfterSeconds(error.details) ?? 60;
   return error.retryExhausted
-    ? `We retried once, but Webflow is still rate limited. Try again in about ${retryAfterSeconds} seconds.`
+    ? `We retried once, but ${platformLabel} is still rate limited. Try again in about ${retryAfterSeconds} seconds.`
     : `Too many requests. Try again in about ${retryAfterSeconds} seconds.`;
 }
 
@@ -369,7 +399,7 @@ export function useCmsWebflowStagingPreview() {
     },
     onError: (error) => {
       if (isCmsRateLimitError(error)) {
-        toast.error("Webflow is busy", {
+        toast.error("Publishing is rate limited", {
           description: getCmsRateLimitDescription(error),
         });
         return;
@@ -411,7 +441,7 @@ export function useCmsWebflowRollbackToDraft() {
     },
     onError: (error) => {
       if (isCmsRateLimitError(error)) {
-        toast.error("Webflow is busy", {
+        toast.error("Publishing is rate limited", {
           description: getCmsRateLimitDescription(error),
         });
         return;
@@ -420,6 +450,25 @@ export function useCmsWebflowRollbackToDraft() {
         description: getErrorMessage(error, "Please try again."),
       });
     },
+  });
+}
+
+export function useCmsSanityPageVerification() {
+  return useMutation<CmsSanityPageVerificationResponse, CmsPublishError, { businessId: string; contentId: string }>({
+    mutationFn: async payload => {
+      try {
+        const res = await api.post<CmsSanityPageVerificationResponse>(
+          "/cms/publishing/verify-sanity-page",
+          "node",
+          payload
+        );
+        if (!res?.success) throw new CmsPublishError(res?.message || "Failed to verify Sanity page");
+        return res;
+      } catch (error: any) {
+        throw toCmsPublishError(error, "Failed to verify Sanity page");
+      }
+    },
+    retry: false,
   });
 }
 
@@ -449,7 +498,7 @@ export function useCmsPublish() {
     },
     onError: (error) => {
       if (isCmsRateLimitError(error)) {
-        toast.error("Webflow is busy", {
+        toast.error("Publishing is rate limited", {
           description: getCmsRateLimitDescription(error),
         });
         return;

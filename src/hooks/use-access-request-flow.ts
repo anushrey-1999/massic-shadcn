@@ -4,6 +4,9 @@ import type {
   AccessRequestStatusResponse,
   AccessRequestStepsResponse,
   AccessRequestStep,
+  AccessRequestVisitResponse,
+  AccessCheck,
+  ContributorStatusResponse,
   DiscoverAssetsResponse,
   Product,
   VerifyStepResponse,
@@ -42,6 +45,99 @@ export function useAccessRequestStatus(token: string) {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+  });
+}
+
+export function useCreateAccessRequestVisit(token: string) {
+  return useMutation<
+    AccessRequestVisitResponse,
+    Error,
+    { sessionToken?: string | null; inviteToken?: string | null }
+  >({
+    mutationFn: async ({ sessionToken, inviteToken }) => {
+      const res = await publicPost<ApiResponse<AccessRequestVisitResponse>>(
+        `/access-request/${token}/visit`,
+        { sessionToken, inviteToken }
+      );
+      if (!res.success) throw new Error(res.message || "Failed to create visit");
+      return res.data;
+    },
+    retry: false,
+  });
+}
+
+export function useContributorStatus(token: string, sessionToken: string | null) {
+  return useQuery<ContributorStatusResponse>({
+    queryKey: ["access-request-contributor-status", token, sessionToken],
+    queryFn: async () => {
+      const query = sessionToken ? `?c=${encodeURIComponent(sessionToken)}` : "";
+      const res = await publicGet<ApiResponse<ContributorStatusResponse>>(
+        `/access-request/${token}/contributor-status${query}`
+      );
+      return res.data;
+    },
+    enabled: !!token && !!sessionToken,
+    retry: false,
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useSelectContributorAssets(token: string, sessionToken: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    { check: AccessCheck },
+    Error,
+    { product: Product; selectedAssets: Record<string, unknown>[] }
+  >({
+    mutationFn: async ({ product, selectedAssets }) => {
+      const res = await publicPost<ApiResponse<{ check: AccessCheck }>>(
+        `/access-request/${token}/contributor/${product}/select`,
+        { sessionToken, selectedAssets }
+      );
+      if (!res.success) throw new Error(res.message || "Failed to select assets");
+      return res.data;
+    },
+    retry: false,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["access-request-contributor-status", token, sessionToken] });
+    },
+  });
+}
+
+export function useExecuteContributorGrant(token: string, sessionToken: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<Record<string, unknown>, Error, { product: Product }>({
+    mutationFn: async ({ product }) => {
+      const res = await publicPost<ApiResponse<Record<string, unknown>>>(
+        `/access-request/${token}/contributor/${product}/execute`,
+        { sessionToken }
+      );
+      if (!res.success) throw new Error(res.message || "Failed to grant access");
+      return res.data;
+    },
+    retry: false,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["access-request-contributor-status", token, sessionToken] });
+    },
+  });
+}
+
+export function useVerifyContributorManualStep(token: string, sessionToken: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation<VerifyStepResponse, Error, { product: Product }>({
+    mutationFn: async ({ product }) => {
+      const res = await publicPost<ApiResponse<VerifyStepResponse>>(
+        `/access-request/${token}/contributor/${product}/verify`,
+        { sessionToken }
+      );
+      if (!res.success) throw new Error(res.message || "Failed to verify access");
+      return res.data;
+    },
+    retry: false,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["access-request-contributor-status", token, sessionToken] });
+    },
   });
 }
 

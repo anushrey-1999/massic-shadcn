@@ -1,0 +1,5 @@
+Before implementing or changing any UI in this app, read:
+
+docs/massic-ui-style-guide.md
+
+Use this as the canonical Massic UI style guide. Preserve existing massic-shadcn component patterns first. Apply the guide for colors, typography, spacing, layout, copy, interaction states, and responsive behavior. Every network-triggering UI action should have loading/pending feedback, duplicate-submit protection, and clear success/error behavior.

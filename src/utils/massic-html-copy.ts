@@ -49,15 +49,6 @@ export async function getMassicBlogCssText(): Promise<string> {
   return getMassicBlogPageCssText();
 }
 
-function buildCssVarOverrideBlock(cssVarOverrides?: Record<string, string>): string {
-  if (!cssVarOverrides || !Object.keys(cssVarOverrides).length) return "";
-
-  const declarations = Object.entries(cssVarOverrides)
-    .map(([key, value]) => `${key}: ${value};`)
-    .join(" ");
-
-  return `.massic-content { ${declarations} }`;
-}
 
 function splitSelectorList(selectorText: string): string[] {
   const selectors: string[] = [];
@@ -223,7 +214,6 @@ export function buildStyledMassicHtml(
   html: string,
   options?: {
     baseCss?: string;
-    cssVarOverrides?: Record<string, string>;
   }
 ): string {
   const raw = String(html || "").trim();
@@ -234,11 +224,6 @@ export function buildStyledMassicHtml(
 
   if (options?.baseCss && options.baseCss.trim()) {
     styleParts.push(options.baseCss.trim());
-  }
-
-  const overrideBlock = buildCssVarOverrideBlock(options?.cssVarOverrides);
-  if (overrideBlock) {
-    styleParts.push(overrideBlock);
   }
 
   if (!styleParts.length) {

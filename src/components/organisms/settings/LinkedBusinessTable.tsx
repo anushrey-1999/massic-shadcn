@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,10 @@ import {
   Building2,
   Loader2,
   ChevronDown,
+  Crown,
+  Eye,
   Link2,
+  UserRoundCheck,
   X,
 } from "lucide-react";
 import {
@@ -79,6 +83,11 @@ import { Typography } from "@/components/ui/typography";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ANALYST_RESTRICTED_MESSAGE } from "@/lib/permissions";
 import { toast } from "sonner";
+import {
+  formatGscPermissionLevel,
+  hasRequiredGscAccess,
+} from "@/utils/gsc-permissions";
+import { Ga4ScopeControl } from "@/components/organisms/settings/Ga4ScopeControl";
 
 const FILTERS = [
   { label: "All", value: "all" },
@@ -152,17 +161,26 @@ function Ga4SearchableSelect({
   disabled = false,
 }: Ga4SearchableSelectProps) {
   const [open, setOpen] = useState(false);
-  const showClearButton = !!selectedGa4;
+  const showClearButton = !!selectedGa4 && !disabled;
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={!disabled && open}
+      onOpenChange={(nextOpen) => {
+        if (!disabled) setOpen(nextOpen);
+      }}
+    >
       <PopoverTrigger asChild>
 	        <Button
 	          variant="outline"
 	          role="combobox"
 	          aria-expanded={open}
 	          disabled={disabled}
-	          className="w-full max-w-[300px] min-h-10 h-auto whitespace-normal items-center justify-between px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 font-normal"
+	          className="w-full max-w-[300px] min-h-10 h-auto whitespace-normal items-center justify-between px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/70 font-normal disabled:cursor-not-allowed"
 	        >
           {selectedGa4 ? (
             <div className="flex items-center justify-between w-full gap-1 overflow-hidden">
@@ -256,8 +274,10 @@ interface LinkedBusinessTableProps {
 }
 
 export default function LinkedBusinessTable({ readOnly = false }: LinkedBusinessTableProps) {
+  const searchParams = useSearchParams();
   const permissions = usePermissions();
   const isReadOnly = readOnly || !permissions.canManageLinkedBusinesses;
+  const ga4ScopeBusinessId = searchParams.get("ga4ScopeBusinessId");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [localBusinesses, setLocalBusinesses] = useState<LinkedBusiness[]>([]);
@@ -282,7 +302,6 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     data: businessesData,
     isLoading,
     isFetching,
-    refetch,
   } = useFetchBusinesses();
   const createBusinessMutation = useCreateAgencyBusiness();
   const linkPropertyMutation = useLinkPropertyId();
@@ -399,17 +418,31 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     });
   }, [search, localBusinesses, filter]);
 
+  const canEditConnectedBusinessForSite = (siteUrl: string) => {
+    const business = localBusinesses.find((row) => row.siteUrl === siteUrl);
+    return (
+      business?.businessProfile?.IsActive === true ||
+      hasRequiredGscAccess(business?.permissionLevel)
+    );
+  };
+
   const handleGa4Change = (siteUrl: string, propertyId: string | null) => {
     if (isReadOnly) {
       toast.error(ANALYST_RESTRICTED_MESSAGE);
       return;
     }
+    if (!canEditConnectedBusinessForSite(siteUrl)) return;
     setLocalBusinesses((prev) =>
       prev.map((b) => {
         if (b.siteUrl === siteUrl) {
           if (propertyId === null) {
             // Clear selection and set flag to indicate explicit clear
-            return { ...b, selectedGa4: undefined, ga4Cleared: true };
+            return {
+              ...b,
+              selectedGa4: undefined,
+              ga4Cleared: true,
+              ga4PagePathScope: undefined,
+            };
           }
           const linkedGa4PropertyId =
             b.linkedPropertyId?.PropertyId || b.linkedPropertyId?.propertyId;
@@ -434,11 +467,26 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     );
   };
 
+  const handleInitialGa4ScopeChange = (siteUrl: string, value: string) => {
+    if (isReadOnly) return;
+    setLocalBusinesses((prev) =>
+      prev.map((business) =>
+        business.siteUrl === siteUrl
+          ? {
+              ...business,
+              ga4PagePathScope: value.trim() ? value : undefined,
+            }
+          : business
+      )
+    );
+  };
+
   const handleGbpChange = (siteUrl: string, selectedLocationIds: string[]) => {
     if (isReadOnly) {
       toast.error(ANALYST_RESTRICTED_MESSAGE);
       return;
     }
+    if (!canEditConnectedBusinessForSite(siteUrl)) return;
     setLocalBusinesses((prev) =>
       prev.map((b) => {
         if (b.siteUrl === siteUrl) {
@@ -466,6 +514,12 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
   const handleAccept = async (row: LinkedBusiness) => {
     if (isReadOnly) {
       toast.error(ANALYST_RESTRICTED_MESSAGE);
+      return;
+    }
+    if (!hasRequiredGscAccess(row.permissionLevel)) {
+      toast.error("Verified Search Console access is required", {
+        description: "This Google account must be able to view the property data.",
+      });
       return;
     }
     try {
@@ -506,6 +560,10 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       toast.error(ANALYST_RESTRICTED_MESSAGE);
       return;
     }
+    if (
+      row.businessProfile?.IsActive !== true &&
+      !hasRequiredGscAccess(row.permissionLevel)
+    ) return;
     await linkPropertyMutation.mutateAsync({ business: row });
   };
 
@@ -541,7 +599,10 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       return;
     }
     const businessesToAccept = filteredData.filter(
-      (b) => !b.businessProfile?.Id && (b.siteUrl || b.displayName)
+      (b) =>
+        !b.businessProfile?.Id &&
+        (b.siteUrl || b.displayName) &&
+        hasRequiredGscAccess(b.permissionLevel)
     );
     if (businessesToAccept.length > 0) {
       await createBusinessMutation.mutateAsync({
@@ -634,12 +695,21 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           const isActive = row.original.businessProfile?.IsActive;
           const rowId = row.original.siteUrl || row.original.id;
           const isRowLoading = loadingRowId === rowId;
+          const lacksRequiredAccess = !hasRequiredGscAccess(
+            row.original.permissionLevel
+          );
+          const isBlockedRelink = !isActive && !isPendingAcceptance && lacksRequiredAccess;
 
-          const disableToggle = isReadOnly || isPendingAcceptance || isRowLoading;
+          const disableToggle =
+            isReadOnly || isPendingAcceptance || isRowLoading || isBlockedRelink;
           const nextActionLabel = isActive ? "Unlink" : "Link";
-          const tooltipText = disableToggle
-            ? "Accept this business to enable linking/unlinking."
-            : `${nextActionLabel} business`;
+          const tooltipText = isReadOnly
+            ? ANALYST_RESTRICTED_MESSAGE
+            : isPendingAcceptance
+              ? "Accept this business to enable linking or unlinking."
+              : isBlockedRelink
+                ? "Verified Search Console access is required to re-link this business."
+                : `${nextActionLabel} business`;
 
           return (
             <div
@@ -663,6 +733,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
                           variant="ghost"
                           size="icon"
                           disabled={disableToggle}
+                          aria-label={tooltipText}
                           className={cn(
                             "h-9 w-9 disabled:cursor-not-allowed disabled:opacity-60",
                             disableToggle ? "cursor-not-allowed" : "cursor-pointer",
@@ -711,10 +782,67 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             );
           }
           const gscUrl = removeScDomainPrefix(row.original.displayName);
+          const permissionLabel = formatGscPermissionLevel(
+            row.original.permissionLevel
+          );
+          const hasRequiredAccess = hasRequiredGscAccess(
+            row.original.permissionLevel
+          );
+          const isConnected = row.original.businessProfile?.IsActive === true;
+          const isOwner = row.original.permissionLevel === "siteOwner";
+          const isRestricted =
+            row.original.permissionLevel === "siteRestrictedUser";
+          const accessTooltip = isOwner
+            ? "Owner — full Search Console access."
+            : row.original.permissionLevel === "siteFullUser"
+              ? "Full user — all Search Console data is available."
+              : isRestricted
+                ? "Restricted user — performance data is available; user management is not."
+                : isConnected
+                  ? `${permissionLabel} — current access cannot be verified; existing data may be historical.`
+                  : `${permissionLabel} — verified access is required to connect.`;
+
           return (
-            <div className="flex max-w-[300px] items-center gap-2">
-              <SiteFavicon siteUrl={gscUrl} className="size-6" />
-              <span className="truncate">{gscUrl}</span>
+            <div className="flex min-w-[220px] max-w-[300px] items-center gap-2 py-1">
+              <SiteFavicon siteUrl={gscUrl} className="size-6 shrink-0" />
+              <span className="min-w-0 flex-1 truncate font-medium" title={gscUrl}>
+                {gscUrl}
+              </span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      role="img"
+                      aria-label={accessTooltip}
+                      aria-disabled={!hasRequiredAccess}
+                      tabIndex={0}
+                      className={cn(
+                        "flex size-7 shrink-0 cursor-help items-center justify-center rounded-md border",
+                        hasRequiredAccess
+                          ? isRestricted
+                            ? "border-sky-200 bg-sky-50 text-sky-700"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-border bg-muted text-amber-500"
+                      )}
+                    >
+                      {hasRequiredAccess ? (
+                        isOwner ? (
+                          <Crown className="size-4" aria-hidden="true" />
+                        ) : isRestricted ? (
+                          <Eye className="size-4" aria-hidden="true" />
+                        ) : (
+                          <UserRoundCheck className="size-4" aria-hidden="true" />
+                        )
+                      ) : (
+                        <AlertCircle className="size-4" aria-hidden="true" />
+                      )}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{accessTooltip}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           );
         },
@@ -741,12 +869,49 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             );
           }
           const rowData = row.original;
+          const isGscAccessInsufficient =
+            rowData.businessProfile?.IsActive !== true &&
+            !hasRequiredGscAccess(rowData.permissionLevel);
           const hasGa4Options = allGA4.length > 0 || unmatchedGa4.length > 0;
           const isAlreadyLinked = !!rowData.businessProfile?.Id;
           const hasLinkedProperty = !!rowData.linkedPropertyId;
           const hasSuggestedMatches =
             !!rowData.matchedGa4 || (rowData.matchedGa4Multiple?.length ?? 0) > 0;
           const hasLinkedData = hasLinkedProperty || hasSuggestedMatches;
+          const linkedPropertyIdForScope =
+            rowData.linkedPropertyId?.PropertyId ||
+            rowData.linkedPropertyId?.propertyId ||
+            (rowData.linkedPropertyId as any)?.GoogleAnalyticsPropertyId;
+          const businessUniqueId = rowData.businessProfile?.UniqueId;
+          const hasConnectedGa4 =
+            rowData.businessProfile?.IsActive === true &&
+            rowData.ga4Cleared !== true &&
+            Boolean(linkedPropertyIdForScope);
+          const hasPendingInitialGa4 =
+            !hasConnectedGa4 &&
+            rowData.ga4Cleared !== true &&
+            Boolean(rowData.selectedGa4?.propertyId);
+          const scopeControl =
+            hasConnectedGa4 || hasPendingInitialGa4 ? (
+              <Ga4ScopeControl
+                businessUniqueId={businessUniqueId}
+                website={rowData.siteUrl || rowData.displayName || ""}
+                enabled={hasConnectedGa4}
+                readOnly={isReadOnly}
+                defaultOpen={ga4ScopeBusinessId === businessUniqueId}
+                pendingPropertySelected={hasPendingInitialGa4}
+                initialScope={rowData.ga4PagePathScope || ""}
+                onInitialScopeChange={(value) =>
+                  handleInitialGa4ScopeChange(rowData.siteUrl, value)
+                }
+              />
+            ) : null;
+          const withScopeControl = (control: React.ReactNode) => (
+            <div className="flex min-w-[260px] items-center gap-2">
+              <div className="min-w-0 flex-1">{control}</div>
+              {scopeControl}
+            </div>
+          );
 
           const getPropertyId = () =>
             rowData.selectedGa4?.propertyId ??
@@ -769,13 +934,13 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             const ga4Options = Array.from(ga4OptionMap.values());
             const selectedGa4 = rowData.selectedGa4 || ga4OptionMap.get(selectedPropertyId);
 
-            return (
+            return withScopeControl(
               <Ga4SearchableSelect
                 options={ga4Options}
                 selectedPropertyId={selectedPropertyId}
                 selectedGa4={selectedGa4 || null}
                 onChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
-                disabled={isReadOnly}
+                disabled={isReadOnly || isGscAccessInsufficient}
               />
             );
           }
@@ -849,13 +1014,13 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
               return null;
             })();
 
-            return (
+            return withScopeControl(
               <Ga4SearchableSelect
                 options={ga4Options}
                 selectedPropertyId={selectedPropertyId}
                 selectedGa4={displayGa4}
                 onChange={(value) => handleGa4Change(rowData.siteUrl || "", value)}
-                disabled={isReadOnly}
+                disabled={isReadOnly || isGscAccessInsufficient}
               />
             );
           }
@@ -882,6 +1047,9 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             );
           }
           const rowData = row.original;
+          const isGscAccessInsufficient =
+            rowData.businessProfile?.IsActive !== true &&
+            !hasRequiredGscAccess(rowData.permissionLevel);
           const businessKey = rowData.siteUrl || rowData.id;
           const localRow = localBusinesses.find(
             (b) => (b.siteUrl || b.id) === businessKey
@@ -933,7 +1101,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
               searchPlaceholder="Search locations..."
               emptyMessage="No options available"
               maxWidth="300px"
-              disabled={isReadOnly}
+              disabled={isReadOnly || isGscAccessInsufficient}
             />
           );
         },
@@ -969,6 +1137,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           const rowData = row.original;
           const hasBusinessProfile = !!rowData.businessProfile?.Id;
           const hasGsc = !!rowData.siteUrl || !!rowData.displayName;
+          const hasRequiredAccess = hasRequiredGscAccess(rowData.permissionLevel);
 
           // Check if GA4 has been edited (user selected a different GA4 than what's saved)
           const checkGa4Edited = () => {
@@ -1030,6 +1199,38 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           };
           const hasChanges = checkGa4Edited() || checkGbpEdited();
 
+          if (
+            !isReadOnly &&
+            !hasRequiredAccess &&
+            rowData.businessProfile?.IsActive !== true &&
+            ((!hasBusinessProfile && hasGsc) || (hasBusinessProfile && hasChanges))
+          ) {
+            const accessRequiredMessage =
+              "Verified Search Console access is required to connect this business.";
+            return (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="block w-full cursor-not-allowed">
+                      <Button
+                        variant="outline"
+                        disabled
+                        aria-label={accessRequiredMessage}
+                        className="w-full border-amber-200 bg-amber-50 text-amber-800"
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        Access required
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{accessRequiredMessage}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          }
+
           if (!isReadOnly && hasBusinessProfile && hasChanges) {
             return (
               <Button
@@ -1046,12 +1247,16 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             return (
               <Button
                 variant="outline"
-
                 onClick={() => handleAccept(rowData)}
+                disabled={createBusinessMutation.isPending}
                 className="w-full"
               >
-                <Check className="h-4 w-4 mr-2" />
-                Accept
+                {createBusinessMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                {createBusinessMutation.isPending ? "Connecting…" : "Accept"}
               </Button>
             );
           }
@@ -1060,7 +1265,16 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
         },
       },
     ],
-    [allGBP, allGA4, localBusinesses, unmatchedGa4, loadingRowId, isReadOnly]
+    [
+      allGBP,
+      allGA4,
+      localBusinesses,
+      unmatchedGa4,
+      loadingRowId,
+      isReadOnly,
+      ga4ScopeBusinessId,
+      createBusinessMutation.isPending,
+    ]
   );
 
   // Create summary row data

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { api } from "@/hooks/use-api";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
@@ -33,13 +34,30 @@ interface UpdateUserResponse {
   data?: any;
 }
 
-/**
- * API response structure for logo upload
- */
-interface LogoUploadResponse {
+interface LogoUploadSessionResponse {
+  success: boolean;
   err: boolean;
-  uri?: string;
   message?: string;
+  data?: {
+    objectKey: string;
+    cdnUrl: string;
+    upload: {
+      method: string;
+      bucket: string;
+      uploadUrl: string;
+      uploadHeaders: Record<string, string>;
+      expiresInSeconds: number;
+    };
+  };
+}
+
+interface LogoFinalizeResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    logoUrl: string;
+  };
 }
 
 /**
@@ -155,47 +173,37 @@ export function useUploadLogo() {
         throw new Error("User not authenticated");
       }
 
-      // Convert file to FormData for upload
-      const formData = new FormData();
-      formData.append("UploadFile", file, file.name);
-
-      // Upload to blob storage
-      const uploadResponse = await api.post<LogoUploadResponse>(
-        `/Storage/UploadToBlob?Container=usr&Entity=logo&ItemId=${user.id}`,
-        "dotnet",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-
-      if (uploadResponse.err !== false || !uploadResponse.uri) {
-        throw new Error(uploadResponse.message || "Failed to upload logo");
-      }
-
-      const logoUrl = uploadResponse.uri;
-
-      // Update user profile with new logo URL
-      const updateResponse = await api.post<UpdateUserResponse>(
-        "/update-user",
+      const sessionRes = await api.post<LogoUploadSessionResponse>(
+        "/users/logo/upload-session",
         "node",
         {
-          details: {
-            logo: logoUrl,
-            email: user.email,
-            name: user.name || user.username,
-            website: user.website,
-          },
+          fileName: file.name,
+          mimeType: file.type,
+          fileSize: file.size,
         }
       );
 
-      if (updateResponse.err !== false) {
-        throw new Error(updateResponse.message || "Failed to update logo in profile");
+      if (!sessionRes?.success || !sessionRes?.data?.objectKey || !sessionRes?.data?.upload?.uploadUrl) {
+        throw new Error(sessionRes?.message || "Failed to create logo upload session");
       }
 
-      // Update auth store with new logo
+      await axios.put(sessionRes.data.upload.uploadUrl, file, {
+        headers: sessionRes.data.upload.uploadHeaders,
+      });
+
+      const finalizeRes = await api.post<LogoFinalizeResponse>(
+        "/users/logo/finalize",
+        "node",
+        {
+          objectKey: sessionRes.data.objectKey,
+        }
+      );
+
+      if (!finalizeRes?.success || !finalizeRes?.data?.logoUrl) {
+        throw new Error(finalizeRes?.message || "Failed to finalize logo upload");
+      }
+
+      const logoUrl = finalizeRes.data.logoUrl;
       updateUserInStore({ logo: logoUrl });
 
       return logoUrl;

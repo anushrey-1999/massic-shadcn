@@ -3,6 +3,7 @@ import { api } from "@/hooks/use-api";
 import { useAuthStore } from "@/store/auth-store";
 import { useBusinessStore } from "@/store/business-store";
 import { toast } from "sonner";
+import type { GscPermissionLevel } from "@/utils/gsc-permissions";
 
 const LINKED_BUSINESSES_KEY = "linkedBusinesses";
 
@@ -35,6 +36,8 @@ export interface LinkedBusiness {
   siteUrl: string;
   displayName: string;
   authId: string;
+  emailId?: string | null;
+  permissionLevel?: GscPermissionLevel | null;
   title?: string;
   matchedGa4?: GA4Property;
   matchedGa4Multiple?: GA4Property[];
@@ -46,6 +49,7 @@ export interface LinkedBusiness {
   businessProfile?: BusinessProfile;
   noLocation?: boolean;
   ga4Cleared?: boolean;
+  ga4PagePathScope?: string | null;
   gbpCleared?: boolean;
 }
 
@@ -68,6 +72,7 @@ interface CreateBusinessPayload {
     displayName: string;
     locationType: string;
     propertyId: string;
+    ga4PagePathScope?: string | null;
     locations: { DisplayName: string; Url: string; Name: string; AccountName: string }[];
     NoLocationExist: boolean;
     category: string;
@@ -86,6 +91,7 @@ interface LinkPropertyPayload {
   websiteUri: string;
   businessUniqueId?: string;
   propertyId?: string;
+  ga4PagePathScope?: string | null;
   locations: { DisplayName: string; Url: string; Name: string; AccountName: string }[];
   NoLocationExist: boolean;
 }
@@ -119,6 +125,19 @@ export class CreateBusinessConflictError extends Error {
     this.name = "CreateBusinessConflictError";
     this.code = "BUSINESS_ALREADY_EXISTS";
     this.conflict = conflict;
+  }
+}
+
+export class InsufficientGscAccessError extends Error {
+  code: "INSUFFICIENT_GSC_ACCESS";
+
+  constructor(message?: string) {
+    super(
+      message ||
+        "Verified Search Console access with permission to view property data is required before connecting this business."
+    );
+    this.name = "InsufficientGscAccessError";
+    this.code = "INSUFFICIENT_GSC_ACCESS";
   }
 }
 
@@ -278,6 +297,11 @@ export function useCreateAgencyBusiness() {
               b.ga4Cleared === true
                 ? ""
                 : b.selectedGa4?.propertyId ?? b.matchedGa4?.propertyId ?? "",
+            ...(b.ga4Cleared !== true &&
+            Boolean(b.selectedGa4?.propertyId ?? b.matchedGa4?.propertyId) &&
+            b.ga4PagePathScope !== undefined
+              ? { ga4PagePathScope: b.ga4PagePathScope }
+              : {}),
             locations: b.noLocation || b.gbpCleared === true ? [] :
               (b.selectedGbp?.map((gbp) => ({
                 DisplayName: gbp.title || "",
@@ -306,6 +330,9 @@ export function useCreateAgencyBusiness() {
           );
 
           if (response.err === true || response.success === false) {
+            if (response.code === "INSUFFICIENT_GSC_ACCESS") {
+              throw new InsufficientGscAccessError(response.message);
+            }
             if (response.code === "BUSINESS_ALREADY_EXISTS") {
               const conflict: ExistingBusinessConflict = {
                 code: "BUSINESS_ALREADY_EXISTS",
@@ -325,6 +352,9 @@ export function useCreateAgencyBusiness() {
           }
           if (error.response?.data) {
             const errorData = error.response.data as any;
+            if (errorData.code === "INSUFFICIENT_GSC_ACCESS") {
+              throw new InsufficientGscAccessError(errorData.message);
+            }
             if (errorData.code === "BUSINESS_ALREADY_EXISTS") {
               const conflict: ExistingBusinessConflict = {
                 code: "BUSINESS_ALREADY_EXISTS",
@@ -352,6 +382,13 @@ export function useCreateAgencyBusiness() {
         variables?.suppressDuplicateToast &&
         error instanceof CreateBusinessConflictError
       ) {
+        return;
+      }
+      if (error instanceof InsufficientGscAccessError) {
+        toast.error("Verified Search Console access required", {
+          description: error.message,
+        });
+        queryClient.invalidateQueries({ queryKey: [LINKED_BUSINESSES_KEY] });
         return;
       }
       toast.error("Failed to connect businesses", {
@@ -386,6 +423,9 @@ export function useLinkPropertyId() {
         payload.propertyId = "";
       } else if (selectedGa4?.propertyId) {
         payload.propertyId = selectedGa4.propertyId;
+        if (!business.linkedPropertyId && business.ga4PagePathScope !== undefined) {
+          payload.ga4PagePathScope = business.ga4PagePathScope;
+        }
       }
 
       const response = await api.post<{ err?: boolean; message?: string }>(

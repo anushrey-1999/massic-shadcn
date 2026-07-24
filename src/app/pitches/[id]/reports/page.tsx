@@ -49,6 +49,7 @@ import {
   type WebsiteSnapshotReport,
 } from "@/utils/website-snapshot-report";
 import { formatDate, formatVolume } from "@/lib/format";
+import { useSnapshotShare } from "@/hooks/use-snapshot-share";
 
 function isSnapshotWorkflowProcessing(status: unknown): boolean {
   return [
@@ -83,6 +84,7 @@ export default function PitchReportsPage() {
   const guardPitchSnapshot = useFeatureActionGuard("reports.pitchSnapshot");
   const startQuickyMutation = useStartQuickyReport();
   const fetchReportMutation = useFetchReportFromDownloadUrl();
+  const snapshotShareMutation = useSnapshotShare();
   const [snapshotStarted, setSnapshotStarted] = React.useState(false);
   const [detailedPolling, setDetailedPolling] = React.useState(false);
   const [downloadedWebsiteSnapshotReport, setDownloadedWebsiteSnapshotReport] =
@@ -1010,6 +1012,15 @@ export default function PitchReportsPage() {
                 <WebsiteSnapshotReportViewer
                   report={websiteSnapshotReport}
                   poweredByName={agencyInfo?.name}
+                  onShare={
+                    businessId
+                      ? () =>
+                          snapshotShareMutation.mutate({
+                            businessId,
+                          })
+                      : undefined
+                  }
+                  isSharing={snapshotShareMutation.isPending}
                   onBack={() => {
                     router.push(
                       businessId

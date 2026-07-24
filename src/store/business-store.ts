@@ -11,7 +11,6 @@ export interface BusinessProfile {
   Name: string;
   DisplayName?: string;
   Website?: string;
-  LegalName?: string | null;
   FoundingDate?: string | null;
   LogoUrl?: string | null;
   Description?: string;
@@ -32,9 +31,6 @@ export interface BusinessProfile {
   KeyPeople?: KeyPersonRow[] | null;
   LicensesCompliance?: string[] | null;
   AwardsCertifications?: string[] | null;
-  ReviewRating?: string | null;
-  ReviewCount?: string | null;
-  Testimonials?: string[] | null;
   ColorsFontsCss?: string | null;
   ImagePhotoLibrary?: Array<string | { alt?: string; url: string }> | null;
   SocialProfiles?: SocialProfileRow[] | null;
@@ -104,7 +100,6 @@ export type DetailedLocationRow = {
   email: string;
   mapLink: string;
   hours: string;
-  holidayHours: string;
   primaryFlag: string;
 };
 

@@ -23,7 +23,6 @@ import {
 
 type BusinessInfoFormData = {
   website: string;
-  legalName?: string;
   businessName: string;
   foundingDate?: string;
   logoUrl?: string;
@@ -45,9 +44,6 @@ type BusinessInfoFormData = {
   detailedLocations?: Array<Record<string, string>>;
   licensesCompliance?: string[];
   awardsCertifications?: string[];
-  reviewRating?: string;
-  reviewCount?: string;
-  testimonials?: string[];
   colorsFontsCss?: string;
   imagePhotoLibrary?: Array<string | { alt?: string; url: string }>;
   socialProfiles?: Array<Record<string, string>>;
@@ -60,7 +56,7 @@ const SERVICE_AREA_TYPE_OPTIONS = [
   { value: "international", label: "International" },
   { value: "national", label: "National" },
   { value: "state_regional", label: "State-Regional" },
-  { value: "city_local", label: "City-Local" },
+  { value: "city_local", label: "City/Local" },
 ] as const;
 
 interface BusinessInfoFormProps {
@@ -87,7 +83,6 @@ export const BusinessInfoForm = React.memo(({
   const detailedLocationsValue = useStore(form.store, (state: any) => state.values?.detailedLocations || []);
   const licensesComplianceValue = useStore(form.store, (state: any) => state.values?.licensesCompliance || []);
   const awardsCertificationsValue = useStore(form.store, (state: any) => state.values?.awardsCertifications || []);
-  const testimonialsValue = useStore(form.store, (state: any) => state.values?.testimonials || []);
   const colorsFontsCssValue = useStore(form.store, (state: any) => state.values?.colorsFontsCss || "");
   const imagePhotoLibraryValue = useStore(form.store, (state: any) => state.values?.imagePhotoLibrary || []);
   const socialProfilesValue = useStore(form.store, (state: any) => state.values?.socialProfiles || []);
@@ -162,7 +157,6 @@ export const BusinessInfoForm = React.memo(({
       { key: "email", label: "Email" },
       { key: "mapLink", label: "Map Link", validation: { url: true } },
       { key: "hours", label: "Hours" },
-      { key: "holidayHours", label: "Special Hours" },
       { key: "primaryFlag", label: "Primary" },
     ],
     []
@@ -425,12 +419,13 @@ export const BusinessInfoForm = React.memo(({
 
   if (embedded && embeddedVariant === "autofillGate") {
     return (
-      <div id="business-info" className="flex flex-col gap-5 w-[480px] max-w-full">
+      <div id="business-info" className="flex w-full flex-col gap-6">
         <GenericInput<BusinessInfoFormData>
           form={form as any}
           fieldName="website"
           type="url"
           label="Website"
+          fieldClassName="gap-0"
           required={true}
           placeholder="Provide the official url of your business website"
           disabled={isWebsiteLocked || disabledFields?.website}
@@ -440,6 +435,7 @@ export const BusinessInfoForm = React.memo(({
           fieldName="primaryLocation"
           type="location-select"
           label="Primary Location"
+          fieldClassName="gap-0"
           required={true}
           placeholder={
             locationsLoading
@@ -454,7 +450,8 @@ export const BusinessInfoForm = React.memo(({
           form={form as any}
           fieldName="serviceAreaType"
           type="select"
-          label="Service Area Type"
+          label="Service-area type"
+          fieldClassName="gap-0"
           required
           placeholder="Select service area type"
           options={[...SERVICE_AREA_TYPE_OPTIONS]}
@@ -463,9 +460,6 @@ export const BusinessInfoForm = React.memo(({
         {primaryLocationAction && (
           <div className="flex flex-col gap-2 pt-1">
             {primaryLocationAction}
-            <p className="text-xs text-general-muted-foreground">
-              We'll auto-fill your business name, service type, brand tone, competitors, and more from your website.
-            </p>
           </div>
         )}
       </div>
@@ -477,14 +471,6 @@ export const BusinessInfoForm = React.memo(({
       {detailSection(
         "Identity",
         <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
-          <GenericInput<BusinessInfoFormData>
-            form={form as any}
-            fieldName="legalName"
-            type="input"
-            label="Legal Business Name"
-            placeholder="Registered legal business name"
-            disabled={disabledFields?.legalName}
-          />
           <GenericInput<BusinessInfoFormData>
             form={form as any}
             fieldName="foundingDate"
@@ -648,7 +634,6 @@ export const BusinessInfoForm = React.memo(({
               email: "",
               mapLink: "",
               hours: "",
-              holidayHours: "",
               primaryFlag: "",
             })
           }
@@ -684,32 +669,6 @@ export const BusinessInfoForm = React.memo(({
                 placeholder="Type an award or certification and press Enter"
               />
             </div>
-            <GenericInput<BusinessInfoFormData>
-              form={form as any}
-              fieldName="reviewRating"
-              type="input"
-              label="Reviews — Rating"
-              placeholder="E.g. 4.8"
-              disabled={disabledFields?.reviewRating}
-            />
-            <GenericInput<BusinessInfoFormData>
-              form={form as any}
-              fieldName="reviewCount"
-              type="input"
-              label="Reviews — Count"
-              placeholder="E.g. 124"
-              disabled={disabledFields?.reviewCount}
-            />
-            <div className="md:col-span-2">
-              <Typography variant="small" className="mb-2 block text-sm font-medium">
-                Testimonials
-              </Typography>
-              <TagsInput
-                value={Array.isArray(testimonialsValue) ? testimonialsValue : []}
-                onChange={(next) => form.setFieldValue("testimonials" as any, next as any)}
-                placeholder="Type a testimonial and press Enter"
-              />
-            </div>
           </div>
         </div>
       )}
@@ -721,7 +680,7 @@ export const BusinessInfoForm = React.memo(({
               Colors / Fonts / CSS
             </Typography>
             {brandAssetItems.length > 0 ? (
-              <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2 shadow-xs">
+              <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2">
                 {brandAssetItems.map((asset, index) => (
                   asset.url ? (
                     <button
@@ -759,7 +718,7 @@ export const BusinessInfoForm = React.memo(({
               Image / Photo Library
             </Typography>
             {imageLibraryItems.length > 0 ? (
-              <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2 shadow-xs">
+              <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2">
                 {imageLibraryItems.map((image, index) => (
                   <button
                     key={`${image.url}-${index}`}

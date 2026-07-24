@@ -125,3 +125,21 @@ export function getSnapshotShareConfig(): SnapshotShareConfig {
 
   return cachedConfig;
 }
+
+export function isAllowedSnapshotRequestOrigin(
+  originHeader: string | null,
+  requestUrl: string,
+): boolean {
+  if (!originHeader) return false;
+
+  try {
+    const origin = new URL(originHeader);
+    if (origin.origin !== originHeader) return false;
+
+    const requestOrigin = new URL(requestUrl).origin;
+    const { appOrigin } = getSnapshotShareConfig();
+    return origin.origin === appOrigin || origin.origin === requestOrigin;
+  } catch {
+    return false;
+  }
+}

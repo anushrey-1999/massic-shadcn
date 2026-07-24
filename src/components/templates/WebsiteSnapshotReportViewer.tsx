@@ -206,7 +206,10 @@ export function WebsiteSnapshotReportViewer({
       )}
     >
       <div className="flex h-full flex-col gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className={cn(
+          "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3",
+          isPublic && "mx-auto w-full max-w-[1200px]"
+        )}>
           {!isPublic ? (
             onBack ? (
               <Button variant="ghost" className="gap-2" onClick={onBack}>
@@ -252,7 +255,10 @@ export function WebsiteSnapshotReportViewer({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto space-y-4 sm:space-y-7">
+          <div className={cn(
+            "mx-auto space-y-4 sm:space-y-7",
+            isPublic && "max-w-[1200px]"
+          )}>
             {/* PAGE 1: Cover + Hero + Quick Overview */}
             <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
               borderColor: COLORS.hair, 
@@ -299,7 +305,7 @@ export function WebsiteSnapshotReportViewer({
                   </div>
                   {/* Hero label - what the number means */}
                   {hero.label && (
-                    <p className="text-[16px] sm:text-[18px] lg:text-[21px] font-semibold tracking-tight max-w-[46ch] mb-3 sm:mb-4 leading-tight" style={{ color: COLORS.ink }}>
+                    <p className="text-[16px] sm:text-[18px] lg:text-[21px] font-semibold tracking-tight mb-3 sm:mb-4 leading-tight" style={{ color: COLORS.ink }}>
                       {hero.label}
                     </p>
                   )}
@@ -451,7 +457,7 @@ export function WebsiteSnapshotReportViewer({
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
                   Real organic search data, from the U.S. Google index.
                 </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] max-w-[60ch] leading-normal" style={{ color: COLORS.muted }}>
+                <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
                   Organic positions only · six months of available history · {formatReportDate(reportDate) || "2026"}.
                 </p>
 
@@ -731,7 +737,11 @@ export function WebsiteSnapshotReportViewer({
                   Who shows up in your market
                 </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  {showsUp.direct_note || "Your competitive landscape."}
+                  {(() => {
+                    const directNote = showsUp.direct_note || "Your competitive landscape.";
+                    const firstLine = directNote.split(/[.\n]/)[0] + (directNote.includes('.') || directNote.includes('\n') ? '.' : '');
+                    return firstLine;
+                  })()}
                 </h2>
                 <p className="text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
                   {competitorBuckets.setup?.market}
@@ -869,7 +879,7 @@ export function WebsiteSnapshotReportViewer({
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
                   What the site runs on, and how it's set up to be found.
                 </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
                   The technical inventory — the plumbing, not the content. Green is fine, amber needs a look, red is a problem.
                 </p>
 
@@ -945,7 +955,7 @@ export function WebsiteSnapshotReportViewer({
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
                   Concrete, fixable items — none of them hard.
                 </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
                   Separate from the plumbing. These are what's capping your momentum, in priority order.
                 </p>
 
@@ -980,7 +990,7 @@ export function WebsiteSnapshotReportViewer({
                   The full opportunity map.
                 </h2>
                 {report.ladder_intro && (
-                  <p className="text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                  <p className="text-[14.5px] text-gray-600 leading-normal">
                     {report.ladder_intro}
                   </p>
                 )}
@@ -1028,7 +1038,7 @@ export function WebsiteSnapshotReportViewer({
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
                   Where we would start, and why.
                 </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 max-w-[60ch] leading-normal">
+                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
                   A focused route through the map, sequenced for your stage. Everything you rank for sits on one page today — so we build pages first, then optimize.
                 </p>
 

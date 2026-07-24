@@ -87,25 +87,25 @@ export default function PublicSnapshotPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f2f2ec] px-6">
+    <main className="flex min-h-screen items-center justify-center bg-[#f2f2ec] px-4 sm:px-6">
       <div
         className="flex max-w-sm flex-col items-center text-center"
         aria-live="polite"
       >
         {state.status === "loading" ? (
           <>
-            <Loader2 className="h-7 w-7 animate-spin text-[#123c28]" />
-            <p className="mt-4 text-sm text-[#6d726f]">
+            <Loader2 className="h-6 w-6 sm:h-7 sm:w-7 animate-spin text-[#123c28]" />
+            <p className="mt-3 sm:mt-4 text-xs sm:text-sm text-[#6d726f]">
               Loading snapshot…
             </p>
           </>
         ) : (
           <>
-            <AlertCircle className="h-7 w-7 text-[#b0566b]" />
-            <h1 className="mt-4 text-lg font-semibold text-[#1c1f1d]">
+            <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 text-[#b0566b]" />
+            <h1 className="mt-3 sm:mt-4 text-base sm:text-lg font-semibold text-[#1c1f1d]">
               Snapshot unavailable
             </h1>
-            <p className="mt-2 text-sm leading-6 text-[#6d726f]">
+            <p className="mt-2 text-xs sm:text-sm leading-6 text-[#6d726f]">
               {state.message}
             </p>
           </>

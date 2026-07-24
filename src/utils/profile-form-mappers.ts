@@ -31,7 +31,6 @@ type BuildProfilePayloadOptions = {
 
 export const profileFormDefaults: BusinessInfoFormData = {
   website: "",
-  legalName: "",
   businessName: "",
   businessCategory: "",
   foundingDate: "",
@@ -54,9 +53,6 @@ export const profileFormDefaults: BusinessInfoFormData = {
   keyPeople: [],
   licensesCompliance: [],
   awardsCertifications: [],
-  reviewRating: "",
-  reviewCount: "",
-  testimonials: [],
   colorsFontsCss: "",
   imagePhotoLibrary: [],
   socialProfiles: [],
@@ -227,12 +223,6 @@ function mapJobLocationsToDetailedRows(raw: unknown): BusinessInfoFormData["deta
           : location?.hours
             ? JSON.stringify(location.hours)
             : "",
-      holidayHours:
-        typeof location?.special_hours === "string"
-          ? location.special_hours
-          : location?.special_hours
-            ? JSON.stringify(location.special_hours)
-            : "",
       primaryFlag: String(location?.primaryFlag || "").trim(),
     }))
     .filter((location) =>
@@ -300,7 +290,6 @@ export function mapAutofillResultToFormValues(
   return {
     ...currentValues,
     website: normalizedWebsite || currentValues.website,
-    legalName: profile.legalName || currentValues.legalName,
     businessName: String(profile.brand ?? "").trim() || currentValues.businessName,
     businessCategory: profile.businessCategory || currentValues.businessCategory,
     foundingDate: profile.yearFounded || currentValues.foundingDate,
@@ -334,8 +323,6 @@ export function mapAutofillResultToFormValues(
       profile.licenses.length > 0 ? profile.licenses : currentValues.licensesCompliance,
     awardsCertifications:
       profile.awards.length > 0 ? profile.awards : currentValues.awardsCertifications,
-    reviewRating: profile.aggregateRating?.rating || currentValues.reviewRating,
-    reviewCount: profile.aggregateRating?.count || currentValues.reviewCount,
     stakeholders:
       profile.keyPeople.length > 0
         ? profile.keyPeople.map((person) => ({
@@ -344,10 +331,6 @@ export function mapAutofillResultToFormValues(
             bio: person.bio,
           }))
         : currentValues.stakeholders,
-    testimonials:
-      profile.testimonials.length > 0
-        ? profile.testimonials
-        : currentValues.testimonials,
     offeringsList: currentValues.offeringsList,
     locations:
       profile.structuredLocations.length > 0
@@ -454,12 +437,6 @@ export function mapProfileDataToFormValues(
 
   return {
     website: cleanWebsiteUrl(profileData.Website),
-    legalName:
-      profileAny.LegalName ||
-      profileAny.legalName ||
-      profileAny.legal_business_name ||
-      jobAny?.legal_business_name ||
-      "",
     businessName: profileData.Name || profileData.DisplayName || "",
     businessCategory:
       profileAny.BusinessCategory ||
@@ -520,25 +497,6 @@ export function mapProfileDataToFormValues(
     awardsCertifications: normalizeStringArray(
       profileAny.AwardsCertifications ?? profileAny.awards ?? jobAny?.awards
     ),
-    reviewRating: String(
-      profileAny.ReviewRating ??
-        profileAny.aggregate_rating?.rating ??
-        profileAny.aggregate_rating?.ratingValue ??
-        jobAny?.aggregate_rating?.rating_value ??
-        jobAny?.aggregate_rating?.ratingValue ??
-        jobAny?.aggregate_rating?.rating ??
-        ""
-    ),
-    reviewCount: String(
-      profileAny.ReviewCount ??
-        profileAny.aggregate_rating?.count ??
-        profileAny.aggregate_rating?.reviewCount ??
-        jobAny?.aggregate_rating?.review_count ??
-        jobAny?.aggregate_rating?.reviewCount ??
-        jobAny?.aggregate_rating?.count ??
-        ""
-    ),
-    testimonials: normalizeStringArray(profileAny.Testimonials ?? jobAny?.testimonials),
     colorsFontsCss: String(
       String(profileAny.ColorsFontsCss ?? "").trim() ||
         jobAny?.brand_assets?.stylesheets?.join?.("\n") ||
@@ -605,7 +563,6 @@ export function buildBusinessProfilePayload(
     Website: normalizeWebsite
       ? normalizeWebsiteUrl(cleanWebsiteUrl(values.website))
       : values.website,
-    LegalName: values.legalName || null,
     Name: values.businessName,
     FoundingDate: values.foundingDate || null,
     LogoUrl: values.logoUrl || null,
@@ -681,9 +638,6 @@ export function buildBusinessProfilePayload(
     })),
     LicensesCompliance: values.licensesCompliance || null,
     AwardsCertifications: values.awardsCertifications || null,
-    ReviewRating: values.reviewRating || null,
-    ReviewCount: values.reviewCount || null,
-    Testimonials: values.testimonials || null,
     ColorsFontsCss: values.colorsFontsCss || null,
     ImagePhotoLibrary: values.imagePhotoLibrary || null,
     SocialProfiles: values.socialProfiles || null,

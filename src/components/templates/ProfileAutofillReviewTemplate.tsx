@@ -21,6 +21,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 
 type SectionId =
   | "identity"
@@ -66,6 +71,7 @@ export function ProfileAutofillReviewTemplate({
   onUnlinkBusiness,
   showUnlinkBusiness = true,
   unlinkBusinessDisabled,
+  isWorkflowProcessing = false,
   className,
 }: {
   form: any;
@@ -84,6 +90,7 @@ export function ProfileAutofillReviewTemplate({
   onUnlinkBusiness?: () => void;
   showUnlinkBusiness?: boolean;
   unlinkBusinessDisabled?: boolean;
+  isWorkflowProcessing?: boolean;
   className?: string;
 }) {
   const [activeSection, setActiveSection] = useState<SectionId>("identity");
@@ -114,29 +121,51 @@ export function ProfileAutofillReviewTemplate({
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            className="bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-            onClick={onSaveChanges}
-            disabled={saveDisabled}
-          >
-            Save Changes
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onSaveAndUpdateStrategy}
-            disabled={proceedDisabled}
-          >
-            Save &amp; Update Strategy
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  type="button"
+                  className="bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                  onClick={onSaveChanges}
+                  disabled={saveDisabled}
+                >
+                  Save Changes
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {isWorkflowProcessing && (
+              <TooltipContent>
+                <p>Workflow In Process</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onSaveAndUpdateStrategy}
+                  disabled={proceedDisabled}
+                >
+                  Save &amp; Update Strategy
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {isWorkflowProcessing && (
+              <TooltipContent>
+                <p>Workflow In Process</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
         </div>
       </div>
 
       {/* Body */}
       <div className="flex flex-1 min-h-0 items-stretch">
         {/* Sidebar */}
-        <aside className="flex w-[200px] shrink-0 flex-col justify-between border-r border-general-border bg-white">
+        <aside className="flex w-[200px] shrink-0 flex-col justify-between border-r border-general-border/30 bg-white">
           <nav className="flex flex-col">
             {SECTIONS.map((s) => {
               const isActive = s.id === activeSection;
@@ -146,7 +175,7 @@ export function ProfileAutofillReviewTemplate({
                   type="button"
                   onClick={() => setActiveSection(s.id)}
                   className={cn(
-                    "flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium leading-normal tracking-[0.07px]",
+                    "flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium leading-normal tracking-[0.07px] cursor-pointer",
                     isActive
                       ? "bg-general-primary-foreground text-general-foreground"
                       : "text-[#737373] hover:bg-general-primary-foreground/60"
@@ -166,7 +195,7 @@ export function ProfileAutofillReviewTemplate({
                 onClick={onUnlinkBusiness}
                 disabled={unlinkBusinessDisabled}
                 className={cn(
-                  "inline-flex w-[162px] min-h-9 items-center justify-center gap-2 rounded-lg bg-[#fef2f2] px-4 py-2 text-sm font-medium leading-normal tracking-[0.07px] text-[#dc2626]",
+                  "inline-flex w-[162px] min-h-9 items-center justify-center gap-2 rounded-lg bg-[#fef2f2] px-4 py-2 text-sm font-medium leading-normal tracking-[0.07px] text-[#dc2626] cursor-pointer",
                   "disabled:opacity-50 disabled:pointer-events-none"
                 )}
               >
@@ -187,18 +216,7 @@ export function ProfileAutofillReviewTemplate({
                 </h2>
 
                 <div className="flex flex-col">
-                  <div className="border-b border-general-border py-3">
-                    <GenericInput<BusinessInfoFormData>
-                      form={form as any}
-                      fieldName="legalName"
-                      type="input"
-                      label="Legal name"
-                      fieldOrientation="horizontal"
-                      fieldClassName="gap-0 items-center"
-                      className="max-w-[382px]"
-                    />
-                  </div>
-                  <div className="border-b border-general-border py-3">
+                  <div className="border-b border-general-border/30 py-3">
                     <GenericInput<BusinessInfoFormData>
                       form={form as any}
                       fieldName="businessName"
@@ -210,7 +228,7 @@ export function ProfileAutofillReviewTemplate({
                       required
                     />
                   </div>
-                  <div className="border-b border-general-border py-3">
+                  <div className="border-b border-general-border/30 py-3">
                     <GenericInput<BusinessInfoFormData>
                       form={form as any}
                       fieldName="businessCategory"
@@ -221,7 +239,7 @@ export function ProfileAutofillReviewTemplate({
                       className="max-w-[382px]"
                     />
                   </div>
-                  <div className="border-b border-general-border py-3">
+                  <div className="border-b border-general-border/30 py-3">
                     <GenericInput<BusinessInfoFormData>
                       form={form as any}
                       fieldName="foundingDate"
@@ -233,7 +251,7 @@ export function ProfileAutofillReviewTemplate({
                       placeholder="E.g. 2018"
                     />
                   </div>
-                  <div className="border-b border-general-border py-3">
+                  <div className="border-b border-general-border/30 py-3">
                     <GenericInput<BusinessInfoFormData>
                       form={form as any}
                       fieldName="logoUrl"
@@ -260,33 +278,40 @@ export function ProfileAutofillReviewTemplate({
                 </div>
               </div>
 
-              <div className="w-[352px] shrink-0 rounded-lg border border-general-border-three bg-white p-3">
-                <div className="flex flex-col">
-                  {summary.map((row) => (
+              <div className="w-[352px] shrink-0 self-start rounded-lg border border-general-border bg-[#fafafa] p-3">
+                <div className="flex flex-col gap-1.5">
+                  {summary.map((row, index) => (
                     <div
                       key={row.label}
-                      className="flex items-center justify-between gap-4 border-b border-general-border py-3 last:border-b-0"
+                      className={cn(
+                        "flex items-center gap-0.5 py-3",
+                        index < summary.length - 1 && "border-b border-general-border"
+                      )}
                     >
-                      <div className="text-xs font-medium text-general-muted-foreground">
-                        {row.label}
+                      <div className="flex w-[120px] shrink-0 items-center">
+                        <p className="text-xs font-medium leading-normal tracking-[0.18px] text-general-muted-foreground whitespace-nowrap">
+                          {row.label}
+                        </p>
                       </div>
-                      <div className="max-w-[220px] truncate text-xs font-medium text-general-foreground">
-                        {row.value || "—"}
+                      <div className="flex items-center shrink-0">
+                        <p className="text-xs font-medium leading-normal tracking-[0.18px] text-general-foreground whitespace-nowrap">
+                          {row.value || "—"}
+                        </p>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 flex justify-end">
-                  <Button
+                <div className="mt-1.5 flex justify-end">
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
                     onClick={() => setIsEditGateOpen(true)}
+                    className="inline-flex min-h-7 items-center justify-center gap-1.5 rounded-md border border-general-border bg-white px-3 py-1.5 shadow-sm transition-colors hover:bg-general-accent hover:border-general-primary cursor-pointer"
                   >
-                    <Pencil className="size-4" />
-                    Edit
-                  </Button>
+                    <Pencil className="size-3.5 shrink-0" />
+                    <span className="text-xs font-medium leading-normal text-general-foreground">
+                      Edit
+                    </span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -363,7 +388,97 @@ export function ProfileAutofillReviewTemplate({
               <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
                 Service Areas
               </h2>
-              <BusinessInfoForm form={form} embedded />
+              <div className="flex flex-col gap-6">
+                <GenericInput<BusinessInfoFormData>
+                  form={form as any}
+                  fieldName="serviceAreaType"
+                  type="select"
+                  label="Service Area Type"
+                  required
+                  placeholder="Select service area type"
+                  options={[
+                    { value: "international", label: "International" },
+                    { value: "national", label: "National" },
+                    { value: "state_regional", label: "State-Regional" },
+                    { value: "city_local", label: "City/Local" },
+                  ]}
+                />
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-general-foreground">
+                    Service Areas
+                  </label>
+                  <form.Field name="serviceAreas">
+                    {(field: any) => {
+                      const serviceAreasValue = field.state.value || [];
+                      return (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]">
+                            {serviceAreasValue.map((area: string, idx: number) => (
+                              <span
+                                key={`${area}-${idx}`}
+                                className="inline-flex items-center gap-1 rounded-full border border-general-border bg-white px-2 py-1 text-xs"
+                              >
+                                <span className="max-w-60 truncate">{area}</span>
+                                <button
+                                  type="button"
+                                  className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 text-general-muted-foreground hover:text-foreground cursor-pointer"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    const next = serviceAreasValue.filter((_: string, i: number) => i !== idx);
+                                    field.handleChange(next);
+                                  }}
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </span>
+                            ))}
+                            <input
+                              type="text"
+                              placeholder={serviceAreasValue.length === 0 ? "Type a service area and press Enter" : undefined}
+                              className="min-w-[120px] flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-general-muted-foreground placeholder:text-xs"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Tab" || e.key === ",") {
+                                  const value = e.currentTarget.value.trim();
+                                  if (value) {
+                                    e.preventDefault();
+                                    const tokens = value.split(/[,\n]/g).map((t) => t.trim()).filter(Boolean);
+                                    const next = [...serviceAreasValue, ...tokens].filter((v, i, arr) => 
+                                      arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i
+                                    );
+                                    field.handleChange(next);
+                                    e.currentTarget.value = "";
+                                  }
+                                }
+                                if (e.key === "Backspace" && !e.currentTarget.value && serviceAreasValue.length > 0) {
+                                  e.preventDefault();
+                                  const next = serviceAreasValue.slice(0, -1);
+                                  field.handleChange(next);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const value = e.currentTarget.value.trim();
+                                if (value) {
+                                  const tokens = value.split(/[,\n]/g).map((t) => t.trim()).filter(Boolean);
+                                  const next = [...serviceAreasValue, ...tokens].filter((v, i, arr) => 
+                                    arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i
+                                  );
+                                  field.handleChange(next);
+                                  e.currentTarget.value = "";
+                                }
+                              }}
+                            />
+                          </div>
+                          <p className="text-xs text-general-muted-foreground">
+                            Type service areas and press Enter to add them
+                          </p>
+                        </div>
+                      );
+                    }}
+                  </form.Field>
+                </div>
+              </div>
             </div>
           ) : activeSection === "offerings" ? (
             <div className="max-w-[920px]">
@@ -393,16 +508,163 @@ export function ProfileAutofillReviewTemplate({
               </h2>
               <CompetitorsForm form={form} embedded />
             </div>
-          ) : (
+          ) : activeSection === "trust-people" ? (
             <div className="max-w-[920px]">
               <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                {SECTIONS.find((s) => s.id === activeSection)?.label ?? "Section"}
+                Trust & People
               </h2>
-              {/* Temporary: surface all remaining fields through the existing full form to avoid losing edit coverage */}
-              <BusinessInfoForm form={form} embedded />
-              <ContentCuesForm form={form} embedded />
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-general-foreground">
+                    Licenses / Compliance
+                  </label>
+                  <form.Field name="licensesCompliance">
+                    {(field: any) => {
+                      const value = field.state.value || [];
+                      return (
+                        <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]">
+                          {value.map((item: string, idx: number) => (
+                            <span key={`${item}-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-general-border bg-white px-2 py-1 text-xs">
+                              <span className="max-w-60 truncate">{item}</span>
+                              <button
+                                type="button"
+                                onClick={() => field.handleChange(value.filter((_: string, i: number) => i !== idx))}
+                                className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 text-general-muted-foreground hover:text-foreground cursor-pointer"
+                              >
+                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            type="text"
+                            placeholder={value.length === 0 ? "Type a license or compliance item and press Enter" : undefined}
+                            className="min-w-[120px] flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-general-muted-foreground placeholder:text-xs"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Tab" || e.key === ",") {
+                                const val = e.currentTarget.value.trim();
+                                if (val) {
+                                  e.preventDefault();
+                                  field.handleChange([...value, ...val.split(/[,\n]/g).map((t) => t.trim()).filter(Boolean)]);
+                                  e.currentTarget.value = "";
+                                }
+                              }
+                              if (e.key === "Backspace" && !e.currentTarget.value && value.length > 0) {
+                                e.preventDefault();
+                                field.handleChange(value.slice(0, -1));
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = e.currentTarget.value.trim();
+                              if (val) {
+                                field.handleChange([...value, ...val.split(/[,\n]/g).map((t) => t.trim()).filter(Boolean)]);
+                                e.currentTarget.value = "";
+                              }
+                            }}
+                          />
+                        </div>
+                      );
+                    }}
+                  </form.Field>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-general-foreground">
+                    Awards / Certifications / Affiliations
+                  </label>
+                  <form.Field name="awardsCertifications">
+                    {(field: any) => {
+                      const value = field.state.value || [];
+                      return (
+                        <div className="flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]">
+                          {value.map((item: string, idx: number) => (
+                            <span key={`${item}-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-general-border bg-white px-2 py-1 text-xs">
+                              <span className="max-w-60 truncate">{item}</span>
+                              <button
+                                type="button"
+                                onClick={() => field.handleChange(value.filter((_: string, i: number) => i !== idx))}
+                                className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 text-general-muted-foreground hover:text-foreground cursor-pointer"
+                              >
+                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            type="text"
+                            placeholder={value.length === 0 ? "Type an award or certification and press Enter" : undefined}
+                            className="min-w-[120px] flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-general-muted-foreground placeholder:text-xs"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Tab" || e.key === ",") {
+                                const val = e.currentTarget.value.trim();
+                                if (val) {
+                                  e.preventDefault();
+                                  field.handleChange([...value, ...val.split(/[,\n]/g).map((t) => t.trim()).filter(Boolean)]);
+                                  e.currentTarget.value = "";
+                                }
+                              }
+                              if (e.key === "Backspace" && !e.currentTarget.value && value.length > 0) {
+                                e.preventDefault();
+                                field.handleChange(value.slice(0, -1));
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = e.currentTarget.value.trim();
+                              if (val) {
+                                field.handleChange([...value, ...val.split(/[,\n]/g).map((t) => t.trim()).filter(Boolean)]);
+                                e.currentTarget.value = "";
+                              }
+                            }}
+                          />
+                        </div>
+                      );
+                    }}
+                  </form.Field>
+                </div>
+              </div>
             </div>
-          )}
+          ) : activeSection === "channels" ? (
+            <div className="max-w-[920px]">
+              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+                Channels
+              </h2>
+              <div className="flex flex-col gap-6">
+                <GenericInput<BusinessInfoFormData>
+                  form={form as any}
+                  fieldName="supportEmail"
+                  type="email"
+                  label="Support Email"
+                  placeholder="support@example.com"
+                />
+                <GenericInput<BusinessInfoFormData>
+                  form={form as any}
+                  fieldName="commsEmail"
+                  type="email"
+                  label="Comms Email"
+                  placeholder="reports@example.com"
+                />
+              </div>
+            </div>
+          ) : activeSection === "integrations" ? (
+            <div className="max-w-[920px]">
+              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+                Integrations
+              </h2>
+              <p className="text-sm text-general-muted-foreground">
+                Integration settings will be available here.
+              </p>
+            </div>
+          ) : activeSection === "preferences" ? (
+            <div className="max-w-[920px]">
+              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+                Preferences
+              </h2>
+              <p className="text-sm text-general-muted-foreground">
+                Preference settings will be available here.
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
 

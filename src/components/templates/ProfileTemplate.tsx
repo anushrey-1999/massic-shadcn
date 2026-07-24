@@ -170,7 +170,6 @@ const ProfileTemplate = ({
     if (!profileData) {
       return {
         website: "",
-        legalName: "",
         businessName: "",
         businessCategory: "",
         foundingDate: "",
@@ -193,9 +192,6 @@ const ProfileTemplate = ({
         keyPeople: [],
         licensesCompliance: [],
         awardsCertifications: [],
-        reviewRating: "",
-        reviewCount: "",
-        testimonials: [],
         colorsFontsCss: "",
         imagePhotoLibrary: [],
         socialProfiles: [],
@@ -346,11 +342,6 @@ const ProfileTemplate = ({
     return {
       // All fields from business API (source of truth)
       website: cleanWebsiteUrl(profileData.Website),
-      legalName:
-        (profileData as any).LegalName ||
-        (profileData as any).legalName ||
-        (profileData as any).legal_business_name ||
-        "",
       businessName: profileData.Name || "",
       businessCategory:
         (profileData as any).BusinessCategory ||
@@ -454,19 +445,6 @@ const ProfileTemplate = ({
       awardsCertifications: normalizeStringArray(
         (profileData as any).AwardsCertifications ?? (profileData as any).awards
       ),
-      reviewRating: String(
-        (profileData as any).ReviewRating ??
-          (profileData as any).aggregate_rating?.rating ??
-          (profileData as any).aggregate_rating?.ratingValue ??
-          ""
-      ),
-      reviewCount: String(
-        (profileData as any).ReviewCount ??
-          (profileData as any).aggregate_rating?.count ??
-          (profileData as any).aggregate_rating?.reviewCount ??
-          ""
-      ),
-      testimonials: normalizeStringArray((profileData as any).Testimonials),
       colorsFontsCss: String((profileData as any).ColorsFontsCss ?? ""),
       imagePhotoLibrary: normalizeStringArray(
         (profileData as any).ImagePhotoLibrary
@@ -1412,8 +1390,10 @@ const ProfileTemplate = ({
                     externalLoading ||
                     isSaving ||
                     isAutofillWorkflowInProgress ||
-                    hasAnyValidationErrors
+                    hasAnyValidationErrors ||
+                    isWorkflowProcessing
                   }
+                  isWorkflowProcessing={isWorkflowProcessing}
                   proceedDisabled={isButtonDisabled || !externalJobDetails?.job_id}
                   className="flex-1"
                 />

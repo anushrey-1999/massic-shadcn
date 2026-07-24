@@ -26,7 +26,6 @@ export const businessInfoSchema = z.object({
       (val) => isValidWebsiteUrl(val),
       { message: "Please enter a valid website URL (e.g., example.com, www.example.com, or https://example.com)" }
     ),
-  legalName: z.string().optional(),
   businessName: z.string().min(1, "Business Name is required"),
   businessCategory: z.string().optional(),
   foundingDate: z.string().optional(),
@@ -114,7 +113,6 @@ export const businessInfoSchema = z.object({
         email: z.string().optional(),
         mapLink: z.string().optional(),
         hours: z.string().optional(),
-        holidayHours: z.string().optional(),
         primaryFlag: z.string().optional(),
       })
     )
@@ -130,9 +128,6 @@ export const businessInfoSchema = z.object({
     .optional(),
   licensesCompliance: z.array(z.string().trim().min(1)).optional(),
   awardsCertifications: z.array(z.string().trim().min(1)).optional(),
-  reviewRating: z.string().optional(),
-  reviewCount: z.string().optional(),
-  testimonials: z.array(z.string().trim().min(1)).optional(),
   colorsFontsCss: z.string().optional(),
   imagePhotoLibrary: z.array(imageLibraryItemSchema).optional(),
   socialProfiles: z

@@ -22,7 +22,6 @@ export type StructuredProfileLocation = {
   email?: string;
   map_url?: string;
   hours?: unknown;
-  special_hours?: unknown;
 };
 
 type ImageLibraryItem = string | { alt?: string; url: string };
@@ -46,7 +45,6 @@ type ProfileStatusResponse = {
 export type NormalizedProfileResult = {
   profileId?: string;
   businessUrl?: string;
-  legalName?: string;
   brand?: string;
   businessCategory?: string;
   yearFounded?: string;
@@ -78,9 +76,7 @@ export type NormalizedProfileResult = {
   supportEmail?: string;
   licenses: string[];
   awards: string[];
-  aggregateRating?: { rating: string; count: string };
   keyPeople: Array<{ name: string; role: string; bio: string }>;
-  testimonials: string[];
   raw: Record<string, unknown>;
 };
 
@@ -242,7 +238,6 @@ function normalizeStructuredLocations(value: unknown): StructuredProfileLocation
         email: toStringValue(item.email),
         map_url: toStringValue(item.map_url ?? item.mapUrl ?? item.mapLink),
         hours: item.hours,
-        special_hours: item.special_hours ?? item.specialHours ?? item.holidayHours,
       };
       const compacted = Object.fromEntries(
         Object.entries(location).filter(([, entry]) => {
@@ -311,23 +306,6 @@ function normalizeKeyPeople(value: unknown): Array<{ name: string; role: string;
     );
 }
 
-function normalizeAggregateRating(value: unknown): { rating: string; count: string } | undefined {
-  const rating = unwrapProfileCell(value);
-  if (!isObject(rating)) {
-    const ratingText = toStringValue(rating);
-    return ratingText ? { rating: ratingText, count: "" } : undefined;
-  }
-  const ratingValue = toStringValue(
-    rating.ratingValue ?? rating.rating ?? rating.value
-  );
-  const reviewCount = toStringValue(
-    rating.reviewCount ?? rating.count ?? rating.ratingCount
-  );
-  return ratingValue || reviewCount
-    ? { rating: ratingValue, count: reviewCount }
-    : undefined;
-}
-
 function normalizeBrandAssets(value: unknown): {
   colorsFontsCss?: string;
   imagePhotoLibrary: ImageLibraryItem[];
@@ -376,9 +354,6 @@ export function normalizeProfileResult(
   const ltv = normalizeLtv(firstValue(result, ["ltv"]));
   const segment = firstValue(result, ["segment"]);
   const brandAssets = normalizeBrandAssets(firstValue(result, ["brand_assets"]));
-  const aggregateRating = normalizeAggregateRating(
-    firstValue(result, ["aggregate_rating"])
-  );
 
   return {
     profileId:
@@ -389,9 +364,6 @@ export function normalizeProfileResult(
     businessUrl:
       toStringValue(firstValue(result, ["business_url", "website_url", "url"])) ||
       toStringValue(response.business_url) ||
-      undefined,
-    legalName:
-      toStringValue(firstValue(result, ["legal_business_name", "legal_name"])) ||
       undefined,
     brand: toStringValue(firstValue(result, ["brand", "business_name"])) || undefined,
     businessCategory:
@@ -434,9 +406,7 @@ export function normalizeProfileResult(
     supportEmail: toStringValue(firstValue(result, ["support_email"])) || undefined,
     licenses: toStringArray(firstValue(result, ["licenses"])),
     awards: toStringArray(firstValue(result, ["awards"])),
-    aggregateRating,
     keyPeople: normalizeKeyPeople(firstValue(result, ["key_people"])),
-    testimonials: toStringArray(firstValue(result, ["testimonials"])),
     raw: result,
   };
 }

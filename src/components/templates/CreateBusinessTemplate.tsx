@@ -8,12 +8,8 @@ import { LoaderOverlay } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
-import { ProfileFormTabs } from "@/components/templates/ProfileFormTabs";
+import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
 import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
-import {
-  PROFILE_FORM_TABS,
-  type ProfileFormTabId,
-} from "@/utils/profile-form-mappers";
 
 type FormData = {
   website: string;
@@ -60,9 +56,6 @@ export function CreateBusinessTemplate({
   onCancel,
 }: CreateBusinessTemplateProps) {
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: "Create Business" }];
-  const [profileTab, setProfileTab] = React.useState<ProfileFormTabId>(
-    PROFILE_FORM_TABS[0].id
-  );
 
   const formValues = useStore(form.store, (state: any) => state.values) as FormData;
   const isOfferingsExtracting = Boolean(offeringsExtractor?.isExtracting);
@@ -158,23 +151,25 @@ export function CreateBusinessTemplate({
                   </ProfileGateCard>
                 ) : null}
                 {hasAutofilledProfile && (
-                  <ProfileFormTabs
+                  <ProfileAutofillReviewTemplate
                     form={form}
                     businessId={null}
-                    value={profileTab}
-                    onValueChange={setProfileTab}
-                    disableWebsiteLock
-                    hideFetchOfferingsFromWebsite
+                    leftTitle="Create Business"
                     extractionController={offeringsExtractor}
-                    primaryLocationAction={renderAutofillButton({
-                      className: "gap-2 border-general-border-three text-general-foreground",
-                      variant: "outline",
-                    })}
-                    rightAction={
-                      <div className="flex items-center gap-3">
+                    hideFetchOfferingsFromWebsite
+                    onSaveChanges={() => {}}
+                    onSaveAndUpdateStrategy={() => {}}
+                    onAutofillProfile={onAutofillProfile}
+                    autofillDisabled={isAutofillDisabled}
+                    autofillLoading={isAutofillLoading}
+                    showUnlinkBusiness={false}
+                    showDefaultActions={false}
+                    customHeaderActions={
+                      <>
                         <Button
                           type="button"
                           variant="outline"
+                          className="border-general-border-three text-general-foreground"
                           onClick={onCancel}
                           disabled={isSubmitting}
                         >
@@ -191,14 +186,20 @@ export function CreateBusinessTemplate({
                             isOfferingsExtracting
                           }
                         >
-                          {isSubmitting || isPending
-                            ? "Creating..."
-                            : isOfferingsExtracting
-                              ? "Extracting offerings..."
-                              : "Create"}
+                          {isSubmitting || isPending ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Creating...
+                            </>
+                          ) : isOfferingsExtracting ? (
+                            "Extracting offerings..."
+                          ) : (
+                            "Create"
+                          )}
                         </Button>
-                      </div>
+                      </>
                     }
+                    className="flex-1"
                   />
                 )}
               </form>

@@ -18,6 +18,7 @@ export function ProfileGateCard({
 }) {
   return (
     <Card
+      variant="noBorderShadowCard"
       className={cn(
         "w-full overflow-hidden rounded-lg border border-general-border-three bg-white shadow-none",
         className

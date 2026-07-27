@@ -18,17 +18,13 @@ import { useCreateJob, useJobByBusinessId, useUpdateJob } from "@/hooks/use-jobs
 
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/molecules/PageHeader";
-import { ProfileFormTabs } from "@/components/templates/ProfileFormTabs";
+import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
 import { LoaderOverlay } from "@/components/ui/loader";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   type NormalizedProfileResult,
 } from "@/utils/profile-result";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,9 +43,7 @@ import {
   buildBusinessProfilePayload,
   mapFormOfferingsToJobOfferings,
   mapProfileDataToFormValues,
-  PROFILE_FORM_TABS,
   profileFormDefaults,
-  type ProfileFormTabId,
 } from "@/utils/profile-form-mappers";
 
 export function PitchProfileTemplate() {
@@ -77,9 +71,6 @@ export function PitchProfileTemplate() {
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [autofillProfileResult, setAutofillProfileResult] =
     useState<NormalizedProfileResult | null>(null);
-  const [profileTab, setProfileTab] = useState<ProfileFormTabId>(
-    PROFILE_FORM_TABS[0].id
-  );
 
   React.useEffect(() => {
     resetProfileForm();
@@ -149,6 +140,13 @@ export function PitchProfileTemplate() {
     });
 
   const formValues = useStore(form.store, (state: any) => state.values) as BusinessInfoFormData;
+
+  const isAutofillDisabled =
+    isAutofillLoading ||
+    locationsLoading ||
+    !String(formValues?.website ?? "").trim() ||
+    !String(formValues?.primaryLocation ?? "").trim() ||
+    !String(formValues?.serviceAreaType ?? "").trim();
 
   React.useEffect(() => {
     if (!businessId) return;
@@ -247,7 +245,12 @@ export function PitchProfileTemplate() {
     return undefined;
   }, [isAutofillLoading, isSavingBusiness, isSavingJob, isTriggeringWorkflow]);
 
-  const handleConfirmAndProceed = React.useCallback(async () => {
+  const handleSaveChanges = React.useCallback(async () => {
+    if (!businessId) return;
+    await form.handleSubmit();
+  }, [businessId, form]);
+
+  const handleSaveAndProceed = React.useCallback(async () => {
     if (!businessId) return;
 
     try {
@@ -286,7 +289,7 @@ export function PitchProfileTemplate() {
   }, [businessId, convertPitchMutation, guardConvertPitch, router]);
 
   return (
-    <div className="flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden">
+    <div className={cn("flex flex-col h-full min-h-0 relative overflow-hidden")}>
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="sticky top-0 z-10 shrink-0 bg-background">
@@ -295,54 +298,44 @@ export function PitchProfileTemplate() {
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
             <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  form.handleSubmit();
-                }}
-                className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
-              >
-                <ProfileFormTabs
-                  form={form}
-                  businessId={businessId ?? null}
-                  value={profileTab}
-                  onValueChange={setProfileTab}
-                  disableWebsiteLock
-                  primaryLocationAction={
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-block">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="default"
-                            onClick={handleAutofillProfile}
-                            disabled={
-                              isAutofillLoading ||
-                              !(formValues?.website ?? "").toString().trim() ||
-                              !(formValues?.primaryLocation ?? "").toString().trim() ||
-                              !(formValues?.serviceAreaType ?? "").toString().trim()
-                            }
-                            className="gap-2 border-general-border-three text-general-foreground"
-                          >
-                            {isAutofillLoading ? (
-                              <>
-                                <Loader2 className="size-4 animate-spin" />
-                                Autofilling...
-                              </>
-                            ) : (
-                              "Autofill Profile"
-                            )}
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      {!(formValues?.website ?? "").toString().trim() ? (
-                        <TooltipContent>Enter Website URL to proceed</TooltipContent>
-                      ) : null}
-                    </Tooltip>
-                  }
-                  rightAction={
-                    <div className="flex items-center gap-2">
+              <div className="flex-1 flex flex-col gap-7 min-h-0 min-w-0 overflow-hidden">
+                <form
+                  id="pitch-profile-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    form.handleSubmit();
+                  }}
+                  className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
+                >
+                  <ProfileAutofillReviewTemplate
+                    form={form}
+                    businessId={businessId ?? null}
+                    leftTitle="Pitch Profile"
+                    onSaveChanges={() => {
+                      void handleSaveChanges();
+                    }}
+                    onSaveAndUpdateStrategy={() => {
+                      void handleSaveAndProceed();
+                    }}
+                    onAutofillProfile={() => {
+                      void handleAutofillProfile();
+                    }}
+                    autofillDisabled={isAutofillDisabled}
+                    autofillLoading={isAutofillLoading}
+                    showUnlinkBusiness={false}
+                    saveDisabled={
+                      isSavingBusiness ||
+                      isSavingJob ||
+                      isSubmitting ||
+                      !canConfirmAndProceed
+                    }
+                    proceedDisabled={
+                      !canConfirmAndProceed ||
+                      isSubmitting ||
+                      isLoading ||
+                      convertPitchMutation.isPending
+                    }
+                    customHeaderActions={
                       <Button
                         type="button"
                         variant="outline"
@@ -355,30 +348,11 @@ export function PitchProfileTemplate() {
                       >
                         {convertPitchMutation.isPending ? "Converting..." : "Convert to Business"}
                       </Button>
-                      <Button
-                        type="button"
-                        className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                        onClick={handleConfirmAndProceed}
-                        disabled={
-                          !canConfirmAndProceed ||
-                          isSubmitting ||
-                          isLoading ||
-                          convertPitchMutation.isPending
-                        }
-                      >
-                        {isSubmitting || isTriggeringWorkflow ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            {isTriggeringWorkflow ? "Triggering..." : "Saving..."}
-                          </>
-                        ) : (
-                          "Confirm and proceed to Strategy"
-                        )}
-                      </Button>
-                    </div>
-                  }
-                />
-              </form>
+                    }
+                    className="flex-1"
+                  />
+                </form>
+              </div>
             </div>
           </div>
         </div>

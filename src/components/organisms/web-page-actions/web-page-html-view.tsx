@@ -589,6 +589,8 @@ export function WebPageHtmlView({
     | "webflow-rollback-draft"
     | "sanity-draft"
     | "sanity-live"
+    | "shopify-draft"
+    | "shopify-live"
     | "republish"
     | "update-draft"
     | null
@@ -626,6 +628,7 @@ export function WebPageHtmlView({
   const isActiveWordpress = activePlatform === "wordpress" && Boolean(activeConnection);
   const isActiveWebflow = activePlatform === "webflow" && Boolean(activeConnection);
   const isActiveSanity = activePlatform === "sanity" && Boolean(activeConnection);
+  const isActiveShopify = activePlatform === "shopify" && Boolean(activeConnection);
   const activeTarget = isActiveWebflow
     ? publishType === "page"
       ? cmsChannel?.targets?.page || null
@@ -658,6 +661,8 @@ export function WebPageHtmlView({
     !sanityPagesSetupMutation.isError && (sanityPageSetupData ? sanityPageSetupData.ready : activeTarget?.targetId)
   );
   const isSanityReady = isActiveSanity && Boolean(activeTarget?.targetId) && isSanityPageSetupReady;
+  const isShopifyBlogPublish = isActiveShopify && publishType === "post";
+  const isShopifyReady = isShopifyBlogPublish && Boolean(activeTarget?.targetId);
   const needsSanityMappingSetup = isActiveSanity && publishType === "post" && !activeTarget?.targetId;
   const webflowDomains = isActiveWebflow
     ? publishType === "page"
@@ -768,7 +773,7 @@ export function WebPageHtmlView({
   const publishContentId = inferPage?.page_id || pageId;
   const contentStatusQuery = useCmsPublishingContentStatus(
     businessId || null,
-    publishContentId && (isActiveWebflow || isActiveSanity || (isActiveWordpress && isPublishModalOpen))
+    publishContentId && (isActiveWebflow || isActiveSanity || isActiveShopify || (isActiveWordpress && isPublishModalOpen))
       ? String(publishContentId)
       : null
   );
@@ -780,8 +785,9 @@ export function WebPageHtmlView({
   const isWordpressFeaturedImagePublish = isActiveWordpress;
   const isWebflowImagePublish = isActiveWebflow && hasEnabledWebflowImageDestinations;
   const isSanityImagePublish = isActiveSanity && hasEnabledWebflowImageDestinations;
-  const isCmsImagePublish = isWordpressFeaturedImagePublish;
-  const shouldLoadSharedFeaturedImage = isWordpressFeaturedImagePublish || isWebflowImagePublish || isSanityImagePublish;
+  const isShopifyImagePublish = isShopifyBlogPublish;
+  const isCmsImagePublish = isWordpressFeaturedImagePublish || isShopifyImagePublish;
+  const shouldLoadSharedFeaturedImage = isWordpressFeaturedImagePublish || isWebflowImagePublish || isSanityImagePublish || isShopifyImagePublish;
 
   const featuredImageContentId = shouldLoadSharedFeaturedImage && publishContentId ? String(publishContentId) : null;
   const featuredImageQuery = useCmsFeaturedImage(
@@ -802,8 +808,10 @@ export function WebPageHtmlView({
   const persistedContent = activePlatform === "wordpress" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedContent = activePlatform === "webflow" ? contentStatusQuery.data?.content || null : null;
   const sanityPersistedContent = activePlatform === "sanity" ? contentStatusQuery.data?.content || null : null;
+  const shopifyPersistedContent = activePlatform === "shopify" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedStatus = (webflowPersistedContent?.status || "").toLowerCase();
   const sanityPersistedStatus = (sanityPersistedContent?.status || "").toLowerCase();
+  const shopifyPersistedStatus = (shopifyPersistedContent?.status || "").toLowerCase();
   const webflowPersistedSlug = React.useMemo(
     () => normalizeWordpressBlogEditableSlug(webflowPersistedContent?.slug || ""),
     [webflowPersistedContent?.slug]
@@ -835,6 +843,11 @@ export function WebPageHtmlView({
   const sanityPublishState: "not_published" | "draft" | "live" = isSanityLive
     ? "live"
     : isSanityDraftLike || hasSanityMapping
+      ? "draft"
+      : "not_published";
+  const shopifyPublishState: "not_published" | "draft" | "live" = shopifyPersistedStatus === "published"
+    ? "live"
+    : shopifyPersistedContent
       ? "draft"
       : "not_published";
   const persistedStatus = (persistedContent?.status || "").toLowerCase();
@@ -873,6 +886,9 @@ export function WebPageHtmlView({
         ? normalizeWordpressSlugPath(sanityPersistedContent.slug)
         : normalizeWordpressBlogEditableSlug(sanityPersistedContent.slug);
     }
+    if (!isPersistedTrashed && shopifyPersistedContent?.slug) {
+      return normalizeWordpressBlogEditableSlug(shopifyPersistedContent.slug);
+    }
     if (!isPersistedTrashed && lastPublishedData?.slug) {
       return publishType === "page"
         ? normalizeWordpressSlugPath(lastPublishedData.slug)
@@ -880,7 +896,7 @@ export function WebPageHtmlView({
     }
     if (generatedSlug) return isSanityPagePublish ? generatedSanityPageRoute : generatedSlug;
     return generatedSlugFallback;
-  }, [generatedSanityPageRoute, generatedSlug, generatedSlugFallback, isPersistedTrashed, isSanityPagePublish, lastPublishedData?.slug, persistedSlug, publishType, sanityPersistedContent?.slug, webflowPersistedSlug]);
+  }, [generatedSanityPageRoute, generatedSlug, generatedSlugFallback, isPersistedTrashed, isSanityPagePublish, lastPublishedData?.slug, persistedSlug, publishType, sanityPersistedContent?.slug, shopifyPersistedContent?.slug, webflowPersistedSlug]);
   const normalizedEditableSlug = React.useMemo(
     () =>
       publishType === "page"
@@ -909,7 +925,7 @@ export function WebPageHtmlView({
   const hasSlugConflict = Boolean(slugCheckResult?.exists && !slugCheckResult?.sameMappedContent && slugCheckResult?.conflict);
   const slugConflictReason = slugCheckResult?.conflict?.reason || null;
   const sharedFeaturedImage = featuredImageQuery.data || null;
-  const activeFeaturedImage = isWordpressFeaturedImagePublish ? sharedFeaturedImage : null;
+  const activeFeaturedImage = isWordpressFeaturedImagePublish || isShopifyImagePublish ? sharedFeaturedImage : null;
   const webflowFieldImageByKey = React.useMemo(() => {
     const map = new Map<string, CmsFeaturedImageAsset>();
     (webflowFieldImagesQuery.data || []).forEach(assignment => {
@@ -973,8 +989,16 @@ export function WebPageHtmlView({
     ? (webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published")
     : activePlatform === "sanity"
       ? (sanityPublishState === "live" ? "Live" : sanityPublishState === "draft" ? "Draft" : "Not Published")
+      : activePlatform === "shopify"
+        ? (shopifyPublishState === "live" ? "Live" : shopifyPublishState === "draft" ? "Draft" : "Not Published")
       : isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
-  const publishStateHint = activePlatform === "sanity"
+  const publishStateHint = activePlatform === "shopify"
+    ? shopifyPublishState === "live"
+      ? "This article is live in Shopify."
+      : shopifyPublishState === "draft"
+        ? "An unpublished draft exists in Shopify."
+        : "No Shopify article exists yet."
+    : activePlatform === "sanity"
     ? sanityPublishState === "live"
       ? "This content is live in Sanity."
       : sanityPublishState === "draft"
@@ -989,6 +1013,13 @@ export function WebPageHtmlView({
           : `No WordPress ${isBlogContent ? "post" : "page"} exists yet.`;
   const publishUrlPreview = React.useMemo(() => {
     const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
+    if (activePlatform === "shopify") {
+      const baseUrl = String(activeConnection?.siteUrl || "").replace(/\/+$/, "");
+      const blogHandle = String((activeTarget?.metadata as any)?.handle || "").replace(/^\/+|\/+$/g, "");
+      return baseUrl && blogHandle && slugForPreview
+        ? `${baseUrl}/blogs/${blogHandle}/${slugForPreview}`
+        : null;
+    }
     if (activePlatform === "sanity") {
       const baseUrl = String(
         (activeTarget?.metadata as any)?.previewBaseUrl ||
@@ -1707,7 +1738,7 @@ export function WebPageHtmlView({
         setSlugCheckResult(result);
         return result;
       } catch (err: unknown) {
-        const message = (err as { message?: string })?.message || `Failed to check slug in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}.`;
+        const message = (err as { message?: string })?.message || `Failed to check slug in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : activePlatform === "shopify" ? "Shopify" : "WordPress"}.`;
         setSlugCheckResult(null);
         setSlugCheckError(message);
         return null;
@@ -2058,7 +2089,7 @@ export function WebPageHtmlView({
         setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       } else if (isCmsRateLimitError(e)) {
-        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : "WordPress"));
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : activePlatform === "shopify" ? "Shopify" : "WordPress"));
       }
       return;
     }
@@ -2074,7 +2105,7 @@ export function WebPageHtmlView({
       previewUrl: published.previewUrl || undefined,
       siteVerification: published.siteVerification || null,
     });
-    toast.success(activePlatform === "webflow" ? "Webflow draft saved" : activePlatform === "sanity" ? "Sanity draft saved" : "Draft pushed to WordPress");
+    toast.success(activePlatform === "webflow" ? "Webflow draft saved" : activePlatform === "sanity" ? "Sanity draft saved" : activePlatform === "shopify" ? "Shopify draft saved" : "Draft pushed to WordPress");
     if (activePlatform === "webflow") {
       setWebflowStagingPreview(null);
       if (publishContentId) {
@@ -2083,6 +2114,8 @@ export function WebPageHtmlView({
     }
     if (activePlatform === "sanity") {
       toast.info(SANITY_DRAFT_PREVIEW_UNAVAILABLE_MESSAGE);
+    } else if (activePlatform === "shopify") {
+      toast.info("Shopify drafts are not visible on the storefront until published.");
     } else {
       const previewUrl = published.previewUrl || published.externalUrl;
       if (previewUrl && activePlatform !== "webflow") {
@@ -2280,7 +2313,7 @@ export function WebPageHtmlView({
         setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       } else if (isCmsRateLimitError(e)) {
-        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : "WordPress"));
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : activePlatform === "shopify" ? "Shopify" : "WordPress"));
       }
       return;
     }
@@ -2292,11 +2325,11 @@ export function WebPageHtmlView({
       wpId: Number(published.wpId || 0),
       permalink: published.externalUrl || published.permalink || null,
       editUrl: published.editUrl || null,
-      status: published.status || (activePlatform === "webflow" || activePlatform === "sanity" ? "published" : "publish"),
+      status: published.status || (activePlatform === "webflow" || activePlatform === "sanity" || activePlatform === "shopify" ? "published" : "publish"),
       slug: published.slug || normalizedSlugForPublish || null,
       siteVerification: published.siteVerification || null,
     }));
-    toast.success(activePlatform === "webflow" ? "Published live to Webflow" : activePlatform === "sanity" ? "Published live to Sanity" : "Published live to WordPress");
+    toast.success(activePlatform === "webflow" ? "Published live to Webflow" : activePlatform === "sanity" ? "Published live to Sanity" : activePlatform === "shopify" ? "Published live to Shopify" : "Published live to WordPress");
     if (activePlatform === "sanity") {
       if (publishType === "page" && published.siteVerification !== "confirmed") {
         toast.info("Published in Sanity; website update not confirmed yet", {
@@ -2445,8 +2478,8 @@ export function WebPageHtmlView({
     if (!guardPublish()) return;
     const action = confirmPublishAction;
     setConfirmPublishAction(null);
-    if (action === "draft" || action === "webflow-draft" || action === "sanity-draft") await handlePublishDraft();
-    else if (action === "webflow-live" || action === "sanity-live" || action === "live") await handlePublishLive();
+    if (action === "draft" || action === "webflow-draft" || action === "sanity-draft" || action === "shopify-draft") await handlePublishDraft();
+    else if (action === "webflow-live" || action === "sanity-live" || action === "shopify-live" || action === "live") await handlePublishLive();
     else if (action === "webflow-staging-preview") await handlePreviewWebflowStaging();
     else if (action === "webflow-rollback-draft") await handleRollbackWebflowToDraft();
     else if (action === "republish") await handleRepublish();
@@ -4898,6 +4931,16 @@ export function WebPageHtmlView({
                 <Typography className="text-sm">No publishing channel connected.</Typography>
                 <Button onClick={handleRedirectToChannels}>Connect a channel</Button>
               </div>
+            ) : isActiveShopify && publishType === "page" ? (
+              <div className="space-y-3 rounded-lg bg-background p-4">
+                <Typography className="text-sm">Shopify publishing currently supports blog posts only.</Typography>
+                <p className="text-xs text-muted-foreground">Use WordPress, Webflow, or Sanity to publish Massic Pages.</p>
+              </div>
+            ) : isActiveShopify && !isShopifyReady ? (
+              <div className="space-y-3 rounded-lg bg-background p-4">
+                <Typography className="text-sm">Shopify is connected, but no blog destination is selected.</Typography>
+                <Button onClick={handleRedirectToChannels}>Configure Shopify</Button>
+              </div>
             ) : (
               <div className="rounded-lg bg-muted/20 py-4 min-w-0 overflow-hidden space-y-3">
               <Tabs value={publishTab} onValueChange={(v) => setPublishTab(v as "details" | "images")}>
@@ -4908,6 +4951,8 @@ export function WebPageHtmlView({
                         ? `Webflow: ${activeTarget?.name || "Configured collection"}`
                         : activePlatform === "sanity"
                           ? `Sanity: ${activeTarget?.documentType || activeTarget?.name || "Configured document"}`
+                          : activePlatform === "shopify"
+                            ? `Shopify: ${activeTarget?.name || "Configured blog"}`
                           : activeConnection?.siteUrl}
                     </Typography>
                     <Badge
@@ -5049,10 +5094,12 @@ export function WebPageHtmlView({
               </div>
                 </TabsContent>
                 <TabsContent value="images" className="space-y-3 pt-1">
-              {isWordpressFeaturedImagePublish ? (
+              {isCmsImagePublish ? (
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    This image will be used for link previews and as the WordPress featured image when supported.
+                    {isShopifyImagePublish
+                      ? "This becomes the Shopify article image. Your active theme may display it above the article and in blog cards."
+                      : "This image will be used for link previews and as the WordPress featured image when supported."}
                   </p>
                   <input
                     ref={featuredImageInputRef}
@@ -5331,7 +5378,7 @@ export function WebPageHtmlView({
                         ? `A page already exists at /${slugCheckResult?.blockedPrefix || normalizedSlugForPublish.split("/")[0]}. Choose a different first part of the URL.`
                       : slugConflictReason === "static_route_conflict"
                         ? `Your website already uses /${slugCheckResult?.blockedPrefix || normalizedSlugForPublish}. Choose another route.`
-                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}. Use a unique slug.`}
+                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : activePlatform === "shopify" ? "Shopify" : "WordPress"}. Use a unique slug.`}
                   </div>
                   {(slugCheckResult?.suggestions?.length
                     ? slugCheckResult.suggestions
@@ -5639,6 +5686,23 @@ export function WebPageHtmlView({
                 ) : null}
               </>
             ) : null}
+            {!isPublishConnectionLoading && isShopifyReady ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmPublishAction("shopify-draft")}
+                  disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isPublishBusy}
+                >
+                  {isPublishBusy ? "Saving…" : "Save draft"}
+                </Button>
+                <Button
+                  onClick={() => setConfirmPublishAction("shopify-live")}
+                  disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isPublishBusy}
+                >
+                  {isPublishBusy ? "Publishing…" : "Publish now"}
+                </Button>
+              </>
+            ) : null}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -5669,6 +5733,12 @@ export function WebPageHtmlView({
                       ? sanityPublishState === "live"
                         ? "Republish Live to Sanity?"
                         : "Publish Live to Sanity?"
+                    : confirmPublishAction === "shopify-draft"
+                      ? "Save Shopify draft?"
+                    : confirmPublishAction === "shopify-live"
+                      ? shopifyPublishState === "live"
+                        ? "Update live Shopify article?"
+                        : "Publish now to Shopify?"
                     : confirmPublishAction === "live"
                       ? "Publish Live to WordPress?"
                       : confirmPublishAction === "republish"
@@ -5697,6 +5767,10 @@ export function WebPageHtmlView({
                     `This will create or update the published Sanity document at ${publishUrlPreview || "the configured route"}.`
                   ) : confirmPublishAction === "sanity-draft" ? (
                     `This will save a draft to Sanity. Drafts aren't visible on your live website — open the ${publishType === "page" ? "page" : "post"} in Sanity Studio to preview it.`
+                  ) : confirmPublishAction === "shopify-live" ? (
+                    `This will make the article live immediately in ${activeTarget?.name || "the selected Shopify blog"}.`
+                  ) : confirmPublishAction === "shopify-draft" ? (
+                    `This will create or update an unpublished article in ${activeTarget?.name || "the selected Shopify blog"}.`
                   ) : confirmPublishAction === "republish" ? (
                     `This will push your latest content and images to the live post at ${publishUrlPreview || "the selected route"}.`
                   ) : confirmPublishAction === "update-draft" ? (
@@ -5776,7 +5850,7 @@ export function WebPageHtmlView({
                   (confirmPublishAction === "webflow-live" && selectedWebflowLiveDomainLabels.length === 0)
                 }
               >
-                {confirmPublishAction === "live" || confirmPublishAction === "webflow-live" || confirmPublishAction === "sanity-live"
+                {confirmPublishAction === "live" || confirmPublishAction === "webflow-live" || confirmPublishAction === "sanity-live" || confirmPublishAction === "shopify-live"
                   ? "Confirm Publish Live"
                   : confirmPublishAction === "republish"
                     ? "Confirm Republish"
@@ -5788,6 +5862,8 @@ export function WebPageHtmlView({
                         ? hasWebflowStagingPreview
                           ? "Confirm Republish"
                           : "Confirm Publish to Staging"
+                        : confirmPublishAction === "shopify-draft"
+                          ? "Confirm Save Draft"
                         : "Confirm Publish Draft"}
               </Button>
             </AlertDialogAction>

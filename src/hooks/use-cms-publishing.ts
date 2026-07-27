@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import type { WordpressSlugConflictInfo } from "@/hooks/use-wordpress-publishing";
 
-export type CmsPublishingPlatform = "wordpress" | "webflow" | "sanity";
+export type CmsPublishingPlatform = "wordpress" | "webflow" | "sanity" | "shopify";
 
 export interface CmsPublishingDomain {
   id: string;
@@ -19,6 +19,7 @@ export interface CmsPublishingTarget {
   siteId: string;
   collectionId: string;
   documentType?: string;
+  blogId?: string;
   name: string;
   fieldMapping?: Record<string, any>;
   metadata?: Record<string, any> | null;

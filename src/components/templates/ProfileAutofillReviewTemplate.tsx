@@ -72,6 +72,8 @@ export function ProfileAutofillReviewTemplate({
   showUnlinkBusiness = true,
   unlinkBusinessDisabled,
   isWorkflowProcessing = false,
+  customHeaderActions,
+  showDefaultActions = true,
   className,
 }: {
   form: any;
@@ -91,6 +93,8 @@ export function ProfileAutofillReviewTemplate({
   showUnlinkBusiness?: boolean;
   unlinkBusinessDisabled?: boolean;
   isWorkflowProcessing?: boolean;
+  customHeaderActions?: React.ReactNode;
+  showDefaultActions?: boolean;
   className?: string;
 }) {
   const [activeSection, setActiveSection] = useState<SectionId>("identity");
@@ -121,44 +125,49 @@ export function ProfileAutofillReviewTemplate({
         </div>
 
         <div className="flex items-center gap-3">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button
-                  type="button"
-                  className="bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                  onClick={onSaveChanges}
-                  disabled={saveDisabled}
-                >
-                  Save Changes
-                </Button>
-              </span>
-            </TooltipTrigger>
-            {isWorkflowProcessing && (
-              <TooltipContent>
-                <p>Workflow In Process</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onSaveAndUpdateStrategy}
-                  disabled={proceedDisabled}
-                >
-                  Save &amp; Update Strategy
-                </Button>
-              </span>
-            </TooltipTrigger>
-            {isWorkflowProcessing && (
-              <TooltipContent>
-                <p>Workflow In Process</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
+          {customHeaderActions}
+          {showDefaultActions && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      type="button"
+                      className="bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                      onClick={onSaveChanges}
+                      disabled={saveDisabled}
+                    >
+                      Save Changes
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {isWorkflowProcessing && (
+                  <TooltipContent>
+                    <p>Workflow In Process</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={onSaveAndUpdateStrategy}
+                      disabled={proceedDisabled}
+                    >
+                      Save &amp; Update Strategy
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {isWorkflowProcessing && (
+                  <TooltipContent>
+                    <p>Workflow In Process</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </>
+          )}
         </div>
       </div>
 
@@ -284,7 +293,7 @@ export function ProfileAutofillReviewTemplate({
                     <div
                       key={row.label}
                       className={cn(
-                        "flex items-center gap-0.5 py-3",
+                        "flex items-center gap-0.5 py-3 min-w-0",
                         index < summary.length - 1 && "border-b border-general-border"
                       )}
                     >
@@ -293,8 +302,8 @@ export function ProfileAutofillReviewTemplate({
                           {row.label}
                         </p>
                       </div>
-                      <div className="flex items-center shrink-0">
-                        <p className="text-xs font-medium leading-normal tracking-[0.18px] text-general-foreground whitespace-nowrap">
+                      <div className="flex items-center flex-1 min-w-0">
+                        <p className="text-xs font-medium leading-normal tracking-[0.18px] text-general-foreground truncate">
                           {row.value || "—"}
                         </p>
                       </div>
@@ -669,14 +678,14 @@ export function ProfileAutofillReviewTemplate({
       </div>
 
       <Dialog open={isEditGateOpen} onOpenChange={setIsEditGateOpen}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[520px] gap-0 py-0">
+          <DialogHeader className="pt-6 px-6">
             <DialogTitle>Edit website & location</DialogTitle>
             <DialogDescription>
               Update these inputs and re-run Autofill Profile if needed.
             </DialogDescription>
           </DialogHeader>
-          <div className="pt-2">
+          <div className="px-6 pb-6">
             <BusinessInfoForm
               form={form}
               embedded

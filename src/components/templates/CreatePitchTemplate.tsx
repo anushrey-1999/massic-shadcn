@@ -22,17 +22,16 @@ import {
 import PageHeader from "@/components/molecules/PageHeader";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
 import { LoaderOverlay } from "@/components/ui/loader";
-import { ProfileStepCard } from "@/components/ui/profile-step-card";
-import { ProfileFormTabs } from "@/components/templates/ProfileFormTabs";
+import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
+import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
 import { useAuthStore } from "@/store/auth-store";
 import { api } from "@/hooks/use-api";
-import { Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   buildBusinessProfilePayload,
   mapFormOfferingsToJobOfferings,
-  PROFILE_FORM_TABS,
   profileFormDefaults,
-  type ProfileFormTabId,
 } from "@/utils/profile-form-mappers";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
@@ -55,9 +54,7 @@ export function CreatePitchTemplate() {
 
   const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
   const [existingBusinessId, setExistingBusinessId] = useState<string | null>(null);
-  const [profileTab, setProfileTab] = useState<ProfileFormTabId>(
-    PROFILE_FORM_TABS[0].id
-  );
+
   React.useEffect(() => {
     resetProfileForm();
     return () => resetProfileForm();
@@ -169,7 +166,6 @@ export function CreatePitchTemplate() {
       },
       onAutofillSuccess: () => {
         setHasAutofilledProfile(true);
-        setProfileTab("basic-details");
       },
     });
 
@@ -180,35 +176,6 @@ export function CreatePitchTemplate() {
   ];
 
   const formValues = useStore(form.store, (state: any) => state.values) as BusinessInfoFormData;
-
-  const hasOfferingsValidationErrors = useStore(form.store, (state: any) => {
-    const offeringsMeta = state.fieldMeta?.offeringsList;
-    return offeringsMeta?.hasValidationErrors === true;
-  });
-
-  const hasRequiredFieldErrors = React.useMemo(() => {
-    const { website, businessName, primaryLocation, serviceType, offerings } = formValues;
-    return (
-      !website?.trim() ||
-      !businessName?.trim() ||
-      !primaryLocation?.trim() ||
-      !["physical", "online", "both"].includes(serviceType) ||
-      !["products", "services", "both"].includes(offerings)
-    );
-  }, [formValues]);
-
-  const hasAtLeastOneOffering = React.useMemo(() => {
-    const list = Array.isArray(formValues.offeringsList) ? formValues.offeringsList : [];
-    return list.some((row) => Boolean(row?.name?.trim()));
-  }, [formValues.offeringsList]);
-
-  const canConfirmAndProceed =
-    hasAutofilledProfile &&
-    !offeringsExtractor.isExtracting &&
-    !hasRequiredFieldErrors &&
-    !hasOfferingsValidationErrors &&
-    hasAtLeastOneOffering;
-
   const isCreatingBusiness = createBusiness.isPending;
   const isCreatingJob = createJobMutation.isPending;
   const isSubmitting = useStore(form.store, (state: any) => state.isSubmitting === true);
@@ -221,49 +188,49 @@ export function CreatePitchTemplate() {
     return undefined;
   }, [isAutofillLoading, isCreatingBusiness, isCreatingJob]);
 
-  React.useEffect(() => {
-    console.log("[CreatePitch] Button state:", {
-      isButtonDisabled: !canConfirmAndProceed || isSubmitting || isLoading,
-      canConfirmAndProceed,
-      hasAutofilledProfile,
-      hasRequiredFieldErrors,
-      hasOfferingsValidationErrors,
-      hasAtLeastOneOffering,
-      isSubmitting,
-      isLoading,
-      isCreatingBusiness,
-      isCreatingJob,
-      isAutofillLoading,
-      isOfferingsExtracting: offeringsExtractor.isExtracting,
-    });
-    if (hasRequiredFieldErrors) {
-      const { website, businessName, primaryLocation, serviceType, offerings } = formValues;
-      console.log("[CreatePitch] Required field values:", {
-        website,
-        businessName,
-        primaryLocation,
-        serviceType,
-        offerings,
-      });
-    }
-    if (!hasAtLeastOneOffering) {
-      console.log("[CreatePitch] offeringsList:", formValues.offeringsList);
-    }
-  });
+  const isAutofillDisabled =
+    isAutofillLoading ||
+    locationsLoading ||
+    !String(formValues?.website ?? "").trim() ||
+    !String(formValues?.primaryLocation ?? "").trim() ||
+    !String(formValues?.serviceAreaType ?? "").trim();
 
-  const handleConfirmAndProceed = React.useCallback(async () => {
-    console.log("[CreatePitch] handleConfirmAndProceed fired");
-    console.log("[CreatePitch] form state before submit:", {
-      values: form.state.values,
-      errors: form.state.errors,
-      isSubmitting: form.state.isSubmitting,
-    });
-    await form.handleSubmit();
-    console.log("[CreatePitch] handleSubmit completed");
-  }, [form]);
+  const renderAutofillButton = ({
+    className,
+    variant,
+  }: {
+    className?: string;
+    variant?: "outline";
+  } = {}) => (
+    <Button
+      type="button"
+      variant={variant}
+      onClick={handleAutofillProfile}
+      disabled={isAutofillDisabled}
+      className={cn(
+        "gap-2",
+        variant
+          ? "border-general-border-three text-general-foreground"
+          : "bg-general-primary text-general-primary-foreground hover:bg-general-primary/90",
+        className
+      )}
+    >
+      {isAutofillLoading ? (
+        <>
+          <Loader2 className="size-4 animate-spin" />
+          Autofilling...
+        </>
+      ) : (
+        <>
+          Autofill Profile
+          <ArrowRight className="size-4 shrink-0" />
+        </>
+      )}
+    </Button>
+  );
 
   return (
-    <div className="flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden">
+    <div className={cn("flex flex-col h-full min-h-0 relative overflow-hidden")}>
       <Dialog open={!!existingBusinessId} onOpenChange={(open) => { if (!open) setExistingBusinessId(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -283,15 +250,24 @@ export function CreatePitchTemplate() {
         </DialogContent>
       </Dialog>
 
-      <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
+      <LoaderOverlay
+        isLoading={isLoading}
+        message={loadingMessage}
+      >
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="sticky top-0 z-10 shrink-0 bg-background">
             <PageHeader breadcrumbs={breadcrumbs} />
           </div>
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
-            <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
+            <div
+              className={cn(
+                "w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1",
+                !hasAutofilledProfile && "justify-center items-center"
+              )}
+            >
               <form
+                id="create-pitch-form"
                 onSubmit={(e) => {
                   e.preventDefault();
                   form.handleSubmit();
@@ -299,97 +275,75 @@ export function CreatePitchTemplate() {
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
                 {!hasAutofilledProfile ? (
-                  <ProfileStepCard
-                    title="Let's set up your pitch"
-                    description="Enter your website URL and primary location, then click Autofill Profile — we'll automatically populate your business details."
-                    className="flex-1"
-                    scrollableContent
-                    contentClassName="pb-6"
+                  <ProfileGateCard
+                    title="Add a business"
+                    description="We build the profile from the website. Anything the site can't give us, you fill in after — nothing is guessed."
+                    className="w-full max-w-[490px] self-center"
                   >
-                    <BusinessInfoForm
-                      form={form}
-                      embedded
-                      embeddedVariant="autofillGate"
-                      disableWebsiteLock
-                      primaryLocationAction={
+                    <div className="mx-auto w-full max-w-[442px]">
+                      <BusinessInfoForm
+                        form={form}
+                        embedded
+                        embeddedVariant="autofillGate"
+                        disableWebsiteLock
+                        primaryLocationAction={renderAutofillButton({ className: "w-full gap-2" })}
+                      />
+                    </div>
+                  </ProfileGateCard>
+                ) : null}
+                {hasAutofilledProfile && (
+                  <ProfileAutofillReviewTemplate
+                    form={form}
+                    businessId={null}
+                    leftTitle="Create Pitch"
+                    extractionController={offeringsExtractor}
+                    hideFetchOfferingsFromWebsite
+                    onSaveChanges={() => {}}
+                    onSaveAndUpdateStrategy={() => {}}
+                    onAutofillProfile={() => {
+                      void handleAutofillProfile();
+                    }}
+                    autofillDisabled={isAutofillDisabled}
+                    autofillLoading={isAutofillLoading}
+                    showUnlinkBusiness={false}
+                    showDefaultActions={false}
+                    customHeaderActions={
+                      <>
                         <Button
                           type="button"
-                          onClick={handleAutofillProfile}
-                          disabled={
-                            isAutofillLoading ||
-                            offeringsExtractor.isExtracting ||
-                            !(formValues?.website ?? "").toString().trim() ||
-                            !(formValues?.primaryLocation ?? "").toString().trim() ||
-                            !(formValues?.serviceAreaType ?? "").toString().trim()
-                          }
-                          className="w-full gap-2"
+                          variant="outline"
+                          className="border-general-border-three text-general-foreground"
+                          onClick={() => router.push("/pitches")}
+                          disabled={isSubmitting}
                         >
-                          {isAutofillLoading ? (
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          form="create-pitch-form"
+                          className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                          disabled={
+                            isSubmitting ||
+                            isCreatingBusiness ||
+                            isCreatingJob ||
+                            isAutofillLoading ||
+                            offeringsExtractor.isExtracting
+                          }
+                        >
+                          {isSubmitting || isCreatingBusiness || isCreatingJob ? (
                             <>
                               <Loader2 className="size-4 animate-spin" />
-                              Autofilling...
+                              Creating...
                             </>
+                          ) : offeringsExtractor.isExtracting ? (
+                            "Extracting offerings..."
                           ) : (
-                            "Autofill Profile"
+                            "Create"
                           )}
                         </Button>
-                      }
-                    />
-                  </ProfileStepCard>
-                ) : (
-                  <ProfileFormTabs
-                    form={form}
-                    businessId="create-pitch"
-                    value={profileTab}
-                    onValueChange={setProfileTab}
-                    disableWebsiteLock
-                    hideFetchOfferingsFromWebsite
-                    extractionController={offeringsExtractor}
-                    basicDetailsDescription="Add basic details so we can generate a pitch and tailored recommendations."
-                    primaryLocationAction={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="default"
-                        onClick={handleAutofillProfile}
-                        disabled={
-                          isAutofillLoading ||
-                          offeringsExtractor.isExtracting ||
-                          !(formValues?.website ?? "").toString().trim() ||
-                          !(formValues?.primaryLocation ?? "").toString().trim() ||
-                          !(formValues?.serviceAreaType ?? "").toString().trim()
-                        }
-                        className="gap-2 border-general-border-three text-general-foreground"
-                      >
-                        {isAutofillLoading ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            Autofilling...
-                          </>
-                        ) : (
-                          "Autofill Profile"
-                        )}
-                      </Button>
+                      </>
                     }
-                    rightAction={
-                      <Button
-                        type="button"
-                        className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                        onClick={handleConfirmAndProceed}
-                        disabled={!canConfirmAndProceed || isSubmitting || isLoading}
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            Proceeding...
-                          </>
-                        ) : offeringsExtractor.isExtracting ? (
-                          "Extracting offerings..."
-                        ) : (
-                          "Confirm and Proceed"
-                        )}
-                      </Button>
-                    }
+                    className="flex-1"
                   />
                 )}
               </form>

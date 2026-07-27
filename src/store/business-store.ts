@@ -11,20 +11,32 @@ export interface BusinessProfile {
   Name: string;
   DisplayName?: string;
   Website?: string;
+  FoundingDate?: string | null;
+  LogoUrl?: string | null;
   Description?: string;
   UserDefinedBusinessDescription?: string;
   AOV?: number | null;
   LTV?: string | null;
   BrandTerms?: string[] | null;
-  RecurringFlag?: "yes" | "no" | "partial" | string | null;
+  RecurringFlag?: "yes" | "no" | "sometimes" | string | null;
   ProductsServices?: string[];
   LocationType?: string;
   Locations?: BusinessLocation[];
+  DetailedLocations?: DetailedLocationRow[] | null;
   isTrialActive?: boolean;
   remainingTrialDays?: number;
   TrialStartDate?: string;
   TrialEndDate?: string;
-  CustomerPersonas?: { personName: string; personDescription: string }[] | null;
+  CustomerPersonas?: { personName: string; personDescription: string; bio?: string }[] | null;
+  KeyPeople?: KeyPersonRow[] | null;
+  LicensesCompliance?: string[] | null;
+  AwardsCertifications?: string[] | null;
+  ColorsFontsCss?: string | null;
+  ImagePhotoLibrary?: Array<string | { alt?: string; url: string }> | null;
+  SocialProfiles?: SocialProfileRow[] | null;
+  DirectoryProfiles?: DirectoryProfileRow[] | null;
+  SupportEmail?: string | null;
+  CommsEmail?: string | null;
   SellingPoints?: string[] | null;
   USPs?: string[] | null;
   BusinessObjective?: string | null;
@@ -53,6 +65,11 @@ export type OfferingRow = {
   name: string;
   description: string;
   link: string;
+  pricePositioning?: string;
+  offeringType?: string;
+  priceRange?: string;
+  duration?: string;
+  inclusions?: string[] | string;
 };
 
 export type CTARow = {
@@ -63,12 +80,40 @@ export type CTARow = {
 export type StakeholderRow = {
   name: string;
   title: string;
+  bio?: string;
 };
 
 export type LocationRow = {
   name: string;
   address: string;
   timezone: string;
+};
+
+export type DetailedLocationRow = {
+  streetAddress: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  phone: string;
+  email: string;
+  mapLink: string;
+  hours: string;
+  primaryFlag: string;
+};
+
+export type KeyPersonRow = {
+  name: string;
+  role: string;
+  bio: string;
+};
+
+export type SocialProfileRow = {
+  url: string;
+};
+
+export type DirectoryProfileRow = {
+  url: string;
 };
 
 export type CompetitorRow = {

@@ -582,14 +582,8 @@ export default function PitchReportsPage() {
       if (ltvStr) tags.push({ label: "LTV", value: ltvStr });
     }
 
-    const segment = snapshotExpressPitch?.segment;
-    const segmentNum = typeof segment === "number" ? segment : Number(segment);
-    if (Number.isFinite(segmentNum)) {
-      tags.push({ label: "Segment", value: `#${segmentNum}` });
-    }
-
     return tags;
-  }, [businessProfile, snapshotExpressPitch?.segment]);
+  }, [businessProfile]);
 
   const snapshotCompetitors = React.useMemo(() => {
     const rows = (businessProfile as any)?.Competitors;
@@ -604,14 +598,10 @@ export default function PitchReportsPage() {
 
   const snapshotFooterSummary = React.useMemo(() => {
     const parts: string[] = [];
-    const segment = snapshotExpressPitch?.segment;
-    const segmentNum = typeof segment === "number" ? segment : Number(segment);
-    if (Number.isFinite(segmentNum)) parts.push(`Segment #${segmentNum}`);
 
     for (const t of snapshotProfileTags) {
       const label = String(t.label || "").trim().toLowerCase();
       const value = String(t.value || "").trim();
-      if (label === "segment") continue;
       if (!value) continue;
 
       if (label === "ltv") {
@@ -626,7 +616,7 @@ export default function PitchReportsPage() {
     }
 
     return parts.join(" · ");
-  }, [snapshotExpressPitch?.segment, snapshotProfileTags]);
+  }, [snapshotProfileTags]);
 
   const snapshotGeneratedAt = React.useMemo(() => {
     const fromHistory = latestSuccessfulSnapshotCreatedAt

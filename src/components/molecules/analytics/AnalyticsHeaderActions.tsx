@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Flag } from "lucide-react";
+import { Flag, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -45,9 +45,11 @@ interface AnalyticsReportsActionsProps {
   onViewReports: () => void;
   onPrimaryDrivers?: () => void;
   onContentGroupsClick?: () => void;
+  onIndexing?: () => void;
   reportsDisabled?: boolean;
   primaryDriversDisabled?: boolean;
   contentGroupsDisabled?: boolean;
+  indexingDisabled?: boolean;
   /** When true, What's Happening? and View Reports are disabled pending ingestion. */
   isIngestionActive?: boolean;
 }
@@ -286,15 +288,36 @@ export function AnalyticsReportsActions({
   onViewReports,
   onPrimaryDrivers,
   onContentGroupsClick,
+  onIndexing,
   reportsDisabled = false,
   primaryDriversDisabled = false,
   contentGroupsDisabled = false,
+  indexingDisabled = false,
   isIngestionActive = false,
 }: AnalyticsReportsActionsProps) {
   const ingestionTooltip = "Available once your data is ready";
 
   return (
     <div className="flex items-center gap-2">
+      {onIndexing ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              className="h-10 shrink-0 gap-2 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
+              onClick={onIndexing}
+              disabled={indexingDisabled}
+            >
+              <ListChecks className="h-4 w-4" />
+              Indexing
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>
+            Google index status for your URLs
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+
       {onPrimaryDrivers ? (
         <Tooltip>
           <TooltipTrigger asChild>

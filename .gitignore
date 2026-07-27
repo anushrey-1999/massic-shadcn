@@ -42,6 +42,9 @@ next-env.d.ts
 
 #agent
 .agent
-.cursorrules
 .github
 .antigravity
+
+# Understand Anything generated knowledge graphs and temporary analysis files
+/.ua/
+/.understand-anything/

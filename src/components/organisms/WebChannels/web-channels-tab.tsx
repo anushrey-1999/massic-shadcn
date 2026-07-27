@@ -1,47 +1,30 @@
 "use client";
 
 import React from "react";
-import { ChevronDown, Download, ExternalLink, HelpCircle, Link2, MoreHorizontal } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
+  Download,
+  ExternalLink,
+  FileText,
+  HelpCircle,
+  LayoutTemplate,
+  Link2,
+  MoreHorizontal
+} from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Typography } from "@/components/ui/typography";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import {
-  useDisconnectWordpress,
-  useStartWordpressOauthLink,
-  useWordpressConnection,
-} from "@/hooks/use-wordpress-connector";
+import { useDisconnectWordpress, useStartWordpressOauthLink, useWordpressConnection } from "@/hooks/use-wordpress-connector";
 import {
   useConfigureWebflow,
   useConfigureWebflowPages,
@@ -51,30 +34,23 @@ import {
   useWebflowConnection,
   useWebflowSites,
   type WebflowCollection,
-  type WebflowCollectionField,
+  type WebflowCollectionField
 } from "@/hooks/use-webflow-connector";
 import {
   useConfigureSanity,
+  useConfigureSanityPages,
   useConnectSanity,
   useDisconnectSanity,
   useSanityConnection,
   useSanityDocumentTypes,
   useSanityFields,
   useValidateSanity,
-  type SanityField,
+  type SanityField
 } from "@/hooks/use-sanity-connector";
 import { PlatformIcon, SiteFavicon } from "./platform-icon";
 import { IntegrationStatusBadge } from "./integration-status-badge";
-import {
-  WebflowPublishSetup,
-  type WebflowImageDestinationRow,
-  type WebflowMappingRow,
-} from "./webflow-publish-setup";
-import {
-  SanityPublishSetup,
-  type SanityImageDestinationRow,
-  type SanityMappingRow,
-} from "./sanity-publish-setup";
+import { WebflowPublishSetup, type WebflowImageDestinationRow, type WebflowMappingRow } from "./webflow-publish-setup";
+import { SanityPublishSetup, type SanityImageDestinationRow, type SanityMappingRow } from "./sanity-publish-setup";
 
 interface WebChannelsTabProps {
   businessId: string;
@@ -93,7 +69,7 @@ function getWordpressPluginBuildEnv(): "qa" | "prod" {
     process.env.NEXT_PUBLIC_ENV,
     process.env.NEXT_PUBLIC_DEPLOY_ENV,
     process.env.NEXT_PUBLIC_NODE_API_URL,
-    process.env.NODE_ENV,
+    process.env.NODE_ENV
   ]
     .filter(Boolean)
     .join(" ")
@@ -185,25 +161,18 @@ function isWebflowImageField(field?: WebflowCollectionField | null) {
 }
 
 function matchesWebflowFieldName(field: WebflowCollectionField | null | undefined, patterns: RegExp[]) {
-  const label = [
-    field?.displayName,
-    field?.name,
-    field?.slug,
-    field?.id,
-    field?._id,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  const label = [field?.displayName, field?.name, field?.slug, field?.id, field?._id].filter(Boolean).join(" ").toLowerCase();
   return patterns.some(pattern => pattern.test(label));
 }
 
 function findLikelyWebflowTextField(fields: WebflowCollectionField[], patterns: RegExp[]) {
-  return fields.find(field => {
-    const type = getWebflowFieldType(field);
-    if (type.includes("image") || type.includes("rich")) return false;
-    return matchesWebflowFieldName(field, patterns);
-  }) || null;
+  return (
+    fields.find(field => {
+      const type = getWebflowFieldType(field);
+      if (type.includes("image") || type.includes("rich")) return false;
+      return matchesWebflowFieldName(field, patterns);
+    }) || null
+  );
 }
 
 function makeWebflowMappingRow(partial: Partial<WebflowMappingRow>): WebflowMappingRow {
@@ -211,7 +180,7 @@ function makeWebflowMappingRow(partial: Partial<WebflowMappingRow>): WebflowMapp
     id: partial.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     massicField: partial.massicField || "",
     webflowFieldKey: partial.webflowFieldKey || "",
-    staticValue: partial.staticValue || "",
+    staticValue: partial.staticValue || ""
   };
 }
 
@@ -222,15 +191,17 @@ function makeSanityMappingRow(partial: Partial<SanityMappingRow>): SanityMapping
     sanityFieldPath: partial.sanityFieldPath || "",
     staticValue: partial.staticValue || "",
     sourcePath: partial.sourcePath || "",
-    type: partial.type || "string",
+    type: partial.type || "string"
   };
 }
 
 function findSanityField(fields: SanityField[], patterns: RegExp[]) {
-  return fields.find(field => {
-    const text = [field.fieldPath, field.label, field.name].filter(Boolean).join(" ").toLowerCase();
-    return patterns.some(pattern => pattern.test(text));
-  }) || null;
+  return (
+    fields.find(field => {
+      const text = [field.fieldPath, field.label, field.name].filter(Boolean).join(" ").toLowerCase();
+      return patterns.some(pattern => pattern.test(text));
+    }) || null
+  );
 }
 
 function isSanityManagedMassicStyleMapping(row: Pick<SanityMappingRow, "massicField" | "sanityFieldPath">) {
@@ -278,18 +249,12 @@ function navigatePendingExternalTab(externalWindow: Window | null, url: string) 
   }
 }
 
-export function WebChannelsTab({
-  businessId,
-  defaultSiteUrl,
-  isActive = true,
-  showHeader = true,
-}: WebChannelsTabProps) {
+export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, showHeader = true }: WebChannelsTabProps) {
   const [isRecommendedModalOpen, setIsRecommendedModalOpen] = React.useState(false);
   const [isHowToModalOpen, setIsHowToModalOpen] = React.useState(false);
   const [isSanityConnectModalOpen, setIsSanityConnectModalOpen] = React.useState(false);
   const [isSanityGuideOpen, setIsSanityGuideOpen] = React.useState(false);
-  const [externalNavigationFallback, setExternalNavigationFallback] =
-    React.useState<ExternalNavigationFallback | null>(null);
+  const [externalNavigationFallback, setExternalNavigationFallback] = React.useState<ExternalNavigationFallback | null>(null);
   const [recommendedSiteUrl, setRecommendedSiteUrl] = React.useState(defaultSiteUrl || "");
   const [sanityProjectId, setSanityProjectId] = React.useState("");
   const [sanityDataset, setSanityDataset] = React.useState("production");
@@ -306,6 +271,8 @@ export function WebChannelsTab({
   const [sanityMappings, setSanityMappings] = React.useState<SanityMappingRow[]>([]);
   const [sanityImageDestinations, setSanityImageDestinations] = React.useState<SanityImageDestinationRow[]>([]);
   const [isSanityConfigOpen, setIsSanityConfigOpen] = React.useState(false);
+  const [isSanityBlogSettingsOpen, setIsSanityBlogSettingsOpen] = React.useState(true);
+  const [isSanityPageSettingsOpen, setIsSanityPageSettingsOpen] = React.useState(false);
   const webflowMappingInitKeyRef = React.useRef("");
   const sanityMappingInitKeyRef = React.useRef("");
 
@@ -341,10 +308,12 @@ export function WebChannelsTab({
   const sanityConnection = sanityConnectionQuery.data?.connection || null;
   const isSanityConnected = Boolean(sanityConnectionQuery.data?.connected && sanityConnection);
   const sanityTarget = sanityConnection?.target || null;
+  const sanityPageTarget = sanityConnection?.targets?.page || null;
   const connectSanityMutation = useConnectSanity(businessId);
   const validateSanityMutation = useValidateSanity();
   const disconnectSanityMutation = useDisconnectSanity(businessId);
   const configureSanityMutation = useConfigureSanity(businessId);
+  const configureSanityPagesMutation = useConfigureSanityPages(businessId);
   const sanityDocumentTypesQuery = useSanityDocumentTypes(sanityConnection?.connectionId || null);
   const sanityDocumentTypes = sanityDocumentTypesQuery.data || [];
   const effectiveSanityDocumentType = selectedSanityDocumentType || sanityTarget?.documentType || "";
@@ -354,18 +323,25 @@ export function WebChannelsTab({
   const webflowSites = webflowSitesQuery.data || [];
   const effectiveWebflowSiteId = selectedWebflowSiteId || webflowTarget?.siteId || "";
   const effectiveWebflowPageSiteId = selectedWebflowPageSiteId || webflowPageTarget?.siteId || "";
-  const webflowCollectionsQuery = useWebflowCollections(
-    webflowConnection?.connectionId || null,
-    effectiveWebflowSiteId || null
-  );
+  const webflowCollectionsQuery = useWebflowCollections(webflowConnection?.connectionId || null, effectiveWebflowSiteId || null);
   const webflowCollections = webflowCollectionsQuery.data || [];
 
-  const connected = Boolean(data?.connected && data?.connection); const connection = data?.connection || null; const connectedSiteHost = React.useMemo(() => getSiteHostLabel(connection?.siteUrl), [connection?.siteUrl]); const wordpressAdminUrl = React.useMemo(() => { if (!connection?.siteUrl) return ""; try { const parsed = new URL(normalizeSiteUrlInput(connection.siteUrl)); const basePath = parsed.pathname.replace(/\/+$/, ""); return `${parsed.origin}${basePath}/wp-admin/options-general.php?page=massic-integration`; } catch { return ""; } }, [connection?.siteUrl]);
-const guideWordpressSiteUrl = connection?.siteUrl || recommendedSiteUrl || defaultSiteUrl || "";
-const guideWordpressUrl = connected
-  ? wordpressAdminUrl
-  : buildWordpressPluginInstallUrl(guideWordpressSiteUrl);
-const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
+  const connected = Boolean(data?.connected && data?.connection);
+  const connection = data?.connection || null;
+  const connectedSiteHost = React.useMemo(() => getSiteHostLabel(connection?.siteUrl), [connection?.siteUrl]);
+  const wordpressAdminUrl = React.useMemo(() => {
+    if (!connection?.siteUrl) return "";
+    try {
+      const parsed = new URL(normalizeSiteUrlInput(connection.siteUrl));
+      const basePath = parsed.pathname.replace(/\/+$/, "");
+      return `${parsed.origin}${basePath}/wp-admin/options-general.php?page=massic-integration`;
+    } catch {
+      return "";
+    }
+  }, [connection?.siteUrl]);
+  const guideWordpressSiteUrl = connection?.siteUrl || recommendedSiteUrl || defaultSiteUrl || "";
+  const guideWordpressUrl = connected ? wordpressAdminUrl : buildWordpressPluginInstallUrl(guideWordpressSiteUrl);
+  const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     () => webflowCollections.find(collection => getWebflowId(collection) === selectedWebflowCollectionId) || null,
     [selectedWebflowCollectionId, webflowCollections]
   );
@@ -374,27 +350,18 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     () => sanityFields.filter(field => field.possibleImage || field.type === "image"),
     [sanityFields]
   );
-  const selectedWebflowBodyField = React.useMemo(
-    () => selectedWebflowFields.find(isWebflowRichTextField) || null,
-    [selectedWebflowFields]
-  );
-  const selectedWebflowImageFields = React.useMemo(
-    () => selectedWebflowFields.filter(isWebflowImageField),
-    [selectedWebflowFields]
-  );
+  const selectedWebflowBodyField = React.useMemo(() => selectedWebflowFields.find(isWebflowRichTextField) || null, [selectedWebflowFields]);
+  const selectedWebflowImageFields = React.useMemo(() => selectedWebflowFields.filter(isWebflowImageField), [selectedWebflowFields]);
   const selectedWebflowMetaTitleField = React.useMemo(
     () =>
-      findLikelyWebflowTextField(selectedWebflowFields, [
-        /(^|\b)(seo|meta)[\s_-]*title(\b|$)/i,
-        /(^|\b)title[\s_-]*(tag|seo|meta)(\b|$)/i,
-      ]),
+      findLikelyWebflowTextField(selectedWebflowFields, [/(^|\b)(seo|meta)[\s_-]*title(\b|$)/i, /(^|\b)title[\s_-]*(tag|seo|meta)(\b|$)/i]),
     [selectedWebflowFields]
   );
   const selectedWebflowMetaDescriptionField = React.useMemo(
     () =>
       findLikelyWebflowTextField(selectedWebflowFields, [
         /(^|\b)(seo|meta)[\s_-]*(description|desc)(\b|$)/i,
-        /(^|\b)(description|desc)[\s_-]*(tag|seo|meta)(\b|$)/i,
+        /(^|\b)(description|desc)[\s_-]*(tag|seo|meta)(\b|$)/i
       ]),
     [selectedWebflowFields]
   );
@@ -427,8 +394,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     [webflowMappings]
   );
   const missingStaticMappings = React.useMemo(
-    () =>
-      webflowMappings.filter(row => row.massicField === "__static" && row.webflowFieldKey && !row.staticValue.trim()),
+    () => webflowMappings.filter(row => row.massicField === "__static" && row.webflowFieldKey && !row.staticValue.trim()),
     [webflowMappings]
   );
   const missingRequiredImageMappings = React.useMemo(
@@ -456,44 +422,26 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     [selectedWebflowCollection, webflowTarget?.name]
   );
   const savedSanityPreviewBaseUrl = React.useMemo(
-    () =>
-      String(
-        sanityTarget?.metadata?.previewBaseUrl ||
-          sanityConnection?.metadata?.previewBaseUrl ||
-          sanityConnection?.siteUrl ||
-          ""
-      ),
-    [
-      sanityConnection?.metadata?.previewBaseUrl,
-      sanityConnection?.siteUrl,
-      sanityTarget?.metadata?.previewBaseUrl,
-    ]
+    () => String(sanityTarget?.metadata?.previewBaseUrl || sanityConnection?.metadata?.previewBaseUrl || sanityConnection?.siteUrl || ""),
+    [sanityConnection?.metadata?.previewBaseUrl, sanityConnection?.siteUrl, sanityTarget?.metadata?.previewBaseUrl]
   );
   const savedSanityUrlPattern = React.useMemo(
-    () =>
-      String(
-        sanityTarget?.metadata?.urlPattern ||
-          sanityConnection?.metadata?.urlPattern ||
-          ""
-      ),
-    [
-      sanityConnection?.metadata?.urlPattern,
-      sanityTarget?.metadata?.urlPattern,
-    ]
+    () => String(sanityTarget?.metadata?.urlPattern || sanityConnection?.metadata?.urlPattern || ""),
+    [sanityConnection?.metadata?.urlPattern, sanityTarget?.metadata?.urlPattern]
   );
 
   const latestWebflowPageSetupData =
     configureWebflowPagesMutation.variables?.siteId === effectiveWebflowPageSiteId
       ? configureWebflowPagesMutation.data?.data || null
       : null;
-  const hasSavedWebflowPageTarget = Boolean(
-    webflowPageTarget?.collectionId && webflowPageTarget.siteId === effectiveWebflowPageSiteId
-  );
-  const isWebflowPageSetupReady = latestWebflowPageSetupData
-    ? Boolean(latestWebflowPageSetupData.ready)
-    : hasSavedWebflowPageTarget;
+  const hasSavedWebflowPageTarget = Boolean(webflowPageTarget?.collectionId && webflowPageTarget.siteId === effectiveWebflowPageSiteId);
+  const isWebflowPageSetupReady = latestWebflowPageSetupData ? Boolean(latestWebflowPageSetupData.ready) : hasSavedWebflowPageTarget;
   const webflowPageSetupStatus = latestWebflowPageSetupData?.status || (isWebflowPageSetupReady ? "ready" : "not_checked");
   const webflowPageSetupErrors = latestWebflowPageSetupData?.errors || [];
+  const latestSanityPageSetupData = configureSanityPagesMutation.data?.data || null;
+  const isSanityPageSetupReady = latestSanityPageSetupData ? Boolean(latestSanityPageSetupData.ready) : Boolean(sanityPageTarget?.targetId);
+  const sanityPageSetupStatus = latestSanityPageSetupData?.status || (isSanityPageSetupReady ? "ready" : "not_checked");
+  const sanityPageSetupErrors = latestSanityPageSetupData?.errors || [];
 
   React.useEffect(() => {
     if (!recommendedSiteUrl && defaultSiteUrl) setRecommendedSiteUrl(defaultSiteUrl);
@@ -522,10 +470,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     if (sanityTarget?.documentType && !selectedSanityDocumentType) {
       setSelectedSanityDocumentType(sanityTarget.documentType);
     }
-  }, [
-    sanityTarget?.documentType,
-    selectedSanityDocumentType,
-  ]);
+  }, [sanityTarget?.documentType, selectedSanityDocumentType]);
 
   React.useEffect(() => {
     if (webflowPageTarget?.siteId && !selectedWebflowPageSiteId) {
@@ -544,23 +489,19 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     }
 
     const fieldSignature = selectedWebflowFields
-      .map(
-        field =>
-          `${getWebflowFieldKey(field)}:${getWebflowFieldType(field)}:${isWebflowRequiredField(field) ? "required" : "optional"}`
-      )
+      .map(field => `${getWebflowFieldKey(field)}:${getWebflowFieldType(field)}:${isWebflowRequiredField(field) ? "required" : "optional"}`)
       .join("|");
     const savedSignature = JSON.stringify(webflowTarget?.fieldMapping?.fields || []);
     const initKey = [
       selectedWebflowCollectionId,
       fieldSignature,
-      webflowTarget?.collectionId === selectedWebflowCollectionId ? savedSignature : "",
+      webflowTarget?.collectionId === selectedWebflowCollectionId ? savedSignature : ""
     ].join("::");
 
     if (webflowMappingInitKeyRef.current === initKey) return;
     webflowMappingInitKeyRef.current = initKey;
 
-    const savedFields =
-      webflowTarget?.collectionId === selectedWebflowCollectionId ? webflowTarget?.fieldMapping?.fields || [] : [];
+    const savedFields = webflowTarget?.collectionId === selectedWebflowCollectionId ? webflowTarget?.fieldMapping?.fields || [] : [];
     const imageFieldKeys = new Set(selectedWebflowImageFields.map(field => getWebflowFieldKey(field)).filter(Boolean));
 
     if (savedFields.length > 0) {
@@ -584,32 +525,38 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
               id: `saved-${index}`,
               massicField: field.massicField || "__static",
               webflowFieldKey: field.webflowFieldSlug || field.webflowFieldId || "",
-              staticValue: field.staticValue || "",
+              staticValue: field.staticValue || ""
             })
           )
       );
       setWebflowImageDestinations(
-        selectedWebflowImageFields.map(field =>
-          ({
-            id: `image-${getWebflowFieldKey(field)}`,
-            webflowFieldKey: getWebflowFieldKey(field),
-            enabled: savedImageKeys.has(getWebflowFieldKey(field)),
-          })
-        )
+        selectedWebflowImageFields.map(field => ({
+          id: `image-${getWebflowFieldKey(field)}`,
+          webflowFieldKey: getWebflowFieldKey(field),
+          enabled: savedImageKeys.has(getWebflowFieldKey(field))
+        }))
       );
       return;
     }
 
     const rows = [
-      makeWebflowMappingRow({ id: "title", massicField: "title", webflowFieldKey: "name" }),
-      makeWebflowMappingRow({ id: "slug", massicField: "slug", webflowFieldKey: "slug" }),
+      makeWebflowMappingRow({
+        id: "title",
+        massicField: "title",
+        webflowFieldKey: "name"
+      }),
+      makeWebflowMappingRow({
+        id: "slug",
+        massicField: "slug",
+        webflowFieldKey: "slug"
+      })
     ];
     if (selectedWebflowBodyField) {
       rows.push(
         makeWebflowMappingRow({
           id: "bodyHtml",
           massicField: "bodyHtml",
-          webflowFieldKey: getWebflowFieldKey(selectedWebflowBodyField),
+          webflowFieldKey: getWebflowFieldKey(selectedWebflowBodyField)
         })
       );
     }
@@ -618,7 +565,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
         makeWebflowMappingRow({
           id: "metaTitle",
           massicField: "metaTitle",
-          webflowFieldKey: getWebflowFieldKey(selectedWebflowMetaTitleField),
+          webflowFieldKey: getWebflowFieldKey(selectedWebflowMetaTitleField)
         })
       );
     }
@@ -627,7 +574,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
         makeWebflowMappingRow({
           id: "metaDescription",
           massicField: "metaDescription",
-          webflowFieldKey: getWebflowFieldKey(selectedWebflowMetaDescriptionField),
+          webflowFieldKey: getWebflowFieldKey(selectedWebflowMetaDescriptionField)
         })
       );
     }
@@ -636,7 +583,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
         makeWebflowMappingRow({
           id: `static-${getWebflowFieldKey(field)}`,
           massicField: "__static",
-          webflowFieldKey: getWebflowFieldKey(field),
+          webflowFieldKey: getWebflowFieldKey(field)
         })
       );
     });
@@ -645,7 +592,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
       selectedWebflowImageFields.map(field => ({
         id: `image-${getWebflowFieldKey(field)}`,
         webflowFieldKey: getWebflowFieldKey(field),
-        enabled: true,
+        enabled: true
       }))
     );
   }, [
@@ -658,7 +605,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     selectedWebflowMetaDescriptionField,
     selectedWebflowMetaTitleField,
     webflowTarget?.collectionId,
-    webflowTarget?.fieldMapping?.fields,
+    webflowTarget?.fieldMapping?.fields
   ]);
 
   React.useEffect(() => {
@@ -678,14 +625,13 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     const initKey = [
       effectiveSanityDocumentType,
       fieldSignature,
-      sanityTarget?.documentType === effectiveSanityDocumentType ? savedSignature : "",
+      sanityTarget?.documentType === effectiveSanityDocumentType ? savedSignature : ""
     ].join("::");
 
     if (sanityMappingInitKeyRef.current === initKey) return;
     sanityMappingInitKeyRef.current = initKey;
 
-    const savedFields =
-      sanityTarget?.documentType === effectiveSanityDocumentType ? sanityTarget?.fieldMapping?.fields || [] : [];
+    const savedFields = sanityTarget?.documentType === effectiveSanityDocumentType ? sanityTarget?.fieldMapping?.fields || [] : [];
     const imageFieldKeys = new Set(selectedSanityImageFields.map(field => field.fieldPath).filter(Boolean));
 
     if (savedFields.length > 0) {
@@ -699,29 +645,33 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
           .filter(Boolean)
       );
       const savedRows = savedFields
-          .filter(field => {
-            const key = field.sanityFieldPath || "";
-            return !(field.type === "image" || imageFieldKeys.has(key) || isSanityManagedMassicStyleMapping({
+        .filter(field => {
+          const key = field.sanityFieldPath || "";
+          return !(
+            field.type === "image" ||
+            imageFieldKeys.has(key) ||
+            isSanityManagedMassicStyleMapping({
               massicField: field.massicField || "",
-              sanityFieldPath: key,
-            }));
-          })
-          .map((field, index) =>
-            makeSanityMappingRow({
-              id: `saved-sanity-${index}`,
-              massicField: field.massicField || "__static",
-              sanityFieldPath: field.sanityFieldPath || "",
-              sourcePath: field.sourcePath || "",
-              staticValue: field.staticValue || "",
-              type: field.type || field.sanityFieldType || "string",
+              sanityFieldPath: key
             })
           );
+        })
+        .map((field, index) =>
+          makeSanityMappingRow({
+            id: `saved-sanity-${index}`,
+            massicField: field.massicField || "__static",
+            sanityFieldPath: field.sanityFieldPath || "",
+            sourcePath: field.sourcePath || "",
+            staticValue: field.staticValue || "",
+            type: field.type || field.sanityFieldType || "string"
+          })
+        );
       setSanityMappings(savedRows);
       setSanityImageDestinations(
         selectedSanityImageFields.map(field => ({
           id: `image-${field.fieldPath}`,
           sanityFieldPath: field.fieldPath,
-          enabled: savedImageKeys.has(field.fieldPath),
+          enabled: savedImageKeys.has(field.fieldPath)
         }))
       );
       return;
@@ -729,22 +679,68 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
 
     const titleField = findSanityField(sanityFields, [/^title$/i, /\btitle\b/i]);
     const slugField = findSanityField(sanityFields, [/^slug$/i, /\bslug\b/i]);
-    const bodyField = sanityFields.find(field => field.possibleBody || field.type === "portableText") || findSanityField(sanityFields, [/\bbody\b/i, /\bcontent\b/i]);
+    const bodyField =
+      sanityFields.find(field => field.possibleBody || field.type === "portableText") ||
+      findSanityField(sanityFields, [/\bbody\b/i, /\bcontent\b/i]);
     const metaTitleField = findSanityField(sanityFields, [/(seo|meta).*title/i, /title.*(seo|meta)/i]);
-    const metaDescriptionField = findSanityField(sanityFields, [/(seo|meta).*(description|desc)/i, /(description|desc).*(seo|meta)/i, /\bexcerpt\b/i]);
+    const metaDescriptionField = findSanityField(sanityFields, [
+      /(seo|meta).*(description|desc)/i,
+      /(description|desc).*(seo|meta)/i,
+      /\bexcerpt\b/i
+    ]);
     const rows: SanityMappingRow[] = [];
-    if (titleField) rows.push(makeSanityMappingRow({ id: "sanity-title", massicField: "title", sanityFieldPath: titleField.fieldPath, type: titleField.type || "string" }));
-    if (slugField) rows.push(makeSanityMappingRow({ id: "sanity-slug", massicField: "slug", sanityFieldPath: slugField.fieldPath, type: "slug" }));
-    if (bodyField) rows.push(makeSanityMappingRow({ id: "sanity-body", massicField: "bodyHtml", sanityFieldPath: bodyField.fieldPath, type: bodyField.type || "portableText" }));
-    if (metaTitleField) rows.push(makeSanityMappingRow({ id: "sanity-meta-title", massicField: "metaTitle", sanityFieldPath: metaTitleField.fieldPath, type: metaTitleField.type || "string" }));
-    if (metaDescriptionField) rows.push(makeSanityMappingRow({ id: "sanity-meta-description", massicField: "metaDescription", sanityFieldPath: metaDescriptionField.fieldPath, type: metaDescriptionField.type || "string" }));
+    if (titleField)
+      rows.push(
+        makeSanityMappingRow({
+          id: "sanity-title",
+          massicField: "title",
+          sanityFieldPath: titleField.fieldPath,
+          type: titleField.type || "string"
+        })
+      );
+    if (slugField)
+      rows.push(
+        makeSanityMappingRow({
+          id: "sanity-slug",
+          massicField: "slug",
+          sanityFieldPath: slugField.fieldPath,
+          type: "slug"
+        })
+      );
+    if (bodyField)
+      rows.push(
+        makeSanityMappingRow({
+          id: "sanity-body",
+          massicField: "bodyHtml",
+          sanityFieldPath: bodyField.fieldPath,
+          type: bodyField.type || "portableText"
+        })
+      );
+    if (metaTitleField)
+      rows.push(
+        makeSanityMappingRow({
+          id: "sanity-meta-title",
+          massicField: "metaTitle",
+          sanityFieldPath: metaTitleField.fieldPath,
+          type: metaTitleField.type || "string"
+        })
+      );
+    if (metaDescriptionField)
+      rows.push(
+        makeSanityMappingRow({
+          id: "sanity-meta-description",
+          massicField: "metaDescription",
+          sanityFieldPath: metaDescriptionField.fieldPath,
+          type: metaDescriptionField.type || "string"
+        })
+      );
 
     setSanityMappings(rows);
     setSanityImageDestinations(
       selectedSanityImageFields.map(field => ({
         id: `image-${field.fieldPath}`,
         sanityFieldPath: field.fieldPath,
-        enabled: true,
+        enabled: true
       }))
     );
   }, [
@@ -752,7 +748,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     sanityFields,
     sanityTarget?.documentType,
     sanityTarget?.fieldMapping?.fields,
-    selectedSanityImageFields,
+    selectedSanityImageFields
   ]);
 
   React.useEffect(() => {
@@ -767,29 +763,75 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
         return;
       }
       toast.error("Webflow connection failed", {
-        description: payload.message || "Please try again.",
+        description: payload.message || "Please try again."
       });
     };
     window.addEventListener("message", onWebflowOauthMessage);
     return () => window.removeEventListener("message", onWebflowOauthMessage);
   }, [refetch, sanityConnectionQuery, webflowConnectionQuery]);
 
-  const submitRecommended = async () => { const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl); if (!siteUrl) return; const wordpressInstallUrl = buildWordpressPluginInstallUrl(siteUrl); if (!wordpressInstallUrl) { toast.error("Invalid WordPress site URL"); return; } const pendingWindow = openPendingExternalTab(); setIsRecommendedModalOpen(false); try { await oauthStartLinkMutation.mutateAsync({ businessId, siteUrl }); if (!navigatePendingExternalTab(pendingWindow, wordpressInstallUrl)) { setExternalNavigationFallback({ url: wordpressInstallUrl, title: "Open WordPress plugin search", description: "Your browser blocked the new tab. Open WordPress from here to install Massic Integration.", }); return; } toast.success("WordPress plugin search opened", { description: "Install Massic Integration, then open Settings and click Connect Massic.", }); } catch { pendingWindow?.close(); } };
+  const submitRecommended = async () => {
+    const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl);
+    if (!siteUrl) return;
+    const wordpressInstallUrl = buildWordpressPluginInstallUrl(siteUrl);
+    if (!wordpressInstallUrl) {
+      toast.error("Invalid WordPress site URL");
+      return;
+    }
+    const pendingWindow = openPendingExternalTab();
+    setIsRecommendedModalOpen(false);
+    try {
+      await oauthStartLinkMutation.mutateAsync({ businessId, siteUrl });
+      if (!navigatePendingExternalTab(pendingWindow, wordpressInstallUrl)) {
+        setExternalNavigationFallback({
+          url: wordpressInstallUrl,
+          title: "Open WordPress plugin search",
+          description: "Your browser blocked the new tab. Open WordPress from here to install Massic Integration."
+        });
+        return;
+      }
+      toast.success("WordPress plugin search opened", {
+        description: "Install Massic Integration, then open Settings and click Connect Massic."
+      });
+    } catch {
+      pendingWindow?.close();
+    }
+  };
 
   const submitDisconnect = async () => {
     if (!connection?.connectionId) return;
-    await disconnectMutation.mutateAsync({ connectionId: connection.connectionId });
+    await disconnectMutation.mutateAsync({
+      connectionId: connection.connectionId
+    });
   };
 
-  const submitWebflowConnect = async () => { const pendingWindow = openPendingExternalTab(); const returnUrl = `${window.location.origin}/business/${businessId}/web?integrations=1`; try { const response = await startWebflowOauthMutation.mutateAsync({ businessId, returnUrl }); const authorizationUrl = response?.data?.authorizationUrl; if (!authorizationUrl) { pendingWindow?.close(); return; } if (!navigatePendingExternalTab(pendingWindow, authorizationUrl)) { setExternalNavigationFallback({ url: authorizationUrl, title: "Open Webflow authorization", description: "Your browser blocked the new tab. Open Webflow from here to continue setup.", }); } } catch { pendingWindow?.close(); } };
+  const submitWebflowConnect = async () => {
+    const pendingWindow = openPendingExternalTab();
+    const returnUrl = `${window.location.origin}/business/${businessId}/web?integrations=1`;
+    try {
+      const response = await startWebflowOauthMutation.mutateAsync({
+        businessId,
+        returnUrl
+      });
+      const authorizationUrl = response?.data?.authorizationUrl;
+      if (!authorizationUrl) {
+        pendingWindow?.close();
+        return;
+      }
+      if (!navigatePendingExternalTab(pendingWindow, authorizationUrl)) {
+        setExternalNavigationFallback({
+          url: authorizationUrl,
+          title: "Open Webflow authorization",
+          description: "Your browser blocked the new tab. Open Webflow from here to continue setup."
+        });
+      }
+    } catch {
+      pendingWindow?.close();
+    }
+  };
 
   const submitWebflowConfiguration = async () => {
-    if (
-      !webflowConnection?.connectionId ||
-      !selectedWebflowSiteId ||
-      !selectedWebflowCollectionId ||
-      !selectedWebflowCollection
-    ) {
+    if (!webflowConnection?.connectionId || !selectedWebflowSiteId || !selectedWebflowCollectionId || !selectedWebflowCollection) {
       return;
     }
     const contentFields = webflowMappings
@@ -801,7 +843,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
           webflowFieldId: getWebflowId(field) || row.webflowFieldKey,
           webflowFieldSlug: getWebflowFieldSlug(field) || row.webflowFieldKey,
           ...(row.massicField === "__static" ? { staticValue: row.staticValue } : {}),
-          type: getWebflowFieldType(field),
+          type: getWebflowFieldType(field)
         };
       });
     const imageFields = webflowImageDestinations
@@ -812,7 +854,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
           massicField: "featuredImage",
           webflowFieldId: getWebflowId(field) || row.webflowFieldKey,
           webflowFieldSlug: getWebflowFieldSlug(field) || row.webflowFieldKey,
-          type: "image",
+          type: "image"
         };
       });
     await configureWebflowMutation.mutateAsync({
@@ -820,7 +862,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
       siteId: selectedWebflowSiteId,
       collectionId: selectedWebflowCollectionId,
       collectionName: selectedWebflowCollection.displayName || selectedWebflowCollection.name,
-      fieldMapping: { fields: [...contentFields, ...imageFields] },
+      fieldMapping: { fields: [...contentFields, ...imageFields] }
     });
   };
 
@@ -830,7 +872,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     dataset: sanityDataset.trim() || "production",
     token: sanityToken.trim(),
     previewBaseUrl: normalizeSiteUrlInput(sanityPreviewBaseUrl),
-    urlPattern: sanityUrlPattern.trim() || "/blog/{slug}",
+    urlPattern: sanityUrlPattern.trim() || "/blog/{slug}"
   });
 
   const submitSanityValidation = async () => {
@@ -855,14 +897,14 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
         sanityFieldPath: row.sanityFieldPath,
         ...(row.sourcePath ? { sourcePath: row.sourcePath } : {}),
         ...(row.massicField === "__static" || row.massicField === "__custom" ? { staticValue: row.staticValue } : {}),
-        type: row.type || "string",
+        type: row.type || "string"
       }));
     const imageFields = sanityImageDestinations
       .filter(row => row.enabled && row.sanityFieldPath)
       .map(row => ({
         massicField: "featuredImage",
         sanityFieldPath: row.sanityFieldPath,
-        type: "image",
+        type: "image"
       }));
 
     await configureSanityMutation.mutateAsync({
@@ -870,7 +912,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
       documentType: effectiveSanityDocumentType,
       previewBaseUrl: normalizeSiteUrlInput(sanityPreviewBaseUrl),
       urlPattern: sanityUrlPattern.trim() || "/blog/{slug}",
-      fieldMapping: { fields: [...contentFields, ...imageFields] },
+      fieldMapping: { fields: [...contentFields, ...imageFields] }
     });
   };
 
@@ -878,19 +920,28 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
     if (!webflowConnection?.connectionId || !effectiveWebflowPageSiteId) return;
     await configureWebflowPagesMutation.mutateAsync({
       connectionId: webflowConnection.connectionId,
-      siteId: effectiveWebflowPageSiteId,
+      siteId: effectiveWebflowPageSiteId
     });
   };
 
-  const handleInvalidWordpressAdminUrl = () => { toast.error("Invalid WordPress site URL"); };
+  const submitSanityPagesConfiguration = async () => {
+    if (!sanityConnection?.connectionId) return;
+    await configureSanityPagesMutation.mutateAsync({
+      connectionId: sanityConnection.connectionId
+    });
+  };
+
+  const handleInvalidWordpressAdminUrl = () => {
+    toast.error("Invalid WordPress site URL");
+  };
 
   const canSaveWebflowConfig =
     Boolean(webflowConnection?.connectionId && selectedWebflowSiteId && selectedWebflowCollectionId && hasBodyMapping) &&
     missingStaticMappings.length === 0 &&
     missingRequiredImageMappings.length === 0 &&
     !configureWebflowMutation.isPending;
-  const canCheckWebflowPagesSetup = Boolean(webflowConnection?.connectionId && effectiveWebflowPageSiteId) &&
-    !configureWebflowPagesMutation.isPending;
+  const canCheckWebflowPagesSetup =
+    Boolean(webflowConnection?.connectionId && effectiveWebflowPageSiteId) && !configureWebflowPagesMutation.isPending;
 
   const needsWebflowSetup = isWebflowConnected && !webflowTarget?.collectionId;
   const canSaveSanityConfig =
@@ -913,9 +964,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
       {showHeader && (
         <header className="space-y-1">
           <Typography variant="h4">Integrations</Typography>
-          <p className="text-sm text-general-muted-foreground">
-            Connect your sites to publish content from Massic.
-          </p>
+          <p className="text-sm text-general-muted-foreground">Connect your sites to publish content from Massic.</p>
         </header>
       )}
 
@@ -930,9 +979,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                   <CardTitle className="text-base font-medium">WordPress</CardTitle>
                   <IntegrationStatusBadge connected={connected} loading={isLoading} />
                 </div>
-                <CardDescription>
-                  Publish blog drafts and pages to your WordPress site.
-                </CardDescription>
+                <CardDescription>Publish blog drafts and pages to your WordPress site.</CardDescription>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -971,12 +1018,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                 </>
               ) : (
                 <>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-general-muted-foreground"
-                    onClick={() => setIsHowToModalOpen(true)}
-                  >
+                  <Button size="sm" variant="ghost" className="text-general-muted-foreground" onClick={() => setIsHowToModalOpen(true)}>
                     <HelpCircle className="mr-1.5 size-4" />
                     Guide
                   </Button>
@@ -994,9 +1036,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
               <div className="flex items-center gap-3 rounded-lg border border-general-border bg-general-primary-foreground/50 px-3 py-2.5">
                 <SiteFavicon siteUrl={connection.siteUrl} />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-general-foreground">
-                    {connectedSiteHost || "Connected site"}
-                  </p>
+                  <p className="truncate text-sm font-medium text-general-foreground">{connectedSiteHost || "Connected site"}</p>
                   <p className="truncate font-mono text-xs text-general-muted-foreground">{connection.siteUrl}</p>
                 </div>
               </div>
@@ -1012,14 +1052,9 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <CardTitle className="text-base font-medium">Webflow</CardTitle>
-                  <IntegrationStatusBadge
-                    connected={isWebflowConnected}
-                    loading={webflowConnectionQuery.isLoading}
-                  />
+                  <IntegrationStatusBadge connected={isWebflowConnected} loading={webflowConnectionQuery.isLoading} />
                 </div>
-                <CardDescription>
-                  Publish blog drafts to a Webflow CMS collection.
-                </CardDescription>
+                <CardDescription>Publish blog drafts to a Webflow CMS collection.</CardDescription>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -1029,7 +1064,9 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                   variant="outline"
                   onClick={() =>
                     webflowConnection?.connectionId &&
-                    disconnectWebflowMutation.mutate({ connectionId: webflowConnection.connectionId })
+                    disconnectWebflowMutation.mutate({
+                      connectionId: webflowConnection.connectionId
+                    })
                   }
                   disabled={disconnectWebflowMutation.isPending}
                 >
@@ -1045,11 +1082,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
           </CardHeader>
 
           {isWebflowConnected && (
-            <Collapsible
-              open={isWebflowConfigOpen}
-              onOpenChange={setIsWebflowConfigOpen}
-              className="mt-3 border-t border-general-border"
-            >
+            <Collapsible open={isWebflowConfigOpen} onOpenChange={setIsWebflowConfigOpen} className="mt-3 border-t border-general-border">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
@@ -1058,26 +1091,24 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                     "rounded-md transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   )}
                 >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-general-foreground">
-                        {needsWebflowSetup ? "Complete publishing setup" : "Publishing settings"}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-general-muted-foreground">
-                        {needsWebflowSetup
-                          ? "Choose site, collection, and field mapping"
-                          : webflowTarget?.collectionId
-                            ? [selectedWebflowCollectionName || webflowTarget.name, selectedWebflowSiteName]
-                                .filter(Boolean)
-                                .join(" · ")
-                            : "Site, CMS collection, and field mapping"}
-                      </p>
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        "size-4 shrink-0 text-general-muted-foreground transition-transform duration-200",
-                        isWebflowConfigOpen && "rotate-180"
-                      )}
-                    />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-general-foreground">
+                      {needsWebflowSetup ? "Complete publishing setup" : "Publishing settings"}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-general-muted-foreground">
+                      {needsWebflowSetup
+                        ? "Choose site, collection, and field mapping"
+                        : webflowTarget?.collectionId
+                          ? [selectedWebflowCollectionName || webflowTarget.name, selectedWebflowSiteName].filter(Boolean).join(" · ")
+                          : "Site, CMS collection, and field mapping"}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className={cn(
+                      "size-4 shrink-0 text-general-muted-foreground transition-transform duration-200",
+                      isWebflowConfigOpen && "rotate-180"
+                    )}
+                  />
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="overflow-hidden">
@@ -1125,8 +1156,8 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                           <span className="font-medium text-general-foreground"> Meta description</span> (Plain Text).
                         </p>
                         <p className="mt-1 text-xs text-general-muted-foreground">
-                          Recommended collection URL slug: <span className="font-medium text-general-foreground">resources</span>.
-                          Massic checks the collection and fields before allowing Webflow page publishing.
+                          Recommended collection URL slug: <span className="font-medium text-general-foreground">resources</span>. Massic
+                          checks the collection and fields before allowing Webflow page publishing.
                         </p>
                       </div>
                       <div className="shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium text-general-muted-foreground">
@@ -1204,14 +1235,9 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <CardTitle className="text-base font-medium">Sanity</CardTitle>
-                  <IntegrationStatusBadge
-                    connected={isSanityConnected}
-                    loading={sanityConnectionQuery.isLoading}
-                  />
+                  <IntegrationStatusBadge connected={isSanityConnected} loading={sanityConnectionQuery.isLoading} />
                 </div>
-                <CardDescription>
-                  Publish blog drafts and live documents to Sanity.
-                </CardDescription>
+                <CardDescription>Publish blog posts and Massic Pages as drafts or live documents in Sanity.</CardDescription>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -1222,7 +1248,9 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                     variant="outline"
                     onClick={() =>
                       sanityConnection?.connectionId &&
-                      disconnectSanityMutation.mutate({ connectionId: sanityConnection.connectionId })
+                      disconnectSanityMutation.mutate({
+                        connectionId: sanityConnection.connectionId
+                      })
                     }
                     disabled={disconnectSanityMutation.isPending}
                   >
@@ -1241,12 +1269,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                 </>
               ) : (
                 <>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-general-muted-foreground"
-                    onClick={() => setIsSanityGuideOpen(true)}
-                  >
+                  <Button size="sm" variant="ghost" className="text-general-muted-foreground" onClick={() => setIsSanityGuideOpen(true)}>
                     <HelpCircle className="mr-1.5 size-4" />
                     Guide
                   </Button>
@@ -1260,11 +1283,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
           </CardHeader>
 
           {isSanityConnected && (
-            <Collapsible
-              open={isSanityConfigOpen}
-              onOpenChange={setIsSanityConfigOpen}
-              className="mt-3 border-t border-general-border"
-            >
+            <Collapsible open={isSanityConfigOpen} onOpenChange={setIsSanityConfigOpen} className="mt-3 border-t border-general-border">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
@@ -1279,12 +1298,8 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                     </p>
                     <p className="mt-0.5 truncate text-xs text-general-muted-foreground">
                       {needsSanitySetup
-                        ? "Choose document type, preview URL, and field mapping"
-                        : sanityTarget?.documentType
-                          ? [sanityTarget.documentType, sanityConnection?.metadata?.dataset]
-                              .filter(Boolean)
-                              .join(" · ")
-                          : "Document type and field mapping"}
+                        ? "Set up blog and page publishing"
+                        : ["Blog and page publishing", sanityConnection?.metadata?.dataset].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <ChevronDown
@@ -1296,27 +1311,151 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="overflow-hidden">
-                <div className="pb-1 pt-2">
-                  <SanityPublishSetup
-                    documentTypes={sanityDocumentTypes}
-                    fields={sanityFields}
-                    documentTypesLoading={sanityDocumentTypesQuery.isLoading}
-                    fieldsLoading={sanityFieldsQuery.isLoading}
-                    selectedDocumentType={effectiveSanityDocumentType}
-                    onDocumentTypeChange={setSelectedSanityDocumentType}
-                    previewBaseUrl={sanityPreviewBaseUrl}
-                    onPreviewBaseUrlChange={setSanityPreviewBaseUrl}
-                    urlPattern={sanityUrlPattern}
-                    onUrlPatternChange={setSanityUrlPattern}
-                    mappings={sanityMappings}
-                    onMappingsChange={setSanityMappings}
-                    imageDestinations={sanityImageDestinations}
-                    onImageDestinationsChange={setSanityImageDestinations}
-                    canSave={canSaveSanityConfig}
-                    isSaving={configureSanityMutation.isPending}
-                    hasSavedTarget={Boolean(sanityTarget?.targetId)}
-                    onSave={submitSanityConfiguration}
-                  />
+                <div className="space-y-2 pb-1 pt-2">
+                  <Collapsible
+                    open={isSanityBlogSettingsOpen}
+                    onOpenChange={setIsSanityBlogSettingsOpen}
+                    className="overflow-hidden rounded-lg border border-general-border bg-background"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 sm:px-4"
+                      >
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-general-border bg-white">
+                          <FileText className="size-4 text-general-muted-foreground" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-general-foreground">Blog publishing</span>
+                          <span className="mt-0.5 block truncate text-xs text-general-muted-foreground">
+                            {effectiveSanityDocumentType || "Choose a document type"} · {sanityUrlPattern || "/blog/{slug}"}
+                          </span>
+                        </span>
+                        <span
+                          className={cn(
+                            "flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium",
+                            sanityTarget?.targetId
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-amber-200 bg-amber-50 text-amber-700"
+                          )}
+                        >
+                          {sanityTarget?.targetId ? <CheckCircle2 className="size-3" /> : <CircleAlert className="size-3" />}
+                          {sanityTarget?.targetId ? "Configured" : "Setup required"}
+                        </span>
+                        <ChevronDown
+                          className={cn(
+                            "size-4 shrink-0 text-general-muted-foreground transition-transform duration-200",
+                            isSanityBlogSettingsOpen && "rotate-180"
+                          )}
+                        />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-t border-general-border">
+                      <div className="px-3 py-4 sm:px-4">
+                        <SanityPublishSetup
+                          documentTypes={sanityDocumentTypes}
+                          fields={sanityFields}
+                          documentTypesLoading={sanityDocumentTypesQuery.isLoading}
+                          fieldsLoading={sanityFieldsQuery.isLoading}
+                          selectedDocumentType={effectiveSanityDocumentType}
+                          onDocumentTypeChange={setSelectedSanityDocumentType}
+                          previewBaseUrl={sanityPreviewBaseUrl}
+                          onPreviewBaseUrlChange={setSanityPreviewBaseUrl}
+                          urlPattern={sanityUrlPattern}
+                          onUrlPatternChange={setSanityUrlPattern}
+                          mappings={sanityMappings}
+                          onMappingsChange={setSanityMappings}
+                          imageDestinations={sanityImageDestinations}
+                          onImageDestinationsChange={setSanityImageDestinations}
+                          canSave={canSaveSanityConfig}
+                          isSaving={configureSanityMutation.isPending}
+                          hasSavedTarget={Boolean(sanityTarget?.targetId)}
+                          onSave={submitSanityConfiguration}
+                        />
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  <Collapsible
+                    open={isSanityPageSettingsOpen}
+                    onOpenChange={setIsSanityPageSettingsOpen}
+                    className="overflow-hidden rounded-lg border border-general-border bg-background"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 sm:px-4"
+                      >
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-general-border bg-white">
+                          <LayoutTemplate className="size-4 text-general-muted-foreground" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-general-foreground">Page publishing</span>
+                          <span className="mt-0.5 block truncate text-xs text-general-muted-foreground">
+                            massicPage · Fixed schema and automatic field mapping
+                          </span>
+                        </span>
+                        <span
+                          className={cn(
+                            "flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium",
+                            isSanityPageSetupReady
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-amber-200 bg-amber-50 text-amber-700"
+                          )}
+                        >
+                          {isSanityPageSetupReady ? <CheckCircle2 className="size-3" /> : <CircleAlert className="size-3" />}
+                          {isSanityPageSetupReady
+                            ? "Ready"
+                            : sanityPageSetupStatus === "missing_schema"
+                              ? "Schema missing"
+                              : sanityPageSetupStatus === "invalid_schema"
+                                ? "Invalid fields"
+                                : sanityPageSetupStatus === "schema_unverifiable"
+                                  ? "Could not verify"
+                                  : "Not checked"}
+                        </span>
+                        <ChevronDown
+                          className={cn(
+                            "size-4 shrink-0 text-general-muted-foreground transition-transform duration-200",
+                            isSanityPageSettingsOpen && "rotate-180"
+                          )}
+                        />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-t border-general-border">
+                      <div className="grid gap-4 px-3 py-4 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                        <div className="min-w-0 space-y-2">
+                          <p className="text-sm text-general-muted-foreground">
+                            Pages publish to the fixed <span className="font-medium text-general-foreground">massicPage</span> document
+                            type. Field mapping is automatic.
+                          </p>
+                          <div className="text-xs text-general-muted-foreground">
+                            {isSanityPageSetupReady ? (
+                              <span>Ready to publish pages to {sanityPageTarget?.name || "Massic Page"}.</span>
+                            ) : sanityPageSetupErrors.length > 0 ? (
+                              <ul className="list-disc space-y-1 pl-4">
+                                {sanityPageSetupErrors.map(error => (
+                                  <li key={error}>{error}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span>Deploy the massicPage schema, then check the setup.</span>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="w-full shrink-0 sm:w-auto"
+                          variant={isSanityPageSetupReady ? "outline" : "default"}
+                          onClick={submitSanityPagesConfiguration}
+                          disabled={!sanityConnection?.connectionId || configureSanityPagesMutation.isPending}
+                        >
+                          {configureSanityPagesMutation.isPending ? "Checking…" : isSanityPageSetupReady ? "Recheck setup" : "Check setup"}
+                        </Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -1328,9 +1467,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
         <DialogContent className="sm:max-w-lg" showCloseButton={!connectSanityMutation.isPending}>
           <DialogHeader>
             <DialogTitle>Connect Sanity</DialogTitle>
-            <DialogDescription>
-              Add your project details. The token is validated and stored encrypted.
-            </DialogDescription>
+            <DialogDescription>Add your project details. The token is validated and stored encrypted.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-1">
             <div className="grid gap-2 sm:grid-cols-2">
@@ -1388,11 +1525,7 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                 />
               </div>
             </div>
-            <Button
-              variant="link"
-              className="h-auto justify-start px-0 text-xs"
-              onClick={() => setIsSanityGuideOpen(true)}
-            >
+            <Button variant="link" className="h-auto justify-start px-0 text-xs" onClick={() => setIsSanityGuideOpen(true)}>
               Need help finding these?
             </Button>
           </div>
@@ -1403,7 +1536,9 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
             <Button
               variant="outline"
               onClick={submitSanityValidation}
-              disabled={!sanityProjectId.trim() || !sanityToken.trim() || validateSanityMutation.isPending || connectSanityMutation.isPending}
+              disabled={
+                !sanityProjectId.trim() || !sanityToken.trim() || validateSanityMutation.isPending || connectSanityMutation.isPending
+              }
             >
               {validateSanityMutation.isPending ? "Validating..." : "Validate"}
             </Button>
@@ -1425,24 +1560,27 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
           </DialogHeader>
           <ol className="list-decimal space-y-2.5 py-1 pl-5 text-sm text-general-foreground">
             <li>
-              <strong>Project ID:</strong> Open <strong>sanity.io/manage</strong>, choose your project, and copy the
-              project ID. You can also find it in your Studio config or environment variables.
+              <strong>Project ID:</strong> Open <strong>sanity.io/manage</strong>, choose your project, and copy the project ID. You can
+              also find it in your Studio config or environment variables.
             </li>
             <li>
-              <strong>Dataset:</strong> In Sanity Manage, open <strong>Datasets</strong>. Most sites use{" "}
-              <strong>production</strong>.
+              <strong>Dataset:</strong> In Sanity Manage, open <strong>Datasets</strong>. Most sites use <strong>production</strong>.
             </li>
             <li>
-              <strong>API token:</strong> In Sanity Manage, open <strong>API &gt; Tokens</strong> and create a token
-              with write access for draft/live publishing and asset upload.
+              <strong>API token:</strong> In Sanity Manage, open <strong>API &gt; Tokens</strong> and create a token with write access for
+              draft/live publishing and asset upload.
             </li>
             <li>
-              <strong>Site/preview base URL:</strong> Use the live or preview frontend URL where blog posts render,
-              such as <strong>https://example.com</strong>.
+              <strong>Site/preview base URL:</strong> Use the live or preview frontend URL where blog posts render, such as{" "}
+              <strong>https://example.com</strong>.
             </li>
             <li>
-              <strong>Blog URL pattern:</strong> Enter the route your frontend uses for posts, such as{" "}
-              <strong>/blog/{"{slug}"}</strong>. The <strong>{"{slug}"}</strong> token is required.
+              <strong>Blog URL pattern:</strong> Enter the route your frontend uses for posts, such as <strong>/blog/{"{slug}"}</strong>.
+              The <strong>{"{slug}"}</strong> token is required.
+            </li>
+            <li>
+              <strong>Pages:</strong> Add and deploy the documented <strong>massicPage</strong> schema and catch-all route, then use{" "}
+              <strong>Check setup</strong> under Massic Pages. Page fields are mapped automatically.
             </li>
           </ol>
           <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
@@ -1476,8 +1614,10 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
               />
             </div>
             <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
- Use a WordPress administrator account. Install and activate <strong className="text-general-foreground">Massic Integration</strong>,
- open <strong className="text-general-foreground">Settings → Massic Integration</strong>, then click <strong className="text-general-foreground">Connect Massic</strong>.
+              Use a WordPress administrator account. Install and activate{" "}
+              <strong className="text-general-foreground">Massic Integration</strong>, open{" "}
+              <strong className="text-general-foreground">Settings → Massic Integration</strong>, then click{" "}
+              <strong className="text-general-foreground">Connect Massic</strong>.
             </p>
             <Button
               variant="link"
@@ -1515,18 +1655,32 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
             {IS_WORDPRESS_QA_PLUGIN_BUILD ? (
               <>
                 <li>Download the QA plugin ZIP from Massic.</li>
-                <li>In WP Admin, go to <strong>Plugins → Add New → Upload Plugin</strong>.</li>
+                <li>
+                  In WP Admin, go to <strong>Plugins → Add New → Upload Plugin</strong>.
+                </li>
                 <li>Upload the ZIP, install it, and activate it.</li>
-                <li>Open <strong>Settings → Massic Integration</strong>.</li>
-                <li>Click <strong>Connect Massic</strong> and approve the connection.</li>
+                <li>
+                  Open <strong>Settings → Massic Integration</strong>.
+                </li>
+                <li>
+                  Click <strong>Connect Massic</strong> and approve the connection.
+                </li>
               </>
             ) : (
               <>
-                <li>In WP Admin, go to <strong>Plugins → Add New</strong>.</li>
-                <li>Search <strong>massic-integration</strong> or <strong>Massic Integration</strong>.</li>
+                <li>
+                  In WP Admin, go to <strong>Plugins → Add New</strong>.
+                </li>
+                <li>
+                  Search <strong>massic-integration</strong> or <strong>Massic Integration</strong>.
+                </li>
                 <li>Install and activate the plugin.</li>
-                <li>Open <strong>Settings → Massic Integration</strong>.</li>
-                <li>Click <strong>Connect Massic</strong> and approve the connection.</li>
+                <li>
+                  Open <strong>Settings → Massic Integration</strong>.
+                </li>
+                <li>
+                  Click <strong>Connect Massic</strong> and approve the connection.
+                </li>
               </>
             )}
           </ol>
@@ -1541,23 +1695,28 @@ const selectedWebflowCollection = React.useMemo<WebflowCollection | null>(
                   Download QA plugin
                 </a>
               </Button>
- ) : guideWordpressUrl ? (
- <Button asChild>
- <a href={guideWordpressUrl} target="_blank" rel="noreferrer">
- <ExternalLink className="mr-1.5 size-4" />
- Open WordPress
- </a>
- </Button>
- ) : (
- <Button disabled>
- <ExternalLink className="mr-1.5 size-4" />
- Open WordPress
- </Button>
- )}
+            ) : guideWordpressUrl ? (
+              <Button asChild>
+                <a href={guideWordpressUrl} target="_blank" rel="noreferrer">
+                  <ExternalLink className="mr-1.5 size-4" />
+                  Open WordPress
+                </a>
+              </Button>
+            ) : (
+              <Button disabled>
+                <ExternalLink className="mr-1.5 size-4" />
+                Open WordPress
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(externalNavigationFallback)} onOpenChange={(open) => { if (!open) setExternalNavigationFallback(null); }}>
+      <Dialog
+        open={Boolean(externalNavigationFallback)}
+        onOpenChange={open => {
+          if (!open) setExternalNavigationFallback(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{externalNavigationFallback?.title || "Open connection"}</DialogTitle>

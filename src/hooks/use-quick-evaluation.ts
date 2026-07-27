@@ -4,7 +4,11 @@ import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 
 function normalizeBusinessUrl(value: string): string {
-  return String(value || "").trim().replace(/\/$/, "");
+  const url = String(value || "").trim().replace(/\/$/, "");
+  if (!url) return "";
+  if (/^https:\/\//i.test(url)) return url;
+  if (/^http:\/\//i.test(url)) return url.replace(/^http:\/\//i, "https://");
+  return `https://${url}`;
 }
 
 async function postQuickEvaluation(businessUrl: string): Promise<unknown> {

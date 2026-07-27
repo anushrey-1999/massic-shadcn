@@ -2,20 +2,24 @@
 
 import React from "react";
 import { useStore } from "@tanstack/react-form";
-import { GenericInput } from "@/components/ui/generic-input";
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/molecules/PageHeader";
-import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { LoaderOverlay } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
-import { Laptop, PackageSearch, Store, Handshake, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
+import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
+import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
 
 type FormData = {
   website: string;
   businessName: string;
+  businessCategory?: string;
   primaryLocation: string;
-  serveCustomers: string;
-  offerType: string;
+  serviceAreaType?: string;
+  serviceAreas?: string[];
+  serviceType: string;
+  offerings: string;
 };
 
 type LocationOption = {
@@ -31,6 +35,7 @@ interface CreateBusinessTemplateProps {
   isSubmitting: boolean;
   isPending: boolean;
   isAutofillLoading: boolean;
+  offeringsExtractor?: any;
   hasAutofilledProfile: boolean;
   onAutofillProfile: () => void;
   onSubmitCreate: () => void;
@@ -44,6 +49,7 @@ export function CreateBusinessTemplate({
   isSubmitting,
   isPending,
   isAutofillLoading,
+  offeringsExtractor,
   hasAutofilledProfile,
   onAutofillProfile,
   onSubmitCreate,
@@ -52,12 +58,14 @@ export function CreateBusinessTemplate({
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: "Create Business" }];
 
   const formValues = useStore(form.store, (state: any) => state.values) as FormData;
+  const isOfferingsExtracting = Boolean(offeringsExtractor?.isExtracting);
   const isLoading = Boolean(isSubmitting || isPending || isAutofillLoading);
   const isAutofillDisabled =
     isAutofillLoading ||
     locationsLoading ||
     !String(formValues?.website ?? "").trim() ||
-    !String(formValues?.primaryLocation ?? "").trim();
+    !String(formValues?.primaryLocation ?? "").trim() ||
+    !String(formValues?.serviceAreaType ?? "").trim();
 
   const renderAutofillButton = ({
     className,
@@ -71,7 +79,13 @@ export function CreateBusinessTemplate({
       variant={variant}
       onClick={onAutofillProfile}
       disabled={isAutofillDisabled}
-      className={className}
+      className={cn(
+        "gap-2",
+        variant
+          ? "border-general-border-three text-general-foreground"
+          : "bg-general-primary text-general-primary-foreground hover:bg-general-primary/90",
+        className
+      )}
     >
       {isAutofillLoading ? (
         <>
@@ -79,7 +93,10 @@ export function CreateBusinessTemplate({
           Autofilling...
         </>
       ) : (
-        "Autofill Profile"
+        <>
+          Autofill Profile
+          <ArrowRight className="size-4 shrink-0" />
+        </>
       )}
     </Button>
   );
@@ -102,7 +119,12 @@ export function CreateBusinessTemplate({
           </div>
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
-            <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
+            <div
+              className={cn(
+                "w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1",
+                !hasAutofilledProfile && "justify-center items-center"
+              )}
+            >
               <form
                 id="create-business-form"
                 onSubmit={(e) => {
@@ -111,166 +133,75 @@ export function CreateBusinessTemplate({
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
-                <ProfileStepCard
-                  title={hasAutofilledProfile ? "Create Business" : "Let's set up your business"}
-                  description={
-                    hasAutofilledProfile
-                      ? "Review the required details before creating your business."
-                      : "Enter your website URL and location, then click Autofill Profile."
-                  }
-                  className="flex-1"
-                  scrollableContent
-                  contentClassName="pb-6"
-                  rightAction={
-                    <div className="flex items-center gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={onCancel}
-                        disabled={isSubmitting}
-                      >
-                        Cancel
-                      </Button>
-                      {hasAutofilledProfile && (
+                {!hasAutofilledProfile ? (
+                  <ProfileGateCard
+                    title="Add a business"
+                    description="We build the profile from the website. Anything the site can't give us, you fill in after — nothing is guessed."
+                    className="w-full max-w-[490px] self-center"
+                  >
+                    <div className="mx-auto w-full max-w-[442px]">
+                      <BusinessInfoForm
+                        form={form}
+                        embedded
+                        embeddedVariant="autofillGate"
+                        disableWebsiteLock
+                        primaryLocationAction={renderAutofillButton({ className: "w-full gap-2" })}
+                      />
+                    </div>
+                  </ProfileGateCard>
+                ) : null}
+                {hasAutofilledProfile && (
+                  <ProfileAutofillReviewTemplate
+                    form={form}
+                    businessId={null}
+                    leftTitle="Create Business"
+                    extractionController={offeringsExtractor}
+                    hideFetchOfferingsFromWebsite
+                    onSaveChanges={() => {}}
+                    onSaveAndUpdateStrategy={() => {}}
+                    onAutofillProfile={onAutofillProfile}
+                    autofillDisabled={isAutofillDisabled}
+                    autofillLoading={isAutofillLoading}
+                    showUnlinkBusiness={false}
+                    showDefaultActions={false}
+                    customHeaderActions={
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-general-border-three text-general-foreground"
+                          onClick={onCancel}
+                          disabled={isSubmitting}
+                        >
+                          Cancel
+                        </Button>
                         <Button
                           type="submit"
                           form="create-business-form"
                           className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                          disabled={isSubmitting || isPending || isAutofillLoading}
-                        >
-                          {isSubmitting || isPending ? "Creating..." : "Create"}
-                        </Button>
-                      )}
-                    </div>
-                  }
-                >
-                  {!hasAutofilledProfile ? (
-                    <div className="flex flex-col gap-5 w-[480px] max-w-full">
-                      <GenericInput<FormData>
-                        form={form}
-                        fieldName="website"
-                        type="url"
-                        label="Website"
-                        required
-                        placeholder="Provide the official url of your business website"
-                      />
-
-                      <GenericInput<FormData>
-                        form={form as any}
-                        fieldName="primaryLocation"
-                        type="location-select"
-                        label="Location"
-                        required
-                        placeholder={
-                          locationsLoading
-                            ? "Loading locations..."
-                            : "Where are your customers primarily located?"
-                        }
-                        options={locationOptions}
-                        disabled={locationsLoading}
-                        loading={locationsLoading}
-                      />
-
-                      <div className="flex flex-col gap-2 pt-1">
-                        {renderAutofillButton({ className: "w-full gap-2" })}
-                        <p className="text-xs text-general-muted-foreground">
-                          We'll auto-fill your business name and suggested required details from your website.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-7">
-                      <div className="flex items-end gap-4 w-full">
-                        <div className="w-1/2 min-w-0">
-                          <GenericInput<FormData>
-                            form={form}
-                            fieldName="website"
-                            type="url"
-                            label="Website"
-                            required
-                            placeholder="Provide the official url of your business website"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0" />
-                        <div className="shrink-0">
-                          {renderAutofillButton({
-                            className: "gap-2 border-general-border-three text-general-foreground",
-                            variant: "outline",
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="w-1/2">
-                        <GenericInput<FormData>
-                          form={form}
-                          fieldName="businessName"
-                          type="input"
-                          label="Business Name"
-                          required
-                          placeholder="Provide the brand name of your business"
-                        />
-                      </div>
-
-                      <div className="w-1/2">
-                        <GenericInput<FormData>
-                          form={form as any}
-                          fieldName="primaryLocation"
-                          type="location-select"
-                          label="Location"
-                          required
-                          placeholder={
-                            locationsLoading
-                              ? "Loading locations..."
-                              : "Where are your customers primarily located?"
+                          disabled={
+                            isSubmitting ||
+                            isPending ||
+                            isAutofillLoading ||
+                            isOfferingsExtracting
                           }
-                          options={locationOptions}
-                          disabled={locationsLoading}
-                          loading={locationsLoading}
-                        />
-                      </div>
-
-                      <div className="w-1/2">
-                        <GenericInput<FormData>
-                          form={form as any}
-                          fieldName="serveCustomers"
-                          type="radio-cards"
-                          label="Where do you primarily serve your customers?"
-                          required
-                          orientation="horizontal"
-                          radioCardSize="sm"
-                          radioCardIcons={{
-                            local: <Store className="size-7" strokeWidth={1.5} />,
-                            online: <Laptop className="size-7" strokeWidth={1.5} />,
-                          }}
-                          options={[
-                            { value: "local", label: "Local" },
-                            { value: "online", label: "Online" },
-                          ]}
-                        />
-                      </div>
-
-                      <div className="w-1/2">
-                        <GenericInput<FormData>
-                          form={form as any}
-                          fieldName="offerType"
-                          type="radio-cards"
-                          label="What type of offerings do you provide your customers?"
-                          required
-                          orientation="horizontal"
-                          radioCardSize="sm"
-                          radioCardIcons={{
-                            products: <PackageSearch className="size-7" strokeWidth={1.5} />,
-                            services: <Handshake className="size-7" strokeWidth={1.5} />,
-                          }}
-                          options={[
-                            { value: "products", label: "Products" },
-                            { value: "services", label: "Services" },
-                          ]}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </ProfileStepCard>
+                        >
+                          {isSubmitting || isPending ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Creating...
+                            </>
+                          ) : isOfferingsExtracting ? (
+                            "Extracting offerings..."
+                          ) : (
+                            "Create"
+                          )}
+                        </Button>
+                      </>
+                    }
+                    className="flex-1"
+                  />
+                )}
               </form>
             </div>
           </div>

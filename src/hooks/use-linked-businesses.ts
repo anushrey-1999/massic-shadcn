@@ -49,6 +49,7 @@ export interface LinkedBusiness {
   businessProfile?: BusinessProfile;
   noLocation?: boolean;
   ga4Cleared?: boolean;
+  ga4PagePathScope?: string | null;
   gbpCleared?: boolean;
 }
 
@@ -71,6 +72,7 @@ interface CreateBusinessPayload {
     displayName: string;
     locationType: string;
     propertyId: string;
+    ga4PagePathScope?: string | null;
     locations: { DisplayName: string; Url: string; Name: string; AccountName: string }[];
     NoLocationExist: boolean;
     category: string;
@@ -89,6 +91,7 @@ interface LinkPropertyPayload {
   websiteUri: string;
   businessUniqueId?: string;
   propertyId?: string;
+  ga4PagePathScope?: string | null;
   locations: { DisplayName: string; Url: string; Name: string; AccountName: string }[];
   NoLocationExist: boolean;
 }
@@ -294,6 +297,11 @@ export function useCreateAgencyBusiness() {
               b.ga4Cleared === true
                 ? ""
                 : b.selectedGa4?.propertyId ?? b.matchedGa4?.propertyId ?? "",
+            ...(b.ga4Cleared !== true &&
+            Boolean(b.selectedGa4?.propertyId ?? b.matchedGa4?.propertyId) &&
+            b.ga4PagePathScope !== undefined
+              ? { ga4PagePathScope: b.ga4PagePathScope }
+              : {}),
             locations: b.noLocation || b.gbpCleared === true ? [] :
               (b.selectedGbp?.map((gbp) => ({
                 DisplayName: gbp.title || "",
@@ -415,6 +423,9 @@ export function useLinkPropertyId() {
         payload.propertyId = "";
       } else if (selectedGa4?.propertyId) {
         payload.propertyId = selectedGa4.propertyId;
+        if (!business.linkedPropertyId && business.ga4PagePathScope !== undefined) {
+          payload.ga4PagePathScope = business.ga4PagePathScope;
+        }
       }
 
       const response = await api.post<{ err?: boolean; message?: string }>(

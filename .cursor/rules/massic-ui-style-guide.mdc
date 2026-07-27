@@ -1,0 +1,14 @@
+---
+description: Read Massic UI style guide before changing massic-shadcn UI
+globs:
+  - "src/**/*.tsx"
+  - "src/**/*.ts"
+  - "src/**/*.css"
+alwaysApply: false
+---
+
+Before implementing or changing any UI in `massic-shadcn`, read:
+
+`docs/massic-ui-style-guide.md`
+
+Use it as the canonical Massic UI style guide. Preserve existing component patterns first, then apply the guide for colors, typography, spacing, layout, copy clarity, interaction states, and responsive behavior.

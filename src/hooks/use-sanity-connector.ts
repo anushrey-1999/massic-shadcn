@@ -30,6 +30,10 @@ export interface SanityConnection {
   lastUsedAt: string | null;
   metadata?: Record<string, any> | null;
   target: SanityTarget | null;
+  targets?: {
+    post?: SanityTarget | null;
+    page?: SanityTarget | null;
+  };
 }
 
 export interface SanityDocumentType {
@@ -181,6 +185,51 @@ export function useConfigureSanity(businessId: string | null) {
       toast.error("Failed to save Sanity configuration", {
         description: getErrorMessage(error, "Check the document type and field mapping."),
       });
+    },
+  });
+}
+
+export interface SanityPagesSetupResponse {
+  success: boolean;
+  err: boolean;
+  message?: string;
+  data?: {
+    ready: boolean;
+    status: "ready" | "missing_schema" | "invalid_schema" | "schema_unverifiable";
+    errors?: string[];
+    fields?: Record<string, string | null>;
+    source?: "stored_schema" | "samples";
+    target?: SanityTarget | null;
+  };
+}
+
+export function useConfigureSanityPages(businessId: string | null, options: { silent?: boolean } = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation<SanityPagesSetupResponse, Error, { connectionId: string }>({
+    mutationFn: async payload => {
+      const res = await api.post<SanityPagesSetupResponse>("/cms/sanity/page-configuration", "node", payload);
+      if (!res?.success) throw new Error(res?.message || "Failed to check Sanity Massic Pages setup");
+      return res;
+    },
+    onSuccess: res => {
+      const ready = Boolean(res.data?.ready);
+      if (!options.silent) {
+        toast[ready ? "success" : "warning"](ready ? "Sanity page setup ready" : "Sanity page setup needs changes", {
+          description: ready
+            ? "Pages can now publish to the massicPage document type."
+            : res.data?.errors?.[0] || "Add and deploy the massicPage schema, then recheck.",
+        });
+      }
+      void queryClient.invalidateQueries({ queryKey: ["sanity-connection", businessId] });
+      void queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", businessId] });
+    },
+    onError: error => {
+      if (!options.silent) {
+        toast.error("Failed to check Sanity page setup", {
+          description: getErrorMessage(error, "Please try again."),
+        });
+      }
     },
   });
 }

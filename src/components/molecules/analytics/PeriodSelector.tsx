@@ -45,6 +45,7 @@ interface PeriodSelectorProps {
   disabledGroupByOptions?: AnalyticsGroupBy[]
   /** When true, only 7 days / 14 days / 3 months are selectable. */
   ingestionActive?: boolean
+  disabled?: boolean
 }
 
 interface DraftRange {
@@ -93,6 +94,7 @@ export function PeriodSelector({
   onGroupByChange,
   disabledGroupByOptions = [],
   ingestionActive = false,
+  disabled = false,
 }: PeriodSelectorProps) {
   const [open, setOpen] = useState(false)
   const [customExpanded, setCustomExpanded] = useState(false)
@@ -159,7 +161,12 @@ export function PeriodSelector({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={!disabled && open}
+      onOpenChange={(nextOpen) => {
+        if (!disabled) setOpen(nextOpen)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -167,6 +174,7 @@ export function PeriodSelector({
             "h-10 w-auto justify-between rounded-[8px] border-general-border bg-white px-3 text-left font-normal",
             className
           )}
+          disabled={disabled}
         >
           <span className="truncate text-sm text-foreground">
             {triggerLabel}

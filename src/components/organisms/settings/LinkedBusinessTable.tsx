@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -86,6 +87,7 @@ import {
   formatGscPermissionLevel,
   hasRequiredGscAccess,
 } from "@/utils/gsc-permissions";
+import { Ga4ScopeControl } from "@/components/organisms/settings/Ga4ScopeControl";
 
 const FILTERS = [
   { label: "All", value: "all" },
@@ -272,8 +274,10 @@ interface LinkedBusinessTableProps {
 }
 
 export default function LinkedBusinessTable({ readOnly = false }: LinkedBusinessTableProps) {
+  const searchParams = useSearchParams();
   const permissions = usePermissions();
   const isReadOnly = readOnly || !permissions.canManageLinkedBusinesses;
+  const ga4ScopeBusinessId = searchParams.get("ga4ScopeBusinessId");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [localBusinesses, setLocalBusinesses] = useState<LinkedBusiness[]>([]);
@@ -433,7 +437,12 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
         if (b.siteUrl === siteUrl) {
           if (propertyId === null) {
             // Clear selection and set flag to indicate explicit clear
-            return { ...b, selectedGa4: undefined, ga4Cleared: true };
+            return {
+              ...b,
+              selectedGa4: undefined,
+              ga4Cleared: true,
+              ga4PagePathScope: undefined,
+            };
           }
           const linkedGa4PropertyId =
             b.linkedPropertyId?.PropertyId || b.linkedPropertyId?.propertyId;
@@ -455,6 +464,20 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
         }
         return b;
       })
+    );
+  };
+
+  const handleInitialGa4ScopeChange = (siteUrl: string, value: string) => {
+    if (isReadOnly) return;
+    setLocalBusinesses((prev) =>
+      prev.map((business) =>
+        business.siteUrl === siteUrl
+          ? {
+              ...business,
+              ga4PagePathScope: value.trim() ? value : undefined,
+            }
+          : business
+      )
     );
   };
 
@@ -855,6 +878,40 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           const hasSuggestedMatches =
             !!rowData.matchedGa4 || (rowData.matchedGa4Multiple?.length ?? 0) > 0;
           const hasLinkedData = hasLinkedProperty || hasSuggestedMatches;
+          const linkedPropertyIdForScope =
+            rowData.linkedPropertyId?.PropertyId ||
+            rowData.linkedPropertyId?.propertyId ||
+            (rowData.linkedPropertyId as any)?.GoogleAnalyticsPropertyId;
+          const businessUniqueId = rowData.businessProfile?.UniqueId;
+          const hasConnectedGa4 =
+            rowData.businessProfile?.IsActive === true &&
+            rowData.ga4Cleared !== true &&
+            Boolean(linkedPropertyIdForScope);
+          const hasPendingInitialGa4 =
+            !hasConnectedGa4 &&
+            rowData.ga4Cleared !== true &&
+            Boolean(rowData.selectedGa4?.propertyId);
+          const scopeControl =
+            hasConnectedGa4 || hasPendingInitialGa4 ? (
+              <Ga4ScopeControl
+                businessUniqueId={businessUniqueId}
+                website={rowData.siteUrl || rowData.displayName || ""}
+                enabled={hasConnectedGa4}
+                readOnly={isReadOnly}
+                defaultOpen={ga4ScopeBusinessId === businessUniqueId}
+                pendingPropertySelected={hasPendingInitialGa4}
+                initialScope={rowData.ga4PagePathScope || ""}
+                onInitialScopeChange={(value) =>
+                  handleInitialGa4ScopeChange(rowData.siteUrl, value)
+                }
+              />
+            ) : null;
+          const withScopeControl = (control: React.ReactNode) => (
+            <div className="flex min-w-[260px] items-center gap-2">
+              <div className="min-w-0 flex-1">{control}</div>
+              {scopeControl}
+            </div>
+          );
 
           const getPropertyId = () =>
             rowData.selectedGa4?.propertyId ??
@@ -877,7 +934,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             const ga4Options = Array.from(ga4OptionMap.values());
             const selectedGa4 = rowData.selectedGa4 || ga4OptionMap.get(selectedPropertyId);
 
-            return (
+            return withScopeControl(
               <Ga4SearchableSelect
                 options={ga4Options}
                 selectedPropertyId={selectedPropertyId}
@@ -957,7 +1014,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
               return null;
             })();
 
-            return (
+            return withScopeControl(
               <Ga4SearchableSelect
                 options={ga4Options}
                 selectedPropertyId={selectedPropertyId}
@@ -1215,6 +1272,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       unmatchedGa4,
       loadingRowId,
       isReadOnly,
+      ga4ScopeBusinessId,
       createBusinessMutation.isPending,
     ]
   );

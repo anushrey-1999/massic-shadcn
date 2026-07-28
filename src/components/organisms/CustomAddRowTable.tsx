@@ -26,7 +26,18 @@ export interface ColumnValidation {
 export interface Column<T = any> {
   key: string;
   label: string;
-  render?: (value: any, row: T, index: number) => React.ReactNode;
+  render?: (
+    value: any,
+    row: T,
+    index: number,
+    helpers?: {
+      disabled: boolean;
+      isFocusedRow: boolean;
+      blendRow: boolean;
+      rowId: string;
+      setFocusedRowIndex: React.Dispatch<React.SetStateAction<number | null>>;
+    }
+  ) => React.ReactNode;
   validation?: ColumnValidation;
 }
 
@@ -337,7 +348,13 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                   return (
                   <div key={column.key} className="flex flex-1 min-w-0">
                     {column.render ? (
-                      column.render(row[column.key], row, rowIndex)
+                      column.render(row[column.key], row, rowIndex, {
+                        disabled,
+                        isFocusedRow,
+                        blendRow,
+                        rowId,
+                        setFocusedRowIndex,
+                      })
                     ) : onRowChange ? (
                       <div className="flex flex-1 min-w-0 flex-col gap-1">
                         <Input
@@ -370,7 +387,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                           }}
                           placeholder={column.label || "Enter value"}
                           className={cn(
-                            "h-10 min-h-[36px] flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
+                            "h-10 min-h-9 flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
                             blendRow
                               ? "bg-transparent placeholder:text-general-border-four"
                               : "bg-white placeholder:text-general-border-four",
@@ -467,7 +484,13 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                           <TableCell key={column.key} className="p-2 align-top">
                             <div className="flex flex-col">
                               {column.render ? (
-                                column.render(row[column.key], row, rowIndex)
+                                column.render(row[column.key], row, rowIndex, {
+                                  disabled,
+                                  isFocusedRow: false,
+                                  blendRow: false,
+                                  rowId: `table-row-${tableId}-${rowIndex}`,
+                                  setFocusedRowIndex,
+                                })
                               ) : onRowChange ? (
                                     <Input
                                       id={`table-input-${tableId}-${rowIndex}-${column.key}`}

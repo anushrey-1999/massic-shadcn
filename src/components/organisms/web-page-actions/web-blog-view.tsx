@@ -94,6 +94,7 @@ import {
   WebflowPublishConfirmHint,
   type WebflowPublishConfirmAction,
 } from "@/components/organisms/web-page-actions/webflow-publish-confirm-hints";
+import { ShopifyPublishActions } from "@/components/organisms/web-page-actions/shopify-publish-actions";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import {
   clearWebflowStagingPreviewSession,
@@ -173,6 +174,8 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     | "webflow-live"
     | "webflow-staging-preview"
     | "webflow-rollback-draft"
+    | "shopify-draft"
+    | "shopify-live"
     | "wix-draft"
     | "wix-live"
     | "republish"
@@ -239,6 +242,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const activeTarget = cmsChannel?.target || null;
   const isActiveWordpress = activePlatform === "wordpress" && Boolean(activeConnection);
   const isActiveWebflow = activePlatform === "webflow" && Boolean(activeConnection);
+  const isActiveShopify = activePlatform === "shopify" && Boolean(activeConnection);
   const isActiveWix = activePlatform === "wix" && Boolean(activeConnection);
   const wpConnection = isActiveWordpress ? activeConnection : null;
   const isWpConnected = isActiveWordpress;
@@ -355,6 +359,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const typeLabel = type === "blog" ? "blog" : "page";
   const publishType: "post" | "page" = type === "blog" ? "post" : "page";
+  const isShopifyReady = isActiveShopify && publishType === "post" && Boolean(activeTarget?.targetId);
   const outlineFromServer = cleanEscapedContent(data?.output_data?.page?.outline || "");
   const hasOutline = !!outlineFromServer && outlineFromServer.trim().length > 0;
   const hasFinalContent = !!mainContent && mainContent.trim().length > 0;
@@ -405,7 +410,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     : "Webflow slug must be a single segment (no nested '/' paths).";
   const contentStatusQuery = useCmsPublishingContentStatus(
     businessId || null,
-    publishContentId && (isActiveWebflow || isActiveWix || (isActiveWordpress && isPublishModalOpen))
+    publishContentId && (isActiveWebflow || isActiveShopify || isActiveWix || (isActiveWordpress && isPublishModalOpen))
       ? String(publishContentId)
       : null
   );
@@ -444,6 +449,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const webflowPublishState: "not_published" | "draft" | "live" = isWebflowLive
     ? "live"
     : isWebflowDraftLike || hasWebflowMapping
+      ? "draft"
+      : "not_published";
+  const shopifyPersistedContent = activePlatform === "shopify" ? contentStatusQuery.data?.content || null : null;
+  const shopifyPersistedStatus = String(shopifyPersistedContent?.status || "").toLowerCase();
+  const shopifyPublishState: "not_published" | "draft" | "live" = shopifyPersistedStatus === "published"
+    ? "live"
+    : shopifyPersistedContent
       ? "draft"
       : "not_published";
   const wixPersistedContent = activePlatform === "wix" ? contentStatusQuery.data?.content || null : null;
@@ -506,6 +518,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     wpPreviewMutation.isPending ||
     wpUnpublishMutation.isPending ||
     wixFeaturedImageBusy;
+  const isShopifyStatusLoading = Boolean(
+    isActiveShopify &&
+      publishContentId &&
+      (contentStatusQuery.isLoading || contentStatusQuery.isFetching)
+  );
+  const isShopifyStatusError = Boolean(isActiveShopify && contentStatusQuery.isError);
+  const isShopifyStatusBlocked = isShopifyStatusLoading || isShopifyStatusError;
   const isWordpressPageTemplateChecking = Boolean(
     requiresWordpressPageTemplate &&
     isPublishModalOpen &&
@@ -552,6 +571,14 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     activeConnection?.siteUrl,
   ]);
   const publishUrlPreview = React.useMemo(() => {
+    if (activePlatform === "shopify") {
+      const siteUrl = String(activeConnection?.siteUrl || "").replace(/\/+$/, "");
+      const blogHandle = String(activeTarget?.metadata?.handle || "").replace(/^\/+|\/+$/g, "");
+      const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
+      return siteUrl && blogHandle && slugForPreview
+        ? `${siteUrl}/blogs/${blogHandle}/${slugForPreview}`
+        : null;
+    }
     const siteUrl = String(
       activePlatform === "webflow"
         ? (webflowStagingDomain?.url ? `https://${webflowStagingDomain.url}` : "")
@@ -563,7 +590,14 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     }
 
     return `${siteUrl}/${slugForPreview}`;
-  }, [activeConnection?.siteUrl, activePlatform, normalizedSlugForPublish, slugCheckResult?.slug, webflowStagingDomain?.url]);
+  }, [activeConnection?.siteUrl, activePlatform, activeTarget?.metadata?.handle, normalizedSlugForPublish, slugCheckResult?.slug, webflowStagingDomain?.url]);
+  const shopifyLiveUrl = shopifyPublishState === "live"
+    ? shopifyPersistedContent?.externalUrl ||
+      shopifyPersistedContent?.permalink ||
+      lastPublishedData?.permalink ||
+      publishUrlPreview ||
+      null
+    : null;
   const webflowStagingPreviewUrl =
     lastPublishedData?.previewUrl ||
     webflowPersistedContent?.previewUrl ||
@@ -731,7 +765,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       setSlugCheckResult(result);
       return result;
     } catch (error: any) {
-      const platformLabel = activePlatform === "webflow" ? "Webflow" : activePlatform === "wix" ? "Wix" : "WordPress";
+      const platformLabel = activePlatform === "webflow"
+        ? "Webflow"
+        : activePlatform === "shopify"
+          ? "Shopify"
+          : activePlatform === "wix"
+            ? "Wix"
+            : "WordPress";
       const message = error?.message || `Failed to check slug in ${platformLabel}.`;
       setSlugCheckResult(null);
       setSlugCheckError(message);
@@ -1166,6 +1206,53 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     publishContentId,
     runSlugCheck,
     selectedWebflowCustomDomainIds,
+  ]);
+
+  const handlePublishShopify = React.useCallback(async (status: "draft" | "publish") => {
+    if (!isShopifyReady || !hasFinalContent) return;
+    const check = await runSlugCheck({ force: true });
+    if (!check || (check.exists && !check.sameMappedContent && check.conflict)) {
+      setSlugCheckError("This handle already exists in Shopify. Use the suggested handle or edit it manually.");
+      toast.error("Shopify handle conflict");
+      return;
+    }
+
+    try {
+      const result = await cmsPublishMutation.mutateAsync(buildPublishPayload(status));
+      const published = result.data;
+      if (!published) return;
+      setLastPublishedData(prev => ({
+        contentId: published.contentId || String(publishContentId),
+        wpId: prev?.wpId || 0,
+        permalink: published.externalUrl || published.permalink || null,
+        editUrl: null,
+        status: published.status || (status === "publish" ? "published" : "draft"),
+        slug: published.slug || normalizedSlugForPublish,
+        previewUrl: published.previewUrl || undefined,
+      }));
+      await contentStatusQuery.refetch();
+      toast.success(
+        status === "publish"
+          ? shopifyPublishState === "live"
+            ? "Updated live Shopify article"
+            : "Published live to Shopify"
+          : shopifyPublishState === "live"
+            ? "Moved Shopify article to draft"
+            : "Shopify draft saved"
+      );
+    } catch {
+      // The shared publishing mutation displays a bounded error message.
+    }
+  }, [
+    buildPublishPayload,
+    cmsPublishMutation,
+    contentStatusQuery,
+    hasFinalContent,
+    isShopifyReady,
+    normalizedSlugForPublish,
+    publishContentId,
+    runSlugCheck,
+    shopifyPublishState,
   ]);
 
   const handlePublishWix = React.useCallback(async (targetStatus: "draft" | "publish") => {
@@ -1704,7 +1791,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
         const conflictReason = check?.conflict?.reason || null;
         const conflictMessage = conflictReason === "parent_type_conflict"
           ? "This nested page path is blocked because a parent segment already belongs to non-page content."
-          : "This slug already exists in WordPress. Use the suggested slug or edit manually.";
+          : `This slug already exists in ${activePlatform === "shopify" ? "Shopify" : activePlatform === "webflow" ? "Webflow" : activePlatform === "wix" ? "Wix" : "WordPress"}. Use the suggested slug or edit manually.`;
         setSlugCheckError(conflictMessage);
         toast.error(conflictReason === "parent_type_conflict" ? "Nested parent path conflict" : "Slug conflict: choose a unique slug");
         return;
@@ -1736,6 +1823,16 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       return;
     }
 
+    if (action === "shopify-draft") {
+      await handlePublishShopify("draft");
+      return;
+    }
+
+    if (action === "shopify-live") {
+      await handlePublishShopify("publish");
+      return;
+    }
+
     if (action === "wix-draft") {
       await handlePublishWix("draft");
       return;
@@ -1758,11 +1855,13 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
     await handlePublishLive();
   }, [
+    activePlatform,
     confirmPublishAction,
     guardPublish,
     handlePreviewWebflowStaging,
     handlePublishDraft,
     handlePublishLive,
+    handlePublishShopify,
     handlePublishWix,
     handlePublishWebflowDraft,
     handlePublishWebflowLive,
@@ -2141,6 +2240,121 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
               </Tabs>
             </div >
           ) : null
+}
+
+{
+  isShopifyReady ? (
+    <div className="min-w-0 space-y-4 overflow-hidden rounded-lg bg-muted/20 py-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <Typography className="min-w-0 truncate text-sm font-medium">
+            Shopify: {activeTarget?.name || "Configured blog"}
+          </Typography>
+          <Badge
+            className={cn("shrink-0 font-medium", shopifyPublishState === "live" && "border-transparent bg-green-600 text-white")}
+            variant={shopifyPublishState === "live" ? "default" : shopifyPublishState === "draft" ? "secondary" : "outline"}
+          >
+            {isShopifyStatusLoading
+              ? "Checking…"
+              : isShopifyStatusError
+                ? "Status unavailable"
+                : shopifyPublishState === "live"
+                  ? "Live"
+                  : shopifyPublishState === "draft"
+                    ? "Draft"
+                    : "Not published"}
+          </Badge>
+        </div>
+      </div>
+
+      {isShopifyStatusLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Checking the current Shopify article visibility…
+        </div>
+      ) : isShopifyStatusError ? (
+        <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="font-medium text-foreground">Shopify status couldn&apos;t be verified</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Publishing is paused to avoid overwriting an article whose visibility is unknown.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+            onClick={() => void contentStatusQuery.refetch()}
+            disabled={contentStatusQuery.isFetching}
+          >
+            {contentStatusQuery.isFetching ? "Checking…" : "Retry status check"}
+          </Button>
+        </div>
+      ) : shopifyPublishState === "draft" ? (
+        <p className="text-xs text-muted-foreground">
+          This article is hidden in Shopify. Massic calls this state Draft.
+        </p>
+      ) : null}
+
+      <div className="space-y-3">
+        <div className="space-y-0.5">
+          <span className="text-xs text-muted-foreground">Post title</span>
+          <p className="line-clamp-2 text-sm">{visiblePostTitle}</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Shopify article handle</Label>
+          <Input
+            value={editableSlug}
+            onChange={(event) => {
+              setEditableSlug(event.target.value);
+              setIsSlugEdited(true);
+            }}
+            placeholder="enter-blog-handle"
+            disabled={isSlugInputBusy}
+          />
+          {slugCheckResult?.publishUrl || publishUrlPreview || shopifyPersistedContent?.externalUrl ? (
+            <p className="break-all font-mono text-xs text-muted-foreground">
+              {slugCheckResult?.publishUrl || publishUrlPreview || shopifyPersistedContent?.externalUrl}
+            </p>
+          ) : null}
+        </div>
+
+        {isSlugChecking ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Checking handle availability…
+          </div>
+        ) : slugCheckError ? (
+          <p className="text-xs text-destructive">{slugCheckError}</p>
+        ) : hasSlugConflict ? (
+          <div className="min-w-0 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+            <p className="wrap-break-word">This handle already exists in Shopify. Choose a unique handle before publishing.</p>
+            {slugCheckResult?.suggestedSlug ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-auto w-full justify-start whitespace-normal break-all text-left"
+                onClick={autoResolveSlug}
+                disabled={isSlugActionBusy}
+              >
+                {isAutoResolvingSlug ? "Resolving..." : `Use ${wordpressSlugToDisplay(slugCheckResult.suggestedSlug, "/next-available")}`}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <p className="rounded-md border border-border/60 bg-background px-3 py-2.5 text-xs text-muted-foreground">
+          Shopify calls unpublished articles Hidden. Massic calls that state Draft; publishing makes the article visible immediately.
+        </p>
+      </div>
+    </div>
+  ) : isActiveShopify ? (
+    <div className="space-y-3 rounded-lg bg-background p-4">
+      <Typography className="text-sm">Shopify is connected, but no blog destination is selected.</Typography>
+      <Button onClick={handleRedirectToChannels}>Configure Shopify</Button>
+    </div>
+  ) : null
 }
 
 {
@@ -2551,6 +2765,29 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
       ) : null}
     </>
   ) : null}
+  {isShopifyReady ? (
+    <ShopifyPublishActions
+      state={shopifyPublishState}
+      liveUrl={shopifyLiveUrl}
+      actionsDisabled={
+        !hasFinalContent ||
+        !normalizedSlugForPublish ||
+        hasSlugConflict ||
+        isSlugChecking ||
+        isShopifyStatusBlocked
+      }
+      isBusy={isPublishBusy}
+      pendingAction={
+        cmsPublishMutation.isPending
+          ? cmsPublishMutation.variables?.status === "draft"
+            ? "draft"
+            : "live"
+          : null
+      }
+      onSaveDraft={() => setConfirmPublishAction("shopify-draft")}
+      onPublishLive={() => setConfirmPublishAction("shopify-live")}
+    />
+  ) : null}
   {isWixReady ? (
     <>
       {wixPublishState === "not_published" ? (
@@ -2605,6 +2842,16 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                       : "Publish to staging?"
                     : confirmPublishAction === "webflow-rollback-draft"
                       ? "Move Webflow item back to draft?"
+                    : confirmPublishAction === "shopify-draft"
+                      ? shopifyPublishState === "live"
+                        ? "Move Shopify article to draft?"
+                        : shopifyPublishState === "draft"
+                          ? "Update Shopify draft?"
+                          : "Save Shopify draft?"
+                    : confirmPublishAction === "shopify-live"
+                      ? shopifyPublishState === "live"
+                        ? "Update live Shopify article?"
+                        : "Publish now to Shopify?"
                     : confirmPublishAction === "live"
                       ? "Publish Live to WordPress?"
                       : confirmPublishAction === "republish"
@@ -2631,6 +2878,14 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                         confirmPublishAction === "webflow-staging-preview" && hasWebflowStagingPreview
                       }
                     />
+                  ) : confirmPublishAction === "shopify-draft" ? (
+                    shopifyPublishState === "live"
+                      ? `This will immediately hide the article from the storefront. Shopify shows this as Hidden; Massic calls it Draft.`
+                      : `This will ${shopifyPublishState === "draft" ? "update" : "create"} a hidden article in ${activeTarget?.name || "the selected Shopify blog"}. It won't be visible on the storefront.`
+                  ) : confirmPublishAction === "shopify-live" ? (
+                    shopifyPublishState === "live"
+                      ? `This will update the live article in ${activeTarget?.name || "the selected Shopify blog"} with the latest Massic content.`
+                      : `This will make the article live immediately in ${activeTarget?.name || "the selected Shopify blog"}.`
                   ) : confirmPublishAction === "live" ? (
                     `This will update the live WordPress content at ${publishUrlPreview || "the selected route"}.`
                   ) : confirmPublishAction === "republish" ? (
@@ -2666,6 +2921,10 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
               <Button onClick={confirmAndRunPublishAction} disabled={isPublishBusy}>
                 {confirmPublishAction === "live" || confirmPublishAction === "webflow-live" || confirmPublishAction === "wix-live"
                   ? "Confirm Publish Live"
+                  : confirmPublishAction === "shopify-live"
+                    ? shopifyPublishState === "live"
+                      ? "Confirm Update Live"
+                      : "Confirm Publish Live"
                   : confirmPublishAction === "wix-draft"
                     ? wixPublishState === "not_published" ? "Confirm Save Draft" : "Confirm Update Draft"
                   : confirmPublishAction === "republish"
@@ -2678,6 +2937,12 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
                         ? hasWebflowStagingPreview
                           ? "Confirm Republish"
                           : "Confirm Publish to Staging"
+                        : confirmPublishAction === "shopify-draft"
+                          ? shopifyPublishState === "live"
+                            ? "Confirm Move to Draft"
+                            : shopifyPublishState === "draft"
+                              ? "Confirm Update Draft"
+                              : "Confirm Save Draft"
                         : "Confirm Publish Draft"}
               </Button>
             </AlertDialogAction>

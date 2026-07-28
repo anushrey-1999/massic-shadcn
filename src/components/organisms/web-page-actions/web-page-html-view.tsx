@@ -184,6 +184,7 @@ import {
   WebflowPublishConfirmHint,
   type WebflowPublishConfirmAction,
 } from "@/components/organisms/web-page-actions/webflow-publish-confirm-hints";
+import { ShopifyPublishActions } from "@/components/organisms/web-page-actions/shopify-publish-actions";
 import {
   clearWebflowStagingPreviewSession,
   openWebflowPreviewInNewTab,
@@ -200,6 +201,21 @@ import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 import { WixBlogPublishPanel } from "@/components/organisms/web-page-actions/wix-blog-publish-panel";
 
 type SaveReason = "debounce" | "blur" | "unmount";
+type CmsPublishConfirmAction =
+  | "draft"
+  | "live"
+  | "webflow-draft"
+  | "webflow-live"
+  | "webflow-staging-preview"
+  | "webflow-rollback-draft"
+  | "sanity-draft"
+  | "sanity-live"
+  | "shopify-draft"
+  | "shopify-live"
+  | "wix-draft"
+  | "wix-live"
+  | "republish"
+  | "update-draft";
 type AiTextTransformResponse = {
   revised_text?: string;
 };
@@ -583,21 +599,8 @@ export function WebPageHtmlView({
   const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
   const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [confirmPublishAction, setConfirmPublishAction] = React.useState<
-    | "draft"
-    | "live"
-    | "webflow-draft"
-    | "webflow-live"
-    | "webflow-staging-preview"
-    | "webflow-rollback-draft"
-    | "sanity-draft"
-    | "sanity-live"
-    | "wix-draft"
-    | "wix-live"
-    | "republish"
-    | "update-draft"
-    | null
-  >(null);
+  const [confirmPublishAction, setConfirmPublishAction] = React.useState<CmsPublishConfirmAction | null>(null);
+  const [runningPublishAction, setRunningPublishAction] = React.useState<CmsPublishConfirmAction | null>(null);
   const [wixConversion, setWixConversion] = React.useState<WixConversionResult | null>(null);
   const [wixPublishIssue, setWixPublishIssue] = React.useState<string | null>(null);
   const [wixAuthorMemberId, setWixAuthorMemberId] = React.useState("");
@@ -638,6 +641,7 @@ export function WebPageHtmlView({
   const isActiveWordpress = activePlatform === "wordpress" && Boolean(activeConnection);
   const isActiveWebflow = activePlatform === "webflow" && Boolean(activeConnection);
   const isActiveSanity = activePlatform === "sanity" && Boolean(activeConnection);
+  const isActiveShopify = activePlatform === "shopify" && Boolean(activeConnection);
   const isActiveWix = activePlatform === "wix" && Boolean(activeConnection);
   const activeTarget = isActiveWebflow
     ? publishType === "page"
@@ -675,6 +679,8 @@ export function WebPageHtmlView({
     !sanityPagesSetupMutation.isError && (sanityPageSetupData ? sanityPageSetupData.ready : activeTarget?.targetId)
   );
   const isSanityReady = isActiveSanity && Boolean(activeTarget?.targetId) && isSanityPageSetupReady;
+  const isShopifyBlogPublish = isActiveShopify && publishType === "post";
+  const isShopifyReady = isShopifyBlogPublish && Boolean(activeTarget?.targetId);
   const needsSanityMappingSetup = isActiveSanity && publishType === "post" && !activeTarget?.targetId;
   const webflowDomains = isActiveWebflow
     ? publishType === "page"
@@ -785,7 +791,7 @@ export function WebPageHtmlView({
   const publishContentId = inferPage?.page_id || pageId;
   const contentStatusQuery = useCmsPublishingContentStatus(
     businessId || null,
-    publishContentId && (isActiveWebflow || isActiveSanity || isActiveWix || (isActiveWordpress && isPublishModalOpen))
+    publishContentId && (isActiveWebflow || isActiveSanity || isActiveShopify || isActiveWix || (isActiveWordpress && isPublishModalOpen))
       ? String(publishContentId)
       : null
   );
@@ -798,8 +804,14 @@ export function WebPageHtmlView({
   const isWixImagePublish = isActiveWix && isBlogContent;
   const isWebflowImagePublish = isActiveWebflow && hasEnabledWebflowImageDestinations;
   const isSanityImagePublish = isActiveSanity && hasEnabledWebflowImageDestinations;
-  const isCmsImagePublish = isWordpressFeaturedImagePublish || isWixImagePublish;
-  const shouldLoadSharedFeaturedImage = isWordpressFeaturedImagePublish || isWixImagePublish || isWebflowImagePublish || isSanityImagePublish;
+  const isShopifyImagePublish = isShopifyBlogPublish;
+  const isCmsImagePublish = isWordpressFeaturedImagePublish || isShopifyImagePublish || isWixImagePublish;
+  const shouldLoadSharedFeaturedImage =
+    isWordpressFeaturedImagePublish ||
+    isShopifyImagePublish ||
+    isWixImagePublish ||
+    isWebflowImagePublish ||
+    isSanityImagePublish;
 
   const featuredImageContentId = shouldLoadSharedFeaturedImage && publishContentId ? String(publishContentId) : null;
   const featuredImageQuery = useCmsFeaturedImage(
@@ -820,9 +832,11 @@ export function WebPageHtmlView({
   const persistedContent = activePlatform === "wordpress" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedContent = activePlatform === "webflow" ? contentStatusQuery.data?.content || null : null;
   const sanityPersistedContent = activePlatform === "sanity" ? contentStatusQuery.data?.content || null : null;
+  const shopifyPersistedContent = activePlatform === "shopify" ? contentStatusQuery.data?.content || null : null;
   const wixPersistedContent = activePlatform === "wix" ? contentStatusQuery.data?.content || null : null;
   const webflowPersistedStatus = (webflowPersistedContent?.status || "").toLowerCase();
   const sanityPersistedStatus = (sanityPersistedContent?.status || "").toLowerCase();
+  const shopifyPersistedStatus = (shopifyPersistedContent?.status || "").toLowerCase();
   const wixPersistedStatus = String(wixPersistedContent?.status || "").toLowerCase();
   const webflowPersistedSlug = React.useMemo(
     () => normalizeWordpressBlogEditableSlug(webflowPersistedContent?.slug || ""),
@@ -855,6 +869,11 @@ export function WebPageHtmlView({
   const sanityPublishState: "not_published" | "draft" | "live" = isSanityLive
     ? "live"
     : isSanityDraftLike || hasSanityMapping
+      ? "draft"
+      : "not_published";
+  const shopifyPublishState: "not_published" | "draft" | "live" = shopifyPersistedStatus === "published"
+    ? "live"
+    : shopifyPersistedContent
       ? "draft"
       : "not_published";
   const wixPublishState: "not_published" | "draft" | "live" =
@@ -909,6 +928,12 @@ export function WebPageHtmlView({
         ? normalizeWordpressSlugPath(sanityPersistedContent.slug)
         : normalizeWordpressBlogEditableSlug(sanityPersistedContent.slug);
     }
+    if (!isPersistedTrashed && shopifyPersistedContent?.slug) {
+      return normalizeWordpressBlogEditableSlug(shopifyPersistedContent.slug);
+    }
+    if (!isPersistedTrashed && wixPersistedContent?.slug) {
+      return normalizeWordpressBlogEditableSlug(wixPersistedContent.slug);
+    }
     if (!isPersistedTrashed && lastPublishedData?.slug) {
       return publishType === "page"
         ? normalizeWordpressSlugPath(lastPublishedData.slug)
@@ -916,7 +941,7 @@ export function WebPageHtmlView({
     }
     if (generatedSlug) return isSanityPagePublish ? generatedSanityPageRoute : generatedSlug;
     return generatedSlugFallback;
-  }, [generatedSanityPageRoute, generatedSlug, generatedSlugFallback, isPersistedTrashed, isSanityPagePublish, lastPublishedData?.slug, persistedSlug, publishType, sanityPersistedContent?.slug, webflowPersistedSlug]);
+  }, [generatedSanityPageRoute, generatedSlug, generatedSlugFallback, isPersistedTrashed, isSanityPagePublish, lastPublishedData?.slug, persistedSlug, publishType, sanityPersistedContent?.slug, shopifyPersistedContent?.slug, webflowPersistedSlug, wixPersistedContent?.slug]);
   const normalizedEditableSlug = React.useMemo(
     () =>
       publishType === "page"
@@ -1005,14 +1030,41 @@ export function WebPageHtmlView({
     requiresWordpressPageTemplate &&
       (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage)
   );
+  const isShopifyStatusLoading = Boolean(
+    isActiveShopify &&
+      publishContentId &&
+      (contentStatusQuery.isLoading || contentStatusQuery.isFetching)
+  );
+  const isShopifyStatusError = Boolean(isActiveShopify && contentStatusQuery.isError);
+  const isShopifyStatusBlocked = isShopifyStatusLoading || isShopifyStatusError;
   const publishStateLabel = activePlatform === "webflow"
     ? (webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published")
     : activePlatform === "sanity"
       ? (sanityPublishState === "live" ? "Live" : sanityPublishState === "draft" ? "Draft" : "Not Published")
+      : activePlatform === "shopify"
+        ? isShopifyStatusLoading
+          ? "Checking…"
+          : isShopifyStatusError
+            ? "Status unavailable"
+            : shopifyPublishState === "live"
+              ? "Live"
+              : shopifyPublishState === "draft"
+                ? "Draft"
+                : "Not Published"
       : activePlatform === "wix"
         ? (wixPublishState === "live" ? "Live" : wixPublishState === "draft" ? "Draft" : "Not Published")
       : isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
-  const publishStateHint = activePlatform === "wix"
+  const publishStateHint = activePlatform === "shopify"
+    ? isShopifyStatusLoading
+      ? "Checking the current article visibility in Shopify."
+      : isShopifyStatusError
+        ? "Massic couldn't verify the current Shopify article visibility."
+      : shopifyPublishState === "live"
+      ? "This article is live in Shopify."
+      : shopifyPublishState === "draft"
+        ? "This article is hidden in Shopify. Massic calls this state Draft."
+        : "No Shopify article exists yet."
+    : activePlatform === "wix"
     ? wixPublishState === "live"
       ? "This blog is live in Wix."
       : wixPublishState === "draft"
@@ -1033,6 +1085,13 @@ export function WebPageHtmlView({
           : `No WordPress ${isBlogContent ? "post" : "page"} exists yet.`;
   const publishUrlPreview = React.useMemo(() => {
     const slugForPreview = normalizedSlugForPublish || normalizeWordpressBlogEditableSlug(slugCheckResult?.slug || "");
+    if (activePlatform === "shopify") {
+      const baseUrl = String(activeConnection?.siteUrl || "").replace(/\/+$/, "");
+      const blogHandle = String((activeTarget?.metadata as any)?.handle || "").replace(/^\/+|\/+$/g, "");
+      return baseUrl && blogHandle && slugForPreview
+        ? `${baseUrl}/blogs/${blogHandle}/${slugForPreview}`
+        : null;
+    }
     if (activePlatform === "sanity") {
       const baseUrl = String(
         (activeTarget?.metadata as any)?.previewBaseUrl ||
@@ -1061,6 +1120,13 @@ export function WebPageHtmlView({
     if (!siteUrl || !slugForPreview) return null;
     return `${siteUrl}/${slugForPreview}`;
   }, [activeConnection?.metadata, activeConnection?.siteUrl, activePlatform, activeTarget?.metadata, normalizedSlugForPublish, publishType, slugCheckResult?.slug, webflowStagingDomain?.url]);
+  const shopifyLiveUrl = shopifyPublishState === "live"
+    ? shopifyPersistedContent?.externalUrl ||
+      shopifyPersistedContent?.permalink ||
+      lastPublishedData?.permalink ||
+      publishUrlPreview ||
+      null
+    : null;
   const webflowStagingPreviewUrl =
     lastPublishedData?.previewUrl || webflowPersistedContent?.previewUrl || publishUrlPreview || null;
   const webflowLiveUrl =
@@ -1751,7 +1817,7 @@ export function WebPageHtmlView({
         setSlugCheckResult(result);
         return result;
       } catch (err: unknown) {
-        const message = (err as { message?: string })?.message || `Failed to check slug in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : "WordPress"}.`;
+        const message = (err as { message?: string })?.message || `Failed to check slug in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : activePlatform === "shopify" ? "Shopify" : "WordPress"}.`;
         setSlugCheckResult(null);
         setSlugCheckError(message);
         return null;
@@ -2117,7 +2183,7 @@ export function WebPageHtmlView({
         setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       } else if (isCmsRateLimitError(e)) {
-        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : "WordPress"));
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : activePlatform === "shopify" ? "Shopify" : "WordPress"));
       }
       return;
     }
@@ -2133,7 +2199,17 @@ export function WebPageHtmlView({
       previewUrl: published.previewUrl || undefined,
       siteVerification: published.siteVerification || null,
     });
-    toast.success(activePlatform === "webflow" ? "Webflow draft saved" : activePlatform === "sanity" ? "Sanity draft saved" : "Draft pushed to WordPress");
+    toast.success(
+      activePlatform === "webflow"
+        ? "Webflow draft saved"
+        : activePlatform === "sanity"
+          ? "Sanity draft saved"
+          : activePlatform === "shopify"
+            ? shopifyPublishState === "live"
+              ? "Moved Shopify article to draft"
+              : "Shopify draft saved"
+            : "Draft pushed to WordPress"
+    );
     if (activePlatform === "webflow") {
       setWebflowStagingPreview(null);
       if (publishContentId) {
@@ -2142,6 +2218,8 @@ export function WebPageHtmlView({
     }
     if (activePlatform === "sanity") {
       toast.info(SANITY_DRAFT_PREVIEW_UNAVAILABLE_MESSAGE);
+    } else if (activePlatform === "shopify") {
+      toast.info("Shopify drafts are not visible on the storefront until published.");
     } else {
       const previewUrl = published.previewUrl || published.externalUrl;
       if (previewUrl && activePlatform !== "webflow") {
@@ -2149,8 +2227,9 @@ export function WebPageHtmlView({
         toast.success("Preview ready");
       }
     }
-    void contentStatusQuery.refetch();
-  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isSanityImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
+    if (activePlatform === "shopify") await contentStatusQuery.refetch();
+    else void contentStatusQuery.refetch();
+  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isSanityImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, shopifyPublishState]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !cmsChannel?.connected || !hasFinalContent) return;
@@ -2339,7 +2418,7 @@ export function WebPageHtmlView({
         setSlugCheckError(null);
         toast.error("Slug conflict: choose a unique slug");
       } else if (isCmsRateLimitError(e)) {
-        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : "WordPress"));
+        setPublishRateLimitMessage(getCmsRateLimitDescription(e, activePlatform === "sanity" ? "Sanity" : activePlatform === "webflow" ? "Webflow" : activePlatform === "shopify" ? "Shopify" : "WordPress"));
       }
       return;
     }
@@ -2351,11 +2430,21 @@ export function WebPageHtmlView({
       wpId: Number(published.wpId || 0),
       permalink: published.externalUrl || published.permalink || null,
       editUrl: published.editUrl || null,
-      status: published.status || (activePlatform === "webflow" || activePlatform === "sanity" ? "published" : "publish"),
+      status: published.status || (activePlatform === "webflow" || activePlatform === "sanity" || activePlatform === "shopify" ? "published" : "publish"),
       slug: published.slug || normalizedSlugForPublish || null,
       siteVerification: published.siteVerification || null,
     }));
-    toast.success(activePlatform === "webflow" ? "Published live to Webflow" : activePlatform === "sanity" ? "Published live to Sanity" : "Published live to WordPress");
+    toast.success(
+      activePlatform === "webflow"
+        ? "Published live to Webflow"
+        : activePlatform === "sanity"
+          ? "Published live to Sanity"
+          : activePlatform === "shopify"
+            ? shopifyPublishState === "live"
+              ? "Updated live Shopify article"
+              : "Published live to Shopify"
+            : "Published live to WordPress"
+    );
     if (activePlatform === "sanity") {
       if (publishType === "page" && published.siteVerification !== "confirmed") {
         toast.info("Published in Sanity; website update not confirmed yet", {
@@ -2369,11 +2458,12 @@ export function WebPageHtmlView({
         waitingHint: "Sanity may need a few seconds to finish publishing.",
       });
     }
-    void contentStatusQuery.refetch();
-    if (activePlatform !== "webflow") {
+    if (activePlatform === "shopify") await contentStatusQuery.refetch();
+    else void contentStatusQuery.refetch();
+    if (activePlatform !== "webflow" && activePlatform !== "shopify") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, openWebflowPreview, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, openWebflowPreview, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds, shopifyPublishState]);
 
   const handlePublishWix = React.useCallback(async (targetStatus: "draft" | "publish") => {
     if (!isWixReady || !hasFinalContent || !wixAuthorMemberId) return;
@@ -2580,15 +2670,21 @@ export function WebPageHtmlView({
   const confirmAndRunPublishAction = React.useCallback(async () => {
     if (!guardPublish()) return;
     const action = confirmPublishAction;
+    if (!action) return;
     setConfirmPublishAction(null);
-    if (action === "draft" || action === "webflow-draft" || action === "sanity-draft") await handlePublishDraft();
-    else if (action === "webflow-live" || action === "sanity-live" || action === "live") await handlePublishLive();
-    else if (action === "wix-draft") await handlePublishWix("draft");
-    else if (action === "wix-live") await handlePublishWix("publish");
-    else if (action === "webflow-staging-preview") await handlePreviewWebflowStaging();
-    else if (action === "webflow-rollback-draft") await handleRollbackWebflowToDraft();
-    else if (action === "republish") await handleRepublish();
-    else if (action === "update-draft") await handleUpdateDraft();
+    setRunningPublishAction(action);
+    try {
+      if (action === "draft" || action === "webflow-draft" || action === "sanity-draft" || action === "shopify-draft") await handlePublishDraft();
+      else if (action === "webflow-live" || action === "sanity-live" || action === "shopify-live" || action === "live") await handlePublishLive();
+      else if (action === "wix-draft") await handlePublishWix("draft");
+      else if (action === "wix-live") await handlePublishWix("publish");
+      else if (action === "webflow-staging-preview") await handlePreviewWebflowStaging();
+      else if (action === "webflow-rollback-draft") await handleRollbackWebflowToDraft();
+      else if (action === "republish") await handleRepublish();
+      else if (action === "update-draft") await handleUpdateDraft();
+    } finally {
+      setRunningPublishAction(null);
+    }
   }, [confirmPublishAction, guardPublish, handlePreviewWebflowStaging, handlePublishDraft, handlePublishLive, handlePublishWix, handleRepublish, handleRollbackWebflowToDraft, handleUpdateDraft]);
 
   const applySuggestedSlug = React.useCallback((suggestion: string) => {
@@ -5035,6 +5131,16 @@ export function WebPageHtmlView({
                 <Typography className="text-sm">No publishing channel connected.</Typography>
                 <Button onClick={handleRedirectToChannels}>Connect a channel</Button>
               </div>
+            ) : isActiveShopify && publishType === "page" ? (
+              <div className="space-y-3 rounded-lg bg-background p-4">
+                <Typography className="text-sm">Shopify publishing currently supports blog posts only.</Typography>
+                <p className="text-xs text-muted-foreground">Use WordPress, Webflow, or Sanity to publish Massic Pages.</p>
+              </div>
+            ) : isActiveShopify && !isShopifyReady ? (
+              <div className="space-y-3 rounded-lg bg-background p-4">
+                <Typography className="text-sm">Shopify is connected, but no blog destination is selected.</Typography>
+                <Button onClick={handleRedirectToChannels}>Configure Shopify</Button>
+              </div>
             ) : isActiveWix && !isBlogContent ? (
               <div className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
                 Wix publishing is currently available for blogs only.
@@ -5098,6 +5204,8 @@ export function WebPageHtmlView({
                         ? `Webflow: ${activeTarget?.name || "Configured collection"}`
                         : activePlatform === "sanity"
                           ? `Sanity: ${activeTarget?.documentType || activeTarget?.name || "Configured document"}`
+                          : activePlatform === "shopify"
+                            ? `Shopify: ${activeTarget?.name || "Configured blog"}`
                           : activeConnection?.siteUrl}
                     </Typography>
                     <Badge
@@ -5209,6 +5317,26 @@ export function WebPageHtmlView({
                     )}
                   </div>
                 ) : null}
+                {isActiveShopify && isShopifyStatusError ? (
+                  <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">Shopify status couldn&apos;t be verified</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Publishing is paused to avoid overwriting an article whose visibility is unknown.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => void contentStatusQuery.refetch()}
+                      disabled={contentStatusQuery.isFetching}
+                    >
+                      {contentStatusQuery.isFetching ? "Checking…" : "Retry status check"}
+                    </Button>
+                  </div>
+                ) : null}
                 <TabsContent value="details" className="space-y-4 pt-1">
               <div className="space-y-3">
                 <div className="space-y-0.5">
@@ -5239,10 +5367,12 @@ export function WebPageHtmlView({
               </div>
                 </TabsContent>
                 <TabsContent value="images" className="space-y-3 pt-1">
-              {isWordpressFeaturedImagePublish ? (
+              {isCmsImagePublish ? (
                 <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    This image will be used for link previews and as the WordPress featured image when supported.
+                    {isShopifyImagePublish
+                      ? "This becomes the Shopify article image. Your active theme may display it above the article and in blog cards."
+                      : "This image will be used for link previews and as the WordPress featured image when supported."}
                   </p>
                   <input
                     ref={featuredImageInputRef}
@@ -5521,7 +5651,7 @@ export function WebPageHtmlView({
                         ? `A page already exists at /${slugCheckResult?.blockedPrefix || normalizedSlugForPublish.split("/")[0]}. Choose a different first part of the URL.`
                       : slugConflictReason === "static_route_conflict"
                         ? `Your website already uses /${slugCheckResult?.blockedPrefix || normalizedSlugForPublish}. Choose another route.`
-                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : activePlatform === "wix" ? "Wix" : "WordPress"}. Use a unique slug.`}
+                      : `This slug already exists in ${activePlatform === "webflow" ? "Webflow" : activePlatform === "sanity" ? "Sanity" : activePlatform === "shopify" ? "Shopify" : activePlatform === "wix" ? "Wix" : "WordPress"}. Use a unique slug.`}
                   </div>
                   {(slugCheckResult?.suggestions?.length
                     ? slugCheckResult.suggestions
@@ -5829,6 +5959,29 @@ export function WebPageHtmlView({
                 ) : null}
               </>
             ) : null}
+            {!isPublishConnectionLoading && isShopifyReady ? (
+              <ShopifyPublishActions
+                state={shopifyPublishState}
+                liveUrl={shopifyLiveUrl}
+                actionsDisabled={
+                  !hasFinalContent ||
+                  !normalizedSlugForPublish ||
+                  hasSlugConflict ||
+                  isSlugChecking ||
+                  isShopifyStatusBlocked
+                }
+                isBusy={isPublishBusy}
+                pendingAction={
+                  runningPublishAction === "shopify-draft"
+                    ? "draft"
+                    : runningPublishAction === "shopify-live"
+                      ? "live"
+                      : null
+                }
+                onSaveDraft={() => setConfirmPublishAction("shopify-draft")}
+                onPublishLive={() => setConfirmPublishAction("shopify-live")}
+              />
+            ) : null}
             {!isPublishConnectionLoading && isWixReady ? (
               <>
                 {wixPublishState === "not_published" ? (
@@ -5891,6 +6044,16 @@ export function WebPageHtmlView({
                       ? sanityPublishState === "live"
                         ? "Republish Live to Sanity?"
                         : "Publish Live to Sanity?"
+                    : confirmPublishAction === "shopify-draft"
+                      ? shopifyPublishState === "live"
+                        ? "Move Shopify article to draft?"
+                        : shopifyPublishState === "draft"
+                          ? "Update Shopify draft?"
+                          : "Save Shopify draft?"
+                    : confirmPublishAction === "shopify-live"
+                      ? shopifyPublishState === "live"
+                        ? "Update live Shopify article?"
+                        : "Publish now to Shopify?"
                     : confirmPublishAction === "live"
                       ? "Publish Live to WordPress?"
                       : confirmPublishAction === "republish"
@@ -5923,6 +6086,14 @@ export function WebPageHtmlView({
                     `This will create or update the published Sanity document at ${publishUrlPreview || "the configured route"}.`
                   ) : confirmPublishAction === "sanity-draft" ? (
                     `This will save a draft to Sanity. Drafts aren't visible on your live website — open the ${publishType === "page" ? "page" : "post"} in Sanity Studio to preview it.`
+                  ) : confirmPublishAction === "shopify-live" ? (
+                    shopifyPublishState === "live"
+                      ? `This will update the live article in ${activeTarget?.name || "the selected Shopify blog"} with the latest Massic content and image.`
+                      : `This will make the article live immediately in ${activeTarget?.name || "the selected Shopify blog"}.`
+                  ) : confirmPublishAction === "shopify-draft" ? (
+                    shopifyPublishState === "live"
+                      ? `This will immediately hide the article from the storefront. Shopify shows this as Hidden; Massic calls it Draft.`
+                      : `This will ${shopifyPublishState === "draft" ? "update" : "create"} a hidden article in ${activeTarget?.name || "the selected Shopify blog"}. It won't be visible on the storefront.`
                   ) : confirmPublishAction === "republish" ? (
                     `This will push your latest content and images to the live post at ${publishUrlPreview || "the selected route"}.`
                   ) : confirmPublishAction === "update-draft" ? (
@@ -6004,6 +6175,10 @@ export function WebPageHtmlView({
               >
                 {confirmPublishAction === "live" || confirmPublishAction === "webflow-live" || confirmPublishAction === "sanity-live" || confirmPublishAction === "wix-live"
                   ? "Confirm Publish Live"
+                  : confirmPublishAction === "shopify-live"
+                    ? shopifyPublishState === "live"
+                      ? "Confirm Update Live"
+                      : "Confirm Publish Live"
                   : confirmPublishAction === "wix-draft"
                     ? wixPublishState === "not_published" ? "Confirm Save Draft" : "Confirm Update Draft"
                   : confirmPublishAction === "republish"
@@ -6016,6 +6191,12 @@ export function WebPageHtmlView({
                         ? hasWebflowStagingPreview
                           ? "Confirm Republish"
                           : "Confirm Publish to Staging"
+                        : confirmPublishAction === "shopify-draft"
+                          ? shopifyPublishState === "live"
+                            ? "Confirm Move to Draft"
+                            : shopifyPublishState === "draft"
+                              ? "Confirm Update Draft"
+                              : "Confirm Save Draft"
                         : "Confirm Publish Draft"}
               </Button>
             </AlertDialogAction>

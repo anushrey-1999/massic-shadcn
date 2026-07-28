@@ -8,6 +8,7 @@ const PUBLIC_ROUTES = [
   "/team-signup",
   "/google-access",
   "/r",
+  "/email/verify",
   "/snapshot",
   "/admin/login",
   "/email/verify",

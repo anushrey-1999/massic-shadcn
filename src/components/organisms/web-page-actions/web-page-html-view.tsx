@@ -181,6 +181,7 @@ import {
   WebflowPublishConfirmHint,
   type WebflowPublishConfirmAction,
 } from "@/components/organisms/web-page-actions/webflow-publish-confirm-hints";
+import { ShopifyPublishActions } from "@/components/organisms/web-page-actions/shopify-publish-actions";
 import {
   clearWebflowStagingPreviewSession,
   openWebflowPreviewInNewTab,
@@ -196,6 +197,19 @@ import { LayoutPanel, MediaEditorPanel } from "@/components/ui/layout-panel";
 import { InsertBlockDialog } from "@/components/ui/insert-block-dialog";
 
 type SaveReason = "debounce" | "blur" | "unmount";
+type CmsPublishConfirmAction =
+  | "draft"
+  | "live"
+  | "webflow-draft"
+  | "webflow-live"
+  | "webflow-staging-preview"
+  | "webflow-rollback-draft"
+  | "sanity-draft"
+  | "sanity-live"
+  | "shopify-draft"
+  | "shopify-live"
+  | "republish"
+  | "update-draft";
 type AiTextTransformResponse = {
   revised_text?: string;
 };
@@ -580,21 +594,8 @@ export function WebPageHtmlView({
   const [isEmbeddedPreviewLoading, setIsEmbeddedPreviewLoading] = React.useState(false);
   const [showEmbedFallbackHint, setShowEmbedFallbackHint] = React.useState(false);
   const [previewViewport, setPreviewViewport] = React.useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [confirmPublishAction, setConfirmPublishAction] = React.useState<
-    | "draft"
-    | "live"
-    | "webflow-draft"
-    | "webflow-live"
-    | "webflow-staging-preview"
-    | "webflow-rollback-draft"
-    | "sanity-draft"
-    | "sanity-live"
-    | "shopify-draft"
-    | "shopify-live"
-    | "republish"
-    | "update-draft"
-    | null
-  >(null);
+  const [confirmPublishAction, setConfirmPublishAction] = React.useState<CmsPublishConfirmAction | null>(null);
+  const [runningPublishAction, setRunningPublishAction] = React.useState<CmsPublishConfirmAction | null>(null);
   const [webflowStagingPreview, setWebflowStagingPreview] = React.useState<{
     contentId: string;
     url: string;
@@ -985,18 +986,37 @@ export function WebPageHtmlView({
     requiresWordpressPageTemplate &&
       (isWordpressPageTemplateChecking || wordpressPageTemplateBlockMessage)
   );
+  const isShopifyStatusLoading = Boolean(
+    isActiveShopify &&
+      publishContentId &&
+      (contentStatusQuery.isLoading || contentStatusQuery.isFetching)
+  );
+  const isShopifyStatusError = Boolean(isActiveShopify && contentStatusQuery.isError);
+  const isShopifyStatusBlocked = isShopifyStatusLoading || isShopifyStatusError;
   const publishStateLabel = activePlatform === "webflow"
     ? (webflowPublishState === "live" ? "Live" : webflowPublishState === "draft" ? "Draft" : "Not Published")
     : activePlatform === "sanity"
       ? (sanityPublishState === "live" ? "Live" : sanityPublishState === "draft" ? "Draft" : "Not Published")
       : activePlatform === "shopify"
-        ? (shopifyPublishState === "live" ? "Live" : shopifyPublishState === "draft" ? "Draft" : "Not Published")
+        ? isShopifyStatusLoading
+          ? "Checking…"
+          : isShopifyStatusError
+            ? "Status unavailable"
+            : shopifyPublishState === "live"
+              ? "Live"
+              : shopifyPublishState === "draft"
+                ? "Draft"
+                : "Not Published"
       : isPersistedLive ? "Live" : isPersistedDraftLike ? "Draft" : isPersistedTrashed ? "In Trash" : "Not Published";
   const publishStateHint = activePlatform === "shopify"
-    ? shopifyPublishState === "live"
+    ? isShopifyStatusLoading
+      ? "Checking the current article visibility in Shopify."
+      : isShopifyStatusError
+        ? "Massic couldn't verify the current Shopify article visibility."
+      : shopifyPublishState === "live"
       ? "This article is live in Shopify."
       : shopifyPublishState === "draft"
-        ? "An unpublished draft exists in Shopify."
+        ? "This article is hidden in Shopify. Massic calls this state Draft."
         : "No Shopify article exists yet."
     : activePlatform === "sanity"
     ? sanityPublishState === "live"
@@ -1048,6 +1068,13 @@ export function WebPageHtmlView({
     if (!siteUrl || !slugForPreview) return null;
     return `${siteUrl}/${slugForPreview}`;
   }, [activeConnection?.metadata, activeConnection?.siteUrl, activePlatform, activeTarget?.metadata, normalizedSlugForPublish, publishType, slugCheckResult?.slug, webflowStagingDomain?.url]);
+  const shopifyLiveUrl = shopifyPublishState === "live"
+    ? shopifyPersistedContent?.externalUrl ||
+      shopifyPersistedContent?.permalink ||
+      lastPublishedData?.permalink ||
+      publishUrlPreview ||
+      null
+    : null;
   const webflowStagingPreviewUrl =
     lastPublishedData?.previewUrl || webflowPersistedContent?.previewUrl || publishUrlPreview || null;
   const webflowLiveUrl =
@@ -2105,7 +2132,17 @@ export function WebPageHtmlView({
       previewUrl: published.previewUrl || undefined,
       siteVerification: published.siteVerification || null,
     });
-    toast.success(activePlatform === "webflow" ? "Webflow draft saved" : activePlatform === "sanity" ? "Sanity draft saved" : activePlatform === "shopify" ? "Shopify draft saved" : "Draft pushed to WordPress");
+    toast.success(
+      activePlatform === "webflow"
+        ? "Webflow draft saved"
+        : activePlatform === "sanity"
+          ? "Sanity draft saved"
+          : activePlatform === "shopify"
+            ? shopifyPublishState === "live"
+              ? "Moved Shopify article to draft"
+              : "Shopify draft saved"
+            : "Draft pushed to WordPress"
+    );
     if (activePlatform === "webflow") {
       setWebflowStagingPreview(null);
       if (publishContentId) {
@@ -2123,8 +2160,9 @@ export function WebPageHtmlView({
         toast.success("Preview ready");
       }
     }
-    void contentStatusQuery.refetch();
-  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isSanityImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText]);
+    if (activePlatform === "shopify") await contentStatusQuery.refetch();
+    else void contentStatusQuery.refetch();
+  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isSanityImagePublish, isWebflowImagePublish, normalizedSlugForPublish, openEmbeddedPreview, publishContentId, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, shopifyPublishState]);
 
   const handlePreviewWebflowStaging = React.useCallback(async () => {
     if (!isWebflowReady || !businessId || !publishContentId || !cmsChannel?.connected || !hasFinalContent) return;
@@ -2329,7 +2367,17 @@ export function WebPageHtmlView({
       slug: published.slug || normalizedSlugForPublish || null,
       siteVerification: published.siteVerification || null,
     }));
-    toast.success(activePlatform === "webflow" ? "Published live to Webflow" : activePlatform === "sanity" ? "Published live to Sanity" : activePlatform === "shopify" ? "Published live to Shopify" : "Published live to WordPress");
+    toast.success(
+      activePlatform === "webflow"
+        ? "Published live to Webflow"
+        : activePlatform === "sanity"
+          ? "Published live to Sanity"
+          : activePlatform === "shopify"
+            ? shopifyPublishState === "live"
+              ? "Updated live Shopify article"
+              : "Published live to Shopify"
+            : "Published live to WordPress"
+    );
     if (activePlatform === "sanity") {
       if (publishType === "page" && published.siteVerification !== "confirmed") {
         toast.info("Published in Sanity; website update not confirmed yet", {
@@ -2343,11 +2391,12 @@ export function WebPageHtmlView({
         waitingHint: "Sanity may need a few seconds to finish publishing.",
       });
     }
-    void contentStatusQuery.refetch();
-    if (activePlatform !== "webflow") {
+    if (activePlatform === "shopify") await contentStatusQuery.refetch();
+    else void contentStatusQuery.refetch();
+    if (activePlatform !== "webflow" && activePlatform !== "shopify") {
       setIsPublishModalOpen(false);
     }
-  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, openWebflowPreview, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds]);
+  }, [activePlatform, attachSanityStyleFields, buildPublishPayload, cmsChannel?.connected, cmsPublishMutation, contentStatusQuery, hasFinalContent, isBlogContent, isCmsImagePublish, isPersistedDraftLike, isSanityImagePublish, isWebflowImagePublish, lastPublishedData?.wpId, normalizedSlugForPublish, openWebflowPreview, publishToWebflowSubdomain, publishUrlPreview, runSlugCheck, saveAllWebflowFieldImageAltText, saveFeaturedImageAltText, selectedWebflowCustomDomainIds, shopifyPublishState]);
 
   const handleRepublish = React.useCallback(async () => {
     if (!isActiveWordpress || !hasFinalContent) return;
@@ -2477,13 +2526,19 @@ export function WebPageHtmlView({
   const confirmAndRunPublishAction = React.useCallback(async () => {
     if (!guardPublish()) return;
     const action = confirmPublishAction;
+    if (!action) return;
     setConfirmPublishAction(null);
-    if (action === "draft" || action === "webflow-draft" || action === "sanity-draft" || action === "shopify-draft") await handlePublishDraft();
-    else if (action === "webflow-live" || action === "sanity-live" || action === "shopify-live" || action === "live") await handlePublishLive();
-    else if (action === "webflow-staging-preview") await handlePreviewWebflowStaging();
-    else if (action === "webflow-rollback-draft") await handleRollbackWebflowToDraft();
-    else if (action === "republish") await handleRepublish();
-    else if (action === "update-draft") await handleUpdateDraft();
+    setRunningPublishAction(action);
+    try {
+      if (action === "draft" || action === "webflow-draft" || action === "sanity-draft" || action === "shopify-draft") await handlePublishDraft();
+      else if (action === "webflow-live" || action === "sanity-live" || action === "shopify-live" || action === "live") await handlePublishLive();
+      else if (action === "webflow-staging-preview") await handlePreviewWebflowStaging();
+      else if (action === "webflow-rollback-draft") await handleRollbackWebflowToDraft();
+      else if (action === "republish") await handleRepublish();
+      else if (action === "update-draft") await handleUpdateDraft();
+    } finally {
+      setRunningPublishAction(null);
+    }
   }, [confirmPublishAction, guardPublish, handlePreviewWebflowStaging, handlePublishDraft, handlePublishLive, handleRepublish, handleRollbackWebflowToDraft, handleUpdateDraft]);
 
   const applySuggestedSlug = React.useCallback((suggestion: string) => {
@@ -5064,6 +5119,26 @@ export function WebPageHtmlView({
                     )}
                   </div>
                 ) : null}
+                {isActiveShopify && isShopifyStatusError ? (
+                  <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">Shopify status couldn&apos;t be verified</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Publishing is paused to avoid overwriting an article whose visibility is unknown.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => void contentStatusQuery.refetch()}
+                      disabled={contentStatusQuery.isFetching}
+                    >
+                      {contentStatusQuery.isFetching ? "Checking…" : "Retry status check"}
+                    </Button>
+                  </div>
+                ) : null}
                 <TabsContent value="details" className="space-y-4 pt-1">
               <div className="space-y-3">
                 <div className="space-y-0.5">
@@ -5687,21 +5762,27 @@ export function WebPageHtmlView({
               </>
             ) : null}
             {!isPublishConnectionLoading && isShopifyReady ? (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setConfirmPublishAction("shopify-draft")}
-                  disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isPublishBusy}
-                >
-                  {isPublishBusy ? "Saving…" : "Save draft"}
-                </Button>
-                <Button
-                  onClick={() => setConfirmPublishAction("shopify-live")}
-                  disabled={!hasFinalContent || !normalizedSlugForPublish || hasSlugConflict || isSlugChecking || isPublishBusy}
-                >
-                  {isPublishBusy ? "Publishing…" : "Publish now"}
-                </Button>
-              </>
+              <ShopifyPublishActions
+                state={shopifyPublishState}
+                liveUrl={shopifyLiveUrl}
+                actionsDisabled={
+                  !hasFinalContent ||
+                  !normalizedSlugForPublish ||
+                  hasSlugConflict ||
+                  isSlugChecking ||
+                  isShopifyStatusBlocked
+                }
+                isBusy={isPublishBusy}
+                pendingAction={
+                  runningPublishAction === "shopify-draft"
+                    ? "draft"
+                    : runningPublishAction === "shopify-live"
+                      ? "live"
+                      : null
+                }
+                onSaveDraft={() => setConfirmPublishAction("shopify-draft")}
+                onPublishLive={() => setConfirmPublishAction("shopify-live")}
+              />
             ) : null}
           </DialogFooter>
         </DialogContent>
@@ -5734,7 +5815,11 @@ export function WebPageHtmlView({
                         ? "Republish Live to Sanity?"
                         : "Publish Live to Sanity?"
                     : confirmPublishAction === "shopify-draft"
-                      ? "Save Shopify draft?"
+                      ? shopifyPublishState === "live"
+                        ? "Move Shopify article to draft?"
+                        : shopifyPublishState === "draft"
+                          ? "Update Shopify draft?"
+                          : "Save Shopify draft?"
                     : confirmPublishAction === "shopify-live"
                       ? shopifyPublishState === "live"
                         ? "Update live Shopify article?"
@@ -5768,9 +5853,13 @@ export function WebPageHtmlView({
                   ) : confirmPublishAction === "sanity-draft" ? (
                     `This will save a draft to Sanity. Drafts aren't visible on your live website — open the ${publishType === "page" ? "page" : "post"} in Sanity Studio to preview it.`
                   ) : confirmPublishAction === "shopify-live" ? (
-                    `This will make the article live immediately in ${activeTarget?.name || "the selected Shopify blog"}.`
+                    shopifyPublishState === "live"
+                      ? `This will update the live article in ${activeTarget?.name || "the selected Shopify blog"} with the latest Massic content and image.`
+                      : `This will make the article live immediately in ${activeTarget?.name || "the selected Shopify blog"}.`
                   ) : confirmPublishAction === "shopify-draft" ? (
-                    `This will create or update an unpublished article in ${activeTarget?.name || "the selected Shopify blog"}.`
+                    shopifyPublishState === "live"
+                      ? `This will immediately hide the article from the storefront. Shopify shows this as Hidden; Massic calls it Draft.`
+                      : `This will ${shopifyPublishState === "draft" ? "update" : "create"} a hidden article in ${activeTarget?.name || "the selected Shopify blog"}. It won't be visible on the storefront.`
                   ) : confirmPublishAction === "republish" ? (
                     `This will push your latest content and images to the live post at ${publishUrlPreview || "the selected route"}.`
                   ) : confirmPublishAction === "update-draft" ? (
@@ -5850,8 +5939,12 @@ export function WebPageHtmlView({
                   (confirmPublishAction === "webflow-live" && selectedWebflowLiveDomainLabels.length === 0)
                 }
               >
-                {confirmPublishAction === "live" || confirmPublishAction === "webflow-live" || confirmPublishAction === "sanity-live" || confirmPublishAction === "shopify-live"
+                {confirmPublishAction === "live" || confirmPublishAction === "webflow-live" || confirmPublishAction === "sanity-live"
                   ? "Confirm Publish Live"
+                  : confirmPublishAction === "shopify-live"
+                    ? shopifyPublishState === "live"
+                      ? "Confirm Update Live"
+                      : "Confirm Publish Live"
                   : confirmPublishAction === "republish"
                     ? "Confirm Republish"
                     : confirmPublishAction === "update-draft"
@@ -5863,7 +5956,11 @@ export function WebPageHtmlView({
                           ? "Confirm Republish"
                           : "Confirm Publish to Staging"
                         : confirmPublishAction === "shopify-draft"
-                          ? "Confirm Save Draft"
+                          ? shopifyPublishState === "live"
+                            ? "Confirm Move to Draft"
+                            : shopifyPublishState === "draft"
+                              ? "Confirm Update Draft"
+                              : "Confirm Save Draft"
                         : "Confirm Publish Draft"}
               </Button>
             </AlertDialogAction>

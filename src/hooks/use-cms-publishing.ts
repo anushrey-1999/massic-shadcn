@@ -99,6 +99,9 @@ export interface CmsPublishResponse {
     previewUrl?: string | null;
     editUrl?: string | null;
     status: string;
+    visibility?: "visible" | "hidden";
+    publishedAt?: string | null;
+    publicationVerified?: boolean;
     slug?: string | null;
     routePath?: string | null;
     siteVerification?: "confirmed" | "pending" | null;
@@ -124,6 +127,8 @@ export interface CmsContentStatus {
     externalUrl?: string | null;
     previewUrl?: string | null;
     status: string | null;
+    visibility?: "visible" | "hidden" | null;
+    publishedAt?: string | null;
     slug: string | null;
     updatedAt: string | null;
   } | null;

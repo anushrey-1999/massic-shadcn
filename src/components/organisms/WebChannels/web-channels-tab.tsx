@@ -25,6 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getBaseURLByPlatform } from "@/hooks/use-api";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDisconnectWordpress, useStartWordpressOauthLink, useWordpressConnection } from "@/hooks/use-wordpress-connector";
 import {
   useConfigureWebflow,
@@ -55,10 +56,12 @@ import {
   useShopifyConnection,
   useStartShopifyOauth
 } from "@/hooks/use-shopify-connector";
+import { useDisconnectWix, useStartWixOauth, useWixConnection } from "@/hooks/use-wix-connector";
 import { PlatformIcon, SiteFavicon } from "./platform-icon";
 import { IntegrationStatusBadge } from "./integration-status-badge";
 import { WebflowPublishSetup, type WebflowImageDestinationRow, type WebflowMappingRow } from "./webflow-publish-setup";
 import { SanityPublishSetup, type SanityImageDestinationRow, type SanityMappingRow } from "./sanity-publish-setup";
+import { WixPublishSetup } from "./wix-publish-setup";
 
 interface WebChannelsTabProps {
   businessId: string;
@@ -259,7 +262,6 @@ function openPendingExternalTab() {
   if (!externalWindow) return null;
 
   try {
-    externalWindow.opener = null;
     externalWindow.document.title = "Opening...";
     externalWindow.document.body.innerHTML =
       '<p style="font-family: system-ui, sans-serif; padding: 24px;">Opening secure connection...</p>';
@@ -283,6 +285,7 @@ function navigatePendingExternalTab(externalWindow: Window | null, url: string) 
 }
 
 export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, showHeader = true }: WebChannelsTabProps) {
+  const queryClient = useQueryClient();
   const [isRecommendedModalOpen, setIsRecommendedModalOpen] = React.useState(false);
   const [isHowToModalOpen, setIsHowToModalOpen] = React.useState(false);
   const [isSanityConnectModalOpen, setIsSanityConnectModalOpen] = React.useState(false);
@@ -340,6 +343,11 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
   const webflowPageTarget = webflowConnection?.targets?.page || null;
   const startWebflowOauthMutation = useStartWebflowOauth();
   const disconnectWebflowMutation = useDisconnectWebflow(businessId);
+  const wixConnectionQuery = useWixConnection(businessId);
+  const wixConnection = wixConnectionQuery.data?.connection || null;
+  const isWixConnected = Boolean(wixConnectionQuery.data?.connected && wixConnection);
+  const startWixOauthMutation = useStartWixOauth();
+  const disconnectWixMutation = useDisconnectWix(businessId);
   const configureWebflowMutation = useConfigureWebflow(businessId);
   const configureWebflowPagesMutation = useConfigureWebflowPages(businessId);
   const shopifyConnectionQuery = useShopifyConnection(businessId);
@@ -854,6 +862,29 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
     return () => window.removeEventListener("message", onShopifyOauthMessage);
   }, [refetch, sanityConnectionQuery, shopifyConnectionQuery, webflowConnectionQuery]);
 
+  React.useEffect(() => {
+    const onWixOauthMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || payload.source !== "massic-wix-oauth") return;
+      if (payload.ok) {
+        toast.success("Wix connected", {
+          description: "Your site is connected. Finish the blog publishing setup below."
+        });
+        void wixConnectionQuery.refetch();
+        void webflowConnectionQuery.refetch();
+        void sanityConnectionQuery.refetch();
+        void refetch();
+        void queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", businessId] });
+        return;
+      }
+      toast.error("Wix connection failed", {
+        description: payload.message || "Please try again."
+      });
+    };
+    window.addEventListener("message", onWixOauthMessage);
+    return () => window.removeEventListener("message", onWixOauthMessage);
+  }, [businessId, queryClient, refetch, sanityConnectionQuery, webflowConnectionQuery, wixConnectionQuery]);
+
   const submitRecommended = async () => {
     const siteUrl = normalizeSiteUrlInput(recommendedSiteUrl);
     if (!siteUrl) return;
@@ -964,6 +995,28 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
       connectionId: shopifyConnection.connectionId,
       blogId: selectedShopifyBlogId
     });
+  };
+
+  const submitWixConnect = async () => {
+    const pendingWindow = openPendingExternalTab();
+    const returnUrl = `${window.location.origin}/business/${businessId}/web?integrations=1`;
+    try {
+      const response = await startWixOauthMutation.mutateAsync({ businessId, returnUrl });
+      const installationUrl = response.data?.installationUrl;
+      if (!installationUrl) {
+        pendingWindow?.close();
+        return;
+      }
+      if (!navigatePendingExternalTab(pendingWindow, installationUrl)) {
+        setExternalNavigationFallback({
+          url: installationUrl,
+          title: "Open Wix installation",
+          description: "Your browser blocked the new tab. Open Wix from here to select and connect your site."
+        });
+      }
+    } catch {
+      pendingWindow?.close();
+    }
   };
 
   const submitWebflowConfiguration = async () => {
@@ -1511,6 +1564,81 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
               </CollapsibleContent>
             </Collapsible>
           )}
+        </Card>
+
+        {/* Wix */}
+        <Card variant="profileCard" className="border-none bg-white p-4">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 p-0 pb-0">
+            <div className="flex min-w-0 flex-1 items-start gap-4">
+              <PlatformIcon platform="wix" />
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-base font-medium">Wix</CardTitle>
+                  <IntegrationStatusBadge connected={isWixConnected} loading={wixConnectionQuery.isLoading} />
+                </div>
+                <CardDescription>Connect Wix and publish editable blog drafts or live posts from Massic.</CardDescription>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {isWixConnected ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    wixConnection?.connectionId &&
+                    disconnectWixMutation.mutate({
+                      connectionId: wixConnection.connectionId
+                    })
+                  }
+                  disabled={disconnectWixMutation.isPending}
+                >
+                  {disconnectWixMutation.isPending ? "Disconnecting…" : "Disconnect"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={submitWixConnect}
+                  disabled={startWixOauthMutation.isPending || wixConnectionQuery.isLoading}
+                >
+                  <Link2 className="mr-1.5 size-4" />
+                  {startWixOauthMutation.isPending ? "Opening…" : "Connect"}
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+
+          {wixConnectionQuery.isError ? (
+            <CardContent className="mt-4 border-t border-general-border p-0 pt-4">
+              <div className="flex flex-col gap-3 rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-2 text-sm text-general-muted-foreground">
+                  <CircleAlert className="mt-0.5 size-4 shrink-0" />
+                  <span>We couldn&apos;t check the Wix connection.</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => wixConnectionQuery.refetch()}>
+                  Try again
+                </Button>
+              </div>
+            </CardContent>
+          ) : isWixConnected && wixConnection ? (
+            <CardContent className="mt-4 space-y-4 border-t border-general-border p-0 pt-4">
+              <div className="flex items-center gap-3 rounded-lg border border-general-border bg-general-primary-foreground/50 px-3 py-2.5">
+                <PlatformIcon platform="wix" className="size-8 rounded-md" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-general-foreground">
+                    {wixConnection.metadata?.businessName || "Wix site"}
+                  </p>
+                  <p className="break-all font-mono text-xs text-general-muted-foreground">Site ID: {wixConnection.siteId}</p>
+                </div>
+              </div>
+              <div className="border-t border-general-border pt-4">
+                <WixPublishSetup
+                  businessId={businessId}
+                  onReconnect={() => void submitWixConnect()}
+                  reconnecting={startWixOauthMutation.isPending}
+                />
+              </div>
+            </CardContent>
+          ) : null}
         </Card>
 
         {/* Sanity */}

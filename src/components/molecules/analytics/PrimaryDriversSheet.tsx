@@ -4,12 +4,13 @@ import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { format, differenceInCalendarDays, startOfDay, subDays } from "date-fns"
 import type { DateRange } from "react-day-picker"
-import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown, ChevronLeft, ChevronRight, History, Info, Loader2, Search, Target } from "lucide-react"
+import { AlertTriangle, Calendar as CalendarIcon, Check, ChevronDown, ChevronLeft, ChevronRight, History, Info, Loader2, Search, Target, XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -233,7 +234,7 @@ function WindowTag({ bucket, baseline }: { bucket: string; baseline: PrimaryDriv
 
   return (
     <span className={cn(
-      "inline-flex h-6 items-center rounded border px-2 text-[10px] leading-none",
+      "inline-flex h-6 items-center rounded-full border px-2 text-[10px] leading-none",
       noisy
         ? WARNING_PILL_CLASS
         : "border-border/50 text-muted-foreground",
@@ -858,7 +859,7 @@ function LegacyPrimaryDriversSnapshotView({
   return (
     <div className="min-w-0 max-w-full space-y-3.5 overflow-hidden">
       <div className="min-w-0">
-        <p className="mb-1 break-words text-[15px] font-medium text-foreground [overflow-wrap:anywhere]">{businessName}</p>
+        <p className="mb-1 break-words text-[16px] font-medium text-foreground [overflow-wrap:anywhere]">{businessName}</p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="break-words text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
             {fmtDateRange(data.date_range.start, data.date_range.end)}
@@ -1042,6 +1043,11 @@ function CtaCard({
 }) {
   const positive = cta.absolute_delta > 0
   const neutral = cta.absolute_delta === 0
+  const accentBar = neutral
+    ? "bg-muted-foreground/40"
+    : positive
+      ? POSITIVE_ACCENT_CLASS
+      : "bg-[#E24B4A]"
   const badgeCls = neutral
     ? "bg-secondary text-muted-foreground"
     : positive
@@ -1050,14 +1056,20 @@ function CtaCard({
   const warning = cta.edge_case_flags.find((flag) => !["low_volume"].includes(flag))
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-shadow duration-200 ease-out">
+    <div className={cn(
+      "min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60 bg-white transition-[border-color] duration-200 ease-out",
+      open && "border-border/90",
+    )}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="w-full min-w-0 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/20"
+        className={cn(
+          "w-full min-w-0 px-4 py-3 text-left transition-colors duration-150 ease-out hover:bg-secondary/20",
+        )}
       >
-        <div className="flex min-w-0 items-start gap-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <div className={cn("mt-0.5 h-6 w-[3px] shrink-0 rounded-full", accentBar)} />
           <div className="min-w-0 flex-1">
             <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-3">
               <span className="min-w-0 break-words font-mono text-[14px] font-medium [overflow-wrap:anywhere]">{cta.display_name}</span>
@@ -1117,7 +1129,7 @@ function V2PrimaryDriversSnapshotView({
   return (
     <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
       <div className="min-w-0">
-        <p className="break-words text-[15px] font-medium text-foreground [overflow-wrap:anywhere]">{businessName}</p>
+        <p className="break-words text-baseimage.png font-medium text-foreground [overflow-wrap:anywhere]">{businessName}</p>
         <p className="mt-1 break-words text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
           {fmtDateRange(data.date_range.start, data.date_range.end)}
           <span className="mx-1.5">·</span>
@@ -1460,13 +1472,13 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full max-w-full overflow-hidden border-l border-general-border p-0 pt-8 sm:max-w-2xl">
+      <SheetContent showClose={false} className="w-full max-w-full gap-0 overflow-hidden border-l border-general-border p-0 sm:max-w-2xl">
 
         {/* Sheet header — sticky */}
-        <SheetHeader className="border-b border-general-border bg-background px-6 py-4">
+        <SheetHeader className="border-b border-general-border bg-background px-6 py-3">
           <div className="flex items-center gap-3">
             <div className="min-w-0">
-              <SheetTitle className="text-base font-semibold tracking-tight">
+              <SheetTitle className="text-xl font-semibold tracking-tight">
                 {sheetTitle}
               </SheetTitle>
             </div>
@@ -1520,6 +1532,19 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                   {headerActionMode === "history" ? "View meeting prep notes history" : "Back"}
                 </TooltipContent>
               </Tooltip>
+
+              <SheetClose asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  aria-label="Close"
+                  title="Close"
+                >
+                  <XIcon className="h-4 w-4" />
+                </Button>
+              </SheetClose>
             </div>
           </div>
         </SheetHeader>
@@ -1548,7 +1573,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
           ) : data ? (
             <div className="relative flex h-full flex-col">
               <ScrollArea className="min-w-0 flex-1 overflow-x-hidden">
-                <div className="w-full min-w-0 max-w-full overflow-hidden px-4 py-5 sm:px-6">
+                <div className="w-full min-w-0 max-w-full overflow-hidden px-4 py-4 sm:px-6">
                   {view === "call-brief" && currentCallBrief ? (
                     <CallPrepBriefView callBrief={currentCallBrief} wins={getPrimaryDriversWins(data)} />
                   ) : (
@@ -1619,7 +1644,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
           ) : (
               <div className="flex h-full flex-col">
                 <ScrollArea className="min-w-0 flex-1 overflow-x-hidden">
-                  <div className="w-full min-w-0 max-w-full overflow-hidden px-4 py-5 sm:px-6">
+                  <div className="w-full min-w-0 max-w-full overflow-hidden px-4 py-4 sm:px-6">
                     {selectedHistoryRunId ? (
                       historyDetailQuery.isLoading ? (
                         <div className="flex h-full min-h-[320px] items-center justify-center">
@@ -1641,7 +1666,7 @@ export function PrimaryDriversSheet({ open, onOpenChange, businessId, businessNa
                       ) : historyDetail ? (
                         <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
                           <div>
-                            <p className="break-words text-[15px] font-medium text-foreground">{historyCallBriefSnapshot?.business_name || businessName}</p>
+                            <p className="break-words text-[16px] font-medium text-foreground">{historyCallBriefSnapshot?.business_name || businessName}</p>
                             <p className="mt-1 break-words text-[11px] text-muted-foreground">
                               Saved {historyDetail.date_generated || "Unknown date"} at {historyDetail.time_generated || "Unknown time"}
                             </p>

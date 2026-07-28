@@ -11,7 +11,9 @@ export default function LayoutWrapper({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
+  const isBusinessAgentRoute = /^\/business\/[^/]+\/agent(?:\/|$)/.test(pathname)
   const shouldUseEmptyLayout =
+    isBusinessAgentRoute ||
     routesWithoutSidebar.includes(pathname) ||
     routePrefixesWithoutSidebar.some((prefix) => pathname.startsWith(prefix))
 

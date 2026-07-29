@@ -101,6 +101,13 @@ export function useAudience(businessId: string) {
       // Fields displayed as percentages (0–100) in the UI but stored as decimals (0–1) in the API.
       const percentageFields = new Set(["audience_relevance_score"]);
 
+      // Score thresholds for relevance labels (matches RelevancePill bar logic).
+      const relevanceLabelRanges: Record<string, { min: number; max: number }> = {
+        low: { min: 0, max: 0.25 },
+        medium: { min: 0.25, max: 0.5 },
+        high: { min: 0.5, max: 1.0 },
+      };
+
       const clamp = (v: number) => Math.max(0, Math.min(1, v));
       const toDecimal = (pct: string) => parseFloat(pct) / 100;
 
@@ -188,6 +195,21 @@ export function useAudience(businessId: string) {
         const mappedFilters = params.filters.flatMap(filter => {
           const apiField = mapFieldToApiName(filter.field as string);
           const withMappedField = { ...filter, field: apiField };
+
+          // Translate label-based inArray (high/medium/low) into numeric range filters.
+          if (apiField === "audience_relevance_score" && filter.operator === "inArray") {
+            const selectedLabels = (Array.isArray(filter.value) ? filter.value : [filter.value])
+              .map(v => String(v).toLowerCase());
+            const ranges = selectedLabels.map(l => relevanceLabelRanges[l]).filter(Boolean);
+            if (ranges.length === 0) return [];
+            const minVal = Math.min(...ranges.map(r => r.min));
+            const maxVal = Math.max(...ranges.map(r => r.max));
+            return [
+              { field: apiField, operator: "gte" as const, value: String(minVal) },
+              { field: apiField, operator: "lte" as const, value: String(maxVal) },
+            ];
+          }
+
           return percentageFields.has(apiField)
             ? normalizePercentageFilter(withMappedField)
             : [withMappedField];

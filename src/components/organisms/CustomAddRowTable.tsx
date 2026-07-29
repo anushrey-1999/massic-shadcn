@@ -23,6 +23,19 @@ export interface ColumnValidation {
   customValidator?: (value: any, row?: any) => string | undefined;
 }
 
+export interface ColumnRenderHelpers<T = any> {
+  disabled: boolean;
+  error?: string;
+  touched?: boolean;
+  setValue: (value: any) => void;
+  setRowValue: (field: string, value: any, rowData?: T) => void;
+  onBlur: (value: any, rowData?: T) => void;
+  isFocusedRow?: boolean;
+  blendRow?: boolean;
+  rowId?: string;
+  setFocusedRowIndex?: React.Dispatch<React.SetStateAction<number | null>>;
+}
+
 export interface Column<T = any> {
   key: string;
   label: string;
@@ -30,14 +43,7 @@ export interface Column<T = any> {
     value: any,
     row: T,
     index: number,
-    helpers: {
-      disabled: boolean;
-      error?: string;
-      touched?: boolean;
-      setValue: (value: any) => void;
-      setRowValue: (field: string, value: any, rowData?: T) => void;
-      onBlur: (value: any, rowData?: T) => void;
-    }
+    helpers: ColumnRenderHelpers<T>
   ) => React.ReactNode;
   validation?: ColumnValidation;
   width?: string;
@@ -329,6 +335,10 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                             handleRowChange(rowIndex, field, value, rowData),
                           onBlur: (value, rowData) =>
                             handleBlur(rowIndex, column.key, value, rowData),
+                          isFocusedRow,
+                          blendRow,
+                          rowId,
+                          setFocusedRowIndex,
                         })
                       ) : onRowChange ? (
                         <div className="flex flex-1 min-w-0 flex-col gap-1">
@@ -362,7 +372,7 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                             }}
                             placeholder={column.label || "Enter value"}
                             className={cn(
-                              "h-10 min-h-[36px] flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
+                              "h-10 min-h-9 flex-1 min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
                               blendRow
                                 ? "bg-transparent placeholder:text-general-border-four"
                                 : "bg-white placeholder:text-general-border-four",
@@ -470,41 +480,34 @@ export function CustomAddRowTable<T extends Record<string, any>>({
                                     handleRowChange(rowIndex, field, value, rowData),
                                   onBlur: (value, rowData) =>
                                     handleBlur(rowIndex, column.key, value, rowData),
+                                  isFocusedRow: false,
+                                  blendRow: false,
+                                  rowId: `table-row-${tableId}-${rowIndex}`,
+                                  setFocusedRowIndex,
                                 })
                               ) : onRowChange ? (
-                                    <Input
-                                      id={`table-input-${tableId}-${rowIndex}-${column.key}`}
-                                      type={column.validation?.url ? "url" : "text"}
-                                      variant="noBorder"
-                                      value={row[column.key] || ""}
-                                      disabled={disabled}
-                                      onChange={(e) =>
-                                        handleRowChange(
-                                          rowIndex,
-                                          column.key,
-                                          e.target.value
-                                        )
-                                      }
-                                      onBlur={(e) =>
-                                        handleBlur(
-                                          rowIndex,
-                                          column.key,
-                                          e.target.value
-                                        )
-                                      }
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                          e.preventDefault();
-                                          if (!disabled) onAddRow();
-                                        }
-                                      }}
-                                      placeholder="Enter value"
-                                      className={cn(
-                                        "w-full border-0 border-none bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0 px-0 py-0 rounded-none min-h-8",
-                                        isInvalid && "aria-invalid"
-                                      )}
-                                      aria-invalid={isInvalid}
-                                    />
+                                <Input
+                                  id={`table-input-${tableId}-${rowIndex}-${column.key}`}
+                                  type={column.validation?.url ? "url" : "text"}
+                                  variant="noBorder"
+                                  value={row[column.key] || ""}
+                                  disabled={disabled}
+                                  onChange={(e) =>
+                                    handleRowChange(rowIndex, column.key, e.target.value)
+                                  }
+                                  onBlur={(e) =>
+                                    handleBlur(rowIndex, column.key, e.target.value)
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      if (!disabled) onAddRow();
+                                    }
+                                  }}
+                                  placeholder="Enter value"
+                                  className="w-full border-0 border-none bg-transparent shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0 px-0 py-0 rounded-none min-h-8"
+                                  aria-invalid={isInvalid}
+                                />
                               ) : (
                                 row[column.key] || "Enter value"
                               )}

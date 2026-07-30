@@ -156,7 +156,6 @@ export function CreateBusinessTemplate({
                     businessId={null}
                     leftTitle="Create Business"
                     extractionController={offeringsExtractor}
-                    hideFetchOfferingsFromWebsite
                     onSaveChanges={() => {}}
                     onSaveAndUpdateStrategy={() => {}}
                     onAutofillProfile={onAutofillProfile}

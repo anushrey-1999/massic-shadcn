@@ -13,6 +13,7 @@ import { ContentCuesForm } from "@/components/organisms/profile/ContentCuesForm"
 import { LocationsForm } from "@/components/organisms/profile/LocationsForm";
 import { CompetitorsForm } from "@/components/organisms/profile/CompetitorsForm";
 import { GenericInput } from "@/components/ui/generic-input";
+import { useApplyExtractedOfferings } from "@/hooks/use-apply-extracted-offerings";
 import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -25,7 +26,6 @@ type ProfileFormTabsProps = {
   footer?: React.ReactNode;
   primaryLocationAction?: React.ReactNode;
   disableWebsiteLock?: boolean;
-  hideFetchOfferingsFromWebsite?: boolean;
   restrictFetchOfferings?: boolean;
   extractionController?: any;
   includeBusinessDescription?: boolean;
@@ -42,13 +42,16 @@ export function ProfileFormTabs({
   footer,
   primaryLocationAction,
   disableWebsiteLock,
-  hideFetchOfferingsFromWebsite,
   restrictFetchOfferings,
   extractionController,
   includeBusinessDescription,
   basicDetailsDescription = "Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business.",
   tabsListClassName = "w-fit self-start shrink-0",
 }: ProfileFormTabsProps) {
+  // Inactive tabs are unmounted, so the extraction result has to be applied from
+  // the shell instead of from inside the Offerings tab.
+  useApplyExtractedOfferings({ form, extractionController });
+
   return (
     <Tabs
       value={value}
@@ -91,7 +94,6 @@ export function ProfileFormTabs({
             form={form}
             businessId={businessId}
             embedded
-            hideFetchOfferingsFromWebsite={hideFetchOfferingsFromWebsite}
             extractionController={extractionController}
             restrictFetchOfferings={restrictFetchOfferings}
           />

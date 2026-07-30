@@ -42,30 +42,57 @@ export const businessInfoSchema = z.object({
   offerings: z.enum(["products", "services", "both"]),
   offeringsList: z
     .array(
-      z.object({
-        name: z.string().min(1, "Name is required"),
-        description: z.string().optional(),
-        link: z
-          .string()
-          .optional()
-          .refine(
-            (val) => {
-              if (!val || val.trim() === "") return true;
-              try {
-                new URL(val);
-                return true;
-              } catch {
-                return false;
-              }
-            },
-            { message: "Please enter a valid URL" }
-          ),
-        pricePositioning: z.string().optional(),
-        offeringType: z.string().optional(),
-        priceRange: z.string().optional(),
-        duration: z.string().optional(),
-        inclusions: z.union([z.array(z.string()), z.string()]).optional(),
-      })
+      z
+        .object({
+          // IMPORTANT:
+          // Offerings tables often contain an extra blank row (e.g. user pressed Enter / clicked Add).
+          // A fully-empty row should NOT block saving, but a partially-filled row still must have a name.
+          name: z.string().optional(),
+          description: z.string().optional(),
+          link: z
+            .string()
+            .optional()
+            .refine(
+              (val) => {
+                if (!val || val.trim() === "") return true;
+                try {
+                  new URL(val);
+                  return true;
+                } catch {
+                  return false;
+                }
+              },
+              { message: "Please enter a valid URL" }
+            ),
+          pricePositioning: z.string().optional(),
+          offeringType: z.string().optional(),
+          priceRange: z.string().optional(),
+          duration: z.string().optional(),
+          inclusions: z.union([z.array(z.string()), z.string()]).optional(),
+        })
+        .superRefine((row, ctx) => {
+          const name = String(row.name ?? "").trim();
+          const hasAnyOtherValue = Boolean(
+            String(row.description ?? "").trim() ||
+              String(row.link ?? "").trim() ||
+              String(row.pricePositioning ?? "").trim() ||
+              String(row.offeringType ?? "").trim() ||
+              String(row.priceRange ?? "").trim() ||
+              String(row.duration ?? "").trim() ||
+              (Array.isArray(row.inclusions)
+                ? row.inclusions.some((v) => Boolean(String(v ?? "").trim()))
+                : String(row.inclusions ?? "").trim())
+          );
+
+          // If the row has any data, require a name.
+          if (hasAnyOtherValue && !name) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Name is required",
+              path: ["name"],
+            });
+          }
+        })
     )
     .optional(),
   usps: z.string().optional(),

@@ -35,6 +35,8 @@ import {
 } from "@/utils/profile-form-mappers";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
+import { toast } from "sonner";
+import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
 
 export function CreatePitchTemplate() {
   const router = useRouter();
@@ -54,6 +56,7 @@ export function CreatePitchTemplate() {
 
   const [hasAutofilledProfile, setHasAutofilledProfile] = useState(false);
   const [existingBusinessId, setExistingBusinessId] = useState<string | null>(null);
+  const [createdPitchBusinessId, setCreatedPitchBusinessId] = useState<string | null>(null);
 
   React.useEffect(() => {
     resetProfileForm();
@@ -83,32 +86,40 @@ export function CreatePitchTemplate() {
             ? "both"
             : "online";
 
-      const result = await createBusiness.mutateAsync({
-        website: value.website,
-        businessName: value.businessName,
-        primaryLocation: value.primaryLocation,
-        serveCustomers: normalizedServeCustomers,
-        offerType: normalizedOfferType,
-        isPitch: true, // Mark this business as created from pitch flow
-        locationOptions,
-      });
+      // Create the pitch business once; if job creation fails, keep the user here
+      // so they can retry without creating duplicates.
+      let createdBusinessId: string | null = createdPitchBusinessId;
 
-      await refetchBusinessProfiles();
+      if (!createdBusinessId) {
+        const { createdBusiness } = await createBusiness.mutateAsync({
+          website: value.website,
+          businessName: value.businessName,
+          primaryLocation: value.primaryLocation,
+          serveCustomers: normalizedServeCustomers,
+          offerType: normalizedOfferType,
+          isPitch: true, // Mark this business as created from pitch flow
+          locationOptions,
+        });
 
-      // Refetch pitch businesses (with isPitch=true) to get the newly created business
-      const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
-      let createdBusinessId: string | null = null;
+        await refetchBusinessProfiles();
 
-      if (userUniqueId) {
-        const pitchBusinesses = await fetchPitchBusinessProfiles(userUniqueId);
-        // Find the business matching the website we just created
-        const websiteLower = value.website.toLowerCase();
-        const createdBiz = pitchBusinesses.find(
-          (b) =>
-            b.Website?.toLowerCase().includes(websiteLower) ||
-            websiteLower.includes(b.Website?.toLowerCase() || "")
-        );
-        createdBusinessId = createdBiz?.UniqueId || null;
+        // Refetch pitch businesses (with isPitch=true) to get the newly created business
+        const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
+        createdBusinessId = createdBusiness?.UniqueId || null;
+
+        if (!createdBusinessId && userUniqueId) {
+          const pitchBusinesses = await fetchPitchBusinessProfiles(userUniqueId);
+          // Find the business matching the website we just created
+          const websiteKey = normalizeWebsiteKey(value.website);
+          const createdBiz = pitchBusinesses.find(
+            (b) => normalizeWebsiteKey(b.Website || "") === websiteKey
+          );
+          createdBusinessId = createdBiz?.UniqueId || null;
+        }
+
+        if (createdBusinessId) {
+          setCreatedPitchBusinessId(createdBusinessId);
+        }
       }
 
       if (!createdBusinessId) {
@@ -117,7 +128,45 @@ export function CreatePitchTemplate() {
       }
 
       const offeringsFromForm = mapFormOfferingsToJobOfferings(value);
-      const offerings = offeringsFromForm;
+      let offerings = offeringsFromForm;
+
+      // Pitch creation must create a job. Job creation requires at least one offering.
+      // Priority: form offerings -> extracted offerings -> profile-derived offerings.
+      if (offerings.length === 0) {
+        const extracted = offeringsExtractor.extractedOfferings || [];
+        if (extracted.length > 0) {
+          offerings = extracted
+            .map((o) => ({
+              name: String(o.name || "").trim(),
+              description: String(o.description || "").trim(),
+              link: String(o.link || "").trim(),
+            }))
+            .filter((o) => Boolean(o.name));
+        } else if (autofillProfileResult?.offerings?.length) {
+          offerings = autofillProfileResult.offerings
+            .map((o: any) => ({
+              name: String(o?.name ?? o?.offering ?? "").trim(),
+              description: String(o?.description ?? "").trim(),
+              page_url: String(o?.page_url ?? o?.url ?? o?.link ?? "").trim(),
+              price_positioning: String(o?.price_positioning ?? "").trim(),
+              offering_type: String(o?.offering_type ?? o?.offeringType ?? "").trim(),
+              price_range: String(o?.price_range ?? o?.priceRange ?? "").trim(),
+              duration: String(o?.duration ?? "").trim(),
+              inclusions: o?.inclusions,
+            }))
+            .filter((o) => Boolean(o.name));
+        }
+      }
+
+      if (offerings.length === 0) {
+        toast.error(
+          hasAnyOfferingRowValue
+            ? "Add a name for at least one offering to create this pitch."
+            : "Add at least one offering to create this pitch."
+        );
+        return;
+      }
+
       const businessProfilePayload = buildBusinessProfilePayload(value, {
         autofillResult: autofillProfileResult,
         locationOptions,
@@ -129,33 +178,39 @@ export function CreatePitchTemplate() {
         { ...businessProfilePayload, UniqueId: createdBusinessId }
       );
 
-      await createJobMutation.mutateAsync({
-        businessId: createdBusinessId,
-        businessProfilePayload,
-        offerings,
-      });
+      try {
+        await createJobMutation.mutateAsync({
+          businessId: createdBusinessId,
+          businessProfilePayload,
+          offerings,
+        });
 
-      router.push(`/pitches/${createdBusinessId}/reports`);
+        router.push(`/pitches/${createdBusinessId}/reports`);
+      } catch (error: any) {
+        // Job create failed after the business was created. Keep the user in-flow
+        // and provide a deterministic way to recover: go to Pitch Profile and retry.
+        toast.error("Pitch created, but setup is incomplete.", {
+          description:
+            error?.message ||
+            "Open Pitch Profile to finish creating the job and generate reports.",
+        });
+        router.push(`/pitches/${createdBusinessId}/profile`);
+      }
     },
   });
 
-  const normalizeUrl = (url: string) =>
-    url.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "").trim();
+  const normalizeWebsiteKey = (url: string) =>
+    normalizeDomainForFavicon(cleanWebsiteUrl(url)).toLowerCase();
 
   const { autofillProfile: handleAutofillProfile, autofillProfileResult, isAutofillLoading } =
     useProfileAutofillForm({
       form,
       locationOptions,
       onBeforeAutofill: (website) => {
-        const normalizedInput = normalizeUrl(website);
+        const normalizedInput = normalizeWebsiteKey(website);
         const match = pitchBusinesses.find((business) => {
-          const businessWebsite = normalizeUrl(business.Website || "");
-          return (
-            businessWebsite &&
-            (businessWebsite === normalizedInput ||
-              businessWebsite.includes(normalizedInput) ||
-              normalizedInput.includes(businessWebsite))
-          );
+          const businessWebsite = normalizeWebsiteKey(business.Website || "");
+          return businessWebsite && businessWebsite === normalizedInput;
         });
         if (match) {
           setExistingBusinessId(match.UniqueId);
@@ -179,6 +234,24 @@ export function CreatePitchTemplate() {
   const isCreatingBusiness = createBusiness.isPending;
   const isCreatingJob = createJobMutation.isPending;
   const isSubmitting = useStore(form.store, (state: any) => state.isSubmitting === true);
+
+  const hasNamedOffering = React.useMemo(() => {
+    const list = (formValues as any)?.offeringsList;
+    return Array.isArray(list) && list.some((row: any) => Boolean(String(row?.name ?? "").trim()));
+  }, [formValues]);
+  const hasAnyOfferingRowValue = React.useMemo(() => {
+    const list = (formValues as any)?.offeringsList;
+    return (
+      Array.isArray(list) &&
+      list.some((row: any) =>
+        Boolean(
+          String(row?.name ?? "").trim() ||
+            String(row?.description ?? "").trim() ||
+            String(row?.link ?? "").trim()
+        )
+      )
+    );
+  }, [formValues]);
 
   const isLoading = isCreatingBusiness || isCreatingJob || isAutofillLoading;
   const loadingMessage = React.useMemo(() => {
@@ -327,7 +400,8 @@ export function CreatePitchTemplate() {
                             isCreatingBusiness ||
                             isCreatingJob ||
                             isAutofillLoading ||
-                            offeringsExtractor.isExtracting
+                            offeringsExtractor.isExtracting ||
+                            !hasNamedOffering
                           }
                         >
                           {isSubmitting || isCreatingBusiness || isCreatingJob ? (

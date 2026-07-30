@@ -1097,9 +1097,23 @@ const ProfileTemplate = ({
     return !businessInfoSchema.safeParse(formValues).success;
   }, [formValues]);
 
+  const hasAtLeastOneOffering = useMemo(() => {
+    const list = Array.isArray((formValues as any)?.offeringsList)
+      ? ((formValues as any).offeringsList as any[])
+      : [];
+    return list.some((row) => Boolean(String(row?.name ?? "").trim()));
+  }, [formValues]);
+
   // Combine all validation errors
   const hasAnyValidationErrors =
     hasSchemaValidationErrors || hasCtaValidationErrors || hasOfferingsValidationErrors;
+
+  // Block Save Changes (job create/update) unless required fields are valid.
+  const canConfirmAndProceed =
+    !hasSchemaValidationErrors &&
+    !hasCtaValidationErrors &&
+    !hasOfferingsValidationErrors &&
+    hasAtLeastOneOffering;
 
   // Disable button logic:
   // - For "Save Changes": disable if loading, saving, or has any validation errors
@@ -1108,7 +1122,7 @@ const ProfileTemplate = ({
     ? externalLoading ||
       isSaving ||
       isAutofillWorkflowInProgress ||
-      hasAnyValidationErrors
+      !canConfirmAndProceed
     : externalLoading ||
     isSaving ||
       isAutofillWorkflowInProgress ||
@@ -1124,7 +1138,10 @@ const ProfileTemplate = ({
       if (externalLoading) return "Please wait for the profile to finish loading.";
       if (isSaving) return "Saving in progress.";
       if (isAutofillWorkflowInProgress) return "Autofill is in progress. Please wait.";
-      if (hasAnyValidationErrors) return "Fix the highlighted fields to enable saving.";
+      if (!hasAtLeastOneOffering) return "Add at least one offering to enable saving.";
+      if (hasOfferingsValidationErrors) return "Fix the errors in Offerings to enable saving.";
+      if (hasCtaValidationErrors) return "Fix the errors in CTAs to enable saving.";
+      if (hasSchemaValidationErrors) return "Fix the highlighted fields to enable saving.";
       return "Unable to save right now.";
     }
 
@@ -1143,10 +1160,47 @@ const ProfileTemplate = ({
     isSaving,
     isAutofillWorkflowInProgress,
     hasAnyValidationErrors,
+    hasAtLeastOneOffering,
+    hasOfferingsValidationErrors,
+    hasCtaValidationErrors,
+    hasSchemaValidationErrors,
     externalJobDetails?.job_id,
     isWorkflowProcessing,
     isCheckingPlan,
     isTriggeringWorkflow,
+  ]);
+
+  const saveDisabledReason = useMemo(() => {
+    const disabled =
+      externalLoading ||
+      isSaving ||
+      isAutofillWorkflowInProgress ||
+      !canConfirmAndProceed ||
+      isWorkflowProcessing;
+    if (!disabled) return undefined;
+
+    if (externalLoading) return "Please wait for the profile to finish loading.";
+    if (isSaving) return "Saving in progress.";
+    if (offeringsExtractor.isExtracting) return "Extracting offerings. Please wait.";
+    if (isAutofillLoading) return "Autofill is in progress. Please wait.";
+    if (!hasAtLeastOneOffering) return "Add at least one offering to enable saving.";
+    if (hasOfferingsValidationErrors) return "Fix the errors in Offerings to enable saving.";
+    if (hasCtaValidationErrors) return "Fix the errors in CTAs to enable saving.";
+    if (hasSchemaValidationErrors) return "Fix the required fields to enable saving.";
+    if (isWorkflowProcessing) return "Workflow is in progress. Please wait.";
+    return "Unable to save right now.";
+  }, [
+    externalLoading,
+    isSaving,
+    isAutofillWorkflowInProgress,
+    canConfirmAndProceed,
+    isWorkflowProcessing,
+    offeringsExtractor.isExtracting,
+    isAutofillLoading,
+    hasAtLeastOneOffering,
+    hasOfferingsValidationErrors,
+    hasCtaValidationErrors,
+    hasSchemaValidationErrors,
   ]);
 
   const handlePrimaryButtonClick = useCallback(async () => {
@@ -1390,9 +1444,11 @@ const ProfileTemplate = ({
                     externalLoading ||
                     isSaving ||
                     isAutofillWorkflowInProgress ||
-                    hasAnyValidationErrors ||
+                    !canConfirmAndProceed ||
                     isWorkflowProcessing
                   }
+                  savePending={isSaving}
+                  saveDisabledReason={saveDisabledReason}
                   isWorkflowProcessing={isWorkflowProcessing}
                   proceedDisabled={isButtonDisabled || !externalJobDetails?.job_id}
                   className="flex-1"

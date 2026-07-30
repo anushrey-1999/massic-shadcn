@@ -118,6 +118,71 @@ export interface JobDetails {
   [key: string]: any;
 }
 
+function isRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function coerceErrorMessage(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (isRecord(value)) {
+    const message =
+      (value as any).message ??
+      (value as any).error ??
+      (value as any).detail ??
+      (value as any).reason;
+    if (typeof message === "string") return message;
+    try {
+      return JSON.stringify(message);
+    } catch {
+      return String(message ?? "");
+    }
+  }
+  return String(value);
+}
+
+function looksLikeJobDetails(value: unknown): value is JobDetails {
+  if (!isRecord(value)) return false;
+  return (
+    typeof (value as any).job_id === "string" ||
+    typeof (value as any).business_id === "string" ||
+    typeof (value as any).business_url === "string" ||
+    Array.isArray((value as any).offerings) ||
+    isRecord((value as any).workflow_status)
+  );
+}
+
+/**
+ * Some APIs return an envelope like `{ err, success, message, data }`.
+ * Jobs endpoints are expected to return JobDetails directly, but we defensively unwrap.
+ */
+function unwrapJobDetailsResponse(payload: unknown): JobDetails | null {
+  if (payload == null) return null;
+
+  if (looksLikeJobDetails(payload)) return payload;
+
+  if (!isRecord(payload)) return null;
+
+  const topErr = (payload as any).err === true || (payload as any).success === false;
+  if (topErr) {
+    const message = coerceErrorMessage((payload as any).message ?? (payload as any).detail ?? payload);
+    throw new Error(message || "Job request failed");
+  }
+
+  const nested = (payload as any).data;
+  if (looksLikeJobDetails(nested)) return nested;
+
+  if (isRecord(nested)) {
+    const nestedErr = (nested as any).err === true || (nested as any).success === false;
+    if (nestedErr) {
+      const message = coerceErrorMessage((nested as any).message ?? (nested as any).detail ?? nested);
+      throw new Error(message || "Job request failed");
+    }
+  }
+
+  return null;
+}
+
 function normalizeServeValue(value: string | undefined): "local" | "online" | "both" {
   const objective = String(value || "local").toLowerCase();
   if (objective === "hybrid" || objective === "both") return "both";
@@ -609,11 +674,11 @@ export function useJobByBusinessId(businessId: string | null) {
       }
 
       try {
-        const response = await api.get<JobDetails>(
+        const response = await api.get<unknown>(
           `/jobs/${businessId}`,
           "python"
         );
-        return response || null;
+        return unwrapJobDetailsResponse(response);
       } catch (error: any) {
         // Job not found is not necessarily an error (job might not exist yet)
         if (error.response?.status === 404) {
@@ -672,14 +737,17 @@ export function useCreateJob() {
           offerings
         );
 
-        const response = await api.post<JobDetails>("/jobs", "python", jobPayload);
+        const response = await api.post<unknown>("/jobs", "python", jobPayload);
+        const job = unwrapJobDetailsResponse(response);
 
-        if (!response) {
-          const errorMessage =
-            (response as any)?.response?.data?.detail ||
-            (response as any)?.response?.data?.message ||
-            "Failed to create job";
-          throw new Error(errorMessage);
+        if (!job) {
+          throw new Error("Failed to create job");
+        }
+        if (job.business_id && String(job.business_id) !== String(businessId)) {
+          throw new Error("Job was created for a different business. Please try again.");
+        }
+        if (!job.job_id) {
+          throw new Error("Job creation did not return a job_id. Please try again.");
         }
 
         // Invalidate and refetch job query
@@ -687,7 +755,7 @@ export function useCreateJob() {
           queryKey: [JOBS_KEY, "detail", businessId],
         });
 
-        return response;
+        return job;
       } catch (error: any) {
         // Provide more detailed error message for 422 errors
         if (error.response?.status === 422) {
@@ -740,14 +808,14 @@ export function useUpdateJob() {
           { includeOfferings, isUpdate: true }
         );
 
-        const response = await api.put<JobDetails>(`/jobs/${businessId}`, "python", jobPayload);
+        const response = await api.put<unknown>(`/jobs/${businessId}`, "python", jobPayload);
+        const job = unwrapJobDetailsResponse(response);
 
-        if (!response) {
-          const errorMessage =
-            (response as any)?.response?.data?.detail ||
-            (response as any)?.response?.data?.message ||
-            "Failed to update job";
-          throw new Error(errorMessage);
+        if (!job) {
+          throw new Error("Failed to update job");
+        }
+        if (job.business_id && String(job.business_id) !== String(businessId)) {
+          throw new Error("Job update returned a different business. Please refresh and retry.");
         }
 
         // Invalidate and refetch job query
@@ -755,7 +823,7 @@ export function useUpdateJob() {
           queryKey: [JOBS_KEY, "detail", businessId],
         });
 
-        return response;
+        return job;
       } catch (error: any) {
         // Provide more detailed error message for 422 errors
         if (error.response?.status === 422) {

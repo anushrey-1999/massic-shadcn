@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useEffect, useCallback, useRef } from "react";
+import React, { useMemo, useCallback } from "react";
 import { useStore } from "@tanstack/react-form";
 import {
   Card,
@@ -19,10 +19,10 @@ import {
 import { OfferingRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
+import { useApplyExtractedOfferings } from "@/hooks/use-apply-extracted-offerings";
 import { toast } from "sonner";
 import { AlertCircle, Boxes, Handshake, Loader2, PackageSearch, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { normalizeWebsiteUrl } from "@/utils/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -54,7 +54,6 @@ type BusinessInfoFormData = {
 interface OfferingsFormProps {
   form: any; // TanStack Form instance
   businessId?: string | null; // Business ID for offerings extraction
-  hideFetchOfferingsFromWebsite?: boolean;
   embedded?: boolean;
   disabled?: boolean;
   extractionController?: ReturnType<typeof useOfferingsExtractor>;
@@ -64,7 +63,6 @@ interface OfferingsFormProps {
 export const OfferingsForm = ({
   form,
   businessId,
-  hideFetchOfferingsFromWebsite = false,
   embedded = false,
   disabled = false,
   extractionController,
@@ -75,31 +73,6 @@ export const OfferingsForm = ({
   const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
   const website = useStore(form.store, (state: any) => state.values?.website || "");
 
-  const normalizeOfferingLink = useCallback(
-    (rawLink: unknown) => {
-      const link = String(rawLink ?? "").replace(/^sc-domain:/i, "").trim();
-      if (!link) return "";
-      if (/^(mailto:|tel:)/i.test(link)) return link;
-
-      if (/^https?:\/\//i.test(link)) {
-        return link.replace(/^http:\/\//i, "https://");
-      }
-
-      if (/^[a-z0-9.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(link)) {
-        return `https://${link.replace(/^\/+/, "")}`;
-      }
-
-      const baseUrl = normalizeWebsiteUrl(String(website ?? ""));
-      if (!baseUrl) return "";
-
-      try {
-        return new URL(link, baseUrl).toString();
-      } catch {
-        return "";
-      }
-    },
-    [website]
-  );
   const hasAnyOffering = useMemo(() => {
     return (offeringsData || []).some((o) =>
       Boolean(
@@ -126,17 +99,19 @@ export const OfferingsForm = ({
   const {
     startExtraction,
     isExtracting,
-    extractedOfferings,
-    extractionStatus,
     extractionError,
     clearExtraction,
-    taskId,
-    extractionData,
   } = extractionController ?? internalExtractor;
   const guardFetchOfferings = useFeatureActionGuard("profile.fetchOfferings");
 
-  // Track processed taskId to avoid duplicate processing
-  const processedTaskIdRef = useRef<string | null>(null);
+  // Only own the merge when this form owns the extractor. When a parent supplies
+  // the controller it also applies the results, so they land even while this
+  // section is unmounted.
+  useApplyExtractedOfferings({
+    form,
+    extractionController: internalExtractor,
+    enabled: !extractionController,
+  });
 
   // Own column definitions
   const offeringsColumns: Column<OfferingRow>[] = useMemo(() => [
@@ -174,100 +149,6 @@ export const OfferingsForm = ({
 
     await startExtraction(website);
   }, [disabled, guardFetchOfferings, restrictFetchOfferings, website, startExtraction]);
-
-  // Merge extracted offerings with existing ones when extraction completes
-  useEffect(() => {
-    // Process when:
-    // 1. Status is "completed" OR
-    // 2. We have extractionData with offerings (API might return data without status field)
-    const hasCompletedStatus = extractionStatus === "completed";
-    const hasOfferingsData = extractionData?.offerings && Array.isArray(extractionData.offerings) && extractionData.offerings.length > 0;
-    const shouldProcess = taskId && (hasCompletedStatus || hasOfferingsData);
-    
-    if (!shouldProcess) return;
-
-    // Avoid processing the same extraction twice
-    if (processedTaskIdRef.current === taskId) {
-      return;
-    }
-
-    // Get offerings from extractionData if available and has items, otherwise use extractedOfferings
-    // Prefer extractionData.offerings as it's the raw API response
-    const rawOfferings = 
-      (extractionData?.offerings && Array.isArray(extractionData.offerings) && extractionData.offerings.length > 0)
-        ? extractionData.offerings
-        : (extractedOfferings && extractedOfferings.length > 0)
-        ? extractedOfferings
-        : [];
-    
-    if (rawOfferings.length === 0) {
-      toast.warning(
-        hasAnyOffering
-          ? "No additional offerings found on the website"
-          : "No offerings found on the website"
-      );
-      processedTaskIdRef.current = taskId;
-      clearExtraction();
-      return;
-    }
-
-    // Transform raw offerings to our format
-    const offeringsArray = Array.isArray(rawOfferings) ? rawOfferings : [rawOfferings];
-    
-    const transformedOfferings = offeringsArray
-      .map((offering: any) => ({
-        name: (offering.name || offering.offering || "").trim(),
-        description: (offering.description || "").trim(),
-        link: normalizeOfferingLink(offering.url || offering.link),
-        pricePositioning: (offering.price_positioning || offering.priceRange || "").trim(),
-        offeringType: (offering.offering_type || offering.offeringType || "").trim(),
-        priceRange: (offering.price_range || offering.priceRange || "").trim(),
-        duration: (offering.duration || "").trim(),
-        inclusions: Array.isArray(offering.inclusions)
-          ? offering.inclusions.map((item: unknown) => String(item).trim()).filter(Boolean)
-          : typeof offering.inclusions === "string"
-            ? offering.inclusions
-            : [],
-      }))
-      .filter((offering) => offering.name !== ""); // Filter out empty names
-
-    if (transformedOfferings.length === 0) {
-      toast.warning("No valid offerings found on the website");
-      processedTaskIdRef.current = taskId;
-      clearExtraction();
-      return;
-    }
-
-    // Mark this task as processed
-    processedTaskIdRef.current = taskId;
-
-    const uniqueOfferings = transformedOfferings.filter(
-      (offering, index, self) =>
-        index ===
-        self.findIndex(
-          (o) =>
-            o.name.toLowerCase().trim() === offering.name.toLowerCase().trim() &&
-            offering.name.trim() !== ""
-        )
-    );
-
-    form.setFieldValue("offeringsList", uniqueOfferings);
-
-    const duplicateCount = transformedOfferings.length - uniqueOfferings.length;
-
-    if (duplicateCount > 0) {
-      toast.success(
-        `Updated offerings from website (${duplicateCount} duplicates skipped). Total: ${uniqueOfferings.length} offerings.`
-      );
-    } else {
-      toast.success(
-        `Updated offerings from website. Total: ${uniqueOfferings.length} offerings.`
-      );
-    }
-
-    // Clear extraction state after processing
-    clearExtraction();
-  }, [extractionStatus, extractionData, extractedOfferings, offeringsData, form, clearExtraction, taskId, normalizeOfferingLink]);
 
   const offeringsTypeInput = (
     <div className="w-1/2">
@@ -312,37 +193,35 @@ export const OfferingsForm = ({
                   What products and services does your business sell?
                 </FieldLabel>
               </CardTitle>
-              {(!hideFetchOfferingsFromWebsite || hasAnyOffering) ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-block">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleFetchOfferings}
-                        disabled={disabled || isExtracting || !website}
-                        className="min-w-[200px]"
-                      >
-                        {isExtracting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Extracting...
-                          </>
-                        ) : hasAnyOffering ? (
-                          "Fetch more from Website"
-                        ) : (
-                          "Fetch Offerings from Website"
-                        )}
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  {(isExtracting || !website) && (
-                    <TooltipContent>
-                      Fill website URL to fetch offerings
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              ) : null}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleFetchOfferings}
+                      disabled={disabled || isExtracting || !website}
+                      className="min-w-[200px]"
+                    >
+                      {isExtracting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Extracting...
+                        </>
+                      ) : hasAnyOffering ? (
+                        "Fetch more from Website"
+                      ) : (
+                        "Fetch Offerings from Website"
+                      )}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {(isExtracting || !website) && (
+                  <TooltipContent>
+                    Fill website URL to fetch offerings
+                  </TooltipContent>
+                )}
+              </Tooltip>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

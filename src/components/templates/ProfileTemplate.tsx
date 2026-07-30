@@ -22,6 +22,7 @@ import {
   parseArrayField,
   cleanWebsiteUrl,
   normalizeWebsiteUrl,
+  isValidWebsiteUrl,
 } from "@/utils/utils";
 import {
   type NormalizedProfileResult,
@@ -481,10 +482,10 @@ const ProfileTemplate = ({
   );
 
   const saveProfileValues = useCallback(
-    async (value: BusinessInfoFormData) => {
+    async (value: BusinessInfoFormData): Promise<boolean> => {
       if (!onUpdateProfile) {
         console.warn("onUpdateProfile not provided");
-        return;
+        return false;
       }
 
       setIsSaving(true);
@@ -628,8 +629,10 @@ const ProfileTemplate = ({
         initialValuesRef.current = stableStringify(value);
         hasChangesRef.current = false;
         setHasChanges(false);
+        return true;
       } catch (error) {
         // Error toast is handled by the mutation
+        return false;
       } finally {
         setIsSaving(false);
       }
@@ -643,13 +646,14 @@ const ProfileTemplate = ({
     ]
   );
 
+  // Saving never goes through `form.handleSubmit()`. TanStack aborts submission
+  // silently while any field still holds a validation error, so a stale error on
+  // an unrelated autofilled field would make Save look dead. `handleSaveChanges`
+  // reads `form.state.values` and runs its own explicit checks instead.
   const form = useForm({
     defaultValues,
     validators: {
       onChange: businessInfoSchema as any,
-    },
-    onSubmit: async ({ value }) => {
-      await saveProfileValues(value as BusinessInfoFormData);
     },
   });
 
@@ -895,30 +899,6 @@ const ProfileTemplate = ({
       }
     };
   }, [formValues]);
-
-  // Handle Save Changes - memoized to prevent re-renders
-  const handleSaveChanges = useCallback(async () => {
-    if (!guardSaveProfile()) return;
-
-    setShowSubmitErrors(true);
-
-    // Force field-level errors to render (GenericInput only shows errors when touched/has value)
-    const values = form.state.values as Record<string, unknown>;
-    Object.keys(values).forEach((key) => {
-      form.setFieldMeta(key as any, (prev: any) => ({
-        ...prev,
-        isTouched: true,
-      }));
-    });
-
-    const parsed = businessInfoSchema.safeParse(form.state.values);
-    if (!parsed.success) {
-      toast.error("Please fix the highlighted fields before saving.");
-      return;
-    }
-
-    await saveProfileValues(parsed.data as BusinessInfoFormData);
-  }, [form, guardSaveProfile, saveProfileValues]);
 
   const getPlanTypeFromData = useCallback(
     (data: any) => {
@@ -1187,6 +1167,96 @@ const ProfileTemplate = ({
     !hasOfferingsValidationErrors &&
     hasAtLeastOneOffering;
 
+  // Only the fields the profile/job calls actually require. Unrelated schema
+  // noise must never block a save, and every block must name its own cause.
+  const getSaveBlockReason = useCallback(
+    (values: BusinessInfoFormData): string | null => {
+      if (externalLoading) return "Wait for the profile to finish loading before saving.";
+      if (isWorkflowProcessing) return "A workflow is running. Wait for it to finish before saving.";
+
+      const website = String(values?.website ?? "").trim();
+      if (!website) return "Add a website before saving.";
+      if (!isValidWebsiteUrl(website)) return "Enter a valid website URL before saving.";
+      if (!String(values?.businessName ?? "").trim()) {
+        return "Add a business name before saving.";
+      }
+      if (!String(values?.primaryLocation ?? "").trim()) {
+        return "Select a primary location before saving.";
+      }
+      if (hasOfferingsValidationErrors) {
+        return "Fix the highlighted errors in Offerings before saving.";
+      }
+      if (hasCtaValidationErrors) {
+        return "Fix the highlighted errors in CTAs before saving.";
+      }
+      const offerings = Array.isArray(values?.offeringsList) ? values.offeringsList : [];
+      if (!offerings.some((row: any) => Boolean(String(row?.name ?? "").trim()))) {
+        return "Add at least one offering with a name before saving.";
+      }
+      return null;
+    },
+    [
+      externalLoading,
+      hasCtaValidationErrors,
+      hasOfferingsValidationErrors,
+      isWorkflowProcessing,
+    ]
+  );
+
+  const saveBlockReason = useMemo(
+    () => getSaveBlockReason(formValues as BusinessInfoFormData),
+    [formValues, getSaveBlockReason]
+  );
+
+  const handleSaveChanges = useCallback(async (): Promise<boolean> => {
+    if (!guardSaveProfile()) return false;
+    if (isSaving) return false;
+
+    setShowSubmitErrors(true);
+
+    // Force field-level errors to render (GenericInput only shows errors when touched/has value)
+    const values = form.state.values as Record<string, unknown>;
+    Object.keys(values).forEach((key) => {
+      form.setFieldMeta(key as any, (prev: any) => ({
+        ...prev,
+        isTouched: true,
+      }));
+    });
+
+    const currentValues = form.state.values as BusinessInfoFormData;
+    const blockReason = getSaveBlockReason(currentValues);
+    if (blockReason) {
+      toast.error(blockReason);
+      return false;
+    }
+
+    if (offeringsExtractor.isExtracting) {
+      toast("Offerings extraction is still running.", {
+        description: "Saving now will use the offerings currently in the form.",
+      });
+    }
+
+    return await saveProfileValues(currentValues);
+  }, [
+    form,
+    getSaveBlockReason,
+    guardSaveProfile,
+    isSaving,
+    offeringsExtractor.isExtracting,
+    saveProfileValues,
+  ]);
+
+  // "Save & Update Strategy" saves first, and that save now reports its own block
+  // reason, so field validity must not disable this button — otherwise the user
+  // gets a dead control with nothing telling them which field is at fault.
+  const isProceedDisabled =
+    externalLoading ||
+    isSaving ||
+    isAutofillWorkflowInProgress ||
+    isCheckingPlan ||
+    isTriggeringWorkflow ||
+    isWorkflowProcessing;
+
   // Disable button logic:
   // - For "Save Changes": disable if loading, saving, or has any validation errors
   // - For "Confirm & Proceed": disable if loading, saving, triggering, workflow processing, or no job exists
@@ -1242,38 +1312,12 @@ const ProfileTemplate = ({
     isTriggeringWorkflow,
   ]);
 
+  // Hint only. The button stays clickable and `handleSaveChanges` toasts the same
+  // reason, so the user is never left with a dead control and no explanation.
   const saveDisabledReason = useMemo(() => {
-    const disabled =
-      externalLoading ||
-      isSaving ||
-      isAutofillWorkflowInProgress ||
-      !canConfirmAndProceed ||
-      isWorkflowProcessing;
-    if (!disabled) return undefined;
-
-    if (externalLoading) return "Please wait for the profile to finish loading.";
     if (isSaving) return "Saving in progress.";
-    if (offeringsExtractor.isExtracting) return "Extracting offerings. Please wait.";
-    if (isAutofillLoading) return "Autofill is in progress. Please wait.";
-    if (!hasAtLeastOneOffering) return "Add at least one offering to enable saving.";
-    if (hasOfferingsValidationErrors) return "Fix the errors in Offerings to enable saving.";
-    if (hasCtaValidationErrors) return "Fix the errors in CTAs to enable saving.";
-    if (hasSchemaValidationErrors) return "Fix the required fields to enable saving.";
-    if (isWorkflowProcessing) return "Workflow is in progress. Please wait.";
-    return "Unable to save right now.";
-  }, [
-    externalLoading,
-    isSaving,
-    isAutofillWorkflowInProgress,
-    canConfirmAndProceed,
-    isWorkflowProcessing,
-    offeringsExtractor.isExtracting,
-    isAutofillLoading,
-    hasAtLeastOneOffering,
-    hasOfferingsValidationErrors,
-    hasCtaValidationErrors,
-    hasSchemaValidationErrors,
-  ]);
+    return saveBlockReason ?? undefined;
+  }, [isSaving, saveBlockReason]);
 
   const handlePrimaryButtonClick = useCallback(async () => {
     if (isSaveChangesAction) {
@@ -1474,7 +1518,7 @@ const ProfileTemplate = ({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  form.handleSubmit();
+                  void handleSaveChanges();
                 }}
                 className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
               >
@@ -1482,7 +1526,6 @@ const ProfileTemplate = ({
                   form={form}
                   businessId={businessId}
                   extractionController={offeringsExtractor}
-                  hideFetchOfferingsFromWebsite
                   restrictFetchOfferings
                   onSaveChanges={() => {
                     void handleSaveChanges();
@@ -1490,7 +1533,8 @@ const ProfileTemplate = ({
                   onSaveAndUpdateStrategy={() => {
                     void (async () => {
                       if (isSaveChangesAction) {
-                        await handleSaveChanges();
+                        const saved = await handleSaveChanges();
+                        if (!saved) return;
                       }
                       if (!externalJobDetails?.job_id) return;
                       if (!guardAcceptPlan()) return;
@@ -1509,17 +1553,14 @@ const ProfileTemplate = ({
                   unlinkBusinessDisabled={
                     externalLoading || toggleBusinessStatusMutation.isPending
                   }
-                  saveDisabled={
-                    externalLoading ||
-                    isSaving ||
-                    isAutofillWorkflowInProgress ||
-                    !canConfirmAndProceed ||
-                    isWorkflowProcessing
-                  }
+                  saveDisabled={isSaving}
                   savePending={isSaving}
                   saveDisabledReason={saveDisabledReason}
                   isWorkflowProcessing={isWorkflowProcessing}
-                  proceedDisabled={isButtonDisabled || !externalJobDetails?.job_id}
+                  proceedDisabled={
+                    isProceedDisabled ||
+                    (!isSaveChangesAction && !externalJobDetails?.job_id)
+                  }
                   className="flex-1"
                 />
               </form>

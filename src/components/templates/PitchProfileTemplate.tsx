@@ -43,6 +43,7 @@ import {
 import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { primaryLocationFromProfile } from "@/utils/primary-location";
+import { isValidWebsiteUrl } from "@/utils/utils";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import {
@@ -96,51 +97,13 @@ export function PitchProfileTemplate() {
     setLocationsLoading(locationsLoading);
   }, [locationOptions, locationsLoading, setLocationOptions, setLocationsLoading]);
 
+  // Saving never goes through `form.handleSubmit()`. TanStack aborts submission
+  // silently while any field still holds a validation error, which makes the
+  // Save button look dead. The save path below runs its own explicit checks.
   const form = useForm({
     defaultValues: profileFormDefaults,
     validators: {
       onChange: businessInfoSchema,
-    },
-    onSubmit: async ({ value }) => {
-      if (!businessId) return;
-
-      const offerings = mapFormOfferingsToJobOfferings(value);
-      const businessProfilePayload = buildBusinessProfilePayload(value, {
-        autofillResult: autofillProfileResult,
-        existingProfile: profileData,
-        locationOptions,
-        preserveExistingProfile: true,
-      });
-      const payloadForUpdate = businessProfilePayload;
-
-      await updateBusinessProfileMutation.mutateAsync(payloadForUpdate as any);
-
-      const jobDetails = jobQuery.data;
-      const jobExists = Boolean(jobDetails && jobDetails.job_id);
-
-      if (jobExists) {
-        await updateJobMutation.mutateAsync({
-          businessId,
-          businessProfilePayload: payloadForUpdate,
-          offerings,
-        });
-      } else {
-        await createJobMutation.mutateAsync({
-          businessId,
-          businessProfilePayload: payloadForUpdate,
-          offerings,
-        });
-      }
-
-      const resolvedPrimaryLocation = primaryLocationFromProfile(
-        businessProfilePayload.PrimaryLocation,
-        locationOptions
-      );
-      if (resolvedPrimaryLocation) {
-        form.setFieldValue("primaryLocation", resolvedPrimaryLocation);
-      }
-
-      toast.success("Profile updated");
     },
   });
 
@@ -240,40 +203,41 @@ export function PitchProfileTemplate() {
     return offeringsMeta?.hasValidationErrors === true;
   });
 
-  const hasSchemaValidationErrors = React.useMemo(() => {
-    return !businessInfoSchema.safeParse(formValues).success;
-  }, [formValues]);
-
-  const hasAtLeastOneOffering = React.useMemo(() => {
-    const list = Array.isArray(formValues.offeringsList) ? formValues.offeringsList : [];
-    return list.some((row) => Boolean(row?.name?.trim()));
-  }, [formValues.offeringsList]);
-
-  const canConfirmAndProceed =
-    !hasSchemaValidationErrors &&
-    !hasOfferingsValidationErrors &&
-    hasAtLeastOneOffering;
-
   const isSavingBusiness = updateBusinessProfileMutation.isPending;
   const isSavingJob = createJobMutation.isPending || updateJobMutation.isPending;
-  const isSubmitting = useStore(form.store, (state: any) => state.isSubmitting === true);
+  const isSaving = isSavingBusiness || isSavingJob;
 
-  const saveDisabledReason = React.useMemo(() => {
-    if (hasSchemaValidationErrors) {
-      return "Fix the required fields before saving.";
-    }
-    if (hasOfferingsValidationErrors) {
-      return "Fix the errors in Offerings before saving.";
-    }
-    if (!hasAtLeastOneOffering) {
-      return "Add at least one offering to save this pitch.";
-    }
-    return null;
-  }, [
-    hasAtLeastOneOffering,
-    hasOfferingsValidationErrors,
-    hasSchemaValidationErrors,
-  ]);
+  // Only the fields the profile/job APIs actually need. Anything else stays
+  // editable and never blocks the save.
+  const getSaveBlockReason = React.useCallback(
+    (values: BusinessInfoFormData): string | null => {
+      const website = String(values?.website ?? "").trim();
+      if (!website) return "Add a website before saving.";
+      if (!isValidWebsiteUrl(website)) return "Enter a valid website URL before saving.";
+      if (!String(values?.businessName ?? "").trim()) {
+        return "Add a business name before saving.";
+      }
+      if (!String(values?.primaryLocation ?? "").trim()) {
+        return "Select a primary location before saving.";
+      }
+      if (hasOfferingsValidationErrors) {
+        return "Fix the highlighted errors in Offerings before saving.";
+      }
+      const offerings = Array.isArray(values?.offeringsList) ? values.offeringsList : [];
+      if (!offerings.some((row) => Boolean(String(row?.name ?? "").trim()))) {
+        return "Add at least one offering with a name before saving.";
+      }
+      return null;
+    },
+    [hasOfferingsValidationErrors]
+  );
+
+  const saveBlockReason = React.useMemo(
+    () => getSaveBlockReason(formValues),
+    [formValues, getSaveBlockReason]
+  );
+
+  const canConfirmAndProceed = saveBlockReason === null;
 
   const isLoading =
     isSavingBusiness || isSavingJob || isAutofillLoading || isTriggeringWorkflow;
@@ -285,16 +249,91 @@ export function PitchProfileTemplate() {
     return undefined;
   }, [isAutofillLoading, isSavingBusiness, isSavingJob, isTriggeringWorkflow]);
 
+  const performSave = React.useCallback(async (): Promise<boolean> => {
+    if (!businessId) {
+      toast.error("This pitch is missing its business id. Refresh and try again.");
+      return false;
+    }
+    if (isSaving) return false;
+
+    const values = form.state.values as BusinessInfoFormData;
+    const blockReason = getSaveBlockReason(values);
+    if (blockReason) {
+      toast.error(blockReason);
+      return false;
+    }
+
+    try {
+      const offerings = mapFormOfferingsToJobOfferings(values);
+      const businessProfilePayload = buildBusinessProfilePayload(values, {
+        autofillResult: autofillProfileResult,
+        existingProfile: profileData,
+        locationOptions,
+        preserveExistingProfile: true,
+      });
+
+      await updateBusinessProfileMutation.mutateAsync(businessProfilePayload as any);
+
+      const jobExists = Boolean(jobQuery.data?.job_id);
+      if (jobExists) {
+        await updateJobMutation.mutateAsync({
+          businessId,
+          businessProfilePayload,
+          offerings,
+        });
+      } else {
+        await createJobMutation.mutateAsync({
+          businessId,
+          businessProfilePayload,
+          offerings,
+        });
+      }
+
+      const resolvedPrimaryLocation = primaryLocationFromProfile(
+        businessProfilePayload.PrimaryLocation,
+        locationOptions
+      );
+      if (resolvedPrimaryLocation) {
+        form.setFieldValue("primaryLocation", resolvedPrimaryLocation);
+      }
+
+      await jobQuery.refetch();
+      toast.success("Profile updated");
+      return true;
+    } catch (error: any) {
+      toast.error("Couldn't save pitch profile", {
+        description:
+          error?.response?.data?.detail ||
+          error?.message ||
+          "Please try again.",
+      });
+      return false;
+    }
+  }, [
+    autofillProfileResult,
+    businessId,
+    createJobMutation,
+    form,
+    getSaveBlockReason,
+    isSaving,
+    jobQuery,
+    locationOptions,
+    profileData,
+    updateBusinessProfileMutation,
+    updateJobMutation,
+  ]);
+
   const handleSaveChanges = React.useCallback(async () => {
-    if (!businessId) return;
-    await form.handleSubmit();
-  }, [businessId, form]);
+    await performSave();
+  }, [performSave]);
 
   const handleSaveAndProceed = React.useCallback(async () => {
     if (!businessId) return;
 
+    const saved = await performSave();
+    if (!saved) return;
+
     try {
-      await form.handleSubmit();
       setIsTriggeringWorkflow(true);
 
       await api.post("/jobs/run", "python", {
@@ -317,7 +356,7 @@ export function PitchProfileTemplate() {
     } finally {
       setIsTriggeringWorkflow(false);
     }
-  }, [businessId, form, queryClient, router]);
+  }, [businessId, performSave, queryClient, router]);
 
   const handleConvertToBusiness = React.useCallback(async () => {
     if (!guardConvertPitch()) return;
@@ -343,7 +382,7 @@ export function PitchProfileTemplate() {
                   id="pitch-profile-form"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    form.handleSubmit();
+                    void handleSaveChanges();
                   }}
                   className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
                 >
@@ -364,15 +403,9 @@ export function PitchProfileTemplate() {
                     autofillDisabled={isAutofillDisabled}
                     autofillLoading={isAutofillLoading}
                     showUnlinkBusiness={false}
-                    saveDisabled={
-                      isSavingBusiness ||
-                      isSavingJob ||
-                      isSubmitting ||
-                      !canConfirmAndProceed
-                    }
+                    saveDisabled={isSaving}
                     proceedDisabled={
                       !canConfirmAndProceed ||
-                      isSubmitting ||
                       isLoading ||
                       convertPitchMutation.isPending
                     }
@@ -386,22 +419,17 @@ export function PitchProfileTemplate() {
                                 type="button"
                                 className="bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
                                 onClick={() => {
+                                  if (offeringsExtractor.isExtracting) {
+                                    toast("Offerings extraction is still running.", {
+                                      description:
+                                        "Saving now will use the offerings currently in the form.",
+                                    });
+                                  }
                                   void handleSaveChanges();
                                 }}
-                                disabled={
-                                  isSavingBusiness ||
-                                  isSavingJob ||
-                                  isSubmitting ||
-                                  offeringsExtractor.isExtracting ||
-                                  !canConfirmAndProceed
-                                }
+                                disabled={isSaving}
                               >
-                                {offeringsExtractor.isExtracting ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Extracting offerings...
-                                  </>
-                                ) : isSavingBusiness || isSavingJob || isSubmitting ? (
+                                {isSaving ? (
                                   <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Saving...
@@ -412,9 +440,9 @@ export function PitchProfileTemplate() {
                               </Button>
                             </span>
                           </TooltipTrigger>
-                          {saveDisabledReason ? (
+                          {saveBlockReason ? (
                             <TooltipContent>
-                              <p>{saveDisabledReason}</p>
+                              <p>{saveBlockReason}</p>
                             </TooltipContent>
                           ) : null}
                         </Tooltip>

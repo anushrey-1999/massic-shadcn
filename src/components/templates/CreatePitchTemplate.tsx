@@ -7,7 +7,12 @@ import { useRouter } from "next/navigation";
 import { useLocations } from "@/hooks/use-locations";
 import { useBusinessStore } from "@/store/business-store";
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
-import { useCreateBusiness, useBusinessProfiles, usePitchBusinesses, fetchPitchBusinessProfiles } from "@/hooks/use-business-profiles";
+import {
+  useCreateBusiness,
+  useBusinessProfiles,
+  usePitchBusinesses,
+  updateCreatedBusinessProfileSafely,
+} from "@/hooks/use-business-profiles";
 import { useCreateJob } from "@/hooks/use-jobs";
 
 import { Button } from "@/components/ui/button";
@@ -25,7 +30,6 @@ import { LoaderOverlay } from "@/components/ui/loader";
 import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
 import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
 import { useAuthStore } from "@/store/auth-store";
-import { api } from "@/hooks/use-api";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -103,19 +107,7 @@ export function CreatePitchTemplate() {
 
         await refetchBusinessProfiles();
 
-        // Refetch pitch businesses (with isPitch=true) to get the newly created business
-        const userUniqueId = user?.uniqueId || user?.UniqueId || user?.id;
         createdBusinessId = createdBusiness?.UniqueId || null;
-
-        if (!createdBusinessId && userUniqueId) {
-          const pitchBusinesses = await fetchPitchBusinessProfiles(userUniqueId);
-          // Find the business matching the website we just created
-          const websiteKey = normalizeWebsiteKey(value.website);
-          const createdBiz = pitchBusinesses.find(
-            (b) => normalizeWebsiteKey(b.Website || "") === websiteKey
-          );
-          createdBusinessId = createdBiz?.UniqueId || null;
-        }
 
         if (createdBusinessId) {
           setCreatedPitchBusinessId(createdBusinessId);
@@ -123,7 +115,9 @@ export function CreatePitchTemplate() {
       }
 
       if (!createdBusinessId) {
-        router.push("/pitches");
+        toast.error("Couldn't create pitch business.", {
+          description: "Please refresh and try again.",
+        });
         return;
       }
 
@@ -172,10 +166,12 @@ export function CreatePitchTemplate() {
         locationOptions,
       });
 
-      await api.post(
-        "/profile/update-business-profile",
-        "node",
-        { ...businessProfilePayload, UniqueId: createdBusinessId }
+      // Verified write: refuses to run unless `createdBusinessId` is still the
+      // pitch we just created (right domain, no analytics linked, IsPitch true).
+      await updateCreatedBusinessProfileSafely(
+        createdBusinessId,
+        businessProfilePayload,
+        { expectedWebsite: value.website, expectedIsPitch: true }
       );
 
       try {
@@ -370,7 +366,6 @@ export function CreatePitchTemplate() {
                     businessId={null}
                     leftTitle="Create Pitch"
                     extractionController={offeringsExtractor}
-                    hideFetchOfferingsFromWebsite
                     onSaveChanges={() => {}}
                     onSaveAndUpdateStrategy={() => {}}
                     onAutofillProfile={() => {

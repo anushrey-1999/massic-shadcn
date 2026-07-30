@@ -595,6 +595,7 @@ export default function PitchReportsPage() {
 
   const hasExistingSnapshot = snapshotExistingQuery.data != null;
   const hasExistingDetailed = detailedExistingQuery.data != null;
+  const shouldBlockForMissingJob = isJobMissing && !hasExistingSnapshot && !hasExistingDetailed;
 
   const snapshotExistingStatus = React.useMemo(() => {
     return normalizeStatus((snapshotExistingQuery.data as any)?.status);
@@ -884,7 +885,7 @@ export default function PitchReportsPage() {
       <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
 
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5">
-        {isJobMissing ? (
+        {shouldBlockForMissingJob ? (
           <EmptyState
             title="Pitch setup incomplete"
             description="This pitch doesn’t have a job yet. Create it from the Pitch Profile to generate reports."

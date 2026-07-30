@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { GenericInput } from "@/components/ui/generic-input";
+import { useApplyExtractedOfferings } from "@/hooks/use-apply-extracted-offerings";
 import { isValidWebsiteUrl } from "@/utils/utils";
 import {
   Dialog,
@@ -59,7 +60,6 @@ export function ProfileAutofillReviewTemplate({
   form,
   businessId,
   extractionController,
-  hideFetchOfferingsFromWebsite,
   restrictFetchOfferings,
   leftTitle = "Profile",
   onSaveChanges,
@@ -82,7 +82,6 @@ export function ProfileAutofillReviewTemplate({
   form: any;
   businessId?: string | null;
   extractionController?: any;
-  hideFetchOfferingsFromWebsite?: boolean;
   restrictFetchOfferings?: boolean;
   leftTitle?: string;
   onSaveChanges: () => void;
@@ -104,6 +103,12 @@ export function ProfileAutofillReviewTemplate({
 }) {
   const [activeSection, setActiveSection] = useState<SectionId>("identity");
   const [isEditGateOpen, setIsEditGateOpen] = useState(false);
+
+  // Applied here rather than in `OfferingsForm`: only the active section is
+  // mounted, so an extraction that finishes while the user is on Identity must
+  // still reach the form.
+  useApplyExtractedOfferings({ form, extractionController });
+
   const values = useStore(form.store, (s: any) => s.values) as Partial<BusinessInfoFormData>;
   const offeringsMetaHasErrors = useStore(form.store, (s: any) => {
     return s.fieldMeta?.offeringsList?.hasValidationErrors === true;
@@ -583,7 +588,6 @@ export function ProfileAutofillReviewTemplate({
                 form={form}
                 businessId={businessId}
                 embedded
-                hideFetchOfferingsFromWebsite={hideFetchOfferingsFromWebsite}
                 extractionController={extractionController}
                 restrictFetchOfferings={restrictFetchOfferings}
               />

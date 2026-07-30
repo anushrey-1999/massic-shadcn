@@ -8,10 +8,10 @@ import { useLocations } from "@/hooks/use-locations";
 import {
   useCreateBusiness,
   useBusinessProfiles,
+  updateCreatedBusinessProfileSafely,
 } from "@/hooks/use-business-profiles";
 import { useBusinessStore, type BusinessProfile } from "@/store/business-store";
 import { CreateBusinessTemplate } from "@/components/templates/CreateBusinessTemplate";
-import { api } from "@/hooks/use-api";
 import {
   useCreateJob,
   type BusinessProfilePayload,
@@ -42,16 +42,18 @@ const formFieldNames = [
 const updateCreatedBusinessProfile = async (
   businessId: string,
   createdBusiness: BusinessProfile | null,
-  payload: BusinessProfilePayload
+  payload: BusinessProfilePayload,
+  expectedWebsite: string
 ) => {
-  await api.post(
-    "/profile/update-business-profile",
-    "node",
+  // Verified write: refuses to run if `businessId` isn't the business we just
+  // created (wrong domain, already analytics-linked, or a pitch).
+  await updateCreatedBusinessProfileSafely(
+    businessId,
     {
       ...(createdBusiness ?? {}),
       ...payload,
-      UniqueId: businessId,
-    }
+    },
+    { expectedWebsite, expectedIsPitch: false }
   );
 };
 
@@ -166,7 +168,8 @@ export default function CreateBusinessPage() {
         await updateCreatedBusinessProfile(
           businessId,
           result.createdBusiness,
-          businessProfilePayload
+          businessProfilePayload,
+          values.website
         );
 
         await createJob.mutateAsync({

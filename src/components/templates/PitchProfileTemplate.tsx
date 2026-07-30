@@ -26,6 +26,11 @@ import {
   type NormalizedProfileResult,
 } from "@/utils/profile-result";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -39,6 +44,7 @@ import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
 import { primaryLocationFromProfile } from "@/utils/primary-location";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
+import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import {
   buildBusinessProfilePayload,
   mapFormOfferingsToJobOfferings,
@@ -51,6 +57,7 @@ export function PitchProfileTemplate() {
   const queryClient = useQueryClient();
   const params = useParams();
   const businessId = (params as any)?.id as string | undefined;
+  const didInitialHydrateRef = React.useRef(false);
 
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
 
@@ -67,6 +74,8 @@ export function PitchProfileTemplate() {
   const convertPitchMutation = useConvertPitchToBusiness();
   const guardConvertPitch = useFeatureActionGuard("business.convertPitch");
 
+  const offeringsExtractor = useOfferingsExtractor(businessId ?? null);
+
   const [isConvertConfirmOpen, setIsConvertConfirmOpen] = useState(false);
   const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
   const [autofillProfileResult, setAutofillProfileResult] =
@@ -76,6 +85,11 @@ export function PitchProfileTemplate() {
     resetProfileForm();
     return () => resetProfileForm();
   }, [resetProfileForm]);
+
+  // Reset initial hydration when business changes.
+  React.useEffect(() => {
+    didInitialHydrateRef.current = false;
+  }, [businessId]);
 
   React.useEffect(() => {
     setLocationOptions(locationOptions);
@@ -134,6 +148,12 @@ export function PitchProfileTemplate() {
     useProfileAutofillForm({
       form,
       locationOptions,
+      onBeforeAutofill: (website) => {
+        // Keep offerings extraction in lockstep with profile reruns so users
+        // don't end up with a missing job + empty offerings after retrying autofill.
+        void offeringsExtractor.startExtraction(website).catch(() => {});
+        return true;
+      },
       onAutofillSuccess: (profile) => {
         setAutofillProfileResult(profile);
       },
@@ -152,6 +172,7 @@ export function PitchProfileTemplate() {
     if (!businessId) return;
     if (profileDataLoading || locationsLoading) return;
     if (!jobQuery.isFetched) return;
+    if (didInitialHydrateRef.current) return;
 
     const jobDetails = jobQuery.data;
     const mappedValues = mapProfileDataToFormValues(
@@ -161,7 +182,7 @@ export function PitchProfileTemplate() {
     );
 
     Object.entries(mappedValues).forEach(([fieldName, value]) => {
-      const current = (formValues as any)[fieldName];
+      const current = (form.state.values as any)?.[fieldName];
       const hasCurrentValue = Array.isArray(current)
         ? current.length > 0
         : String(current ?? "").trim().length > 0;
@@ -173,7 +194,9 @@ export function PitchProfileTemplate() {
         form.setFieldValue(fieldName as any, value as any);
       }
     });
-  }, [businessId, form, formValues, jobQuery.data, jobQuery.isFetched, locationOptions, locationsLoading, profileData, profileDataLoading]);
+
+    didInitialHydrateRef.current = true;
+  }, [businessId, form, jobQuery.data, jobQuery.isFetched, locationOptions, locationsLoading, profileData, profileDataLoading]);
 
   React.useEffect(() => {
     if (locationsLoading || !profileData) return;
@@ -234,6 +257,23 @@ export function PitchProfileTemplate() {
   const isSavingBusiness = updateBusinessProfileMutation.isPending;
   const isSavingJob = createJobMutation.isPending || updateJobMutation.isPending;
   const isSubmitting = useStore(form.store, (state: any) => state.isSubmitting === true);
+
+  const saveDisabledReason = React.useMemo(() => {
+    if (hasSchemaValidationErrors) {
+      return "Fix the required fields before saving.";
+    }
+    if (hasOfferingsValidationErrors) {
+      return "Fix the errors in Offerings before saving.";
+    }
+    if (!hasAtLeastOneOffering) {
+      return "Add at least one offering to save this pitch.";
+    }
+    return null;
+  }, [
+    hasAtLeastOneOffering,
+    hasOfferingsValidationErrors,
+    hasSchemaValidationErrors,
+  ]);
 
   const isLoading =
     isSavingBusiness || isSavingJob || isAutofillLoading || isTriggeringWorkflow;
@@ -311,6 +351,7 @@ export function PitchProfileTemplate() {
                     form={form}
                     businessId={businessId ?? null}
                     leftTitle="Pitch Profile"
+                    extractionController={offeringsExtractor}
                     onSaveChanges={() => {
                       void handleSaveChanges();
                     }}
@@ -335,19 +376,61 @@ export function PitchProfileTemplate() {
                       isLoading ||
                       convertPitchMutation.isPending
                     }
+                    showDefaultActions={false}
                     customHeaderActions={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-general-border-three text-general-foreground"
-                        onClick={() => {
-                          if (!guardConvertPitch()) return;
-                          setIsConvertConfirmOpen(true);
-                        }}
-                        disabled={convertPitchMutation.isPending || isLoading}
-                      >
-                        {convertPitchMutation.isPending ? "Converting..." : "Convert to Business"}
-                      </Button>
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-block">
+                              <Button
+                                type="button"
+                                className="bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                                onClick={() => {
+                                  void handleSaveChanges();
+                                }}
+                                disabled={
+                                  isSavingBusiness ||
+                                  isSavingJob ||
+                                  isSubmitting ||
+                                  offeringsExtractor.isExtracting ||
+                                  !canConfirmAndProceed
+                                }
+                              >
+                                {offeringsExtractor.isExtracting ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Extracting offerings...
+                                  </>
+                                ) : isSavingBusiness || isSavingJob || isSubmitting ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  "Save Changes"
+                                )}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {saveDisabledReason ? (
+                            <TooltipContent>
+                              <p>{saveDisabledReason}</p>
+                            </TooltipContent>
+                          ) : null}
+                        </Tooltip>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-general-border-three text-general-foreground"
+                          onClick={() => {
+                            if (!guardConvertPitch()) return;
+                            setIsConvertConfirmOpen(true);
+                          }}
+                          disabled={convertPitchMutation.isPending || isLoading}
+                        >
+                          {convertPitchMutation.isPending ? "Converting..." : "Convert to Business"}
+                        </Button>
+                      </>
                     }
                     className="flex-1"
                   />

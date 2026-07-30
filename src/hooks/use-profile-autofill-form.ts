@@ -15,7 +15,7 @@ import {
   formatPrimaryLocationApiValue,
   parsePrimaryLocationForPayload,
 } from "@/utils/primary-location";
-import { cleanWebsiteUrl } from "@/utils/utils";
+import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
 import { getAutofillErrorMessage } from "@/utils/profile-autofill";
 
 type LocationOption = {
@@ -80,6 +80,15 @@ export function useProfileAutofillForm({
         location: formatPrimaryLocationApiValue(profileLocationPayload),
         serviceAreaType,
       });
+
+      const inputDomain = normalizeDomainForFavicon(website);
+      const returnedDomain = normalizeDomainForFavicon(cleanWebsiteUrl(profile.businessUrl || ""));
+      if (returnedDomain && inputDomain && returnedDomain.toLowerCase() !== inputDomain.toLowerCase()) {
+        toast.warning(
+          "Autofill returned a different website domain. We kept your original website."
+        );
+      }
+
       const nextValues = mapAutofillResultToFormValues(values, profile, website, {
         normalizeWebsite,
       });

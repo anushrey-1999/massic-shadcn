@@ -201,7 +201,11 @@ export const OfferingsForm = ({
         : [];
     
     if (rawOfferings.length === 0) {
-      toast.warning("No offerings found on the website");
+      toast.warning(
+        hasAnyOffering
+          ? "No additional offerings found on the website"
+          : "No offerings found on the website"
+      );
       processedTaskIdRef.current = taskId;
       clearExtraction();
       return;

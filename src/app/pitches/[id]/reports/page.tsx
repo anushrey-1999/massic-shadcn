@@ -19,6 +19,7 @@ import {
   useBusinessProfileById,
   useBusinessProfiles,
 } from "@/hooks/use-business-profiles";
+import { useJobByBusinessId } from "@/hooks/use-jobs";
 import { Badge } from "@/components/ui/badge";
 import {
   useStartQuickyReport,
@@ -182,6 +183,13 @@ export default function PitchReportsPage() {
   const { profileData: businessProfile } = useBusinessProfileById(
     businessId ?? null
   );
+  const jobQuery = useJobByBusinessId(businessId ?? null);
+
+  const isJobMissing = React.useMemo(() => {
+    if (!businessId) return false;
+    if (!jobQuery.isFetched) return false;
+    return jobQuery.data == null;
+  }, [businessId, jobQuery.data, jobQuery.isFetched]);
 
   const businessName = React.useMemo(() => {
     const profileFromList = profiles.find((p) => p.UniqueId === businessId);
@@ -876,7 +884,27 @@ export default function PitchReportsPage() {
       <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
 
       <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5">
-        {showReportView ? (
+        {isJobMissing ? (
+          <EmptyState
+            title="Pitch setup incomplete"
+            description="This pitch doesn’t have a job yet. Create it from the Pitch Profile to generate reports."
+            className="h-[calc(100vh-12rem)]"
+            buttons={[
+              {
+                label: "Open Pitch Profile",
+                href: businessId ? `/pitches/${businessId}/profile` : "/pitches",
+                variant: "default",
+                size: "lg",
+              },
+              {
+                label: "Back to Pitches",
+                href: "/pitches",
+                variant: "outline",
+                size: "lg",
+              },
+            ]}
+          />
+        ) : showReportView ? (
           isSnapshotExpired ? (
             <EmptyState
               title="Report Expired"

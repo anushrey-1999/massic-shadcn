@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useStore } from "@tanstack/react-form";
-import { ArrowRight, Pencil, Unlink } from "lucide-react";
+import { ArrowRight, Pencil, Unlink, Loader2 } from "lucide-react";
 
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { GenericInput } from "@/components/ui/generic-input";
+import { isValidWebsiteUrl } from "@/utils/utils";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +65,8 @@ export function ProfileAutofillReviewTemplate({
   onSaveChanges,
   onSaveAndUpdateStrategy,
   saveDisabled,
+  savePending,
+  saveDisabledReason,
   proceedDisabled,
   onAutofillProfile,
   autofillDisabled,
@@ -85,6 +88,8 @@ export function ProfileAutofillReviewTemplate({
   onSaveChanges: () => void;
   onSaveAndUpdateStrategy: () => void;
   saveDisabled?: boolean;
+  savePending?: boolean;
+  saveDisabledReason?: string;
   proceedDisabled?: boolean;
   onAutofillProfile?: () => void;
   autofillDisabled?: boolean;
@@ -100,6 +105,10 @@ export function ProfileAutofillReviewTemplate({
   const [activeSection, setActiveSection] = useState<SectionId>("identity");
   const [isEditGateOpen, setIsEditGateOpen] = useState(false);
   const values = useStore(form.store, (s: any) => s.values) as Partial<BusinessInfoFormData>;
+  const offeringsMetaHasErrors = useStore(form.store, (s: any) => {
+    return s.fieldMeta?.offeringsList?.hasValidationErrors === true;
+  });
+  const extractionIsActive = Boolean(extractionController?.isExtracting);
 
   const summary = useMemo(() => {
     return [
@@ -108,6 +117,57 @@ export function ProfileAutofillReviewTemplate({
       { label: "Service-area type", value: String(values.serviceAreaType ?? "").trim() },
     ];
   }, [values.primaryLocation, values.serviceAreaType, values.website]);
+
+  const sectionHasBlockingError = useMemo(() => {
+    const website = String(values.website ?? "").trim();
+    const businessName = String(values.businessName ?? "").trim();
+    const primaryLocation = String(values.primaryLocation ?? "").trim();
+    const serviceAreaType = String(values.serviceAreaType ?? "").trim();
+    const serviceType = String(values.serviceType ?? "").trim();
+    const offeringsType = String(values.offerings ?? "").trim();
+    const offeringsList = Array.isArray(values.offeringsList) ? values.offeringsList : [];
+    const hasAtLeastOneOffering = offeringsList.some((row) => Boolean(String(row?.name ?? "").trim()));
+
+    const identityError =
+      !website ||
+      !isValidWebsiteUrl(website) ||
+      !businessName ||
+      !primaryLocation ||
+      !serviceAreaType;
+
+    const classificationError =
+      !["physical", "online", "both"].includes(serviceType) ||
+      !["products", "services", "both"].includes(offeringsType);
+
+    const offeringsError = offeringsMetaHasErrors || !hasAtLeastOneOffering;
+
+    const map: Record<SectionId, boolean> = {
+      identity: identityError,
+      classification: classificationError,
+      locations: false,
+      "service-areas": false,
+      offerings: offeringsError,
+      positioning: false,
+      "trust-people": false,
+      channels: false,
+      integrations: false,
+      preferences: false,
+      competitors: false,
+    };
+
+    // Primary location + service area type are edited via the "Edit website & location" gate,
+    // which lives under the Identity section. We keep the dot there to make the fix discoverable.
+    return map;
+  }, [
+    offeringsMetaHasErrors,
+    values.businessName,
+    values.offerings,
+    values.offeringsList,
+    values.primaryLocation,
+    values.serviceAreaType,
+    values.serviceType,
+    values.website,
+  ]);
 
   return (
     <Card
@@ -130,22 +190,38 @@ export function ProfileAutofillReviewTemplate({
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span>
+                  <span className="inline-block">
                     <Button
                       type="button"
                       className="bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
                       onClick={onSaveChanges}
-                      disabled={saveDisabled}
+                      disabled={Boolean(saveDisabled) || extractionIsActive || Boolean(savePending)}
                     >
-                      Save Changes
+                      {extractionIsActive ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Extracting offerings...
+                        </>
+                      ) : savePending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Changes"
+                      )}
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {isWorkflowProcessing && (
+                {saveDisabledReason ? (
+                  <TooltipContent>
+                    <p>{saveDisabledReason}</p>
+                  </TooltipContent>
+                ) : isWorkflowProcessing ? (
                   <TooltipContent>
                     <p>Workflow In Process</p>
                   </TooltipContent>
-                )}
+                ) : null}
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -178,6 +254,7 @@ export function ProfileAutofillReviewTemplate({
           <nav className="flex flex-col">
             {SECTIONS.map((s) => {
               const isActive = s.id === activeSection;
+              const hasError = sectionHasBlockingError[s.id] === true;
               return (
                 <button
                   key={s.id}
@@ -190,7 +267,15 @@ export function ProfileAutofillReviewTemplate({
                       : "text-[#737373] hover:bg-general-primary-foreground/60"
                   )}
                 >
-                  <span>{s.label}</span>
+                  <span className="flex items-center gap-2 min-w-0">
+                    {hasError ? (
+                      <span
+                        className="size-2 rounded-full bg-[#E24B4A] shrink-0"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    <span className="truncate">{s.label}</span>
+                  </span>
                   {isActive ? <ArrowRight className="size-4 text-general-muted-foreground" /> : null}
                 </button>
               );
@@ -678,14 +763,18 @@ export function ProfileAutofillReviewTemplate({
       </div>
 
       <Dialog open={isEditGateOpen} onOpenChange={setIsEditGateOpen}>
-        <DialogContent className="sm:max-w-[520px] gap-0 py-0">
-          <DialogHeader className="pt-6 px-6">
-            <DialogTitle>Edit website & location</DialogTitle>
-            <DialogDescription>
-              Update these inputs and re-run Autofill Profile if needed.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="px-6 pb-6">
+        <DialogContent className="sm:max-w-[520px] gap-0 p-0 overflow-hidden">
+          <div className="w-full border-b border-general-border-three bg-general-primary-foreground px-6 py-6">
+            <DialogHeader className="space-y-0">
+              <DialogTitle className="text-2xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
+                Edit website & location
+              </DialogTitle>
+              <DialogDescription className="mt-1 text-xs font-normal leading-normal text-general-muted-foreground">
+                Update these inputs and re-run Autofill Profile if needed.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="px-6 py-6">
             <BusinessInfoForm
               form={form}
               embedded

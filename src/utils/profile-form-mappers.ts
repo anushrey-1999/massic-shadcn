@@ -3,6 +3,7 @@ import type { BusinessProfile, OfferingRow } from "@/store/business-store";
 import type { BusinessProfilePayload, JobDetails, Offering } from "@/hooks/use-jobs";
 import {
   cleanWebsiteUrl,
+  normalizeDomainForFavicon,
   normalizeWebsiteUrl,
   parseArrayField,
 } from "@/utils/utils";
@@ -11,7 +12,7 @@ import {
   primaryLocationFromProfile,
   resolvePrimaryLocationFormValue,
 } from "@/utils/primary-location";
-import type { NormalizedProfileResult } from "@/utils/profile-result";
+import { profileOfferingsToRows, type NormalizedProfileResult } from "@/utils/profile-result";
 
 type LocationOption = {
   value: string;
@@ -283,9 +284,34 @@ export function mapAutofillResultToFormValues(
   fallbackWebsite: string,
   options?: { normalizeWebsite?: boolean }
 ): BusinessInfoFormData {
-  const nextWebsite = cleanWebsiteUrl(String(profile.businessUrl || fallbackWebsite));
+  // Never trust autofill to replace the user's website with a different domain.
+  // Some sites/inputs can cause backend extraction to return a different `business_url`
+  // (canonical redirects, mixed signals, crawler mistakes). Keep the original domain.
+  const inputWebsiteRaw = cleanWebsiteUrl(String(fallbackWebsite || currentValues.website || ""));
+  const profileWebsiteRaw = cleanWebsiteUrl(String(profile.businessUrl || ""));
+
+  const inputDomain = normalizeDomainForFavicon(inputWebsiteRaw);
+  const profileDomain = normalizeDomainForFavicon(profileWebsiteRaw);
+
+  const shouldUseProfileWebsite =
+    Boolean(profileWebsiteRaw) &&
+    Boolean(inputDomain) &&
+    Boolean(profileDomain) &&
+    inputDomain.toLowerCase() === profileDomain.toLowerCase();
+
+  const websiteCandidate = shouldUseProfileWebsite ? profileWebsiteRaw : inputWebsiteRaw;
   const normalizedWebsite =
-    options?.normalizeWebsite === true ? normalizeWebsiteUrl(nextWebsite) : nextWebsite;
+    options?.normalizeWebsite === true ? normalizeWebsiteUrl(websiteCandidate) : websiteCandidate;
+
+  const hasExistingOfferings =
+    Array.isArray(currentValues.offeringsList) &&
+    currentValues.offeringsList.some((row) =>
+      Boolean(
+        String((row as any)?.name ?? "").trim() ||
+          String((row as any)?.description ?? "").trim() ||
+          String((row as any)?.link ?? "").trim()
+      )
+    );
 
   return {
     ...currentValues,
@@ -331,7 +357,10 @@ export function mapAutofillResultToFormValues(
             bio: person.bio,
           }))
         : currentValues.stakeholders,
-    offeringsList: currentValues.offeringsList,
+    offeringsList:
+      !hasExistingOfferings && profile.offerings.length > 0
+        ? profileOfferingsToRows(profile.offerings)
+        : currentValues.offeringsList,
     locations:
       profile.structuredLocations.length > 0
         ? mapJobLocationsToLocationRows(profile.structuredLocations)

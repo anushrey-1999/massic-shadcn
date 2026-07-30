@@ -4,6 +4,7 @@ import { useBusinessStore, BusinessProfile, type LocationOption } from "@/store/
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
+import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
 
 const BUSINESS_PROFILES_KEY = "businessProfiles";
 
@@ -272,13 +273,10 @@ export function useCreateBusiness() {
       let createdBusiness: BusinessProfile | null = null;
 
       if (updatedProfiles && Array.isArray(updatedProfiles) && updatedProfiles.length > 0) {
-        const websiteInput = formData.website.toLowerCase().trim();
+        const websiteInput = normalizeDomainForFavicon(cleanWebsiteUrl(formData.website)).toLowerCase();
         const matchedProfile = updatedProfiles.find((profile: BusinessProfile) => {
-          const profileWebsite = profile.Website?.toLowerCase().trim() || "";
-          return (
-            profileWebsite.includes(websiteInput) ||
-            websiteInput.includes(profileWebsite)
-          );
+          const profileWebsite = normalizeDomainForFavicon(cleanWebsiteUrl(profile.Website || "")).toLowerCase();
+          return Boolean(profileWebsite && websiteInput && profileWebsite === websiteInput);
         });
 
         createdBusiness =

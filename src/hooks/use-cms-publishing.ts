@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import type { WordpressSlugConflictInfo } from "@/hooks/use-wordpress-publishing";
 
-export type CmsPublishingPlatform = "wordpress" | "webflow" | "sanity";
+export type CmsPublishingPlatform = "wordpress" | "webflow" | "sanity" | "wix";
 
 export interface CmsPublishingDomain {
   id: string;
@@ -17,7 +17,7 @@ export interface CmsPublishingDomain {
 export interface CmsPublishingTarget {
   targetId: string;
   siteId: string;
-  collectionId: string;
+  collectionId: string | null;
   documentType?: string;
   name: string;
   fieldMapping?: Record<string, any>;
@@ -47,6 +47,26 @@ export interface CmsPublishingChannel {
     post?: CmsPublishingDomain[];
     page?: CmsPublishingDomain[];
   };
+  setupReady?: boolean;
+  setupIssue?: string | null;
+}
+
+export interface WixConversionWarning {
+  code: string;
+  path: string | null;
+  severity: "warning";
+  handling: "approximated" | "html_embed" | "dropped";
+  message: string;
+}
+
+export interface WixConversionResult {
+  fidelity: "full" | "mixed";
+  nativeBlocks: number;
+  embeddedBlocks: number;
+  droppedNodes: number;
+  estimatedBytes: number;
+  limitBytes: number;
+  warnings: WixConversionWarning[];
 }
 
 export interface CmsWordpressPageTemplateStatus {
@@ -102,6 +122,7 @@ export interface CmsPublishResponse {
     routePath?: string | null;
     siteVerification?: "confirmed" | "pending" | null;
     siteVerificationStatusCode?: number | null;
+    conversion?: WixConversionResult;
     domainSelection?: {
       publishToWebflowSubdomain: boolean;
       customDomainIds: string[];
@@ -125,6 +146,8 @@ export interface CmsContentStatus {
     status: string | null;
     slug: string | null;
     updatedAt: string | null;
+    editUrl?: string | null;
+    remoteMissing?: boolean;
   } | null;
 }
 
@@ -238,6 +261,13 @@ interface PublishPayload {
   domainSelection?: {
     publishToWebflowSubdomain?: boolean;
     customDomainIds?: string[];
+  };
+  wix?: {
+    authorMemberId?: string;
+    categoryIds?: string[];
+    tagIds?: string[];
+    commentingEnabled?: boolean;
+    featured?: boolean;
   };
 }
 

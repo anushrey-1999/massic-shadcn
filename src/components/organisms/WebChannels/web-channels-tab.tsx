@@ -262,6 +262,7 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
   const [isHowToModalOpen, setIsHowToModalOpen] = React.useState(false);
   const [isSanityConnectModalOpen, setIsSanityConnectModalOpen] = React.useState(false);
   const [isSanityGuideOpen, setIsSanityGuideOpen] = React.useState(false);
+  const [isWixGuideOpen, setIsWixGuideOpen] = React.useState(false);
   const [externalNavigationFallback, setExternalNavigationFallback] = React.useState<ExternalNavigationFallback | null>(null);
   const [recommendedSiteUrl, setRecommendedSiteUrl] = React.useState(defaultSiteUrl || "");
   const [sanityProjectId, setSanityProjectId] = React.useState("");
@@ -1307,6 +1308,15 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-general-muted-foreground"
+                onClick={() => setIsWixGuideOpen(true)}
+              >
+                <HelpCircle className="mr-1.5 size-4" />
+                Guide
+              </Button>
               {isWixConnected ? (
                 <Button
                   size="sm"
@@ -1688,6 +1698,34 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
               disabled={!sanityProjectId.trim() || !sanityToken.trim() || connectSanityMutation.isPending}
             >
               {connectSanityMutation.isPending ? "Connecting..." : "Connect"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isWixGuideOpen} onOpenChange={setIsWixGuideOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Before connecting Wix</DialogTitle>
+            <DialogDescription>Prepare the Wix site so Massic can publish blog content.</DialogDescription>
+          </DialogHeader>
+          <ol className="list-decimal space-y-3 py-1 pl-5 text-sm text-general-foreground">
+            <li>
+              Connect using the Wix <strong>Site Owner, Co-Owner, or Back Office Manager</strong> account and approve
+              all requested access.
+            </li>
+            <li>
+              Install the free, official <strong>Wix Blog</strong> app on the same site. Sites already using Wix&apos;s
+              standard blog normally have it installed.
+            </li>
+            <li>
+              Select the correct Wix site and ensure at least one <strong>Wix member</strong> is available as the blog
+              post author.
+            </li>
+          </ol>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsWixGuideOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -195,6 +195,10 @@ export function useConfigureWixPublishing(businessId: string | null) {
       toast.error("Failed to save Wix publishing setup", {
         description: getErrorMessage(error, "Please refresh the Wix options and try again.")
       });
+      const code = (error as any)?.response?.data?.code;
+      if (code === "wix_reauthorization_required" || code === "wix_blog_not_installed") {
+        void queryClient.invalidateQueries({ queryKey: ["wix-publishing-setup", businessId] });
+      }
     }
   });
 }

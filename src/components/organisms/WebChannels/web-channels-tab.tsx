@@ -48,7 +48,12 @@ import {
   useValidateSanity,
   type SanityField
 } from "@/hooks/use-sanity-connector";
-import { useDisconnectWix, useStartWixOauth, useWixConnection } from "@/hooks/use-wix-connector";
+import {
+  useDisconnectWix,
+  useStartWixOauth,
+  useWixConnection,
+  useWixPublishingSetup
+} from "@/hooks/use-wix-connector";
 import { PlatformIcon, SiteFavicon } from "./platform-icon";
 import { IntegrationStatusBadge } from "./integration-status-badge";
 import { WebflowPublishSetup, type WebflowImageDestinationRow, type WebflowMappingRow } from "./webflow-publish-setup";
@@ -308,6 +313,8 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
   const wixConnectionQuery = useWixConnection(businessId);
   const wixConnection = wixConnectionQuery.data?.connection || null;
   const isWixConnected = Boolean(wixConnectionQuery.data?.connected && wixConnection);
+  const wixPublishingSetupQuery = useWixPublishingSetup(businessId, isWixConnected);
+  const wixReconnectRequired = Boolean(wixPublishingSetupQuery.data?.reconnectRequired);
   const startWixOauthMutation = useStartWixOauth();
   const disconnectWixMutation = useDisconnectWix(businessId);
   const configureWebflowMutation = useConfigureWebflow(businessId);
@@ -1288,7 +1295,13 @@ export function WebChannelsTab({ businessId, defaultSiteUrl, isActive = true, sh
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <CardTitle className="text-base font-medium">Wix</CardTitle>
-                  <IntegrationStatusBadge connected={isWixConnected} loading={wixConnectionQuery.isLoading} />
+                  {!wixReconnectRequired ? (
+                    <IntegrationStatusBadge
+                      connected={isWixConnected}
+                      loading={wixConnectionQuery.isLoading || (isWixConnected && wixPublishingSetupQuery.isLoading)}
+                      error={isWixConnected && wixPublishingSetupQuery.isError}
+                    />
+                  ) : null}
                 </div>
                 <CardDescription>Connect Wix and publish editable blog drafts or live posts from Massic.</CardDescription>
               </div>

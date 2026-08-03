@@ -51,8 +51,10 @@ export function WixPublishSetup({ businessId, onReconnect, reconnecting = false 
   if (setupQuery.isError) {
     return (
       <Alert>
-        <AlertCircle className="size-4" />
-        <AlertTitle>Publishing setup could not be loaded</AlertTitle>
+        <div className="flex items-center gap-2">
+          <AlertCircle className="size-4 shrink-0" />
+          <AlertTitle className="mb-0">Publishing setup could not be loaded</AlertTitle>
+        </div>
         <AlertDescription className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <span>Refresh the Wix connection details and try again.</span>
           <Button size="sm" variant="outline" onClick={() => setupQuery.refetch()}>
@@ -66,10 +68,12 @@ export function WixPublishSetup({ businessId, onReconnect, reconnecting = false 
   if (setup?.reconnectRequired) {
     return (
       <Alert className="border-amber-200 bg-amber-50 text-amber-950">
-        <AlertCircle className="size-4" />
-        <AlertTitle>Reconnect Wix to enable publishing</AlertTitle>
+        <div className="flex items-center gap-2">
+          <AlertCircle className="size-4 shrink-0" />
+          <AlertTitle className="mb-0">Wix needs to be reconnected</AlertTitle>
+        </div>
         <AlertDescription className="mt-2 space-y-3">
-          <p>Approve the Read Members permission so Massic can assign a valid Wix Blog author.</p>
+          <p>Massic no longer has publishing access. Reconnect using a Wix account that can manage apps for this site.</p>
           <Button size="sm" onClick={onReconnect} disabled={reconnecting}>
             {reconnecting ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : null}
             {reconnecting ? "Opening Wix…" : "Reconnect Wix"}
@@ -80,6 +84,55 @@ export function WixPublishSetup({ businessId, onReconnect, reconnecting = false 
   }
 
   if (!setup) return null;
+
+  if (setup.setupIssue === "wix_blog_not_installed") {
+    return (
+      <Alert className="border-amber-200 bg-amber-50 text-amber-950">
+        <div className="flex items-center gap-2">
+          <AlertCircle className="size-4 shrink-0" />
+          <AlertTitle className="mb-0">Install Wix Blog to continue</AlertTitle>
+        </div>
+        <AlertDescription className="mt-2 space-y-3">
+          <p>
+            This site is connected, but Wix Blog is not installed. In Wix, install Wix Blog from the App Market,
+            then return here and check again.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setupQuery.refetch()}
+            disabled={setupQuery.isFetching}
+          >
+            {setupQuery.isFetching ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 size-3.5" />}
+            {setupQuery.isFetching ? "Checking…" : "Check again"}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (setup.setupIssue === "wix_blog_unavailable" || setup.setupIssue === "wix_members_unavailable") {
+    return (
+      <Alert>
+        <div className="flex items-center gap-2">
+          <AlertCircle className="size-4 shrink-0" />
+          <AlertTitle className="mb-0">Wix publishing access could not be verified</AlertTitle>
+        </div>
+        <AlertDescription className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <span>Wix did not complete the access check. Wait a moment, then try again.</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setupQuery.refetch()}
+            disabled={setupQuery.isFetching}
+          >
+            {setupQuery.isFetching ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <RotateCcw className="mr-1.5 size-3.5" />}
+            {setupQuery.isFetching ? "Checking…" : "Try again"}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   const saveDisabled = !authorMemberId || configureMutation.isPending || setup.members.length === 0;
   return (

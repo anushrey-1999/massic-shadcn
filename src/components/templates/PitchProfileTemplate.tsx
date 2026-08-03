@@ -2,6 +2,7 @@
 
 import React, { useCallback, useState } from "react";
 import { useForm, useStore } from "@tanstack/react-form";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -13,23 +14,22 @@ import {
   type BusinessInfoFormData,
 } from "@/schemas/ProfileFormSchema";
 import { useBusinessProfileById, useUpdateBusinessProfile } from "@/hooks/use-business-profiles";
-import { useCreateJob, useJobByBusinessId, useUpdateJob, type Offering, type BusinessProfilePayload } from "@/hooks/use-jobs";
+import { useCreateJob, useJobByBusinessId, useUpdateJob } from "@/hooks/use-jobs";
 
 import { Button } from "@/components/ui/button";
 import PageHeader from "@/components/molecules/PageHeader";
-import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
-import { OfferingsForm } from "@/components/organisms/profile/OfferingsForm";
+import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAutofillReviewTemplate";
 import { LoaderOverlay } from "@/components/ui/loader";
-import { ProfileStepCard } from "@/components/ui/profile-step-card";
 import { Loader2 } from "lucide-react";
-import { cleanWebsiteUrl } from "@/utils/utils";
-import { getAutofillErrorMessage } from "@/utils/profile-autofill";
+import { cn } from "@/lib/utils";
+import {
+  type NormalizedProfileResult,
+} from "@/utils/profile-result";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { TagsInput } from "@/components/ui/tags-input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,54 +42,23 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
-import { parsePrimaryLocationForPayload, primaryLocationFromProfile, resolvePrimaryLocationFormValue } from "@/utils/primary-location";
-
-function toPrimaryLocationString(input: any): string {
-  const location = String(input?.Location || "").trim();
-  const country = String(input?.Country || "").trim();
-  if (!location && !country) return "";
-  if (location && country && country.toLowerCase() !== location.toLowerCase()) {
-    return `${location},${country}`;
-  }
-  return location || country;
-}
-
-function normalizeOfferingsList(jobOfferings: any): Array<{ name: string; description: string; link: string }> {
-  if (!Array.isArray(jobOfferings)) return [];
-  return jobOfferings
-    .map((o) => ({
-      name: String(o?.name || o?.offering || "").trim(),
-      description: String(o?.description || "").trim(),
-      link: String(o?.url || "").trim(),
-    }))
-    .filter((o) => Boolean(o.name));
-}
-
-interface ProfileAutofillResponse {
-  business_url?: string;
-  profile_autofill?: {
-    url?: string;
-    market?: string;
-    ltv?: string;
-    sell?: string;
-    b2b_b2c?: string;
-    competitors?: string[];
-    segment?: number;
-    error?: string | null;
-    reason?: string | null;
-    recommendation?: string | null;
-    [key: string]: unknown;
-  };
-  errors?: string | string[] | null;
-  error?: string | null;
-  message?: string | null;
-  detail?: string | null;
-}
+import { primaryLocationFromProfile } from "@/utils/primary-location";
+import { isValidWebsiteUrl } from "@/utils/utils";
+import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
+import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
+import {
+  buildBusinessProfilePayload,
+  mapFormOfferingsToJobOfferings,
+  mapProfileDataToFormValues,
+  profileFormDefaults,
+} from "@/utils/profile-form-mappers";
 
 export function PitchProfileTemplate() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const params = useParams();
   const businessId = (params as any)?.id as string | undefined;
+  const didInitialHydrateRef = React.useRef(false);
 
   const { locationOptions, isLoading: locationsLoading } = useLocations("us");
 
@@ -106,311 +75,91 @@ export function PitchProfileTemplate() {
   const convertPitchMutation = useConvertPitchToBusiness();
   const guardConvertPitch = useFeatureActionGuard("business.convertPitch");
 
-  const [isAutofillLoading, setIsAutofillLoading] = useState(false);
+  const offeringsExtractor = useOfferingsExtractor(businessId ?? null);
+
   const [isConvertConfirmOpen, setIsConvertConfirmOpen] = useState(false);
+  const [isTriggeringWorkflow, setIsTriggeringWorkflow] = useState(false);
+  const [autofillProfileResult, setAutofillProfileResult] =
+    useState<NormalizedProfileResult | null>(null);
 
   React.useEffect(() => {
     resetProfileForm();
     return () => resetProfileForm();
   }, [resetProfileForm]);
 
+  // Reset initial hydration when business changes.
+  React.useEffect(() => {
+    didInitialHydrateRef.current = false;
+  }, [businessId]);
+
   React.useEffect(() => {
     setLocationOptions(locationOptions);
     setLocationsLoading(locationsLoading);
   }, [locationOptions, locationsLoading, setLocationOptions, setLocationsLoading]);
 
-  const defaultValues = React.useMemo(() => {
-    return {
-      website: "",
-      businessName: "",
-      businessDescription: "",
-      primaryLocation: "",
-      lifetimeValue: "",
-      serviceType: "" as any,
-      offerings: "" as any,
-      offeringsList: [],
-      brandTerms: [],
-    } as unknown as BusinessInfoFormData;
-  }, []);
-
+  // Saving never goes through `form.handleSubmit()`. TanStack aborts submission
+  // silently while any field still holds a validation error, which makes the
+  // Save button look dead. The save path below runs its own explicit checks.
   const form = useForm({
-    defaultValues,
+    defaultValues: profileFormDefaults,
     validators: {
       onChange: businessInfoSchema,
     },
-    onSubmit: async ({ value }) => {
-      if (!businessId) return;
-
-      const normalizedOfferType: "products" | "services" =
-        value.offerings === "products" ? "products" : "services";
-
-      const normalizedServeCustomers: "local" | "online" =
-        value.serviceType === "physical" ? "local" : "online";
-
-      const { Location: location, Country: country } = parsePrimaryLocationForPayload(
-        value.primaryLocation,
-        locationOptions
-      );
-
-      const offerings: Offering[] = Array.isArray(value.offeringsList)
-        ? value.offeringsList
-            .filter((row) => Boolean(row?.name?.trim()))
-            .map((row) => ({
-              name: String(row.name || ""),
-              description: String(row.description || ""),
-              link: String(row.link || ""),
-            }))
-        : [];
-
-      const brandTermsArray = Array.isArray(value.brandTerms)
-        ? value.brandTerms.map((t) => String(t).trim()).filter(Boolean)
-        : [];
-
-      const businessProfilePayload: BusinessProfilePayload = {
-        Website: value.website,
-        Name: value.businessName,
-        Description: value.businessDescription,
-        UserDefinedBusinessDescription: value.businessDescription,
-        PrimaryLocation: {
-          Location: location,
-          Country: country,
-        },
-        BusinessObjective: normalizedServeCustomers,
-        LocationType: normalizedOfferType,
-        LTV:
-          value.lifetimeValue === "high" ||
-          value.lifetimeValue === "low"
-            ? value.lifetimeValue
-            : null,
-        BrandTerms: brandTermsArray.length > 0 ? brandTermsArray : null,
-      };
-
-      // Inputs for some business metrics were removed from the UI, but the backend may still return them.
-      // Preserve any existing non-editable fields by merging current profile data into the update payload.
-      const payloadForUpdate: BusinessProfilePayload = profileData
-        ? ({ ...(profileData as any), ...(businessProfilePayload as any) } as any)
-        : businessProfilePayload;
-
-      await updateBusinessProfileMutation.mutateAsync(payloadForUpdate as any);
-
-      const jobDetails = jobQuery.data;
-      const jobExists = Boolean(jobDetails && jobDetails.job_id);
-
-      if (jobExists) {
-        await updateJobMutation.mutateAsync({
-          businessId,
-          businessProfilePayload: payloadForUpdate,
-          offerings,
-        });
-      } else {
-        await createJobMutation.mutateAsync({
-          businessId,
-          businessProfilePayload: payloadForUpdate,
-          offerings,
-        });
-      }
-
-      const resolvedPrimaryLocation = primaryLocationFromProfile(
-        { Location: location, Country: country },
-        locationOptions
-      );
-      if (resolvedPrimaryLocation) {
-        form.setFieldValue("primaryLocation", resolvedPrimaryLocation);
-      }
-
-      toast.success("Profile updated");
-    },
   });
 
-  const handleAutofillProfile = useCallback(async () => {
-    const values = form.state.values as BusinessInfoFormData;
-    const website = cleanWebsiteUrl(values?.website || "").trim();
-    if (!website) {
-      toast.error("Please enter a website URL first");
-      return;
-    }
-    setIsAutofillLoading(true);
-    try {
-      const res = await api.post<ProfileAutofillResponse>(
-        "/tools/autofill-profile",
-        "python",
-        { business_url: website },
-        { timeout: 120000 }
-      );
-      const autofillErrorMessage = getAutofillErrorMessage(res, "");
-      if (autofillErrorMessage) {
-        toast.error(autofillErrorMessage);
-        return;
-      }
-      const pa = res?.profile_autofill;
-      if (!pa) {
-        const fallbackMessage = String(res?.message ?? res?.detail ?? "").trim();
-        toast.error(fallbackMessage || "Failed to autofill profile");
-        return;
-      }
-
-      const market = (pa.market ?? "").toLowerCase();
-      if (market === "local" || market === "online") {
-        form.setFieldValue(
-          "serviceType" as any,
-          (market === "local" ? "physical" : "online") as any
-        );
-      }
-
-      const sell = (pa.sell ?? "products").toLowerCase();
-      const nextOfferings =
-        sell === "services"
-          ? "services"
-          : sell === "both"
-            ? "both"
-            : "products";
-      form.setFieldValue("offerings" as any, nextOfferings as any);
-
-      const ltvFromAutofill = (pa.ltv ?? "").toString().trim().toLowerCase();
-      if (ltvFromAutofill === "high" || ltvFromAutofill === "low") {
-        form.setFieldValue("lifetimeValue" as any, ltvFromAutofill as any);
-      }
-
-      toast.success("Profile fields updated from website");
-    } catch (error: any) {
-      const fallbackMessage = String(
-        error?.response?.data?.message ??
-        error?.response?.data?.detail ??
-        error?.message ??
-        ""
-      ).trim();
-      toast.error(
-        getAutofillErrorMessage(error?.response?.data ?? error, "") ||
-        fallbackMessage ||
-        "Failed to autofill profile"
-      );
-    } finally {
-      setIsAutofillLoading(false);
-    }
-  }, [form]);
+  const { autofillProfile: handleAutofillProfile, isAutofillLoading } =
+    useProfileAutofillForm({
+      form,
+      locationOptions,
+      onBeforeAutofill: (website) => {
+        // Keep offerings extraction in lockstep with profile reruns so users
+        // don't end up with a missing job + empty offerings after retrying autofill.
+        void offeringsExtractor.startExtraction(website).catch(() => {});
+        return true;
+      },
+      onAutofillSuccess: (profile) => {
+        setAutofillProfileResult(profile);
+      },
+    });
 
   const formValues = useStore(form.store, (state: any) => state.values) as BusinessInfoFormData;
+
+  const isAutofillDisabled =
+    isAutofillLoading ||
+    locationsLoading ||
+    !String(formValues?.website ?? "").trim() ||
+    !String(formValues?.primaryLocation ?? "").trim() ||
+    !String(formValues?.serviceAreaType ?? "").trim();
 
   React.useEffect(() => {
     if (!businessId) return;
     if (profileDataLoading || locationsLoading) return;
     if (!jobQuery.isFetched) return;
+    if (didInitialHydrateRef.current) return;
 
     const jobDetails = jobQuery.data;
+    const mappedValues = mapProfileDataToFormValues(
+      profileData || null,
+      jobDetails || null,
+      locationOptions
+    );
 
-    const profileAny = profileData as any;
+    Object.entries(mappedValues).forEach(([fieldName, value]) => {
+      const current = (form.state.values as any)?.[fieldName];
+      const hasCurrentValue = Array.isArray(current)
+        ? current.length > 0
+        : String(current ?? "").trim().length > 0;
+      const hasMappedValue = Array.isArray(value)
+        ? value.length > 0
+        : String(value ?? "").trim().length > 0;
 
-    const website =
-      String(profileData?.Website || "").trim() ||
-      String(jobDetails?.business_url || "").trim();
-    const businessName =
-      String(profileData?.Name || "").trim() ||
-      String(profileData?.DisplayName || "").trim() ||
-      String(jobDetails?.name || "").trim();
-    const businessDescription =
-      String((profileData as any)?.UserDefinedBusinessDescription || "").trim() ||
-      String(profileData?.Description || "").trim() ||
-      String(jobDetails?.user_defined_business_description || "").trim();
-    const primaryLocationRaw =
-      toPrimaryLocationString(profileAny?.PrimaryLocation) ||
-      String(profileData?.Locations?.[0] ? (profileData.Locations[0] as any)?.Name || "" : "").trim() ||
-      (() => {
-        const loc = String((jobDetails as any)?.location || "").trim();
-        const country = String((jobDetails as any)?.country || "").trim();
-        if (!loc && !country) return "";
-        if (loc && country && country.toLowerCase() !== loc.toLowerCase()) return `${loc},${country}`;
-        return loc || country;
-      })();
-    const primaryLocation = profileAny?.PrimaryLocation
-      ? primaryLocationFromProfile(profileAny.PrimaryLocation, locationOptions)
-      : resolvePrimaryLocationFormValue(primaryLocationRaw, locationOptions);
-
-    const businessObjective = String(
-      profileData?.BusinessObjective || (jobDetails as any)?.serve || ""
-    )
-      .toLowerCase()
-      .trim();
-    const serviceType =
-      businessObjective === "local" ? "physical" : businessObjective === "online" ? "online" : "";
-
-    const locationType = String(
-      profileData?.LocationType || (jobDetails as any)?.sell || ""
-    )
-      .toLowerCase()
-      .trim();
-    const offerings =
-      locationType === "products"
-        ? "products"
-        : locationType === "both"
-          ? "both"
-          : "services";
-
-    const offeringsList = normalizeOfferingsList(jobDetails?.offerings);
-
-    const currentOfferingsList = Array.isArray(formValues.offeringsList) ? formValues.offeringsList : [];
-    const hasAnyOfferingRow = currentOfferingsList.some((row) => Boolean(row?.name?.trim()));
-
-    const brandTerms = (() => {
-      const fromBusiness = profileAny?.BrandTerms ?? profileAny?.brand_terms;
-      const fromJob = (jobDetails as any)?.brand_terms;
-      const raw = fromBusiness ?? fromJob;
-
-      if (Array.isArray(raw)) {
-        return raw.map((t) => String(t).trim()).filter(Boolean);
+      if (!hasCurrentValue && hasMappedValue) {
+        form.setFieldValue(fieldName as any, value as any);
       }
-      if (typeof raw === "string") {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            return parsed.map((t) => String(t).trim()).filter(Boolean);
-          }
-        } catch {
-          // ignore
-        }
-        return raw
-          .split(",")
-          .map((t) => String(t).trim())
-          .filter(Boolean);
-      }
-      return [];
-    })();
+    });
 
-    if (!String(formValues.website || "").trim() && website) form.setFieldValue("website", website);
-    if (!String(formValues.businessName || "").trim() && businessName) form.setFieldValue("businessName", businessName);
-    if (!String(formValues.businessDescription || "").trim() && businessDescription) {
-      form.setFieldValue("businessDescription", businessDescription);
-    }
-    if (!String(formValues.primaryLocation || "").trim() && primaryLocation) {
-      form.setFieldValue("primaryLocation", primaryLocation);
-    } else if (primaryLocation) {
-      const current = String(formValues.primaryLocation || "");
-      const currentIsValid = locationOptions.some(
-        (opt) => !opt.disabled && opt.value !== "" && opt.value === current
-      );
-      if (!currentIsValid && primaryLocation !== current) {
-        form.setFieldValue("primaryLocation", primaryLocation);
-      }
-    }
-    if (!String(formValues.serviceType || "").trim() && serviceType) form.setFieldValue("serviceType", serviceType as any);
-
-    const ltvFromBusiness = profileAny?.LTV ?? profileAny?.ltv;
-    const ltvFromJob = (jobDetails as any)?.ltv;
-    const ltv = ltvFromBusiness ?? ltvFromJob;
-    const ltvStr = ltv != null ? String(ltv).trim().toLowerCase() : "";
-    const ltvValue = ltvStr === "high" || ltvStr === "low" ? ltvStr : "";
-    if ((formValues.lifetimeValue == null || String(formValues.lifetimeValue).trim() === "") && ltvValue) {
-      form.setFieldValue("lifetimeValue", ltvValue as any);
-    }
-
-    if (!String(formValues.offerings || "").trim()) form.setFieldValue("offerings", offerings as any);
-    if (!hasAnyOfferingRow && offeringsList.length > 0) form.setFieldValue("offeringsList", offeringsList as any);
-    const currentBrandTerms = Array.isArray(formValues.brandTerms)
-      ? formValues.brandTerms
-      : [];
-    if (currentBrandTerms.length === 0 && Array.isArray(brandTerms) && brandTerms.length > 0) {
-      form.setFieldValue("brandTerms", brandTerms as any);
-    }
-  }, [businessId, form, formValues, jobQuery.data, jobQuery.isFetched, locationOptions, locationsLoading, profileData, profileDataLoading]);
+    didInitialHydrateRef.current = true;
+  }, [businessId, form, jobQuery.data, jobQuery.isFetched, locationOptions, locationsLoading, profileData, profileDataLoading]);
 
   React.useEffect(() => {
     if (locationsLoading || !profileData) return;
@@ -454,38 +203,160 @@ export function PitchProfileTemplate() {
     return offeringsMeta?.hasValidationErrors === true;
   });
 
-  const hasSchemaValidationErrors = React.useMemo(() => {
-    return !businessInfoSchema.safeParse(formValues).success;
-  }, [formValues]);
-
-  const hasAtLeastOneOffering = React.useMemo(() => {
-    const list = Array.isArray(formValues.offeringsList) ? formValues.offeringsList : [];
-    return list.some((row) => Boolean(row?.name?.trim()));
-  }, [formValues.offeringsList]);
-
-  const canConfirmAndProceed =
-    !hasSchemaValidationErrors &&
-    !hasOfferingsValidationErrors &&
-    hasAtLeastOneOffering;
-
   const isSavingBusiness = updateBusinessProfileMutation.isPending;
   const isSavingJob = createJobMutation.isPending || updateJobMutation.isPending;
-  const isSubmitting = useStore(form.store, (state: any) => state.isSubmitting === true);
+  const isSaving = isSavingBusiness || isSavingJob;
 
-  const isLoading = isSavingBusiness || isSavingJob || isAutofillLoading;
+  // Only the fields the profile/job APIs actually need. Anything else stays
+  // editable and never blocks the save.
+  const getSaveBlockReason = React.useCallback(
+    (values: BusinessInfoFormData): string | null => {
+      const website = String(values?.website ?? "").trim();
+      if (!website) return "Add a website before saving.";
+      if (!isValidWebsiteUrl(website)) return "Enter a valid website URL before saving.";
+      if (!String(values?.businessName ?? "").trim()) {
+        return "Add a business name before saving.";
+      }
+      if (!String(values?.primaryLocation ?? "").trim()) {
+        return "Select a primary location before saving.";
+      }
+      if (hasOfferingsValidationErrors) {
+        return "Fix the highlighted errors in Offerings before saving.";
+      }
+      const offerings = Array.isArray(values?.offeringsList) ? values.offeringsList : [];
+      if (!offerings.some((row) => Boolean(String(row?.name ?? "").trim()))) {
+        return "Add at least one offering with a name before saving.";
+      }
+      return null;
+    },
+    [hasOfferingsValidationErrors]
+  );
+
+  const saveBlockReason = React.useMemo(
+    () => getSaveBlockReason(formValues),
+    [formValues, getSaveBlockReason]
+  );
+
+  const canConfirmAndProceed = saveBlockReason === null;
+
+  const isLoading =
+    isSavingBusiness || isSavingJob || isAutofillLoading || isTriggeringWorkflow;
   const loadingMessage = React.useMemo(() => {
     if (isAutofillLoading) return "Autofilling profile...";
+    if (isTriggeringWorkflow) return "Triggering workflow...";
     if (isSavingJob) return "Saving job...";
     if (isSavingBusiness) return "Saving business...";
     return undefined;
-  }, [isAutofillLoading, isSavingBusiness, isSavingJob]);
+  }, [isAutofillLoading, isSavingBusiness, isSavingJob, isTriggeringWorkflow]);
 
-  const handleConfirmAndProceed = React.useCallback(async () => {
-    await form.handleSubmit();
-    if (businessId) {
-      router.push(`/pitches/${businessId}/strategy`);
+  const performSave = React.useCallback(async (): Promise<boolean> => {
+    if (!businessId) {
+      toast.error("This pitch is missing its business id. Refresh and try again.");
+      return false;
     }
-  }, [businessId, form, router]);
+    if (isSaving) return false;
+
+    const values = form.state.values as BusinessInfoFormData;
+    const blockReason = getSaveBlockReason(values);
+    if (blockReason) {
+      toast.error(blockReason);
+      return false;
+    }
+
+    try {
+      const offerings = mapFormOfferingsToJobOfferings(values);
+      const businessProfilePayload = buildBusinessProfilePayload(values, {
+        autofillResult: autofillProfileResult,
+        existingProfile: profileData,
+        locationOptions,
+        preserveExistingProfile: true,
+      });
+
+      await updateBusinessProfileMutation.mutateAsync(businessProfilePayload as any);
+
+      const jobExists = Boolean(jobQuery.data?.job_id);
+      if (jobExists) {
+        await updateJobMutation.mutateAsync({
+          businessId,
+          businessProfilePayload,
+          offerings,
+        });
+      } else {
+        await createJobMutation.mutateAsync({
+          businessId,
+          businessProfilePayload,
+          offerings,
+        });
+      }
+
+      const resolvedPrimaryLocation = primaryLocationFromProfile(
+        businessProfilePayload.PrimaryLocation,
+        locationOptions
+      );
+      if (resolvedPrimaryLocation) {
+        form.setFieldValue("primaryLocation", resolvedPrimaryLocation);
+      }
+
+      await jobQuery.refetch();
+      toast.success("Profile updated");
+      return true;
+    } catch (error: any) {
+      toast.error("Couldn't save pitch profile", {
+        description:
+          error?.response?.data?.detail ||
+          error?.message ||
+          "Please try again.",
+      });
+      return false;
+    }
+  }, [
+    autofillProfileResult,
+    businessId,
+    createJobMutation,
+    form,
+    getSaveBlockReason,
+    isSaving,
+    jobQuery,
+    locationOptions,
+    profileData,
+    updateBusinessProfileMutation,
+    updateJobMutation,
+  ]);
+
+  const handleSaveChanges = React.useCallback(async () => {
+    await performSave();
+  }, [performSave]);
+
+  const handleSaveAndProceed = React.useCallback(async () => {
+    if (!businessId) return;
+
+    const saved = await performSave();
+    if (!saved) return;
+
+    try {
+      setIsTriggeringWorkflow(true);
+
+      await api.post("/jobs/run", "python", {
+        business_id: businessId,
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["jobs", "detail", businessId],
+      });
+
+      toast.success("Workflow triggered successfully!");
+      router.push(`/pitches/${businessId}/strategy`);
+    } catch (error: any) {
+      toast.error("Error triggering workflow", {
+        description:
+          error?.response?.data?.detail ||
+          error?.message ||
+          "Please try again.",
+      });
+    } finally {
+      setIsTriggeringWorkflow(false);
+    }
+  }, [businessId, performSave, queryClient, router]);
 
   const handleConvertToBusiness = React.useCallback(async () => {
     if (!guardConvertPitch()) return;
@@ -497,7 +368,7 @@ export function PitchProfileTemplate() {
   }, [businessId, convertPitchMutation, guardConvertPitch, router]);
 
   return (
-    <div className="flex flex-col h-dvh max-h-dvh min-h-0 relative overflow-hidden">
+    <div className={cn("flex flex-col h-full min-h-0 relative overflow-hidden")}>
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="sticky top-0 z-10 shrink-0 bg-background">
@@ -506,117 +377,93 @@ export function PitchProfileTemplate() {
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
             <div className="w-full max-w-[1224px] flex gap-6 p-5 items-stretch min-h-0 min-w-0 flex-1">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  form.handleSubmit();
-                }}
-                className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
-              >
-                <ProfileStepCard
-                  title="Basic Details"
-                  description="Helps us understand who you are and how to tailor insights, benchmarks, and strategy to your business."
-                  className="flex-1"
-                  scrollableContent
-                  contentClassName="pb-6"
-                  rightAction={
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="border-general-border-three text-general-foreground"
-                        onClick={() => {
-                          if (!guardConvertPitch()) return;
-                          setIsConvertConfirmOpen(true);
-                        }}
-                        disabled={convertPitchMutation.isPending || isLoading}
-                      >
-                        {convertPitchMutation.isPending ? "Converting..." : "Convert to Business"}
-                      </Button>
-                      <Button
-                        type="button"
-                        className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
-                        onClick={handleConfirmAndProceed}
-                        disabled={!canConfirmAndProceed || isSubmitting || isLoading || convertPitchMutation.isPending}
-                      >
-                        {isSubmitting ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          "Confirm and proceed to Strategy"
-                        )}
-                      </Button>
-                    </div>
-                  }
+              <div className="flex-1 flex flex-col gap-7 min-h-0 min-w-0 overflow-hidden">
+                <form
+                  id="pitch-profile-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleSaveChanges();
+                  }}
+                  className="flex flex-col gap-0 flex-1 min-h-0 overflow-hidden"
                 >
-                  <BusinessInfoForm
-                    form={form}
-                    embedded
-                    embeddedVariant="full"
-                    disableWebsiteLock
-                    primaryLocationAction={
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-block">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="default"
-                              onClick={handleAutofillProfile}
-                              disabled={
-                                isAutofillLoading ||
-                                !(formValues?.website ?? "").toString().trim()
-                              }
-                              className="gap-2 border-general-border-three text-general-foreground"
-                            >
-                              {isAutofillLoading ? (
-                                <>
-                                  <Loader2 className="size-4 animate-spin" />
-                                  Autofilling...
-                                </>
-                              ) : (
-                                "Autofill Profile"
-                              )}
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        {!(formValues?.website ?? "").toString().trim() ? (
-                          <TooltipContent>Enter Website URL to proceed</TooltipContent>
-                        ) : null}
-                      </Tooltip>
-                    }
-                  />
-                  <OfferingsForm
+                  <ProfileAutofillReviewTemplate
                     form={form}
                     businessId={businessId ?? null}
-                    embedded
+                    leftTitle="Pitch Profile"
+                    extractionController={offeringsExtractor}
+                    onSaveChanges={() => {
+                      void handleSaveChanges();
+                    }}
+                    onSaveAndUpdateStrategy={() => {
+                      void handleSaveAndProceed();
+                    }}
+                    onAutofillProfile={() => {
+                      void handleAutofillProfile();
+                    }}
+                    autofillDisabled={isAutofillDisabled}
+                    autofillLoading={isAutofillLoading}
+                    showUnlinkBusiness={false}
+                    saveDisabled={isSaving}
+                    proceedDisabled={
+                      !canConfirmAndProceed ||
+                      isLoading ||
+                      convertPitchMutation.isPending
+                    }
+                    showDefaultActions={false}
+                    customHeaderActions={
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-block">
+                              <Button
+                                type="button"
+                                className="bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
+                                onClick={() => {
+                                  if (offeringsExtractor.isExtracting) {
+                                    toast("Offerings extraction is still running.", {
+                                      description:
+                                        "Saving now will use the offerings currently in the form.",
+                                    });
+                                  }
+                                  void handleSaveChanges();
+                                }}
+                                disabled={isSaving}
+                              >
+                                {isSaving ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  "Save Changes"
+                                )}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {saveBlockReason ? (
+                            <TooltipContent>
+                              <p>{saveBlockReason}</p>
+                            </TooltipContent>
+                          ) : null}
+                        </Tooltip>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-general-border-three text-general-foreground"
+                          onClick={() => {
+                            if (!guardConvertPitch()) return;
+                            setIsConvertConfirmOpen(true);
+                          }}
+                          disabled={convertPitchMutation.isPending || isLoading}
+                        >
+                          {convertPitchMutation.isPending ? "Converting..." : "Convert to Business"}
+                        </Button>
+                      </>
+                    }
+                    className="flex-1"
                   />
-                  <div className="w-full md:w-3/4">
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-foreground">
-                        Brand terms that best describe your business
-                      </div>
-                      <form.Field
-                        name="brandTerms"
-                        children={(field: any) => {
-                          const currentValue = Array.isArray(field.state.value)
-                            ? field.state.value
-                            : [];
-                          return (
-                            <TagsInput
-                              value={currentValue}
-                              onChange={(next) => field.handleChange(next)}
-                              placeholder="Type a term and press Enter"
-                            />
-                          );
-                        }}
-                      />
-                    </div>
-                  </div>
-                </ProfileStepCard>
-              </form>
+                </form>
+              </div>
             </div>
           </div>
         </div>

@@ -1,0 +1,31 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - rm -f .env.production
+        - |
+          set -eu
+          test -n "$SNAPSHOT_SHARE_KEY"
+          test -n "$APP_ORIGIN"
+          test -n "$NODE_API_URL"
+          test -n "$INFER_API_URL"
+          umask 077
+          {
+            printf 'SNAPSHOT_SHARE_KEY=%s\n' "$SNAPSHOT_SHARE_KEY"
+            printf 'APP_ORIGIN=%s\n' "$APP_ORIGIN"
+            printf 'NODE_API_URL=%s\n' "$NODE_API_URL"
+            printf 'INFER_API_URL=%s\n' "$INFER_API_URL"
+            printf 'SNAPSHOT_REPORT_ASSET_HOSTS=%s\n' "${SNAPSHOT_REPORT_ASSET_HOSTS:-}"
+          } > .env.production
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*

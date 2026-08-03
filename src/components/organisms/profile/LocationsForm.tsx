@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useStore } from "@tanstack/react-form";
 import {
   Card,
@@ -12,15 +12,22 @@ import { Typography } from "@/components/ui/typography";
 import { FieldLabel } from "@/components/ui/field";
 import { CustomAddRowTable, Column } from "@/components/organisms/CustomAddRowTable";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { LocationRow } from "@/store/business-store";
 import { useAddRowTableState } from "@/hooks/use-add-row-table-state";
-import { MapPin } from "lucide-react";
+import { MapPin, ChevronsUpDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type BusinessInfoFormData = {
   locations?: Array<{ name: string; address: string; timezone: string }>;
@@ -82,52 +89,123 @@ export const LocationsForm = ({
     emptyRowFactory: () => ({ name: "", address: "", timezone: "" }),
   });
 
-  // Memoized timezone select cell component
-  const TimezoneSelectCell = useMemo(() => {
-    return React.memo(({ 
-      value, 
-      index, 
-      row,
-      onValueChange,
-      timezoneOptions: tzOptions
-    }: { 
-      value: string; 
-      index: number; 
-      row: LocationRow;
-      onValueChange: (index: number, field: string, value: string, currentRow?: LocationRow) => void;
-      timezoneOptions: Array<{ value: string; label: string }>;
-    }) => {
-      const handleChange = (newValue: string) => {
-        // Pass the current row data to preserve name and address
-        onValueChange(index, "timezone", newValue, row);
-      };
+  // Memoized timezone combobox cell component with search
+  const TimezoneComboboxCell = React.memo(({ 
+    value, 
+    index, 
+    row,
+    onValueChange,
+    timezoneOptions: tzOptions,
+    disabled,
+    isFocusedRow,
+    blendRow,
+    rowId,
+    setFocusedRowIndex,
+  }: { 
+    value: string; 
+    index: number; 
+    row: LocationRow;
+    onValueChange: (index: number, field: string, value: string, currentRow?: LocationRow) => void;
+    timezoneOptions: Array<{ value: string; label: string }>;
+    disabled: boolean;
+    isFocusedRow: boolean;
+    blendRow: boolean;
+    rowId: string;
+    setFocusedRowIndex: React.Dispatch<React.SetStateAction<number | null>>;
+  }) => {
+    const [open, setOpen] = useState(false);
 
-      return (
-        <Select
-          value={value || ""}
-          onValueChange={handleChange}
-        >
-          <SelectTrigger className="w-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-0 py-0 rounded-none h-auto">
-            <SelectValue placeholder="Choose a timezone" />
-          </SelectTrigger>
-          <SelectContent>
-            {tzOptions.map((tz) => (
-              <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }, (prevProps, nextProps) => {
-      return (
-        prevProps.value === nextProps.value &&
-        prevProps.index === nextProps.index &&
-        prevProps.timezoneOptions === nextProps.timezoneOptions &&
-        prevProps.row.name === nextProps.row.name &&
-        prevProps.row.address === nextProps.row.address &&
-        prevProps.row.timezone === nextProps.row.timezone
-      );
-    });
-  }, []);
+    const handleSelect = (newValue: string) => {
+      // Pass the current row data to preserve name and address
+      onValueChange(index, "timezone", newValue, row);
+      setOpen(false);
+    };
+
+    const handleOpenChange = (nextOpen: boolean) => {
+      if (disabled) return;
+      setOpen(nextOpen);
+
+      if (nextOpen) {
+        setFocusedRowIndex(index);
+        return;
+      }
+
+      // Mirror the Input blur behavior: only clear focus if nothing inside row is focused.
+      setTimeout(() => {
+        const container = document.getElementById(rowId);
+        const active = document.activeElement;
+        if (!container || !active || !container.contains(active)) {
+          setFocusedRowIndex((prev) => (prev === index ? null : prev));
+        }
+      }, 0);
+    };
+
+    const selectedLabel = tzOptions.find((tz) => tz.value === value)?.label || "";
+
+    return (
+      <Popover open={open} onOpenChange={handleOpenChange}>
+        <PopoverTrigger asChild>
+            <button
+              type="button"
+              role="combobox"
+              aria-expanded={open}
+              disabled={disabled}
+              className={cn(
+                // Match `CustomAddRowTable` card-input sizing exactly (see Input class in that file)
+                "h-9 min-h-9 w-full min-w-0 rounded-lg px-3 py-2 text-general-foreground text-sm transition-colors border-0 shadow-none outline-none",
+                "focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-0",
+                "inline-flex items-center justify-between gap-2",
+                "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+                (blendRow && !open) ? "bg-transparent" : "bg-white"
+              )}
+            >
+              <span className={cn("truncate text-left", !value && "text-general-border-four")}>
+                {value ? selectedLabel : "Choose a timezone"}
+              </span>
+              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+            </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[300px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search timezone..." />
+            <CommandList>
+              <CommandEmpty>No timezone found.</CommandEmpty>
+              <CommandGroup>
+                {tzOptions.map((tz) => (
+                  <CommandItem
+                    key={tz.value}
+                    value={tz.label}
+                    onSelect={() => handleSelect(tz.value)}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value === tz.value ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    {tz.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  }, (prevProps, nextProps) => {
+    return (
+      prevProps.value === nextProps.value &&
+      prevProps.index === nextProps.index &&
+      prevProps.timezoneOptions === nextProps.timezoneOptions &&
+      prevProps.disabled === nextProps.disabled &&
+      prevProps.isFocusedRow === nextProps.isFocusedRow &&
+      prevProps.blendRow === nextProps.blendRow &&
+      prevProps.rowId === nextProps.rowId &&
+      prevProps.row.name === nextProps.row.name &&
+      prevProps.row.address === nextProps.row.address &&
+      prevProps.row.timezone === nextProps.row.timezone
+    );
+  });
 
   // Own column definitions
   const locationsColumns: Column<LocationRow>[] = useMemo(() => [
@@ -137,19 +215,29 @@ export const LocationsForm = ({
       key: "timezone",
       label: "Timezone",
       validation: { required: false },
-      render: (value: any, row: LocationRow, index: number) => {
+      render: (
+        value: any,
+        row: LocationRow,
+        index: number,
+        helpers
+      ) => {
         return (
-          <TimezoneSelectCell
+          <TimezoneComboboxCell
             value={value || ""}
             index={index}
             row={row}
             onValueChange={handleRowChange}
             timezoneOptions={timezoneOptions}
+            disabled={helpers?.disabled ?? false}
+            isFocusedRow={helpers?.isFocusedRow ?? false}
+            blendRow={helpers?.blendRow ?? false}
+            rowId={helpers?.rowId ?? `timezone-row-${index}`}
+            setFocusedRowIndex={helpers?.setFocusedRowIndex ?? (() => {})}
           />
         );
       },
     },
-  ], [TimezoneSelectCell, timezoneOptions, handleRowChange]);
+  ], [timezoneOptions, handleRowChange]);
 
   const cardVariant = embedded ? "noBorderShadowCard" : "profileCard";
   const innerContent = (

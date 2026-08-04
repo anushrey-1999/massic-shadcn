@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { api } from "@/hooks/use-api";
 import { useAuthStore } from "@/store/auth-store";
@@ -32,6 +32,10 @@ interface UpdateUserResponse {
   err: boolean;
   message?: string;
   data?: any;
+}
+
+interface AgencyProfileResponse {
+  name: string;
 }
 
 interface LogoUploadSessionResponse {
@@ -88,19 +92,25 @@ function updateUserInStore(updates: Partial<Record<string, any>>) {
 export function useAgencyInfo() {
   const { user, isAuthenticated } = useAuthStore();
 
-  // If user is a team member and has ownerAgencyInfo, use that
   const isTeamMember = user?.isTeamMember || false;
   const ownerInfo = user?.ownerAgencyInfo;
+  const accountUniqueId = user?.accountUniqueId || user?.uniqueId || user?.UniqueId;
+  const agencyProfile = useQuery<AgencyProfileResponse, Error>({
+    queryKey: ["agency-profile", accountUniqueId],
+    queryFn: () => api.get<AgencyProfileResponse>("/agency/profile", "node"),
+    enabled: isAuthenticated && !!accountUniqueId,
+  });
+  const agencyName = agencyProfile.data?.name ?? "";
 
   const agencyInfo: AgencyInfo = isTeamMember && ownerInfo
     ? {
-      name: ownerInfo.name || "",
+      name: agencyName,
       website: ownerInfo.website || "",
       email: ownerInfo.email || "",
       logo: ownerInfo.logo || "",
     }
     : {
-      name: user?.name || user?.username || "",
+      name: agencyName,
       website: user?.website || "",
       email: user?.email || "",
       logo: user?.logo || "",
@@ -113,6 +123,7 @@ export function useAgencyInfo() {
     userUniqueId: user?.uniqueId || user?.UniqueId,
     agencyDetails: user?.agencyDetails || [],
     isTeamMember,
+    isAgencyInfoLoading: agencyProfile.isLoading,
   };
 }
 
@@ -121,6 +132,7 @@ export function useAgencyInfo() {
  */
 export function useUpdateAgencyInfo() {
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
 
   return useMutation<void, Error, UpdateAgencyPayload>({
     mutationFn: async (payload: UpdateAgencyPayload) => {
@@ -133,7 +145,7 @@ export function useUpdateAgencyInfo() {
         "node",
         {
           details: {
-            username: payload.agencyName,
+            agencyName: payload.agencyName,
             website: payload.agencyWebsite,
             email: user.email,
           },
@@ -146,11 +158,16 @@ export function useUpdateAgencyInfo() {
 
       // Update auth store with new values
       updateUserInStore({
-        name: payload.agencyName,
         website: payload.agencyWebsite,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const accountUniqueId = user?.accountUniqueId || user?.uniqueId || user?.UniqueId;
+      queryClient.setQueryData<AgencyProfileResponse>(
+        ["agency-profile", accountUniqueId],
+        { name: variables.agencyName }
+      );
+      queryClient.invalidateQueries({ queryKey: ["agency-profile", accountUniqueId] });
       toast.success("Agency information updated successfully");
     },
     onError: (error: Error) => {

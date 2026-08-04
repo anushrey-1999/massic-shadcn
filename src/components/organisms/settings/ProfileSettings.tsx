@@ -101,7 +101,7 @@ interface ProfileSettingsProps {
 
 export function ProfileSettings({ linkedBusinessesOnly = false }: ProfileSettingsProps) {
   const { profileDataByUniqueID } = useBusinessStore();
-  const { agencyInfo, agencyDetails, isTeamMember } = useAgencyInfo();
+  const { agencyInfo, agencyDetails, isTeamMember, isAgencyInfoLoading } = useAgencyInfo();
   const permissions = usePermissions();
   const updateAgencyMutation = useUpdateAgencyInfo();
   const uploadLogoMutation = useUploadLogo();
@@ -161,14 +161,14 @@ export function ProfileSettings({ linkedBusinessesOnly = false }: ProfileSetting
 
   // Update form when agencyInfo loads
   useEffect(() => {
-    if (!formInitialized && agencyInfo.email) {
-      agencyForm.setFieldValue("agencyName", agencyInfo.name || "");
+    if (!formInitialized && agencyInfo.email && !isAgencyInfoLoading) {
+      agencyForm.setFieldValue("agencyName", agencyInfo.name);
       agencyForm.setFieldValue("agencyWebsite", agencyInfo.website || "");
       agencyForm.setFieldValue("emailAddress", agencyInfo.email || "");
       agencyForm.setFieldValue("logo", agencyInfo.logo || "");
       setFormInitialized(true);
     }
-  }, [agencyInfo, formInitialized]);
+  }, [agencyInfo, formInitialized, isAgencyInfoLoading]);
 
   const handleLogoUpload = async (file: File) => {
     try {

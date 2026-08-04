@@ -77,6 +77,7 @@ export function ProfileAutofillReviewTemplate({
   isWorkflowProcessing = false,
   customHeaderActions,
   showDefaultActions = true,
+  lockWebsite = false,
   className,
 }: {
   form: any;
@@ -99,6 +100,7 @@ export function ProfileAutofillReviewTemplate({
   isWorkflowProcessing?: boolean;
   customHeaderActions?: React.ReactNode;
   showDefaultActions?: boolean;
+  lockWebsite?: boolean;
   className?: string;
 }) {
   const [activeSection, setActiveSection] = useState<SectionId>("identity");
@@ -316,7 +318,7 @@ export function ProfileAutofillReviewTemplate({
 
                 <div className="flex flex-col">
                   <div className="border-b border-general-border/30 py-3">
-                    <GenericInput<BusinessInfoFormData>
+                  <GenericInput<BusinessInfoFormData>
                       form={form as any}
                       fieldName="businessName"
                       type="input"
@@ -372,6 +374,7 @@ export function ProfileAutofillReviewTemplate({
                       fieldClassName="gap-0 items-center"
                       className="max-w-[382px]"
                       required
+                      disabled={lockWebsite}
                     />
                   </div>
                 </div>
@@ -771,10 +774,12 @@ export function ProfileAutofillReviewTemplate({
           <div className="w-full border-b border-general-border-three bg-general-primary-foreground px-6 py-6">
             <DialogHeader className="space-y-0">
               <DialogTitle className="text-2xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Edit website & location
+                {lockWebsite ? "Edit location" : "Edit website & location"}
               </DialogTitle>
               <DialogDescription className="mt-1 text-xs font-normal leading-normal text-general-muted-foreground">
-                Update these inputs and re-run Autofill Profile if needed.
+                {lockWebsite
+                  ? "Update the location inputs and re-run Autofill Profile if needed. The website comes from Webflow."
+                  : "Update these inputs and re-run Autofill Profile if needed."}
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -784,6 +789,7 @@ export function ProfileAutofillReviewTemplate({
               embedded
               embeddedVariant="autofillGate"
               disableWebsiteLock={true}
+              disabledFields={lockWebsite ? { website: true } : undefined}
               primaryLocationAction={
                 onAutofillProfile ? (
                   <Button
@@ -805,4 +811,3 @@ export function ProfileAutofillReviewTemplate({
     </Card>
   );
 }
-

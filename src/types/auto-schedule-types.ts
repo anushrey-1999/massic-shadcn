@@ -1,9 +1,16 @@
+import type {
+  PerformanceReportPerspective,
+  PerformanceReportScope,
+} from "./performance-report-options-types";
+
 export interface CreateAutoScheduleRequest {
   businessId: string;
   frequency: "weekly" | "monthly";
   period?: string;
   requiresApproval?: boolean;
-  watermarkReport?: boolean;
+  scope?: PerformanceReportScope;
+  perspective?: PerformanceReportPerspective;
+  customInstructions?: string;
   recipients?: string[];
 }
 
@@ -13,7 +20,9 @@ export interface UpdateAutoScheduleRequest {
   dayOfMonth?: number;
   period?: string;
   requiresApproval?: boolean;
-  watermarkReport?: boolean;
+  scope?: PerformanceReportScope;
+  perspective?: PerformanceReportPerspective;
+  customInstructions?: string;
   isActive?: boolean;
   recipients?: string[];
 }
@@ -26,7 +35,9 @@ export interface CreateAutoScheduleResponse {
   dayOfMonth: number | null;
   period: string;
   requiresApproval: boolean;
-  watermarkReport: boolean;
+  scope: PerformanceReportScope;
+  perspective: PerformanceReportPerspective;
+  customInstructions: string;
   isActive: boolean;
   nextRunAt: string;
   recipients: string[];
@@ -42,7 +53,9 @@ export interface AutoSchedule {
   dayOfMonth: number | null;
   period: string;
   requiresApproval: boolean;
-  watermarkReport: boolean;
+  scope: PerformanceReportScope;
+  perspective: PerformanceReportPerspective;
+  customInstructions: string;
   isActive: boolean;
   nextRunAt: string;
   lastRunAt: string | null;
@@ -51,4 +64,3 @@ export interface AutoSchedule {
   createdAt: string;
   updatedAt?: string;
 }
-

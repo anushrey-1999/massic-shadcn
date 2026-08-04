@@ -10,6 +10,10 @@ import type {
   PerformanceReportPayload,
   PerformanceReportV2EditedFields,
 } from "@/types/report-runs-types";
+import type {
+  PerformanceReportPerspective,
+  PerformanceReportScope,
+} from "@/types/performance-report-options-types";
 
 export interface ListReportRunsParams {
   business_id: string;
@@ -161,8 +165,8 @@ export interface GenerateReportV2Params {
   endDate: string;
   custom_instructions?: string;
   report_options?: {
-    scope: "organic" | "all_channels";
-    perspective: "wins" | "full_picture";
+    scope: PerformanceReportScope;
+    perspective: PerformanceReportPerspective;
   };
 }
 

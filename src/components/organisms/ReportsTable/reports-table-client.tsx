@@ -107,6 +107,7 @@ export function ReportsTableClient({ businessId }: { businessId: string }) {
       businessId={businessId}
       data={data?.data ?? []}
       pageCount={data?.pageCount ?? 0}
+      currentPage={page}
       isLoading={showLoading}
       isFetching={false} // Don't show fetching indicator during background refetches
     />

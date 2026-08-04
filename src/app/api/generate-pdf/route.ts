@@ -20,6 +20,7 @@ import {
   type SeoSnapshotReport,
 } from "@/utils/seo-snapshot-report";
 import type { WebsiteSnapshotReport } from "@/utils/website-snapshot-report";
+import { buildPdfContentDisposition } from "@/utils/content-disposition";
 
 const CHROMIUM_URL =
   "https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar";
@@ -2977,7 +2978,7 @@ export async function POST(request: NextRequest) {
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${normalizedTitle || "document"}.pdf"`,
+        "Content-Disposition": buildPdfContentDisposition(normalizedTitle),
       },
     });
   } catch (error) {

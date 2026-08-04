@@ -25,6 +25,12 @@ import {
 } from "@/hooks/use-auto-schedules";
 import type { AutoSchedule } from "@/types/auto-schedule-types";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import { PerformanceReportOptionsFields } from "./performance-report-options-fields";
+import { NextScheduledReportCard } from "./scheduled-report-display";
+import type {
+  PerformanceReportPerspective,
+  PerformanceReportScope,
+} from "@/types/performance-report-options-types";
 
 interface AutoScheduleDialogProps {
   isOpen: boolean;
@@ -42,7 +48,10 @@ export function AutoScheduleDialog({
   const [period, setPeriod] = React.useState("3 months");
   const [frequency, setFrequency] = React.useState<"weekly" | "monthly">("weekly");
   const [requiresApproval, setRequiresApproval] = React.useState<boolean>(true);
-  const [watermarkReport, setWatermarkReport] = React.useState<boolean>(true);
+  const [reportScope, setReportScope] = React.useState<PerformanceReportScope>("organic");
+  const [reportPerspective, setReportPerspective] =
+    React.useState<PerformanceReportPerspective>("full_picture");
+  const [customInstructions, setCustomInstructions] = React.useState("");
   const [isActive, setIsActive] = React.useState<boolean>(true);
   const [recipients, setRecipients] = React.useState<string[]>([]);
   const [newEmail, setNewEmail] = React.useState("");
@@ -65,14 +74,18 @@ export function AutoScheduleDialog({
         setPeriod(existingSchedule.period || "3 months");
         setFrequency(existingSchedule.frequency);
         setRequiresApproval(existingSchedule.requiresApproval);
-        setWatermarkReport(existingSchedule.watermarkReport);
+        setReportScope(existingSchedule.scope || "organic");
+        setReportPerspective(existingSchedule.perspective || "full_picture");
+        setCustomInstructions(existingSchedule.customInstructions || "");
         setIsActive(existingSchedule.isActive);
         setRecipients(existingSchedule.recipients?.length ? existingSchedule.recipients : []);
       } else {
         setPeriod("3 months");
         setFrequency("weekly");
         setRequiresApproval(true);
-        setWatermarkReport(true);
+        setReportScope("organic");
+        setReportPerspective("full_picture");
+        setCustomInstructions("");
         setIsActive(true);
         setRecipients([]);
       }
@@ -149,7 +162,9 @@ export function AutoScheduleDialog({
             frequency,
             period,
             requiresApproval,
-            watermarkReport,
+            scope: reportScope,
+            perspective: reportPerspective,
+            customInstructions: customInstructions.trim(),
             isActive,
             recipients: allRecipients,
           },
@@ -163,7 +178,9 @@ export function AutoScheduleDialog({
           frequency,
           period,
           requiresApproval,
-          watermarkReport,
+          scope: reportScope,
+          perspective: reportPerspective,
+          customInstructions: customInstructions.trim(),
           recipients: allRecipients,
         });
 
@@ -182,13 +199,18 @@ export function AutoScheduleDialog({
   const isLoading = createAutoSchedule.isPending || updateAutoSchedule.isPending;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isLoading) onClose();
+      }}
+    >
       <DialogContent
-        className="sm:max-w-xl p-0 gap-0 bg-white border-[#E5E5E5] rounded-[10px] shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)]"
+        className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden rounded-[10px] border-[#E5E5E5] bg-white p-0 shadow-[0px_10px_15px_-3px_rgba(0,0,0,0.1),0px_4px_6px_-4px_rgba(0,0,0,0.1)] sm:max-w-xl"
         showCloseButton={false}
       >
         {/* Dialog Header */}
-        <div className="flex flex-col items-start p-4 w-full">
+        <div className="w-full shrink-0 p-4">
           <div className="flex items-center justify-between w-full">
             <DialogTitle className="font-semibold text-[20px] leading-[1.2] tracking-[-0.4px] text-[#0A0A0A]">
               Auto-Schedule
@@ -196,7 +218,9 @@ export function AutoScheduleDialog({
             <button
               type="button"
               onClick={onClose}
-              className="h-4 w-4 shrink-0 opacity-70 hover:opacity-100 transition-opacity"
+              disabled={isLoading}
+              className="h-4 w-4 shrink-0 opacity-70 transition-opacity hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Close auto-schedule"
             >
               <X className="h-4 w-4 text-[#525252]" strokeWidth={1.5} />
               <span className="sr-only">Close</span>
@@ -208,7 +232,7 @@ export function AutoScheduleDialog({
         <div className="h-px bg-[#E5E5E5] w-full" />
 
         {/* Content */}
-        <div className="flex flex-col gap-3 items-center justify-center pt-4 px-4 pb-0 w-full">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4 pt-4">
           {/* Toggle Switch - Only shown when schedule exists */}
           {isEditMode && (
             <div className=" flex items-center justify-between p-2 rounded-[8px] w-full">
@@ -224,6 +248,10 @@ export function AutoScheduleDialog({
                 </p>
               </div>
             </div>
+          )}
+
+          {isEditMode && isActive && (
+            <NextScheduledReportCard scheduledFor={existingSchedule?.nextRunAt} />
           )}
 
           {/* Select Time Period Card */}
@@ -337,57 +365,19 @@ export function AutoScheduleDialog({
             </div>
           </div>
 
-          {/* Watermark Report Card */}
-          <div className="bg-[#FAFAFA] flex items-center justify-between pl-2 pr-6 py-2 rounded-[8px] w-full">
-            <div className="flex flex-col gap-[6px] items-start">
-              <p className="font-medium text-[14px] leading-[1.5] tracking-[0.07px] text-[#0A0A0A]">
-                Watermark Report
-              </p>
-              <div className="flex flex-col gap-2 h-10 items-start justify-center">
-                <div className="flex gap-8 items-start w-full">
-                  <label className="flex gap-2 h-[21px] items-center cursor-pointer">
-                    <div className="relative flex items-center justify-center h-4 w-4">
-                      <input
-                        type="radio"
-                        checked={watermarkReport === true}
-                        onChange={() => setWatermarkReport(true)}
-                        disabled={isLoading}
-                        className="peer absolute h-[15px] w-[15px] cursor-pointer appearance-none rounded-full border border-[#D4D4D4] bg-white checked:border-[#D4D4D4] disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                      <div className="pointer-events-none absolute h-2 w-2 rounded-full bg-[#0A0A0A] opacity-0 peer-checked:opacity-100" />
-                    </div>
-                    <span className="text-[14px] leading-[1.5] tracking-[0.07px] text-[#404040]">
-                      Yes
-                    </span>
-                  </label>
-                  <label className="flex gap-2 h-[21px] items-center cursor-pointer">
-                    <div className="relative flex items-center justify-center h-4 w-4">
-                      <input
-                        type="radio"
-                        checked={watermarkReport === false}
-                        onChange={() => setWatermarkReport(false)}
-                        disabled={isLoading}
-                        className="peer absolute h-[15px] w-[15px] cursor-pointer appearance-none rounded-full border border-[#D4D4D4] bg-white checked:border-[#D4D4D4] disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                      <div className="pointer-events-none absolute h-2 w-2 rounded-full bg-[#0A0A0A] opacity-0 peer-checked:opacity-100" />
-                    </div>
-                    <span className="text-[14px] leading-[1.5] tracking-[0.07px] text-[#404040]">
-                      No
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Powered by Massic Logo */}
-            <div className="h-[47px] w-[135px] flex items-center justify-center">
-              <img
-                src="/powered-by-massic.svg"
-                alt="Powered by Massic"
-                className="w-full h-full"
-              />
-            </div>
+          <div className="w-full rounded-[8px] bg-[#FAFAFA] p-2">
+            <PerformanceReportOptionsFields
+              idPrefix="scheduled-performance-report"
+              scope={reportScope}
+              onScopeChange={setReportScope}
+              perspective={reportPerspective}
+              onPerspectiveChange={setReportPerspective}
+              customInstructions={customInstructions}
+              onCustomInstructionsChange={setCustomInstructions}
+              disabled={isLoading}
+            />
           </div>
+
           {/* Recipients Card */}
           <div className="bg-[#FAFAFA] flex flex-col gap-[6px] items-start p-2 rounded-[8px] w-full">
             <p className="font-medium text-[14px] leading-[1.5] tracking-[0.07px] text-[#0A0A0A]">
@@ -450,7 +440,7 @@ export function AutoScheduleDialog({
         </div>
 
         {/* Dialog Footer */}
-        <div className="flex flex-col gap-0 items-center justify-center p-4 w-full">
+        <div className="w-full shrink-0 border-t border-[#E5E5E5] bg-white p-4">
           <div className="flex gap-2 items-center justify-end w-full">
             <button
               type="button"

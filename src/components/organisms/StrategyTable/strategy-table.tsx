@@ -10,15 +10,13 @@ import type { StrategyRow } from "@/types/strategy-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getStrategyTableColumns } from "./strategy-table-columns";
+import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface StrategyTableProps {
   businessId?: string;
   data: StrategyRow[];
   pageCount: number;
   offeringCounts?: Record<string, number>;
-  businessRelevanceRange?: { min: number; max: number };
-  topicCoverageRange?: { min: number; max: number };
-  searchVolumeRange?: { min: number; max: number };
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -27,6 +25,7 @@ interface StrategyTableProps {
   onRowClick?: (row: StrategyRow) => void;
   toolbarRightPrefix?: React.ReactNode;
   columnVisibilityKey?: string;
+  onDownloadCsv?: () => void | Promise<void>;
 }
 
 export function StrategyTable({
@@ -34,9 +33,6 @@ export function StrategyTable({
   data,
   pageCount,
   offeringCounts = {},
-  businessRelevanceRange = { min: 0, max: 1 },
-  topicCoverageRange = { min: 0, max: 1 },
-  searchVolumeRange = { min: 0, max: 10000 },
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -45,6 +41,7 @@ export function StrategyTable({
   onRowClick,
   toolbarRightPrefix,
   columnVisibilityKey,
+  onDownloadCsv,
 }: StrategyTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
@@ -54,11 +51,8 @@ export function StrategyTable({
       getStrategyTableColumns({
         businessId,
         offeringCounts,
-        businessRelevanceRange,
-        topicCoverageRange,
-        searchVolumeRange,
       }),
-    [businessId, offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange]
+    [businessId, offeringCounts]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
@@ -120,7 +114,10 @@ export function StrategyTable({
           <div className="flex items-center gap-2">
             <DataTableSortList table={table} align="start" />
             <DataTableViewOptions table={table} align="end" />
-               {toolbarRightPrefix}
+            {onDownloadCsv && (
+              <DownloadCsvButton onDownload={onDownloadCsv} disabled={data.length === 0} />
+            )}
+            {toolbarRightPrefix}
           </div>
         </div>
       </DataTable>

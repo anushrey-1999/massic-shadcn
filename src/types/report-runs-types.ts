@@ -19,6 +19,7 @@ export type PerformanceReportPayload =
 
 export interface ReportRunListItem {
   id: string
+  row_type?: "report" | "schedule"
   status: ReportRunStatus
   date_generated: string | null
   time_generated: string | null
@@ -27,6 +28,7 @@ export interface ReportRunListItem {
   period: string | null
   errors: ReportRunError | null
   created_at: string
+  scheduled_for?: string | null
   delivery_status?: ReportRunDeliveryStatus
   is_auto_scheduled?: boolean
   business_name?: string | null

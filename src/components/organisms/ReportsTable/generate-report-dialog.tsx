@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -32,6 +31,11 @@ import { useGenerateReportV2 } from "@/hooks/use-report-runs";
 import { getWorkflowStatus } from "@/lib/workflow-status";
 import { getAnalyticsPeriodBounds, resolveTimePeriodRange, type TimePeriodValue } from "@/utils/analytics-period";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
+import { PerformanceReportOptionsFields } from "./performance-report-options-fields";
+import type {
+  PerformanceReportPerspective,
+  PerformanceReportScope,
+} from "@/types/performance-report-options-types";
 
 interface GenerateReportDialogProps {
   open: boolean;
@@ -74,8 +78,9 @@ export function GenerateReportDialog({
   const [customRange, setCustomRange] = React.useState<DateRange | undefined>(() =>
     buildInitialCustomRange("3 months", periodReferenceDate)
   );
-  const [reportScope, setReportScope] = React.useState<"organic" | "all_channels">("organic");
-  const [reportPerspective, setReportPerspective] = React.useState<"wins" | "full_picture">("full_picture");
+  const [reportScope, setReportScope] = React.useState<PerformanceReportScope>("organic");
+  const [reportPerspective, setReportPerspective] =
+    React.useState<PerformanceReportPerspective>("full_picture");
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   const [customInstructions, setCustomInstructions] = React.useState("");
   const { minSelectableDate } = React.useMemo(
@@ -331,76 +336,16 @@ export function GenerateReportDialog({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="report-scope"
-                  className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
-                >
-                  Scope
-                </label>
-                <Select
-                  value={reportScope}
-                  onValueChange={(value) => setReportScope(value as "organic" | "all_channels")}
-                  disabled={!canGenerate || isGenerating}
-                >
-                  <SelectTrigger
-                    id="report-scope"
-                    className="w-full h-10 min-h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pl-3 pr-2 py-[7.5px] gap-2 border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground"
-                    variant="noBorder"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="organic">Organic</SelectItem>
-                    <SelectItem value="all_channels">All channels</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="report-perspective"
-                  className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
-                >
-                  Perspective
-                </label>
-                <Select
-                  value={reportPerspective}
-                  onValueChange={(value) => setReportPerspective(value as "wins" | "full_picture")}
-                  disabled={!canGenerate || isGenerating}
-                >
-                  <SelectTrigger
-                    id="report-perspective"
-                    className="w-full h-10 min-h-9 bg-white rounded-lg shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] pl-3 pr-2 py-[7.5px] gap-2 border-0 text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground"
-                    variant="noBorder"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="wins">Wins</SelectItem>
-                    <SelectItem value="full_picture">Full picture</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="custom-instructions"
-                className="text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-foreground"
-              >
-                Custom Instructions
-              </label>
-              <Textarea
-                id="custom-instructions"
-                value={customInstructions}
-                onChange={(event) => setCustomInstructions(event.target.value)}
-                disabled={!canGenerate || isGenerating}
-                placeholder="Optional: Add specific instructions for this report."
-                className="min-h-[96px] resize-y bg-white text-[12px] leading-[1.5] tracking-[0.18px] text-general-foreground border-general-border"
-              />
-            </div>
+            <PerformanceReportOptionsFields
+              idPrefix="manual-performance-report"
+              scope={reportScope}
+              onScopeChange={setReportScope}
+              perspective={reportPerspective}
+              onPerspectiveChange={setReportPerspective}
+              customInstructions={customInstructions}
+              onCustomInstructionsChange={setCustomInstructions}
+              disabled={!canGenerate || isGenerating}
+            />
           </div>
 
           {/* Status message */}

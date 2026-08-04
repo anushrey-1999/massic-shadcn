@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { getBaseURLByPlatform } from "@/hooks/use-api";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useDisconnectWordpress,
@@ -83,6 +84,13 @@ import {
   useValidateSanity,
   type SanityField,
 } from "@/hooks/use-sanity-connector";
+import {
+  useConfigureShopify,
+  useDisconnectShopify,
+  useShopifyBlogs,
+  useShopifyConnection,
+  useStartShopifyOauth,
+} from "@/hooks/use-shopify-connector";
 import {
   useDisconnectWix,
   useStartWixOauth,
@@ -142,6 +150,33 @@ function normalizeSiteUrlInput(value: string) {
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
+}
+
+function normalizeShopifyDomainInput(value: string) {
+  const raw = value.trim().toLowerCase();
+  if (!raw) return "";
+  try {
+    const host = /^https?:\/\//i.test(raw)
+      ? new URL(raw).hostname
+      : raw.replace(/\/$/, "");
+    return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) ? host : "";
+  } catch {
+    return "";
+  }
+}
+
+function isAllowedShopifyAuthorizationUrl(value: string) {
+  try {
+    const candidate = new URL(value);
+    const backendOrigin = new URL(getBaseURLByPlatform("node")).origin;
+    return (
+      candidate.protocol === "https:" &&
+      candidate.origin === backendOrigin &&
+      candidate.pathname.endsWith("/cms/shopify/oauth/authorize")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function buildWordpressPluginInstallUrl(siteUrl: string) {
@@ -350,6 +385,9 @@ export function WebChannelsTab({
   const [isSanityConnectModalOpen, setIsSanityConnectModalOpen] =
     React.useState(false);
   const [isSanityGuideOpen, setIsSanityGuideOpen] = React.useState(false);
+  const [isShopifyConnectModalOpen, setIsShopifyConnectModalOpen] =
+    React.useState(false);
+  const [isShopifyGuideOpen, setIsShopifyGuideOpen] = React.useState(false);
   const [isWixGuideOpen, setIsWixGuideOpen] = React.useState(false);
   const [externalNavigationFallback, setExternalNavigationFallback] =
     React.useState<ExternalNavigationFallback | null>(null);
@@ -362,6 +400,8 @@ export function WebChannelsTab({
   const [sanityPreviewBaseUrl, setSanityPreviewBaseUrl] = React.useState("");
   const [sanityUrlPattern, setSanityUrlPattern] =
     React.useState("/blog/{slug}");
+  const [shopifyDomain, setShopifyDomain] = React.useState("");
+  const [selectedShopifyBlogId, setSelectedShopifyBlogId] = React.useState("");
   const [selectedWebflowSiteId, setSelectedWebflowSiteId] = React.useState("");
   const [selectedWebflowPageSiteId, setSelectedWebflowPageSiteId] =
     React.useState("");
@@ -388,6 +428,7 @@ export function WebChannelsTab({
     React.useState(false);
   const webflowMappingInitKeyRef = React.useRef("");
   const sanityMappingInitKeyRef = React.useRef("");
+  const shopifyOauthWindowRef = React.useRef<Window | null>(null);
 
   const { data, isLoading, refetch } = useWordpressConnection(businessId);
   const prevActiveRef = React.useRef(false);
@@ -435,6 +476,19 @@ export function WebChannelsTab({
   const disconnectWixMutation = useDisconnectWix(businessId);
   const configureWebflowMutation = useConfigureWebflow(businessId);
   const configureWebflowPagesMutation = useConfigureWebflowPages(businessId);
+  const shopifyConnectionQuery = useShopifyConnection(businessId);
+  const shopifyConnection = shopifyConnectionQuery.data?.connection || null;
+  const isShopifyConnected = Boolean(
+    shopifyConnectionQuery.data?.connected && shopifyConnection,
+  );
+  const shopifyTarget = shopifyConnection?.target || null;
+  const startShopifyOauthMutation = useStartShopifyOauth();
+  const disconnectShopifyMutation = useDisconnectShopify(businessId);
+  const configureShopifyMutation = useConfigureShopify(businessId);
+  const shopifyBlogsQuery = useShopifyBlogs(
+    shopifyConnection?.connectionId || null,
+  );
+  const shopifyBlogs = shopifyBlogsQuery.data || [];
   const sanityConnectionQuery = useSanityConnection(businessId);
   const sanityConnection = sanityConnectionQuery.data?.connection || null;
   const isSanityConnected = Boolean(
@@ -700,9 +754,29 @@ export function WebChannelsTab({
   }, [savedSanityUrlPattern]);
 
   React.useEffect(() => {
+    if (shopifyTarget?.blogId && !selectedShopifyBlogId) {
+      setSelectedShopifyBlogId(shopifyTarget.blogId);
+    }
+  }, [selectedShopifyBlogId, shopifyTarget?.blogId]);
+
+  React.useEffect(() => {
+    if (
+      selectedShopifyBlogId ||
+      shopifyTarget?.blogId ||
+      shopifyBlogs.length === 0
+    )
+      return;
+    const recommendedBlog = shopifyBlogs.find(
+      (blog) => blog.title.trim().toLowerCase() === "massic test blog",
+    );
+    if (recommendedBlog) setSelectedShopifyBlogId(recommendedBlog.id);
+  }, [selectedShopifyBlogId, shopifyBlogs, shopifyTarget?.blogId]);
+
+  React.useEffect(() => {
     const defaultSiteId = webflowTarget?.siteId || onboardingWebflowSiteId;
-    if (defaultSiteId && !selectedWebflowSiteId)
+    if (defaultSiteId && !selectedWebflowSiteId) {
       setSelectedWebflowSiteId(defaultSiteId);
+    }
     if (webflowTarget?.collectionId && !selectedWebflowCollectionId) {
       setSelectedWebflowCollectionId(webflowTarget.collectionId);
     }
@@ -1063,6 +1137,40 @@ export function WebChannelsTab({
   }, [refetch, sanityConnectionQuery, webflowConnectionQuery]);
 
   React.useEffect(() => {
+    const expectedOrigin = new URL(getBaseURLByPlatform("node")).origin;
+    const onShopifyOauthMessage = (event: MessageEvent) => {
+      if (event.origin !== expectedOrigin) return;
+      if (
+        shopifyOauthWindowRef.current &&
+        event.source !== shopifyOauthWindowRef.current
+      )
+        return;
+      const payload = event.data;
+      if (!payload || payload.source !== "massic-shopify-oauth") return;
+      shopifyOauthWindowRef.current = null;
+      if (payload.ok) {
+        toast.success("Shopify connected");
+        setIsShopifyConnectModalOpen(false);
+        void shopifyConnectionQuery.refetch();
+        void webflowConnectionQuery.refetch();
+        void sanityConnectionQuery.refetch();
+        void refetch();
+        return;
+      }
+      toast.error("Shopify connection failed", {
+        description: payload.message || "Please try again.",
+      });
+    };
+    window.addEventListener("message", onShopifyOauthMessage);
+    return () => window.removeEventListener("message", onShopifyOauthMessage);
+  }, [
+    refetch,
+    sanityConnectionQuery,
+    shopifyConnectionQuery,
+    webflowConnectionQuery,
+  ]);
+
+  React.useEffect(() => {
     const onWixOauthMessage = (event: MessageEvent) => {
       const payload = event.data;
       if (!payload || payload.source !== "massic-wix-oauth") return;
@@ -1156,6 +1264,66 @@ export function WebChannelsTab({
     } catch {
       pendingWindow?.close();
     }
+  };
+
+  const submitShopifyConnect = async () => {
+    const shop = normalizeShopifyDomainInput(shopifyDomain);
+    if (!shop) {
+      toast.error("Enter a valid Shopify store domain", {
+        description: "Use the permanent domain ending in .myshopify.com.",
+      });
+      return;
+    }
+    const pendingWindow = window.open("about:blank", "_blank");
+    if (!pendingWindow) {
+      toast.error("Your browser blocked the Shopify connection tab");
+      return;
+    }
+    shopifyOauthWindowRef.current = pendingWindow;
+    try {
+      pendingWindow.document.title = "Connecting Shopify…";
+      pendingWindow.document.body.textContent =
+        "Opening secure Shopify authorization…";
+    } catch {
+      // The new tab may become cross-origin immediately.
+    }
+    try {
+      const response = await startShopifyOauthMutation.mutateAsync({
+        businessId,
+        shop,
+      });
+      const authorizationUrl = response?.data?.authorizationUrl;
+      if (
+        !authorizationUrl ||
+        !isAllowedShopifyAuthorizationUrl(authorizationUrl)
+      ) {
+        pendingWindow.close();
+        shopifyOauthWindowRef.current = null;
+        toast.error("Shopify returned an invalid authorization URL");
+        return;
+      }
+      if (!navigatePendingExternalTab(pendingWindow, authorizationUrl)) {
+        pendingWindow.close();
+        shopifyOauthWindowRef.current = null;
+        setExternalNavigationFallback({
+          url: authorizationUrl,
+          title: "Open Shopify authorization",
+          description:
+            "Open Shopify from here to approve the Massic connection.",
+        });
+      }
+    } catch {
+      pendingWindow.close();
+      shopifyOauthWindowRef.current = null;
+    }
+  };
+
+  const submitShopifyConfiguration = async () => {
+    if (!shopifyConnection?.connectionId || !selectedShopifyBlogId) return;
+    await configureShopifyMutation.mutateAsync({
+      connectionId: shopifyConnection.connectionId,
+      blogId: selectedShopifyBlogId,
+    });
   };
 
   const submitWixConnect = async () => {
@@ -1326,6 +1494,13 @@ export function WebChannelsTab({
     !configureWebflowPagesMutation.isPending;
 
   const needsWebflowSetup = isWebflowConnected && !webflowTarget?.collectionId;
+  const needsShopifySetup = isShopifyConnected && !shopifyTarget?.blogId;
+  const canSaveShopifyConfig = Boolean(
+    shopifyConnection?.connectionId &&
+    selectedShopifyBlogId &&
+    selectedShopifyBlogId !== shopifyTarget?.blogId &&
+    !configureShopifyMutation.isPending,
+  );
   const canSaveSanityConfig =
     Boolean(
       sanityConnection?.connectionId &&
@@ -1463,6 +1638,199 @@ export function WebChannelsTab({
               </div>
             </CardContent>
           )}
+        </Card>
+
+        {/* Shopify */}
+        <Card variant="profileCard" className="border-none bg-white p-4">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 p-0 pb-0">
+            <div className="flex min-w-0 flex-1 items-start gap-4">
+              <PlatformIcon platform="shopify" />
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-base font-medium">
+                    Shopify
+                  </CardTitle>
+                  <IntegrationStatusBadge
+                    connected={isShopifyConnected}
+                    loading={shopifyConnectionQuery.isLoading}
+                  />
+                </div>
+                <CardDescription>
+                  Publish blog posts as drafts or live articles in Shopify.
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {isShopifyConnected ? (
+                <>
+                  <Button size="sm" variant="outline" asChild>
+                    <a
+                      href={`https://${shopifyConnection?.shop}/admin`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <ExternalLink className="mr-1.5 size-4" />
+                      Shopify Admin
+                    </a>
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="size-9"
+                        aria-label="Shopify connection options"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem
+                        onClick={() => setIsShopifyGuideOpen(true)}
+                      >
+                        Setup guide
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() =>
+                          shopifyConnection?.connectionId &&
+                          disconnectShopifyMutation.mutate({
+                            connectionId: shopifyConnection.connectionId,
+                          })
+                        }
+                        disabled={disconnectShopifyMutation.isPending}
+                      >
+                        {disconnectShopifyMutation.isPending
+                          ? "Disconnecting…"
+                          : "Disconnect"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-general-muted-foreground"
+                    onClick={() => setIsShopifyGuideOpen(true)}
+                  >
+                    <HelpCircle className="mr-1.5 size-4" />
+                    Guide
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setIsShopifyConnectModalOpen(true)}
+                    disabled={startShopifyOauthMutation.isPending}
+                  >
+                    <Link2 className="mr-1.5 size-4" />
+                    Connect
+                  </Button>
+                </>
+              )}
+            </div>
+          </CardHeader>
+
+          {isShopifyConnected && shopifyConnection ? (
+            <CardContent className="mt-4 space-y-4 border-t border-general-border p-0 pt-4">
+              <div className="flex items-center gap-3 rounded-lg border border-general-border bg-general-primary-foreground/50 px-3 py-2.5">
+                <SiteFavicon siteUrl={shopifyConnection.siteUrl} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-general-foreground">
+                    {shopifyConnection.metadata?.shopName ||
+                      shopifyConnection.shop}
+                  </p>
+                  <p className="truncate font-mono text-xs text-general-muted-foreground">
+                    {shopifyConnection.shop}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium",
+                    needsShopifySetup
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-700",
+                  )}
+                >
+                  {needsShopifySetup ? (
+                    <CircleAlert className="size-3" />
+                  ) : (
+                    <CheckCircle2 className="size-3" />
+                  )}
+                  {needsShopifySetup ? "Setup required" : "Ready"}
+                </span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="shopify-blog">Blog destination</Label>
+                  <Select
+                    value={selectedShopifyBlogId || undefined}
+                    onValueChange={setSelectedShopifyBlogId}
+                    disabled={
+                      shopifyBlogsQuery.isLoading ||
+                      configureShopifyMutation.isPending
+                    }
+                  >
+                    <SelectTrigger
+                      id="shopify-blog"
+                      className="w-full cursor-pointer"
+                    >
+                      <SelectValue
+                        placeholder={
+                          shopifyBlogsQuery.isLoading
+                            ? "Loading blogs…"
+                            : "Select a Shopify blog"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shopifyBlogs.map((blog) => (
+                        <SelectItem key={blog.id} value={blog.id}>
+                          {blog.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {shopifyBlogsQuery.isError ? (
+                    <p className="text-xs text-destructive">
+                      Could not load blogs. Reconnect Shopify and try again.
+                    </p>
+                  ) : shopifyBlogs.length === 0 &&
+                    !shopifyBlogsQuery.isLoading ? (
+                    <p className="text-xs text-general-muted-foreground">
+                      Create a blog in Shopify Admin, then reload this page.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-general-muted-foreground">
+                      Massic Test Blog is selected automatically when it exists.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  className="w-full sm:w-auto"
+                  onClick={submitShopifyConfiguration}
+                  disabled={!canSaveShopifyConfig}
+                >
+                  {configureShopifyMutation.isPending
+                    ? "Saving…"
+                    : shopifyTarget?.blogId === selectedShopifyBlogId
+                      ? "Saved"
+                      : "Save blog"}
+                </Button>
+              </div>
+
+              <div className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
+                Shopify uses your active theme. Add the documented{" "}
+                <span className="font-medium text-general-foreground">
+                  massic-blog.css
+                </span>{" "}
+                asset and Liquid stylesheet hook once so published posts use the
+                Massic wrapper styles.
+              </div>
+            </CardContent>
+          ) : null}
         </Card>
 
         {/* Webflow */}
@@ -2190,6 +2558,119 @@ export function WebChannelsTab({
           )}
         </Card>
       </div>
+
+      <Dialog
+        open={isShopifyConnectModalOpen}
+        onOpenChange={setIsShopifyConnectModalOpen}
+      >
+        <DialogContent
+          className="sm:max-w-md"
+          showCloseButton={!startShopifyOauthMutation.isPending}
+        >
+          <DialogHeader>
+            <DialogTitle>Connect Shopify</DialogTitle>
+            <DialogDescription>
+              Enter the permanent store domain. Shopify will open in a new tab
+              for authorization.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-1">
+            <div className="grid gap-2">
+              <Label htmlFor="shopify-store-domain">Store domain</Label>
+              <Input
+                id="shopify-store-domain"
+                value={shopifyDomain}
+                onChange={(event) => setShopifyDomain(event.target.value)}
+                placeholder="your-store.myshopify.com"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={startShopifyOauthMutation.isPending}
+              />
+              <p className="text-xs text-general-muted-foreground">
+                Use the <span className="font-mono">.myshopify.com</span>{" "}
+                domain, not a custom storefront domain.
+              </p>
+            </div>
+            <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
+              Massic requests only content read/write access. Store credentials
+              and Shopify access tokens never enter this browser form.
+            </p>
+            <Button
+              variant="link"
+              className="h-auto justify-start px-0 text-xs"
+              onClick={() => setIsShopifyGuideOpen(true)}
+            >
+              Need help finding the store domain?
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsShopifyConnectModalOpen(false)}
+              disabled={startShopifyOauthMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submitShopifyConnect}
+              disabled={
+                !shopifyDomain.trim() || startShopifyOauthMutation.isPending
+              }
+            >
+              {startShopifyOauthMutation.isPending
+                ? "Opening…"
+                : "Authorize Shopify"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isShopifyGuideOpen} onOpenChange={setIsShopifyGuideOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Shopify blog setup</DialogTitle>
+            <DialogDescription>
+              Prepare the store once, then connect it to Massic.
+            </DialogDescription>
+          </DialogHeader>
+          <ol className="list-decimal space-y-2.5 py-1 pl-5 text-sm text-general-foreground">
+            <li>
+              In Shopify Admin, open{" "}
+              <strong>Content → Blog posts → Manage blogs</strong> and create a
+              blog named <strong>Massic Test Blog</strong>.
+            </li>
+            <li>
+              Open <strong>Settings → Domains</strong> and copy the permanent
+              domain ending in <strong>.myshopify.com</strong>.
+            </li>
+            <li>
+              Connect the store here and approve the requested content
+              permissions in Shopify.
+            </li>
+            <li>
+              Select <strong>Massic Test Blog</strong> as the destination and
+              save it.
+            </li>
+            <li>
+              Add <strong>massic-blog.css</strong> and its Liquid stylesheet
+              hook to the active theme using the deployment runbook.
+            </li>
+          </ol>
+          <p className="rounded-lg border border-general-border bg-muted/30 px-3 py-2.5 text-xs text-general-muted-foreground">
+            Theme setup is manual by design. Massic does not request
+            theme-editing permissions.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsShopifyGuideOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={isSanityConnectModalOpen}

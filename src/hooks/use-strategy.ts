@@ -78,6 +78,7 @@ export function useStrategy(businessId: string) {
         .join(", ");
 
       rows.push({
+        ...topic,
         id: topic.topic_name || topic.topic,
         topic: topic.topic_name || topic.topic,
         business_relevance_score: topic.business_relevance_score || 0,
@@ -134,6 +135,12 @@ export function useStrategy(businessId: string) {
       const clamp = (v: number) => Math.max(0, Math.min(1, v));
       const toDecimal = (pct: string) => parseFloat(pct) / 100;
 
+      const BUSINESS_RELEVANCE_LEVELS: Record<string, { min: number; max: number }> = {
+        high: { min: 0.70, max: 1.0 },
+        medium: { min: 0.40, max: 0.70 },
+        low: { min: 0.0, max: 0.30 },
+      };
+
       // Normalize a single filter object for percentage fields.
       // The UI shows Math.round(v * 100), so to match all values that display as "89"
       // we must query the range [0.885, 0.895] rather than the exact value 0.89.
@@ -141,27 +148,35 @@ export function useStrategy(businessId: string) {
         const value = filter.value as string | string[];
         const operator = filter.operator;
 
+        // Handle multiSelect with High/Medium/Low labels for business_relevance_score
+        if (operator === "inArray" && Array.isArray(value) && filter.field === "business_relevance_score") {
+          const levels = value.map((v) => String(v).toLowerCase()).filter((v) => v in BUSINESS_RELEVANCE_LEVELS);
+          if (levels.length === 0) return [];
+          if (levels.length === Object.keys(BUSINESS_RELEVANCE_LEVELS).length) return [];
+
+          const ranges = levels.map((l) => BUSINESS_RELEVANCE_LEVELS[l]);
+          const min = Math.min(...ranges.map((r) => r.min));
+          const max = Math.max(...ranges.map((r) => r.max));
+
+          const result: typeof params.filters = [];
+          if (min > 0) result.push({ ...filter, operator: "gte" as const, value: String(min) });
+          if (max < 1) result.push({ ...filter, operator: "lte" as const, value: String(max) });
+          return result;
+        }
+
         if (operator === "isBetween" && Array.isArray(value)) {
           const [minValue, maxValue] = value;
           const minNum = toDecimal(minValue);
           const maxNum = toDecimal(maxValue);
+          const hasMin = minValue !== "" && minValue !== undefined && !Number.isNaN(minNum);
+          const hasMax = maxValue !== "" && maxValue !== undefined && !Number.isNaN(maxNum);
 
-          if (Number.isNaN(minNum) || Number.isNaN(maxNum)) {
-            return [filter];
-          }
+          if (!hasMin && !hasMax) return [filter];
 
-          return [
-            {
-              ...filter,
-              operator: "gte" as const,
-              value: String(clamp(minNum - 0.005)),
-            },
-            {
-              ...filter,
-              operator: "lte" as const,
-              value: String(clamp(maxNum + 0.005)),
-            },
-          ];
+          const result: typeof params.filters = [];
+          if (hasMin) result.push({ ...filter, operator: "gte" as const, value: String(clamp(minNum - 0.005)) });
+          if (hasMax) result.push({ ...filter, operator: "lte" as const, value: String(clamp(maxNum + 0.005)) });
+          return result;
         }
 
         if ((operator === "eq" || operator === "ne") && !Array.isArray(value)) {
@@ -215,14 +230,51 @@ export function useStrategy(businessId: string) {
         queryParams.append("sort", JSON.stringify(mappedSort));
       }
 
+      const volumeFields = new Set(["total_search_volume"]);
+
+      const parseVolumeValue = (raw: string): number => {
+        const s = raw.trim().toLowerCase();
+        if (s.endsWith("m")) return parseFloat(s) * 1_000_000;
+        if (s.endsWith("k")) return parseFloat(s) * 1_000;
+        return parseFloat(s);
+      };
+
+      const normalizeVolumeFilter = (filter: typeof params.filters[number]) => {
+        const value = filter.value as string | string[];
+        const operator = filter.operator;
+
+        const parseOne = (v: string) => {
+          const n = parseVolumeValue(v);
+          return Number.isNaN(n) ? null : String(Math.round(n));
+        };
+
+        if (operator === "isBetween" && Array.isArray(value)) {
+          const [minVal, maxVal] = value;
+          const result: typeof params.filters = [];
+          const parsedMin = minVal !== "" && minVal !== undefined ? parseOne(minVal) : null;
+          const parsedMax = maxVal !== "" && maxVal !== undefined ? parseOne(maxVal) : null;
+          if (!parsedMin && !parsedMax) return [filter];
+          if (parsedMin) result.push({ ...filter, operator: "gte" as const, value: parsedMin });
+          if (parsedMax) result.push({ ...filter, operator: "lte" as const, value: parsedMax });
+          return result;
+        }
+
+        if (!Array.isArray(value) && value !== "") {
+          const parsed = parseOne(value);
+          return parsed ? [{ ...filter, value: parsed }] : [filter];
+        }
+
+        return [filter];
+      };
+
       // Add filters if provided
       if (params.filters && params.filters.length > 0) {
         const mappedFilters = params.filters.flatMap(filter => {
           const apiField = mapFieldToApiName(filter.field as string);
           const withMappedField = { ...filter, field: apiField } as typeof params.filters[number];
-          return percentageFields.has(apiField)
-            ? normalizePercentageFilter(withMappedField)
-            : [withMappedField];
+          if (percentageFields.has(apiField)) return normalizePercentageFilter(withMappedField);
+          if (volumeFields.has(apiField)) return normalizeVolumeFilter(withMappedField);
+          return [withMappedField];
         });
         queryParams.append("filters", JSON.stringify(mappedFilters));
       }

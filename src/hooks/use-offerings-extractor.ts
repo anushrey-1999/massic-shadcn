@@ -126,6 +126,15 @@ interface ExtractionTaskResponse {
   task_id: string;
 }
 
+export type OfferingsExtractionContext = {
+  country?: string;
+  location?: string;
+};
+
+type StartOfferingsExtractionArgs = OfferingsExtractionContext & {
+  businessUrl: string;
+};
+
 // Type for extraction status response
 interface ExtractionStatusResponse {
   status?: "processing" | "completed" | "failed"; // Optional in new format
@@ -172,12 +181,18 @@ const clearTaskId = (businessId: string) => {
 // Hook to start offerings extraction
 export function useStartOfferingsExtraction() {
   return useMutation({
-    mutationFn: async (businessUrl: string): Promise<string> => {
+    mutationFn: async ({
+      businessUrl,
+      country,
+      location,
+    }: StartOfferingsExtractionArgs): Promise<string> => {
       const response = await api.post<ExtractionTaskResponse>(
         "/tools/extract-offerings",
         "python",
         {
           business_url: businessUrl,
+          country: country || undefined,
+          location: location || undefined,
         }
       );
 
@@ -338,7 +353,7 @@ export function useOfferingsExtractor(businessId: string | null) {
 
   // Handle extraction start
   const startExtraction = useCallback(
-    async (businessUrl: string) => {
+    async (businessUrl: string, context?: OfferingsExtractionContext) => {
       if (!businessId) {
         toast.error("Business ID is required");
         return;
@@ -352,7 +367,11 @@ export function useOfferingsExtractor(businessId: string | null) {
       try {
         setIsExtracting(true);
         const newTaskId = await startExtractionMutation.mutateAsync(
-          businessUrl
+          {
+            businessUrl,
+            country: context?.country,
+            location: context?.location,
+          }
         );
         setTaskId(newTaskId);
         saveTaskId(businessId, newTaskId);

@@ -24,14 +24,17 @@ import {
   normalizeWebsiteUrl,
   isValidWebsiteUrl,
 } from "@/utils/utils";
-import {
-  type NormalizedProfileResult,
-} from "@/utils/profile-result";
+import { normalizeProfileCountry, type NormalizedProfileResult } from "@/utils/profile-result";
 import {
   buildBusinessProfilePayload,
   mapProfileDataToFormValues as mapBusinessProfileToFormValues,
 } from "@/utils/profile-form-mappers";
-import { primaryLocationFromProfile, resolvePrimaryLocationFormValue } from "@/utils/primary-location";
+import {
+  formatPrimaryLocationApiValue,
+  parsePrimaryLocationForPayload,
+  primaryLocationFromProfile,
+  resolvePrimaryLocationFormValue,
+} from "@/utils/primary-location";
 import { Button } from "@/components/ui/button";
 import { GenericInput } from "@/components/ui/generic-input";
 // Legacy tabs template (replaced by sidebar shell)
@@ -670,7 +673,22 @@ const ProfileTemplate = ({
       locationOptions,
       guard: guardAutofillProfile,
       onBeforeAutofill: (website) => {
-        void offeringsExtractor.startExtraction(website).catch(() => {});
+        const values = form.state.values as BusinessInfoFormData;
+        const trimmedPrimaryLocation = String(values?.primaryLocation ?? "").trim();
+        const context = trimmedPrimaryLocation
+          ? (() => {
+              const payload = parsePrimaryLocationForPayload(
+                trimmedPrimaryLocation,
+                locationOptions
+              );
+              return {
+                country: normalizeProfileCountry(payload.Country),
+                location: formatPrimaryLocationApiValue(payload),
+              };
+            })()
+          : undefined;
+
+        void offeringsExtractor.startExtraction(website, context).catch(() => {});
       },
       onAutofillSuccess: (profile) => {
         setAutofillProfileResult(profile);

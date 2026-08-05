@@ -41,6 +41,11 @@ import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
 import { toast } from "sonner";
 import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
+import {
+  formatPrimaryLocationApiValue,
+  parsePrimaryLocationForPayload,
+} from "@/utils/primary-location";
+import { normalizeProfileCountry } from "@/utils/profile-result";
 
 export function CreatePitchTemplate() {
   const router = useRouter();
@@ -212,7 +217,22 @@ export function CreatePitchTemplate() {
           setExistingBusinessId(match.UniqueId);
           return false;
         }
-        void offeringsExtractor.startExtraction(website).catch(() => {});
+        const values = form.state.values as BusinessInfoFormData;
+        const trimmedPrimaryLocation = String(values?.primaryLocation ?? "").trim();
+        const context = trimmedPrimaryLocation
+          ? (() => {
+              const payload = parsePrimaryLocationForPayload(
+                trimmedPrimaryLocation,
+                locationOptions
+              );
+              return {
+                country: normalizeProfileCountry(payload.Country),
+                location: formatPrimaryLocationApiValue(payload),
+              };
+            })()
+          : undefined;
+
+        void offeringsExtractor.startExtraction(website, context).catch(() => {});
         return true;
       },
       onAutofillSuccess: () => {

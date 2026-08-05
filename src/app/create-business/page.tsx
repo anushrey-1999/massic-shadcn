@@ -29,7 +29,11 @@ import {
   buildBusinessProfilePayload,
   profileFormDefaults,
 } from "@/utils/profile-form-mappers";
-import type { NormalizedProfileResult } from "@/utils/profile-result";
+import { normalizeProfileCountry, type NormalizedProfileResult } from "@/utils/profile-result";
+import {
+  formatPrimaryLocationApiValue,
+  parsePrimaryLocationForPayload,
+} from "@/utils/primary-location";
 import {
   useFinalizeWebflowOnboarding,
   type WebflowOnboardingSelection,
@@ -297,7 +301,22 @@ export default function CreateBusinessPage() {
     normalizeWebsite: true,
     onBeforeAutofill: (website) => {
       offeringsExtractor.clearExtraction();
-      void offeringsExtractor.startExtraction(website).catch(() => {});
+      const values = form.state.values as FormData;
+      const trimmedPrimaryLocation = String(values?.primaryLocation ?? "").trim();
+      const context = trimmedPrimaryLocation
+        ? (() => {
+            const payload = parsePrimaryLocationForPayload(
+              trimmedPrimaryLocation,
+              locationOptions,
+            );
+            return {
+              country: normalizeProfileCountry(payload.Country),
+              location: formatPrimaryLocationApiValue(payload),
+            };
+          })()
+        : undefined;
+
+      void offeringsExtractor.startExtraction(website, context).catch(() => {});
     },
     onAutofillSuccess: async (profile, nextValues) => {
       formFieldNames.forEach((fieldName) => {

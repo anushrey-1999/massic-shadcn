@@ -191,7 +191,11 @@ export function WebflowPublishSetup({
               onValueChange={onSiteChange}
               disabled={sitesLoading}
             >
-              <SelectTrigger id="webflow-site" className="w-full cursor-pointer">
+              <SelectTrigger
+                key={sitesLoading ? "webflow-site-loading" : "webflow-site-ready"}
+                id="webflow-site"
+                className="w-full cursor-pointer"
+              >
                 <SelectValue placeholder={sitesLoading ? "Loading sites…" : "Select site"} />
               </SelectTrigger>
               <SelectContent>
@@ -214,7 +218,15 @@ export function WebflowPublishSetup({
               onValueChange={onCollectionChange}
               disabled={!selectedSiteId || collectionsLoading}
             >
-              <SelectTrigger id="webflow-collection" className="w-full cursor-pointer">
+              <SelectTrigger
+                key={
+                  collectionsLoading
+                    ? "webflow-collection-loading"
+                    : "webflow-collection-ready"
+                }
+                id="webflow-collection"
+                className="w-full cursor-pointer"
+              >
                 <SelectValue
                   placeholder={
                     !selectedSiteId

@@ -389,9 +389,13 @@ export function useCmsWordpressPageTemplateStatus(businessId: string | null, ena
 export function useCmsSlugCheck() {
   return useMutation<CmsSlugCheckResponse, Error, SlugCheckPayload>({
     mutationFn: async (payload) => {
-      const res = await api.post<CmsSlugCheckResponse>("/cms/publishing/slug-check", "node", payload);
-      if (!res?.success) throw new Error(res?.message || "Failed to check slug");
-      return res;
+      try {
+        const res = await api.post<CmsSlugCheckResponse>("/cms/publishing/slug-check", "node", payload);
+        if (!res?.success) throw new Error(res?.message || "Failed to check slug");
+        return res;
+      } catch (error: any) {
+        throw new Error(getErrorMessage(error, "Failed to check slug"));
+      }
     },
   });
 }

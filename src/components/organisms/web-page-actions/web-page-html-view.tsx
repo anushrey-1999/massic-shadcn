@@ -632,6 +632,7 @@ export function WebPageHtmlView({
 
   const data = contentQuery.data;
   const cmsChannelQuery = useCmsPublishingChannel(businessId || null);
+  const refetchCmsChannel = cmsChannelQuery.refetch;
   const cmsChannel = cmsChannelQuery.data || null;
   const activePlatform = cmsChannel?.platform || null;
   const activeConnection = cmsChannel?.connection || null;
@@ -662,6 +663,12 @@ export function WebPageHtmlView({
   const wpPublishMutation = useWordpressPublish();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const isWixReady = isActiveWix && isBlogContent && Boolean(activeTarget?.targetId) && cmsChannel?.setupReady !== false;
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen) return;
+    void refetchCmsChannel({ cancelRefetch: false });
+  }, [isPublishModalOpen, refetchCmsChannel]);
+
   const wixSetupQuery = useWixPublishingSetup(
     businessId || null,
     Boolean(isPublishModalOpen && isActiveWix && isBlogContent)

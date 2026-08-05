@@ -25,11 +25,20 @@ export interface WebflowConnection {
   status: "active" | "revoked" | "expired" | "failed";
   connectedAt: string | null;
   lastUsedAt: string | null;
+  siteId?: string | null;
+  siteUrl?: string | null;
+  authMode?: "oauth" | "hmac" | "token" | null;
   target: WebflowTarget | null;
   targets?: {
     post?: WebflowTarget | null;
     page?: WebflowTarget | null;
   };
+  metadata?: {
+    selectedSiteId?: string | null;
+    selectedSiteName?: string | null;
+    selectedSiteUrl?: string | null;
+    [key: string]: any;
+  } | null;
 }
 
 export interface WebflowCollectionField {
@@ -69,22 +78,25 @@ const getErrorMessage = (error: any, fallback: string) =>
   error?.response?.data?.message || error?.message || fallback;
 
 export function useWebflowConnection(businessId: string | null) {
-  return useQuery<{ connected: boolean; connection: WebflowConnection | null }>({
-    queryKey: ["webflow-connection", businessId],
-    enabled: Boolean(businessId),
-    queryFn: async () => {
-      const res = await api.get<any>(
-        `/cms/webflow/connection?businessId=${encodeURIComponent(String(businessId))}`,
-        "node"
-      );
-      if (!res?.success) throw new Error(res?.message || "Failed to fetch Webflow connection");
-      return {
-        connected: Boolean(res.data?.connected),
-        connection: res.data?.connection || null,
-      };
+  return useQuery<{ connected: boolean; connection: WebflowConnection | null }>(
+    {
+      queryKey: ["webflow-connection", businessId],
+      enabled: Boolean(businessId),
+      queryFn: async () => {
+        const res = await api.get<any>(
+          `/cms/webflow/connection?businessId=${encodeURIComponent(String(businessId))}`,
+          "node",
+        );
+        if (!res?.success)
+          throw new Error(res?.message || "Failed to fetch Webflow connection");
+        return {
+          connected: Boolean(res.data?.connected),
+          connection: res.data?.connection || null,
+        };
+      },
+      staleTime: 15 * 1000,
     },
-    staleTime: 15 * 1000,
-  });
+  );
 }
 
 export function useStartWebflowOauth() {
@@ -92,7 +104,10 @@ export function useStartWebflowOauth() {
     mutationFn: async ({ businessId, returnUrl }) => {
       const params = new URLSearchParams({ businessId });
       if (returnUrl) params.set("returnUrl", returnUrl);
-      const res = await api.get<any>(`/cms/webflow/oauth/start?${params.toString()}`, "node");
+      const res = await api.get<any>(
+        `/cms/webflow/oauth/start?${params.toString()}`,
+        "node",
+      );
       if (!res?.success || !res.data?.authorizationUrl) {
         throw new Error(res?.message || "Failed to start Webflow connection");
       }
@@ -100,7 +115,10 @@ export function useStartWebflowOauth() {
     },
     onError: (error) => {
       toast.error("Failed to connect Webflow", {
-        description: getErrorMessage(error, "Please check the Webflow app configuration."),
+        description: getErrorMessage(
+          error,
+          "Please check the Webflow app configuration.",
+        ),
       });
     },
   });
@@ -113,24 +131,29 @@ export function useWebflowSites(connectionId: string | null) {
     queryFn: async () => {
       const res = await api.get<any>(
         `/cms/webflow/sites?connectionId=${encodeURIComponent(String(connectionId))}`,
-        "node"
+        "node",
       );
-      if (!res?.success) throw new Error(res?.message || "Failed to fetch Webflow sites");
+      if (!res?.success)
+        throw new Error(res?.message || "Failed to fetch Webflow sites");
       return res.data?.sites || [];
     },
   });
 }
 
-export function useWebflowCollections(connectionId: string | null, siteId: string | null) {
+export function useWebflowCollections(
+  connectionId: string | null,
+  siteId: string | null,
+) {
   return useQuery<WebflowCollection[]>({
     queryKey: ["webflow-collections", connectionId, siteId],
     enabled: Boolean(connectionId && siteId),
     queryFn: async () => {
       const res = await api.get<any>(
         `/cms/webflow/collections?connectionId=${encodeURIComponent(String(connectionId))}&siteId=${encodeURIComponent(String(siteId))}`,
-        "node"
+        "node",
       );
-      if (!res?.success) throw new Error(res?.message || "Failed to fetch Webflow collections");
+      if (!res?.success)
+        throw new Error(res?.message || "Failed to fetch Webflow collections");
       return res.data?.collections || [];
     },
   });
@@ -139,26 +162,42 @@ export function useWebflowCollections(connectionId: string | null, siteId: strin
 export function useConfigureWebflow(businessId: string | null) {
   const queryClient = useQueryClient();
 
-  return useMutation<any, Error, {
-    connectionId: string;
-    siteId: string;
-    collectionId: string;
-    collectionName?: string;
-    fieldMapping: { fields: WebflowFieldMappingItem[] };
-  }>({
+  return useMutation<
+    any,
+    Error,
+    {
+      connectionId: string;
+      siteId: string;
+      collectionId: string;
+      collectionName?: string;
+      fieldMapping: { fields: WebflowFieldMappingItem[] };
+    }
+  >({
     mutationFn: async (payload) => {
-      const res = await api.post<any>("/cms/webflow/configuration", "node", payload);
-      if (!res?.success) throw new Error(res?.message || "Failed to save Webflow configuration");
+      const res = await api.post<any>(
+        "/cms/webflow/configuration",
+        "node",
+        payload,
+      );
+      if (!res?.success)
+        throw new Error(res?.message || "Failed to save Webflow configuration");
       return res;
     },
     onSuccess: () => {
       toast.success("Webflow configuration saved");
-      void queryClient.invalidateQueries({ queryKey: ["webflow-connection", businessId] });
-      void queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", businessId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["webflow-connection", businessId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["cms-publishing-channel", businessId],
+      });
     },
     onError: (error) => {
       toast.error("Failed to save Webflow configuration", {
-        description: getErrorMessage(error, "Please complete required field mappings."),
+        description: getErrorMessage(
+          error,
+          "Please complete required field mappings.",
+        ),
       });
     },
   });
@@ -184,24 +223,41 @@ export interface WebflowPagesSetupResponse {
 export function useConfigureWebflowPages(businessId: string | null) {
   const queryClient = useQueryClient();
 
-  return useMutation<WebflowPagesSetupResponse, Error, {
-    connectionId: string;
-    siteId: string;
-  }>({
+  return useMutation<
+    WebflowPagesSetupResponse,
+    Error,
+    {
+      connectionId: string;
+      siteId: string;
+    }
+  >({
     mutationFn: async (payload) => {
-      const res = await api.post<WebflowPagesSetupResponse>("/cms/webflow/page-configuration", "node", payload);
-      if (!res?.success) throw new Error(res?.message || "Failed to check Massic Pages setup");
+      const res = await api.post<WebflowPagesSetupResponse>(
+        "/cms/webflow/page-configuration",
+        "node",
+        payload,
+      );
+      if (!res?.success)
+        throw new Error(res?.message || "Failed to check Massic Pages setup");
       return res;
     },
     onSuccess: (res) => {
       const ready = Boolean(res.data?.ready);
-      toast[ready ? "success" : "warning"](ready ? "Massic Pages setup ready" : "Massic Pages setup needs changes", {
-        description: ready
-          ? "Webflow pages can now publish to the Massic Pages collection."
-          : res.data?.errors?.[0] || "Check the collection name and fields in Webflow.",
+      toast[ready ? "success" : "warning"](
+        ready ? "Massic Pages setup ready" : "Massic Pages setup needs changes",
+        {
+          description: ready
+            ? "Webflow pages can now publish to the Massic Pages collection."
+            : res.data?.errors?.[0] ||
+              "Check the collection name and fields in Webflow.",
+        },
+      );
+      void queryClient.invalidateQueries({
+        queryKey: ["webflow-connection", businessId],
       });
-      void queryClient.invalidateQueries({ queryKey: ["webflow-connection", businessId] });
-      void queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", businessId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["cms-publishing-channel", businessId],
+      });
     },
     onError: (error) => {
       toast.error("Failed to check Massic Pages setup", {
@@ -216,14 +272,21 @@ export function useDisconnectWebflow(businessId: string | null) {
 
   return useMutation<any, Error, { connectionId: string }>({
     mutationFn: async ({ connectionId }) => {
-      const res = await api.post<any>("/cms/webflow/disconnect", "node", { connectionId });
-      if (!res?.success) throw new Error(res?.message || "Failed to disconnect Webflow");
+      const res = await api.post<any>("/cms/webflow/disconnect", "node", {
+        connectionId,
+      });
+      if (!res?.success)
+        throw new Error(res?.message || "Failed to disconnect Webflow");
       return res;
     },
     onSuccess: () => {
       toast.success("Webflow disconnected");
-      void queryClient.invalidateQueries({ queryKey: ["webflow-connection", businessId] });
-      void queryClient.invalidateQueries({ queryKey: ["cms-publishing-channel", businessId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["webflow-connection", businessId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["cms-publishing-channel", businessId],
+      });
     },
   });
 }

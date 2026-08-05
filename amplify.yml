@@ -11,6 +11,7 @@ frontend:
           test -n "$NODE_API_URL"
           test -n "$INFER_API_URL"
           test -n "$NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN"
+          test -n "$NEXT_PUBLIC_POSTHOG_ENABLED"
           umask 077
           {
             printf 'SNAPSHOT_SHARE_KEY=%s\n' "$SNAPSHOT_SHARE_KEY"
@@ -18,6 +19,7 @@ frontend:
             printf 'NODE_API_URL=%s\n' "$NODE_API_URL"
             printf 'INFER_API_URL=%s\n' "$INFER_API_URL"
             printf 'NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=%s\n' "$NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN"
+            printf 'NEXT_PUBLIC_POSTHOG_ENABLED=%s\n' "$NEXT_PUBLIC_POSTHOG_ENABLED"
             printf 'SNAPSHOT_REPORT_ASSET_HOSTS=%s\n' "${SNAPSHOT_REPORT_ASSET_HOSTS:-}"
           } > .env.production
         - npm ci

@@ -107,7 +107,7 @@ function sanitizeEvent(event: CaptureResult | null): CaptureResult | null {
 
 export function isPostHogEnabled(): boolean {
   return (
-    process.env.NODE_ENV === "production" &&
+    process.env.NEXT_PUBLIC_POSTHOG_ENABLED === "true" &&
     Boolean(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN)
   );
 }

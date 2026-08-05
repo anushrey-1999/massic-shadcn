@@ -516,6 +516,8 @@ export function WebChannelsTab({
     webflowConnection?.connectionId || null,
   );
   const webflowSites = webflowSitesQuery.data || [];
+  const webflowSitesLoading =
+    webflowSitesQuery.isFetching && webflowSitesQuery.data === undefined;
   const onboardingWebflowSiteId =
     webflowConnection?.metadata?.selectedSiteId || "";
   const effectiveWebflowSiteId =
@@ -527,8 +529,14 @@ export function WebChannelsTab({
     effectiveWebflowSiteId || null,
   );
   const webflowCollections = webflowCollectionsQuery.data || [];
+  const webflowCollectionsLoading =
+    Boolean(effectiveWebflowSiteId) &&
+    webflowCollectionsQuery.isFetching &&
+    webflowCollectionsQuery.data === undefined;
 
   const connected = Boolean(data?.connected && data?.connection);
+  const hasConnectedCms =
+    connected || isWebflowConnected || isWixConnected || isSanityConnected;
   const connection = data?.connection || null;
   const connectedSiteHost = React.useMemo(
     () => getSiteHostLabel(connection?.siteUrl),
@@ -1614,6 +1622,7 @@ export function WebChannelsTab({
                   <Button
                     size="sm"
                     onClick={() => setIsRecommendedModalOpen(true)}
+                    disabled={hasConnectedCms}
                   >
                     <Link2 className="mr-1.5 size-4" />
                     Connect
@@ -1888,7 +1897,9 @@ export function WebChannelsTab({
                 <Button
                   size="sm"
                   onClick={submitWebflowConnect}
-                  disabled={startWebflowOauthMutation.isPending}
+                  disabled={
+                    hasConnectedCms || startWebflowOauthMutation.isPending
+                  }
                 >
                   <Link2 className="mr-1.5 size-4" />
                   {startWebflowOauthMutation.isPending ? "Opening…" : "Connect"}
@@ -1976,11 +1987,9 @@ export function WebChannelsTab({
                   <WebflowPublishSetup
                     sites={webflowSites}
                     collections={webflowCollections}
-                    sitesLoading={webflowSitesQuery.isLoading}
-                    collectionsLoading={webflowCollectionsQuery.isLoading}
-                    selectedSiteId={
-                      selectedWebflowSiteId || webflowTarget?.siteId || ""
-                    }
+                    sitesLoading={webflowSitesLoading}
+                    collectionsLoading={webflowCollectionsLoading}
+                    selectedSiteId={effectiveWebflowSiteId}
                     selectedCollectionId={
                       selectedWebflowCollectionId ||
                       webflowTarget?.collectionId ||
@@ -2069,15 +2078,20 @@ export function WebChannelsTab({
                         <Select
                           value={effectiveWebflowPageSiteId || undefined}
                           onValueChange={setSelectedWebflowPageSiteId}
-                          disabled={webflowSitesQuery.isLoading}
+                          disabled={webflowSitesLoading}
                         >
                           <SelectTrigger
+                            key={
+                              webflowSitesLoading
+                                ? "webflow-page-site-loading"
+                                : "webflow-page-site-ready"
+                            }
                             id="webflow-page-site"
                             className="w-full cursor-pointer"
                           >
                             <SelectValue
                               placeholder={
-                                webflowSitesQuery.isLoading
+                                webflowSitesLoading
                                   ? "Loading sites…"
                                   : "Select site"
                               }
@@ -2200,6 +2214,7 @@ export function WebChannelsTab({
                   size="sm"
                   onClick={submitWixConnect}
                   disabled={
+                    hasConnectedCms ||
                     startWixOauthMutation.isPending ||
                     wixConnectionQuery.isLoading
                   }
@@ -2319,7 +2334,9 @@ export function WebChannelsTab({
                   <Button
                     size="sm"
                     onClick={() => setIsSanityConnectModalOpen(true)}
-                    disabled={connectSanityMutation.isPending}
+                    disabled={
+                      hasConnectedCms || connectSanityMutation.isPending
+                    }
                   >
                     <Link2 className="mr-1.5 size-4" />
                     Connect

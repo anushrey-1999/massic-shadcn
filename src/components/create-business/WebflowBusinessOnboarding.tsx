@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { useStore } from "@tanstack/react-form";
 import {
   ArrowLeft,
   ArrowRight,
@@ -11,7 +10,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { GenericInput } from "@/components/ui/generic-input";
 import {
   Select,
   SelectContent,
@@ -28,19 +26,6 @@ import {
   useWebflowOnboardingSites,
   type WebflowOnboardingSelection,
 } from "@/hooks/use-webflow-onboarding";
-
-const SERVICE_AREA_TYPE_OPTIONS = [
-  { value: "international", label: "International" },
-  { value: "national", label: "National" },
-  { value: "state_regional", label: "State-Regional" },
-  { value: "city_local", label: "City/Local" },
-];
-
-type LocationOption = {
-  value: string;
-  label: string;
-  disabled?: boolean;
-};
 
 type OAuthMessage = {
   source?: string;
@@ -66,26 +51,16 @@ function InlineError({
 }
 
 export function WebflowBusinessOnboarding({
-  form,
   sessionId,
-  locationOptions,
-  locationsLoading,
-  isAutofillLoading,
   initialOauthError,
   onSessionId,
-  onSelection,
   onContinue,
   onBack,
 }: {
-  form: any;
   sessionId: string | null;
-  locationOptions: LocationOption[];
-  locationsLoading: boolean;
-  isAutofillLoading: boolean;
   initialOauthError?: string | null;
   onSessionId: (sessionId: string | null) => void;
-  onSelection: (selection: WebflowOnboardingSelection) => void;
-  onContinue: () => void | Promise<void>;
+  onContinue: (selection: WebflowOnboardingSelection) => void;
   onBack: () => void;
 }) {
   const startOauth = useStartWebflowOnboarding();
@@ -102,15 +77,6 @@ export function WebflowBusinessOnboarding({
     sessionId,
     selectedSiteId || null,
   );
-  const primaryLocation = useStore(
-    form.store,
-    (state: any) => state.values?.primaryLocation || "",
-  );
-  const serviceAreaType = useStore(
-    form.store,
-    (state: any) => state.values?.serviceAreaType || "",
-  );
-
   React.useEffect(() => {
     if (sitesQuery.data?.length === 1 && !selectedSiteId) {
       setSelectedSiteId(sitesQuery.data[0].id);
@@ -153,19 +119,8 @@ export function WebflowBusinessOnboarding({
   const selectedSite =
     sitesQuery.data?.find((site) => site.id === selectedSiteId) || null;
   const canContinue = Boolean(
-    sessionId &&
-    selectedSiteId &&
-    derivedUrl &&
-    primaryLocation.trim() &&
-    serviceAreaType.trim() &&
-    !domainsQuery.isLoading &&
-    !isAutofillLoading,
+    sessionId && selectedSiteId && derivedUrl && !domainsQuery.isLoading,
   );
-
-  React.useEffect(() => {
-    if (!derivedUrl) return;
-    form.setFieldValue("website", derivedUrl);
-  }, [derivedUrl, form]);
 
   const connectWebflow = async () => {
     setOauthError(null);
@@ -206,17 +161,14 @@ export function WebflowBusinessOnboarding({
     }
   };
 
-  const continueToAutofill = async () => {
+  const continueToBusinessDetails = () => {
     if (!canContinue || !sessionId) return;
-    const selection: WebflowOnboardingSelection = {
+    onContinue({
       sessionId,
       siteId: selectedSiteId,
       selectedDomain: selectedDomain || null,
       website: derivedUrl,
-    };
-    form.setFieldValue("website", derivedUrl);
-    onSelection(selection);
-    await onContinue();
+    });
   };
 
   return (
@@ -227,30 +179,32 @@ export function WebflowBusinessOnboarding({
         className="w-full max-w-[600px]"
       >
         <div className="mb-6 grid grid-cols-3 gap-2 text-[11px] text-general-muted-foreground">
-          {["Connect", "Choose site", "Autofill"].map((label, index) => {
-            const completed = index === 0 && Boolean(sessionId);
-            const current =
-              index === 0
-                ? !sessionId
-                : index === 1
-                  ? Boolean(sessionId)
-                  : Boolean(derivedUrl);
-            return (
-              <div key={label} className="min-w-0">
-                <div className="mb-2 flex items-center gap-2">
-                  <span
-                    className={`flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${completed ? "border-general-foreground bg-general-foreground text-general-primary-foreground" : current ? "border-general-foreground text-general-foreground" : "border-general-border-three"}`}
-                  >
-                    {completed ? <Check className="size-3" /> : index + 1}
-                  </span>
-                  <span className="truncate">{label}</span>
+          {["Connect", "Choose site", "Business details"].map(
+            (label, index) => {
+              const completed = index === 0 && Boolean(sessionId);
+              const current =
+                index === 0
+                  ? !sessionId
+                  : index === 1
+                    ? Boolean(sessionId)
+                    : Boolean(derivedUrl);
+              return (
+                <div key={label} className="min-w-0">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span
+                      className={`flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${completed ? "border-general-foreground bg-general-foreground text-general-primary-foreground" : current ? "border-general-foreground text-general-foreground" : "border-general-border-three"}`}
+                    >
+                      {completed ? <Check className="size-3" /> : index + 1}
+                    </span>
+                    <span className="truncate">{label}</span>
+                  </div>
+                  <div
+                    className={`h-px ${completed || current ? "bg-general-foreground" : "bg-general-border"}`}
+                  />
                 </div>
-                <div
-                  className={`h-px ${completed || current ? "bg-general-foreground" : "bg-general-border"}`}
-                />
-              </div>
-            );
-          })}
+              );
+            },
+          )}
         </div>
 
         {!sessionId ? (
@@ -428,67 +382,22 @@ export function WebflowBusinessOnboarding({
                     </p>
                   </div>
                 ) : null}
-
-                {derivedUrl ? (
-                  <div className="grid gap-5 border-t border-general-border pt-5">
-                    <GenericInput
-                      form={form}
-                      fieldName="primaryLocation"
-                      type="location-select"
-                      label="Primary Location"
-                      fieldClassName="gap-0"
-                      required
-                      placeholder={
-                        locationsLoading
-                          ? "Loading locations..."
-                          : "Where are your customers primarily located?"
-                      }
-                      options={locationOptions}
-                      disabled={locationsLoading}
-                      loading={locationsLoading}
-                    />
-                    <GenericInput
-                      form={form}
-                      fieldName="serviceAreaType"
-                      type="select"
-                      label="Service-area type"
-                      fieldClassName="gap-0"
-                      required
-                      placeholder="Select service area type"
-                      options={SERVICE_AREA_TYPE_OPTIONS}
-                    />
-                  </div>
-                ) : null}
               </>
             )}
 
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onBack}
-                disabled={isAutofillLoading}
-              >
+              <Button type="button" variant="outline" onClick={onBack}>
                 <ArrowLeft className="size-4" />
                 Back
               </Button>
               <Button
                 type="button"
-                onClick={continueToAutofill}
+                onClick={continueToBusinessDetails}
                 disabled={!canContinue}
                 className="gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
               >
-                {isAutofillLoading ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Autofilling...
-                  </>
-                ) : (
-                  <>
-                    Continue &amp; autofill
-                    <ArrowRight className="size-4" />
-                  </>
-                )}
+                Continue to business details
+                <ArrowRight className="size-4" />
               </Button>
             </div>
           </div>

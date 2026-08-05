@@ -233,6 +233,7 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
 
   const data = contentQuery.data;
   const cmsChannelQuery = useCmsPublishingChannel(businessId || null);
+  const refetchCmsChannel = cmsChannelQuery.refetch;
   const cmsChannel = cmsChannelQuery.data || null;
   const activePlatform = cmsChannel?.platform || null;
   const activeConnection = cmsChannel?.connection || null;
@@ -251,6 +252,12 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
   const wpPublishMutation = useWordpressPublish();
   const isWebflowReady = isActiveWebflow && Boolean(activeTarget?.targetId);
   const isWixReady = isActiveWix && Boolean(activeTarget?.targetId) && cmsChannel?.setupReady !== false;
+
+  React.useEffect(() => {
+    if (!isPublishModalOpen) return;
+    void refetchCmsChannel({ cancelRefetch: false });
+  }, [isPublishModalOpen, refetchCmsChannel]);
+
   const wixSetupQuery = useWixPublishingSetup(businessId || null, Boolean(isPublishModalOpen && isActiveWix));
   const webflowDomains = cmsChannel?.domains || [];
   const webflowStagingDomain = webflowDomains.find((domain) => domain.type === "webflow_subdomain") || null;
@@ -506,6 +513,9 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
     wpPreviewMutation.isPending ||
     wpUnpublishMutation.isPending ||
     wixFeaturedImageBusy;
+  const isPublishConnectionLoading = Boolean(
+    isPublishModalOpen && (cmsChannelQuery.isLoading || cmsChannelQuery.isFetching)
+  );
   const isWordpressPageTemplateChecking = Boolean(
     requiresWordpressPageTemplate &&
     isPublishModalOpen &&
@@ -2029,7 +2039,14 @@ export function WebBlogView({ businessId, pageId }: { businessId: string; pageId
             </DialogDescription>
           </DialogHeader>
 
-          {!cmsChannel?.connected ? (
+          {isPublishConnectionLoading ? (
+            <div className="flex min-h-[220px] items-center justify-center rounded-md bg-background p-6">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading publishing settings...
+              </div>
+            </div>
+          ) : !cmsChannel?.connected ? (
             <div className="rounded-lg bg-background p-4 space-y-3">
               <Typography className="text-sm">No publishing channel connected.</Typography>
               <Button onClick={handleRedirectToChannels}>Connect a channel</Button>

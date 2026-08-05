@@ -37,9 +37,12 @@ interface CreateBusinessTemplateProps {
   isAutofillLoading: boolean;
   offeringsExtractor?: any;
   hasAutofilledProfile: boolean;
+  lockWebsite?: boolean;
+  pendingMessage?: string;
   onAutofillProfile: () => void;
   onSubmitCreate: () => void;
   onCancel: () => void;
+  onBackToPlatform?: () => void;
 }
 
 export function CreateBusinessTemplate({
@@ -51,9 +54,12 @@ export function CreateBusinessTemplate({
   isAutofillLoading,
   offeringsExtractor,
   hasAutofilledProfile,
+  lockWebsite = false,
+  pendingMessage,
   onAutofillProfile,
   onSubmitCreate,
   onCancel,
+  onBackToPlatform,
 }: CreateBusinessTemplateProps) {
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: "Create Business" }];
 
@@ -102,20 +108,20 @@ export function CreateBusinessTemplate({
   );
 
   return (
-    <div className={cn("flex flex-col h-full min-h-0 relative overflow-hidden")}>
+    <div className={cn("flex flex-col h-full min-h-0 relative overflow-hidden max-md:fixed max-md:inset-0 max-md:z-50 max-md:bg-background")}>
       <LoaderOverlay
         isLoading={isLoading}
         message={
           isAutofillLoading
             ? "Autofilling profile..."
             : isPending
-              ? "Creating business..."
+              ? pendingMessage || "Creating business..."
               : undefined
         }
       >
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+            <PageHeader breadcrumbs={breadcrumbs} />
           </div>
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">
@@ -147,6 +153,17 @@ export function CreateBusinessTemplate({
                         disableWebsiteLock
                         primaryLocationAction={renderAutofillButton({ className: "w-full gap-2" })}
                       />
+                      {onBackToPlatform ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="mt-3 w-full text-general-muted-foreground"
+                          onClick={onBackToPlatform}
+                          disabled={isLoading}
+                        >
+                          Choose another platform
+                        </Button>
+                      ) : null}
                     </div>
                   </ProfileGateCard>
                 ) : null}
@@ -163,6 +180,7 @@ export function CreateBusinessTemplate({
                     autofillLoading={isAutofillLoading}
                     showUnlinkBusiness={false}
                     showDefaultActions={false}
+                    lockWebsite={lockWebsite}
                     customHeaderActions={
                       <>
                         <Button
@@ -209,4 +227,3 @@ export function CreateBusinessTemplate({
     </div>
   );
 }
-

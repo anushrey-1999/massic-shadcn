@@ -46,6 +46,7 @@ function normalizeRow(item: Record<string, any>, index: number): UnifiedPageRow 
     item.suggestions;
 
   return {
+    ...item,
     id: `unified-${index}`,
     page,
     page_type: (item.page_type || "").toString(),

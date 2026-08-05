@@ -21,6 +21,8 @@ type SocialTableFilter = {
   filterId: string;
   field?: string;
 };
+import { downloadRowsAsCsv } from "@/lib/csv-export";
+import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 
 interface SocialTableClientProps {
   businessId: string;
@@ -448,6 +450,25 @@ export function SocialTableClient({
     return counts;
   }, [offeringOptions]);
 
+  const clientFilteredSocialData = React.useMemo(() => {
+    const rows = socialData?.data || [];
+    if (!Array.isArray(filters) || filters.length === 0) return rows;
+
+    return filters.reduce((data, filter) => {
+      const field = filter.id || (filter as any).field || filter.filterId;
+      const value = typeof filter.value === "string" ? filter.value.toLowerCase().trim() : "";
+      if (!field || !value) return data;
+
+      if (field === "campaign_name" && (filter.operator === "iLike" || filter.operator === "eq")) {
+        return data.filter((row) =>
+          (row.campaign_name || "").toLowerCase().includes(value)
+        );
+      }
+
+      return data;
+    }, rows);
+  }, [socialData?.data, filters]);
+
   // Use selectedRowChannel for tactics if available, otherwise use channelName from URL
   const tacticsChannel = selectedRowChannel || channelName;
 
@@ -565,6 +586,22 @@ export function SocialTableClient({
     setTacticsSearch("");
   }, [setCampaignName]);
 
+  const handleDownloadCsv = React.useCallback(async () => {
+    const rows = await fetchAllTableData<SocialRow>((csvPage, csvPerPage) =>
+      fetchSocial({
+        business_id: businessId,
+        page: csvPage,
+        perPage: csvPerPage,
+        search: search || undefined,
+        sort: sort || [],
+        filters: filters || [],
+        joinOperator: (joinOperator || "and") as "and" | "or",
+        channel_name: effectiveChannelName,
+      })
+    );
+    downloadRowsAsCsv(rows, `${strategyType}-social-campaigns.csv`);
+  }, [businessId, effectiveChannelName, fetchSocial, filters, joinOperator, search, sort, strategyType]);
+
   if (jobLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -638,7 +675,7 @@ export function SocialTableClient({
   return (
     <div className="relative h-full flex flex-col">
       <SocialTable
-        data={socialData?.data || []}
+        data={clientFilteredSocialData}
         pageCount={socialData?.pageCount || 0}
         offeringCounts={offeringCounts}
         offeringOptions={offeringOptions}
@@ -658,6 +695,7 @@ export function SocialTableClient({
         }}
         pageSize={defaultPerPage}
         pageSizeOptions={pageSizeOptions}
+        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

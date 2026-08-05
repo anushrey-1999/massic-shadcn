@@ -11,6 +11,8 @@ import { useAudience } from "@/hooks/use-audience";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { AudienceMetrics, AudienceRow, AudienceUseCaseRow } from "@/types/audience-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
+import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 
 interface AudienceTableClientProps {
   businessId: string;
@@ -257,6 +259,21 @@ export function AudienceTableClient({
     onSplitViewChange?.(false);
   }, [onSplitViewChange]);
 
+  const handleDownloadCsv = React.useCallback(async () => {
+    const rows = await fetchAllTableData<AudienceRow>((csvPage, csvPerPage) =>
+      fetchAudience({
+        business_id: businessId,
+        page: csvPage,
+        perPage: csvPerPage,
+        search: search || undefined,
+        sort: sort || [],
+        filters: filters || [],
+        joinOperator: (joinOperator || "and") as "and" | "or",
+      })
+    );
+    downloadRowsAsCsv(rows, "audience-personas.csv");
+  }, [businessId, fetchAudience, filters, joinOperator, search, sort]);
+
   const handleUseCaseSelect = React.useCallback((useCaseId: string | null) => {
     setSelectedUseCaseId(useCaseId);
   }, []);
@@ -321,6 +338,7 @@ export function AudienceTableClient({
         search={search}
         onSearchChange={setSearch}
         onRowClick={handleRowClick}
+        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

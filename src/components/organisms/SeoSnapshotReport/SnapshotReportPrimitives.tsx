@@ -57,9 +57,9 @@ export function SnapshotReportShell({
   footer: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto w-[1096px] max-w-full bg-white px-6 pb-6 pt-6">
+    <div className="mx-auto w-full max-w-[1096px] bg-white px-3 sm:px-6 pb-4 sm:pb-6 pt-4 sm:pt-6">
       {children}
-      <div className="pt-6 text-center text-[10px] font-normal leading-[1.5] tracking-[0.15px] text-general-muted-foreground">
+      <div className="pt-4 sm:pt-6 text-center text-[9px] sm:text-[10px] font-normal leading-[1.5] tracking-[0.15px] text-general-muted-foreground">
         {footer}
       </div>
     </div>
@@ -80,19 +80,19 @@ export function SnapshotReportHeader({
   verifiedIcon?: LucideIcon;
 }) {
   return (
-    <div className="flex items-start justify-between border-b border-general-border pb-4">
+    <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4 border-b border-general-border pb-3 sm:pb-4">
       <div className="flex items-start gap-2">
-        <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#d9d9d9] text-[18px] font-semibold leading-none text-general-muted-foreground">
+        <div className="flex size-12 sm:size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#d9d9d9] text-[16px] sm:text-[18px] font-semibold leading-none text-general-muted-foreground">
           {logo}
         </div>
         <div className="flex flex-col items-start gap-2">
-          <h1 className="whitespace-nowrap text-[20px] font-semibold leading-[1.2] tracking-[-0.4px] text-black">
+          <h1 className="text-[16px] sm:text-[20px] font-semibold leading-[1.2] tracking-[-0.4px] text-black break-words">
             {title}
           </h1>
           {website ? (
             <SnapshotBadge
               tone="default"
-              className="max-w-[220px] border-0 text-[10px] tracking-[0.15px]"
+              className="max-w-[220px] border-0 text-[9px] sm:text-[10px] tracking-[0.15px]"
             >
               {website}
             </SnapshotBadge>
@@ -103,7 +103,7 @@ export function SnapshotReportHeader({
         <SnapshotBadge
           tone="blue"
           icon={VerifiedIcon}
-          className="max-w-[260px] text-[10px] tracking-[0.15px]"
+          className="max-w-full sm:max-w-[260px] text-[9px] sm:text-[10px] tracking-[0.15px]"
         >
           {verifiedText}
         </SnapshotBadge>
@@ -128,22 +128,22 @@ export function SnapshotSectionCard({
   return (
     <section
       className={cn(
-        "flex flex-col items-start gap-4 rounded-lg bg-white p-4 shadow-[0px_2px_2px_rgba(0,0,0,0.10),0px_4px_3px_rgba(0,0,0,0.10)]",
+        "flex flex-col items-start gap-3 sm:gap-4 rounded-lg bg-white p-3 sm:p-4 shadow-[0px_2px_2px_rgba(0,0,0,0.10),0px_4px_3px_rgba(0,0,0,0.10)]",
         className
       )}
     >
-      <div className="font-mono text-[12px] font-normal uppercase leading-[1.5] text-general-muted-foreground">
+      <div className="font-mono text-[11px] sm:text-[12px] font-normal uppercase leading-[1.5] text-general-muted-foreground">
         {eyebrow}
       </div>
       {title || description ? (
         <div className="flex flex-col items-start gap-1.5">
           {title ? (
-            <h2 className="text-[24px] font-semibold leading-[1.2] tracking-[-0.48px] text-general-foreground">
+            <h2 className="text-[18px] sm:text-[20px] lg:text-[24px] font-semibold leading-[1.2] tracking-[-0.48px] text-general-foreground">
               {title}
             </h2>
           ) : null}
           {description ? (
-            <p className="text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
+            <p className="text-[11px] sm:text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
               {description}
             </p>
           ) : null}
@@ -220,17 +220,17 @@ export function SnapshotVisibilityMeter({
 
   return (
     <div className="w-full rounded-lg border border-general-border p-3">
-      <div className="flex w-full items-start justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
+      <div className="flex w-full flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
             Search visibility
           </div>
-          <p className="text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground/60">
+          <p className="text-[10px] sm:text-[12px] font-normal leading-[1.5] tracking-[0.18px] text-general-muted-foreground/60">
             Across the {total} high-value searches tracked
           </p>
         </div>
-        <div className="flex items-center gap-0.5 text-[12px] leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
-          <span className="text-[14px] font-medium tracking-[0.07px] text-general-primary">
+        <div className="flex items-center gap-0.5 text-[11px] sm:text-[12px] leading-[1.5] tracking-[0.18px] text-general-muted-foreground">
+          <span className="text-[13px] sm:text-[14px] font-medium tracking-[0.07px] text-general-primary">
             {visible}
           </span>
           <span>/</span>
@@ -242,14 +242,14 @@ export function SnapshotVisibilityMeter({
           <div
             key={segment.label}
             className={cn(
-              "flex h-full min-w-0 items-center justify-center text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-white",
+              "flex h-full min-w-0 items-center justify-center text-[10px] sm:text-[12px] font-medium leading-[1.5] tracking-[0.18px] text-white",
               segment.className
             )}
             style={{ width: `${(segment.value / total) * 100}%` }}
           >
             {segment.value > 0 ? (
-              <span className="truncate px-2">
-                {segment.value} <span className="opacity-60">{segment.label}</span>
+              <span className="truncate px-1 sm:px-2">
+                {segment.value} <span className="hidden sm:inline opacity-60">{segment.label}</span>
               </span>
             ) : null}
           </div>
@@ -269,7 +269,7 @@ export function SnapshotDataTable({
   minWidth?: number;
 }) {
   return (
-    <div className="w-full overflow-hidden rounded-lg border border-general-border bg-white">
+    <div className="w-full overflow-hidden rounded-lg border border-general-border bg-white -mx-3 sm:mx-0">
       <div className="overflow-x-auto">
         <table
           className="w-full table-fixed border-collapse"
@@ -281,7 +281,7 @@ export function SnapshotDataTable({
                 <th
                   key={header.label}
                   className={cn(
-                    "border-b border-general-border px-2 py-[7.5px] text-left text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-muted-foreground",
+                    "border-b border-general-border px-2 py-[7.5px] text-left text-[12px] sm:text-[14px] font-medium leading-[1.5] tracking-[0.07px] text-general-muted-foreground",
                     header.className
                   )}
                 >
@@ -297,7 +297,7 @@ export function SnapshotDataTable({
                   {row.map((cell, cellIndex) => (
                     <td
                       key={cellIndex}
-                      className="border-b border-general-border px-2 py-2.5 align-middle text-[14px] font-normal leading-[1.5] tracking-[0.07px] text-general-foreground last:border-b"
+                      className="border-b border-general-border px-2 py-2.5 align-middle text-[12px] sm:text-[14px] font-normal leading-[1.5] tracking-[0.07px] text-general-foreground last:border-b"
                     >
                       {cell}
                     </td>

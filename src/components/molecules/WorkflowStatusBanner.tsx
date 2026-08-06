@@ -3,7 +3,11 @@
 import { useJobByBusinessId } from '@/hooks/use-jobs'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/molecules/EmptyState'
-import { getWorkflowStatus, type WorkflowStatusValue } from '@/lib/workflow-status'
+import {
+  getOverallWorkflowStatus,
+  getWorkflowStatus,
+  type WorkflowStatusValue,
+} from '@/lib/workflow-status'
 
 interface WorkflowStatusBannerProps {
   businessId: string
@@ -32,9 +36,10 @@ export function WorkflowStatusBanner({
   const { data: jobDetails, isLoading } = useJobByBusinessId(businessId || null)
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status
   const effectiveWorkflowKey = workflowKey
-  const overallStatus = jobDetails?.workflow_status?.status
+  const rawOverallStatus = jobDetails?.workflow_status?.status
+  const overallStatus = getOverallWorkflowStatus(jobDetails)
   const workflowStatus = (() => {
-    if (!effectiveWorkflowKey) return jobDetails?.workflow_status?.status
+    if (!effectiveWorkflowKey) return overallStatus
     if (coreStatus != null && coreStatus !== "success") return coreStatus
     if (Array.isArray(effectiveWorkflowKey)) {
       const statuses = effectiveWorkflowKey.map((key) => getWorkflowStatus(jobDetails, key))
@@ -42,7 +47,7 @@ export function WorkflowStatusBanner({
     }
     return getWorkflowStatus(jobDetails, effectiveWorkflowKey)
   })()
-  const overallStatusIsNull = jobDetails?.workflow_status?.status === null
+  const overallStatusIsNull = rawOverallStatus === null
   const effectiveStatus =
     workflowStatus !== undefined && workflowStatus !== null
       ? workflowStatus

@@ -30,7 +30,6 @@ export function ShareReportDialog({
         "node",
         {
           emails: recipientEmails,
-          includeWatermark: false,
         },
         {
           timeout: 300000,

@@ -11,6 +11,7 @@ type TagsInputProps = {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  maxItems?: number;
 };
 
 function splitToTokens(raw: string): string[] {
@@ -38,6 +39,7 @@ export function TagsInput({
   placeholder = "Type and press Enter",
   disabled = false,
   className,
+  maxItems,
 }: TagsInputProps) {
   const [draft, setDraft] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -54,10 +56,13 @@ export function TagsInput({
     (raw: string) => {
       const tokens = splitToTokens(raw);
       if (tokens.length === 0) return;
-      const next = dedupeCaseInsensitive([...normalizedValue, ...tokens]);
+      const next = dedupeCaseInsensitive([...normalizedValue, ...tokens]).slice(
+        0,
+        maxItems ?? undefined
+      );
       onChange(next);
     },
-    [normalizedValue, onChange]
+    [maxItems, normalizedValue, onChange]
   );
 
   const removeAt = React.useCallback(
@@ -72,7 +77,7 @@ export function TagsInput({
   return (
     <div
       className={cn(
-        "flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2 shadow-xs",
+        "flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-white px-3 py-2",
         "transition-[color,box-shadow] focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]",
         disabled && "cursor-not-allowed opacity-50",
         className
@@ -82,16 +87,16 @@ export function TagsInput({
         inputRef.current?.focus();
       }}
     >
-      {normalizedValue.map((t, idx) => (
+      {normalizedValue.slice(0, maxItems ?? undefined).map((t, idx) => (
         <Badge
           key={`${t.toLowerCase()}-${idx}`}
           variant="outline"
           className="gap-1 rounded-full px-2 py-1 text-xs"
         >
-          <span className="max-w-[240px] truncate">{t}</span>
+          <span className="max-w-60 truncate">{t}</span>
           <button
             type="button"
-            className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 text-general-muted-foreground hover:text-foreground disabled:pointer-events-none"
+            className="ml-0.5 inline-flex items-center justify-center rounded-full p-0.5 text-general-muted-foreground hover:text-foreground disabled:pointer-events-none cursor-pointer"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -109,7 +114,7 @@ export function TagsInput({
       <input
         ref={inputRef}
         value={draft}
-        disabled={disabled}
+        disabled={disabled || (maxItems !== undefined && normalizedValue.length >= maxItems)}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           if (disabled) return;

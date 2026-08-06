@@ -22,6 +22,7 @@ interface ReportsTableProps {
   businessId: string;
   data: ReportRunListItem[];
   pageCount: number;
+  currentPage: number;
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -31,6 +32,7 @@ export function ReportsTable({
   businessId,
   data,
   pageCount,
+  currentPage,
   queryKeys,
   isLoading,
   isFetching,
@@ -44,15 +46,41 @@ export function ReportsTable({
 
   const { data: existingSchedule } = useGetAutoScheduleByBusiness(businessId);
 
+  const displayData = React.useMemo<ReportRunListItem[]>(() => {
+    if (currentPage !== 1 || !existingSchedule?.isActive) return data;
+
+    const scheduledRow: ReportRunListItem = {
+      id: `schedule-${existingSchedule.id}`,
+      row_type: "schedule",
+      status: "scheduled",
+      date_generated: null,
+      time_generated: null,
+      period_start: null,
+      period_end: null,
+      period: existingSchedule.period,
+      errors: null,
+      created_at: "",
+      scheduled_for: existingSchedule.nextRunAt,
+      is_auto_scheduled: true,
+      business_name: existingSchedule.businessName || null,
+    };
+
+    return [scheduledRow, ...data];
+  }, [currentPage, data, existingSchedule]);
+
+  const handleEditSchedule = React.useCallback(() => {
+    if (guardScheduleReport()) setAutoScheduleDialogOpen(true);
+  }, [guardScheduleReport]);
+
   const columns = React.useMemo(
-    () => getReportsTableColumns({ businessId }),
-    [businessId]
+    () => getReportsTableColumns({ businessId, onEditSchedule: handleEditSchedule }),
+    [businessId, handleEditSchedule]
   );
 
   const { table } = useDataTable({
-    data,
+    data: displayData,
     columns,
-    pageCount,
+    pageCount: Math.max(pageCount, displayData.length > 0 ? 1 : 0),
     enableAdvancedFilter: false,
     initialState: {
       pagination: {
@@ -68,9 +96,13 @@ export function ReportsTable({
 
   const handleRowClick = React.useCallback(
     (row: ReportRunListItem) => {
+      if (row.row_type === "schedule") {
+        handleEditSchedule();
+        return;
+      }
       router.push(`/business/${businessId}/reports/${row.id}`);
     },
-    [router, businessId]
+    [router, businessId, handleEditSchedule]
   );
 
   return (
@@ -105,7 +137,7 @@ export function ReportsTable({
             <Button
               variant="outline"
               className="h-9 gap-2"
-              onClick={() => { if (guardScheduleReport()) setAutoScheduleDialogOpen(true); }}
+              onClick={handleEditSchedule}
             >
               <CalendarFold className="h-4 w-4" />
               Auto-schedule

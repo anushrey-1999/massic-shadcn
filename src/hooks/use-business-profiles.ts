@@ -4,15 +4,24 @@ import { useBusinessStore, BusinessProfile, type LocationOption } from "@/store/
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 import { parsePrimaryLocationForPayload } from "@/utils/primary-location";
+import { cleanWebsiteUrl, normalizeDomainForFavicon } from "@/utils/utils";
 
 const BUSINESS_PROFILES_KEY = "businessProfiles";
 
 // Extract query function to reuse in mutation
+//
+// `strict` exists for the create flow. A silently-empty list there is dangerous:
+// it makes every pre-existing business look "new", which is how a create can end
+// up pointing at somebody else's business. Strict callers get an exception instead.
 async function fetchBusinessProfiles(
   userUniqueId: string | undefined,
-  isPitch?: boolean
+  isPitch?: boolean,
+  options?: { strict?: boolean }
 ): Promise<BusinessProfile[]> {
+  const strict = options?.strict === true;
+
   if (!userUniqueId) {
+    if (strict) throw new Error("User not authenticated");
     return [];
   }
 
@@ -26,12 +35,26 @@ async function fetchBusinessProfiles(
     "node"
   );
 
-  if (!response.err && response.data) {
-    const parsedProfiles: BusinessProfile[] = JSON.parse(response.data);
-    return parsedProfiles;
+  if (response.err === true || response.data == null) {
+    if (strict) {
+      throw new Error(response.message || "Failed to load existing businesses");
+    }
+    return [];
   }
 
-  return [];
+  if (response.data === "") {
+    return [];
+  }
+
+  try {
+    const parsedProfiles: BusinessProfile[] = JSON.parse(response.data);
+    return Array.isArray(parsedProfiles) ? parsedProfiles : [];
+  } catch (error) {
+    if (strict) {
+      throw new Error("Failed to read existing businesses");
+    }
+    return [];
+  }
 }
 
 export async function fetchPitchBusinessProfiles(userUniqueId: string | undefined): Promise<BusinessProfile[]> {
@@ -158,12 +181,202 @@ export function useBusinessProfileById(businessUniqueId: string | null) {
   };
 }
 
+const websiteKey = (url: string | null | undefined) =>
+  normalizeDomainForFavicon(cleanWebsiteUrl(url || "")).toLowerCase();
+
+/**
+ * Best-effort read of the created record from the create response.
+ *
+ * The Node endpoint isn't contractually required to return it, so this probes
+ * the shapes it may use and returns null otherwise. Callers must still validate
+ * whatever comes back — this is a shortcut, not a source of trust.
+ */
+function extractCreatedBusinessFromResponse(
+  response: any
+): Partial<BusinessProfile> | null {
+  const seen = new Set<any>();
+
+  const normalize = (node: any): Partial<BusinessProfile> | null => {
+    if (!node || typeof node !== "object" || seen.has(node)) return null;
+    seen.add(node);
+
+    if (Array.isArray(node)) {
+      // Only usable when the response describes exactly one created business.
+      const records = node
+        .map((item) => normalize(item))
+        .filter((item): item is Partial<BusinessProfile> => item != null);
+      return records.length === 1 ? (records[0] ?? null) : null;
+    }
+
+    const id = String(node.UniqueId ?? node.uniqueId ?? "").trim();
+    if (id) {
+      return {
+        ...node,
+        UniqueId: id,
+        Website: node.Website ?? node.website,
+        IsPitch: node.IsPitch ?? node.isPitch,
+        LinkedAuthId: node.LinkedAuthId ?? node.linkedAuthId,
+      } as Partial<BusinessProfile>;
+    }
+
+    for (const key of ["data", "businesses", "business", "created", "result"]) {
+      const child = node[key];
+      const parsed =
+        typeof child === "string"
+          ? (() => {
+              try {
+                return JSON.parse(child);
+              } catch {
+                return null;
+              }
+            })()
+          : child;
+      const found = normalize(parsed);
+      if (found) return found;
+    }
+
+    return null;
+  };
+
+  return normalize(response);
+}
+
+/**
+ * What a business record must look like for us to accept it as "the one we just
+ * created". Every check is a *positive contradiction* check: unknown/absent
+ * fields never block, so an unexpected backend shape can't lock users out.
+ */
+export interface CreatedBusinessExpectation {
+  expectedWebsite?: string | null;
+  expectedIsPitch?: boolean;
+  /** Ids that already existed before the create call. */
+  preExistingIds?: Set<string> | null;
+}
+
+/**
+ * Returns a reason string when `candidate` cannot be the business we just
+ * created, or null when it passes every check.
+ *
+ * This is the invariant that prevents the "wires crossed" class of bug: a
+ * business that already existed, that belongs to another domain, or that already
+ * has analytics linked, can never be adopted as a freshly created record.
+ */
+export function describeCreatedBusinessMismatch(
+  candidate: Partial<BusinessProfile> | null | undefined,
+  expectation: CreatedBusinessExpectation
+): string | null {
+  const id = String(candidate?.UniqueId || "").trim();
+  if (!candidate || !id) return "no business id";
+
+  if (expectation.preExistingIds?.has(id)) {
+    return "business already existed before this create";
+  }
+
+  // A business created seconds ago cannot already have Search Console / GA linked.
+  // wbu.edu-style records are rejected here even if every other check passed.
+  if (String((candidate as any).LinkedAuthId || "").trim()) {
+    return "business already has analytics linked";
+  }
+
+  const expectedDomain = websiteKey(expectation.expectedWebsite);
+  const candidateDomain = websiteKey(candidate.Website);
+  if (expectedDomain && candidateDomain && expectedDomain !== candidateDomain) {
+    return `business belongs to ${candidateDomain}, not ${expectedDomain}`;
+  }
+
+  if (typeof expectation.expectedIsPitch === "boolean") {
+    const candidateIsPitch = (candidate as any).IsPitch;
+    if (
+      typeof candidateIsPitch === "boolean" &&
+      candidateIsPitch !== expectation.expectedIsPitch
+    ) {
+      return expectation.expectedIsPitch
+        ? "target is a live business, not a pitch"
+        : "target is a pitch, not a live business";
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Last line of defence before a create flow writes into a business.
+ *
+ * Re-reads the target from the server and refuses the write if it isn't the
+ * record we believe we created. Cheap (one GET) and only used where a wrong id
+ * would silently destroy an existing profile.
+ */
+export async function assertSafeCreatedBusinessTarget(
+  businessUniqueId: string,
+  expectation: CreatedBusinessExpectation
+): Promise<void> {
+  const id = String(businessUniqueId || "").trim();
+  if (!id) {
+    throw new Error("Missing business id");
+  }
+
+  const response = await api.get<{ err: boolean; data: string; message?: string }>(
+    `/profile/get-business-profile/?uniqueId=${id}`,
+    "node"
+  );
+
+  if (response.err === true || !response.data) {
+    throw new Error(response.message || "Couldn't verify the business before saving");
+  }
+
+  let profile: BusinessProfile;
+  try {
+    profile = JSON.parse(response.data);
+  } catch {
+    throw new Error("Couldn't verify the business before saving");
+  }
+
+  const profileId = String(profile?.UniqueId || "").trim();
+  if (profileId && profileId !== id) {
+    throw new Error("Refusing to save: the server returned a different business");
+  }
+
+  const mismatch = describeCreatedBusinessMismatch(
+    { ...profile, UniqueId: profileId || id },
+    expectation
+  );
+  if (mismatch) {
+    throw new Error(`Refusing to save into an unrelated business (${mismatch})`);
+  }
+}
+
+/**
+ * Verified `POST /profile/update-business-profile` for create flows.
+ * Never call the raw endpoint with an id derived from a create — use this.
+ */
+export async function updateCreatedBusinessProfileSafely(
+  businessUniqueId: string,
+  payload: Record<string, any>,
+  expectation: CreatedBusinessExpectation
+): Promise<void> {
+  await assertSafeCreatedBusinessTarget(businessUniqueId, expectation);
+
+  const response = await api.post<{ err?: boolean; status?: number; message?: string }>(
+    "/profile/update-business-profile",
+    "node",
+    { ...payload, UniqueId: businessUniqueId }
+  );
+
+  const hasError =
+    response?.err === true ||
+    (response?.status !== undefined && response.status !== 200);
+
+  if (hasError) {
+    throw new Error(response?.message || "Failed to update business profile");
+  }
+}
+
 interface CreateBusinessPayload {
   website: string;
   businessName: string;
   primaryLocation: string; // Format: "Location,Country" or just "Location"
-  serveCustomers: "local" | "online";
-  offerType: "products" | "services";
+  serveCustomers: "local" | "online" | "both";
+  offerType: "products" | "services" | "both";
   isPitch?: boolean; // Set to true when created from /create-pitch
   locationOptions?: LocationOption[];
 }
@@ -190,6 +403,41 @@ export function useCreateBusiness() {
       if (!userUniqueId) {
         throw new Error("User not authenticated");
       }
+
+      // Capture the pre-create state so we can deterministically locate the newly created profile.
+      // Matching by website (or "last item") is unsafe and can overwrite an unrelated business.
+      //
+      // This runs BEFORE the create call and is strict on purpose: if we can't
+      // read the current businesses we must not create anything, because we'd
+      // have no reliable way to tell the new record apart from existing ones.
+      let beforeAll: BusinessProfile[];
+      let beforePitch: BusinessProfile[] | null = null;
+      try {
+        beforeAll = await fetchBusinessProfiles(userUniqueId, undefined, { strict: true });
+        if (formData.isPitch === true) {
+          beforePitch = await fetchBusinessProfiles(userUniqueId, true, { strict: true });
+        }
+      } catch {
+        throw new Error(
+          "Couldn't load your existing businesses, so creation was cancelled. Please retry."
+        );
+      }
+
+      const toIdSet = (profiles: BusinessProfile[]) =>
+        new Set(
+          profiles
+            .map((p) => String(p?.UniqueId || "").trim())
+            .filter(Boolean)
+        );
+
+      const beforeAllIds = toIdSet(beforeAll);
+      const beforePitchIds = beforePitch ? toIdSet(beforePitch) : null;
+
+      // Union of everything known to exist beforehand, used by the identity guard.
+      const preExistingIds = new Set<string>([
+        ...beforeAllIds,
+        ...(beforePitchIds ? Array.from(beforePitchIds) : []),
+      ]);
 
       const locationOptions =
         formData.locationOptions ??
@@ -261,28 +509,95 @@ export function useCreateBusiness() {
         queryKey: ["pitchBusinesses", userUniqueId],
       });
 
-      // Refetch using the same query function (reusing fetchBusinessProfiles)
-      const updatedProfiles = await fetchBusinessProfiles(userUniqueId);
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      const websiteInput = websiteKey(formData.website);
+
+      const expectation: CreatedBusinessExpectation = {
+        expectedWebsite: formData.website,
+        expectedIsPitch: formData.isPitch === true,
+        preExistingIds,
+      };
+
+      // Any candidate, from any source, must clear the same guard.
+      const acceptCandidate = (
+        candidate: Partial<BusinessProfile> | null | undefined
+      ): BusinessProfile | null =>
+        describeCreatedBusinessMismatch(candidate, expectation) === null
+          ? (candidate as BusinessProfile)
+          : null;
+
+      // Best case: the server tells us what it created. Still guarded, never trusted blindly.
+      const createdFromResponse = acceptCandidate(
+        extractCreatedBusinessFromResponse(response)
+      );
+
+      // Refetch with retry: the create endpoint can be eventually consistent with list endpoints.
+      let updatedProfiles: BusinessProfile[] = [];
+      for (let attempt = 0; attempt < 4; attempt++) {
+        updatedProfiles = await fetchBusinessProfiles(userUniqueId);
+        const hasNew = updatedProfiles.some((p) => {
+          const id = String(p?.UniqueId || "").trim();
+          return Boolean(id) && !beforeAllIds.has(id);
+        });
+        if (hasNew) break;
+        if (attempt < 3) await sleep(250 * (attempt + 1));
+      }
+
+      let updatedPitchProfiles: BusinessProfile[] | null = null;
+      if (formData.isPitch === true) {
+        updatedPitchProfiles = [];
+        for (let attempt = 0; attempt < 4; attempt++) {
+          updatedPitchProfiles = await fetchBusinessProfiles(userUniqueId, true);
+          const beforeIds = beforePitchIds ?? new Set<string>();
+          const hasNew = updatedPitchProfiles.some((p) => {
+            const id = String(p?.UniqueId || "").trim();
+            return Boolean(id) && !beforeIds.has(id);
+          });
+          if (hasNew) break;
+          if (attempt < 3) await sleep(250 * (attempt + 1));
+        }
+      }
 
       // Update the store
       const { setBusinessProfiles } = useBusinessStore.getState();
       setBusinessProfiles(updatedProfiles);
 
-      // Find the created business by matching website
-      let createdBusiness: BusinessProfile | null = null;
+      const pickCreatedFromLists = (
+        after: BusinessProfile[] | null | undefined,
+        beforeIds: Set<string> | null
+      ): BusinessProfile | null => {
+        if (!after || !Array.isArray(after) || after.length === 0) return null;
+        if (!beforeIds) return null;
 
-      if (updatedProfiles && Array.isArray(updatedProfiles) && updatedProfiles.length > 0) {
-        const websiteInput = formData.website.toLowerCase().trim();
-        const matchedProfile = updatedProfiles.find((profile: BusinessProfile) => {
-          const profileWebsite = profile.Website?.toLowerCase().trim() || "";
-          return (
-            profileWebsite.includes(websiteInput) ||
-            websiteInput.includes(profileWebsite)
-          );
+        const candidates = after.filter((p) => {
+          const id = String(p?.UniqueId || "").trim();
+          return Boolean(id) && !beforeIds.has(id);
         });
 
-        createdBusiness =
-          matchedProfile || updatedProfiles[updatedProfiles.length - 1] || null;
+        if (candidates.length === 0) return null;
+        if (candidates.length === 1) return acceptCandidate(candidates[0]);
+
+        // If multiple new candidates exist, only proceed if we can uniquely disambiguate.
+        if (!websiteInput) return null;
+
+        const matches = candidates.filter((p) => websiteKey(p?.Website) === websiteInput);
+        return matches.length === 1 ? acceptCandidate(matches[0]) : null;
+      };
+
+      // Prefer pitch-scoped diff when creating a pitch, then the all-business diff.
+      const createdBusiness: BusinessProfile | null =
+        createdFromResponse ??
+        (formData.isPitch === true
+          ? pickCreatedFromLists(updatedPitchProfiles, beforePitchIds)
+          : null) ??
+        pickCreatedFromLists(updatedProfiles, beforeAllIds);
+
+      if (!createdBusiness?.UniqueId) {
+        // Fail safe: returning the wrong business here can overwrite a real profile.
+        throw new Error(
+          "Business was created, but the app couldn't reliably identify it. Please refresh and open it from the list before editing."
+        );
       }
 
       return { formData, createdBusiness };

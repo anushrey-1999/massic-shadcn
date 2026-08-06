@@ -11,6 +11,10 @@ interface User {
   username?: string;
   uniqueId?: string;
   UniqueId?: string;
+  userUniqueId?: string;
+  accountUniqueId?: string;
+  accountRole?: string;
+  userType?: string;
   roleid?: number;
   rolename?: string;
   isTeamMember?: boolean;
@@ -81,4 +85,3 @@ export const useAuthStore = create<AuthState>()((set) => ({
     });
   },
 }));
-

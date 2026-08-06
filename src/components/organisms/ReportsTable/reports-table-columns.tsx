@@ -1,7 +1,7 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowRight, Check, CircleAlert } from "lucide-react";
+import { ArrowRight, Check, CircleAlert, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { DataTableColumnHeader } from "../../filter-table/data-table-column-header";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,19 @@ import { Badge } from "@/components/ui/badge";
 import { Typography } from "@/components/ui/typography";
 import type { ReportRunListItem } from "@/types/report-runs-types";
 import { formatDate } from "@/lib/format";
+import {
+  ScheduledDateCell,
+  ScheduledStatusBadge,
+} from "./scheduled-report-display";
 
 interface GetReportsTableColumnsProps {
   businessId: string;
+  onEditSchedule: () => void;
 }
 
 export function getReportsTableColumns({
   businessId,
+  onEditSchedule,
 }: GetReportsTableColumnsProps): ColumnDef<ReportRunListItem>[] {
   return [
     {
@@ -47,16 +53,22 @@ export function getReportsTableColumns({
       id: "date_generated",
       accessorKey: "created_at",
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} label="Date Generated" />
+        <DataTableColumnHeader column={column} label="Date" />
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="text-sm">
-          {row.original.created_at ? formatDate(row.original.created_at, "MMM d, yyyy") : "—"}
+          {row.original.row_type === "schedule" ? (
+            <ScheduledDateCell scheduledFor={row.original.scheduled_for} part="date" />
+          ) : row.original.created_at ? (
+            formatDate(row.original.created_at, "MMM d, yyyy")
+          ) : (
+            "—"
+          )}
         </Typography>
       ),
       enableSorting: true,
       meta: {
-        label: "Date Generated",
+        label: "Date",
       },
       size: 200,
       minSize: 150,
@@ -70,7 +82,13 @@ export function getReportsTableColumns({
       ),
       cell: ({ row }) => (
         <Typography variant="p" className="text-sm">
-          {row.original.created_at ? formatDate(row.original.created_at, "h:mm a") : "—"}
+          {row.original.row_type === "schedule" ? (
+            <ScheduledDateCell scheduledFor={row.original.scheduled_for} part="time" />
+          ) : row.original.created_at ? (
+            formatDate(row.original.created_at, "h:mm a")
+          ) : (
+            "—"
+          )}
         </Typography>
       ),
       enableSorting: true,
@@ -88,6 +106,10 @@ export function getReportsTableColumns({
         <DataTableColumnHeader column={column} label="Status" />
       ),
       cell: ({ row }) => {
+        if (row.original.row_type === "schedule") {
+          return <ScheduledStatusBadge scheduledFor={row.original.scheduled_for} />;
+        }
+
         const status = row.original.status;
         const deliveryStatus = row.original.delivery_status;
         const isAutoScheduled = row.original.is_auto_scheduled;
@@ -115,21 +137,7 @@ export function getReportsTableColumns({
 
           // Show "Ready to Send" chip
           if (deliveryStatus === "ready_for_approval") {
-            return (
-              <Badge
-                className="bg-[#F5F5F5] border-transparent text-[#171717] hover:bg-[#F5F5F5] font-medium text-center rounded-[8px] inline-flex items-center justify-center gap-[6px] px-[8px] py-[3px]"
-                style={{
-                  fontFamily: 'Geist',
-                  fontSize: '10px',
-                  fontWeight: 500,
-                  lineHeight: '150%',
-                  letterSpacing: '0.15px',
-                }}
-              >
-                Ready to send
-                <ArrowRight className="h-[12px] w-[12px]" style={{ color: '#D4D4D4' }} />
-              </Badge>
-            );
+            return <ReadyToSendBadge />;
           }
         }
 
@@ -137,21 +145,7 @@ export function getReportsTableColumns({
         if (!isAutoScheduled) {
           // Show "Ready to Send" for ready_for_approval
           if (deliveryStatus === "ready_for_approval") {
-            return (
-              <Badge
-                className="bg-[#F5F5F5] border-transparent text-[#171717] hover:bg-[#F5F5F5] font-medium text-center rounded-[8px] inline-flex items-center justify-center gap-[6px] px-[8px] py-[3px]"
-                style={{
-                  fontFamily: 'Geist',
-                  fontSize: '10px',
-                  fontWeight: 500,
-                  lineHeight: '150%',
-                  letterSpacing: '0.15px',
-                }}
-              >
-                Ready to send
-                <ArrowRight className="h-[12px] w-[12px]" style={{ color: '#D4D4D4' }} />
-              </Badge>
-            );
+            return <ReadyToSendBadge />;
           }
 
           // Show "Error" chip
@@ -214,7 +208,14 @@ export function getReportsTableColumns({
       enableSorting: false,
       cell: ({ row }) => {
         // Using a wrapper component to access router
-        return <ActionsCell businessId={businessId} reportRunId={row.original.id} />;
+        return (
+          <ActionsCell
+            businessId={businessId}
+            reportRunId={row.original.id}
+            isSchedule={row.original.row_type === "schedule"}
+            onEditSchedule={onEditSchedule}
+          />
+        );
       },
       size: 100,
       minSize: 80,
@@ -223,7 +224,26 @@ export function getReportsTableColumns({
   ];
 }
 
-function ActionsCell({ businessId, reportRunId }: { businessId: string; reportRunId: string }) {
+function ReadyToSendBadge() {
+  return (
+    <Badge className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-general-border bg-white px-2 py-[3px] text-[10px] font-medium leading-[1.5] tracking-[0.15px] text-general-secondary-foreground hover:bg-white">
+      <Send className="h-3 w-3 text-general-muted-foreground" aria-hidden="true" />
+      Ready to send
+    </Badge>
+  );
+}
+
+function ActionsCell({
+  businessId,
+  reportRunId,
+  isSchedule,
+  onEditSchedule,
+}: {
+  businessId: string;
+  reportRunId: string;
+  isSchedule: boolean;
+  onEditSchedule: () => void;
+}) {
   const router = useRouter();
 
   return (
@@ -233,8 +253,13 @@ function ActionsCell({ businessId, reportRunId }: { businessId: string; reportRu
         variant="secondary"
         size="icon-sm"
         className="h-6 w-6 rounded-lg"
+        aria-label={isSchedule ? "Edit auto-schedule" : "Open report"}
         onClick={(e) => {
           e.stopPropagation();
+          if (isSchedule) {
+            onEditSchedule();
+            return;
+          }
           router.push(`/business/${businessId}/reports/${reportRunId}`);
         }}
       >

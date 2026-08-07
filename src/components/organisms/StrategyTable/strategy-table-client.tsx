@@ -11,10 +11,10 @@ import { AlertCircle } from "lucide-react";
 import { useStrategy } from "@/hooks/use-strategy";
 import { useTopicSignals } from "@/hooks/use-topic-signals";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
+import { buildSignalsByTopic } from "@/components/organisms/TopicSignalsTable";
 import type { StrategyCluster, StrategyRow, StrategyTopic } from "@/types/strategy-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
 import type { StrategyMetrics } from "@/types/strategy-types";
-import type { TopicSignalRow } from "@/types/topic-signals-types";
 import { downloadRowsAsCsv } from "@/lib/csv-export";
 import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 
@@ -333,15 +333,9 @@ export function StrategyTableClient({
     staleTime: 1000 * 60 * 5,
   });
 
-  const signalsByTopicId = React.useMemo(() => {
-    const map: Record<number, TopicSignalRow> = {};
-    if (signalData?.status !== "success") return map;
-    for (const signal of signalData.output_data?.items || []) {
-      if (typeof signal.topic_id === "number") {
-        map[signal.topic_id] = signal;
-      }
-    }
-    return map;
+  const signalsByTopic = React.useMemo(() => {
+    if (signalData?.status !== "success") return {};
+    return buildSignalsByTopic(signalData.output_data?.items || []);
   }, [signalData]);
 
   // Get offerings from job details
@@ -474,7 +468,7 @@ export function StrategyTableClient({
         onRowClick={handleRowClick}
         toolbarRightPrefix={toolbarRightPrefix}
         columnVisibilityKey={columnVisibilityKey}
-        signalsByTopicId={signalsByTopicId}
+        signalsByTopic={signalsByTopic}
         onDownloadCsv={handleDownloadCsv}
       />
     </div>

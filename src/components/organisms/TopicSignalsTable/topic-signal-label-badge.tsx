@@ -1,6 +1,15 @@
 "use client";
 
-import { Calendar, CalendarClock, Minus, Sparkles, Sprout, TrendingUp, Zap } from "lucide-react";
+import {
+  Calendar,
+  CalendarClock,
+  Minus,
+  Sparkles,
+  Sprout,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TopicSignalLabel } from "@/types/topic-signals-types";
@@ -25,6 +34,14 @@ const labelConfig: Record<TopicSignalLabel, { icon: typeof Sprout; className: st
   "Seasonal+Rising": {
     icon: CalendarClock,
     className: "border-teal-200 bg-teal-50 text-teal-700",
+  },
+  "Seasonal+Declining": {
+    icon: CalendarClock,
+    className: "border-rose-200 bg-rose-50 text-rose-700",
+  },
+  Declining: {
+    icon: TrendingDown,
+    className: "border-rose-200 bg-rose-50 text-rose-700",
   },
   Steady: {
     icon: Minus,

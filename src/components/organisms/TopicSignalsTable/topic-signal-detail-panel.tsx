@@ -38,7 +38,7 @@ export function TopicSignalDetailPanel({ row }: { row: TopicSignalRow }) {
               </Badge>
             </div>
             <Typography variant="h3" className="truncate">
-              {row.term}
+              {row.topic}
             </Typography>
             <Typography variant="p" className="mt-1 text-sm text-general-muted-foreground">
               Ranked signal #{row.display_rank} for this topic set and month.

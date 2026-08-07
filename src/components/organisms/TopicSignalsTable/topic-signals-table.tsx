@@ -35,7 +35,14 @@ export function TopicSignalsTable({
   selectedRowId,
   compact = false,
 }: TopicSignalsTableProps) {
-  const columns = React.useMemo(() => getTopicSignalsTableColumns(), []);
+  const geographyOptions = React.useMemo(
+    () => Array.from(new Set(data.map((row) => row.trend_geography).filter(Boolean))).sort(),
+    [data]
+  );
+  const columns = React.useMemo(
+    () => getTopicSignalsTableColumns({ geographyOptions }),
+    [geographyOptions]
+  );
   const { table, shallow, debounceMs, throttleMs } = useDataTable({
     data,
     columns,

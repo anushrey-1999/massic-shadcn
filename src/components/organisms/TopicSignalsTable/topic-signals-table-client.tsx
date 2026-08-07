@@ -259,7 +259,9 @@ export function TopicSignalsTableClient({
   );
 
   const evaluationMonthLabel =
-    query.data?.metadata?.evaluation_month || selectedMonthYear;
+    query.data?.metadata?.evaluation_period ||
+    query.data?.metadata?.evaluation_month ||
+    selectedMonthYear;
 
   const handleRowClick = React.useCallback((row: TopicSignalRow) => {
     setSelectedRowId(String(row.id));

@@ -46,7 +46,7 @@ export function useTopicSignals(businessId: string) {
         page: String(page),
         page_size: String(pageSize),
       });
-      if (monthYear?.trim()) params.set("month_year", monthYear.trim());
+      if (monthYear?.trim()) params.set("evaluation_period", monthYear.trim());
       if (search?.trim()) params.set("search", search.trim());
       if (sort?.length) params.set("sort", JSON.stringify(sort));
       if (filters?.length) {

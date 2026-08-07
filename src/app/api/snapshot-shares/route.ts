@@ -92,7 +92,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       businessId: requestBody.businessId,
     });
 
-    return jsonResponse({ sharePath: `/snapshot#${token}` }, 201);
+    return jsonResponse({ sharePath: `/snapshot?t=${token}` }, 201);
   } catch (error) {
     if (error instanceof SnapshotAccessDeniedError) {
       return jsonResponse({ error: "Snapshot not available." }, 403);

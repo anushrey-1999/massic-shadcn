@@ -8,7 +8,7 @@ import { copyToClipboard } from "@/utils/clipboard";
 
 const shareResponseSchema = z
   .object({
-    sharePath: z.string().startsWith("/snapshot#"),
+    sharePath: z.string().startsWith("/snapshot?t="),
   })
   .strict();
 

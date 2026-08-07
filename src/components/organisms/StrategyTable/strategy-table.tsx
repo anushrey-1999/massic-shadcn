@@ -10,6 +10,7 @@ import type { StrategyRow } from "@/types/strategy-types";
 import { useDataTable } from "@/hooks/use-data-table";
 import type { QueryKeys } from "@/types/data-table-types";
 import { getStrategyTableColumns } from "./strategy-table-columns";
+import type { TopicSignalRow } from "@/types/topic-signals-types";
 import { DownloadCsvButton } from "@/components/ui/download-csv-button";
 
 interface StrategyTableProps {
@@ -17,6 +18,9 @@ interface StrategyTableProps {
   data: StrategyRow[];
   pageCount: number;
   offeringCounts?: Record<string, number>;
+  businessRelevanceRange?: { min: number; max: number };
+  topicCoverageRange?: { min: number; max: number };
+  searchVolumeRange?: { min: number; max: number };
   queryKeys?: Partial<QueryKeys>;
   isLoading?: boolean;
   isFetching?: boolean;
@@ -25,6 +29,7 @@ interface StrategyTableProps {
   onRowClick?: (row: StrategyRow) => void;
   toolbarRightPrefix?: React.ReactNode;
   columnVisibilityKey?: string;
+  signalsByTopicId?: Record<number, TopicSignalRow>;
   onDownloadCsv?: () => void | Promise<void>;
 }
 
@@ -33,6 +38,9 @@ export function StrategyTable({
   data,
   pageCount,
   offeringCounts = {},
+  businessRelevanceRange = { min: 0, max: 1 },
+  topicCoverageRange = { min: 0, max: 1 },
+  searchVolumeRange = { min: 0, max: 10000 },
   queryKeys,
   isLoading = false,
   isFetching = false,
@@ -41,6 +49,7 @@ export function StrategyTable({
   onRowClick,
   toolbarRightPrefix,
   columnVisibilityKey,
+  signalsByTopicId = {},
   onDownloadCsv,
 }: StrategyTableProps) {
   // Always use advanced filter
@@ -51,8 +60,12 @@ export function StrategyTable({
       getStrategyTableColumns({
         businessId,
         offeringCounts,
+        businessRelevanceRange,
+        topicCoverageRange,
+        searchVolumeRange,
+        signalsByTopicId,
       }),
-    [businessId, offeringCounts]
+    [businessId, offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange, signalsByTopicId]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({

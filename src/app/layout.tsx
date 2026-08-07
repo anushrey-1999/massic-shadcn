@@ -8,6 +8,7 @@ import { NuqsProvider } from "@/components/providers/nuqs-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { GoogleAuthProvider } from "@/components/providers/google-auth-provider";
 import { SessionExpiredProvider } from "@/components/providers/session-expired-provider";
+import { PostHogAnalyticsProvider } from "@/components/providers/posthog-analytics-provider";
 import { pageMeta, siteMeta } from "@/config/seo";
 
 const geistSans = Geist({
@@ -45,13 +46,13 @@ export default function RootLayout({
         <QueryProvider>
           <GoogleAuthProvider>
             <AuthProvider>
-              <NuqsProvider>
-                <LayoutWrapper>
-                  {children}
-                </LayoutWrapper>
-                <Toaster />
-                <SessionExpiredProvider />
-              </NuqsProvider>
+              <PostHogAnalyticsProvider>
+                <NuqsProvider>
+                  <LayoutWrapper>{children}</LayoutWrapper>
+                  <Toaster />
+                  <SessionExpiredProvider />
+                </NuqsProvider>
+              </PostHogAnalyticsProvider>
             </AuthProvider>
           </GoogleAuthProvider>
         </QueryProvider>

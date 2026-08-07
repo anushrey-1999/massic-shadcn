@@ -93,6 +93,10 @@ export const pageMeta = {
     title: "Ask Massic",
     description: "Chat with Ask Massic for AI assistance on your business.",
   },
+  snapshot: {
+    title: "SEO Snapshot",
+    description: "View a live SEO snapshot report, powered by Massic.",
+  },
 } as const satisfies Record<string, PageMeta>;
 
 export function getPageMetadata(key: keyof typeof pageMeta): Metadata {

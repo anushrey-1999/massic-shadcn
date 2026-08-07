@@ -613,34 +613,41 @@ export function ThemesTableClient({
 
   if (showEmptyState) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <Sparkles className="h-8 w-8 text-muted-foreground" />
-          <Typography variant="p" className="font-medium text-foreground">
-            {showGenerateAction ? "No themes generated yet" : "No themes found"}
-          </Typography>
-          <Typography variant="p" className="text-sm text-muted-foreground">
-            {showGenerateAction
-              ? "Click the button below to generate themes for this business."
-              : "Themes have already been generated, but no results were found."}
-          </Typography>
+      <div className="flex flex-col flex-1 min-h-0">
+        {toolbarRightPrefix && (
+          <div className="flex items-center justify-end shrink-0 pb-3">
+            {toolbarRightPrefix}
+          </div>
+        )}
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Sparkles className="h-8 w-8 text-muted-foreground" />
+            <Typography variant="p" className="font-medium text-foreground">
+              {showGenerateAction ? "No themes generated yet" : "No themes found"}
+            </Typography>
+            <Typography variant="p" className="text-sm text-muted-foreground">
+              {showGenerateAction
+                ? "Click the button below to generate themes for this business."
+                : "Themes have already been generated, but no results were found."}
+            </Typography>
+          </div>
+          {showGenerateAction && (
+            <Button
+              onClick={() => {
+                if (guardGenerate()) triggerMutation.mutate();
+              }}
+              disabled={triggerMutation.isPending}
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Generate Themes
+            </Button>
+          )}
+          {showGenerateAction && triggerMutation.isError && (
+            <p className="text-sm text-destructive">
+              Generation failed. Please try again.
+            </p>
+          )}
         </div>
-        {showGenerateAction && (
-          <Button
-            onClick={() => {
-              if (guardGenerate()) triggerMutation.mutate();
-            }}
-            disabled={triggerMutation.isPending}
-          >
-            <Sparkles className="h-4 w-4 mr-2" />
-            Generate Themes
-          </Button>
-        )}
-        {showGenerateAction && triggerMutation.isError && (
-          <p className="text-sm text-destructive">
-            Generation failed. Please try again.
-          </p>
-        )}
       </div>
     );
   }

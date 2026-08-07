@@ -51,6 +51,7 @@ export async function generateMetadata({
       openGraph: {
         title,
         description,
+        url: `/snapshot?t=${token}`,
         type: "article",
         siteName: siteMeta.name,
       },
@@ -80,6 +81,7 @@ function fallbackMetadata(): Metadata {
     openGraph: {
       title: FALLBACK_TITLE,
       description: FALLBACK_DESCRIPTION,
+      url: "/snapshot",
       type: "website",
       siteName: siteMeta.name,
     },

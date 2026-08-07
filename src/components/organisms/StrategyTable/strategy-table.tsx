@@ -28,7 +28,7 @@ interface StrategyTableProps {
   onRowClick?: (row: StrategyRow) => void;
   toolbarRightPrefix?: React.ReactNode;
   columnVisibilityKey?: string;
-  signalsByTopicId?: Record<number, TopicSignalRow>;
+  signalsByTopic?: Record<string, TopicSignalRow>;
 }
 
 export function StrategyTable({
@@ -47,7 +47,7 @@ export function StrategyTable({
   onRowClick,
   toolbarRightPrefix,
   columnVisibilityKey,
-  signalsByTopicId = {},
+  signalsByTopic = {},
 }: StrategyTableProps) {
   // Always use advanced filter
   const enableAdvancedFilter = true;
@@ -60,9 +60,9 @@ export function StrategyTable({
         businessRelevanceRange,
         topicCoverageRange,
         searchVolumeRange,
-        signalsByTopicId,
+        signalsByTopic,
       }),
-    [businessId, offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange, signalsByTopicId]
+    [businessId, offeringCounts, businessRelevanceRange, topicCoverageRange, searchVolumeRange, signalsByTopic]
   );
 
   const { table, shallow, debounceMs, throttleMs } = useDataTable({

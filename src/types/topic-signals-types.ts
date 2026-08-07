@@ -3,7 +3,9 @@ export type TopicSignalLabel =
   | "Rising"
   | "Seasonal"
   | "Seasonal+Rising"
+  | "Seasonal+Declining"
   | "Breakout"
+  | "Declining"
   | "Steady";
 
 export type TopicSignalStatus =
@@ -21,12 +23,12 @@ export interface TopicSignalGrowth {
 
 export interface TopicSignalRow {
   id: number;
-  topic_id?: number | null;
-  term: string;
+  topic: string;
   label: TopicSignalLabel;
   trend_score: number;
   confidence: number;
-  trend_geography: "local" | "regional" | "national";
+  // Infer: "locality" | "region" | "country" (kept as string so UI follows API values).
+  trend_geography: string;
   local_volume?: number | null;
   growth?: TopicSignalGrowth | null;
   momentum?: number | null;
@@ -50,6 +52,7 @@ export interface TopicSignalsApiResponse {
     workflow?: string;
     updated_at?: string;
     evaluation_month?: string;
+    evaluation_period?: string;
     topics_run_id?: number;
     [key: string]: unknown;
   };

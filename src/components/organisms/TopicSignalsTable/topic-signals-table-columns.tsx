@@ -22,10 +22,10 @@ import { formatVolume } from "@/lib/format";
 import type { TopicSignalLabel, TopicSignalRow } from "@/types/topic-signals-types";
 import { TopicSignalLabelBadge } from "./topic-signal-label-badge";
 
+// The signals API only supports eq / ne / gte / lte / inArray / arrayIn operators.
 const textOperators = [
-  { label: "Contains", value: "iLike" as const },
   { label: "Is", value: "eq" as const },
-  { label: "Does not contain", value: "notILike" as const },
+  { label: "Is not", value: "ne" as const },
 ];
 
 const labelOptions: TopicSignalLabel[] = [
@@ -33,7 +33,9 @@ const labelOptions: TopicSignalLabel[] = [
   "Rising",
   "Seasonal",
   "Seasonal+Rising",
+  "Seasonal+Declining",
   "Breakout",
+  "Declining",
   "Steady",
 ];
 
@@ -121,20 +123,26 @@ function TimingCell({
   );
 }
 
-export function getTopicSignalsTableColumns(): ColumnDef<TopicSignalRow>[] {
+interface GetTopicSignalsTableColumnsProps {
+  geographyOptions?: string[];
+}
+
+export function getTopicSignalsTableColumns({
+  geographyOptions = [],
+}: GetTopicSignalsTableColumnsProps = {}): ColumnDef<TopicSignalRow>[] {
   return [
     {
-      id: "term",
-      accessorKey: "term",
+      id: "topic",
+      accessorKey: "topic",
       header: ({ column }) => <DataTableColumnHeader column={column} label="Topic" />,
       cell: ({ row }) => (
         <div className="group inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-muted">
           <Typography
             variant="p"
             className="truncate font-medium text-general-primary group-hover:underline"
-            title={row.original.term}
+            title={row.original.topic}
           >
-            {row.original.term}
+            {row.original.topic}
           </Typography>
           <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-general-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
         </div>
@@ -220,17 +228,23 @@ export function getTopicSignalsTableColumns(): ColumnDef<TopicSignalRow>[] {
           {row.original.trend_geography}
         </Badge>
       ),
-      meta: {
-        label: "Geo",
-        variant: "multiSelect",
-        options: ["local", "regional", "national"].map((value) => ({
-          label: value,
-          value,
-        })),
-        operators: [{ label: "Is any of", value: "inArray" as const }],
-        closeOnSelect: true,
-        icon: Globe2,
-      },
+      meta:
+        geographyOptions.length > 0
+          ? {
+              label: "Geo",
+              variant: "multiSelect" as const,
+              options: geographyOptions.map((value) => ({ label: value, value })),
+              operators: [{ label: "Is any of", value: "inArray" as const }],
+              closeOnSelect: true,
+              icon: Globe2,
+            }
+          : {
+              label: "Geo",
+              placeholder: "Search geo...",
+              variant: "text" as const,
+              operators: textOperators,
+              icon: Globe2,
+            },
       enableSorting: true,
       enableColumnFilter: true,
       size: 120,

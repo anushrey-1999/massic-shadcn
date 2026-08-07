@@ -22,9 +22,7 @@ import { ProfileAutofillReviewTemplate } from "@/components/templates/ProfileAut
 import { LoaderOverlay } from "@/components/ui/loader";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  type NormalizedProfileResult,
-} from "@/utils/profile-result";
+import { normalizeProfileCountry, type NormalizedProfileResult } from "@/utils/profile-result";
 import {
   Tooltip,
   TooltipContent,
@@ -42,7 +40,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useConvertPitchToBusiness } from "@/hooks/use-business-actions";
 import { useFeatureActionGuard } from "@/hooks/use-permissions";
-import { primaryLocationFromProfile } from "@/utils/primary-location";
+import {
+  formatPrimaryLocationApiValue,
+  parsePrimaryLocationForPayload,
+  primaryLocationFromProfile,
+} from "@/utils/primary-location";
 import { isValidWebsiteUrl } from "@/utils/utils";
 import { useProfileAutofillForm } from "@/hooks/use-profile-autofill-form";
 import { useOfferingsExtractor } from "@/hooks/use-offerings-extractor";
@@ -114,7 +116,22 @@ export function PitchProfileTemplate() {
       onBeforeAutofill: (website) => {
         // Keep offerings extraction in lockstep with profile reruns so users
         // don't end up with a missing job + empty offerings after retrying autofill.
-        void offeringsExtractor.startExtraction(website).catch(() => {});
+        const values = form.state.values as BusinessInfoFormData;
+        const trimmedPrimaryLocation = String(values?.primaryLocation ?? "").trim();
+        const context = trimmedPrimaryLocation
+          ? (() => {
+              const payload = parsePrimaryLocationForPayload(
+                trimmedPrimaryLocation,
+                locationOptions
+              );
+              return {
+                country: normalizeProfileCountry(payload.Country),
+                location: formatPrimaryLocationApiValue(payload),
+              };
+            })()
+          : undefined;
+
+        void offeringsExtractor.startExtraction(website, context).catch(() => {});
         return true;
       },
       onAutofillSuccess: (profile) => {
@@ -372,7 +389,7 @@ export function PitchProfileTemplate() {
       <LoaderOverlay isLoading={isLoading} message={loadingMessage}>
         <div className="flex flex-col flex-1 min-h-0 min-w-0">
           <div className="sticky top-0 z-10 shrink-0 bg-background">
-            <PageHeader breadcrumbs={breadcrumbs} showAskMassic={false} />
+            <PageHeader breadcrumbs={breadcrumbs} />
           </div>
 
           <div className="flex-1 flex min-h-0 overflow-hidden min-w-0">

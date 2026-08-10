@@ -9,7 +9,9 @@ import type { StrategyClusterRow } from "./strategy-clusters-table-columns";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useStrategy } from "@/hooks/use-strategy";
+import { useTopicSignals } from "@/hooks/use-topic-signals";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
+import { buildSignalsByTopic } from "@/components/organisms/TopicSignalsTable";
 import type { StrategyCluster, StrategyRow, StrategyTopic } from "@/types/strategy-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
 import type { StrategyMetrics } from "@/types/strategy-types";
@@ -76,6 +78,7 @@ export function StrategyTableClient({
 
   // Get the useStrategy hook
   const { fetchStrategy, fetchStrategyCounts } = useStrategy(businessId);
+  const { fetchTopicSignals } = useTopicSignals(businessId);
   const queryClient = useQueryClient();
 
   const hasActiveSearchOrFilters = React.useMemo(() => {
@@ -321,6 +324,18 @@ export function StrategyTableClient({
     enabled: false, // Disabled until backend provides a counts endpoint
   });
 
+  const { data: signalData } = useQuery({
+    queryKey: ["topic-signals-inline", businessId],
+    queryFn: () => fetchTopicSignals({ page: 1, pageSize: 300 }),
+    enabled: !!businessId && !!jobExists && !jobLoading,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const signalsByTopic = React.useMemo(() => {
+    if (signalData?.status !== "success") return {};
+    return buildSignalsByTopic(signalData.output_data?.items || []);
+  }, [signalData]);
+
   // Get offerings from job details
   const offerings = React.useMemo(() => {
     if (!jobDetails?.offerings) return [];
@@ -448,6 +463,7 @@ export function StrategyTableClient({
         onRowClick={handleRowClick}
         toolbarRightPrefix={toolbarRightPrefix}
         columnVisibilityKey={columnVisibilityKey}
+        signalsByTopic={signalsByTopic}
       />
     </div>
   );

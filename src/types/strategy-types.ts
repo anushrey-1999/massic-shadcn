@@ -3,6 +3,7 @@ import type { ExtendedColumnFilter } from "./data-table-types";
 // Strategy data types based on Backend API Specification
 
 export interface StrategyTopic {
+  topic_id?: number;
   topic?: string;
   topic_name?: string;
   business_relevance_score: number;
@@ -27,6 +28,7 @@ export interface StrategyCluster {
 // One row per topic with all clusters and keywords
 export interface StrategyRow {
   id: string; // unique identifier: topic name
+  topic_id?: number;
   topic: string;
   business_relevance_score: number;
   topic_cluster_topic_coverage: number;

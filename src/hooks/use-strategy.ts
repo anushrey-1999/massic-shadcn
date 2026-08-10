@@ -79,6 +79,7 @@ export function useStrategy(businessId: string) {
 
       rows.push({
         id: topic.topic_name || topic.topic,
+        topic_id: topic.topic_id,
         topic: topic.topic_name || topic.topic,
         business_relevance_score: topic.business_relevance_score || 0,
         topic_cluster_topic_coverage: topic.topic_coverage ?? topic.topic_cluster_topic_coverage ?? 0,

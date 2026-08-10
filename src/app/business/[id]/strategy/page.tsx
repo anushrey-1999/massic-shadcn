@@ -5,6 +5,7 @@ import { StrategyTableClient } from "@/components/organisms/StrategyTable/strate
 import { AudienceTableClient } from "@/components/organisms/AudienceTable/audience-table-client";
 import { LandscapeTableClient } from "@/components/organisms/LandscapeTable/landscape-table-client";
 import { ThemesTableClient } from "@/components/organisms/ThemesTable/themes-table-client";
+import { TopicSignalsTableClient } from "@/components/organisms/TopicSignalsTable";
 import { PageHeader } from "@/components/molecules/PageHeader";
 import { WorkflowStatusBanner } from "@/components/molecules/WorkflowStatusBanner";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
@@ -21,7 +22,7 @@ import {
   type StrategyBubbleColorMetric,
 } from "@/components/organisms/StrategyBubbleChart/strategy-bubble-chart";
 import { Typography } from "@/components/ui/typography";
-import { ChartScatter, CircleDot, List, ListFilter, Loader2 } from "lucide-react";
+import { ChartScatter, CircleDot, List, ListFilter, Loader2, Sparkles } from "lucide-react";
 import type { StrategyMetrics } from "@/types/strategy-types";
 import type { AudienceMetrics } from "@/types/audience-types";
 import { Badge } from "@/components/ui/badge";
@@ -204,7 +205,7 @@ function StrategyMapRelevanceFilter({
 
 function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [primaryTab, setPrimaryTab] = React.useState<
-    "strategy" | "audience" | "landscape"
+    "strategy" | "signals" | "audience" | "landscape"
   >("strategy");
   const [topicTab, setTopicTab] = React.useState<"detailed" | "overview">(
     "detailed"
@@ -212,6 +213,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [isStrategySplitView, setIsStrategySplitView] = React.useState(false);
   const [isAudienceSplitView, setIsAudienceSplitView] = React.useState(false);
   const [isThemesSplitView, setIsThemesSplitView] = React.useState(false);
+  const [isSignalsSplitView, setIsSignalsSplitView] = React.useState(false);
   const [strategyView, setStrategyView] = React.useState<"list" | "bubble">(
     "list"
   );
@@ -237,6 +239,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
   const [strategyMetrics, setStrategyMetrics] = React.useState<StrategyMetrics | null>(null);
   const [audienceMetrics, setAudienceMetrics] = React.useState<AudienceMetrics | null>(null);
   const [themesMetricsText, setThemesMetricsText] = React.useState("Loading metrics...");
+  const [topicSignalsMetricsText, setTopicSignalsMetricsText] = React.useState("Loading topic signals...");
 
   // Fetch all strategy pages upfront so bubble map data is ready immediately
   const {
@@ -320,6 +323,10 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
       return `${strategyMetrics.total_topics} Topics, ${strategyMetrics.total_clusters} Sub Topics and ${strategyMetrics.total_keywords} Keywords`;
     }
 
+    if (primaryTab === "signals") {
+      return topicSignalsMetricsText;
+    }
+
     if (primaryTab === "audience") {
       if (!isAudienceReady) return "Workflow processing...";
       if (!audienceMetrics) return "Loading metrics...";
@@ -327,11 +334,11 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     }
 
     return "";
-  }, [audienceMetrics, isAudienceReady, isStrategyReady, primaryTab, strategyMetrics, themesMetricsText, topicTab]);
+  }, [audienceMetrics, isAudienceReady, isStrategyReady, primaryTab, strategyMetrics, themesMetricsText, topicSignalsMetricsText, topicTab]);
 
   const handlePrimaryTabChange = React.useCallback(
     (value: string) => {
-      setPrimaryTab(value as "strategy" | "audience" | "landscape");
+      setPrimaryTab(value as "strategy" | "signals" | "audience" | "landscape");
       router.replace(pathname);
     },
     [router, pathname]
@@ -497,7 +504,8 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
     </div>
   );
 
-  const isAnySplitView = isStrategySplitView || isAudienceSplitView || isThemesSplitView;
+  const isAnySplitView =
+    isStrategySplitView || isAudienceSplitView || isThemesSplitView || isSignalsSplitView;
 
   return (
     <div className="w-full max-w-[1224px] flex-1 min-h-0 p-5 flex flex-col">
@@ -510,6 +518,7 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
           <div className="shrink-0 flex items-center justify-between gap-4">
             <TabsList>
               <TabsTrigger value="strategy">Topics</TabsTrigger>
+              <TabsTrigger value="signals">Signals</TabsTrigger>
               <TabsTrigger value="audience">Audience</TabsTrigger>
               <TabsTrigger value="landscape">Landscape</TabsTrigger>
             </TabsList>
@@ -668,6 +677,27 @@ function StrategyEntitledContent({ businessId }: { businessId: string }) {
               />
             </TabsContent>
           </Tabs>
+        </TabsContent>
+        <TabsContent
+          value="signals"
+          className={cn(
+            "flex-1 min-h-0 overflow-hidden",
+            !isAnySplitView && "mt-4"
+          )}
+        >
+          {isStrategyReady ? (
+            <TopicSignalsTableClient
+              businessId={businessId}
+              onMetricsTextChange={setTopicSignalsMetricsText}
+              onSplitViewChange={setIsSignalsSplitView}
+            />
+          ) : (
+            <WorkflowStatusBanner
+              businessId={businessId}
+              workflowKey="topic_strategy_builder"
+              emptyStateHeight="min-h-[calc(100vh-16rem)]"
+            />
+          )}
         </TabsContent>
         <TabsContent
           value="audience"

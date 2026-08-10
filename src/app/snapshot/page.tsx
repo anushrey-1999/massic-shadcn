@@ -1,116 +1,103 @@
-"use client";
-
+import type { Metadata } from "next";
 import * as React from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
 
-import { WebsiteSnapshotReportViewer } from "@/components/templates/WebsiteSnapshotReportViewer";
+import { siteMeta } from "@/config/seo";
 import {
-  normalizeWebsiteSnapshotReport,
-  type WebsiteSnapshotReport,
-} from "@/utils/website-snapshot-report";
+  InvalidSnapshotShareTokenError,
+  readSnapshotShareToken,
+} from "@/lib/server/snapshot-share-token";
+import {
+  getLatestPublicSnapshot,
+  SnapshotNotAvailableError,
+  SnapshotUpstreamError,
+} from "@/lib/server/snapshot-report-gateway";
 
-type PublicSnapshotState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "success"; report: WebsiteSnapshotReport };
+import { PublicSnapshotClient } from "./PublicSnapshotClient";
 
-export default function PublicSnapshotPage() {
-  const [state, setState] = React.useState<PublicSnapshotState>({
-    status: "loading",
-  });
+const FALLBACK_TITLE = `SEO Snapshot | ${siteMeta.name}`;
+const FALLBACK_DESCRIPTION =
+  "View a live SEO snapshot report, powered by Massic.";
 
-  React.useEffect(() => {
-    const token = window.location.hash.slice(1).trim();
-    if (!token) {
-      setState({
-        status: "error",
-        message: "This snapshot link is not available.",
-      });
-      return;
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ t?: string }>;
+}): Promise<Metadata> {
+  const { t: token } = await searchParams;
+  if (!token?.trim()) return fallbackMetadata();
+
+  try {
+    const payload = readSnapshotShareToken(token.trim());
+    const report = await getLatestPublicSnapshot(payload.businessId);
+
+    const businessName = report.meta?.business_name?.trim();
+    const businessDesc = report.meta?.business_description?.trim();
+    const domain = report.meta?.url?.trim();
+
+    const title = businessName
+      ? `${businessName} — SEO Snapshot | ${siteMeta.name}`
+      : FALLBACK_TITLE;
+
+    const description =
+      businessDesc ||
+      (domain
+        ? `SEO snapshot report for ${domain}, powered by ${siteMeta.name}.`
+        : FALLBACK_DESCRIPTION);
+
+    return {
+      title,
+      description,
+      icons: { icon: "/massic-logo-green.svg" },
+      openGraph: {
+        title,
+        description,
+        url: `/snapshot?t=${token}`,
+        type: "article",
+        siteName: siteMeta.name,
+      },
+      twitter: {
+        card: "summary",
+        title,
+        description,
+      },
+    };
+  } catch (error) {
+    if (
+      error instanceof InvalidSnapshotShareTokenError ||
+      error instanceof SnapshotNotAvailableError ||
+      error instanceof SnapshotUpstreamError
+    ) {
+      return fallbackMetadata();
     }
-
-    const controller = new AbortController();
-
-    async function loadSnapshot() {
-      try {
-        const response = await fetch("/api/public/snapshot", {
-          method: "POST",
-          cache: "no-store",
-          credentials: "omit",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error("Snapshot unavailable");
-        }
-
-        const payload: unknown = await response.json();
-        const report = normalizeWebsiteSnapshotReport(
-          payload &&
-            typeof payload === "object" &&
-            "report" in payload
-            ? (payload as { report: unknown }).report
-            : null,
-        );
-        if (!report) throw new Error("Snapshot unavailable");
-
-        setState({ status: "success", report });
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        setState({
-          status: "error",
-          message:
-            error instanceof Error &&
-            error.message.includes("temporarily")
-              ? "The snapshot service is temporarily unavailable."
-              : "This snapshot link is not available.",
-        });
-      }
-    }
-
-    void loadSnapshot();
-    return () => controller.abort();
-  }, []);
-
-  if (state.status === "success") {
-    return (
-      <WebsiteSnapshotReportViewer
-        report={state.report}
-        mode="public"
-      />
-    );
+    return fallbackMetadata();
   }
+}
 
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f2f2ec] px-4 sm:px-6">
-      <div
-        className="flex max-w-sm flex-col items-center text-center"
-        aria-live="polite"
-      >
-        {state.status === "loading" ? (
-          <>
-            <Loader2 className="h-6 w-6 sm:h-7 sm:w-7 animate-spin text-[#123c28]" />
-            <p className="mt-3 sm:mt-4 text-xs sm:text-sm text-[#6d726f]">
-              Loading snapshot…
-            </p>
-          </>
-        ) : (
-          <>
-            <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 text-[#b0566b]" />
-            <h1 className="mt-3 sm:mt-4 text-base sm:text-lg font-semibold text-[#1c1f1d]">
-              Snapshot unavailable
-            </h1>
-            <p className="mt-2 text-xs sm:text-sm leading-6 text-[#6d726f]">
-              {state.message}
-            </p>
-          </>
-        )}
-      </div>
-    </main>
-  );
+function fallbackMetadata(): Metadata {
+  return {
+    title: FALLBACK_TITLE,
+    description: FALLBACK_DESCRIPTION,
+    icons: { icon: "/massic-logo-green.svg" },
+    openGraph: {
+      title: FALLBACK_TITLE,
+      description: FALLBACK_DESCRIPTION,
+      url: "/snapshot",
+      type: "website",
+      siteName: siteMeta.name,
+    },
+    twitter: {
+      card: "summary",
+      title: FALLBACK_TITLE,
+      description: FALLBACK_DESCRIPTION,
+    },
+  };
+}
+
+export default async function PublicSnapshotPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ t?: string }>;
+}) {
+  const { t: token } = await searchParams;
+  return <PublicSnapshotClient token={token} />;
 }

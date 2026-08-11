@@ -16,8 +16,16 @@ import {
 } from "@/hooks/use-business-profiles";
 import { useCreateJob, type BusinessProfilePayload } from "@/hooks/use-jobs";
 import { useLocations } from "@/hooks/use-locations";
-import { useFinalizeWebflowOnboarding } from "@/hooks/use-webflow-onboarding";
-import type { WebflowOnboardingSelection } from "@/hooks/use-webflow-onboarding";
+import {
+  isWebflowSessionExpired,
+  useFinalizeWebflowOnboarding,
+  useWebflowOnboardingBusinessProfile,
+} from "@/hooks/use-webflow-onboarding";
+import type {
+  WebflowOnboardingPrefill,
+  WebflowOnboardingSelection,
+} from "@/hooks/use-webflow-onboarding";
+import { useWebflowOauthPopup } from "@/hooks/use-webflow-oauth-popup";
 import {
   businessInfoSchema,
   type BusinessInfoFormData,
@@ -27,6 +35,10 @@ import {
   buildBusinessProfilePayload,
   profileFormDefaults,
 } from "@/utils/profile-form-mappers";
+import {
+  applyWebflowPrefill,
+  describeWebflowPrefillSources,
+} from "@/utils/webflow-prefill";
 import { CreateBusinessGateLayout } from "./CreateBusinessGateLayout";
 import { WebflowAttachRecovery } from "./WebflowAttachRecovery";
 import { WebflowBusinessOnboarding } from "./WebflowBusinessOnboarding";
@@ -116,6 +128,8 @@ export function WebflowManualCreateBusinessFlow({
   const createBusiness = useCreateBusiness();
   const createJob = useCreateJob();
   const finalizeWebflow = useFinalizeWebflowOnboarding();
+  const { connect: authorizeWebflow, isConnecting: isReconnectingWebflow } =
+    useWebflowOauthPopup();
   const { refetchBusinessProfiles } = useBusinessProfiles();
   const setLocationOptions = useBusinessStore(
     (state) => state.setLocationOptions,
@@ -129,11 +143,17 @@ export function WebflowManualCreateBusinessFlow({
     string | null
   >(null);
   const [attachError, setAttachError] = React.useState<string | null>(null);
+  const [attachNeedsReauthorization, setAttachNeedsReauthorization] =
+    React.useState(false);
+  const [importedFromWebflow, setImportedFromWebflow] =
+    React.useState<WebflowOnboardingPrefill | null>(null);
   const [isFinishing, setIsFinishing] = React.useState(false);
   const createdBusinessRef = React.useRef<BusinessProfile | null>(null);
   const connectionAttachedRef = React.useRef(false);
   const profilePersistedRef = React.useRef(false);
   const jobCreatedRef = React.useRef(false);
+  const appliedPrefillRef = React.useRef<number | null>(null);
+  const reportedPrefillErrorRef = React.useRef<number | null>(null);
 
   const form = useForm({
     defaultValues: {
@@ -142,6 +162,68 @@ export function WebflowManualCreateBusinessFlow({
     },
     validators: { onChange: webflowManualBusinessSchema as any },
   });
+
+  // Once the business exists the form has already been prefilled, so a session change
+  // during attach recovery must not trigger another Webflow fan-out.
+  const prefill = useWebflowOnboardingBusinessProfile(
+    createdBusinessId ? null : selection,
+  );
+
+  // Keyed on the fetch timestamp rather than the payload, because React Query's structural
+  // sharing reuses the previous object when a reimport returns identical data, which would
+  // otherwise leave the user with no feedback after pressing "Reimport from Webflow".
+  const prefillUpdatedAt = prefill.dataUpdatedAt;
+  React.useEffect(() => {
+    const data = prefill.data;
+    if (!data || !prefillUpdatedAt) return;
+    if (appliedPrefillRef.current === prefillUpdatedAt) return;
+    appliedPrefillRef.current = prefillUpdatedAt;
+    setImportedFromWebflow(data);
+
+    const summary = applyWebflowPrefill(form, data);
+    const scopeWarnings = data.warnings.filter(
+      (warning) => warning.code === "WEBFLOW_SCOPE_NOT_GRANTED",
+    );
+
+    if (summary.filledLabels.length > 0) {
+      toast.success("Imported details from Webflow", {
+        description: `Filled ${summary.filledLabels.join(", ")}. Review and edit anything before creating.`,
+      });
+    } else if (summary.skippedLabels.length > 0) {
+      toast.info("Your edits were kept", {
+        description:
+          "Webflow returned the same details you already have, so nothing was overwritten.",
+      });
+    } else {
+      toast.info("No reusable details found in Webflow", {
+        description:
+          "This Webflow site did not expose products, services, or business details we could import. Add them below.",
+      });
+    }
+
+    if (scopeWarnings.length > 0) {
+      toast.warning("Some Webflow details were unavailable", {
+        description: scopeWarnings.map((warning) => warning.message).join(" "),
+      });
+    }
+  }, [form, prefill.data, prefillUpdatedAt]);
+
+  const prefillErrorUpdatedAt = prefill.errorUpdatedAt;
+  React.useEffect(() => {
+    if (!prefill.isError || !prefillErrorUpdatedAt) return;
+    if (reportedPrefillErrorRef.current === prefillErrorUpdatedAt) return;
+    reportedPrefillErrorRef.current = prefillErrorUpdatedAt;
+    toast.error("Could not import details from Webflow", {
+      description:
+        prefill.error?.message ||
+        "Add your business details below, or retry the import from the Offerings tab.",
+    });
+  }, [prefill.error, prefill.isError, prefillErrorUpdatedAt]);
+
+  const reimportFromWebflow = prefill.reimportFromWebflow;
+  const handleReimportFromWebflow = React.useCallback(() => {
+    void reimportFromWebflow();
+  }, [reimportFromWebflow]);
 
   React.useEffect(() => {
     setLocationOptions(locationOptions);
@@ -173,14 +255,21 @@ export function WebflowManualCreateBusinessFlow({
   }, [form]);
 
   const attachConnection = React.useCallback(
-    async (businessId: string) => {
-      if (!selection) return false;
+    async (
+      businessId: string,
+      selectionOverride?: WebflowOnboardingSelection,
+    ) => {
+      // A reconnect passes its brand new session explicitly, because the state update
+      // that stores it has not been applied to this closure yet.
+      const activeSelection = selectionOverride || selection;
+      if (!activeSelection) return false;
       if (connectionAttachedRef.current) return true;
 
       setAttachError(null);
+      setAttachNeedsReauthorization(false);
       try {
         const result = await finalizeWebflow.mutateAsync({
-          ...selection,
+          ...activeSelection,
           businessId,
         });
         connectionAttachedRef.current = true;
@@ -199,6 +288,7 @@ export function WebflowManualCreateBusinessFlow({
           error?.message ||
             "Webflow could not be attached. Retry without creating another business.",
         );
+        setAttachNeedsReauthorization(isWebflowSessionExpired(error));
         return false;
       }
     },
@@ -206,10 +296,14 @@ export function WebflowManualCreateBusinessFlow({
   );
 
   const finishBusinessSetup = React.useCallback(
-    async (businessId: string, includeWebflow: boolean) => {
+    async (
+      businessId: string,
+      includeWebflow: boolean,
+      selectionOverride?: WebflowOnboardingSelection,
+    ) => {
       const values = form.state.values as BusinessInfoFormData;
       if (includeWebflow) {
-        const attached = await attachConnection(businessId);
+        const attached = await attachConnection(businessId, selectionOverride);
         if (!attached) return false;
       }
 
@@ -323,12 +417,49 @@ export function WebflowManualCreateBusinessFlow({
     [createdBusinessId, finishBusinessSetup],
   );
 
+  const reconnectAndAttachWebflow = React.useCallback(async () => {
+    if (!createdBusinessId) return;
+    if (!selection) {
+      setAttachError(
+        "The selected Webflow site is no longer available. Continue without Webflow and connect it from the business.",
+      );
+      setAttachNeedsReauthorization(false);
+      return;
+    }
+    setIsFinishing(true);
+    try {
+      const nextSessionId = await authorizeWebflow();
+      const nextSelection = { ...selection, sessionId: nextSessionId };
+      setSelection(nextSelection);
+      onSessionId(nextSessionId);
+      await finishBusinessSetup(createdBusinessId, true, nextSelection);
+    } catch (error: any) {
+      console.error("Failed to reauthorize Webflow:", error);
+      setAttachError(
+        error?.message ||
+          "Webflow authorization did not complete. Try again, or continue without Webflow.",
+      );
+    } finally {
+      setIsFinishing(false);
+    }
+  }, [
+    authorizeWebflow,
+    createdBusinessId,
+    finishBusinessSetup,
+    onSessionId,
+    selection,
+  ]);
+
   if (attachError && createdBusinessId) {
     return (
       <WebflowAttachRecovery
         message={attachError}
-        isRetrying={isFinishing || finalizeWebflow.isPending}
+        isRetrying={
+          isFinishing || finalizeWebflow.isPending || isReconnectingWebflow
+        }
+        requiresReauthorization={attachNeedsReauthorization}
         onRetry={() => finishExistingBusiness(true)}
+        onReconnect={reconnectAndAttachWebflow}
         onContinue={() => finishExistingBusiness(false)}
       />
     );
@@ -349,6 +480,7 @@ export function WebflowManualCreateBusinessFlow({
     );
   }
 
+  const isImportingFromWebflow = prefill.isFetching;
   const pending =
     isFinishing ||
     createBusiness.isPending ||
@@ -358,11 +490,13 @@ export function WebflowManualCreateBusinessFlow({
   return (
     <CreateBusinessGateLayout className="min-h-0 items-stretch justify-stretch overflow-hidden">
       <LoaderOverlay
-        isLoading={pending}
+        isLoading={pending || isImportingFromWebflow}
         message={
-          finalizeWebflow.isPending
-            ? "Connecting Webflow..."
-            : "Creating business..."
+          isImportingFromWebflow
+            ? "Importing your details from Webflow..."
+            : finalizeWebflow.isPending
+              ? "Connecting Webflow..."
+              : "Creating business..."
         }
       >
         <form
@@ -376,6 +510,13 @@ export function WebflowManualCreateBusinessFlow({
           <WebflowManualBusinessTemplate
             form={form}
             leftTitle="Create Business"
+            webflowSource={{
+              collections: describeWebflowPrefillSources(importedFromWebflow),
+              importedCount: importedFromWebflow?.offerings.items.length ?? 0,
+              truncated: importedFromWebflow?.offerings.truncated ?? false,
+              isImporting: isImportingFromWebflow,
+              onReimport: handleReimportFromWebflow,
+            }}
             onSaveChanges={() => {}}
             onSaveAndUpdateStrategy={() => {}}
             showDefaultActions={false}

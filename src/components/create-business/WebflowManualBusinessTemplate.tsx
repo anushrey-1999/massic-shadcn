@@ -6,7 +6,10 @@ import { ArrowRight, Pencil, Unlink, Loader2 } from "lucide-react";
 
 import type { BusinessInfoFormData } from "@/schemas/ProfileFormSchema";
 import { BusinessInfoForm } from "@/components/organisms/profile/BusinessInfoForm";
-import { WebflowManualOfferingsForm } from "./WebflowManualOfferingsForm";
+import {
+  WebflowManualOfferingsForm,
+  type WebflowOfferingsSource,
+} from "./WebflowManualOfferingsForm";
 import { ContentCuesForm } from "@/components/organisms/profile/ContentCuesForm";
 import { LocationsForm } from "@/components/organisms/profile/LocationsForm";
 import { CompetitorsForm } from "@/components/organisms/profile/CompetitorsForm";
@@ -37,8 +40,6 @@ type SectionId =
   | "positioning"
   | "trust-people"
   | "channels"
-  | "integrations"
-  | "preferences"
   | "competitors";
 
 const SECTIONS: Array<{ id: SectionId; label: string }> = [
@@ -50,14 +51,13 @@ const SECTIONS: Array<{ id: SectionId; label: string }> = [
   { id: "positioning", label: "Positioning" },
   { id: "trust-people", label: "Trust & People" },
   { id: "channels", label: "Channels" },
-  { id: "integrations", label: "Integrations" },
-  { id: "preferences", label: "Preferences" },
   { id: "competitors", label: "Competitors" },
 ];
 
 export function WebflowManualBusinessTemplate({
   form,
   leftTitle = "Profile",
+  webflowSource,
   onSaveChanges,
   onSaveAndUpdateStrategy,
   saveDisabled,
@@ -74,6 +74,7 @@ export function WebflowManualBusinessTemplate({
 }: {
   form: any;
   leftTitle?: string;
+  webflowSource?: WebflowOfferingsSource;
   onSaveChanges: () => void;
   onSaveAndUpdateStrategy: () => void;
   saveDisabled?: boolean;
@@ -148,8 +149,6 @@ export function WebflowManualBusinessTemplate({
       positioning: false,
       "trust-people": false,
       channels: false,
-      integrations: false,
-      preferences: false,
       competitors: false,
     };
 
@@ -624,7 +623,10 @@ export function WebflowManualBusinessTemplate({
               <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
                 Offerings
               </h2>
-              <WebflowManualOfferingsForm form={form} />
+              <WebflowManualOfferingsForm
+                form={form}
+                webflowSource={webflowSource}
+              />
             </div>
           ) : activeSection === "positioning" ? (
             <div className="max-w-[920px]">
@@ -863,24 +865,6 @@ export function WebflowManualBusinessTemplate({
                   placeholder="reports@example.com"
                 />
               </div>
-            </div>
-          ) : activeSection === "integrations" ? (
-            <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Integrations
-              </h2>
-              <p className="text-sm text-general-muted-foreground">
-                Integration settings will be available here.
-              </p>
-            </div>
-          ) : activeSection === "preferences" ? (
-            <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Preferences
-              </h2>
-              <p className="text-sm text-general-muted-foreground">
-                Preference settings will be available here.
-              </p>
             </div>
           ) : null}
         </div>

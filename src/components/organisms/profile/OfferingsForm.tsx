@@ -23,6 +23,12 @@ import { useApplyExtractedOfferings } from "@/hooks/use-apply-extracted-offering
 import { toast } from "sonner";
 import { AlertCircle, Boxes, Handshake, Loader2, PackageSearch, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useBusinessStore } from "@/store/business-store";
+import {
+  formatPrimaryLocationApiValue,
+  parsePrimaryLocationForPayload,
+} from "@/utils/primary-location";
+import { normalizeProfileCountry } from "@/utils/profile-result";
 import {
   Tooltip,
   TooltipContent,
@@ -72,6 +78,8 @@ export const OfferingsForm = ({
   // Component will only re-render when these fields change
   const offeringsData = useStore(form.store, (state: any) => (state.values?.offeringsList || []) as OfferingRow[]);
   const website = useStore(form.store, (state: any) => state.values?.website || "");
+  const primaryLocation = useStore(form.store, (state: any) => state.values?.primaryLocation || "");
+  const locationOptions = useBusinessStore((state) => state.profileForm.locationOptions);
 
   const hasAnyOffering = useMemo(() => {
     return (offeringsData || []).some((o) =>
@@ -147,8 +155,30 @@ export const OfferingsForm = ({
       return;
     }
 
-    await startExtraction(website);
-  }, [disabled, guardFetchOfferings, restrictFetchOfferings, website, startExtraction]);
+    const trimmedPrimaryLocation = String(primaryLocation || "").trim();
+    const context = trimmedPrimaryLocation
+      ? (() => {
+          const payload = parsePrimaryLocationForPayload(
+            trimmedPrimaryLocation,
+            locationOptions
+          );
+          return {
+            country: normalizeProfileCountry(payload.Country),
+            location: formatPrimaryLocationApiValue(payload),
+          };
+        })()
+      : undefined;
+
+    await startExtraction(website, context);
+  }, [
+    disabled,
+    guardFetchOfferings,
+    locationOptions,
+    primaryLocation,
+    restrictFetchOfferings,
+    website,
+    startExtraction,
+  ]);
 
   const offeringsTypeInput = (
     <div className="w-1/2">

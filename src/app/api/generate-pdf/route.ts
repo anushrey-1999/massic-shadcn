@@ -860,7 +860,9 @@ const WEBSITE_SNAPSHOT_CSS = `
     font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{margin:0;padding:20px}
+  /* 48px horizontal padding ≈ 0.5in — ensures content doesn't touch the page edge
+     even when @page margin:0 is in effect and Puppeteer's margin is the only guard */
+  .wrap{margin:0;padding:20px 48px}
   h1,h2,h3{margin:0;line-height:1.25}
   p{margin:0}
   a{color:var(--brand)}

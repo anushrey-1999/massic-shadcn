@@ -433,6 +433,69 @@ body::-webkit-scrollbar,
   background: transparent;
 }
 
+/* ─── Print Styles ─────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: letter;
+    margin: 0.5in 0.75in;
+  }
+
+  body {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* Hide the app navigation sidebar so it doesn't overlap printed content */
+  [data-slot="sidebar"],
+  [data-slot="sidebar-container"],
+  [data-slot="sidebar-gap"] {
+    display: none !important;
+  }
+
+  /* Reset the sidebar wrapper: remove fixed-height and clip */
+  [data-slot="sidebar-wrapper"] {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Expand the main content inset to fill the full page width */
+  [data-slot="sidebar-inset"] {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    flex: none !important;
+    margin-left: 0 !important;
+  }
+
+  /* Report viewer outer container */
+  [data-viewer="website-snapshot"] {
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+
+  /* Hide action bar (Share / Copy / Download buttons) while printing */
+  [data-viewer-actions="website-snapshot"] {
+    display: none !important;
+  }
+
+  /* Scrollable content area: remove clip so all pages render */
+  [data-viewer-scroll="website-snapshot"] {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    flex: none !important;
+  }
+
+  /* Ensure page cards break naturally across print pages */
+  [data-viewer="website-snapshot"] .rounded-lg {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
 @layer components {
   /* Tailwind preflight resets headings to inherit; force hierarchy inside TipTap only. */
   .tiptap-content {

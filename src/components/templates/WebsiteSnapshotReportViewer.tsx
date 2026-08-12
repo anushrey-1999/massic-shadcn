@@ -200,16 +200,19 @@ export function WebsiteSnapshotReportViewer({
 
   return (
     <div
+      data-viewer="website-snapshot"
       className={cn(
         "overflow-hidden bg-[#f2f2ec] p-3 sm:p-6 lg:p-10",
         isPublic ? "h-screen" : "h-full rounded-lg",
       )}
     >
       <div className="flex h-full flex-col gap-4">
-        <div className={cn(
-          "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3",
-          isPublic && "mx-auto w-full max-w-[1200px]"
-        )}>
+        <div
+          data-viewer-actions="website-snapshot"
+          className={cn(
+            "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3",
+            isPublic && "mx-auto w-full max-w-[1200px]"
+          )}>
           {!isPublic ? (
             onBack ? (
               <Button variant="ghost" className="gap-2" onClick={onBack}>
@@ -254,7 +257,7 @@ export function WebsiteSnapshotReportViewer({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div data-viewer-scroll="website-snapshot" className="min-h-0 flex-1 overflow-y-auto">
           <div className={cn(
             "mx-auto space-y-4 sm:space-y-7",
             isPublic && "max-w-[1200px]"

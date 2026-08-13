@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Flag, ListChecks } from "lucide-react";
+import { Flag, ListChecks, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -37,6 +37,8 @@ interface AnalyticsFilterControlsProps {
   hasActiveKeywordScope?: boolean;
   anomalyHighlightsEnabled?: boolean;
   onAnomalyHighlightsChange?: (enabled: boolean) => void;
+  campaignOverlaysEnabled?: boolean;
+  onCampaignOverlaysChange?: (enabled: boolean) => void;
   /** When true, the anomaly and filter buttons are disabled. */
   isIngestionActive?: boolean;
 }
@@ -46,6 +48,7 @@ interface AnalyticsReportsActionsProps {
   onPrimaryDrivers?: () => void;
   onContentGroupsClick?: () => void;
   onIndexing?: () => void;
+  onCampaignTracking?: () => void;
   reportsDisabled?: boolean;
   primaryDriversDisabled?: boolean;
   contentGroupsDisabled?: boolean;
@@ -167,6 +170,8 @@ export function AnalyticsFilterControls({
   hasActiveKeywordScope = false,
   anomalyHighlightsEnabled,
   onAnomalyHighlightsChange,
+  campaignOverlaysEnabled,
+  onCampaignOverlaysChange,
   isIngestionActive = false,
 }: AnalyticsFilterControlsProps) {
   const showAnomalyToggle = !isIngestionActive && typeof anomalyHighlightsEnabled === "boolean" && Boolean(onAnomalyHighlightsChange);
@@ -212,6 +217,30 @@ export function AnalyticsFilterControls({
               : anomalyHighlightsEnabled
                 ? "Hide anomaly highlights"
                 : "Show anomaly highlights"}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+
+      {typeof campaignOverlaysEnabled === "boolean" && onCampaignOverlaysChange ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className={cn(
+                "h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40",
+                campaignOverlaysEnabled &&
+                  "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+              )}
+              onClick={() => onCampaignOverlaysChange(!campaignOverlaysEnabled)}
+              aria-label={campaignOverlaysEnabled ? "Hide campaign overlays" : "Show campaign overlays"}
+              aria-pressed={campaignOverlaysEnabled}
+            >
+              <Megaphone className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>
+            {campaignOverlaysEnabled ? "Hide campaign overlays" : "Show campaign overlays"}
           </TooltipContent>
         </Tooltip>
       ) : null}
@@ -289,6 +318,7 @@ export function AnalyticsReportsActions({
   onPrimaryDrivers,
   onContentGroupsClick,
   onIndexing,
+  onCampaignTracking,
   reportsDisabled = false,
   primaryDriversDisabled = false,
   contentGroupsDisabled = false,
@@ -299,16 +329,33 @@ export function AnalyticsReportsActions({
 
   return (
     <div className="flex items-center gap-2">
+      {onCampaignTracking ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 rounded-[6px] border-general-border bg-transparent px-3 text-xs text-general-foreground hover:bg-muted/40"
+              onClick={onCampaignTracking}
+            >
+              <Megaphone className="size-3.5" />
+              Tracking
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={8}>Measure external marketing impact</TooltipContent>
+        </Tooltip>
+      ) : null}
       {onIndexing ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="outline"
-              className="h-10 shrink-0 gap-2 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
+              size="sm"
+              className="h-8 shrink-0 gap-1.5 rounded-[6px] border-general-border bg-transparent px-3 text-xs text-general-foreground hover:bg-muted/40"
               onClick={onIndexing}
               disabled={indexingDisabled}
             >
-              <ListChecks className="h-4 w-4" />
+              <ListChecks className="size-3.5" />
               Indexing
             </Button>
           </TooltipTrigger>
@@ -325,7 +372,8 @@ export function AnalyticsReportsActions({
             <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
               <Button
                 variant="outline"
-                className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
+                size="sm"
+                className="h-8 shrink-0 rounded-[6px] border-general-border bg-transparent px-3 text-xs text-general-foreground hover:bg-muted/40"
                 onClick={onPrimaryDrivers}
                 disabled={primaryDriversDisabled || isIngestionActive}
                 style={isIngestionActive ? { pointerEvents: "none" } : undefined}
@@ -345,12 +393,13 @@ export function AnalyticsReportsActions({
           <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
             <Button
               variant="outline"
-              className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
+              size="sm"
+              className="h-8 shrink-0 rounded-[6px] border-general-border bg-transparent px-3 text-xs text-general-foreground hover:bg-muted/40"
               onClick={onViewReports}
               disabled={reportsDisabled || isIngestionActive}
               style={isIngestionActive ? { pointerEvents: "none" } : undefined}
             >
-              View Reports
+              Reports
             </Button>
           </span>
         </TooltipTrigger>
@@ -364,7 +413,7 @@ export function AnalyticsReportsActions({
           <Button
             variant="outline"
             size="icon"
-            className="h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40"
+            className="size-8 rounded-[6px] border-general-border bg-transparent p-1.5 text-general-foreground hover:bg-muted/40"
             onClick={onContentGroupsClick}
             disabled={contentGroupsDisabled}
             aria-label="Content groups"

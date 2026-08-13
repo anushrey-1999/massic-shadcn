@@ -8,6 +8,7 @@ import { useLogout } from '@/hooks/use-auth'
 import { useBusinessProfiles } from '@/hooks/use-business-profiles'
 import { useAuthStore } from '@/store/auth-store'
 import { toast } from 'sonner'
+import { isBusinessAnalyticsRoute } from '@/lib/business-navigation'
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
@@ -362,16 +363,10 @@ export default function SingleBusinessSidebar() {
         <SidebarMenu className="gap-0.5">
           {businessNavItems.map((item) => {
             const itemHref = `/business/${business.UniqueId}/${item.slug}`
-            const reportsPath = `/business/${business.UniqueId}/reports`
-            const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
-
             const itemBasePath = `/business/${business.UniqueId}/${item.slug}`
             let isActive = false
             if (item.slug === 'analytics') {
-              isActive =
-                pathname === itemHref ||
-                pathname.startsWith(reportsPath) ||
-                pathname.startsWith(organicDeepdivePath)
+              isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
             } else if (item.slug === 'profile') {
               isActive = pathname === itemHref
             } else {

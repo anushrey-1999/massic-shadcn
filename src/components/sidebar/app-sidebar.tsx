@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/auth-store'
 import { useBusinessStore } from '@/store/business-store'
 import { useScrollBlurEffect } from '@/hooks/use-scroll-blur-effect'
 import { toast } from 'sonner'
+import { isBusinessAnalyticsRoute } from '@/lib/business-navigation'
 import { cn } from '@/lib/utils'
 import {
   Sidebar,
@@ -675,15 +676,10 @@ export default function AppSidebar() {
                                 <SidebarMenuSub className="ml-5 mt-0.5 border-l-2 border-general-border">
                                   {businessSubItems.map((subItem) => {
                                     const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
-                                    const reportsPath = `/business/${business.UniqueId}/reports`
-                                    const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
                                     const itemBasePath = `/business/${business.UniqueId}/${subItem.slug}`
                                     let isActive = false
                                     if (subItem.slug === 'analytics') {
-                                      isActive =
-                                        pathname === subItemHref ||
-                                        pathname.startsWith(reportsPath) ||
-                                        pathname.startsWith(organicDeepdivePath)
+                                      isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
                                     } else if (subItem.slug === 'profile') {
                                       isActive = pathname === subItemHref
                                     } else {
@@ -769,14 +765,9 @@ export default function AppSidebar() {
               <div className="h-px bg-general-border mx-2 mb-1 mt-1" />
               {businessSubItems.map((subItem) => {
                 const subItemHref = `/business/${business.UniqueId}/${subItem.slug}`
-                const reportsPath = `/business/${business.UniqueId}/reports`
-                const organicDeepdivePath = `/business/${business.UniqueId}/organic-deepdive`
                 let isActive = false
                 if (subItem.slug === 'analytics') {
-                  isActive =
-                    pathname === subItemHref ||
-                    pathname.startsWith(reportsPath) ||
-                    pathname.startsWith(organicDeepdivePath)
+                  isActive = isBusinessAnalyticsRoute(pathname, business.UniqueId)
                 } else if (subItem.slug === 'profile') {
                   isActive = pathname === subItemHref
                 } else {

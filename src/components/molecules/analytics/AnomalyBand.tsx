@@ -42,9 +42,18 @@ export function AnomalyBandShape({
     <g
       className="cursor-pointer"
       onClick={onClick}
+      onKeyDown={(event) => {
+        if (onClick && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onClick();
+        }
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       pointerEvents="all"
+      role={onClick ? "link" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? title : undefined}
     >
       {/* Soft, flat tint — kept faint so overlapping bands stay clean */}
       <rect

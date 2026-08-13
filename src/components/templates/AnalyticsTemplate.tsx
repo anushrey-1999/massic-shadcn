@@ -57,6 +57,7 @@ import {
 } from "@/hooks/use-ga4-scope";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { captureCampaignImpactEvent } from "@/lib/analytics/posthog-client";
 
 const CHART_LINE_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
 const METRIC_TOOLTIPS: Record<(typeof CHART_LINE_KEYS)[number], string> = {
@@ -232,6 +233,7 @@ export function AnalyticsTemplate() {
   );
   const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
   const [showAnomalyHighlights, setShowAnomalyHighlights] = useState(false);
+  const [showCampaignOverlays, setShowCampaignOverlays] = useState(false);
   const [availableGroupByOptions, setAvailableGroupByOptions] =
     useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -626,6 +628,14 @@ export function AnalyticsTemplate() {
             ) : null}
             <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
             <AnalyticsReportsActions
+              onCampaignTracking={() => {
+                if (!businessId) return;
+                captureCampaignImpactEvent("campaign_tracking_opened", {
+                  business_id: businessId,
+                  origin: "analytics_toolbar",
+                });
+                router.push(`/business/${businessId}/analytics/campaigns`);
+              }}
               onPrimaryDrivers={() => {
                 if (!businessId) return;
                 setPrimaryDriversOpen(true);
@@ -709,6 +719,15 @@ export function AnalyticsTemplate() {
               hasActiveKeywordScope={keywordScope !== "all"}
               anomalyHighlightsEnabled={isToolbarDataBlocked ? false : showAnomalyHighlights}
               onAnomalyHighlightsChange={isToolbarDataBlocked ? undefined : setShowAnomalyHighlights}
+              campaignOverlaysEnabled={showCampaignOverlays}
+              onCampaignOverlaysChange={(enabled) => {
+                setShowCampaignOverlays(enabled);
+                captureCampaignImpactEvent("campaign_overlay_toggled", {
+                  business_id: businessId || undefined,
+                  enabled,
+                  origin: "analytics_toolbar",
+                });
+              }}
               isIngestionActive={isToolbarDataBlocked}
             />
           </div>
@@ -796,6 +815,7 @@ export function AnalyticsTemplate() {
                 groupBy={groupBy}
                 onAvailableGroupingsChange={setAvailableGroupByOptions}
                 showAnomalyHighlights={isGscIngestionActive ? false : showAnomalyHighlights}
+                showCampaignOverlays={showCampaignOverlays}
                 isIngestionActive={isGscIngestionActive}
               />
             </div>

@@ -283,3 +283,38 @@ export function captureMassicRoute(context: MassicRouteContext): void {
   posthog.capture("$pageview", properties);
   posthog.capture("massic_feature_viewed", properties);
 }
+
+type CampaignImpactAnalyticsEvent =
+  | "campaign_tracking_opened"
+  | "campaign_overlay_toggled"
+  | "campaign_previewed"
+  | "campaign_created"
+  | "campaign_updated"
+  | "campaign_deleted"
+  | "campaign_impact_loaded"
+  | "campaign_pdf_downloaded"
+  | "campaign_report_shared";
+
+interface CampaignImpactAnalyticsProperties {
+  business_id?: string;
+  campaign_type?: string;
+  event_kind?: string;
+  status?: string;
+  enabled?: boolean;
+  has_overlap?: boolean;
+  source_count?: number;
+  origin?: "analytics_toolbar" | "campaign_list" | "impact_report";
+}
+
+/**
+ * Campaign analytics deliberately accepts only non-content metadata. Campaign
+ * names, notes, tracked terms, recipients, spend, and metric values must never
+ * be sent to PostHog.
+ */
+export function captureCampaignImpactEvent(
+  event: CampaignImpactAnalyticsEvent,
+  properties: CampaignImpactAnalyticsProperties = {},
+): void {
+  if (!isPostHogEnabled()) return;
+  posthog.capture(event, { feature: "campaign_impact", ...properties });
+}

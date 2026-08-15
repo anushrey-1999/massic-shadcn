@@ -38,8 +38,6 @@ type SectionId =
   | "positioning"
   | "trust-people"
   | "channels"
-  | "integrations"
-  | "preferences"
   | "competitors";
 
 const SECTIONS: Array<{ id: SectionId; label: string }> = [
@@ -51,8 +49,6 @@ const SECTIONS: Array<{ id: SectionId; label: string }> = [
   { id: "positioning", label: "Positioning" },
   { id: "trust-people", label: "Trust & People" },
   { id: "channels", label: "Channels" },
-  { id: "integrations", label: "Integrations" },
-  { id: "preferences", label: "Preferences" },
   { id: "competitors", label: "Competitors" },
 ];
 
@@ -155,8 +151,6 @@ export function ProfileAutofillReviewTemplate({
       positioning: false,
       "trust-people": false,
       channels: false,
-      integrations: false,
-      preferences: false,
       competitors: false,
     };
 
@@ -743,24 +737,6 @@ export function ProfileAutofillReviewTemplate({
                   placeholder="reports@example.com"
                 />
               </div>
-            </div>
-          ) : activeSection === "integrations" ? (
-            <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Integrations
-              </h2>
-              <p className="text-sm text-general-muted-foreground">
-                Integration settings will be available here.
-              </p>
-            </div>
-          ) : activeSection === "preferences" ? (
-            <div className="max-w-[920px]">
-              <h2 className="mb-4 text-xl font-semibold leading-[1.2] tracking-[-0.02em] text-general-foreground">
-                Preferences
-              </h2>
-              <p className="text-sm text-general-muted-foreground">
-                Preference settings will be available here.
-              </p>
             </div>
           ) : null}
         </div>

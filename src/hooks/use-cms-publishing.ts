@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { api } from "@/hooks/use-api";
 import type { WordpressSlugConflictInfo } from "@/hooks/use-wordpress-publishing";
 
-export type CmsPublishingPlatform = "wordpress" | "webflow" | "sanity" | "wix";
+export type CmsPublishingPlatform = "wordpress" | "webflow" | "sanity" | "shopify" | "wix";
 
 export interface CmsPublishingDomain {
   id: string;
@@ -19,6 +19,7 @@ export interface CmsPublishingTarget {
   siteId: string;
   collectionId: string | null;
   documentType?: string;
+  blogId?: string;
   name: string;
   fieldMapping?: Record<string, any>;
   metadata?: Record<string, any> | null;
@@ -118,6 +119,9 @@ export interface CmsPublishResponse {
     previewUrl?: string | null;
     editUrl?: string | null;
     status: string;
+    visibility?: "visible" | "hidden";
+    publishedAt?: string | null;
+    publicationVerified?: boolean;
     slug?: string | null;
     routePath?: string | null;
     siteVerification?: "confirmed" | "pending" | null;
@@ -144,6 +148,8 @@ export interface CmsContentStatus {
     externalUrl?: string | null;
     previewUrl?: string | null;
     status: string | null;
+    visibility?: "visible" | "hidden" | null;
+    publishedAt?: string | null;
     slug: string | null;
     updatedAt: string | null;
     editUrl?: string | null;

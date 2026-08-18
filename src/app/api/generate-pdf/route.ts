@@ -1519,45 +1519,43 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
     </div>
   `.trim();
 
-  const showsUp = competitorBuckets?.shows_up || {};
-  const shouldBe = Array.isArray(competitorBuckets?.should_be) ? competitorBuckets.should_be : [];
+  // shows_up / should_be arrive at the report root in some runs and nested under
+  // competitor_buckets in others. An empty container at either location must not
+  // shadow a populated one, so prefer whichever actually carries content.
+  const rootShowsUp: any = (report as any)?.shows_up;
+  const showsUp =
+    (Object.keys(rootShowsUp || {}).length ? rootShowsUp : null) ||
+    competitorBuckets?.shows_up ||
+    {};
+  const shouldBe =
+    ((report as any)?.should_be?.length ? (report as any).should_be : null) ||
+    (competitorBuckets?.should_be?.length ? competitorBuckets.should_be : null) ||
+    [];
   const gap = String(competitorBuckets?.gap || "").trim();
   const directCompetitors = Array.isArray(showsUp?.direct_competitors) ? showsUp.direct_competitors : [];
   const directNote = String(showsUp?.direct_note || "").trim();
-  const directNoteFirstLine = directNote ? (directNote.split(/[.\n]/)[0] + (directNote.includes('.') || directNote.includes('\n') ? '.' : '')) : "Your competitive landscape.";
   const similarElsewhere = Array.isArray(showsUp?.similar_elsewhere) ? showsUp.similar_elsewhere : [];
   const similarElsewhereNote = String(showsUp?.similar_elsewhere_note || "").trim();
   const noise = Array.isArray(showsUp?.noise) ? showsUp.noise : [];
   const noiseNote = String(showsUp?.noise_note || "").trim();
-  const setupMarket = String(competitorBuckets?.setup?.market || "").trim();
-  const setupDelivery = String(competitorBuckets?.setup?.delivery || "").trim();
-  const setupText = [setupMarket, setupDelivery].filter(Boolean).join(" · ");
+  const setupText = String(competitorBuckets?.setup?.market || "").trim();
 
   const competitorsHtml = directCompetitors.length || similarElsewhere.length || shouldBe.length || noise.length
     ? `
       <div class="page-card">
         <div class="eyebrow">Who shows up in your market</div>
-        <h2 class="section-title">${escapeHtml(directNoteFirstLine)}</h2>
-        ${setupText ? `<p class="section-lead">${escapeHtml(setupText)}</p>` : ""}
+        <h2 class="section-title">${escapeHtml(setupText || directNote || "Your competitive landscape.")}</h2>
         ${
           directCompetitors.length
             ? `<div class="keep" style="margin-top:20px;padding:0">
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Direct Rivals</div>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+                ${setupText && directNote ? `<p style="color:#6d726f;margin-bottom:12px;font-size:14px">${escapeHtml(directNote)}</p>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
                   ${directCompetitors.map((c: any) => {
                     const domain = String(c?.domain || "").trim();
                     return domain ? `<span style="background:#fbfbf9;color:#1c1f1d;padding:6px 12px;border-radius:4px;font-size:13px;border:1px solid #e6e8e3">${escapeHtml(domain)}</span>` : "";
                   }).filter(Boolean).join("")}
                 </div>
-                ${directCompetitors.slice(0, 3).map((c: any) => {
-                  const domain = String(c?.domain || "").trim();
-                  if (!domain) return "";
-                  const whyOutranks = String(c?.why_outranks || "").trim();
-                  return `<div style="margin-bottom:16px;padding:16px;background:#fbfbf9;border-radius:4px;border:1px solid #e6e8e3">
-                    <div style="font-weight:600;font-size:14px;margin-bottom:6px">${escapeHtml(domain)}</div>
-                    ${whyOutranks ? `<p style="color:#6d726f;font-size:13px">${escapeHtml(whyOutranks)}</p>` : ""}
-                  </div>`;
-                }).filter(Boolean).join("")}
               </div>`
             : ""
         }
@@ -1594,7 +1592,7 @@ function websiteSnapshotHtmlFromReport(report: WebsiteSnapshotReport): string {
           shouldBe.length
             ? `<div class="keep" style="margin-top:20px;padding:0">
                 <div style="font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;letter-spacing:0.06em;text-transform:uppercase;color:#9aa09c;margin-bottom:10px">Who should be there</div>
-                <p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(String((competitorBuckets as any).should_be_note || "").trim() || "The competitors your customers actually choose between — every one of them in your market.")}</p>
+                <p style="color:#6d726f;margin-bottom:12px;font-size:13.5px">${escapeHtml(String((report as any)?.should_be_note || (competitorBuckets as any)?.should_be_note || "").trim() || "The competitors your customers actually choose between — every one of them in your market.")}</p>
                 ${shouldBe.map((c: any) => {
                   const name = String(c?.name || "").trim();
                   const where = String(c?.where || "").trim();

@@ -89,7 +89,9 @@ export function WebsiteSnapshotReportViewer({
   const reportDate = meta.report_date || "";
   const businessDescription = meta.business_description || "";
   
-  // If render flags are missing, default to showing all sections
+  // Render flags only gate sections built from scalars, where a missing value and a
+  // zero look identical. List-backed sections render whenever the list has content,
+  // so a stale flag can never hide data the report actually contains.
   const render = report.render || {
     hero: true,
     stats_row: true,
@@ -110,8 +112,20 @@ export function WebsiteSnapshotReportViewer({
   const intentMix = report.intent_mix || {};
   const scaleComparison = report.scale_comparison;
   const competitorBuckets = report.competitor_buckets || {};
-  const showsUp = (competitorBuckets as any).shows_up || {};
-  const shouldBe = Array.isArray((competitorBuckets as any).should_be) ? (competitorBuckets as any).should_be : [];
+  // shows_up / should_be arrive at the report root in some runs and nested under
+  // competitor_buckets in others. An empty container at either location must not
+  // shadow a populated one, so prefer whichever actually carries content.
+  const showsUp =
+    (Object.keys(report.shows_up || {}).length ? report.shows_up : null) ||
+    competitorBuckets.shows_up ||
+    {};
+  const shouldBe =
+    (report.should_be?.length ? report.should_be : null) ||
+    (competitorBuckets.should_be?.length ? competitorBuckets.should_be : null) ||
+    [];
+  const shouldBeNote = report.should_be_note || competitorBuckets.should_be_note || "";
+  const directNote = String(showsUp.direct_note || "").trim();
+  const setupLine = String(competitorBuckets.setup?.market || "").trim();
   const underTheHood = report.under_the_hood || {};
   const issues = Array.isArray(report.issues) ? report.issues : [];
   const ladder = Array.isArray(report.ladder) ? report.ladder : [];
@@ -496,7 +510,7 @@ export function WebsiteSnapshotReportViewer({
                 )}
 
                 {/* Trend Chart */}
-                {render.trend_chart !== false && search.trend?.points && search.trend.points.length > 0 && (
+                {search.trend?.points && search.trend.points.length > 0 && (
                   <div className="mt-8">
                     <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
                       Traffic trend · {search.trend.window || "6 months"}
@@ -740,16 +754,8 @@ export function WebsiteSnapshotReportViewer({
                   Who shows up in your market
                 </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  {(() => {
-                    const directNote = showsUp.direct_note || "Your competitive landscape.";
-                    const firstLine = directNote.split(/[.\n]/)[0] + (directNote.includes('.') || directNote.includes('\n') ? '.' : '');
-                    return firstLine;
-                  })()}
+                  {setupLine || directNote || "Your competitive landscape."}
                 </h2>
-                <p className="text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
-                  {competitorBuckets.setup?.market}
-                  {competitorBuckets.setup?.delivery && ` · ${competitorBuckets.setup.delivery}`}
-                </p>
 
                 {/* Direct Competitors */}
                 {Array.isArray(showsUp.direct_competitors) && showsUp.direct_competitors.length > 0 && (
@@ -757,9 +763,9 @@ export function WebsiteSnapshotReportViewer({
                     <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
                       Direct Rivals
                     </div>
-                    {showsUp.direct_note && (
+                    {setupLine && directNote && (
                       <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-                        {showsUp.direct_note}
+                        {directNote}
                       </p>
                     )}
                     <div className="flex flex-wrap gap-1.5">
@@ -842,7 +848,7 @@ export function WebsiteSnapshotReportViewer({
                       Who should be there
                     </div>
                     <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-                      {(competitorBuckets as any).should_be_note || "The competitors your customers actually choose between — every one of them in your market."}
+                      {shouldBeNote || "The competitors your customers actually choose between — every one of them in your market."}
                     </p>
                     <div className="space-y-0">
                       {shouldBe.map((item: any, i: number) => (
@@ -874,7 +880,7 @@ export function WebsiteSnapshotReportViewer({
             )}
 
             {/* PAGE 5: Under the Hood */}
-            {render.health_table !== false && (underTheHood.rows?.length || underTheHood.pills?.length) && (
+            {Boolean(underTheHood.rows?.length || underTheHood.pills?.length) && (
               <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
                 <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
                   Under the hood
@@ -933,7 +939,7 @@ export function WebsiteSnapshotReportViewer({
                 )}
 
                 {/* Tech Pills */}
-                {render.technology_chips !== false && Array.isArray(underTheHood.pills) && underTheHood.pills.length > 0 && (
+                {Array.isArray(underTheHood.pills) && underTheHood.pills.length > 0 && (
                   <div className="mt-5.5 flex flex-wrap gap-2">
                     {underTheHood.pills.map((pill, i) => (
                       <span key={i} className={cn(
@@ -984,7 +990,7 @@ export function WebsiteSnapshotReportViewer({
             )}
 
             {/* PAGE 7: Content Map */}
-            {render.coverage_map !== false && ladder.length > 0 && (
+            {ladder.length > 0 && (
               <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
                 <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
                   Where your content should grow
@@ -1029,11 +1035,17 @@ export function WebsiteSnapshotReportViewer({
                     </div>
                   ))}
                 </div>
+
+                {report.ladder_summary && (
+                  <p className="mt-6 text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
+                    {report.ladder_summary}
+                  </p>
+                )}
               </div>
             )}
 
             {/* PAGE 8: Tactics */}
-            {render.tactics !== false && tactics.length > 0 && (
+            {tactics.length > 0 && (
               <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
                 <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
                   The plan, in order

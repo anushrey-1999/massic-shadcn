@@ -149,6 +149,10 @@ export type WebsiteSnapshotShouldBe = {
 export type WebsiteSnapshotCompetitorBuckets = {
   setup?: WebsiteSnapshotCompetitorBucketsSetup;
   gap?: string;
+  // Some runs nest these under competitor_buckets instead of the report root.
+  shows_up?: WebsiteSnapshotShowsUp;
+  should_be?: WebsiteSnapshotShouldBe[];
+  should_be_note?: string;
 };
 
 export type WebsiteSnapshotUnderTheHoodRow = {
@@ -202,6 +206,7 @@ export type WebsiteSnapshotReport = {
   scale_comparison?: WebsiteSnapshotScaleComparison;
   shows_up?: WebsiteSnapshotShowsUp;
   should_be?: WebsiteSnapshotShouldBe[];
+  should_be_note?: string;
   competitor_buckets?: WebsiteSnapshotCompetitorBuckets;
   under_the_hood?: WebsiteSnapshotUnderTheHood;
   issues?: WebsiteSnapshotIssue[];

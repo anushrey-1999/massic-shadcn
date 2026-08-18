@@ -178,13 +178,16 @@ export function PeriodSelector({
         >
           <span className="truncate text-sm text-foreground">
             {triggerLabel}
+            {showGroupBySelector && groupBy ? (
+              <span className="text-muted-foreground"> · by {groupBy}</span>
+            ) : null}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
 
       <PopoverContent
-        align="end"
+        align="start"
         sideOffset={8}
         className={cn("p-0", showGroupBySelector ? "w-[280px]" : "w-[260px]")}
       >

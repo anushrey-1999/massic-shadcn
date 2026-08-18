@@ -22,6 +22,7 @@ import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
 import { BrandedKeywordsModal } from "@/components/molecules/analytics/BrandedKeywordsModal";
 import { NoGSCMetricsSelected } from "@/components/molecules/analytics/NoGSCMetricsSelected";
+import { CHART_SERIES_COLORS } from "@/utils/analytics-metrics";
 import {
   AreaChart,
   Area,
@@ -81,12 +82,6 @@ const CHART_METRIC_KEYS = ["impressions", "clicks", "sessions", "goals"] as cons
 type AnomalySheetTab = "goals" | "traffic";
 type AnomalyMetricKey = "goal" | "traffic";
 
-const CHART_SERIES_COLORS = {
-  impressions: "#6b7280",
-  clicks: "#2563eb",
-  sessions: "#ea580c",
-  goals: "#059669",
-};
 
 function shiftDateKey(dateKey: string | null | undefined, days: number): string | null {
   if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;

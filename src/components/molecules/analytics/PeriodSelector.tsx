@@ -170,8 +170,9 @@ export function PeriodSelector({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          size="sm"
           className={cn(
-            "h-10 w-auto justify-between rounded-[8px] border-general-border bg-white px-3 text-left font-normal",
+            "h-8 w-auto justify-between rounded-[6px] border-general-border bg-white px-3 text-left font-normal",
             className
           )}
           disabled={disabled}

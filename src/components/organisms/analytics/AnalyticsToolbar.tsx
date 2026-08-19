@@ -48,8 +48,6 @@ interface AnalyticsToolbarProps {
   onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
   anomalyHighlights: boolean;
   onAnomalyHighlightsChange: (enabled: boolean) => void;
-  campaignOverlays: boolean;
-  onCampaignOverlaysChange: (enabled: boolean) => void;
 
   /** Search Console or GA4 import in flight — blocks data-dependent controls. */
   isIngestionActive?: boolean;
@@ -58,9 +56,8 @@ interface AnalyticsToolbarProps {
 }
 
 /**
- * Two-tier analytics header. The first row carries page context and
- * navigation; the second carries everything that changes what the charts
- * below are showing.
+ * Single-row analytics header. Scope and the primary action sit on the left;
+ * period, filters, display, and overflow navigation sit on the right.
  */
 export function AnalyticsToolbar({
   scope,
@@ -86,8 +83,6 @@ export function AnalyticsToolbar({
   onLineToggle,
   anomalyHighlights,
   onAnomalyHighlightsChange,
-  campaignOverlays,
-  onCampaignOverlaysChange,
   isIngestionActive = false,
   isDataBlocked = false,
 }: AnalyticsToolbarProps) {
@@ -121,12 +116,9 @@ export function AnalyticsToolbar({
               <span className="truncate">GA4 · {ga4ScopePath}</span>
             </Badge>
           ) : null}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
+              <span className={isIngestionActive ? "inline-flex cursor-not-allowed" : "inline-flex"}>
                 <Button
                   size="sm"
                   className="h-8 shrink-0 rounded-[6px] px-3 text-sm font-medium"
@@ -144,47 +136,17 @@ export function AnalyticsToolbar({
                 : "What changed in your traffic and why"}
             </TooltipContent>
           </Tooltip>
+        </div>
 
+        <div className="flex shrink-0 items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 gap-1.5 rounded-[6px] border-general-border bg-transparent px-3 text-sm font-medium text-general-foreground hover:bg-muted/40"
-                  onClick={onViewReports}
-                  disabled={reportsDisabled || isIngestionActive}
-                  style={isIngestionActive ? { pointerEvents: "none" } : undefined}
-                >
-                  Reports
-                </Button>
-              </span>
+              <div className="inline-flex cursor-pointer items-center">{periodSelector}</div>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={8}>
-              {isIngestionActive ? DATA_READY_TOOLTIP : "View Reports"}
+              Period and grouping
             </TooltipContent>
           </Tooltip>
-
-          <AnalyticsNavigationMenu
-            onCampaignTracking={onCampaignTracking}
-            onIndexing={onIndexing}
-            onContentGroups={onContentGroups}
-            indexingDisabled={indexingDisabled}
-            contentGroupsDisabled={contentGroupsDisabled}
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-2 border-y border-general-border py-2.5">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="cursor-pointer">{periodSelector}</div>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={8}>
-            Period and grouping
-          </TooltipContent>
-        </Tooltip>
-        <div className="flex shrink-0 items-center gap-2">
           {showKeywordScope ? (
             <AnalyticsFilterMenu
               keywordScope={keywordScope}
@@ -200,14 +162,21 @@ export function AnalyticsToolbar({
             anomalyHighlights={anomalyHighlights}
             onAnomalyHighlightsChange={onAnomalyHighlightsChange}
             showAnomalyToggle={!isIngestionActive}
-            campaignOverlays={campaignOverlays}
-            onCampaignOverlaysChange={onCampaignOverlaysChange}
             disabled={isDataBlocked}
+          />
+          <AnalyticsNavigationMenu
+            onViewReports={onViewReports}
+            onCampaignTracking={onCampaignTracking}
+            onIndexing={onIndexing}
+            onContentGroups={onContentGroups}
+            reportsDisabled={reportsDisabled || isIngestionActive}
+            indexingDisabled={indexingDisabled}
+            contentGroupsDisabled={contentGroupsDisabled}
           />
         </div>
       </div>
 
-      {filterChips ? <div className="py-2">{filterChips}</div> : null}
+      {filterChips ? <div className="pb-2">{filterChips}</div> : null}
     </div>
   );
 }

@@ -65,21 +65,25 @@ const TOOLBAR_BUTTON_CLASS =
   "h-8 shrink-0 gap-1.5 rounded-[6px] border-general-border bg-transparent px-3 text-sm font-medium text-general-foreground hover:bg-muted/40";
 
 interface AnalyticsNavigationMenuProps {
+  onViewReports: () => void;
   onCampaignTracking: () => void;
   onIndexing: () => void;
   onContentGroups: () => void;
+  reportsDisabled?: boolean;
   indexingDisabled?: boolean;
   contentGroupsDisabled?: boolean;
 }
 
 /**
  * Secondary destinations and configuration. Grouped into one overflow menu so
- * the toolbar no longer mixes navigation with view controls.
+ * the single-row toolbar stays compact.
  */
 export function AnalyticsNavigationMenu({
+  onViewReports,
   onCampaignTracking,
   onIndexing,
   onContentGroups,
+  reportsDisabled = false,
   indexingDisabled = false,
   contentGroupsDisabled = false,
 }: AnalyticsNavigationMenuProps) {
@@ -95,9 +99,12 @@ export function AnalyticsNavigationMenu({
         <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
           Go to
         </DropdownMenuLabel>
-        <DropdownMenuItem className="h-8 cursor-pointer gap-2" onSelect={onCampaignTracking}>
-          <Megaphone className="size-4 shrink-0" />
-          <span className="flex-1">Campaign tracking</span>
+        <DropdownMenuItem
+          className="h-8 cursor-pointer gap-2"
+          onSelect={onViewReports}
+          disabled={reportsDisabled}
+        >
+          <span className="flex-1">Reports</span>
           <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -107,6 +114,11 @@ export function AnalyticsNavigationMenu({
         >
           <ListChecks className="size-4 shrink-0" />
           <span className="flex-1">Indexing status</span>
+          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </DropdownMenuItem>
+        <DropdownMenuItem className="h-8 cursor-pointer gap-2" onSelect={onCampaignTracking}>
+          <Megaphone className="size-4 shrink-0" />
+          <span className="flex-1">Campaign tracking</span>
           <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -209,8 +221,6 @@ interface AnalyticsDisplayMenuProps {
   anomalyHighlights: boolean;
   onAnomalyHighlightsChange: (enabled: boolean) => void;
   showAnomalyToggle?: boolean;
-  campaignOverlays: boolean;
-  onCampaignOverlaysChange: (enabled: boolean) => void;
   disabled?: boolean;
 }
 
@@ -226,8 +236,6 @@ export function AnalyticsDisplayMenu({
   anomalyHighlights,
   onAnomalyHighlightsChange,
   showAnomalyToggle = true,
-  campaignOverlays,
-  onCampaignOverlaysChange,
   disabled = false,
 }: AnalyticsDisplayMenuProps) {
   const hiddenLines = linesLocked
@@ -235,9 +243,7 @@ export function AnalyticsDisplayMenu({
     : metricKeys.filter((key) => !visibleLines[key]).length;
   // The chart needs at least one series, so the last one standing is locked on.
   const visibleLineCount = metricKeys.length - hiddenLines;
-  const activeOverlays =
-    (showAnomalyToggle && anomalyHighlights ? 1 : 0) + (campaignOverlays ? 1 : 0);
-  const activeCount = hiddenLines + activeOverlays;
+  const activeCount = hiddenLines + (showAnomalyToggle && anomalyHighlights ? 1 : 0);
 
   if (disabled) {
     return (
@@ -278,7 +284,7 @@ export function AnalyticsDisplayMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60 rounded-[8px] border-general-border">
         <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
-          Chart lines
+          Display
         </DropdownMenuLabel>
         {metricKeys.map((key) => {
           const checked = linesLocked ? true : Boolean(visibleLines[key]);
@@ -305,6 +311,19 @@ export function AnalyticsDisplayMenu({
             </DropdownMenuCheckboxItem>
           );
         })}
+        {showAnomalyToggle ? (
+          <DropdownMenuCheckboxItem
+            checked={anomalyHighlights}
+            onCheckedChange={(checked) => onAnomalyHighlightsChange(checked === true)}
+            onSelect={(event) => event.preventDefault()}
+            className="cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <Flag className="size-3.5 shrink-0" aria-hidden="true" />
+              Anomaly highlights
+            </span>
+          </DropdownMenuCheckboxItem>
+        ) : null}
         {linesLocked ? (
           <p className="px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
             Switch to Organic to choose which lines are plotted.
@@ -314,35 +333,6 @@ export function AnalyticsDisplayMenu({
             At least one line must stay visible.
           </p>
         ) : null}
-
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
-          Overlays
-        </DropdownMenuLabel>
-        {showAnomalyToggle ? (
-          <DropdownMenuCheckboxItem
-            checked={anomalyHighlights}
-            onCheckedChange={(checked) => onAnomalyHighlightsChange(checked === true)}
-            onSelect={(event) => event.preventDefault()}
-            className="cursor-pointer pl-2 pr-8 [&>span:first-child]:left-auto [&>span:first-child]:right-2"
-          >
-            <span className="flex items-center gap-2">
-              <Flag className="size-3.5 shrink-0" aria-hidden="true" />
-              Anomaly highlights
-            </span>
-          </DropdownMenuCheckboxItem>
-        ) : null}
-        <DropdownMenuCheckboxItem
-          checked={campaignOverlays}
-          onCheckedChange={(checked) => onCampaignOverlaysChange(checked === true)}
-          onSelect={(event) => event.preventDefault()}
-          className="cursor-pointer pl-2 pr-8 [&>span:first-child]:left-auto [&>span:first-child]:right-2"
-        >
-          <span className="flex items-center gap-2">
-            <Megaphone className="size-3.5 shrink-0" aria-hidden="true" />
-            Campaign markers
-          </span>
-        </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

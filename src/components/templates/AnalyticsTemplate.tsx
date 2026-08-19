@@ -212,7 +212,6 @@ export function AnalyticsTemplate() {
   );
   const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
   const [showAnomalyHighlights, setShowAnomalyHighlights] = useState(false);
-  const [showCampaignOverlays, setShowCampaignOverlays] = useState(false);
   const [availableGroupByOptions, setAvailableGroupByOptions] =
     useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -630,8 +629,6 @@ export function AnalyticsTemplate() {
           onLineToggle={handleChartLineToggle}
           anomalyHighlights={isToolbarDataBlocked ? false : showAnomalyHighlights}
           onAnomalyHighlightsChange={setShowAnomalyHighlights}
-          campaignOverlays={showCampaignOverlays}
-          onCampaignOverlaysChange={setShowCampaignOverlays}
           isIngestionActive={isToolbarDataBlocked}
           isDataBlocked={isGa4DataBlocked}
         />

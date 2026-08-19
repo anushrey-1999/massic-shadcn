@@ -23,6 +23,7 @@ import {
   type BusinessPreviewItem,
 } from "@/hooks/use-business-previews";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
+import { useDashboardTags } from "@/hooks/use-dashboard-tags";
 import {
   useHealthStatusBatch,
   type HealthStatusRow,
@@ -34,6 +35,7 @@ import { BusinessPreviewCard } from "@/components/molecules/home/BusinessPreview
 import { OnboardingCard } from "@/components/molecules/home/OnboardingCard";
 import { Typography } from "@/components/ui/typography";
 import { EmptyState } from "@/components/molecules/EmptyState";
+import { DashboardTagControls } from "@/components/molecules/home/DashboardTagControls";
 
 type PreviewGraphRow = {
   keys?: [string];
@@ -198,6 +200,7 @@ export function HomeTemplate() {
     useState<(typeof HOME_PERIODS)[number]["value"]>("3 months");
   const [healthFilter, setHealthFilter] =
     useState<HomeHealthFilterValue>("all");
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   // Default to nothing selected on first render to avoid briefly showing the wrong
   // selection before localStorage is read.
   const [showActive, setShowActive] = useState(false);
@@ -232,6 +235,17 @@ export function HomeTemplate() {
   const { profiles } = useBusinessProfiles();
   const { previews, isLoading: previewsLoading } = useBusinessPreviews(period);
   const { connectGoogleAccount } = useGoogleAccounts();
+  const dashboardTags = useDashboardTags();
+
+  useEffect(() => {
+    if (
+      selectedTagId &&
+      !dashboardTags.isLoading &&
+      !dashboardTags.tags.some(tag => tag.id === selectedTagId)
+    ) {
+      setSelectedTagId(null);
+    }
+  }, [dashboardTags.isLoading, dashboardTags.tags, selectedTagId]);
 
   const joined = useMemo(() => {
     const profileByUniqueId = new Map<
@@ -263,9 +277,32 @@ export function HomeTemplate() {
     });
   }, [previews, profiles]);
 
+  const selectedDashboardTag =
+    dashboardTags.tags.find(tag => tag.id === selectedTagId) || null;
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const taggedBusinessIds = selectedDashboardTag
+      ? new Set(selectedDashboardTag.businessIds)
+      : null;
+
+    return joined.filter(item => {
+      if (
+        taggedBusinessIds &&
+        (!item.uniqueId || !taggedBusinessIds.has(item.uniqueId))
+      ) {
+        return false;
+      }
+      if (!query) return true;
+      return (
+        item.name.toLowerCase().includes(query) || item.domain.includes(query)
+      );
+    });
+  }, [joined, search, selectedDashboardTag]);
+
   const onboardingCandidates = useMemo(() => {
-    return joined.filter((item) => Boolean(item.uniqueId));
-  }, [joined]);
+    return filtered.filter((item) => Boolean(item.uniqueId));
+  }, [filtered]);
 
   const onboardingCandidateIds = useMemo(() => {
     const ids = onboardingCandidates
@@ -375,14 +412,6 @@ export function HomeTemplate() {
       .sort((a, b) => compareStrings(a.businessName, b.businessName));
   }, [onboardingCandidates, onboardingJobsByBusinessId]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return joined;
-    return joined.filter(
-      (x) => x.name.toLowerCase().includes(q) || x.domain.includes(q)
-    );
-  }, [joined, search]);
-
   const activeBusinesses = useMemo(() => {
     const active: typeof filtered = [];
 
@@ -466,6 +495,16 @@ export function HomeTemplate() {
     HOME_HEALTH_FILTERS[0];
   const isStatusFilterEmpty =
     activeBusinesses.length > 0 && sortedActiveBusinesses.length === 0;
+  const activeEmptyDescription = selectedDashboardTag
+    ? `No active businesses are assigned to ${selectedDashboardTag.name}.`
+    : search.trim()
+      ? "No active businesses match your search."
+      : "Connect your business from Settings or create one manually.";
+  const onboardingEmptyDescription = selectedDashboardTag
+    ? `No onboarding businesses are assigned to ${selectedDashboardTag.name}.`
+    : search.trim()
+      ? "No onboarding businesses match your search."
+      : "No onboarding businesses found.";
 
   const selectedCount = Number(showActive) + Number(showOnboarding);
   const showThreeColumnLayout = selectedCount === 2;
@@ -484,12 +523,12 @@ export function HomeTemplate() {
   return (
     <div className="bg-muted h-screen overflow-hidden">
       <div className="w-full max-w-[1224px] py-7 px-5 flex flex-col gap-5 h-full">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="text-3xl font-semibold tracking-tight">
             Hi, {greetingName}
           </h1>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
             <Select
               value={period}
               onValueChange={(value) => setPeriod(value as any)}
@@ -506,7 +545,7 @@ export function HomeTemplate() {
               </SelectContent>
             </Select>
 
-            <div className="relative w-[320px]">
+            <div className="relative min-w-[220px] flex-1 lg:w-[320px] lg:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={search}
@@ -527,8 +566,8 @@ export function HomeTemplate() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 rounded-full p-1">
+        <div className="flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2 overflow-x-auto rounded-full p-1">
             {HOME_HEALTH_FILTERS.map((option) => {
               const isActive = healthFilter === option.value;
               const count = healthFilterCounts[option.value];
@@ -563,7 +602,7 @@ export function HomeTemplate() {
             })}
           </div>
 
-          <div className="flex items-center gap-4 bg-white px-3 py-2 rounded-lg">
+          <div className="flex shrink-0 items-center gap-4 self-end rounded-lg bg-white px-3 py-2 lg:self-auto">
             <div className="flex items-center gap-2">
               <Checkbox
                 id={showActiveId}
@@ -594,6 +633,22 @@ export function HomeTemplate() {
             </div>
           </div>
         </div>
+
+        <DashboardTagControls
+          tags={dashboardTags.tags}
+          profiles={profiles}
+          selectedTagId={selectedTagId}
+          onSelectedTagChange={setSelectedTagId}
+          isLoading={dashboardTags.isLoading}
+          isError={dashboardTags.isError}
+          onRetry={() => void dashboardTags.refetch()}
+          createTag={dashboardTags.createTag}
+          updateTag={dashboardTags.updateTag}
+          deleteTag={dashboardTags.deleteTag}
+          isCreating={dashboardTags.isCreating}
+          isUpdating={dashboardTags.isUpdating}
+          isDeleting={dashboardTags.isDeleting}
+        />
         {selectedCount === 0 && (
           <EmptyState
             title="No Data found"
@@ -635,23 +690,23 @@ export function HomeTemplate() {
                     </div>
                   ) : activeBusinesses.length === 0 ? (
                     <EmptyState
-                      title="No Data Found"
+                      title="No active businesses"
                       cardClassName="bg-white h-full flex items-center justify-center"
-                      description="Connect your business from Settings page or Create Manually"
-                      buttons={[
-                        {
-                          label: "Go to Settings",
-                          href: "/settings",
-                          variant: "outline",
-                          size: "lg",
-                        },
-                        {
-                          label: "Create Manually",
-                          href: "/create-business",
-                          variant: "outline",
-                          size: "lg",
-                        },
-                      ]}
+                      description={activeEmptyDescription}
+                      buttons={selectedDashboardTag || search.trim() ? undefined : [
+                          {
+                            label: "Go to Settings",
+                            href: "/settings",
+                            variant: "outline",
+                            size: "lg",
+                          },
+                          {
+                            label: "Create Manually",
+                            href: "/create-business",
+                            variant: "outline",
+                            size: "lg",
+                          },
+                        ]}
                       className="h-full"
                     />
                   ) : isStatusFilterEmpty ? (
@@ -727,8 +782,8 @@ export function HomeTemplate() {
                     </div>
                   ) : onboardingCards.length === 0 ? (
                     <EmptyState
-                      title="No Data Found"
-                      description="No onboarding businesses found"
+                      title="No onboarding businesses"
+                      description={onboardingEmptyDescription}
                       cardClassName="bg-general-primary-foreground h-full flex items-center justify-center"
                       className="h-full"
                     />
@@ -789,23 +844,23 @@ export function HomeTemplate() {
                     </div>
                   ) : activeBusinesses.length === 0 ? (
                     <EmptyState
-                      title="No Data Found"
-                      description="Connect your business from Settings page or Create Manually"
+                      title="No active businesses"
+                      description={activeEmptyDescription}
                       cardClassName="bg-white"
-                      buttons={[
-                        {
-                          label: "Go to Settings",
-                          href: "/settings",
-                          variant: "outline",
-                          size: "lg",
-                        },
-                        {
-                          label: "Create Manually",
-                          href: "/create-business",
-                          variant: "outline",
-                          size: "lg",
-                        },
-                      ]}
+                      buttons={selectedDashboardTag || search.trim() ? undefined : [
+                          {
+                            label: "Go to Settings",
+                            href: "/settings",
+                            variant: "outline",
+                            size: "lg",
+                          },
+                          {
+                            label: "Create Manually",
+                            href: "/create-business",
+                            variant: "outline",
+                            size: "lg",
+                          },
+                        ]}
                       className="h-full"
                     />
                   ) : isStatusFilterEmpty ? (
@@ -885,8 +940,8 @@ export function HomeTemplate() {
                     </div>
                   ) : onboardingCards.length === 0 ? (
                     <EmptyState
-                      title="No Data Found"
-                      description="No onboarding businesses found"
+                      title="No onboarding businesses"
+                      description={onboardingEmptyDescription}
                       cardClassName="bg-general-primary-foreground"
                       className="h-full"
                     />

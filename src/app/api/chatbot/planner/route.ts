@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         plan_type: body?.plan_type ?? "weekly",
         ...(body?.start_date ? { start_date: body.start_date } : {}),
         ...(body?.end_date ? { end_date: body.end_date } : {}),
-        page_ideas_required: body?.page_ideas_required ?? 30,
+        page_ideas_required: body?.page_ideas_required ?? 20,
       }),
       signal: controller.signal,
       cache: "no-store",

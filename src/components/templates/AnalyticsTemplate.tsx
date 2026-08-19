@@ -43,6 +43,7 @@ import {
   useGa4Scope,
 } from "@/hooks/use-ga4-scope";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { captureCampaignImpactEvent } from "@/lib/analytics/posthog-client";
 import { ALL_TAB_METRIC_KEYS, CHART_LINE_KEYS } from "@/utils/analytics-metrics";
 
 const ALL_GROUP_BY_OPTIONS: AnalyticsGroupBy[] = ["day", "week", "month"];
@@ -212,6 +213,7 @@ export function AnalyticsTemplate() {
   );
   const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
   const [showAnomalyHighlights, setShowAnomalyHighlights] = useState(false);
+  const [showCampaignOverlays, setShowCampaignOverlays] = useState(false);
   const [availableGroupByOptions, setAvailableGroupByOptions] =
     useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -607,6 +609,10 @@ export function AnalyticsTemplate() {
           }}
           onCampaignTracking={() => {
             if (!businessId) return;
+            captureCampaignImpactEvent("campaign_tracking_opened", {
+              business_id: businessId,
+              origin: "analytics_toolbar",
+            });
             router.push(`/business/${businessId}/analytics/campaigns`);
           }}
           onIndexing={() => {
@@ -707,6 +713,7 @@ export function AnalyticsTemplate() {
                 groupBy={groupBy}
                 onAvailableGroupingsChange={setAvailableGroupByOptions}
                 showAnomalyHighlights={isGscIngestionActive ? false : showAnomalyHighlights}
+                showCampaignOverlays={showCampaignOverlays}
                 isIngestionActive={isGscIngestionActive}
               />
             </div>

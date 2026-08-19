@@ -3,23 +3,12 @@
 import { useState, useEffect, useMemo, useCallback, startTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  AlertCircle,
-  BarChart3,
-  CheckCircle2,
-  Eye,
-  Loader2,
-  MousePointerClick,
-  RefreshCw,
-  Settings2,
-  Target,
-} from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw, Settings2 } from "lucide-react";
 import {
   OrganicPerformanceSection,
 } from "@/components/organisms/analytics/OrganicPerformanceSection";
+import { AnalyticsToolbar } from "@/components/organisms/analytics/AnalyticsToolbar";
 import {
-  AnalyticsFilterControls,
-  AnalyticsReportsActions,
   PeriodSelector,
   PrimaryDriversSheet,
   type AnalyticsGroupBy,
@@ -40,8 +29,6 @@ import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 import { usePrefetchAnalyticsPages } from "@/hooks/use-prefetch-analytics-pages";
 import { useStrategy } from "@/hooks/use-strategy";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useOrganicDeepdiveFilters,
   type DeepdiveKeywordScope,
@@ -56,16 +43,9 @@ import {
   useGa4Scope,
 } from "@/hooks/use-ga4-scope";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { captureCampaignImpactEvent } from "@/lib/analytics/posthog-client";
+import { ALL_TAB_METRIC_KEYS, CHART_LINE_KEYS } from "@/utils/analytics-metrics";
 
-const CHART_LINE_KEYS = ["impressions", "clicks", "sessions", "goals"] as const;
-const METRIC_TOOLTIPS: Record<(typeof CHART_LINE_KEYS)[number], string> = {
-  impressions: "Impressions",
-  clicks: "Clicks",
-  sessions: "Sessions",
-  goals: "Goals",
-};
 const ALL_GROUP_BY_OPTIONS: AnalyticsGroupBy[] = ["day", "week", "month"];
 
 function formatIngestionStage(stage: string | null | undefined): string {
@@ -439,9 +419,7 @@ export function AnalyticsTemplate() {
   const keywordScope = (keywordScopeFilter?.expression ??
     "all") as AnalyticsKeywordScope;
   const headerMetricKeys =
-    selectedTab === "all"
-      ? (["sessions", "goals"] as const)
-      : CHART_LINE_KEYS;
+    selectedTab === "all" ? ALL_TAB_METRIC_KEYS : CHART_LINE_KEYS;
   const topicKeywordLookupPending =
     shouldResolveTopicKeywords &&
     (!businessId ||
@@ -576,7 +554,7 @@ export function AnalyticsTemplate() {
       />
 
       {/* Sticky Header with Breadcrumb and Tabs */}
-      <div className="sticky top-0 z-11 bg-foreground-light border-b border-general-border">
+      <div className="sticky top-0 z-11 bg-foreground-light">
         <PageHeader
           trial={
             showTrialBanner
@@ -590,156 +568,76 @@ export function AnalyticsTemplate() {
           }}
           breadcrumbs={breadcrumbs}
         />
-        <div className="w-full max-w-[1224px] px-7 flex items-center justify-between gap-4 py-4">
-          <div className="flex items-center gap-3">
-            <Tabs
-              className="gap-0"
-              value={selectedTab}
-              onValueChange={handleTabChange}
-            >
-              <TabsList className="h-auto w-[206px] rounded-[12px] bg-general-border p-1">
-                <TabsTrigger
-                  value="all"
-                  className="min-h-8 rounded-[10px] px-4 py-[5.5px] text-sm leading-6 tracking-[0.07px]"
-                >
-                  All
-                </TabsTrigger>
-                <TabsTrigger
-                  value="organic"
-                  className="min-h-8 rounded-[10px] px-4 py-[5.5px] text-sm leading-6 tracking-[0.07px]"
-                >
-                  Organic
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            {ga4IngestionStatus === "completed" &&
-            !isGa4ScopeReplacementPending &&
-            currentGa4Scope ? (
-              <Badge
-                variant="outline"
-                className="max-w-[180px] gap-1.5 border-general-border bg-general-secondary font-medium text-general-foreground"
-                title={analyticsScopeLabel(currentGa4Scope)}
-              >
-                <CheckCircle2 className="size-3.5" aria-hidden="true" />
-                <span className="truncate">
-                  GA4 · {currentGa4Scope}
-                </span>
-              </Badge>
-            ) : null}
-            <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
-            <AnalyticsReportsActions
-              onCampaignTracking={() => {
-                if (!businessId) return;
-                captureCampaignImpactEvent("campaign_tracking_opened", {
-                  business_id: businessId,
-                  origin: "analytics_toolbar",
-                });
-                router.push(`/business/${businessId}/analytics/campaigns`);
-              }}
-              onPrimaryDrivers={() => {
-                if (!businessId) return;
-                setPrimaryDriversOpen(true);
-              }}
-              onViewReports={() => {
-                if (!businessId) return;
-                router.push(`/business/${businessId}/reports`);
-              }}
-              onContentGroupsClick={() => {
-                if (!businessId) return;
-                setCustomContentGroupsOpen(true);
-              }}
-              onIndexing={() => {
-                if (!businessId) return;
-                router.push(`/business/${businessId}/indexing`);
-              }}
-              reportsDisabled={!businessId}
-              primaryDriversDisabled={!businessId}
-              isIngestionActive={isToolbarDataBlocked}
-              contentGroupsDisabled={!businessId || isGa4DataBlocked}
-              indexingDisabled={!businessId}
+        <AnalyticsToolbar
+          scope={selectedTab}
+          onScopeChange={handleTabChange}
+          ga4ScopePath={
+            ga4IngestionStatus === "completed" && !isGa4ScopeReplacementPending
+              ? currentGa4Scope
+              : null
+          }
+          ga4ScopeTitle={analyticsScopeLabel(currentGa4Scope)}
+          periodSelector={
+            <PeriodSelector
+              value={selectedPeriod}
+              onValueChange={setSelectedPeriod}
+              groupBy={groupBy}
+              onGroupByChange={setGroupBy}
+              disabledGroupByOptions={ALL_GROUP_BY_OPTIONS.filter(
+                (option) => !availableGroupByOptions.includes(option)
+              )}
+              className="h-8 w-auto cursor-pointer rounded-[6px] border-[#d4d4d4] bg-transparent px-3 text-sm font-medium tracking-[0.07px] shadow-none"
+              ingestionActive={isGscIngestionActive}
+              disabled={isGa4DataBlocked}
             />
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              {headerMetricKeys.map((key) => (
-                <Tooltip key={key}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className={cn(
-                        "h-9 w-9 shrink-0 rounded-[8px] border-general-border bg-white shadow-xs",
-                        selectedTab === "all" && "cursor-default opacity-70",
-                        selectedTab !== "all" && !visibleLines[key] && "bg-transparent shadow-none"
-                      )}
-                      onClick={() => {
-                        if (selectedTab === "all" || isGa4DataBlocked) return;
-                        handleChartLineToggle(key, !visibleLines[key]);
-                      }}
-                      disabled={selectedTab === "all" || isGa4DataBlocked}
-                      aria-label={METRIC_TOOLTIPS[key]}
-                      aria-pressed={selectedTab === "all" ? true : visibleLines[key]}
-                    >
-                      {key === "impressions" ? (
-                        <Eye className="h-4 w-4 text-[#a855f7]" />
-                      ) : key === "clicks" ? (
-                        <MousePointerClick className="h-4 w-4 rotate-90 text-[#2563eb]" />
-                      ) : key === "sessions" ? (
-                        <BarChart3 className="h-4 w-4 text-[#f97316]" />
-                      ) : (
-                        <Target className="h-4 w-4 text-[#10b981]" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={8}>
-                    {METRIC_TOOLTIPS[key]}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
-            </div>
-            <div className="h-12 w-px shrink-0 bg-general-border" aria-hidden="true" />
-            <AnalyticsFilterControls
-              periodSelector={
-                <PeriodSelector
-                  value={selectedPeriod}
-                  onValueChange={setSelectedPeriod}
-                  groupBy={groupBy}
-                  onGroupByChange={setGroupBy}
-                  disabledGroupByOptions={ALL_GROUP_BY_OPTIONS.filter(
-                    (option) => !availableGroupByOptions.includes(option)
-                  )}
-                  className="h-10 cursor-pointer rounded-[8px] border-[#d4d4d4] bg-transparent px-4 py-[7.5px] text-sm font-medium tracking-[0.07px] shadow-none"
-                  ingestionActive={isGscIngestionActive}
-                  disabled={isGa4DataBlocked}
-                />
-              }
-              keywordScope={keywordScope}
-              onKeywordScopeChange={handleKeywordScopeChange}
-              showKeywordScope={selectedTab === "organic"}
-              hasActiveKeywordScope={keywordScope !== "all"}
-              anomalyHighlightsEnabled={isToolbarDataBlocked ? false : showAnomalyHighlights}
-              onAnomalyHighlightsChange={isToolbarDataBlocked ? undefined : setShowAnomalyHighlights}
-              campaignOverlaysEnabled={showCampaignOverlays}
-              onCampaignOverlaysChange={(enabled) => {
-                setShowCampaignOverlays(enabled);
-                captureCampaignImpactEvent("campaign_overlay_toggled", {
-                  business_id: businessId || undefined,
-                  enabled,
-                  origin: "analytics_toolbar",
-                });
-              }}
-              isIngestionActive={isToolbarDataBlocked}
-            />
-          </div>
-        </div>
-        {filters.length > 0 ? (
-          <div className="w-full max-w-[1224px] px-7">
-            <OrganicDeepdiveHeader
-              filters={filters}
-              onRemoveFilter={removeFilter}
-            />
-          </div>
-        ) : null}
+          }
+          filterChips={
+            filters.length > 0 ? (
+              <OrganicDeepdiveHeader
+                filters={filters}
+                onRemoveFilter={removeFilter}
+              />
+            ) : null
+          }
+          onPrimaryDrivers={() => {
+            if (!businessId) return;
+            setPrimaryDriversOpen(true);
+          }}
+          onViewReports={() => {
+            if (!businessId) return;
+            router.push(`/business/${businessId}/reports`);
+          }}
+          onCampaignTracking={() => {
+            if (!businessId) return;
+            captureCampaignImpactEvent("campaign_tracking_opened", {
+              business_id: businessId,
+              origin: "analytics_toolbar",
+            });
+            router.push(`/business/${businessId}/analytics/campaigns`);
+          }}
+          onIndexing={() => {
+            if (!businessId) return;
+            router.push(`/business/${businessId}/indexing`);
+          }}
+          onContentGroups={() => {
+            if (!businessId) return;
+            setCustomContentGroupsOpen(true);
+          }}
+          primaryDriversDisabled={!businessId}
+          reportsDisabled={!businessId}
+          indexingDisabled={!businessId}
+          contentGroupsDisabled={!businessId || isGa4DataBlocked}
+          keywordScope={keywordScope}
+          onKeywordScopeChange={handleKeywordScopeChange}
+          showKeywordScope={selectedTab === "organic"}
+          metricKeys={headerMetricKeys}
+          visibleLines={visibleLines}
+          onLineToggle={handleChartLineToggle}
+          anomalyHighlights={isToolbarDataBlocked ? false : showAnomalyHighlights}
+          onAnomalyHighlightsChange={setShowAnomalyHighlights}
+          isIngestionActive={isToolbarDataBlocked}
+          isDataBlocked={isGa4DataBlocked}
+        />
       </div>
 
       {/* Tab Content */}

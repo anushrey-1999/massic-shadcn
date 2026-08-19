@@ -57,6 +57,10 @@ function sourceName(source: CampaignImpactSource["source"]): string {
   return PRODUCT_CONFIG[source]?.label || source.toUpperCase();
 }
 
+function sourceShortName(source: CampaignImpactSource["source"]): string {
+  return PRODUCT_CONFIG[source]?.shortLabel || source.toUpperCase();
+}
+
 /**
  * Every number on this page comes from one of three Google products, so each one carries its
  * product mark. Naming follows PRODUCT_CONFIG rather than the API's own source labels.
@@ -67,6 +71,23 @@ function SourceMark({ source, size = 14 }: { source: CampaignImpactSource["sourc
       <TooltipTrigger asChild>
         <span className="inline-flex shrink-0 items-center">
           <ProductIcon product={source} size={size} />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6}>{sourceName(source)}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * The flattened metrics table mixes all three products, so each row carries its origin. A short
+ * text tag stays legible at table density where a brand mark reads as decoration.
+ */
+function SourceTag({ source }: { source: CampaignImpactSource["source"] }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex shrink-0 items-center rounded-[4px] border border-general-border px-1 text-[10px] font-medium leading-[16px] tracking-wide text-muted-foreground">
+          {sourceShortName(source)}
         </span>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={6}>{sourceName(source)}</TooltipContent>
@@ -336,7 +357,12 @@ export function CampaignImpactReportTemplate({ businessId, campaignId }: { busin
                 <tbody>
                   {visibleMetricRows.map(metric => (
                     <tr key={`${metric.sourceKey}-${metric.key}`} className="border-t border-general-border hover:bg-general-secondary/60">
-                      <td className="px-4 py-2.5 font-medium">{metric.label}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{metric.label}</span>
+                          <SourceTag source={metric.sourceKey} />
+                        </div>
+                      </td>
                       <td className="px-4 py-2.5 text-right tabular-nums">{metric.baselineText}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">{metric.primaryText}</td>
                       {presentation.hasPostPeriod ? <td className="px-4 py-2.5 text-right tabular-nums">{metric.postText}</td> : null}

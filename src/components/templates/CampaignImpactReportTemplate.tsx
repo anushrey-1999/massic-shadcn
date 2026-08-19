@@ -74,13 +74,8 @@ function SourceMark({ source, size = 14 }: { source: CampaignImpactSource["sourc
   );
 }
 
-function PresentationChange({ change, compact = false }: { change: CampaignPresentationChange; compact?: boolean }) {
-  return (
-    <span className={TONE_TEXT[change.tone]}>
-      {change.text}
-      {!compact && change.badge ? <Badge variant="outline" className="ml-2 border-amber-200 bg-amber-50 text-amber-800">{change.badge}</Badge> : null}
-    </span>
-  );
+function PresentationChange({ change }: { change: CampaignPresentationChange }) {
+  return <span className={TONE_TEXT[change.tone]}>{change.text}</span>;
 }
 
 /** Inline trigger that keeps long-form campaign detail out of the layout until asked for. */
@@ -319,7 +314,7 @@ export function CampaignImpactReportTemplate({ businessId, campaignId }: { busin
                   </div>
                   <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <p className="text-xl font-medium tabular-nums">{highlight.valueText}</p>
-                    <div className="text-xs font-medium"><PresentationChange change={highlight.change} compact /></div>
+                    <div className="text-xs font-medium"><PresentationChange change={highlight.change} /></div>
                   </div>
                 </div>
               ))}
@@ -341,12 +336,7 @@ export function CampaignImpactReportTemplate({ businessId, campaignId }: { busin
                 <tbody>
                   {visibleMetricRows.map(metric => (
                     <tr key={`${metric.sourceKey}-${metric.key}`} className="border-t border-general-border hover:bg-general-secondary/60">
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <SourceMark source={metric.sourceKey} />
-                          <span className="font-medium">{metric.label}</span>
-                        </div>
-                      </td>
+                      <td className="px-4 py-2.5 font-medium">{metric.label}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">{metric.baselineText}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">{metric.primaryText}</td>
                       {presentation.hasPostPeriod ? <td className="px-4 py-2.5 text-right tabular-nums">{metric.postText}</td> : null}

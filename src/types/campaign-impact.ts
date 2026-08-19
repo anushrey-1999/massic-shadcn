@@ -67,7 +67,7 @@ export interface CampaignImpactSource {
 }
 
 export type CampaignPresentationTone = "positive" | "negative" | "warning" | "info" | "neutral";
-export interface CampaignPresentationChange { text: string; tone: CampaignPresentationTone; badge: string | null }
+export interface CampaignPresentationChange { text: string; tone: CampaignPresentationTone }
 export interface CampaignPresentationHighlight {
   source: CampaignImpactSource["source"]; key: string; label: string; valueText: string; change: CampaignPresentationChange;
 }

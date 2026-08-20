@@ -46,8 +46,6 @@ interface AnalyticsToolbarProps {
   metricKeys: readonly AnalyticsMetricKey[];
   visibleLines: Record<string, boolean>;
   onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
-  anomalyHighlights: boolean;
-  onAnomalyHighlightsChange: (enabled: boolean) => void;
 
   /** Search Console or GA4 import in flight — blocks data-dependent controls. */
   isIngestionActive?: boolean;
@@ -81,8 +79,6 @@ export function AnalyticsToolbar({
   metricKeys,
   visibleLines,
   onLineToggle,
-  anomalyHighlights,
-  onAnomalyHighlightsChange,
   isIngestionActive = false,
   isDataBlocked = false,
 }: AnalyticsToolbarProps) {
@@ -159,9 +155,6 @@ export function AnalyticsToolbar({
             visibleLines={visibleLines}
             onLineToggle={onLineToggle}
             linesLocked={scope === "all"}
-            anomalyHighlights={anomalyHighlights}
-            onAnomalyHighlightsChange={onAnomalyHighlightsChange}
-            showAnomalyToggle={!isIngestionActive}
             disabled={isDataBlocked}
           />
           <AnalyticsNavigationMenu

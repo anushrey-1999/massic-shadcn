@@ -212,8 +212,6 @@ export function AnalyticsTemplate() {
     searchParams.get("tab") === "organic" ? "organic" : "all"
   );
   const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("day");
-  const [showAnomalyHighlights, setShowAnomalyHighlights] = useState(false);
-  const [showCampaignOverlays, setShowCampaignOverlays] = useState(false);
   const [availableGroupByOptions, setAvailableGroupByOptions] =
     useState<AnalyticsGroupBy[]>(ALL_GROUP_BY_OPTIONS);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -633,17 +631,6 @@ export function AnalyticsTemplate() {
           metricKeys={headerMetricKeys}
           visibleLines={visibleLines}
           onLineToggle={handleChartLineToggle}
-          anomalyHighlights={isToolbarDataBlocked ? false : showAnomalyHighlights}
-          onAnomalyHighlightsChange={setShowAnomalyHighlights}
-          campaignOverlays={showCampaignOverlays}
-          onCampaignOverlaysChange={(enabled) => {
-            setShowCampaignOverlays(enabled);
-            captureCampaignImpactEvent("campaign_overlay_toggled", {
-              business_id: businessId || undefined,
-              enabled,
-              origin: "analytics_toolbar",
-            });
-          }}
           isIngestionActive={isToolbarDataBlocked}
           isDataBlocked={isGa4DataBlocked}
         />
@@ -721,8 +708,6 @@ export function AnalyticsTemplate() {
                 ga4TrafficScope={selectedTab}
                 groupBy={groupBy}
                 onAvailableGroupingsChange={setAvailableGroupByOptions}
-                showAnomalyHighlights={isGscIngestionActive ? false : showAnomalyHighlights}
-                showCampaignOverlays={showCampaignOverlays}
                 isIngestionActive={isGscIngestionActive}
               />
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Flag, ListChecks, Megaphone, MoreHorizontal, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, ListChecks, Megaphone, MoreHorizontal, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -218,30 +218,19 @@ interface AnalyticsDisplayMenuProps {
   onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
   /** The All tab plots a fixed set of lines, so the toggles are read-only. */
   linesLocked?: boolean;
-  anomalyHighlights: boolean;
-  onAnomalyHighlightsChange: (enabled: boolean) => void;
-  showAnomalyToggle?: boolean;
-  campaignOverlays?: boolean;
-  onCampaignOverlaysChange?: (enabled: boolean) => void;
-  showCampaignOverlayToggle?: boolean;
   disabled?: boolean;
 }
 
 /**
- * Chart series and overlay visibility. Each line pairs its plotted color with a
- * text label, replacing the color-only icon buttons the toolbar used before.
+ * Chart series visibility. Each line pairs its plotted color with a text label,
+ * replacing the color-only icon buttons the toolbar used before. Overlay layers
+ * (anomalies, campaigns) are toggled on the chart itself, not from here.
  */
 export function AnalyticsDisplayMenu({
   metricKeys,
   visibleLines,
   onLineToggle,
   linesLocked = false,
-  anomalyHighlights,
-  onAnomalyHighlightsChange,
-  showAnomalyToggle = true,
-  campaignOverlays = false,
-  onCampaignOverlaysChange,
-  showCampaignOverlayToggle = Boolean(onCampaignOverlaysChange),
   disabled = false,
 }: AnalyticsDisplayMenuProps) {
   const hiddenLines = linesLocked
@@ -249,10 +238,7 @@ export function AnalyticsDisplayMenu({
     : metricKeys.filter((key) => !visibleLines[key]).length;
   // The chart needs at least one series, so the last one standing is locked on.
   const visibleLineCount = metricKeys.length - hiddenLines;
-  const activeCount =
-    hiddenLines +
-    (showAnomalyToggle && anomalyHighlights ? 1 : 0) +
-    (showCampaignOverlayToggle && campaignOverlays ? 1 : 0);
+  const activeCount = hiddenLines;
 
   if (disabled) {
     return (
@@ -320,32 +306,6 @@ export function AnalyticsDisplayMenu({
             </DropdownMenuCheckboxItem>
           );
         })}
-        {showAnomalyToggle ? (
-          <DropdownMenuCheckboxItem
-            checked={anomalyHighlights}
-            onCheckedChange={(checked) => onAnomalyHighlightsChange(checked === true)}
-            onSelect={(event) => event.preventDefault()}
-            className="cursor-pointer"
-          >
-            <span className="flex items-center gap-2">
-              <Flag className="size-3.5 shrink-0" aria-hidden="true" />
-              Anomaly highlights
-            </span>
-          </DropdownMenuCheckboxItem>
-        ) : null}
-        {showCampaignOverlayToggle && onCampaignOverlaysChange ? (
-          <DropdownMenuCheckboxItem
-            checked={campaignOverlays}
-            onCheckedChange={(checked) => onCampaignOverlaysChange(checked === true)}
-            onSelect={(event) => event.preventDefault()}
-            className="cursor-pointer"
-          >
-            <span className="flex items-center gap-2">
-              <Megaphone className="size-3.5 shrink-0" aria-hidden="true" />
-              Campaign overlays
-            </span>
-          </DropdownMenuCheckboxItem>
-        ) : null}
         {linesLocked ? (
           <p className="px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
             Switch to Organic to choose which lines are plotted.

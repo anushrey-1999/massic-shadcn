@@ -11,7 +11,9 @@ import {
   Loader2,
   CircleCheckBig,
   AlertTriangle,
+  Flag,
   Maximize2,
+  Megaphone,
   Minimize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,7 @@ import { AlertBar } from "@/components/molecules/analytics/AlertBar";
 import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet";
 import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
+import { ChartOverlayToggle } from "@/components/molecules/analytics/ChartOverlayToggle";
 import { BrandedKeywordsModal } from "@/components/molecules/analytics/BrandedKeywordsModal";
 import { NoGSCMetricsSelected } from "@/components/molecules/analytics/NoGSCMetricsSelected";
 import { CHART_SERIES_COLORS } from "@/utils/analytics-metrics";
@@ -73,6 +76,8 @@ import {
 } from "@/utils/analytics-anomaly-bands";
 import { AnomalyBandShape } from "@/components/molecules/analytics/AnomalyBand";
 import { CAMPAIGN_STATUS, CAMPAIGN_TYPE_LABELS } from "@/lib/campaign-impact";
+import { captureCampaignImpactEvent } from "@/lib/analytics/posthog-client";
+import { cn } from "@/lib/utils";
 
 const METRIC_ICONS: Record<string, React.ReactNode> = {
   "topic-coverage": <Target className="h-5 w-5" />,
@@ -219,8 +224,6 @@ export interface OrganicPerformanceSectionProps {
   ga4TrafficScope?: GA4TrafficScope;
   groupBy?: AnalyticsGroupBy;
   onAvailableGroupingsChange?: (available: AnalyticsGroupBy[]) => void;
-  showAnomalyHighlights?: boolean;
-  showCampaignOverlays?: boolean;
   /** When true, anomaly detection API call is skipped. */
   isIngestionActive?: boolean;
 }
@@ -234,8 +237,6 @@ export function OrganicPerformanceSection({
   ga4TrafficScope = "organic",
   groupBy = "day",
   onAvailableGroupingsChange,
-  showAnomalyHighlights = true,
-  showCampaignOverlays = false,
   isIngestionActive = false,
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
@@ -305,6 +306,11 @@ export function OrganicPerformanceSection({
   const [anomaliesSheetTab, setAnomaliesSheetTab] = useState<AnomalySheetTab>("goals");
   const [anomaliesSheetDate, setAnomaliesSheetDate] = useState<string | null>(null);
   const [brandedKeywordsModalOpen, setBrandedKeywordsModalOpen] = useState(false);
+  // Overlays are opt-in per chart, so their data is only fetched once switched on.
+  const [anomalyHighlightsOn, setAnomalyHighlightsOn] = useState(false);
+  const [campaignOverlaysOn, setCampaignOverlaysOn] = useState(false);
+  const showAnomalyHighlights = anomalyHighlightsOn && !isIngestionActive;
+  const showCampaignOverlays = campaignOverlaysOn;
 
   const [visibleLinesLocal, setVisibleLinesLocal] = useState<
     Record<string, boolean>
@@ -401,11 +407,12 @@ export function OrganicPerformanceSection({
   );
   const {
     anomalyDates,
+    isLoading: isLoadingAnomalyDates,
   } = useAnalyticsAnomalyDates(
     businessUniqueId,
     anomalyDatesFrom,
     chartRanges.currentEnd,
-    !isIngestionActive && !loadingState.chart && Boolean(anomalyDatesFrom && chartRanges.currentEnd)
+    showAnomalyHighlights && !loadingState.chart && Boolean(anomalyDatesFrom && chartRanges.currentEnd)
   );
   const campaignOverlays = useCampaignEvents(
     businessUniqueId || "",
@@ -414,6 +421,22 @@ export function OrganicPerformanceSection({
       ...(chartRanges.currentEnd ? { to: chartRanges.currentEnd } : {}),
     },
     showCampaignOverlays && Boolean(chartRanges.currentStart && chartRanges.currentEnd)
+  );
+
+  const handleAnomalyHighlightsToggle = useCallback((enabled: boolean) => {
+    setAnomalyHighlightsOn(enabled);
+  }, []);
+
+  const handleCampaignOverlaysToggle = useCallback(
+    (enabled: boolean) => {
+      setCampaignOverlaysOn(enabled);
+      captureCampaignImpactEvent("campaign_overlay_toggled", {
+        business_id: businessUniqueId || undefined,
+        enabled,
+        origin: "analytics_toolbar",
+      });
+    },
+    [businessUniqueId]
   );
 
   const singleMetricYDomain = useMemo(() => {
@@ -992,13 +1015,39 @@ export function OrganicPerformanceSection({
               </div>
             ) : hasData ? (
               <>
-                <ChartLegend
-                  variant="box"
-                  className="mb-3 shrink-0"
-                  items={chartLegendItemsToRender}
-                  onToggle={handleLegendToggle}
-                  showToggle={false}
-                />
+                <div
+                  className={cn(
+                    "mb-3 flex shrink-0 flex-wrap items-start justify-between gap-2",
+                    graphFullScreen && "pr-10"
+                  )}
+                >
+                  <ChartLegend
+                    variant="box"
+                    items={chartLegendItemsToRender}
+                    onToggle={handleLegendToggle}
+                    showToggle={false}
+                  />
+                  <div className="flex shrink-0 items-center gap-2">
+                    <ChartOverlayToggle
+                      icon={Flag}
+                      label="anomaly highlights"
+                      active={showAnomalyHighlights}
+                      loading={isLoadingAnomalyDates}
+                      disabled={isIngestionActive}
+                      disabledReason="Available once your data is ready"
+                      onToggle={handleAnomalyHighlightsToggle}
+                      activeIconClassName="text-amber-600"
+                    />
+                    <ChartOverlayToggle
+                      icon={Megaphone}
+                      label="campaign overlays"
+                      active={showCampaignOverlays}
+                      loading={campaignOverlays.isLoading}
+                      onToggle={handleCampaignOverlaysToggle}
+                      activeIconClassName="text-primary"
+                    />
+                  </div>
+                </div>
                 <div
                   className={
                     graphFullScreen

@@ -1,64 +1,37 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Flag, ListChecks } from "lucide-react";
+import { ArrowUpRight, ListChecks, Megaphone, MoreHorizontal, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { ContentGroupsIcon } from "@/components/molecules/analytics/ContentGroupsIcon";
+import {
+  ANALYTICS_METRIC_LABELS,
+  CHART_SERIES_COLORS,
+  type AnalyticsMetricKey,
+} from "@/utils/analytics-metrics";
 
 export type AnalyticsKeywordScope = "all" | "branded" | "non-branded";
 export type { AnalyticsGroupBy } from "@/utils/analytics-chart-grouping";
 
-interface SegmentedOption<T extends string> {
-  label: string;
-  value: T;
-  tooltip?: string;
-}
-
-interface AnalyticsHeaderActionsProps {
-  periodSelector: ReactNode;
-  keywordScope: AnalyticsKeywordScope;
-  onKeywordScopeChange: (value: AnalyticsKeywordScope) => void;
-  onViewReports: () => void;
-  onPrimaryDrivers?: () => void;
-  onContentGroupsClick?: () => void;
-  reportsDisabled?: boolean;
-  primaryDriversDisabled?: boolean;
-  contentGroupsDisabled?: boolean;
-}
-
-interface AnalyticsFilterControlsProps {
-  periodSelector: ReactNode;
-  keywordScope: AnalyticsKeywordScope;
-  onKeywordScopeChange: (value: AnalyticsKeywordScope) => void;
-  showKeywordScope?: boolean;
-  hasActiveKeywordScope?: boolean;
-  anomalyHighlightsEnabled?: boolean;
-  onAnomalyHighlightsChange?: (enabled: boolean) => void;
-  /** When true, the anomaly and filter buttons are disabled. */
-  isIngestionActive?: boolean;
-}
-
-interface AnalyticsReportsActionsProps {
-  onViewReports: () => void;
-  onPrimaryDrivers?: () => void;
-  onContentGroupsClick?: () => void;
-  onIndexing?: () => void;
-  reportsDisabled?: boolean;
-  primaryDriversDisabled?: boolean;
-  contentGroupsDisabled?: boolean;
-  indexingDisabled?: boolean;
-  /** When true, What's Happening? and View Reports are disabled pending ingestion. */
-  isIngestionActive?: boolean;
-}
-
-const KEYWORD_SCOPE_OPTIONS: SegmentedOption<AnalyticsKeywordScope>[] = [
-  { label: "All", value: "all", tooltip: "All queries" },
-  { label: "Branded", value: "branded", tooltip: "Only branded queries" },
-  { label: "Non-branded", value: "non-branded", tooltip: "Only non-branded queries" },
+const KEYWORD_SCOPE_OPTIONS: { label: string; value: AnalyticsKeywordScope; description: string }[] = [
+  { label: "All queries", value: "all", description: "Branded and non-branded" },
+  { label: "Branded", value: "branded", description: "Only branded queries" },
+  { label: "Non-branded", value: "non-branded", description: "Only non-branded queries" },
 ];
+
+const DATA_READY_TOOLTIP = "Available once your data is ready";
 
 function FilterIcon({ className }: { className?: string }) {
   return (
@@ -77,305 +50,272 @@ function FilterIcon({ className }: { className?: string }) {
   );
 }
 
-function SegmentedControl<T extends string>({
-  value,
-  options,
-  onChange,
-  equalWidth = false,
-  disabledValues = [],
-}: {
-  value: T;
-  options: SegmentedOption<T>[];
-  onChange: (value: T) => void;
-  equalWidth?: boolean;
-  disabledValues?: T[];
-}) {
+/** Count of non-default settings, so state hidden inside a menu stays visible. */
+function ActiveCountBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+
   return (
-    <div className="flex w-full items-center bg-general-border p-[3px]">
-      {options.map((option) => {
-        const isSelected = option.value === value;
-        const isDisabled = disabledValues.includes(option.value);
-        const button = (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            disabled={isDisabled}
-            className={cn(
-              "min-h-[29px] min-w-[29px] rounded-[10px] px-2 py-1 text-xs font-medium tracking-[0.18px] whitespace-nowrap text-general-foreground transition-colors",
-              equalWidth && "flex-1",
-              isSelected && "bg-white shadow-sm",
-              isDisabled && "cursor-not-allowed opacity-40"
-            )}
-          >
-            {option.label}
-          </button>
-        );
-
-        if (!option.tooltip) {
-          return button;
-        }
-
-        return (
-          <Tooltip key={option.value}>
-            <TooltipTrigger asChild>{button}</TooltipTrigger>
-            <TooltipContent side="top" sideOffset={8}>
-              {option.tooltip}
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </div>
+    <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-[4px] bg-general-primary px-1 text-[10px] font-medium text-primary-foreground">
+      {count}
+    </span>
   );
 }
 
-export function AnalyticsHeaderActions({
-  periodSelector,
-  keywordScope,
-  onKeywordScopeChange,
+const TOOLBAR_BUTTON_CLASS =
+  "h-8 shrink-0 gap-1.5 rounded-[6px] border-general-border bg-transparent px-3 text-sm font-medium text-general-foreground hover:bg-muted/40";
+
+interface AnalyticsNavigationMenuProps {
+  onViewReports: () => void;
+  onCampaignTracking: () => void;
+  onIndexing: () => void;
+  onContentGroups: () => void;
+  reportsDisabled?: boolean;
+  indexingDisabled?: boolean;
+  contentGroupsDisabled?: boolean;
+}
+
+/**
+ * Secondary destinations and configuration. Grouped into one overflow menu so
+ * the single-row toolbar stays compact.
+ */
+export function AnalyticsNavigationMenu({
   onViewReports,
-  onPrimaryDrivers,
-  onContentGroupsClick,
-  reportsDisabled = false,
-  primaryDriversDisabled = false,
-  contentGroupsDisabled = false,
-}: AnalyticsHeaderActionsProps) {
-  return (
-    <div className="flex items-center gap-2">
-      <AnalyticsFilterControls
-        periodSelector={periodSelector}
-        keywordScope={keywordScope}
-        onKeywordScopeChange={onKeywordScopeChange}
-      />
-      <AnalyticsReportsActions
-        onViewReports={onViewReports}
-        onPrimaryDrivers={onPrimaryDrivers}
-        onContentGroupsClick={onContentGroupsClick}
-        reportsDisabled={reportsDisabled}
-        primaryDriversDisabled={primaryDriversDisabled}
-        contentGroupsDisabled={contentGroupsDisabled}
-      />
-    </div>
-  );
-}
-
-export function AnalyticsFilterControls({
-  periodSelector,
-  keywordScope,
-  onKeywordScopeChange,
-  showKeywordScope = true,
-  hasActiveKeywordScope = false,
-  anomalyHighlightsEnabled,
-  onAnomalyHighlightsChange,
-  isIngestionActive = false,
-}: AnalyticsFilterControlsProps) {
-  const showAnomalyToggle = !isIngestionActive && typeof anomalyHighlightsEnabled === "boolean" && Boolean(onAnomalyHighlightsChange);
-  const dataReadyTooltip = "Available once your data is ready";
-
-  return (
-    <div className="flex items-center gap-2">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="cursor-pointer">{periodSelector}</div>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={8}>
-          Select Period
-        </TooltipContent>
-      </Tooltip>
-
-      {showAnomalyToggle ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
-              <Button
-                variant="outline"
-                size="icon-lg"
-                className={cn(
-                  "h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40",
-                  !isIngestionActive && anomalyHighlightsEnabled &&
-                    "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100",
-                  isIngestionActive && "opacity-40"
-                )}
-                onClick={() => !isIngestionActive && onAnomalyHighlightsChange?.(!anomalyHighlightsEnabled)}
-                disabled={isIngestionActive}
-                style={isIngestionActive ? { pointerEvents: "none" } : undefined}
-                aria-label={anomalyHighlightsEnabled ? "Hide anomaly highlights" : "Show anomaly highlights"}
-                aria-pressed={anomalyHighlightsEnabled}
-              >
-                <Flag className="h-4 w-4" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={8}>
-            {isIngestionActive
-              ? dataReadyTooltip
-              : anomalyHighlightsEnabled
-                ? "Hide anomaly highlights"
-                : "Show anomaly highlights"}
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
-
-      {showKeywordScope ? (
-        isIngestionActive ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="cursor-not-allowed">
-                <Button
-                  variant="outline"
-                  size="icon-lg"
-                  className="h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground opacity-40"
-                  disabled
-                  style={{ pointerEvents: "none" }}
-                  aria-label="Filter analytics"
-                >
-                  <FilterIcon className="h-[16.25px] w-[17.91px]" />
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={8}>
-              {dataReadyTooltip}
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <Popover>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon-lg"
-                    className={cn(
-                      "h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40",
-                      hasActiveKeywordScope &&
-                        "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                    )}
-                    aria-label="Filter analytics"
-                  >
-                    <FilterIcon className="h-[16.25px] w-[17.91px]" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={8}>
-                Filter
-              </TooltipContent>
-            </Tooltip>
-            <PopoverContent
-              align="center"
-              side="bottom"
-              sideOffset={6}
-              className="w-[200px] rounded-[8px] border-general-border bg-white p-0.5 shadow-[0px_4px_6px_rgba(0,0,0,0.1),0px_2px_4px_rgba(0,0,0,0.1)]"
-            >
-              <div className="flex flex-col gap-0">
-                <div className="min-h-8 px-2 py-[5.5px] text-[10px] tracking-[0.15px] text-muted-foreground">
-                  Keywords
-                </div>
-                <SegmentedControl
-                  value={keywordScope}
-                  options={KEYWORD_SCOPE_OPTIONS}
-                  onChange={onKeywordScopeChange}
-                />
-              </div>
-            </PopoverContent>
-          </Popover>
-        )
-      ) : null}
-    </div>
-  );
-}
-
-export function AnalyticsReportsActions({
-  onViewReports,
-  onPrimaryDrivers,
-  onContentGroupsClick,
+  onCampaignTracking,
   onIndexing,
+  onContentGroups,
   reportsDisabled = false,
-  primaryDriversDisabled = false,
-  contentGroupsDisabled = false,
   indexingDisabled = false,
-  isIngestionActive = false,
-}: AnalyticsReportsActionsProps) {
-  const ingestionTooltip = "Available once your data is ready";
-
+  contentGroupsDisabled = false,
+}: AnalyticsNavigationMenuProps) {
   return (
-    <div className="flex items-center gap-2">
-      {onIndexing ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-10 shrink-0 gap-2 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
-              onClick={onIndexing}
-              disabled={indexingDisabled}
-            >
-              <ListChecks className="h-4 w-4" />
-              Indexing
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={8}>
-            Google index status for your URLs
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className={TOOLBAR_BUTTON_CLASS}>
+          <MoreHorizontal className="size-3.5" />
+          More
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56 rounded-[8px] border-general-border">
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
+          Go to
+        </DropdownMenuLabel>
+        <DropdownMenuItem
+          className="h-8 cursor-pointer gap-2"
+          onSelect={onViewReports}
+          disabled={reportsDisabled}
+        >
+          <span className="flex-1">Reports</span>
+          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="h-8 cursor-pointer gap-2"
+          onSelect={onIndexing}
+          disabled={indexingDisabled}
+        >
+          <ListChecks className="size-4 shrink-0" />
+          <span className="flex-1">Indexing status</span>
+          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </DropdownMenuItem>
+        <DropdownMenuItem className="h-8 cursor-pointer gap-2" onSelect={onCampaignTracking}>
+          <Megaphone className="size-4 shrink-0" />
+          <span className="flex-1">Campaign tracking</span>
+          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
+          Configure
+        </DropdownMenuLabel>
+        <DropdownMenuItem
+          className="h-8 cursor-pointer gap-2"
+          onSelect={onContentGroups}
+          disabled={contentGroupsDisabled}
+        >
+          <ContentGroupsIcon className="size-4 shrink-0" />
+          Content groups
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
-      {onPrimaryDrivers ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            {/* span wrapper needed so Tooltip works on a disabled button */}
-            <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
-              <Button
-                variant="outline"
-                className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
-                onClick={onPrimaryDrivers}
-                disabled={primaryDriversDisabled || isIngestionActive}
-                style={isIngestionActive ? { pointerEvents: "none" } : undefined}
-              >
-                What's Happening?
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={8}>
-            {isIngestionActive ? ingestionTooltip : "What's Happening?"}
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
+interface AnalyticsFilterMenuProps {
+  keywordScope: AnalyticsKeywordScope;
+  onKeywordScopeChange: (value: AnalyticsKeywordScope) => void;
+  disabled?: boolean;
+}
 
+/** Query-type filtering. Only rendered on the Organic tab. */
+export function AnalyticsFilterMenu({
+  keywordScope,
+  onKeywordScopeChange,
+  disabled = false,
+}: AnalyticsFilterMenuProps) {
+  const activeCount = keywordScope === "all" ? 0 : 1;
+
+  if (disabled) {
+    return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className={isIngestionActive ? "cursor-not-allowed" : undefined}>
+          <span className="cursor-not-allowed">
             <Button
               variant="outline"
-              className="h-10 shrink-0 rounded-[8px] border-[#d4d4d4] bg-transparent px-4 text-general-foreground hover:bg-muted/40"
-              onClick={onViewReports}
-              disabled={reportsDisabled || isIngestionActive}
-              style={isIngestionActive ? { pointerEvents: "none" } : undefined}
+              size="sm"
+              className={cn(TOOLBAR_BUTTON_CLASS, "opacity-40")}
+              disabled
+              style={{ pointerEvents: "none" }}
             >
-              View Reports
+              <FilterIcon className="h-3.5 w-3.5" />
+              Filters
             </Button>
           </span>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={8}>
-          {isIngestionActive ? ingestionTooltip : "View Reports"}
+          {DATA_READY_TOOLTIP}
         </TooltipContent>
       </Tooltip>
+    );
+  }
 
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(TOOLBAR_BUTTON_CLASS, activeCount > 0 && "border-general-border-three bg-general-secondary")}
+        >
+          <FilterIcon className="h-3.5 w-3.5" />
+          Filters
+          <ActiveCountBadge count={activeCount} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56 rounded-[8px] border-general-border">
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
+          Query type
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={keywordScope}
+          onValueChange={(value) => onKeywordScopeChange(value as AnalyticsKeywordScope)}
+        >
+          {KEYWORD_SCOPE_OPTIONS.map((option) => (
+            <DropdownMenuRadioItem
+              key={option.value}
+              value={option.value}
+              className="cursor-pointer"
+            >
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+interface AnalyticsDisplayMenuProps {
+  metricKeys: readonly AnalyticsMetricKey[];
+  visibleLines: Record<string, boolean>;
+  onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
+  /** The All tab plots a fixed set of lines, so the toggles are read-only. */
+  linesLocked?: boolean;
+  disabled?: boolean;
+}
+
+/**
+ * Chart series visibility. Each line pairs its plotted color with a text label,
+ * replacing the color-only icon buttons the toolbar used before. Overlay layers
+ * (anomalies, campaigns) are toggled on the chart itself, not from here.
+ */
+export function AnalyticsDisplayMenu({
+  metricKeys,
+  visibleLines,
+  onLineToggle,
+  linesLocked = false,
+  disabled = false,
+}: AnalyticsDisplayMenuProps) {
+  const hiddenLines = linesLocked
+    ? 0
+    : metricKeys.filter((key) => !visibleLines[key]).length;
+  // The chart needs at least one series, so the last one standing is locked on.
+  const visibleLineCount = metricKeys.length - hiddenLines;
+  const activeCount = hiddenLines;
+
+  if (disabled) {
+    return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-10 w-10 rounded-[8px] border-general-border bg-transparent p-2 text-general-foreground hover:bg-muted/40"
-            onClick={onContentGroupsClick}
-            disabled={contentGroupsDisabled}
-            aria-label="Content groups"
-          >
-            <ContentGroupsIcon className="h-[16.25px] w-[16.25px]" />
-          </Button>
+          <span className="cursor-not-allowed">
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(TOOLBAR_BUTTON_CLASS, "opacity-40")}
+              disabled
+              style={{ pointerEvents: "none" }}
+            >
+              <SlidersHorizontal className="size-3.5" />
+              Display
+            </Button>
+          </span>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={8}>
-          Content Groups
+          {DATA_READY_TOOLTIP}
         </TooltipContent>
       </Tooltip>
-    </div>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(TOOLBAR_BUTTON_CLASS, activeCount > 0 && "border-general-border-three bg-general-secondary")}
+        >
+          <SlidersHorizontal className="size-3.5" />
+          Display
+          <ActiveCountBadge count={activeCount} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60 rounded-[8px] border-general-border">
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-[0.15px] text-muted-foreground">
+          Display
+        </DropdownMenuLabel>
+        {metricKeys.map((key) => {
+          const checked = linesLocked ? true : Boolean(visibleLines[key]);
+          const isLastVisible = !linesLocked && checked && visibleLineCount <= 1;
+
+          return (
+            <DropdownMenuCheckboxItem
+              key={key}
+              checked={checked}
+              disabled={linesLocked || isLastVisible}
+              onCheckedChange={(next) => onLineToggle(key, next === true)}
+              onSelect={(event) => event.preventDefault()}
+              className="cursor-pointer"
+              title={isLastVisible ? "At least one line must stay visible" : undefined}
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="size-2.5 shrink-0 rounded-[2px]"
+                  style={{ backgroundColor: CHART_SERIES_COLORS[key] }}
+                />
+                {ANALYTICS_METRIC_LABELS[key]}
+              </span>
+            </DropdownMenuCheckboxItem>
+          );
+        })}
+        {linesLocked ? (
+          <p className="px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
+            Switch to Organic to choose which lines are plotted.
+          </p>
+        ) : visibleLineCount <= 1 ? (
+          <p className="px-2 py-1.5 text-[11px] leading-4 text-muted-foreground">
+            At least one line must stay visible.
+          </p>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

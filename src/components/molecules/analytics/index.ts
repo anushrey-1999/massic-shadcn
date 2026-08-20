@@ -15,8 +15,11 @@ export { SourcesChannelsChart } from "./SourcesChannelsChart"
 export { AITrafficChartCard } from "./AITrafficChartCard"
 export { LLMComparisonChart } from "./LLMComparisonChart"
 export { InteractionsChartCard } from "./InteractionsChartCard"
-export { AnalyticsHeaderActions } from "./AnalyticsHeaderActions"
-export { AnalyticsFilterControls, AnalyticsReportsActions } from "./AnalyticsHeaderActions"
+export {
+  AnalyticsDisplayMenu,
+  AnalyticsFilterMenu,
+  AnalyticsNavigationMenu,
+} from "./AnalyticsHeaderActions"
 export type { AnalyticsGroupBy, AnalyticsKeywordScope } from "./AnalyticsHeaderActions"
 export { PeriodSelector } from "./PeriodSelector"
 export { PositionDistributionCard } from "./PositionDistributionCard"

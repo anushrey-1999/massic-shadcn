@@ -170,21 +170,25 @@ export function PeriodSelector({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          size="sm"
           className={cn(
-            "h-10 w-auto justify-between rounded-[8px] border-general-border bg-white px-3 text-left font-normal",
+            "h-8 w-auto justify-between rounded-[6px] border-general-border bg-white px-3 text-left font-normal",
             className
           )}
           disabled={disabled}
         >
           <span className="truncate text-sm text-foreground">
             {triggerLabel}
+            {showGroupBySelector && groupBy ? (
+              <span className="text-muted-foreground"> · by {groupBy}</span>
+            ) : null}
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
 
       <PopoverContent
-        align="end"
+        align="start"
         sideOffset={8}
         className={cn("p-0", showGroupBySelector ? "w-[280px]" : "w-[260px]")}
       >

@@ -21,19 +21,11 @@ import { ProfileGateCard } from "@/components/templates/ProfileGateCard";
 import { PlatformIcon } from "@/components/organisms/WebChannels/platform-icon";
 import { CreateBusinessGateLayout } from "./CreateBusinessGateLayout";
 import {
-  useStartWebflowOnboarding,
   useWebflowOnboardingDomains,
   useWebflowOnboardingSites,
   type WebflowOnboardingSelection,
 } from "@/hooks/use-webflow-onboarding";
-
-type OAuthMessage = {
-  source?: string;
-  ok?: boolean;
-  onboarding?: boolean;
-  sessionId?: string;
-  message?: string;
-};
+import { useWebflowOauthPopup } from "@/hooks/use-webflow-oauth-popup";
 
 function InlineError({
   message,
@@ -63,15 +55,13 @@ export function WebflowBusinessOnboarding({
   onContinue: (selection: WebflowOnboardingSelection) => void;
   onBack: () => void;
 }) {
-  const startOauth = useStartWebflowOnboarding();
+  const { connect: authorizeWebflow, isConnecting } = useWebflowOauthPopup();
   const sitesQuery = useWebflowOnboardingSites(sessionId);
   const [selectedSiteId, setSelectedSiteId] = React.useState("");
   const [selectedDomain, setSelectedDomain] = React.useState("");
   const [oauthError, setOauthError] = React.useState<string | null>(
     initialOauthError || null,
   );
-  const popupRef = React.useRef<Window | null>(null);
-  const oauthCompletedRef = React.useRef(false);
 
   const domainsQuery = useWebflowOnboardingDomains(
     sessionId,
@@ -87,33 +77,6 @@ export function WebflowBusinessOnboarding({
     setSelectedDomain("");
   }, [selectedSiteId]);
 
-  React.useEffect(() => {
-    const onOauthMessage = (event: MessageEvent<OAuthMessage>) => {
-      const payload = event.data;
-      if (
-        !payload ||
-        payload.source !== "massic-webflow-oauth" ||
-        payload.onboarding !== true
-      )
-        return;
-
-      oauthCompletedRef.current = true;
-      if (payload.ok && payload.sessionId) {
-        setOauthError(null);
-        setSelectedSiteId("");
-        setSelectedDomain("");
-        onSessionId(payload.sessionId);
-        return;
-      }
-      setOauthError(
-        payload.message ||
-          "Webflow authorization did not complete. Please try again.",
-      );
-    };
-    window.addEventListener("message", onOauthMessage);
-    return () => window.removeEventListener("message", onOauthMessage);
-  }, [onSessionId]);
-
   const siteOptions = domainsQuery.data;
   const derivedUrl = siteOptions?.resolvedUrl || selectedDomain || "";
   const selectedSite =
@@ -124,39 +87,12 @@ export function WebflowBusinessOnboarding({
 
   const connectWebflow = async () => {
     setOauthError(null);
-    oauthCompletedRef.current = false;
-    const popup = window.open("about:blank", "_blank");
-    popupRef.current = popup;
-    if (popup) {
-      try {
-        popup.document.title = "Connecting Webflow";
-        popup.document.body.innerHTML =
-          '<p style="font-family: system-ui, sans-serif; padding: 24px;">Opening Webflow authorization...</p>';
-      } catch {
-        // Browser restrictions can prevent access to the temporary window.
-      }
-    }
-
     try {
-      const { authorizationUrl } = await startOauth.mutateAsync();
-      if (!popup || popup.closed) {
-        window.location.assign(authorizationUrl);
-        return;
-      }
-      popup.location.replace(authorizationUrl);
-      popup.focus();
-
-      const popupClosedTimer = window.setInterval(() => {
-        if (!popup.closed) return;
-        window.clearInterval(popupClosedTimer);
-        if (!oauthCompletedRef.current) {
-          setOauthError(
-            "The Webflow authorization window was closed before connecting.",
-          );
-        }
-      }, 500);
+      const nextSessionId = await authorizeWebflow();
+      setSelectedSiteId("");
+      setSelectedDomain("");
+      onSessionId(nextSessionId);
     } catch (error: any) {
-      popup?.close();
       setOauthError(error?.message || "Could not start Webflow authorization.");
     }
   };
@@ -225,10 +161,10 @@ export function WebflowBusinessOnboarding({
             <Button
               type="button"
               onClick={connectWebflow}
-              disabled={startOauth.isPending}
+              disabled={isConnecting}
               className="w-full gap-2 bg-general-primary text-general-primary-foreground hover:bg-general-primary/90"
             >
-              {startOauth.isPending ? (
+              {isConnecting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
                   Connecting...

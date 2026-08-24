@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
+import { useGoogleDataGate, withConnectionGate } from "@/hooks/use-business-connections"
 import type { TimePeriodValue } from "@/utils/analytics-period"
 
 export type { TimePeriodValue }
@@ -70,7 +71,9 @@ export function useConversionEvents({
   period,
   enabled = true,
 }: Omit<UseConversionOverviewArgs, "conversionEvent">) {
-  return useQuery<ApiResponse<ConversionEventsData>>({
+  const gate = useGoogleDataGate(businessUniqueId, "ga4")
+
+  const query = useQuery<ApiResponse<ConversionEventsData>>({
     queryKey: ["conversion-events", businessUniqueId, siteUrl, period],
     queryFn: () =>
       api.post<ApiResponse<ConversionEventsData>>("/analytics/ga4/conversion-events", "node", {
@@ -78,10 +81,12 @@ export function useConversionEvents({
         siteUrl,
         period,
       }),
-    enabled: enabled && Boolean(businessUniqueId && siteUrl),
+    enabled: gate.enabled && enabled && Boolean(businessUniqueId && siteUrl),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
+
+  return withConnectionGate(query, gate)
 }
 
 export function useConversionOverview({
@@ -91,7 +96,9 @@ export function useConversionOverview({
   conversionEvent,
   enabled = true,
 }: UseConversionOverviewArgs) {
-  return useQuery<ApiResponse<ConversionOverviewPayload>>({
+  const gate = useGoogleDataGate(businessUniqueId, "ga4")
+
+  const query = useQuery<ApiResponse<ConversionOverviewPayload>>({
     queryKey: ["conversion-overview", businessUniqueId, siteUrl, period, conversionEvent],
     queryFn: () =>
       api.post<ApiResponse<ConversionOverviewPayload>>("/analytics/ga4/conversion-overview", "node", {
@@ -100,8 +107,10 @@ export function useConversionOverview({
         period,
         conversionEvent,
       }),
-    enabled: enabled && Boolean(businessUniqueId && siteUrl && conversionEvent),
+    enabled: gate.enabled && enabled && Boolean(businessUniqueId && siteUrl && conversionEvent),
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
+
+  return withConnectionGate(query, gate)
 }

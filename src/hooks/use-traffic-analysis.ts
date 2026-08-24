@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "./use-api"
+import { resolveGatedLoading, useGoogleDataGate } from "./use-business-connections"
 
 export type AnomalyTier = "anomaly" | "candidate" | "normal"
 export type BaselineStatus = "FULL" | "PARTIAL" | "NONE"
@@ -134,6 +135,8 @@ export interface TrafficData {
 interface UseTrafficAnalysisReturn {
   trafficData: TrafficData | null
   isLoading: boolean
+  /** Search Console is not connected for this business, so no request was made. */
+  isConnectionBlocked: boolean
   error: string | null
   message: string | null
   hasAnomaly: boolean
@@ -148,6 +151,8 @@ export function useTrafficAnalysis(
   selectedDate: string | null = null,
   enabled = true
 ): UseTrafficAnalysisReturn {
+  const gate = useGoogleDataGate(businessId, "gsc")
+
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["traffic-analysis", businessId, businessName, selectedDate],
     queryFn: async () => {
@@ -171,7 +176,7 @@ export function useTrafficAnalysis(
       }
       return { trafficData: null, message: response.message || null }
     },
-    enabled: enabled && !!businessId,
+    enabled: gate.enabled && enabled && !!businessId,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   })
@@ -185,7 +190,8 @@ export function useTrafficAnalysis(
 
   return {
     trafficData: data?.trafficData || null,
-    isLoading,
+    isLoading: resolveGatedLoading(gate, isLoading),
+    isConnectionBlocked: gate.isBlocked,
     error: error ? String(error) : null,
     message: data?.message || null,
     hasAnomaly,

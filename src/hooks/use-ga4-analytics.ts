@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections"
 import { useMemo, useState, useCallback } from "react"
 import type { TimePeriodValue } from "@/utils/analytics-period"
 import type { ContentGroupFilterSource } from "@/utils/custom-content-groups"
@@ -424,7 +425,8 @@ export function useGA4Analytics(
   const [contentGroupsSort, setContentGroupsSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "sessions", direction: "desc" })
   const [topPagesSort, setTopPagesSort] = useState<{ column: GA4SortColumn; direction: SortDirection }>({ column: "sessions", direction: "desc" })
 
-  const enabled = Boolean(businessUniqueId && website)
+  const gate = useGoogleDataGate(businessUniqueId, "ga4")
+  const enabled = gate.enabled && Boolean(businessUniqueId && website)
   const basePayload = useMemo(
     () => (website ? buildBasePayload(businessUniqueId, period, website, trafficScope) : null),
     [businessUniqueId, period, website, trafficScope]
@@ -849,12 +851,12 @@ export function useGA4Analytics(
   const hasChannelsData = channelsData.length > 0
 
   const loadingState: GA4AnalyticsLoadingState = {
-    chart: dateQuery.isLoading,
-    goals: trackedCtaQuery.isLoading,
-    topSources: sourceMediumQuery.isLoading,
-    channels: channelGroupQuery.isLoading,
-    contentGroups: contentGroupQuery.isLoading,
-    topPages: pageQuery.isLoading,
+    chart: resolveGatedLoading(gate, dateQuery.isLoading),
+    goals: resolveGatedLoading(gate, trackedCtaQuery.isLoading),
+    topSources: resolveGatedLoading(gate, sourceMediumQuery.isLoading),
+    channels: resolveGatedLoading(gate, channelGroupQuery.isLoading),
+    contentGroups: resolveGatedLoading(gate, contentGroupQuery.isLoading),
+    topPages: resolveGatedLoading(gate, pageQuery.isLoading),
   }
 
   const isLoading = Object.values(loadingState).some(Boolean)
@@ -917,5 +919,6 @@ export function useGA4Analytics(
     hasTopPagesData,
     hasChannelsData,
     loadingState,
+    isConnectionBlocked: gate.isBlocked,
   }
 }

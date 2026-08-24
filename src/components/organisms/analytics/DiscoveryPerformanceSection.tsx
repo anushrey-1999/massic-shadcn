@@ -23,6 +23,7 @@ import { PositionDistributionCard } from "@/components/molecules/analytics/Posit
 import { AITrafficChartCard } from "@/components/molecules/analytics/AITrafficChartCard";
 import { LLMComparisonChart } from "@/components/molecules/analytics/LLMComparisonChart";
 import { ContentGroupsIcon } from "@/components/molecules/analytics/ContentGroupsIcon";
+import { ConnectGoogleInlineNotice } from "@/components/molecules/ConnectGoogleEmptyState";
 import {
   useGSCAnalytics,
   type TableFilterType,
@@ -151,6 +152,7 @@ const DiscoveryPerformanceSection = ({
     normalizedSourcesData,
     metricsForCard,
     isLoading: isLoadingAI,
+    isConnectionBlocked: isAISearchBlocked,
     hasChartData,
     hasSourcesData,
   } = useAISearchAnalytics(businessUniqueId, website, period);
@@ -718,22 +720,26 @@ const DiscoveryPerformanceSection = ({
           </Typography>
             </div>
 
-          <div className="grid grid-cols-2 gap-6 px-6 py-3">
-            <AITrafficChartCard
-              title="AI Search Traffic Over Time"
-              metrics={metricsForCard}
-              data={chartData}
-              isLoading={isLoadingAI}
-              hasData={hasChartData}
-            />
+          {isAISearchBlocked ? (
+            <ConnectGoogleInlineNotice requires={["ga4"]} />
+          ) : (
+            <div className="grid grid-cols-2 gap-6 px-6 py-3">
+              <AITrafficChartCard
+                title="AI Search Traffic Over Time"
+                metrics={metricsForCard}
+                data={chartData}
+                isLoading={isLoadingAI}
+                hasData={hasChartData}
+              />
 
-            <LLMComparisonChart
-              title="Relative search traffic across major LLMs"
-              data={llmDataWithIcons}
-              isLoading={isLoadingAI}
-              hasData={hasSourcesData}
-            />
-          </div>
+              <LLMComparisonChart
+                title="Relative search traffic across major LLMs"
+                data={llmDataWithIcons}
+                isLoading={isLoadingAI}
+                hasData={hasSourcesData}
+              />
+            </div>
+          )}
         </div>
       </div>
 

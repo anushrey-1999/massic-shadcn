@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { AxiosError } from "axios"
 import { api } from "./use-api"
+import { resolveGatedLoading, useGoogleDataGate } from "./use-business-connections"
 
 // ─── v1.3 Types ────────────────────────────────────────────────────────────────
 
@@ -349,6 +350,8 @@ interface UsePrimaryDriversReturn {
   data: PrimaryDriversResponse | null
   isLoading: boolean
   isFetching: boolean
+  /** Search Console is not connected for this business, so no request was made. */
+  isConnectionBlocked: boolean
   isError: boolean
   error: string | null
   refetch: () => Promise<void>
@@ -369,6 +372,8 @@ export function usePrimaryDrivers({
   includeAllCtas = false,
   enabled = true,
 }: UsePrimaryDriversOptions): UsePrimaryDriversReturn {
+  const gate = useGoogleDataGate(businessId, "gsc")
+
   const query = useQuery({
     queryKey: ["primary-drivers", businessId, startDate, endDate, includeAllCtas],
     queryFn: async () => {
@@ -395,7 +400,7 @@ export function usePrimaryDrivers({
 
       return response.data ?? null
     },
-    enabled: enabled && !!businessId && !!startDate && !!endDate,
+    enabled: gate.enabled && enabled && !!businessId && !!startDate && !!endDate,
     placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -403,8 +408,9 @@ export function usePrimaryDrivers({
 
   return {
     data: query.data ?? null,
-    isLoading: query.isLoading,
+    isLoading: resolveGatedLoading(gate, query.isLoading),
     isFetching: query.isFetching,
+    isConnectionBlocked: gate.isBlocked,
     isError: query.isError,
     error: query.error ? getErrorMessage(query.error) : null,
     refetch: async () => {

@@ -52,6 +52,10 @@ export interface BusinessProfile {
     [key: string]: any;
   };
   LinkedAuthId?: string | null;
+  /** GA4 property resolved from the PropertyIds table by Website. Empty string when GA4 is not linked. */
+  PropertyId?: string | null;
+  /** Set by the profile flow when the business explicitly has no physical locations. */
+  NoLocationExist?: boolean;
   IsActive?: boolean;
   isWhitelisted?: boolean;
   GscIngestionStatus?: 'queued' | 'in_progress' | 'completed' | 'failed' | 'skipped' | null;

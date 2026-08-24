@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { api } from "./use-api"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -153,6 +153,7 @@ export function useComputeHealthStatus(): UseComputeHealthStatusReturn {
 interface UseHealthStatusBatchReturn {
   statusMap:  Record<string, HealthStatusRow>  // keyed by business_id
   isLoading:  boolean
+  isFetching: boolean
   isError:    boolean
   error:      string | null
   refetch:    () => Promise<void>
@@ -182,6 +183,10 @@ export function useHealthStatusBatch(
     enabled: ids.length > 0,
     staleTime: 5 * 60 * 1000,
     gcTime:    10 * 60 * 1000,
+    // The key is the id list, so any dashboard filter change re-keys the query.
+    // Hold the previous rows so cards keep their badges instead of flashing
+    // through an empty statusMap while the new batch is in flight.
+    placeholderData: keepPreviousData,
   })
 
   // Index by business_id for O(1) lookup in card rendering
@@ -192,9 +197,10 @@ export function useHealthStatusBatch(
 
   return {
     statusMap,
-    isLoading: query.isLoading,
-    isError:   query.isError,
-    error:     query.error ? String(query.error) : null,
-    refetch:   async () => { await query.refetch() },
+    isLoading:  query.isLoading,
+    isFetching: query.isFetching,
+    isError:    query.isError,
+    error:      query.error ? String(query.error) : null,
+    refetch:    async () => { await query.refetch() },
   }
 }

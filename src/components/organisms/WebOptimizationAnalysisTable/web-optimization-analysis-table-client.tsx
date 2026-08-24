@@ -7,6 +7,7 @@ import { parseAsStringEnum } from "nuqs";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useWebOptimizationAnalysis } from "@/hooks/use-web-optimization-analysis";
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
 import type { WebOptimizationAnalysisRow } from "@/types/web-optimization-analysis-types";
 import { WebOptimizationAnalysisTable } from "./web-optimization-analysis-table";
@@ -180,9 +181,11 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
     return status === 400 || status === 404;
   }, [queryState?.error]);
 
+  const gate = useGoogleDataGate(businessId, "gsc");
+
   const {
     data: allRows,
-    isLoading,
+    isLoading: isQueryLoading,
     isFetching,
     isError,
     error,
@@ -198,8 +201,10 @@ export function WebOptimizationAnalysisTableClient({ businessId, onSplitViewChan
     refetchOnMount: false, // Don't refetch on mount if data exists
     refetchOnWindowFocus: false, // Don't refetch on window focus
     refetchOnReconnect: false, // Don't refetch on network reconnect
-    enabled: !!businessId && !has400Or404Error, // Disable query if we have a 400/404 error
+    enabled: gate.enabled && !!businessId && !has400Or404Error, // Disable query if we have a 400/404 error
   });
+
+  const isLoading = resolveGatedLoading(gate, isQueryLoading);
 
   const filterFieldMapper = React.useMemo(() => {
     const columns = getWebOptimizationAnalysisTableColumns();

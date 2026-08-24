@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ConnectGoogleInlineNotice } from "@/components/molecules/ConnectGoogleEmptyState";
 import { useBusinessStore } from "@/store/business-store";
 import {
   ALL_GOALS_CONVERSION_EVENT,
@@ -200,10 +199,8 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
   });
 
   const overview = overviewQuery.data?.data;
-  const isConnectionBlocked = eventsQuery.isConnectionBlocked;
   const isLoading = eventsQuery.isLoading || overviewQuery.isLoading;
-  const hasError =
-    !isConnectionBlocked && (eventsQuery.isError || overviewQuery.isError);
+  const hasError = eventsQuery.isError || overviewQuery.isError;
   const tagline = overview?.story.tagline.trim();
 
   return (
@@ -243,9 +240,7 @@ const ConversionOverviewSection = ({ period = "3 months" }: ConversionOverviewSe
           </div>
         </div>
 
-        {isConnectionBlocked ? (
-          <ConnectGoogleInlineNotice requires={["ga4"]} />
-        ) : hasError ? (
+        {hasError ? (
           <Card className="m-3 rounded-[8px] border-[#e5e5e5] px-6 py-5 text-sm text-[#737373] shadow-sm">
             Unable to load conversion overview right now.
           </Card>

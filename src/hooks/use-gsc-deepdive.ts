@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections";
 import { useMemo, useState, useCallback } from "react";
 import {
   sumMetrics,
@@ -88,6 +89,8 @@ export function useGscDeepdive(
   siteUrl: string | null,
   period: TimePeriodValue = "3 months"
 ) {
+  const gate = useGoogleDataGate(businessId, "gsc");
+
   // Filter states
   const [contentGroupsFilter, setContentGroupsFilter] = useState<TableFilterType>("popular");
   const [topPagesFilter, setTopPagesFilter] = useState<TableFilterType>("popular");
@@ -112,7 +115,7 @@ export function useGscDeepdive(
       );
       return response;
     },
-    enabled: !!businessId && !!siteUrl,
+    enabled: gate.enabled && !!businessId && !!siteUrl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -131,7 +134,7 @@ export function useGscDeepdive(
       );
       return response;
     },
-    enabled: !!businessId && !!siteUrl,
+    enabled: gate.enabled && !!businessId && !!siteUrl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -150,7 +153,7 @@ export function useGscDeepdive(
       );
       return response;
     },
-    enabled: !!businessId && !!siteUrl,
+    enabled: gate.enabled && !!businessId && !!siteUrl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -168,7 +171,7 @@ export function useGscDeepdive(
       );
       return response;
     },
-    enabled: !!businessId && !!siteUrl,
+    enabled: gate.enabled && !!businessId && !!siteUrl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -456,7 +459,10 @@ export function useGscDeepdive(
     }));
   }, [positionChartData]);
 
-  const isLoading = isLoadingDate || isLoadingPages || isLoadingQueries || isLoadingPositions;
+  const isLoading = resolveGatedLoading(
+    gate,
+    isLoadingDate || isLoadingPages || isLoadingQueries || isLoadingPositions
+  );
   const hasContentGroupsData = contentGroupsRawData.length > 0;
   const hasTopPagesData = topPagesRawData.length > 0;
   const hasTopQueriesData = topQueriesRawData.length > 0;
@@ -494,6 +500,7 @@ export function useGscDeepdive(
     positionChartData: normalizedPositionData,
     positionMetrics,
     isLoading,
+    isConnectionBlocked: gate.isBlocked,
     formatNumber,
   };
 }

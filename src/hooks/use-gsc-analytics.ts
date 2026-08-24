@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections"
 import { useMemo, useState, useCallback, useEffect } from "react"
 import { calculateTrend } from "@/utils/gsc-deepdive-utils"
 import type { DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters"
@@ -728,10 +729,14 @@ export function useGSCAnalytics(
     }
   }, [ga4TrafficScope])
 
+  const gscGate = useGoogleDataGate(businessUniqueId, "gsc")
+  const ga4Gate = useGoogleDataGate(businessUniqueId, "ga4")
+
   const filtersQueryKey = useMemo(() => JSON.stringify(filters ?? []), [filters])
-  const enabled = Boolean(businessUniqueId && website)
+  const enabled = gscGate.enabled && Boolean(businessUniqueId && website)
   const queryFilterActive = useMemo(() => hasQueryFilter(filters), [filters])
-  const ga4Enabled = enabled && !queryFilterActive
+  const ga4Enabled =
+    ga4Gate.enabled && Boolean(businessUniqueId && website) && !queryFilterActive
   const basePayload = useMemo(
     () =>
       website
@@ -1228,12 +1233,16 @@ export function useGSCAnalytics(
   const hasTopPagesData = mergedTopPageRows.length > 0
   const hasTopQueriesData = topQueryRows.length > 0
 
+  const gscLoading = resolveGatedLoading(gscGate, gscBulkQuery.isLoading)
+  const ga4Loading = (isQueryLoading: boolean) =>
+    queryFilterActive ? false : resolveGatedLoading(ga4Gate, isQueryLoading)
+
   const loadingState: GSCAnalyticsLoadingState = {
-    chart: gscBulkQuery.isLoading || ga4DateQuery.isLoading,
-    funnel: gscBulkQuery.isLoading || ga4DateQuery.isLoading,
-    contentGroups: gscBulkQuery.isLoading || ga4ContentGroupsQuery.isLoading,
-    topPages: gscBulkQuery.isLoading || ga4TopPagesQuery.isLoading,
-    topQueries: gscBulkQuery.isLoading,
+    chart: gscLoading || ga4Loading(ga4DateQuery.isLoading),
+    funnel: gscLoading || ga4Loading(ga4DateQuery.isLoading),
+    contentGroups: gscLoading || ga4Loading(ga4ContentGroupsQuery.isLoading),
+    topPages: gscLoading || ga4Loading(ga4TopPagesQuery.isLoading),
+    topQueries: gscLoading,
   }
 
   const isLoading = Object.values(loadingState).some(Boolean)
@@ -1303,5 +1312,7 @@ export function useGSCAnalytics(
     hasTopPagesData,
     hasTopQueriesData,
     loadingState,
+    isConnectionBlocked: gscGate.isBlocked,
+    isGa4ConnectionBlocked: ga4Gate.isBlocked,
   }
 }

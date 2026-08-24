@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections";
 import { useMemo } from "react";
 import { sumMetrics, calculateTrend, type TrendResult } from "@/utils/gsc-deepdive-utils";
 import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
@@ -45,6 +46,8 @@ export function useGa4ChartData(
   period: TimePeriodValue = "3 months",
   filters: DeepdiveApiFilter[] = []
 ) {
+  const gate = useGoogleDataGate(businessId, "ga4");
+
   const { data: dateData, isLoading } = useQuery<Ga4V2Response>({
     queryKey: ["ga4-deepdive-date", businessId, siteUrl, period, filters],
     queryFn: async () => {
@@ -55,7 +58,7 @@ export function useGa4ChartData(
       );
       return response;
     },
-    enabled: !!businessId && !!siteUrl,
+    enabled: gate.enabled && !!businessId && !!siteUrl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -76,6 +79,7 @@ export function useGa4ChartData(
   return {
     chartData,
     keyEventsMetric,
-    isLoading,
+    isLoading: resolveGatedLoading(gate, isLoading),
+    isConnectionBlocked: gate.isBlocked,
   };
 }

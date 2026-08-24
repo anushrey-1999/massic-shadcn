@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useMemo } from "react"
 import { AxiosError } from "axios"
 import { api } from "@/hooks/use-api"
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections"
 import type { TimePeriodValue } from "@/hooks/use-gsc-analytics"
 
 interface MetricCompare {
@@ -72,6 +73,8 @@ export function useBrandedNonBranded(
   website: string | null,
   period: TimePeriodValue
 ) {
+  const gate = useGoogleDataGate(businessId, "gsc")
+
   const {
     data: apiData,
     isLoading,
@@ -81,14 +84,17 @@ export function useBrandedNonBranded(
   } = useQuery({
     queryKey: ["branded-nonbranded", businessId, website, period],
     queryFn: () => fetchBrandedNonBranded(businessId!, website!, period),
-    enabled: !!businessId && !!website,
+    enabled: gate.enabled && !!businessId && !!website,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   })
 
+  const isLoadingGated = resolveGatedLoading(gate, isLoading || isFetching)
+
   const status = useMemo<BrandedNonBrandedStatus>(() => {
     if (!businessId || !website) return "idle"
-    if (isLoading || isFetching) return "loading"
+    if (gate.isBlocked) return "gsc-not-connected"
+    if (isLoadingGated) return "loading"
     if (apiData?.code === "BRAND_TERMS_MISSING") return "brand-terms-missing"
     if (apiData?.code === "GSC_NOT_CONNECTED") return "gsc-not-connected"
     if (apiData?.err) return "error"
@@ -96,7 +102,7 @@ export function useBrandedNonBranded(
     if (!apiData?.branded?.Percentage && !apiData?.nonBranded?.Percentage) return "error"
 
     return "success"
-  }, [apiData, businessId, website, isLoading, isFetching])
+  }, [apiData, businessId, website, gate.isBlocked, isLoadingGated])
 
   const statusMessage = useMemo(() => {
     switch (status) {
@@ -143,10 +149,11 @@ export function useBrandedNonBranded(
     apiData,
     status,
     statusMessage,
-    isLoading: isLoading || isFetching,
+    isLoading: isLoadingGated,
     isError,
     error,
     brandedCard,
     nonBrandedCard,
+    isConnectionBlocked: gate.isBlocked,
   }
 }

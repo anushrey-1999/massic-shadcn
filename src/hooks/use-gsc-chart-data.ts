@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections";
 import { useMemo } from "react";
 import { sumMetrics, calculateTrend, type TrendResult } from "@/utils/gsc-deepdive-utils";
 import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
@@ -55,6 +56,8 @@ export function useGscChartData(
   period: TimePeriodValue = "3 months",
   filters: DeepdiveApiFilter[] = []
 ) {
+  const gate = useGoogleDataGate(businessId, "gsc");
+
   const { data: dateData, isLoading } = useQuery<GscV2Response>({
     queryKey: ["gsc-deepdive-date", businessId, siteUrl, period, filters],
     queryFn: async () => {
@@ -65,7 +68,7 @@ export function useGscChartData(
       );
       return response;
     },
-    enabled: !!businessId && !!siteUrl,
+    enabled: gate.enabled && !!businessId && !!siteUrl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -127,7 +130,8 @@ export function useGscChartData(
     normalizedChartData,
     impressionsMetric,
     clicksMetric,
-    isLoading,
+    isLoading: resolveGatedLoading(gate, isLoading),
+    isConnectionBlocked: gate.isBlocked,
     formatNumber,
   };
 }

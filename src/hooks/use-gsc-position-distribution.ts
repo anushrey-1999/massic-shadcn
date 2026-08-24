@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections";
 import { useMemo, useState, useCallback } from "react";
 import { calculateTrend } from "@/utils/gsc-deepdive-utils";
 import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
@@ -47,6 +48,7 @@ export function useGscPositionDistribution(
   period: TimePeriodValue = "3 months",
   apiFilters: DeepdiveApiFilter[] = []
 ) {
+  const gate = useGoogleDataGate(businessId, "gsc");
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     pos1_3: true,
     pos4_20: true,
@@ -64,7 +66,7 @@ export function useGscPositionDistribution(
       });
       return response;
     },
-    enabled: !!businessId && !!siteUrl,
+    enabled: gate.enabled && !!businessId && !!siteUrl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -152,7 +154,8 @@ export function useGscPositionDistribution(
     positionMetrics,
     visibleLines,
     handleLegendToggle,
-    isLoading,
+    isLoading: resolveGatedLoading(gate, isLoading),
+    isConnectionBlocked: gate.isBlocked,
     hasData: positionChartData.length > 0,
   };
 }

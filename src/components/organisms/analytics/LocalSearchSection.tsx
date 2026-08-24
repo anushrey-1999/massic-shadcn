@@ -8,6 +8,7 @@ import { DataTable, type SortConfig } from "@/components/molecules/analytics/Dat
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
 import { InteractionsChartCard } from "@/components/molecules/analytics/InteractionsChartCard";
 import { RatingCard } from "@/components/molecules/analytics/RatingCard";
+import { ConnectGoogleInlineNotice } from "@/components/molecules/ConnectGoogleEmptyState";
 import {
   useLocalPresence,
   type TimePeriodValue,
@@ -64,6 +65,7 @@ export function LocalSearchSection({
     queriesData,
     reviewsData,
     isLoading,
+    isConnectionBlocked,
     hasInteractionsData,
     hasQueriesData,
   } = useLocalPresence(businessUniqueId, period, activeLocation);
@@ -116,7 +118,11 @@ export function LocalSearchSection({
         )}
       </div>
 
-      {locations.length === 0 ? (
+      {isConnectionBlocked ? (
+        <div className="mt-6 rounded-lg border bg-white">
+          <ConnectGoogleInlineNotice requires={["gbp"]} />
+        </div>
+      ) : locations.length === 0 ? (
         <div className="flex items-center justify-center h-[200px] border rounded-lg bg-white mt-6">
           <p className="text-sm text-muted-foreground">
             No locations configured for this business

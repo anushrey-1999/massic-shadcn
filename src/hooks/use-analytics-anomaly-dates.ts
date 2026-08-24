@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections";
 
 export type AnalyticsAnomalyTier = "anomaly" | "candidate" | "normal";
 
@@ -52,6 +53,8 @@ export function useAnalyticsAnomalyDates(
   to: string | null | undefined,
   enabled = true
 ) {
+  const gate = useGoogleDataGate(businessId, "gsc");
+
   const query = businessId && from && to
     ? buildQuery({ businessId, from, to })
     : "";
@@ -65,14 +68,15 @@ export function useAnalyticsAnomalyDates(
       );
       return response.data || [];
     },
-    enabled: enabled && !!businessId && !!from && !!to,
+    enabled: gate.enabled && enabled && !!businessId && !!from && !!to,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
 
   return {
     anomalyDates: data || [],
-    isLoading,
+    isLoading: resolveGatedLoading(gate, isLoading),
+    isConnectionBlocked: gate.isBlocked,
     error: error ? String(error) : null,
     refetch,
   };

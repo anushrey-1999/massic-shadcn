@@ -5,15 +5,13 @@ export function useOverviewFunnelData(
   website: string | null,
   period: TimePeriodValue = "3 months"
 ) {
-  const { funnelChartItems, hasFunnelData, loadingState } = useGSCAnalytics(
-    businessUniqueId,
-    website,
-    period
-  )
+  const { funnelChartItems, hasFunnelData, loadingState, isConnectionBlocked } =
+    useGSCAnalytics(businessUniqueId, website, period)
 
   return {
     funnelChartItems,
     hasFunnelData,
     isLoading: loadingState.funnel,
+    isConnectionBlocked,
   }
 }

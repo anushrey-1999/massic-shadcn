@@ -7,6 +7,7 @@ import { DataTable, type DataTableRow } from "@/components/molecules/analytics/D
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
 import { SourceFavicon } from "@/components/molecules/analytics/SourceFavicon";
 import { SourcesChannelsChart } from "@/components/molecules/analytics/SourcesChannelsChart";
+import { ConnectGoogleInlineNotice } from "@/components/molecules/ConnectGoogleEmptyState";
 import {
   useGA4Analytics,
   type TimePeriodValue,
@@ -53,6 +54,7 @@ const SourcesSection = ({
     loadingState,
     hasTopSourcesData,
     hasChannelsData,
+    isConnectionBlocked,
   } = useGA4Analytics(businessUniqueId, website, period, ga4TrafficScope);
 
   const [topSourcesModalOpen, setTopSourcesModalOpen] = useState(false);
@@ -71,6 +73,20 @@ const SourcesSection = ({
     ),
     [ga4TrafficScope]
   );
+
+  if (isConnectionBlocked) {
+    return (
+      <div className="flex flex-col px-7 pb-10">
+        <div className="flex items-center gap-2 pb-6">
+          <ListChecks className="h-8 w-8 text-general-foreground" />
+          <Typography variant="h2">Sources</Typography>
+        </div>
+        <div className="rounded-lg border border-general-border bg-white">
+          <ConnectGoogleInlineNotice requires={["ga4"]} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col px-7 pb-10">

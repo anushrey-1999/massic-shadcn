@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Check,
@@ -32,7 +32,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import { SiteFavicon } from "@/components/organisms/WebChannels/platform-icon";
 import type {
   DashboardTag,
@@ -43,14 +42,15 @@ import { cn } from "@/lib/utils";
 
 type EditorMode = "list" | "create" | "edit";
 
-type DashboardTagControlsProps = {
+type DashboardTagsSheetProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Screen the sheet lands on each time it is opened. */
+  initialMode: "list" | "create";
   tags: DashboardTag[];
   profiles: BusinessProfile[];
-  selectedTagId: string | null;
-  onSelectedTagChange: (tagId: string | null) => void;
-  isLoading: boolean;
-  isError: boolean;
-  onRetry: () => void;
+  selectedTagIds: string[];
+  onSelectedTagIdsChange: (tagIds: string[]) => void;
   createTag: (input: DashboardTagInput) => Promise<DashboardTag>;
   updateTag: (variables: {
     tagId: string;
@@ -85,22 +85,21 @@ function sameBusinessIds(a: string[], b: string[]) {
   return b.every(id => aSet.has(id));
 }
 
-export function DashboardTagControls({
+export function DashboardTagsSheet({
+  open,
+  onOpenChange,
+  initialMode,
   tags,
   profiles,
-  selectedTagId,
-  onSelectedTagChange,
-  isLoading,
-  isError,
-  onRetry,
+  selectedTagIds,
+  onSelectedTagIdsChange,
   createTag,
   updateTag,
   deleteTag,
   isCreating,
   isUpdating,
   isDeleting,
-}: DashboardTagControlsProps) {
-  const [sheetOpen, setSheetOpen] = useState(false);
+}: DashboardTagsSheetProps) {
   const [mode, setMode] = useState<EditorMode>("list");
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tagName, setTagName] = useState("");
@@ -157,9 +156,9 @@ export function DashboardTagControls({
     setBusinessSearch("");
   };
 
-  const handleSheetOpenChange = (open: boolean) => {
-    setSheetOpen(open);
-    if (!open) resetToList();
+  const handleSheetOpenChange = (nextOpen: boolean) => {
+    onOpenChange(nextOpen);
+    if (!nextOpen) resetToList();
   };
 
   const openEditor = (tag?: DashboardTag) => {
@@ -169,6 +168,17 @@ export function DashboardTagControls({
     setSelectedBusinessIds(tag?.businessIds || []);
     setBusinessSearch("");
   };
+
+  // Apply `initialMode` on the open transition only, so re-renders while the
+  // sheet is open never yank the user back out of the editor.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      if (initialMode === "create") openEditor();
+      else resetToList();
+    }
+    wasOpenRef.current = open;
+  }, [open, initialMode]);
 
   const toggleBusiness = (businessId: string, checked: boolean) => {
     setSelectedBusinessIds(current => {
@@ -207,106 +217,15 @@ export function DashboardTagControls({
     if (!tagToDelete || isDeleting) return;
     const deletedId = tagToDelete.id;
     await deleteTag(deletedId);
-    if (selectedTagId === deletedId) onSelectedTagChange(null);
+    if (selectedTagIds.includes(deletedId)) {
+      onSelectedTagIdsChange(selectedTagIds.filter(id => id !== deletedId));
+    }
     setTagToDelete(null);
   };
 
   return (
     <>
-      <section
-        aria-label="Dashboard tags"
-        className="flex min-h-11 flex-wrap items-center gap-2 rounded-lg border border-border bg-white px-2 py-1.5 shadow-xs sm:flex-nowrap"
-      >
-        <div className="flex shrink-0 items-center gap-2 px-1 text-sm font-medium text-foreground">
-          <Tags className="size-4 text-muted-foreground" aria-hidden />
-          <span>Tags</span>
-        </div>
-        <div className="hidden h-5 w-px shrink-0 bg-border sm:block" aria-hidden />
-
-        {isLoading ? (
-          <div className="order-3 flex w-full min-w-0 flex-none items-center gap-2 px-1 sm:order-none sm:w-auto sm:flex-1">
-            <Skeleton className="h-7 w-24 rounded-md" />
-            <Skeleton className="h-7 w-20 rounded-md" />
-            <Skeleton className="h-7 w-28 rounded-md" />
-          </div>
-        ) : isError ? (
-          <div className="order-3 flex w-full min-w-0 flex-none items-center gap-2 px-1 text-sm text-muted-foreground sm:order-none sm:w-auto sm:flex-1">
-            <span>Tags are unavailable.</span>
-            <button
-              type="button"
-              onClick={onRetry}
-              className="cursor-pointer font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Retry
-            </button>
-          </div>
-        ) : (
-          <div className="order-3 flex w-full min-w-0 flex-none items-center gap-1.5 overflow-x-auto px-1 py-0.5 sm:order-none sm:w-auto sm:flex-1">
-            {tags.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => onSelectedTagChange(null)}
-                aria-pressed={selectedTagId === null}
-                className={cn(
-                  "inline-flex h-7 shrink-0 cursor-pointer items-center rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  selectedTagId === null
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                )}
-              >
-                All businesses
-              </button>
-            ) : null}
-            {tags.map(tag => {
-              const isSelected = tag.id === selectedTagId;
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => onSelectedTagChange(tag.id)}
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    isSelected
-                      ? "border-foreground bg-secondary text-foreground"
-                      : "border-border bg-white text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  )}
-                >
-                  <span>{tag.name}</span>
-                  <span
-                    className={cn(
-                      "inline-flex min-w-4 items-center justify-center rounded px-1 text-[10px] leading-4",
-                      isSelected ? "bg-foreground text-background" : "bg-secondary text-foreground"
-                    )}
-                  >
-                    {tag.businessCount}
-                  </span>
-                </button>
-              );
-            })}
-            {tags.length === 0 ? (
-              <span className="px-1 text-xs text-muted-foreground">No tags yet</span>
-            ) : null}
-          </div>
-        )}
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setSheetOpen(true);
-            if (tags.length === 0) openEditor();
-          }}
-          disabled={isLoading}
-          className="ml-auto shrink-0"
-        >
-          {tags.length === 0 ? <Plus /> : <Tag />}
-          {tags.length === 0 ? "Create tag" : "Manage"}
-        </Button>
-      </section>
-
-      <Sheet open={sheetOpen} onOpenChange={handleSheetOpenChange}>
+      <Sheet open={open} onOpenChange={handleSheetOpenChange}>
         <SheetContent className="w-full gap-0 p-0 sm:max-w-[480px]">
           {mode === "list" ? (
             <>

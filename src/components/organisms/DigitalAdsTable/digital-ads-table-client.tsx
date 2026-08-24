@@ -11,6 +11,8 @@ import { useDigitalAds } from "@/hooks/use-digital-ads";
 import { useJobByBusinessId } from "@/hooks/use-jobs";
 import type { DigitalAdsMetrics, DigitalAdsRow } from "@/types/digital-ads-types";
 import type { ExtendedColumnFilter } from "@/types/data-table-types";
+import { downloadRowsAsCsv } from "@/lib/csv-export";
+import { fetchAllTableData } from "@/lib/fetch-all-table-data";
 
 interface DigitalAdsTableClientProps {
   businessId: string;
@@ -270,6 +272,21 @@ export function DigitalAdsTableClient({
     setSelectedRowId(null);
   }, []);
 
+  const handleDownloadCsv = React.useCallback(async () => {
+    const rows = await fetchAllTableData<DigitalAdsRow>((csvPage, csvPerPage) =>
+      fetchDigitalAds({
+        business_id: businessId,
+        page: csvPage,
+        perPage: csvPerPage,
+        search: search || undefined,
+        sort: sort || [],
+        filters: filters || [],
+        joinOperator: (joinOperator || "and") as "and" | "or",
+      })
+    );
+    downloadRowsAsCsv(rows, "digital-ads-opportunities.csv");
+  }, [businessId, fetchDigitalAds, filters, joinOperator, search, sort]);
+
   const handleLeftTableRowSelect = React.useCallback((rowId: string) => {
     setSelectedRowId(rowId);
   }, []);
@@ -311,6 +328,7 @@ export function DigitalAdsTableClient({
         search={search}
         onSearchChange={setSearch}
         onRowClick={handleRowClick}
+        onDownloadCsv={handleDownloadCsv}
       />
     </div>
   );

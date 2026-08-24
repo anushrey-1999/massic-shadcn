@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { DataTable } from "@/components/molecules/analytics/DataTable";
 import { DataTableModal } from "@/components/molecules/analytics/DataTableModal";
-import { ConnectGoogleInlineNotice } from "@/components/molecules/ConnectGoogleEmptyState";
 // import { ClicksGoalsChartCard } from "@/components/molecules/analytics/ClicksGoalsChartCard";
 import {
   useGA4Analytics,
@@ -52,25 +51,10 @@ const ConversionSection = ({ period = "3 months", ga4TrafficScope = "all" }: Con
     handleGoalsSort,
     loadingState,
     hasGoalsData,
-    isConnectionBlocked,
   } = useGA4Analytics(businessUniqueId, website, period, ga4TrafficScope);
 
   const [goalsModalOpen, setGoalsModalOpen] = useState(false);
   const showGoalsLoader = loadingState.goals && !hasGoalsData;
-
-  if (isConnectionBlocked) {
-    return (
-      <div className="px-7 pb-10">
-        <div className="flex items-center gap-2 pb-6">
-          <ChartNoAxesCombined className="h-8 w-8 text-general-foreground" />
-          <Typography variant="h2">Conversions</Typography>
-        </div>
-        <div className="rounded-lg border border-general-border bg-white">
-          <ConnectGoogleInlineNotice requires={["ga4"]} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="px-7 pb-10">

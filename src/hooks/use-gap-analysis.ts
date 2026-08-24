@@ -28,7 +28,6 @@ export type GapAnalysisStatus =
   | "success"
   | "not-found"
   | "no-data"
-  | "not-connected"
   | "error"
 
 export interface MetricCardData {
@@ -242,7 +241,9 @@ export function useGapAnalysis(businessId: string | null) {
 
   const status = useMemo<GapAnalysisStatus>(() => {
     if (!businessId) return "idle"
-    if (gate.isBlocked) return "not-connected"
+    // Blocked means Search Console is not connected: no request was made, so
+    // there is nothing to show rather than something to retry.
+    if (gate.isBlocked) return "no-data"
     if (isLoadingGated) return "loading"
     if (isError) return "error"
     if (isNotFound) return "not-found"
@@ -260,8 +261,6 @@ export function useGapAnalysis(businessId: string | null) {
         return "Gap analysis not yet available for this business."
       case "no-data":
         return "No gap analysis data available yet. Check back later."
-      case "not-connected":
-        return "Connect Google Search Console to see gap analysis."
       case "error":
         return "Unable to load gap analysis. Please try again later."
       case "success":

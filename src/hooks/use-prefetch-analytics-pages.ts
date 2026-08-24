@@ -9,6 +9,7 @@ import { useBlogPagePlan } from "./use-blog-page-plan";
 import { useDigitalAds } from "./use-digital-ads";
 import { useAudience } from "./use-audience";
 import { useJobByBusinessId } from "./use-jobs";
+import { useBusinessConnections } from "./use-business-connections";
 import { getWorkflowStatus, isWorkflowSuccess } from "@/lib/workflow-status";
 
 export function usePrefetchAnalyticsPages(businessId: string | null) {
@@ -20,6 +21,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
   const { fetchDigitalAds } = useDigitalAds(businessId || "");
   const { fetchAudience } = useAudience(businessId || "");
   const { data: jobDetails } = useJobByBusinessId(businessId || null);
+  const { isGscConnected } = useBusinessConnections(businessId);
   const jobExists = jobDetails && jobDetails.job_id;
   const coreStatus = getWorkflowStatus(jobDetails, "core") ?? jobDetails?.workflow_status?.status;
   const isCoreSuccess = coreStatus === "success";
@@ -204,6 +206,9 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
     // Batch 3: Prefetch after 3 seconds (Web Optimization - least common)
     const batch3Timeout = setTimeout(async () => {
       if (isCancelled) return;
+      // Backed by Search Console: without a linked Google account the endpoint
+      // can only 400, so there is nothing worth warming.
+      if (!isGscConnected) return;
       const webOptimizationQueryKey = ["web-optimization-analysis-all", businessId];
       const webOptimizationCached = queryClient.getQueryData(webOptimizationQueryKey);
 
@@ -241,7 +246,7 @@ export function usePrefetchAnalyticsPages(businessId: string | null) {
       isCancelled = true;
       timeoutIds.forEach((id) => clearTimeout(id));
     };
-  }, [businessId, jobExists, queryClient, fetchStrategy, fetchSocial, fetchWebOptimizationAnalysisAll, fetchWebPages, fetchDigitalAds, fetchAudience]);
+  }, [businessId, jobExists, isGscConnected, queryClient, fetchStrategy, fetchSocial, fetchWebOptimizationAnalysisAll, fetchWebPages, fetchDigitalAds, fetchAudience]);
 
   return { prefetchPage1 };
 }

@@ -343,30 +343,6 @@ export function HomeFilterBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <FilterTrigger icon={History}>{selectedPeriodLabel}</FilterTrigger>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            sideOffset={6}
-            className={MENU_CONTENT_CLASS}
-          >
-            {HOME_PERIODS.map((option) => (
-              <DropdownMenuItem
-                key={option.value}
-                role="menuitemradio"
-                aria-checked={period === option.value}
-                onSelect={() => onPeriodChange(option.value)}
-                className={MENU_ITEM_CLASS}
-              >
-                <span className="truncate">{option.label}</span>
-                <MenuTrailing checked={period === option.value} />
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
         {tagsLoading ? (
           <Skeleton className="h-9 w-[104px] rounded-md" />
         ) : tagsError ? (
@@ -461,6 +437,30 @@ export function HomeFilterBar({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <FilterTrigger icon={History}>{selectedPeriodLabel}</FilterTrigger>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            sideOffset={6}
+            className={MENU_CONTENT_CLASS}
+          >
+            {HOME_PERIODS.map((option) => (
+              <DropdownMenuItem
+                key={option.value}
+                role="menuitemradio"
+                aria-checked={period === option.value}
+                onSelect={() => onPeriodChange(option.value)}
+                className={MENU_ITEM_CLASS}
+              >
+                <span className="truncate">{option.label}</span>
+                <MenuTrailing checked={period === option.value} />
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {hasActiveFilters ? (
           <button

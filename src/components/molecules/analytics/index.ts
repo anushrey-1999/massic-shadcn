@@ -16,6 +16,7 @@ export { AITrafficChartCard } from "./AITrafficChartCard"
 export { LLMComparisonChart } from "./LLMComparisonChart"
 export { InteractionsChartCard } from "./InteractionsChartCard"
 export {
+  ANALYTICS_TOOLBAR_BUTTON_CLASS,
   AnalyticsDisplayMenu,
   AnalyticsFilterMenu,
   AnalyticsNavigationMenu,

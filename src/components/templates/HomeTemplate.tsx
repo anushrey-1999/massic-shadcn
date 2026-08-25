@@ -436,13 +436,11 @@ export function HomeTemplate() {
     });
   }, [filteredActiveBusinesses, statusMap]);
 
-  const selectedSignalLabels = HOME_SIGNAL_FILTERS.filter((option) =>
+  const selectedHealthFilterOption = HOME_SIGNAL_FILTERS.find((option) =>
     selectedSignals.includes(option.value)
-  ).map((option) => option.label.toLowerCase());
-  const signalFilterEmptyDescription = selectedSignalLabels.length
-    ? `No active businesses match the ${selectedSignalLabels.join(" or ")} ${
-        selectedSignalLabels.length === 1 ? "filter" : "filters"
-      }`
+  );
+  const signalFilterEmptyDescription = selectedHealthFilterOption
+    ? `No active businesses match the ${selectedHealthFilterOption.label.toLowerCase()} filter`
     : "No active businesses match the current filters";
   // Health rows back both the signal filter and the card badges, so the board is
   // only ready once they land. Without this the first batch reads as "everything

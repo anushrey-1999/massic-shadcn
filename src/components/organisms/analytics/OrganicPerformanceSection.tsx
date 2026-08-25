@@ -13,7 +13,7 @@ import {
   AlertTriangle,
   Flag,
   Maximize2,
-  Megaphone,
+  CalendarClock,
   Minimize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -75,7 +75,8 @@ import {
   type AnomalyRun,
 } from "@/utils/analytics-anomaly-bands";
 import { AnomalyBandShape } from "@/components/molecules/analytics/AnomalyBand";
-import { CAMPAIGN_STATUS, CAMPAIGN_TYPE_LABELS } from "@/lib/campaign-impact";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CAMPAIGN_STATUS } from "@/lib/campaign-impact";
 import { captureCampaignImpactEvent } from "@/lib/analytics/posthog-client";
 import { cn } from "@/lib/utils";
 
@@ -99,6 +100,129 @@ function shiftDateKey(dateKey: string | null | undefined, days: number): string 
   date.setUTCDate(date.getUTCDate() + days);
 
   return date.toISOString().slice(0, 10);
+}
+
+function toDateKey(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const isoDay = value.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDay) return isoDay[1];
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function formatOverlayDate(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return dateKey;
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function formatOverlayDateRange(
+  startDate: string,
+  endDate?: string | null,
+  isRange = false
+): string {
+  const start = formatOverlayDate(startDate);
+  if (!isRange) return start;
+  if (!endDate) return `${start} –`;
+  const end = formatOverlayDate(endDate);
+  return start === end ? start : `${start} – ${end}`;
+}
+
+type TrackingOverlayMarker = {
+  key: string;
+  x: string;
+  title: string;
+  name: string;
+  id: string | null;
+  kind: "campaign" | "onboarded";
+};
+
+const OVERLAY_STACK_MAX = 4;
+const OVERLAY_LABEL_GAP_PERCENT = 12;
+const OVERLAY_LABEL_ROW_PX = 14;
+const OVERLAY_LINE_NUDGE_PX = 3;
+const OVERLAY_LABEL_CLASS =
+  "absolute top-1 max-w-40 truncate rounded-[4px] bg-white/90 px-1 py-px text-[10px] leading-[1.5] font-medium whitespace-nowrap text-primary shadow-xs ring-1 ring-border group-hover:bg-white";
+
+function TrackingOverlayHit({
+  title,
+  clickable,
+  className,
+  style,
+  onClick,
+  children,
+}: {
+  title: string;
+  clickable: boolean;
+  className: string;
+  style: React.CSSProperties;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const hitClassName = cn(
+    className,
+    "group cursor-pointer hover:z-20",
+    clickable ? "hover:border-primary" : "hover:border-primary/80"
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {clickable ? (
+          <button
+            type="button"
+            className={hitClassName}
+            style={style}
+            aria-label={title}
+            onClick={onClick}
+          >
+            {children}
+          </button>
+        ) : (
+          <div
+            className={hitClassName}
+            style={style}
+            aria-label={title}
+            role="img"
+          >
+            {children}
+          </div>
+        )}
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6} className="px-2 py-1 text-xs font-normal">
+        {title}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Lowest label row that does not collide with a nearby overlay already placed. */
+function assignProximityStacks<T extends { left: number }>(
+  items: T[],
+  minGapPercent = OVERLAY_LABEL_GAP_PERCENT,
+  maxStack = OVERLAY_STACK_MAX
+): Array<T & { stack: number }> {
+  const sorted = [...items].sort((a, b) => a.left - b.left);
+  const placed: Array<{ left: number; stack: number }> = [];
+
+  return sorted.map((item) => {
+    const used = new Set(
+      placed
+        .filter((other) => Math.abs(other.left - item.left) < minGapPercent)
+        .map((other) => other.stack)
+    );
+    let stack = 0;
+    while (used.has(stack) && stack < maxStack - 1) {
+      stack += 1;
+    }
+    placed.push({ left: item.left, stack });
+    return { ...item, stack };
+  });
 }
 
 function getMetricPayload(
@@ -243,10 +367,15 @@ export function OrganicPerformanceSection({
   const router = useRouter();
   const profiles = useBusinessStore((state) => state.profiles);
 
-  const { businessUniqueId, website, businessName } = useMemo(() => {
+  const { businessUniqueId, website, businessName, onboardedDateKey } = useMemo(() => {
     const match = pathname.match(/^\/business\/([^/]+)/);
     if (!match)
-      return { businessUniqueId: null, website: null, businessName: "" };
+      return {
+        businessUniqueId: null,
+        website: null,
+        businessName: "",
+        onboardedDateKey: null as string | null,
+      };
 
     const id = match[1];
     const profile = profiles.find((p) => p.UniqueId === id);
@@ -254,6 +383,7 @@ export function OrganicPerformanceSection({
       businessUniqueId: id,
       website: profile?.Website || null,
       businessName: profile?.Name || profile?.DisplayName || "",
+      onboardedDateKey: toDateKey(profile?.CreatedDateTime),
     };
   }, [pathname, profiles]);
 
@@ -308,9 +438,9 @@ export function OrganicPerformanceSection({
   const [brandedKeywordsModalOpen, setBrandedKeywordsModalOpen] = useState(false);
   // Overlays are opt-in per chart, so their data is only fetched once switched on.
   const [anomalyHighlightsOn, setAnomalyHighlightsOn] = useState(false);
-  const [campaignOverlaysOn, setCampaignOverlaysOn] = useState(false);
+  const [trackingOverlaysOn, setTrackingOverlaysOn] = useState(false);
   const showAnomalyHighlights = anomalyHighlightsOn && !isIngestionActive;
-  const showCampaignOverlays = campaignOverlaysOn;
+  const showTrackingOverlays = trackingOverlaysOn;
 
   const [visibleLinesLocal, setVisibleLinesLocal] = useState<
     Record<string, boolean>
@@ -420,16 +550,16 @@ export function OrganicPerformanceSection({
       ...(chartRanges.currentStart ? { from: chartRanges.currentStart } : {}),
       ...(chartRanges.currentEnd ? { to: chartRanges.currentEnd } : {}),
     },
-    showCampaignOverlays && Boolean(chartRanges.currentStart && chartRanges.currentEnd)
+    showTrackingOverlays && Boolean(chartRanges.currentStart && chartRanges.currentEnd)
   );
 
   const handleAnomalyHighlightsToggle = useCallback((enabled: boolean) => {
     setAnomalyHighlightsOn(enabled);
   }, []);
 
-  const handleCampaignOverlaysToggle = useCallback(
+  const handleTrackingOverlaysToggle = useCallback(
     (enabled: boolean) => {
-      setCampaignOverlaysOn(enabled);
+      setTrackingOverlaysOn(enabled);
       captureCampaignImpactEvent("campaign_overlay_toggled", {
         business_id: businessUniqueId || undefined,
         enabled,
@@ -489,16 +619,20 @@ export function OrganicPerformanceSection({
     return new Map(chartDataToRender.map((point) => [point.bucketKey, point.date]));
   }, [chartDataToRender]);
 
-  const campaignOverlayData = useMemo(() => {
-    if (!showCampaignOverlays || chartDataToRender.length === 0) return { bands: [], markers: [] };
+  const trackingOverlayData = useMemo(() => {
+    if (!showTrackingOverlays || chartDataToRender.length === 0) return { bands: [], markers: [] };
     const firstPoint = chartDataToRender[0];
     const lastPoint = chartDataToRender[chartDataToRender.length - 1];
     const firstDate = firstPoint.bucketStart || firstPoint.dateKey;
     const lastDate = lastPoint.bucketEnd || lastPoint.dateKey;
     if (!firstDate || !lastDate) return { bands: [], markers: [] };
-    const findBucketKey = (date: string) => {
-      if (date <= firstDate) return firstPoint.bucketKey;
-      if (date >= lastDate) return lastPoint.bucketKey;
+    const findBucketKey = (date: string, clamp = true) => {
+      if (clamp) {
+        if (date <= firstDate) return firstPoint.bucketKey;
+        if (date >= lastDate) return lastPoint.bucketKey;
+      } else if (date < firstDate || date > lastDate) {
+        return null;
+      }
       const point = chartDataToRender.find(item => {
         const start = item.bucketStart || item.dateKey;
         const end = item.bucketEnd || item.dateKey;
@@ -506,46 +640,77 @@ export function OrganicPerformanceSection({
       });
       return point?.bucketKey || null;
     };
-    const bands: Array<{ key: string; x1: string; x2: string; title: string; name: string; id: string; stack: number }> = [];
-    const markers: Array<{ key: string; x: string; title: string; name: string; id: string; stack: number }> = [];
-    const markerCounts = new Map<string, number>();
-    const bandCounts = new Map<string, number>();
+    const bands: Array<{ key: string; x1: string; x2: string; title: string; name: string; id: string }> = [];
+    const markers: TrackingOverlayMarker[] = [];
+
+    if (onboardedDateKey) {
+      const x = findBucketKey(onboardedDateKey, false);
+      if (x) {
+        markers.push({
+          key: "massic-onboarded",
+          x,
+          title: `Onboarded · ${formatOverlayDate(onboardedDateKey)}`,
+          name: "Onboarded",
+          id: null,
+          kind: "onboarded",
+        });
+      }
+    }
+
     for (const campaign of campaignOverlays.data || []) {
       const statusKey = campaign.status || "collecting_data";
-      const title = `${campaign.name} · ${CAMPAIGN_TYPE_LABELS[campaign.campaignType]} · ${campaign.startDate}${campaign.endDate ? ` to ${campaign.endDate}` : campaign.eventKind === "date_range" ? " onward" : ""} · ${CAMPAIGN_STATUS[statusKey].label}`;
+      const title = `${campaign.name} · ${formatOverlayDateRange(
+        campaign.startDate,
+        campaign.endDate,
+        campaign.eventKind === "date_range"
+      )}`;
       const isScheduledStartMarker = campaign.eventKind === "date_range" && !campaign.endDate && statusKey === "scheduled";
       if (campaign.eventKind === "one_time" || isScheduledStartMarker) {
         const x = findBucketKey(campaign.startDate);
         if (!x) continue;
-        const stack = markerCounts.get(x) || 0;
-        markerCounts.set(x, stack + 1);
-        markers.push({ key: campaign.id, x, title, name: campaign.name, id: campaign.id, stack });
+        markers.push({ key: campaign.id, x, title, name: campaign.name, id: campaign.id, kind: "campaign" });
       } else {
         const x1 = findBucketKey(campaign.startDate);
         const x2 = findBucketKey(campaign.endDate || lastDate);
         if (x1 && x2) {
-          const stack = bandCounts.get(x1) || 0;
-          bandCounts.set(x1, stack + 1);
-          bands.push({ key: campaign.id, x1, x2, title, name: campaign.name, id: campaign.id, stack });
+          bands.push({ key: campaign.id, x1, x2, title, name: campaign.name, id: campaign.id });
         }
       }
     }
     return { bands, markers };
-  }, [campaignOverlays.data, chartDataToRender, showCampaignOverlays]);
+  }, [campaignOverlays.data, chartDataToRender, onboardedDateKey, showTrackingOverlays]);
 
-  const campaignOverlayPositions = useMemo(() => {
+  const trackingOverlayPositions = useMemo(() => {
     const denominator = Math.max(chartDataToRender.length - 1, 1);
     const indexByBucket = new Map(chartDataToRender.map((point, index) => [point.bucketKey, index]));
     const position = (bucketKey: string) => ((indexByBucket.get(bucketKey) || 0) / denominator) * 100;
+    const bands = trackingOverlayData.bands.map(band => {
+      const left = position(band.x1);
+      const right = position(band.x2);
+      return { ...band, left, width: Math.max(right - left, 0.8) };
+    });
+    const markers = trackingOverlayData.markers.map(marker => ({
+      ...marker,
+      left: position(marker.x),
+    }));
+    const stackByKey = new Map(
+      assignProximityStacks([
+        ...bands.map((band) => ({ key: `band-${band.key}`, left: band.left })),
+        ...markers.map((marker) => ({ key: `marker-${marker.key}`, left: marker.left })),
+      ]).map((item) => [item.key, item.stack])
+    );
+
     return {
-      bands: campaignOverlayData.bands.map(band => {
-        const left = position(band.x1);
-        const right = position(band.x2);
-        return { ...band, left, width: Math.max(right - left, 0.8) };
-      }),
-      markers: campaignOverlayData.markers.map(marker => ({ ...marker, left: position(marker.x) })),
+      bands: bands.map((band) => ({
+        ...band,
+        stack: stackByKey.get(`band-${band.key}`) ?? 0,
+      })),
+      markers: markers.map((marker) => ({
+        ...marker,
+        stack: stackByKey.get(`marker-${marker.key}`) ?? 0,
+      })),
     };
-  }, [campaignOverlayData, chartDataToRender]);
+  }, [chartDataToRender, trackingOverlayData]);
 
   const chartLegendWithIcons = useMemo(() => {
     const iconConfig: Record<string, { icon: React.ReactNode; color: string }> =
@@ -1039,11 +1204,11 @@ export function OrganicPerformanceSection({
                       activeIconClassName="text-amber-600"
                     />
                     <ChartOverlayToggle
-                      icon={Megaphone}
-                      label="campaign overlays"
-                      active={showCampaignOverlays}
+                      icon={CalendarClock}
+                      label="tracking overlays"
+                      active={showTrackingOverlays}
                       loading={campaignOverlays.isLoading}
-                      onToggle={handleCampaignOverlaysToggle}
+                      onToggle={handleTrackingOverlaysToggle}
                       activeIconClassName="text-primary"
                     />
                   </div>
@@ -1055,43 +1220,61 @@ export function OrganicPerformanceSection({
                       : "relative h-[242px]"
                   }
                 >
-                  <div className="pointer-events-none absolute inset-x-2 bottom-6 top-3 z-10" aria-label="Campaign overlays">
-                    {campaignOverlayPositions.bands.map(band => (
-                      <button
+                  <div className="pointer-events-none absolute inset-x-2 bottom-6 top-3 z-10" aria-label="Tracking overlays">
+                    {trackingOverlayPositions.bands.map(band => (
+                      <TrackingOverlayHit
                         key={`campaign-band-${band.key}`}
-                        type="button"
-                        className="pointer-events-auto absolute bottom-0 top-0 overflow-visible border-l border-dashed border-primary/60 bg-primary/[0.07] text-left hover:bg-primary/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-                        style={{ left: `${band.left}%`, width: `${band.width}%` }}
                         title={band.title}
-                        aria-label={band.title}
+                        clickable
+                        className="pointer-events-auto absolute bottom-0 top-0 overflow-visible border-l border-dashed border-primary/60 bg-primary/[0.07] text-left hover:bg-primary/[0.10] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                        style={{
+                          left: `${band.left}%`,
+                          width: `${band.width}%`,
+                          transform: `translateX(${band.stack * OVERLAY_LINE_NUDGE_PX}px)`,
+                        }}
                         onClick={() => router.push(`/business/${businessUniqueId}/analytics/campaigns/${band.id}`)}
                       >
                         <span
-                          className="absolute top-1 max-w-40 truncate whitespace-nowrap text-[10px] font-medium text-primary"
-                          style={{ transform: `translateY(${band.stack * 14}px)`, ...(band.left > 75 ? { right: 4 } : { left: 4 }) }}
+                          className={OVERLAY_LABEL_CLASS}
+                          style={{
+                            transform: `translateY(${band.stack * OVERLAY_LABEL_ROW_PX}px)`,
+                            ...(band.left > 75 ? { right: 4 } : { left: 4 }),
+                          }}
                         >
                           {band.name}
                         </span>
-                      </button>
+                      </TrackingOverlayHit>
                     ))}
-                    {campaignOverlayPositions.markers.map(marker => (
-                      <button
-                        key={`campaign-marker-${marker.key}`}
-                        type="button"
-                        className="pointer-events-auto absolute bottom-0 top-0 w-2 -translate-x-1/2 border-l border-dashed border-primary text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
-                        style={{ left: `${marker.left}%`, borderLeftWidth: `${1 + Math.min(marker.stack, 2)}px` }}
-                        title={marker.title}
-                        aria-label={marker.title}
-                        onClick={() => router.push(`/business/${businessUniqueId}/analytics/campaigns/${marker.id}`)}
-                      >
-                        <span
-                          className="absolute top-1 max-w-40 truncate whitespace-nowrap text-[10px] font-medium text-primary"
-                          style={{ transform: `translateY(${marker.stack * 14}px)`, ...(marker.left > 75 ? { right: 4 } : { left: 4 }) }}
+                    {trackingOverlayPositions.markers.map(marker => {
+                      const isOnboarded = marker.kind === "onboarded" || !marker.id;
+                      return (
+                        <TrackingOverlayHit
+                          key={`tracking-marker-${marker.key}`}
+                          title={marker.title}
+                          clickable={!isOnboarded}
+                          className="pointer-events-auto absolute bottom-0 top-0 w-2 overflow-visible border-l border-dashed border-primary/80 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                          style={{
+                            left: `${marker.left}%`,
+                            transform: `translateX(calc(-50% + ${marker.stack * OVERLAY_LINE_NUDGE_PX}px))`,
+                          }}
+                          onClick={
+                            isOnboarded
+                              ? undefined
+                              : () => router.push(`/business/${businessUniqueId}/analytics/campaigns/${marker.id}`)
+                          }
                         >
-                          {marker.name}
-                        </span>
-                      </button>
-                    ))}
+                          <span
+                            className={OVERLAY_LABEL_CLASS}
+                            style={{
+                              transform: `translateY(${marker.stack * OVERLAY_LABEL_ROW_PX}px)`,
+                              ...(marker.left > 75 ? { right: 4 } : { left: 4 }),
+                            }}
+                          >
+                            {marker.name}
+                          </span>
+                        </TrackingOverlayHit>
+                      );
+                    })}
                   </div>
                   <ChartContainer
                     config={chartConfig}

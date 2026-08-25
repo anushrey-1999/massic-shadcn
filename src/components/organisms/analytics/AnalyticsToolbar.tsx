@@ -16,6 +16,9 @@ import { type AnalyticsMetricKey } from "@/utils/analytics-metrics";
 
 const DATA_READY_TOOLTIP = "Available once your data is ready";
 
+const TAB_TRIGGER_CLASS =
+  "text-general-foreground h-auto min-h-8 min-w-8 flex-1 gap-2 rounded-[10px] px-4 py-[5.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] data-[state=active]:bg-white data-[state=active]:shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)]";
+
 export type AnalyticsScope = "all" | "organic";
 
 interface AnalyticsToolbarProps {
@@ -85,23 +88,23 @@ export function AnalyticsToolbar({
   return (
     <div className="w-full max-w-[1224px] px-7">
       <div className="flex items-center justify-between gap-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-4">
           <Tabs className="gap-0" value={scope} onValueChange={onScopeChange}>
             <TabsList className="h-auto w-[206px] rounded-[12px] bg-general-border p-1">
-              <TabsTrigger
-                value="all"
-                className="min-h-8 rounded-[10px] px-4 py-[5.5px] text-sm leading-6 tracking-[0.07px]"
-              >
+              <TabsTrigger value="all" className={TAB_TRIGGER_CLASS}>
                 All
               </TabsTrigger>
-              <TabsTrigger
-                value="organic"
-                className="min-h-8 rounded-[10px] px-4 py-[5.5px] text-sm leading-6 tracking-[0.07px]"
-              >
+              <TabsTrigger value="organic" className={TAB_TRIGGER_CLASS}>
                 Organic
               </TabsTrigger>
             </TabsList>
           </Tabs>
+          <div
+            className="flex h-10 items-stretch px-0.5"
+            aria-hidden="true"
+          >
+            <div className="bg-general-border w-px" />
+          </div>
           {ga4ScopePath ? (
             <Badge
               variant="outline"
@@ -117,7 +120,7 @@ export function AnalyticsToolbar({
               <span className={isIngestionActive ? "inline-flex cursor-not-allowed" : "inline-flex"}>
                 <Button
                   size="sm"
-                  className="h-8 shrink-0 rounded-[6px] px-3 text-sm font-medium"
+                  className="h-auto min-h-10 shrink-0 rounded-[8px] px-6 py-[9.5px] text-sm leading-[1.5] font-medium tracking-[0.07px]"
                   onClick={onPrimaryDrivers}
                   disabled={primaryDriversDisabled || isIngestionActive}
                   style={isIngestionActive ? { pointerEvents: "none" } : undefined}
@@ -134,7 +137,7 @@ export function AnalyticsToolbar({
           </Tooltip>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-3">
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="inline-flex cursor-pointer items-center">{periodSelector}</div>

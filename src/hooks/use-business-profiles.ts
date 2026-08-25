@@ -138,7 +138,11 @@ export function usePitchBusinesses() {
 }
 
 export function useBusinessProfileById(businessUniqueId: string | null) {
-  const { setProfileDataByUniqueID } = useBusinessStore();
+  // Selector rather than a destructured store read: this hook is called from
+  // every gated analytics hook, so it must not re-render on unrelated store writes.
+  const setProfileDataByUniqueID = useBusinessStore(
+    (state) => state.setProfileDataByUniqueID
+  );
 
   const {
     data: profileData,

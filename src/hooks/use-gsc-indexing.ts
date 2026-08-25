@@ -5,6 +5,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
+import { useGoogleDataGate, withConnectionGate } from "@/hooks/use-business-connections"
 
 export interface IndexingPageRow {
   page_url: string
@@ -232,8 +233,9 @@ export function useIndexingSummary(
   website: string | null,
   range?: { from?: string; to?: string }
 ) {
-  const enabled = Boolean(businessUniqueId || website)
-  return useQuery<IndexingSummaryResult>({
+  const gate = useGoogleDataGate(businessUniqueId, "gsc")
+  const enabled = gate.enabled && Boolean(businessUniqueId || website)
+  const query = useQuery<IndexingSummaryResult>({
     queryKey: ["indexing-summary", businessUniqueId, website, range?.from, range?.to],
     queryFn: async () => {
       const res = await api.post<ApiEnvelope<IndexingSummaryResult>>(
@@ -247,6 +249,8 @@ export function useIndexingSummary(
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
+
+  return withConnectionGate(query, gate)
 }
 
 export function useIndexingPages(
@@ -254,8 +258,9 @@ export function useIndexingPages(
   website: string | null,
   params: IndexingPagesParams
 ) {
-  const enabled = Boolean(businessUniqueId || website)
-  return useQuery<IndexingPagesResult>({
+  const gate = useGoogleDataGate(businessUniqueId, "gsc")
+  const enabled = gate.enabled && Boolean(businessUniqueId || website)
+  const query = useQuery<IndexingPagesResult>({
     queryKey: ["indexing-pages", businessUniqueId, website, params],
     queryFn: async () => {
       const res = await api.post<ApiEnvelope<IndexingPagesResult>>(
@@ -270,6 +275,8 @@ export function useIndexingPages(
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
+
+  return withConnectionGate(query, gate)
 }
 
 export function useIndexingMovements(
@@ -277,8 +284,9 @@ export function useIndexingMovements(
   website: string | null,
   params: { limit?: number; offset?: number } = {}
 ) {
-  const enabled = Boolean(businessUniqueId || website)
-  return useQuery<IndexingMovementsResult>({
+  const gate = useGoogleDataGate(businessUniqueId, "gsc")
+  const enabled = gate.enabled && Boolean(businessUniqueId || website)
+  const query = useQuery<IndexingMovementsResult>({
     queryKey: ["indexing-movements", businessUniqueId, website, params],
     queryFn: async () => {
       const res = await api.post<ApiEnvelope<IndexingMovementsResult>>(
@@ -293,14 +301,17 @@ export function useIndexingMovements(
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
+
+  return withConnectionGate(query, gate)
 }
 
 export function useIndexingStatus(
   businessUniqueId: string | null,
   website: string | null
 ) {
-  const enabled = Boolean(businessUniqueId || website)
-  return useQuery<IndexingStatusResult>({
+  const gate = useGoogleDataGate(businessUniqueId, "gsc")
+  const enabled = gate.enabled && Boolean(businessUniqueId || website)
+  const query = useQuery<IndexingStatusResult>({
     queryKey: ["indexing-status", businessUniqueId, website],
     queryFn: async () => {
       const search = new URLSearchParams()
@@ -320,6 +331,8 @@ export function useIndexingStatus(
     },
     staleTime: 60 * 1000,
   })
+
+  return withConnectionGate(query, gate)
 }
 
 export function useTriggerIndexing(
@@ -349,7 +362,8 @@ export function useIndexingPageDetails(
   website: string | null,
   pageUrl: string | null
 ) {
-  return useQuery<IndexingPageDetailsResult>({
+  const gate = useGoogleDataGate(businessUniqueId, "gsc")
+  const query = useQuery<IndexingPageDetailsResult>({
     queryKey: ["indexing-page-details", businessUniqueId, pageUrl],
     queryFn: async () => {
       const res = await api.post<ApiEnvelope<IndexingPageDetailsResult>>(
@@ -359,8 +373,10 @@ export function useIndexingPageDetails(
       )
       return res.data
     },
-    enabled: Boolean(pageUrl && (businessUniqueId || website)),
+    enabled: gate.enabled && Boolean(pageUrl && (businessUniqueId || website)),
   })
+
+  return withConnectionGate(query, gate)
 }
 
 export function useExportIndexing(

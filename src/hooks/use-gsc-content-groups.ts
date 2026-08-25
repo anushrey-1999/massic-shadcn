@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections";
 import { useMemo, useState, useCallback } from "react";
 import { calculateTrend, type TrendResult } from "@/utils/gsc-deepdive-utils";
 import { type DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
@@ -25,6 +26,7 @@ export function useGscContentGroups(
   period: TimePeriodValue = "3 months",
   apiFilters: DeepdiveApiFilter[] = []
 ) {
+  const gate = useGoogleDataGate(businessId, "gsc");
   const [filter, setFilter] = useState<TableFilterType>("popular");
   const [sort, setSort] = useState<{ column: SortColumn; direction: SortDirection }>({
     column: "impressions",
@@ -44,7 +46,7 @@ export function useGscContentGroups(
       });
       return response;
     },
-    enabled: !!businessId && !!siteUrl,
+    enabled: gate.enabled && !!businessId && !!siteUrl,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -111,6 +113,7 @@ export function useGscContentGroups(
     handleFilterChange,
     handleSort,
     hasData: rawData.length > 0,
-    isLoading,
+    isLoading: resolveGatedLoading(gate, isLoading),
+    isConnectionBlocked: gate.isBlocked,
   };
 }

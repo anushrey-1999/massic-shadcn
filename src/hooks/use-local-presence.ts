@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections"
 import { useMemo } from "react"
 import type { TimePeriodValue } from "@/utils/analytics-period"
 
@@ -99,6 +100,8 @@ export function useLocalPresence(
   period: TimePeriodValue = "3 months",
   location: string = ""
 ) {
+  const gate = useGoogleDataGate(businessUniqueId, "gbp")
+
   const {
     data: rawData,
     isLoading,
@@ -123,7 +126,7 @@ export function useLocalPresence(
 
       return response.data
     },
-    enabled: !!businessUniqueId,
+    enabled: gate.enabled && !!businessUniqueId,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   })
@@ -220,7 +223,8 @@ export function useLocalPresence(
     interactionsMetric: interactionsData.metric,
     queriesData,
     reviewsData,
-    isLoading: isLoading || isFetching,
+    isLoading: resolveGatedLoading(gate, isLoading || isFetching),
+    isConnectionBlocked: gate.isBlocked,
     hasInteractionsData: interactionsData.chartData.length > 0,
     hasQueriesData: queriesData.length > 0,
     hasReviewsData: !!rawData?.reviews,

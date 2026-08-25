@@ -23,6 +23,19 @@ const DEFAULT_TIMEOUT_MS: Record<ApiPlatform, number> = {
 let refreshPromise: Promise<string | null> | null = null;
 let lastRefreshAttemptAtMs = 0;
 
+const isDevelopment = process.env.NODE_ENV !== "production";
+
+/**
+ * Diagnostic logging for failed requests.
+ *
+ * Development only: errors already propagate to React Query and the UI, so in
+ * production this would only clutter the browser console for end users.
+ */
+function logApiError(label: string, details: unknown): void {
+  if (!isDevelopment) return;
+  console.log(label, details);
+}
+
 async function refreshNodeAccessToken(currentToken: string): Promise<string | null> {
   const baseURL = getBaseURLByPlatform("node");
 
@@ -160,7 +173,7 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
         const shouldSuppress404 = status === 404 && silent404Endpoints.some(endpoint => url.includes(endpoint));
 
         if (!shouldSuppress404) {
-          console.log(`API Error [${platform}]:`, {
+          logApiError(`API Error [${platform}]:`, {
             status: error.response.status,
             statusText: error.response.statusText,
             data: error.response.data,
@@ -215,14 +228,13 @@ function createAxiosInstance(platform: ApiPlatform): AxiosInstance {
           errorInfo.possibleRootCauses = rootCause;
         }
 
-        // Log with diagnostic information
-        console.log(`API Request Error [${platform}]:`, {
+        logApiError(`API Request Error [${platform}]:`, {
           ...errorInfo,
           code: error.code,
           note: 'Request was sent but no response received. Check network tab for details.',
         });
       } else {
-        console.log(`API Error [${platform}]:`, error.message);
+        logApiError(`API Error [${platform}]:`, error.message);
       }
       return Promise.reject(error);
     }

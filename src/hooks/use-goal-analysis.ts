@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "./use-api"
+import { resolveGatedLoading, useGoogleDataGate } from "./use-business-connections"
 
 export type AnomalyTier = "anomaly" | "candidate" | "normal"
 export type BaselineStatus = "FULL" | "PARTIAL" | "NONE"
@@ -216,6 +217,8 @@ interface UseGoalAnalysisReturn {
   warningCount: number
   positiveCount: number
   isLoading: boolean
+  /** GA4 is not connected for this business, so no request was made. */
+  isConnectionBlocked: boolean
   error: string | null
   refetch: () => Promise<void>
 }
@@ -337,6 +340,8 @@ export function useGoalAnalysis(
   selectedDate: string | null = null,
   enabled = true
 ): UseGoalAnalysisReturn {
+  const gate = useGoogleDataGate(businessId, "ga4")
+
   const { data: rawData, isLoading, error, refetch } = useQuery({
     queryKey: ["goal-analysis", businessId, businessName, selectedDate],
     queryFn: async () => {
@@ -357,7 +362,7 @@ export function useGoalAnalysis(
       }
       throw new Error(response.message || "Failed to fetch goal analysis")
     },
-    enabled: enabled && !!businessId,
+    enabled: gate.enabled && enabled && !!businessId,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   })
@@ -385,7 +390,8 @@ export function useGoalAnalysis(
     criticalCount,
     warningCount,
     positiveCount,
-    isLoading,
+    isLoading: resolveGatedLoading(gate, isLoading),
+    isConnectionBlocked: gate.isBlocked,
     error: error ? String(error) : null,
     refetch: async () => { await refetch() },
   }

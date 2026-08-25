@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/hooks/use-api";
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections";
 import { useMemo, useState, useCallback } from "react";
 import type { TimePeriodValue } from "@/hooks/use-gsc-analytics";
 
@@ -74,6 +75,7 @@ export function useTotalQueries(
   website: string | null,
   period: TimePeriodValue = "3 months"
 ) {
+  const gate = useGoogleDataGate(businessUniqueId, "gsc");
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
     pos1_3: true,
     pos4_20: true,
@@ -99,7 +101,7 @@ export function useTotalQueries(
         site_url: website,
       });
     },
-    enabled: !!businessUniqueId && !!website,
+    enabled: gate.enabled && !!businessUniqueId && !!website,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
@@ -250,8 +252,9 @@ export function useTotalQueries(
     chartData,
     normalizedChartData,
     visibleLines,
-    isLoading,
+    isLoading: resolveGatedLoading(gate, isLoading),
     isFetching,
+    isConnectionBlocked: gate.isBlocked,
     error,
     hasData,
     refetch,

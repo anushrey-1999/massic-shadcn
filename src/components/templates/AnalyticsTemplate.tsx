@@ -24,6 +24,7 @@ import ConversionSection from "@/components/organisms/analytics/ConversionSectio
 import ConversionOverviewSection from "@/components/organisms/analytics/ConversionOverviewSection";
 import { Button } from "@/components/ui/button";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
+import { useBusinessConnections } from "@/hooks/use-business-connections";
 import { PlanModal } from "@/components/molecules/settings/PlanModal";
 import { useEntitlementGate } from "@/hooks/use-entitlement-gate";
 import { usePrefetchAnalyticsPages } from "@/hooks/use-prefetch-analytics-pages";
@@ -259,8 +260,11 @@ export function AnalyticsTemplate() {
       null) as Ga4IngestionStatus;
   const isBusinessActive =
     ((profileData as any)?.IsActive ?? (businessProfile as any)?.IsActive) !== false;
+  const { isGa4Connected } = useBusinessConnections(businessId);
   const ga4ScopeQuery = useGa4Scope(businessId, {
-    enabled: Boolean(businessId && !profileDataLoading && isBusinessActive),
+    enabled: Boolean(
+      businessId && !profileDataLoading && isBusinessActive && isGa4Connected
+    ),
   });
   const profileForGa4Scope = (profileData || businessProfile) as any;
   const ga4IngestionStatus = ga4ScopeQuery.data?.status ?? profileGa4Status;

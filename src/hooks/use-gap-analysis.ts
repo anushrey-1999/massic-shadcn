@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@/hooks/use-api"
+import { resolveGatedLoading, useGoogleDataGate } from "@/hooks/use-business-connections"
 import { useMemo } from "react"
 import { AxiosError } from "axios"
 
@@ -142,6 +143,8 @@ function isNotFoundResponse(data: GapAnalysisApiResponse | undefined): boolean {
 }
 
 export function useGapAnalysis(businessId: string | null) {
+  const gate = useGoogleDataGate(businessId, "gsc")
+
   const {
     data: apiData,
     isLoading,
@@ -151,7 +154,7 @@ export function useGapAnalysis(businessId: string | null) {
   } = useQuery({
     queryKey: ["gap-analysis", businessId],
     queryFn: () => fetchGapAnalysis(businessId!),
-    enabled: !!businessId,
+    enabled: gate.enabled && !!businessId,
     staleTime: 5 * 60 * 1000,
     retry: (failureCount, error) => {
       const axiosError = error as AxiosError
@@ -234,14 +237,19 @@ export function useGapAnalysis(businessId: string | null) {
     return Object.keys(apiData.history).length > 0
   }, [apiData, isNotFound])
 
+  const isLoadingGated = resolveGatedLoading(gate, isLoading || isFetching)
+
   const status = useMemo<GapAnalysisStatus>(() => {
     if (!businessId) return "idle"
-    if (isLoading || isFetching) return "loading"
+    // Blocked means Search Console is not connected: no request was made, so
+    // there is nothing to show rather than something to retry.
+    if (gate.isBlocked) return "no-data"
+    if (isLoadingGated) return "loading"
     if (isError) return "error"
     if (isNotFound) return "not-found"
     if (!hasData) return "no-data"
     return "success"
-  }, [businessId, isLoading, isFetching, isError, isNotFound, hasData])
+  }, [businessId, gate.isBlocked, isLoadingGated, isError, isNotFound, hasData])
 
   const statusMessage = useMemo(() => {
     switch (status) {
@@ -265,12 +273,13 @@ export function useGapAnalysis(businessId: string | null) {
   return {
     analyticsData,
     metricCards,
-    isLoading: isLoading || isFetching,
+    isLoading: isLoadingGated,
     isError,
     error,
     hasData,
     status,
     statusMessage,
     isNotFound,
+    isConnectionBlocked: gate.isBlocked,
   }
 }

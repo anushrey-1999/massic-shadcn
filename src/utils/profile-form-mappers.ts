@@ -13,6 +13,11 @@ import {
   resolvePrimaryLocationFormValue,
 } from "@/utils/primary-location";
 import { profileOfferingsToRows, type NormalizedProfileResult } from "@/utils/profile-result";
+import {
+  LOCATION_KINDS,
+  formatLocationLabel,
+  physicalLocations,
+} from "@/lib/business-locations";
 
 type LocationOption = {
   value: string;
@@ -419,11 +424,14 @@ export function mapProfileDataToFormValues(
     ? normalizeOfferingsToRows(jobDetails?.offerings)
     : [];
 
+  // Falls back to a physical address label; a GBP resource name can never resolve
+  // to a market option.
+  const firstPhysicalLocation = physicalLocations(profileData.Locations)[0];
   const primaryLocation = profileAny?.PrimaryLocation
     ? primaryLocationFromProfile(profileAny.PrimaryLocation, locationOptions)
-    : profileData.Locations?.[0]
+    : firstPhysicalLocation
       ? resolvePrimaryLocationFormValue(
-          String((profileData.Locations[0] as any).Name || ""),
+          formatLocationLabel(firstPhysicalLocation),
           locationOptions
         )
       : "";
@@ -441,13 +449,14 @@ export function mapProfileDataToFormValues(
       bio: person.bio || "",
     })
   );
-  const locationsList = parseArrayField<any>(profileData.Locations).map(
-    (location, index) => ({
-      name: location.DisplayName || location.Name || `Location ${index + 1}`,
-      address: location.Address1 || location.address || "",
-      timezone: location.TimeZone || location.timezone || "",
-    })
-  );
+  // Only physical addresses are editable here; linked GBP locations are managed
+  // from Settings and must not be pulled into this table.
+  const locationsList = physicalLocations(profileData.Locations).map((location, index) => ({
+    id: location.Id,
+    name: location.DisplayName || `Location ${index + 1}`,
+    address: location.Address?.Line1 || "",
+    timezone: location.TimeZone || "",
+  }));
   const jobLocationsList = mapJobLocationsToLocationRows(jobAny?.locations);
   const detailedLocationsList = parseArrayField<any>(profileAny.DetailedLocations) as NonNullable<
     BusinessInfoFormData["detailedLocations"]
@@ -649,11 +658,19 @@ export function buildBusinessProfilePayload(
       personDescription: stakeholder.title || "",
       bio: stakeholder.bio || "",
     })),
-    Locations: (values.locations || []).map((locationRow) => ({
-      Name: locationRow.name || "",
-      Address1: locationRow.address || "",
-      TimeZone: locationRow.timezone || "",
-    })),
+    // The profile page owns physical addresses only. Tagging entries as physical
+    // lets the API replace just that subset and keep linked GBP locations intact.
+    Locations: (values.locations || [])
+      .filter((locationRow) =>
+        Boolean(locationRow.name?.trim() || locationRow.address?.trim() || locationRow.timezone?.trim())
+      )
+      .map((locationRow) => ({
+        Id: locationRow.id,
+        Kind: LOCATION_KINDS.PHYSICAL,
+        DisplayName: locationRow.name?.trim() || null,
+        Address: { Line1: locationRow.address?.trim() || null },
+        TimeZone: locationRow.timezone?.trim() || null,
+      })),
     DetailedLocations: values.detailedLocations || null,
     StructuredLocations:
       autofillResult?.structuredLocations?.length

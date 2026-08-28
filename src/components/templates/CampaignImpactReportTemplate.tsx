@@ -173,7 +173,7 @@ export function CampaignImpactReportTemplate({ businessId, campaignId }: { busin
   const report = impact.data;
   const campaign = detail.data || report?.campaign;
   const businessName = profileData?.Name || "Business";
-  const locations = React.useMemo(() => campaignLocationOptions((profileData as { Locations?: Array<{ Name?: string; DisplayName?: string }> } | null)?.Locations), [profileData]);
+  const locations = React.useMemo(() => campaignLocationOptions(profileData?.Locations), [profileData]);
   const breadcrumbs = [{ label: "Home", href: "/" }, { label: businessName }, { label: "Analytics", href: `/business/${businessId}/analytics` }, { label: "Campaign Tracking", href: `/business/${businessId}/analytics/campaigns` }, { label: campaign?.name || "Impact report" }];
   const snapshots = detail.data?.snapshots || [];
 

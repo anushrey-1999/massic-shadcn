@@ -173,11 +173,6 @@ export function CustomSelect({
                       onSelect={() => {
                         handleSelect(option.value);
                       }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleSelect(option.value);
-                      }}
                       className="cursor-pointer flex items-center overflow-hidden"
                     >
                       <div

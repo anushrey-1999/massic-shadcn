@@ -1,9 +1,7 @@
 import { create } from "zustand";
+import type { BusinessLocation } from "@/lib/business-locations";
 
-export interface BusinessLocation {
-  Name: string;
-  DisplayName: string;
-}
+export type { BusinessLocation };
 
 export interface BusinessProfile {
   UniqueId: string;
@@ -88,6 +86,8 @@ export type StakeholderRow = {
 };
 
 export type LocationRow = {
+  /** Stable id of the underlying physical location entry; absent for newly added rows. */
+  id?: string;
   name: string;
   address: string;
   timezone: string;

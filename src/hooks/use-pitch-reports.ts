@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { api } from "@/hooks/use-api";
+import { physicalLocations } from "@/lib/business-locations";
 import { cleanEscapedContent } from "@/utils/content-cleaner";
 import {
   normalizeSeoSnapshotReport,
@@ -164,10 +165,13 @@ export function buildSeoSnapshotRequestBodyFromBusinessProfile(profile: unknown)
     })
   );
 
+  // Only a physical address describes where the business operates; a GBP entry
+  // would contribute its Google resource name. The lowercase `locations` fallback is
+  // the job API's own shape, which has no GBP entries to exclude.
   const locationOverride =
     extractLocationLabel(profile.PrimaryLocation) ||
     extractLocationLabel(profile.primaryLocation) ||
-    (Array.isArray(profile.Locations) ? extractLocationLabel(profile.Locations[0]) : "") ||
+    extractLocationLabel(physicalLocations(profile.Locations)[0]) ||
     (Array.isArray(profile.locations) ? extractLocationLabel(profile.locations[0]) : "");
 
   const gbpUrl = extractGbpUrl(profile);

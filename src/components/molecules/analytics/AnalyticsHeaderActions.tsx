@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, ListChecks, Megaphone, MoreHorizontal, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, ListChecks, Megaphone, MoreVertical, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -61,8 +61,13 @@ function ActiveCountBadge({ count }: { count: number }) {
   );
 }
 
-const TOOLBAR_BUTTON_CLASS =
-  "h-8 shrink-0 gap-1.5 rounded-[6px] border-general-border bg-transparent px-3 text-sm font-medium text-general-foreground hover:bg-muted/40";
+/** Outline toolbar control: 36px tall, 8px radius, 16px pad, 13.25px icons. */
+export const ANALYTICS_TOOLBAR_BUTTON_CLASS =
+  "h-auto min-h-9 shrink-0 gap-2 rounded-[8px] border-general-border-three bg-white px-4 py-[7.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] text-general-muted-foreground shadow-none hover:bg-muted/40 hover:text-general-muted-foreground [&_svg]:size-[13.25px] [&_svg]:shrink-0 [&_svg]:text-general-muted-foreground";
+
+const TOOLBAR_BUTTON_CLASS = ANALYTICS_TOOLBAR_BUTTON_CLASS;
+
+const TOOLBAR_ICON_CLASS = "size-[13.25px] shrink-0";
 
 interface AnalyticsNavigationMenuProps {
   onViewReports: () => void;
@@ -91,7 +96,7 @@ export function AnalyticsNavigationMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className={TOOLBAR_BUTTON_CLASS}>
-          <MoreHorizontal className="size-3.5" />
+          <MoreVertical className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
           More
         </Button>
       </DropdownMenuTrigger>
@@ -164,7 +169,7 @@ export function AnalyticsFilterMenu({
               disabled
               style={{ pointerEvents: "none" }}
             >
-              <FilterIcon className="h-3.5 w-3.5" />
+              <FilterIcon className={TOOLBAR_ICON_CLASS} />
               Filters
             </Button>
           </span>
@@ -184,7 +189,7 @@ export function AnalyticsFilterMenu({
           size="sm"
           className={cn(TOOLBAR_BUTTON_CLASS, activeCount > 0 && "border-general-border-three bg-general-secondary")}
         >
-          <FilterIcon className="h-3.5 w-3.5" />
+          <FilterIcon className={TOOLBAR_ICON_CLASS} />
           Filters
           <ActiveCountBadge count={activeCount} />
         </Button>
@@ -224,7 +229,7 @@ interface AnalyticsDisplayMenuProps {
 /**
  * Chart series visibility. Each line pairs its plotted color with a text label,
  * replacing the color-only icon buttons the toolbar used before. Overlay layers
- * (anomalies, campaigns) are toggled on the chart itself, not from here.
+ * (anomalies, tracking) are toggled on the chart itself, not from here.
  */
 export function AnalyticsDisplayMenu({
   metricKeys,
@@ -252,7 +257,7 @@ export function AnalyticsDisplayMenu({
               disabled
               style={{ pointerEvents: "none" }}
             >
-              <SlidersHorizontal className="size-3.5" />
+              <SlidersHorizontal className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
               Display
             </Button>
           </span>
@@ -272,7 +277,7 @@ export function AnalyticsDisplayMenu({
           size="sm"
           className={cn(TOOLBAR_BUTTON_CLASS, activeCount > 0 && "border-general-border-three bg-general-secondary")}
         >
-          <SlidersHorizontal className="size-3.5" />
+          <SlidersHorizontal className={TOOLBAR_ICON_CLASS} strokeWidth={1.5} />
           Display
           <ActiveCountBadge count={activeCount} />
         </Button>

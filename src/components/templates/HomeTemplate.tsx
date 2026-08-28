@@ -1,21 +1,13 @@
 "use client";
 
-import { useMemo, useState, useId, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useAuthStore } from "@/store/auth-store";
 import { useBusinessProfiles } from "@/hooks/use-business-profiles";
 import {
@@ -23,6 +15,7 @@ import {
   type BusinessPreviewItem,
 } from "@/hooks/use-business-previews";
 import { useGoogleAccounts } from "@/hooks/use-google-accounts";
+import { useDashboardTags } from "@/hooks/use-dashboard-tags";
 import {
   useHealthStatusBatch,
   type HealthStatusRow,
@@ -34,6 +27,15 @@ import { BusinessPreviewCard } from "@/components/molecules/home/BusinessPreview
 import { OnboardingCard } from "@/components/molecules/home/OnboardingCard";
 import { Typography } from "@/components/ui/typography";
 import { EmptyState } from "@/components/molecules/EmptyState";
+import {
+  HOME_PERIODS,
+  HOME_SIGNAL_FILTERS,
+  HomeFilterBar,
+  HomePeriodSelector,
+  type HomePeriodValue,
+  type HomeSignalCounts,
+  type HomeSignalFilterValue,
+} from "@/components/molecules/home/HomeFilterBar";
 
 type PreviewGraphRow = {
   keys?: [string];
@@ -116,61 +118,7 @@ function getGreetingName(user: any) {
   );
 }
 
-const HOME_PERIODS = [
-  { label: "7 Days", value: "7 days" },
-  { label: "14 Days", value: "14 days" },
-  { label: "28 Days", value: "28 days" },
-  { label: "3 Months", value: "3 months" },
-  { label: "6 Months", value: "6 months" },
-  { label: "12 Months", value: "12 months" },
-] as const;
-
-const HOME_HEALTH_FILTERS = [
-  {
-    value: "all",
-    label: "All",
-    dotClassName: "",
-    activeClassName:
-      "border border-[#9CC3B0] bg-[#3E6F61] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.55)_inset]",
-    inactiveClassName: "border border-transparent bg-[#EEF3F1] text-[#3E6F61]",
-    countClassName: "text-white/85",
-  },
-  {
-    value: "red",
-    label: "Check",
-    dotClassName: "bg-[#E24B4A]",
-    activeClassName: "border border-[#F4B8B8] bg-[#FDECEC] text-[#E24B4A]",
-    inactiveClassName: "border border-transparent bg-[#FDECEC] text-[#E24B4A]",
-    countClassName: "text-[#E24B4A]/80",
-  },
-  {
-    value: "amber",
-    label: "Dip",
-    dotClassName: "bg-[#D88A10]",
-    activeClassName: "border border-[#F7D496] bg-[#FFF3D8] text-[#D88A10]",
-    inactiveClassName: "border border-transparent bg-[#FFF3D8] text-[#D88A10]",
-    countClassName: "text-[#D88A10]/80",
-  },
-  {
-    value: "gray",
-    label: "No Signal",
-    dotClassName: "bg-[#708091]",
-    activeClassName: "border border-[#DBDEE3] bg-[#ECEFF2] text-[#708091]",
-    inactiveClassName: "border border-transparent bg-[#ECEFF2] text-[#708091]",
-    countClassName: "text-[#708091]/80",
-  },
-  {
-    value: "green",
-    label: "Strong",
-    dotClassName: "bg-[#639922]",
-    activeClassName: "border border-[#D7E8BF] bg-[#EEF6E4] text-[#639922]",
-    inactiveClassName: "border border-transparent bg-[#EEF6E4] text-[#639922]",
-    countClassName: "text-[#639922]/80",
-  },
-] as const;
-
 const HOME_SECTIONS_STORAGE_KEY = "home:sections";
-type HomeHealthFilterValue = (typeof HOME_HEALTH_FILTERS)[number]["value"];
 
 function parseStoredHomeSections(value: string | null) {
   if (!value) return null;
@@ -190,14 +138,13 @@ export function HomeTemplate() {
   const router = useRouter();
   const { user } = useAuthStore();
   const greetingName = getGreetingName(user);
-  const showActiveId = useId();
-  const showOnboardingId = useId();
 
   const [search, setSearch] = useState("");
-  const [period, setPeriod] =
-    useState<(typeof HOME_PERIODS)[number]["value"]>("3 months");
-  const [healthFilter, setHealthFilter] =
-    useState<HomeHealthFilterValue>("all");
+  const [period, setPeriod] = useState<HomePeriodValue>("3 months");
+  const [selectedSignals, setSelectedSignals] = useState<
+    HomeSignalFilterValue[]
+  >([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   // Default to nothing selected on first render to avoid briefly showing the wrong
   // selection before localStorage is read.
   const [showActive, setShowActive] = useState(false);
@@ -232,6 +179,17 @@ export function HomeTemplate() {
   const { profiles } = useBusinessProfiles();
   const { previews, isLoading: previewsLoading } = useBusinessPreviews(period);
   const { connectGoogleAccount } = useGoogleAccounts();
+  const dashboardTags = useDashboardTags();
+
+  // Drop selections for tags that disappeared (deleted elsewhere or refetched away).
+  useEffect(() => {
+    if (selectedTagIds.length === 0 || dashboardTags.isLoading) return;
+    const knownIds = new Set(dashboardTags.tags.map(tag => tag.id));
+    const stillValid = selectedTagIds.filter(id => knownIds.has(id));
+    if (stillValid.length !== selectedTagIds.length) {
+      setSelectedTagIds(stillValid);
+    }
+  }, [dashboardTags.isLoading, dashboardTags.tags, selectedTagIds]);
 
   const joined = useMemo(() => {
     const profileByUniqueId = new Map<
@@ -263,9 +221,35 @@ export function HomeTemplate() {
     });
   }, [previews, profiles]);
 
+  const selectedDashboardTags = useMemo(
+    () => dashboardTags.tags.filter(tag => selectedTagIds.includes(tag.id)),
+    [dashboardTags.tags, selectedTagIds]
+  );
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    // Several tags act as a union: a business matches if any selected tag holds it.
+    const taggedBusinessIds = selectedDashboardTags.length
+      ? new Set(selectedDashboardTags.flatMap(tag => tag.businessIds))
+      : null;
+
+    return joined.filter(item => {
+      if (
+        taggedBusinessIds &&
+        (!item.uniqueId || !taggedBusinessIds.has(item.uniqueId))
+      ) {
+        return false;
+      }
+      if (!query) return true;
+      return (
+        item.name.toLowerCase().includes(query) || item.domain.includes(query)
+      );
+    });
+  }, [joined, search, selectedDashboardTags]);
+
   const onboardingCandidates = useMemo(() => {
-    return joined.filter((item) => Boolean(item.uniqueId));
-  }, [joined]);
+    return filtered.filter((item) => Boolean(item.uniqueId));
+  }, [filtered]);
 
   const onboardingCandidateIds = useMemo(() => {
     const ids = onboardingCandidates
@@ -375,14 +359,6 @@ export function HomeTemplate() {
       .sort((a, b) => compareStrings(a.businessName, b.businessName));
   }, [onboardingCandidates, onboardingJobsByBusinessId]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return joined;
-    return joined.filter(
-      (x) => x.name.toLowerCase().includes(q) || x.domain.includes(q)
-    );
-  }, [joined, search]);
-
   const activeBusinesses = useMemo(() => {
     const active: typeof filtered = [];
 
@@ -414,22 +390,22 @@ export function HomeTemplate() {
     [activeBusinesses]
   );
 
-  const { statusMap } = useHealthStatusBatch(activeBusinessIds);
+  const { statusMap, isLoading: healthLoading } =
+    useHealthStatusBatch(activeBusinessIds);
 
   const filteredActiveBusinesses = useMemo(() => {
-    if (healthFilter === "all") return activeBusinesses;
+    if (selectedSignals.length === 0) return activeBusinesses;
+    const wanted = new Set<HomeSignalFilterValue>(selectedSignals);
     return activeBusinesses.filter(({ uniqueId }) => {
       const status = uniqueId ? statusMap[uniqueId] : undefined;
-      if (healthFilter === "gray") {
-        return !status?.health_color || status.health_color === "gray";
-      }
-      return status?.health_color === healthFilter;
+      // A missing or gray row both read as "No Signal" to the user.
+      const color = status?.health_color ?? "gray";
+      return wanted.has(color as HomeSignalFilterValue);
     });
-  }, [activeBusinesses, healthFilter, statusMap]);
+  }, [activeBusinesses, selectedSignals, statusMap]);
 
-  const healthFilterCounts = useMemo(() => {
-    const counts: Record<HomeHealthFilterValue, number> = {
-      all: activeBusinesses.length,
+  const healthFilterCounts = useMemo<HomeSignalCounts>(() => {
+    const counts: HomeSignalCounts = {
       red: 0,
       amber: 0,
       gray: 0,
@@ -461,11 +437,34 @@ export function HomeTemplate() {
     });
   }, [filteredActiveBusinesses, statusMap]);
 
-  const selectedHealthFilterOption =
-    HOME_HEALTH_FILTERS.find((option) => option.value === healthFilter) ??
-    HOME_HEALTH_FILTERS[0];
+  const selectedHealthFilterOption = HOME_SIGNAL_FILTERS.find((option) =>
+    selectedSignals.includes(option.value)
+  );
+  const signalFilterEmptyDescription = selectedHealthFilterOption
+    ? `No active businesses match the ${selectedHealthFilterOption.label.toLowerCase()} filter`
+    : "No active businesses match the current filters";
+  // Health rows back both the signal filter and the card badges, so the board is
+  // only ready once they land. Without this the first batch reads as "everything
+  // filtered out" and the empty state flashes in place of the skeletons.
+  const activeSectionLoading = previewsLoading || healthLoading;
   const isStatusFilterEmpty =
-    activeBusinesses.length > 0 && sortedActiveBusinesses.length === 0;
+    !activeSectionLoading &&
+    activeBusinesses.length > 0 &&
+    sortedActiveBusinesses.length === 0;
+  const selectedTagLabel =
+    selectedDashboardTags.length === 1
+      ? selectedDashboardTags[0].name
+      : "the selected tags";
+  const activeEmptyDescription = selectedDashboardTags.length
+    ? `No active businesses are assigned to ${selectedTagLabel}.`
+    : search.trim()
+      ? "No active businesses match your search."
+      : "Connect your business from Settings or create one manually.";
+  const onboardingEmptyDescription = selectedDashboardTags.length
+    ? `No onboarding businesses are assigned to ${selectedTagLabel}.`
+    : search.trim()
+      ? "No onboarding businesses match your search."
+      : "No onboarding businesses found.";
 
   const selectedCount = Number(showActive) + Number(showOnboarding);
   const showThreeColumnLayout = selectedCount === 2;
@@ -484,29 +483,15 @@ export function HomeTemplate() {
   return (
     <div className="bg-muted h-screen overflow-hidden">
       <div className="w-full max-w-[1224px] py-7 px-5 flex flex-col gap-5 h-full">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="text-3xl font-semibold tracking-tight">
             Hi, {greetingName}
           </h1>
 
-          <div className="flex items-center gap-2">
-            <Select
-              value={period}
-              onValueChange={(value) => setPeriod(value as any)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Period" />
-              </SelectTrigger>
-              <SelectContent align="end">
-                {HOME_PERIODS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+            <HomePeriodSelector period={period} onPeriodChange={setPeriod} />
 
-            <div className="relative w-[320px]">
+            <div className="relative min-w-[220px] flex-1 lg:w-[320px] lg:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={search}
@@ -527,73 +512,20 @@ export function HomeTemplate() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 rounded-full p-1">
-            {HOME_HEALTH_FILTERS.map((option) => {
-              const isActive = healthFilter === option.value;
-              const count = healthFilterCounts[option.value];
+        <HomeFilterBar
+          selectedSignals={selectedSignals}
+          onSelectedSignalsChange={setSelectedSignals}
+          signalCounts={healthFilterCounts}
+          showActive={showActive}
+          onShowActiveChange={setShowActive}
+          showOnboarding={showOnboarding}
+          onShowOnboardingChange={setShowOnboarding}
+          selectedTagIds={selectedTagIds}
+          onSelectedTagIdsChange={setSelectedTagIds}
+          profiles={profiles}
+          dashboardTags={dashboardTags}
+        />
 
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() =>
-                    setHealthFilter(option.value as HomeHealthFilterValue)
-                  }
-                  className={cn(
-                    "inline-flex h-8 cursor-pointer items-center gap-1 rounded-full px-3 text-[13px] font-medium whitespace-nowrap transition-colors",
-                    isActive ? option.activeClassName : option.inactiveClassName
-                  )}
-                >
-                  {option.value !== "all" ? (
-                    <span
-                      className={cn("h-2 w-2 rounded-full shrink-0", option.dotClassName)}
-                    />
-                  ) : null}
-                  <span>{option.label}</span>
-                  {option.value !== "all" ? (
-                    <span
-                      className={cn("text-[13px] font-medium", option.countClassName)}
-                    >
-                      {count}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center gap-4 bg-white px-3 py-2 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id={showActiveId}
-                checked={showActive}
-                onCheckedChange={(checked) => setShowActive(checked === true)}
-              />
-              <label
-                htmlFor={showActiveId}
-                className="text-sm font-medium cursor-pointer"
-              >
-                Active
-              </label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id={showOnboardingId}
-                checked={showOnboarding}
-                onCheckedChange={(checked) =>
-                  setShowOnboarding(checked === true)
-                }
-              />
-              <label
-                htmlFor={showOnboardingId}
-                className="text-sm font-medium cursor-pointer"
-              >
-                Onboarding
-              </label>
-            </div>
-          </div>
-        </div>
         {selectedCount === 0 && (
           <EmptyState
             title="No Data found"
@@ -613,7 +545,7 @@ export function HomeTemplate() {
                 </Typography>
 
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  {previewsLoading ? (
+                  {activeSectionLoading ? (
                     <div className="grid grid-cols-2 gap-2.5 overflow-y-auto flex-1">
                       {[1, 2, 3, 4].map((i) => (
                         <Card key={i} className="overflow-hidden">
@@ -635,29 +567,29 @@ export function HomeTemplate() {
                     </div>
                   ) : activeBusinesses.length === 0 ? (
                     <EmptyState
-                      title="No Data Found"
+                      title="No active businesses"
                       cardClassName="bg-white h-full flex items-center justify-center"
-                      description="Connect your business from Settings page or Create Manually"
-                      buttons={[
-                        {
-                          label: "Go to Settings",
-                          href: "/settings",
-                          variant: "outline",
-                          size: "lg",
-                        },
-                        {
-                          label: "Create Manually",
-                          href: "/create-business",
-                          variant: "outline",
-                          size: "lg",
-                        },
-                      ]}
+                      description={activeEmptyDescription}
+                      buttons={selectedDashboardTags.length || search.trim() ? undefined : [
+                          {
+                            label: "Go to Settings",
+                            href: "/settings",
+                            variant: "outline",
+                            size: "lg",
+                          },
+                          {
+                            label: "Create Manually",
+                            href: "/create-business",
+                            variant: "outline",
+                            size: "lg",
+                          },
+                        ]}
                       className="h-full"
                     />
                   ) : isStatusFilterEmpty ? (
                     <EmptyState
                       title="No matching clients"
-                      description={`No active businesses match the ${selectedHealthFilterOption.label.toLowerCase()} filter`}
+                      description={signalFilterEmptyDescription}
                       cardClassName="bg-white h-full flex items-center justify-center"
                       className="h-full"
                     />
@@ -727,8 +659,8 @@ export function HomeTemplate() {
                     </div>
                   ) : onboardingCards.length === 0 ? (
                     <EmptyState
-                      title="No Data Found"
-                      description="No onboarding businesses found"
+                      title="No onboarding businesses"
+                      description={onboardingEmptyDescription}
                       cardClassName="bg-general-primary-foreground h-full flex items-center justify-center"
                       className="h-full"
                     />
@@ -767,7 +699,7 @@ export function HomeTemplate() {
                 </Typography>
 
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  {previewsLoading ? (
+                  {activeSectionLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                       {[1, 2, 3, 4, 5, 6].map((i) => (
                         <Card key={i} className="overflow-hidden">
@@ -789,29 +721,29 @@ export function HomeTemplate() {
                     </div>
                   ) : activeBusinesses.length === 0 ? (
                     <EmptyState
-                      title="No Data Found"
-                      description="Connect your business from Settings page or Create Manually"
+                      title="No active businesses"
+                      description={activeEmptyDescription}
                       cardClassName="bg-white"
-                      buttons={[
-                        {
-                          label: "Go to Settings",
-                          href: "/settings",
-                          variant: "outline",
-                          size: "lg",
-                        },
-                        {
-                          label: "Create Manually",
-                          href: "/create-business",
-                          variant: "outline",
-                          size: "lg",
-                        },
-                      ]}
+                      buttons={selectedDashboardTags.length || search.trim() ? undefined : [
+                          {
+                            label: "Go to Settings",
+                            href: "/settings",
+                            variant: "outline",
+                            size: "lg",
+                          },
+                          {
+                            label: "Create Manually",
+                            href: "/create-business",
+                            variant: "outline",
+                            size: "lg",
+                          },
+                        ]}
                       className="h-full"
                     />
                   ) : isStatusFilterEmpty ? (
                     <EmptyState
                       title="No matching clients"
-                      description={`No active businesses match the ${selectedHealthFilterOption.label.toLowerCase()} filter`}
+                      description={signalFilterEmptyDescription}
                       cardClassName="bg-white"
                       className="h-full"
                     />
@@ -885,8 +817,8 @@ export function HomeTemplate() {
                     </div>
                   ) : onboardingCards.length === 0 ? (
                     <EmptyState
-                      title="No Data Found"
-                      description="No onboarding businesses found"
+                      title="No onboarding businesses"
+                      description={onboardingEmptyDescription}
                       cardClassName="bg-general-primary-foreground"
                       className="h-full"
                     />

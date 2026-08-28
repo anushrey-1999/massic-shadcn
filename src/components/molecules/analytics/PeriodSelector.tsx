@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Check, ChevronDown } from "lucide-react"
+import { Check, ChevronDown, History } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ANALYTICS_TOOLBAR_BUTTON_CLASS } from "@/components/molecules/analytics/AnalyticsHeaderActions"
 import { cn } from "@/lib/utils"
 import type { AnalyticsGroupBy } from "@/utils/analytics-chart-grouping"
 import {
@@ -171,19 +172,17 @@ export function PeriodSelector({
         <Button
           variant="outline"
           size="sm"
-          className={cn(
-            "h-8 w-auto justify-between rounded-[6px] border-general-border bg-white px-3 text-left font-normal",
-            className
-          )}
+          className={cn(ANALYTICS_TOOLBAR_BUTTON_CLASS, "w-auto", className)}
           disabled={disabled}
         >
-          <span className="truncate text-sm text-foreground">
+          <History className="size-[13.25px] shrink-0" strokeWidth={1.5} aria-hidden />
+          <span className="truncate">
             {triggerLabel}
             {showGroupBySelector && groupBy ? (
-              <span className="text-muted-foreground"> · by {groupBy}</span>
+              <span> · by {groupBy}</span>
             ) : null}
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <ChevronDown className="size-[13.25px] shrink-0" strokeWidth={1.5} aria-hidden />
         </Button>
       </PopoverTrigger>
 

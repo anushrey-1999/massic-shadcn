@@ -588,7 +588,7 @@ export function AnalyticsTemplate() {
               disabledGroupByOptions={ALL_GROUP_BY_OPTIONS.filter(
                 (option) => !availableGroupByOptions.includes(option)
               )}
-              className="h-8 w-auto cursor-pointer rounded-[6px] border-[#d4d4d4] bg-transparent px-3 text-sm font-medium tracking-[0.07px] shadow-none"
+              className="w-auto cursor-pointer"
               ingestionActive={isGscIngestionActive}
               disabled={isGa4DataBlocked}
             />

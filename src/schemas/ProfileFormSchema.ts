@@ -122,6 +122,8 @@ export const businessInfoSchema = z.object({
   locations: z
     .array(
       z.object({
+        // Carries the stable id of the stored physical location so edits keep their identity.
+        id: z.string().optional(),
         name: z.string().optional(),
         address: z.string().optional(),
         timezone: z.string().optional(),

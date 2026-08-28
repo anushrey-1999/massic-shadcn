@@ -123,10 +123,10 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const locations = React.useMemo(() => {
-    const raw = ((profileData as { Locations?: Array<{ Name?: string; DisplayName?: string }> } | null)?.Locations || []);
-    return campaignLocationOptions(raw);
-  }, [profileData]);
+  const locations = React.useMemo(
+    () => campaignLocationOptions(profileData?.Locations),
+    [profileData]
+  );
   const businessName = profileData?.Name || "Business";
   const breadcrumbs = [
     { label: "Home", href: "/" }, { label: businessName },

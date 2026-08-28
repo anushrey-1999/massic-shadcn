@@ -2,6 +2,7 @@ import { useMemo } from "react"
 
 import { useBusinessProfileById } from "@/hooks/use-business-profiles"
 import type { BusinessProfile } from "@/store/business-store"
+import { hasGbpLink } from "@/lib/business-locations"
 
 /**
  * Google integrations a business can have linked. Every Google-backed analytics
@@ -40,13 +41,6 @@ const DISCONNECTED: BusinessConnectionsState = {
   isResolved: false,
 }
 
-function hasNonEmptyLocations(locations: BusinessProfile["Locations"]): boolean {
-  if (!locations) return false
-  if (Array.isArray(locations)) return locations.length > 0
-  if (typeof locations === "object") return Object.keys(locations).length > 0
-  return Boolean(locations)
-}
-
 /**
  * Mirrors the Node API's `buildConnectionFlagsFromBusinessProfile`
  * (controllers/gsc/businessPreviewsDb.controller.js) so the client and server
@@ -62,8 +56,7 @@ export function deriveBusinessConnections(
   const linkedAuthId = String(profile?.LinkedAuthId || "").trim()
   const propertyId = String(profile?.PropertyId || "").trim()
   const hasGoogleAuth = Boolean(linkedAuthId)
-  const hasLocations =
-    profile?.NoLocationExist === true || hasNonEmptyLocations(profile?.Locations)
+  const hasLocations = profile?.NoLocationExist === true || hasGbpLink(profile?.Locations)
 
   return {
     isGscConnected: hasGoogleAuth,

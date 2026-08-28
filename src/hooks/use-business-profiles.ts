@@ -621,6 +621,13 @@ interface UpdateBusinessProfilePayload {
   [key: string]: any; // Flexible payload structure matching BusinessProfile
 }
 
+/**
+ * Location fields that only the Python job API understands. The Node profile has a
+ * single `Locations` column, so sending these would imply a second, competing
+ * source of truth for the same addresses.
+ */
+const JOB_ONLY_PAYLOAD_KEYS = ["DetailedLocations", "StructuredLocations"] as const;
+
 export function useUpdateBusinessProfile(businessUniqueId: string | null) {
   const queryClient = useQueryClient();
   const { setProfileDataByUniqueID } = useBusinessStore();
@@ -635,11 +642,13 @@ export function useUpdateBusinessProfile(businessUniqueId: string | null) {
         throw new Error("Business ID is required");
       }
 
-      // Ensure uniqueId is in the payload
-      const payloadWithId = {
+      const payloadWithId: UpdateBusinessProfilePayload = {
         ...payload,
         UniqueId: businessUniqueId,
       };
+      for (const key of JOB_ONLY_PAYLOAD_KEYS) {
+        delete payloadWithId[key];
+      }
 
       const response = await api.post<{
         status?: number;

@@ -4,6 +4,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useBusinessStore } from "@/store/business-store";
 import { toast } from "sonner";
 import type { GscPermissionLevel } from "@/utils/gsc-permissions";
+import { LOCATION_KINDS, gbpLocations } from "@/lib/business-locations";
 
 const LINKED_BUSINESSES_KEY = "linkedBusinesses";
 
@@ -60,6 +61,30 @@ export interface FetchBusinessesResponse {
   unmatchedGa4: GA4Property[];
 }
 
+/** GBP location entries as persisted in `BusinessProfile.Locations`. */
+interface GbpLocationPayload {
+  Kind: typeof LOCATION_KINDS.GBP;
+  DisplayName: string;
+  Url: string;
+  Name: string;
+  AccountName: string;
+}
+
+/**
+ * Maps the user's GBP selection to the persisted entry shape. The API replaces only
+ * the `gbp` entries, so any physical addresses on the profile are left untouched.
+ */
+function toGbpLocationPayload(business: LinkedBusiness): GbpLocationPayload[] {
+  if (business.noLocation || business.gbpCleared === true) return [];
+  return (business.selectedGbp || []).map((gbp) => ({
+    Kind: LOCATION_KINDS.GBP,
+    DisplayName: gbp.title || "",
+    Url: gbp.websiteUri || "",
+    Name: gbp.location || "",
+    AccountName: gbp.account || "",
+  }));
+}
+
 interface CreateBusinessPayload {
   userUniqueId: string;
   accountUniqueId: string;
@@ -73,7 +98,7 @@ interface CreateBusinessPayload {
     locationType: string;
     propertyId: string;
     ga4PagePathScope?: string | null;
-    locations: { DisplayName: string; Url: string; Name: string; AccountName: string }[];
+    locations: GbpLocationPayload[];
     NoLocationExist: boolean;
     category: string;
     brandVoice: string;
@@ -92,7 +117,7 @@ interface LinkPropertyPayload {
   businessUniqueId?: string;
   propertyId?: string;
   ga4PagePathScope?: string | null;
-  locations: { DisplayName: string; Url: string; Name: string; AccountName: string }[];
+  locations: GbpLocationPayload[];
   NoLocationExist: boolean;
 }
 
@@ -232,9 +257,11 @@ function getSelectedGbp(business: LinkedBusiness, allGBP: GBPLocation[]): GBPLoc
       } as GBPLocation];
     }
 
-    const businessLocations = businessProfile.Locations?.map((loc) => loc.Name) || [];
+    const linkedResourceNames = new Set(
+      gbpLocations(businessProfile.Locations).map((location) => location.Name)
+    );
     return allGBP
-      .filter((gbp) => businessLocations.includes(gbp.location))
+      .filter((gbp) => linkedResourceNames.has(gbp.location))
       .map((gbp) => ({ ...gbp, label: `${gbp.title} (${gbp.locationId})` } as GBPLocation));
   }
 
@@ -302,13 +329,7 @@ export function useCreateAgencyBusiness() {
             b.ga4PagePathScope !== undefined
               ? { ga4PagePathScope: b.ga4PagePathScope }
               : {}),
-            locations: b.noLocation || b.gbpCleared === true ? [] :
-              (b.selectedGbp?.map((gbp) => ({
-                DisplayName: gbp.title || "",
-                Url: gbp.websiteUri || "",
-                Name: gbp.location || "",
-                AccountName: gbp.account || "",
-              })) || []),
+            locations: toGbpLocationPayload(b),
             NoLocationExist: b.noLocation || false,
             category: "",
             brandVoice: "",
@@ -408,13 +429,7 @@ export function useLinkPropertyId() {
       const payload: LinkPropertyPayload = {
         websiteUri: business.siteUrl,
         businessUniqueId: business.businessProfile?.UniqueId,
-        locations: business.noLocation || business.gbpCleared === true ? [] :
-          (business.selectedGbp?.map((gbp) => ({
-            DisplayName: gbp.title || "",
-            Url: gbp.websiteUri || "",
-            Name: gbp.location || "",
-            AccountName: gbp.account || "",
-          })) || []),
+        locations: toGbpLocationPayload(business),
         NoLocationExist: business.noLocation || false,
       };
 

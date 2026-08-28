@@ -41,6 +41,7 @@ import { ApplyCreditsModal } from "@/components/molecules/ApplyCreditsModal";
 import { CreditModal } from "@/components/molecules/settings/CreditModal";
 import { useCanExecuteMassicOpportunities, useCancelMassicOpportunities, useSubscribeMassicOpportunities, useReactivateMassicOpportunities } from "@/hooks/use-massic-opportunities";
 import { hasMassicOpportunitiesAccess } from "@/lib/subscription-status";
+import { formatLocationLabel, physicalLocations } from "@/lib/business-locations";
 import { useExecutionCredits } from "@/hooks/use-execution-credits";
 import { useAuthStore } from "@/store/auth-store";
 import { useAgencyInfo } from "@/hooks/use-agency-settings";
@@ -225,13 +226,10 @@ export default function PitchReportsPage() {
     }
     if (typeof primary === "string") return primary.trim();
 
-    const locations = Array.isArray(profile?.Locations) ? profile.Locations : [];
-    const first = locations[0];
-    if (first && typeof first === "object") {
-      return String(first.DisplayName || first.Name || first.name || first.address || "").trim();
-    }
-    if (typeof first === "string") return first.trim();
-    return "";
+    // Only a physical address describes where the business operates; a GBP entry
+    // would contribute its Google resource name.
+    const [firstPhysical] = physicalLocations(profile?.Locations);
+    return firstPhysical ? formatLocationLabel(firstPhysical) : "";
   }, [businessProfile]);
 
   const businessPitchRows = React.useMemo<PitchHistoryRow[]>(() => {

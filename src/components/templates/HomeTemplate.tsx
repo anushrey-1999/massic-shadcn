@@ -31,6 +31,7 @@ import {
   HOME_PERIODS,
   HOME_SIGNAL_FILTERS,
   HomeFilterBar,
+  HomePeriodSelector,
   type HomePeriodValue,
   type HomeSignalCounts,
   type HomeSignalFilterValue,
@@ -488,6 +489,8 @@ export function HomeTemplate() {
           </h1>
 
           <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+            <HomePeriodSelector period={period} onPeriodChange={setPeriod} />
+
             <div className="relative min-w-[220px] flex-1 lg:w-[320px] lg:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -513,8 +516,6 @@ export function HomeTemplate() {
           selectedSignals={selectedSignals}
           onSelectedSignalsChange={setSelectedSignals}
           signalCounts={healthFilterCounts}
-          period={period}
-          onPeriodChange={setPeriod}
           showActive={showActive}
           onShowActiveChange={setShowActive}
           showOnboarding={showOnboarding}

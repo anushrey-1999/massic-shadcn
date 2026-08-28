@@ -1,17 +1,17 @@
 "use client";
 
 import { forwardRef, useId, useState } from "react";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes } from "react";
 import {
   Check,
   ChevronDown,
   History,
-  type LucideIcon,
   Pencil,
   Tag,
   X,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -99,9 +99,6 @@ type HomeFilterBarProps = {
   onSelectedSignalsChange: (value: HomeSignalFilterValue[]) => void;
   signalCounts: HomeSignalCounts;
 
-  period: HomePeriodValue;
-  onPeriodChange: (value: HomePeriodValue) => void;
-
   showActive: boolean;
   onShowActiveChange: (value: boolean) => void;
   showOnboarding: boolean;
@@ -121,13 +118,6 @@ type HomeFilterBarProps = {
 const CONTROL_BASE_CLASS =
   "inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md px-4 py-[7.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] whitespace-nowrap transition-colors";
 
-const TRIGGER_CLASS = cn(
-  CONTROL_BASE_CLASS,
-  "text-general-foreground cursor-pointer justify-center border bg-white",
-  "hover:bg-secondary focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-  "disabled:cursor-not-allowed disabled:opacity-50"
-);
-
 const ICON_TRIGGER_CLASS = cn(
   "relative inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-white transition-colors",
   "hover:bg-secondary focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
@@ -145,39 +135,6 @@ const SIGNAL_PILL_CLASS =
 
 /** Icons stay muted regardless of selection; only the label carries emphasis. */
 const ICON_CLASS = "text-general-muted-foreground size-[13.25px] shrink-0";
-
-type FilterTriggerProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  icon: LucideIcon;
-  /** Darkens the border and lifts the shadow once the filter narrows results. */
-  selected?: boolean;
-  children: ReactNode;
-};
-
-const FilterTrigger = forwardRef<HTMLButtonElement, FilterTriggerProps>(
-  function FilterTrigger(
-    { icon: Icon, selected = false, className, children, ...props },
-    ref
-  ) {
-    return (
-      <button
-        ref={ref}
-        type="button"
-        className={cn(
-          TRIGGER_CLASS,
-          selected
-            ? "border-general-border-four shadow-sm"
-            : "border-general-border-three shadow-xs",
-          className
-        )}
-        {...props}
-      >
-        <Icon className={ICON_CLASS} strokeWidth={1.5} aria-hidden />
-        <span className="flex items-center gap-1.5">{children}</span>
-        <ChevronDown className={ICON_CLASS} strokeWidth={1.5} aria-hidden />
-      </button>
-    );
-  }
-);
 
 function SignalDot({ className }: { className: string }) {
   return (
@@ -212,6 +169,56 @@ function MenuTrailing({
         aria-hidden
       />
     </span>
+  );
+}
+
+type HomePeriodSelectorProps = {
+  period: HomePeriodValue;
+  onPeriodChange: (value: HomePeriodValue) => void;
+};
+
+export function HomePeriodSelector({
+  period,
+  onPeriodChange,
+}: HomePeriodSelectorProps) {
+  const selectedPeriodLabel =
+    HOME_PERIODS.find((option) => option.value === period)?.label ??
+    HOME_PERIODS[3].label;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Time period"
+          className="h-auto min-h-9 w-auto shrink-0 cursor-pointer gap-2 rounded-[8px] border-general-border-three bg-white px-4 py-[7.5px] text-sm leading-[1.5] font-medium tracking-[0.07px] text-general-foreground shadow-none hover:bg-muted/40 hover:text-general-foreground [&_svg]:size-[13.25px] [&_svg]:shrink-0 [&_svg]:text-general-muted-foreground"
+        >
+          <History className="size-[13.25px] shrink-0" strokeWidth={1.5} aria-hidden />
+          <span className="truncate">{selectedPeriodLabel}</span>
+          <ChevronDown className="size-[13.25px] shrink-0" strokeWidth={1.5} aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className={MENU_CONTENT_CLASS}
+      >
+        {HOME_PERIODS.map((option) => (
+          <DropdownMenuItem
+            key={option.value}
+            role="menuitemradio"
+            aria-checked={period === option.value}
+            onSelect={() => onPeriodChange(option.value)}
+            className={cn(MENU_ITEM_CLASS, "font-medium")}
+          >
+            <span className="truncate">{option.label}</span>
+            <MenuTrailing checked={period === option.value} />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -275,8 +282,6 @@ export function HomeFilterBar({
   selectedSignals,
   onSelectedSignalsChange,
   signalCounts,
-  period,
-  onPeriodChange,
   showActive,
   onShowActiveChange,
   showOnboarding,
@@ -297,10 +302,6 @@ export function HomeFilterBar({
   const selectedSignal =
     selectedSignals.length === 1 ? selectedSignals[0] : null;
   const signalCount = isAllSignals ? 0 : selectedSignals.length;
-
-  const selectedPeriodLabel =
-    HOME_PERIODS.find((option) => option.value === period)?.label ??
-    HOME_PERIODS[3].label;
 
   const selectedTagSet = new Set(selectedTagIds);
   const tagCount = tags.filter((tag) => selectedTagSet.has(tag.id)).length;
@@ -382,30 +383,6 @@ export function HomeFilterBar({
             );
           })}
         </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <FilterTrigger icon={History}>{selectedPeriodLabel}</FilterTrigger>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            sideOffset={6}
-            className={MENU_CONTENT_CLASS}
-          >
-            {HOME_PERIODS.map((option) => (
-              <DropdownMenuItem
-                key={option.value}
-                role="menuitemradio"
-                aria-checked={period === option.value}
-                onSelect={() => onPeriodChange(option.value)}
-                className={MENU_ITEM_CLASS}
-              >
-                <span className="truncate">{option.label}</span>
-                <MenuTrailing checked={period === option.value} />
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
 
         {hasActiveFilters ? (
           <button

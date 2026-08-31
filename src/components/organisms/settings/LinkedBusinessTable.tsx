@@ -68,7 +68,7 @@ import {
   type CustomSelectOption,
 } from "@/components/molecules/settings/CustomSelect";
 import { SiteFavicon } from "@/components/organisms/WebChannels/platform-icon";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import {
   useFetchBusinesses,
   useCreateAgencyBusiness,
@@ -82,6 +82,7 @@ import {
 import { Typography } from "@/components/ui/typography";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ANALYST_RESTRICTED_MESSAGE } from "@/lib/permissions";
+import { gbpLocations } from "@/lib/business-locations";
 import { toast } from "sonner";
 import {
   formatGscPermissionLevel,
@@ -269,6 +270,96 @@ function Ga4SearchableSelect({
   );
 }
 
+interface GbpCellApi {
+  allGBP: GBPLocation[];
+  localBusinesses: LinkedBusiness[];
+  totalGbps: number;
+  isReadOnly: boolean;
+  onGbpChange: (siteUrl: string, selectedLocationIds: string[]) => void;
+}
+
+const GbpCellContext = React.createContext<GbpCellApi | null>(null);
+
+/**
+ * TanStack renders `columnDef.cell` through `flexRender`, which turns the
+ * function into the element type. An inline closure would therefore be a new
+ * element type every time `columns` is rebuilt, remounting the multi-select and
+ * discarding its open/search state mid-selection. Keeping this cell a stable
+ * module-level component and reading its dependencies from context lets the
+ * dropdown stay open across selections.
+ */
+function GbpSelectCell({ row }: CellContext<LinkedBusiness, unknown>) {
+  const api = React.useContext(GbpCellContext);
+  if (!api) {
+    throw new Error("GbpSelectCell must be rendered inside GbpCellContext");
+  }
+
+  const { allGBP, localBusinesses, totalGbps, isReadOnly, onGbpChange } = api;
+
+  if ((row.original as any).isSummary) {
+    return (
+      <div className="text-xs font-mono text-general-muted-foreground">
+        {totalGbps} total
+      </div>
+    );
+  }
+
+  const rowData = row.original;
+  const isGscAccessInsufficient =
+    rowData.businessProfile?.IsActive !== true &&
+    !hasRequiredGscAccess(rowData.permissionLevel);
+  const businessKey = rowData.siteUrl || rowData.id;
+  const localRow = localBusinesses.find(
+    (b) => (b.siteUrl || b.id) === businessKey
+  );
+  const selectedGbps = localRow?.selectedGbp || rowData.selectedGbp || [];
+  const selectedLocationIds = selectedGbps.map((gbp) => gbp.locationId);
+  const hasNoLocation = localRow?.noLocation ?? rowData.noLocation ?? false;
+
+  // Create options from allGBP, filtering out already selected by other businesses
+  const availableGbps = allGBP.filter(
+    (gbp) =>
+      !localBusinesses.some(
+        (business) =>
+          (business.siteUrl || business.id) !== businessKey &&
+          business.selectedGbp?.some(
+            (selected) => selected.location === gbp.location
+          )
+      )
+  );
+
+  // Create options including "No locations exist"
+  const gbpOptions: CustomSelectOption[] = [
+    {
+      value: "no-location-exist",
+      label: "No locations exist",
+      locationId: "no-location-exist",
+    },
+    ...availableGbps.map((gbp) => ({
+      value: gbp.locationId,
+      label: `${gbp.title} (${gbp.locationId})`,
+      locationId: gbp.locationId,
+    })),
+  ];
+
+  const currentValues = hasNoLocation
+    ? ["no-location-exist"]
+    : selectedLocationIds;
+
+  return (
+    <CustomSelect
+      options={gbpOptions}
+      value={currentValues}
+      onChange={(values) => onGbpChange(rowData.siteUrl || "", values)}
+      placeholder="Select GBPs"
+      searchPlaceholder="Search locations..."
+      emptyMessage="No options available"
+      maxWidth="300px"
+      disabled={isReadOnly || isGscAccessInsufficient}
+    />
+  );
+}
+
 interface LinkedBusinessTableProps {
   readOnly?: boolean;
 }
@@ -354,8 +445,9 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             const selectedGbpLocations = (localBusiness.selectedGbp || [])
               .filter((gbp: any) => !gbp.isNoLocationOption)
               .map((gbp: any) => gbp.location);
-            const businessLocations =
-              localBusiness.businessProfile?.Locations?.map((loc: any) => loc.Name) || [];
+            const businessLocations = gbpLocations(
+              localBusiness.businessProfile?.Locations
+            ).map((location) => location.Name);
 
             if (selectedGbpLocations.length !== businessLocations.length) return true;
 
@@ -1038,73 +1130,7 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
           const selectedGbps = row.selectedGbp || row.gbps || [];
           return selectedGbps.length > 0 ? selectedGbps.map(g => g.title || g.location).join(", ") : (row.noLocation ? "No locations exist" : "");
         },
-        cell: ({ row }) => {
-          if ((row.original as any).isSummary) {
-            return (
-              <div className="text-xs font-mono text-general-muted-foreground">
-                {totalGbps} total
-              </div>
-            );
-          }
-          const rowData = row.original;
-          const isGscAccessInsufficient =
-            rowData.businessProfile?.IsActive !== true &&
-            !hasRequiredGscAccess(rowData.permissionLevel);
-          const businessKey = rowData.siteUrl || rowData.id;
-          const localRow = localBusinesses.find(
-            (b) => (b.siteUrl || b.id) === businessKey
-          );
-          const selectedGbps = localRow?.selectedGbp || rowData.selectedGbp || [];
-          const selectedLocationIds = selectedGbps.map((gbp) => gbp.locationId);
-          const hasNoLocation = localRow?.noLocation ?? rowData.noLocation ?? false;
-
-          // Create options from allGBP, filtering out already selected by other businesses
-          const availableGbps = allGBP.filter(
-            (gbp) =>
-              !localBusinesses.some(
-                (business) =>
-                  (business.siteUrl || business.id) !== businessKey &&
-                  business.selectedGbp?.some(
-                    (selected) => selected.location === gbp.location
-                  )
-              )
-          );
-
-          // Create options including "No locations exist"
-          const gbpOptions: CustomSelectOption[] = [
-            {
-              value: "no-location-exist",
-              label: "No locations exist",
-              locationId: "no-location-exist",
-            },
-            ...availableGbps.map((gbp) => ({
-              value: gbp.locationId,
-              label: `${gbp.title} (${gbp.locationId})`,
-              locationId: gbp.locationId,
-            })),
-          ];
-
-          const currentValues = hasNoLocation
-            ? ["no-location-exist"]
-            : selectedLocationIds;
-
-          const handleValueChange = (values: string[]) => {
-            handleGbpChange(rowData.siteUrl || "", values);
-          };
-
-          return (
-            <CustomSelect
-              options={gbpOptions}
-              value={currentValues}
-              onChange={handleValueChange}
-              placeholder="Select GBPs"
-              searchPlaceholder="Search locations..."
-              emptyMessage="No options available"
-              maxWidth="300px"
-              disabled={isReadOnly || isGscAccessInsufficient}
-            />
-          );
-        },
+        cell: GbpSelectCell,
       },
       {
         id: "actions",
@@ -1184,9 +1210,9 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
             const selectedGbpLocations = (rowData.selectedGbp || [])
               .filter((gbp: any) => !gbp.isNoLocationOption)
               .map((gbp: any) => gbp.location);
-            const businessLocations =
-              rowData.businessProfile?.Locations?.map((loc: any) => loc.Name) ||
-              [];
+            const businessLocations = gbpLocations(
+              rowData.businessProfile?.Locations
+            ).map((location) => location.Name);
             if (selectedGbpLocations.length !== businessLocations.length)
               return true;
 
@@ -1266,7 +1292,6 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
       },
     ],
     [
-      allGBP,
       allGA4,
       localBusinesses,
       unmatchedGa4,
@@ -1343,6 +1368,14 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
     (row) => (row.gbps?.length ?? 0) > 0 || row.noLocation
   ).length;
 
+  const gbpCellApi: GbpCellApi = {
+    allGBP,
+    localBusinesses,
+    totalGbps,
+    isReadOnly,
+    onGbpChange: handleGbpChange,
+  };
+
   return (
     <Card
       variant="profileCard"
@@ -1409,82 +1442,84 @@ export default function LinkedBusinessTable({ readOnly = false }: LinkedBusiness
                 ref={tableScrollRef}
                 className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-18rem)]"
               >
-                <TableElement>
-                  <TableHeader>
-                    {tableWithFixedSummary.getHeaderGroups().map(
-                      (headerGroup) => (
-                        <TableRow key={headerGroup.id}>
-                          {headerGroup.headers.map((header) => (
-                            <TableHead
-                              key={header.id}
-                              colSpan={header.colSpan}
-                              className="sticky top-0 z-20 p-0 bg-background"
-                            >
-                              {header.isPlaceholder
-                                ? null
-                                : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext()
-                                )}
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                      )
-                    )}
-                  </TableHeader>
-                  <TableBody>
-                    {tableWithFixedSummary.getRowModel().rows?.length ? (
-                      tableWithFixedSummary.getRowModel().rows.map((row) => {
-                        const isSummary = (row.original as any).isSummary;
-                        return (
-                          <TableRow
-                            key={row.id}
-                            className={cn(
-                              isSummary && "sticky z-10 bg-foreground-light"
-                            )}
-                            style={
-                              isSummary
-                                ? { top: `${stickySummaryTopPx}px` }
-                                : undefined
-                            }
-                          >
-                            {row.getVisibleCells().map((cell) => (
-                              <TableCell
-                                key={cell.id}
-                                className={cn(
-                                  "px-2 py-1.5",
-                                  isSummary &&
-                                  "sticky z-10 bg-foreground-light"
-                                )}
-                                style={
-                                  isSummary
-                                    ? { top: `${stickySummaryTopPx}px` }
-                                    : undefined
-                                }
+                <GbpCellContext.Provider value={gbpCellApi}>
+                  <TableElement>
+                    <TableHeader>
+                      {tableWithFixedSummary.getHeaderGroups().map(
+                        (headerGroup) => (
+                          <TableRow key={headerGroup.id}>
+                            {headerGroup.headers.map((header) => (
+                              <TableHead
+                                key={header.id}
+                                colSpan={header.colSpan}
+                                className="sticky top-0 z-20 p-0 bg-background"
                               >
-                                {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext()
-                                )}
-                              </TableCell>
+                                {header.isPlaceholder
+                                  ? null
+                                  : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                              </TableHead>
                             ))}
                           </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={
-                            tableWithFixedSummary.getVisibleLeafColumns().length
-                          }
-                          className="h-24 text-center text-muted-foreground"
-                        >
-                          No results.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </TableElement>
+                        )
+                      )}
+                    </TableHeader>
+                    <TableBody>
+                      {tableWithFixedSummary.getRowModel().rows?.length ? (
+                        tableWithFixedSummary.getRowModel().rows.map((row) => {
+                          const isSummary = (row.original as any).isSummary;
+                          return (
+                            <TableRow
+                              key={row.id}
+                              className={cn(
+                                isSummary && "sticky z-10 bg-foreground-light"
+                              )}
+                              style={
+                                isSummary
+                                  ? { top: `${stickySummaryTopPx}px` }
+                                  : undefined
+                              }
+                            >
+                              {row.getVisibleCells().map((cell) => (
+                                <TableCell
+                                  key={cell.id}
+                                  className={cn(
+                                    "px-2 py-1.5",
+                                    isSummary &&
+                                    "sticky z-10 bg-foreground-light"
+                                  )}
+                                  style={
+                                    isSummary
+                                      ? { top: `${stickySummaryTopPx}px` }
+                                      : undefined
+                                  }
+                                >
+                                  {flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext()
+                                  )}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell
+                            colSpan={
+                              tableWithFixedSummary.getVisibleLeafColumns().length
+                            }
+                            className="h-24 text-center text-muted-foreground"
+                          >
+                            No results.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </TableElement>
+                </GbpCellContext.Provider>
               </div>
             </div>
           </div>

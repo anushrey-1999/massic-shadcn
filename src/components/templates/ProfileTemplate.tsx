@@ -25,6 +25,7 @@ import {
   isValidWebsiteUrl,
 } from "@/utils/utils";
 import { normalizeProfileCountry, type NormalizedProfileResult } from "@/utils/profile-result";
+import { formatLocationLabel, physicalLocations } from "@/lib/business-locations";
 import {
   buildBusinessProfilePayload,
   mapProfileDataToFormValues as mapBusinessProfileToFormValues,
@@ -218,12 +219,16 @@ const ProfileTemplate = ({
         profileDataAny.PrimaryLocation,
         locationOptions
       );
-    } else if (profileData?.Locations?.[0]) {
-      const loc = profileData.Locations[0] as any;
-      primaryLocation = resolvePrimaryLocationFormValue(
-        loc.Name || "",
-        locationOptions
-      );
+    } else {
+      // Falls back to a physical address label; a GBP resource name can never
+      // resolve to a market option.
+      const [firstPhysical] = physicalLocations(profileData?.Locations);
+      if (firstPhysical) {
+        primaryLocation = resolvePrimaryLocationFormValue(
+          formatLocationLabel(firstPhysical),
+          locationOptions
+        );
+      }
     }
 
     // Offerings: ONLY field that comes from job API (if job exists)
@@ -265,15 +270,15 @@ const ProfileTemplate = ({
       })
     );
 
-    const locationsList = parseArrayField(profileData.Locations).map(
-      (loc: any, index: number): LocationRow => {
-        const locationName = loc.DisplayName || `Location ${index + 1}`;
-        return {
-          name: locationName,
-          address: loc.Address1 || "",
-          timezone: loc.TimeZone || "",
-        };
-      }
+    // Only physical addresses are editable here; linked GBP locations are managed
+    // from Settings and must not be pulled into this table.
+    const locationsList = physicalLocations(profileData.Locations).map(
+      (location, index): LocationRow => ({
+        id: location.Id,
+        name: location.DisplayName || `Location ${index + 1}`,
+        address: location.Address?.Line1 || "",
+        timezone: location.TimeZone || "",
+      })
     );
 
     const competitorsList = parseArrayField(profileData.Competitors).map(
@@ -1020,7 +1025,7 @@ const ProfileTemplate = ({
       Boolean(String(primaryLocation?.Location || "").trim()) ||
       Boolean(String(primaryLocation?.Country || "").trim()) ||
       Boolean(String(profile.ProfileLocation || "").trim()) ||
-      Boolean(String(profile.Locations?.[0]?.Name || "").trim());
+      physicalLocations(profile.Locations).length > 0;
 
     return (
       Boolean(String(profile.Website || "").trim()) &&

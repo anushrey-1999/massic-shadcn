@@ -1,16 +1,16 @@
 import type { CampaignStatus, CampaignType } from "@/types/campaign-impact";
+import { gbpLocationId, gbpLocations } from "@/lib/business-locations";
 
 export interface CampaignLocationOption { value: string; label: string }
 
-export function campaignLocationOptions(
-  locations: Array<{ Name?: string; DisplayName?: string }> | null | undefined,
-): CampaignLocationOption[] {
+/** Campaigns can only be attributed to linked GBP locations, not to physical addresses. */
+export function campaignLocationOptions(locations: unknown): CampaignLocationOption[] {
   const seen = new Set<string>();
-  return (locations || []).flatMap(location => {
-    const value = location.Name?.trim();
+  return gbpLocations(locations).flatMap(location => {
+    const value = location.Name.trim();
     if (!value || seen.has(value)) return [];
     seen.add(value);
-    const locationId = value.includes("/") ? value.split("/").pop()! : value;
+    const locationId = gbpLocationId(location);
     const displayName = location.DisplayName?.trim();
     return [{ value, label: displayName ? `${displayName} (${locationId})` : locationId }];
   });

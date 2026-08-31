@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react"
 import { RatingCard } from "@/components/molecules/analytics/RatingCard"
 import { useLocalPresence, type TimePeriodValue } from "@/hooks/use-local-presence"
 import { useBusinessStore } from "@/store/business-store"
+import { hasGbpLink } from "@/lib/business-locations"
 
 interface ReviewsSectionProps {
   period?: TimePeriodValue
@@ -28,7 +29,8 @@ export function ReviewsSection({ period = "3 months", selectedLocation = "" }: R
     }
   }, [pathname, profiles])
 
-  const hasLocations = businessProfile?.Locations && businessProfile.Locations.length > 0
+  // Reviews come from GBP, so a business with only physical addresses has none.
+  const hasLocations = hasGbpLink(businessProfile?.Locations)
 
   const {
     reviewsData,

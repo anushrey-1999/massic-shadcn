@@ -12,6 +12,7 @@ import { ReviewsCardSkeleton } from "@/components/molecules/ReviewsCardSkeleton"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { cn } from "@/lib/utils"
+import { formatLocationLabel, gbpLocations } from "@/lib/business-locations"
 import {
   ArrowDownUp,
   Check,
@@ -94,16 +95,13 @@ export function ReviewsTemplate({ businessId, businessName }: ReviewsTemplatePro
     router.push(`?${params.toString()}`, { scroll: false })
   }, [router, searchParams])
 
+  // Reviews only exist for linked GBP locations, keyed by their Google resource name.
   const locations = React.useMemo(() => {
-    if (!profileData?.Locations || profileData.Locations.length === 0) {
-      return []
-    }
-    return profileData.Locations.map((loc, index) => ({
-      value: `${loc.Name}__${index}`,
-      name: loc.Name,
-      label: `${loc.DisplayName || loc.Name} - ${index + 1}`,
-      // Use the Name field which already contains locationId in format "locations/..."
-      locationId: loc.Name,
+    return gbpLocations(profileData?.Locations).map((location, index) => ({
+      value: `${location.Name}__${index}`,
+      name: location.Name,
+      label: `${formatLocationLabel(location)} - ${index + 1}`,
+      locationId: location.Name,
     }))
   }, [profileData])
 

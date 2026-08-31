@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { formatPrimaryLocationApiValue } from "@/utils/primary-location";
 import { isWorkflowActive } from "@/lib/workflow-status";
 import { normalizeProfileCountry } from "@/utils/profile-result";
+import { physicalLocations, type BusinessLocation } from "@/lib/business-locations";
 
 const JOBS_KEY = "jobs";
 
@@ -68,7 +69,7 @@ export interface BusinessProfilePayload {
   competitors?: Array<{ website?: string; Website?: string; url?: string }> | string[] | null;
   FoundingDate?: string | null;
   LogoUrl?: string | null;
-  Locations?: Array<Record<string, unknown>> | null;
+  Locations?: BusinessLocation[] | null;
   DetailedLocations?: Array<Record<string, unknown>> | null;
   StructuredLocations?: Array<Record<string, unknown>> | null;
   KeyPeople?: Array<Record<string, unknown>> | null;
@@ -375,6 +376,12 @@ function parseStructuredJson(value: unknown): unknown {
   }
 }
 
+/**
+ * Physical addresses in the job's own vocabulary. The richer
+ * `StructuredLocations`/`DetailedLocations` shapes win when present; otherwise the
+ * business profile's physical entries are used. Linked GBP locations are excluded —
+ * they carry a Google resource name, not an address.
+ */
 function normalizeLocationsForJob(
   locations: unknown,
   detailedLocations: unknown,
@@ -382,8 +389,9 @@ function normalizeLocationsForJob(
 ): Array<Record<string, unknown>> | undefined {
   const structured = Array.isArray(structuredLocations) ? structuredLocations : [];
   const detailed = Array.isArray(detailedLocations) ? detailedLocations : [];
-  const basic = Array.isArray(locations) ? locations : [];
-  const source = structured.length > 0 ? structured : detailed.length > 0 ? detailed : basic;
+  const physical = physicalLocations(locations);
+  const source: unknown[] =
+    structured.length > 0 ? structured : detailed.length > 0 ? detailed : physical;
 
   const normalized = source
     .map((item, index) => {
@@ -393,23 +401,16 @@ function normalizeLocationsForJob(
       }
 
       const location = item as Record<string, unknown>;
-      const basicLocation = basic[index] as Record<string, unknown> | undefined;
+      const fallback = physical[index];
+      const fallbackAddress = fallback?.Address;
       const display = String(
-        location.display ??
-          location.DisplayName ??
-          location.Name ??
-          location.name ??
-          basicLocation?.DisplayName ??
-          basicLocation?.Name ??
-          ""
+        location.display ?? location.DisplayName ?? location.name ?? fallback?.DisplayName ?? ""
       ).trim();
       const streetAddress = String(
         location.street_address ??
           location.streetAddress ??
-          location.Address1 ??
           location.address ??
-          basicLocation?.Address1 ??
-          basicLocation?.address ??
+          fallbackAddress?.Line1 ??
           ""
       ).trim();
       const hours = parseStructuredJson(location.hours) ?? location.hours;
@@ -417,12 +418,17 @@ function normalizeLocationsForJob(
       return compactObject({
         display: display || undefined,
         street_address: streetAddress || undefined,
-        city: String(location.city ?? "").trim() || undefined,
-        state: String(location.state ?? "").trim() || undefined,
+        city: String(location.city ?? fallbackAddress?.City ?? "").trim() || undefined,
+        state: String(location.state ?? fallbackAddress?.Region ?? "").trim() || undefined,
         postal_code:
-          String(location.postal_code ?? location.postalCode ?? location.zip ?? "").trim() ||
-          undefined,
-        country: String(location.country ?? "").trim() || undefined,
+          String(
+            location.postal_code ??
+              location.postalCode ??
+              location.zip ??
+              fallbackAddress?.PostalCode ??
+              ""
+          ).trim() || undefined,
+        country: String(location.country ?? fallbackAddress?.Country ?? "").trim() || undefined,
         phone: String(location.phone ?? "").trim() || undefined,
         email: String(location.email ?? "").trim() || undefined,
         map_url: String(location.map_url ?? location.mapUrl ?? location.mapLink ?? "").trim() || undefined,

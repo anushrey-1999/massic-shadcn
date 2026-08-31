@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { deriveCampaignNameFromUrl } from "@/utils/campaign-utils";
 import { generateId } from "@/lib/id";
+import { gbpLocations } from "@/lib/business-locations";
 import { toast } from "sonner";
 
 interface PageProps {
@@ -199,12 +200,10 @@ Thank you for your time and support.
 
   const selectedLocationTimezone = React.useMemo(() => {
     if (!selectedLocationIdForApi) return "";
-    const locations = profileData?.Locations || [];
-    const selectedLocation = locations.find((location: any) => {
-      const locationId = location?.Name || location?.name;
-      return locationId === selectedLocationIdForApi;
-    }) as any;
-    return selectedLocation?.TimeZone || selectedLocation?.timezone || "";
+    const selectedLocation = gbpLocations(profileData?.Locations).find(
+      (location) => location.Name === selectedLocationIdForApi
+    );
+    return selectedLocation?.TimeZone || "";
   }, [profileData?.Locations, selectedLocationIdForApi]);
 
   const [showUnsavedDialog, setShowUnsavedDialog] = React.useState(false);

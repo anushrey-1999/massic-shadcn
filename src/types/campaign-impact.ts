@@ -76,7 +76,8 @@ export interface CampaignPresentationWindow {
   days: number | null; dateText: string;
 }
 export interface CampaignPresentationMetric {
-  key: string; label: string; baselineText: string; primaryText: string; postText: string; change: CampaignPresentationChange;
+  key: string; label: string; baselineText: string; primaryText: string; postText: string;
+  change: CampaignPresentationChange; postChange?: CampaignPresentationChange;
 }
 export interface CampaignPresentationSource {
   key: CampaignImpactSource["source"]; label: string; status: { label: string; tone: CampaignPresentationTone };

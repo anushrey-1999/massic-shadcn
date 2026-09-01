@@ -140,7 +140,11 @@ function comparisonCaption(presentation: CampaignImpactPresentation, windows: Ma
   const primaryText = windowRangeText(windows.get("primary"));
   const baselineText = windowRangeText(windows.get("baseline"));
   if (!primaryText || !baselineText) return presentation.comparisonDescription;
-  return `${presentation.primaryColumnLabel} ${primaryText} vs before ${baselineText}`;
+  const beforeCaption = `${presentation.primaryColumnLabel} ${primaryText} vs before ${baselineText}`;
+  if (!presentation.hasPostPeriod) return beforeCaption;
+  const afterText = windowRangeText(windows.get("post"));
+  if (!afterText) return beforeCaption;
+  return `${beforeCaption} · After ${afterText} vs during ${primaryText}`;
 }
 
 function ColumnLabel({ label, rangeText }: { label: string; rangeText: string | null }) {
@@ -344,14 +348,15 @@ export function CampaignImpactReportTemplate({ businessId, campaignId }: { busin
 
           {metricRows.length ? (
             <div className="overflow-x-auto border-t border-general-border">
-              <table className={`w-full text-sm ${presentation.hasPostPeriod ? "min-w-[720px]" : "min-w-[600px]"}`}>
+              <table className={`w-full text-sm ${presentation.hasPostPeriod ? "min-w-[880px]" : "min-w-[600px]"}`}>
                 <thead className="bg-general-primary-foreground text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="px-4 py-2 font-medium">Metric</th>
                     <th className="px-4 py-2 text-right font-medium"><ColumnLabel label="Before" rangeText={windowRangeText(windows.get("baseline"))} /></th>
                     <th className="px-4 py-2 text-right font-medium"><ColumnLabel label={presentation.primaryColumnLabel} rangeText={windowRangeText(windows.get("primary"))} /></th>
                     {presentation.hasPostPeriod ? <th className="px-4 py-2 text-right font-medium"><ColumnLabel label="After" rangeText={windowRangeText(windows.get("post"))} /></th> : null}
-                    <th className="px-4 py-2 text-right font-medium">Change</th>
+                    <th className="px-4 py-2 text-right font-medium">{presentation.hasPostPeriod ? <ColumnLabel label="Change vs before" rangeText="During compared with Before" /> : "Change"}</th>
+                    {presentation.hasPostPeriod ? <th className="px-4 py-2 text-right font-medium"><ColumnLabel label="Change vs during" rangeText="After compared with During" /></th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -367,6 +372,7 @@ export function CampaignImpactReportTemplate({ businessId, campaignId }: { busin
                       <td className="px-4 py-2.5 text-right tabular-nums">{metric.primaryText}</td>
                       {presentation.hasPostPeriod ? <td className="px-4 py-2.5 text-right tabular-nums">{metric.postText}</td> : null}
                       <td className="px-4 py-2.5 text-right"><PresentationChange change={metric.change} /></td>
+                      {presentation.hasPostPeriod ? <td className="px-4 py-2.5 text-right"><PresentationChange change={metric.postChange ?? { text: "Unavailable", tone: "neutral" }} /></td> : null}
                     </tr>
                   ))}
                 </tbody>

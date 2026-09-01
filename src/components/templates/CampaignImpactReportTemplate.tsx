@@ -355,8 +355,8 @@ export function CampaignImpactReportTemplate({ businessId, campaignId }: { busin
                     <th className="px-4 py-2 text-right font-medium"><ColumnLabel label="Before" rangeText={windowRangeText(windows.get("baseline"))} /></th>
                     <th className="px-4 py-2 text-right font-medium"><ColumnLabel label={presentation.primaryColumnLabel} rangeText={windowRangeText(windows.get("primary"))} /></th>
                     {presentation.hasPostPeriod ? <th className="px-4 py-2 text-right font-medium"><ColumnLabel label="After" rangeText={windowRangeText(windows.get("post"))} /></th> : null}
-                    <th className="px-4 py-2 text-right font-medium">{presentation.hasPostPeriod ? <ColumnLabel label="Change vs before" rangeText="During compared with Before" /> : "Change"}</th>
-                    {presentation.hasPostPeriod ? <th className="px-4 py-2 text-right font-medium"><ColumnLabel label="Change vs during" rangeText="After compared with During" /></th> : null}
+                    <th className="px-4 py-2 text-right font-medium">{presentation.hasPostPeriod ? <ColumnLabel label="Lift During Campaign" rangeText="During compared with Before" /> : "Change"}</th>
+                    {presentation.hasPostPeriod ? <th className="px-4 py-2 text-right font-medium"><ColumnLabel label="Lift After Campaign" rangeText="After compared with During" /></th> : null}
                   </tr>
                 </thead>
                 <tbody>

@@ -203,7 +203,7 @@ function TrackingOverlayHit({
           </div>
         )}
       </TooltipTrigger>
-      <TooltipContent side="top" sideOffset={6} className="px-2 py-1 text-xs font-normal">
+      <TooltipContent side="top" sideOffset={6} className="max-w-[320px] whitespace-normal break-words px-2 py-1 text-left text-xs font-normal">
         {title}
       </TooltipContent>
     </Tooltip>

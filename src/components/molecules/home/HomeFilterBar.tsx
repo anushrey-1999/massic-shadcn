@@ -106,6 +106,8 @@ type HomeFilterBarProps = {
 
   selectedTagIds: string[];
   onSelectedTagIdsChange: (value: string[]) => void;
+  showHiddenTag: boolean;
+  onShowHiddenTagChange: (value: boolean) => void;
 
   profiles: BusinessProfile[];
   dashboardTags: DashboardTagsController;
@@ -288,6 +290,8 @@ export function HomeFilterBar({
   onShowOnboardingChange,
   selectedTagIds,
   onSelectedTagIdsChange,
+  showHiddenTag,
+  onShowHiddenTagChange,
   profiles,
   dashboardTags,
 }: HomeFilterBarProps) {
@@ -303,10 +307,17 @@ export function HomeFilterBar({
     selectedSignals.length === 1 ? selectedSignals[0] : null;
   const signalCount = isAllSignals ? 0 : selectedSignals.length;
 
+  const hiddenTag = tags.find(tag => tag.systemKey === "hidden") || null;
+  const regularTags = tags.filter(tag => !tag.systemKey);
   const selectedTagSet = new Set(selectedTagIds);
-  const tagCount = tags.filter((tag) => selectedTagSet.has(tag.id)).length;
+  const tagCount = regularTags.filter((tag) =>
+    selectedTagSet.has(tag.id)
+  ).length;
+  const uncheckedRegularTagCount = regularTags.length - tagCount;
+  const areAllRegularTagsVisible = uncheckedRegularTagCount === 0;
+  const activeTagFilterCount = tagCount + (showHiddenTag ? 1 : 0);
 
-  const hasActiveFilters = signalCount > 0 || tagCount > 0;
+  const hasActiveFilters = signalCount > 0 || activeTagFilterCount > 0;
 
   const openTagSheet = (mode: "list" | "create") => {
     setTagSheetMode(mode);
@@ -316,6 +327,7 @@ export function HomeFilterBar({
   const clearFilters = () => {
     onSelectedSignalsChange([]);
     onSelectedTagIdsChange([]);
+    onShowHiddenTagChange(false);
   };
 
   const selectSignal = (value: HomeSignalFilterValue | "all") => {
@@ -323,11 +335,15 @@ export function HomeFilterBar({
   };
 
   const tagsLabel =
-    tagCount > 0
-      ? `Tags, ${tagCount} selected`
-      : tags.length === 0
-        ? "Create a tag"
-        : "Filter by tags";
+    tags.length === 0
+      ? "Create a tag"
+      : tagCount === 0 && !showHiddenTag
+        ? "All non-Hidden businesses shown"
+        : areAllRegularTagsVisible && !showHiddenTag
+          ? "All tagged businesses shown"
+          : `${tagCount} regular ${
+              tagCount === 1 ? "tag" : "tags"
+            } selected${showHiddenTag ? ", Hidden shown" : ""}`;
 
   return (
     <>
@@ -443,8 +459,8 @@ export function HomeFilterBar({
                     <DropdownMenuTrigger asChild>
                       <TagIconButton
                         aria-label={tagsLabel}
-                        selected={tagCount > 0}
-                        count={tagCount}
+                        selected={activeTagFilterCount > 0}
+                        count={activeTagFilterCount}
                       />
                     </DropdownMenuTrigger>
                   </span>
@@ -457,18 +473,25 @@ export function HomeFilterBar({
                 className={MENU_CONTENT_CLASS}
               >
                 <DropdownMenuItem
-                  role="menuitemradio"
-                  aria-checked={tagCount === 0}
-                  onSelect={() => onSelectedTagIdsChange([])}
+                  role="menuitemcheckbox"
+                  aria-checked={areAllRegularTagsVisible}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    onSelectedTagIdsChange(
+                      areAllRegularTagsVisible
+                        ? []
+                        : regularTags.map(tag => tag.id)
+                    );
+                  }}
                   className={MENU_ITEM_CLASS}
                 >
+                  <MenuCheckbox checked={areAllRegularTagsVisible} />
                   <span className="truncate">All tags</span>
-                  <MenuTrailing checked={tagCount === 0} />
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator className="bg-general-border" />
 
-                {tags.map((tag) => {
+                {regularTags.map((tag) => {
                   const checked = selectedTagSet.has(tag.id);
                   return (
                     <DropdownMenuItem
@@ -492,6 +515,27 @@ export function HomeFilterBar({
                     </DropdownMenuItem>
                   );
                 })}
+
+                {hiddenTag ? (
+                  <>
+                    <DropdownMenuSeparator className="bg-general-border" />
+                    <DropdownMenuItem
+                      role="menuitemcheckbox"
+                      aria-checked={showHiddenTag}
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        onShowHiddenTagChange(!showHiddenTag);
+                      }}
+                      className={MENU_ITEM_CLASS}
+                    >
+                      <MenuCheckbox checked={showHiddenTag} />
+                      <span className="truncate">{hiddenTag.name}</span>
+                      <span className="text-general-muted-foreground ml-auto shrink-0 pl-4 text-xs tabular-nums">
+                        {hiddenTag.businessCount}
+                      </span>
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
 
                 <DropdownMenuSeparator className="bg-general-border" />
 

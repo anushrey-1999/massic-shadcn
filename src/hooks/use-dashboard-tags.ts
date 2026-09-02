@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/auth-store";
 export type DashboardTag = {
   id: string;
   name: string;
+  systemKey: "hidden" | null;
   businessIds: string[];
   businessCount: number;
   createdAt?: string;
@@ -31,9 +32,11 @@ function errorMessage(error: unknown) {
 }
 
 function sortTags(tags: DashboardTag[]) {
-  return [...tags].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-  );
+  return [...tags].sort((a, b) => {
+    if (a.systemKey === "hidden" && b.systemKey !== "hidden") return -1;
+    if (b.systemKey === "hidden" && a.systemKey !== "hidden") return 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
 }
 
 export function useDashboardTags() {
@@ -67,10 +70,11 @@ export function useDashboardTags() {
       );
       return response.tag;
     },
-    onSuccess: tag => {
+    onSuccess: async tag => {
       queryClient.setQueryData<DashboardTag[]>(queryKey, current =>
         sortTags([...(current || []), tag])
       );
+      await queryClient.invalidateQueries({ queryKey });
       toast.success("Tag created");
     },
     onError: error => {
@@ -91,10 +95,11 @@ export function useDashboardTags() {
       );
       return response.tag;
     },
-    onSuccess: tag => {
+    onSuccess: async tag => {
       queryClient.setQueryData<DashboardTag[]>(queryKey, current =>
         sortTags((current || []).map(item => (item.id === tag.id ? tag : item)))
       );
+      await queryClient.invalidateQueries({ queryKey });
       toast.success("Tag updated");
     },
     onError: error => {
@@ -107,10 +112,11 @@ export function useDashboardTags() {
       await api.delete(`/dashboard-tags/${tagId}`, "node");
       return tagId;
     },
-    onSuccess: tagId => {
+    onSuccess: async tagId => {
       queryClient.setQueryData<DashboardTag[]>(queryKey, current =>
         (current || []).filter(tag => tag.id !== tagId)
       );
+      await queryClient.invalidateQueries({ queryKey });
       toast.success("Tag deleted");
     },
     onError: error => {

@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   Check,
   Edit3,
+  EyeOff,
+  Lock,
   Plus,
   Search,
   Tag,
@@ -129,14 +131,33 @@ export function DashboardTagsSheet({
   }, [businessSearch, sortedProfiles]);
 
   const editingTag = tags.find(tag => tag.id === editingTagId) || null;
+  const hiddenTag = tags.find(tag => tag.systemKey === "hidden") || null;
+  const isHiddenEditing = editingTag?.systemKey === "hidden";
   const isSaving = isCreating || isUpdating;
   const normalizedName = tagName.trim().replace(/\s+/g, " ");
+  const isReservedName =
+    !isHiddenEditing && normalizedName.toLowerCase() === "hidden";
   const isDirty =
     mode === "create" ||
     (editingTag != null &&
       (normalizedName !== editingTag.name ||
         !sameBusinessIds(selectedBusinessIds, editingTag.businessIds)));
-  const canSave = Boolean(normalizedName) && isDirty && !isSaving;
+  const canSave =
+    Boolean(normalizedName) && !isReservedName && isDirty && !isSaving;
+  const hiddenBusinessIds = useMemo(
+    () => new Set(hiddenTag?.businessIds || []),
+    [hiddenTag?.businessIds]
+  );
+  const regularTagCountByBusinessId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tag of tags) {
+      if (tag.systemKey === "hidden") continue;
+      for (const businessId of tag.businessIds) {
+        counts.set(businessId, (counts.get(businessId) || 0) + 1);
+      }
+    }
+    return counts;
+  }, [tags]);
   const selectedSet = useMemo(
     () => new Set(selectedBusinessIds),
     [selectedBusinessIds]
@@ -205,22 +226,30 @@ export function DashboardTagsSheet({
       businessIds: selectedBusinessIds,
     };
 
-    if (mode === "edit" && editingTagId) {
-      await updateTag({ tagId: editingTagId, input });
-    } else {
-      await createTag(input);
+    try {
+      if (mode === "edit" && editingTagId) {
+        await updateTag({ tagId: editingTagId, input });
+      } else {
+        await createTag(input);
+      }
+      resetToList();
+    } catch {
+      // Mutation toasts provide the error; keep the editor open for correction.
     }
-    resetToList();
   };
 
   const handleDelete = async () => {
     if (!tagToDelete || isDeleting) return;
     const deletedId = tagToDelete.id;
-    await deleteTag(deletedId);
-    if (selectedTagIds.includes(deletedId)) {
-      onSelectedTagIdsChange(selectedTagIds.filter(id => id !== deletedId));
+    try {
+      await deleteTag(deletedId);
+      if (selectedTagIds.includes(deletedId)) {
+        onSelectedTagIdsChange(selectedTagIds.filter(id => id !== deletedId));
+      }
+      setTagToDelete(null);
+    } catch {
+      // Mutation toasts provide the error; leave confirmation open for retry.
     }
-    setTagToDelete(null);
   };
 
   return (
@@ -267,14 +296,32 @@ export function DashboardTagsSheet({
                         className="group flex min-h-14 items-center gap-3 px-5 py-2.5 transition-colors hover:bg-secondary/60"
                       >
                         <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-white">
-                          <Tag className="size-4 text-muted-foreground" aria-hidden />
+                          {tag.systemKey === "hidden" ? (
+                            <EyeOff
+                              className="size-4 text-muted-foreground"
+                              aria-hidden
+                            />
+                          ) : (
+                            <Tag
+                              className="size-4 text-muted-foreground"
+                              aria-hidden
+                            />
+                          )}
                         </div>
                         <button
                           type="button"
                           onClick={() => openEditor(tag)}
                           className="min-w-0 flex-1 cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          <span className="block truncate text-sm font-medium">{tag.name}</span>
+                          <span className="flex items-center gap-1.5 truncate text-sm font-medium">
+                            {tag.name}
+                            {tag.systemKey === "hidden" ? (
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                <Lock className="size-2.5" aria-hidden />
+                                System
+                              </span>
+                            ) : null}
+                          </span>
                           <span className="block text-xs text-muted-foreground">
                             {tag.businessCount} {tag.businessCount === 1 ? "business" : "businesses"}
                           </span>
@@ -284,22 +331,32 @@ export function DashboardTagsSheet({
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => openEditor(tag)}
-                          aria-label={`Edit ${tag.name}`}
-                          title="Edit tag"
+                          aria-label={
+                            tag.systemKey === "hidden"
+                              ? "Manage Hidden businesses"
+                              : `Edit ${tag.name}`
+                          }
+                          title={
+                            tag.systemKey === "hidden"
+                              ? "Manage businesses"
+                              : "Edit tag"
+                          }
                         >
                           <Edit3 />
                         </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => setTagToDelete(tag)}
-                          aria-label={`Delete ${tag.name}`}
-                          title="Delete tag"
-                          className="text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 />
-                        </Button>
+                        {tag.systemKey === "hidden" ? null : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => setTagToDelete(tag)}
+                            aria-label={`Delete ${tag.name}`}
+                            title="Delete tag"
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 />
+                          </Button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -322,33 +379,60 @@ export function DashboardTagsSheet({
                   </Button>
                   <div className="space-y-1">
                     <SheetTitle className="text-base font-medium">
-                      {mode === "create" ? "Create tag" : "Edit tag"}
+                      {mode === "create"
+                        ? "Create tag"
+                        : isHiddenEditing
+                          ? "Manage Hidden"
+                          : "Edit tag"}
                     </SheetTitle>
                     <SheetDescription>
-                      Choose the businesses this tag should show on Home.
+                      {isHiddenEditing
+                        ? "Hidden businesses stay off Home unless Hidden is temporarily enabled."
+                        : "Choose the businesses this tag should show on Home."}
                     </SheetDescription>
                   </div>
                 </div>
               </SheetHeader>
 
-              <div className="border-b border-border px-5 py-4">
-                <label htmlFor="dashboard-tag-name" className="mb-1.5 block text-sm font-medium">
-                  Tag name
-                </label>
-                <Input
-                  id="dashboard-tag-name"
-                  value={tagName}
-                  onChange={event => setTagName(event.target.value)}
-                  maxLength={40}
-                  placeholder="e.g. Priority clients"
-                  autoFocus
-                  disabled={isSaving}
-                />
-                <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-                  <span>Keep it short and easy to scan.</span>
-                  <span>{tagName.length}/40</span>
+              {isHiddenEditing ? (
+                <div className="border-b border-border bg-secondary/40 px-5 py-3">
+                  <div className="flex items-start gap-2">
+                    <Lock
+                      className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                      aria-hidden
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Hidden is a protected system tag. Adding a business here
+                      removes it from every regular tag and deletes any regular
+                      tag left empty.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="border-b border-border px-5 py-4">
+                  <label htmlFor="dashboard-tag-name" className="mb-1.5 block text-sm font-medium">
+                    Tag name
+                  </label>
+                  <Input
+                    id="dashboard-tag-name"
+                    value={tagName}
+                    onChange={event => setTagName(event.target.value)}
+                    maxLength={40}
+                    placeholder="e.g. Priority clients"
+                    autoFocus
+                    disabled={isSaving}
+                    aria-invalid={isReservedName}
+                  />
+                  <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                    <span className={cn(isReservedName && "text-destructive")}>
+                      {isReservedName
+                        ? "Hidden is reserved for the system tag."
+                        : "Keep it short and easy to scan."}
+                    </span>
+                    <span>{tagName.length}/40</span>
+                  </div>
+                </div>
+              )}
 
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="space-y-3 border-b border-border px-5 py-3">
@@ -357,6 +441,9 @@ export function DashboardTagsSheet({
                       <p className="text-sm font-medium">Businesses</p>
                       <p className="text-xs text-muted-foreground">
                         {selectedBusinessIds.length} selected
+                        {isHiddenEditing
+                          ? " · selected businesses will be hidden"
+                          : " · selecting a hidden business restores it"}
                       </p>
                     </div>
                     {profiles.length > 0 ? (
@@ -415,6 +502,11 @@ export function DashboardTagsSheet({
                       </label>
                       {visibleProfiles.map(profile => {
                         const checked = selectedSet.has(profile.UniqueId);
+                        const isCurrentlyHidden = hiddenBusinessIds.has(
+                          profile.UniqueId
+                        );
+                        const regularTagCount =
+                          regularTagCountByBusinessId.get(profile.UniqueId) || 0;
                         const name = profileName(profile);
                         const domain = profileDomain(profile);
                         return (
@@ -440,6 +532,16 @@ export function DashboardTagsSheet({
                                 {domain}
                               </span>
                             </span>
+                            {isHiddenEditing && regularTagCount > 0 ? (
+                              <span className="shrink-0 text-[11px] text-muted-foreground">
+                                In {regularTagCount}{" "}
+                                {regularTagCount === 1 ? "tag" : "tags"}
+                              </span>
+                            ) : !isHiddenEditing && isCurrentlyHidden ? (
+                              <span className="shrink-0 text-[11px] text-muted-foreground">
+                                Hidden
+                              </span>
+                            ) : null}
                             {checked ? (
                               <Check className="size-4 shrink-0 text-general-primary" aria-hidden />
                             ) : null}
@@ -461,7 +563,13 @@ export function DashboardTagsSheet({
                   Cancel
                 </Button>
                 <Button type="button" onClick={handleSave} disabled={!canSave}>
-                  {isSaving ? "Saving…" : mode === "create" ? "Create tag" : "Save changes"}
+                  {isSaving
+                    ? "Saving…"
+                    : mode === "create"
+                      ? "Create tag"
+                      : isHiddenEditing
+                        ? "Save Hidden"
+                        : "Save changes"}
                 </Button>
               </SheetFooter>
             </>

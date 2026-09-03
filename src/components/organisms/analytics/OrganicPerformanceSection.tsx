@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/molecules/analytics/MetricCard";
 import { AlertBar } from "@/components/molecules/analytics/AlertBar";
 import { AnomaliesSheet } from "@/components/molecules/analytics/AnomaliesSheet";
+import { CampaignImpactReportSheet } from "@/components/organisms/campaign-impact/CampaignImpactReportSheet";
 import { FunnelChart } from "@/components/molecules/analytics/FunnelChart";
 import { ChartLegend } from "@/components/molecules/analytics/ChartLegend";
 import { ChartOverlayToggle } from "@/components/molecules/analytics/ChartOverlayToggle";
@@ -58,7 +59,7 @@ import type {
   AnalyticsAnomalyTier,
 } from "@/hooks/use-analytics-anomaly-dates";
 import { useBusinessStore } from "@/store/business-store";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useMemo, useState, useCallback, useEffect } from "react";
 import type { DeepdiveApiFilter } from "@/hooks/use-organic-deepdive-filters";
 import {
@@ -373,7 +374,6 @@ export function OrganicPerformanceSection({
   isIngestionActive = false,
 }: OrganicPerformanceSectionProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const profiles = useBusinessStore((state) => state.profiles);
 
   const { businessUniqueId, website, businessName, onboardedDateKey } = useMemo(() => {
@@ -444,6 +444,7 @@ export function OrganicPerformanceSection({
   const [anomaliesSheetOpen, setAnomaliesSheetOpen] = useState(false);
   const [anomaliesSheetTab, setAnomaliesSheetTab] = useState<AnomalySheetTab>("goals");
   const [anomaliesSheetDate, setAnomaliesSheetDate] = useState<string | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [brandedKeywordsModalOpen, setBrandedKeywordsModalOpen] = useState(false);
   // Overlays are opt-in per chart, so their data is only fetched once switched on.
   const [anomalyHighlightsOn, setAnomalyHighlightsOn] = useState(false);
@@ -1022,6 +1023,13 @@ export function OrganicPerformanceSection({
       />}
 
       {/* Anomalies Sheet */}
+      <CampaignImpactReportSheet
+        open={Boolean(selectedCampaignId)}
+        onOpenChange={open => { if (!open) setSelectedCampaignId(null); }}
+        businessId={businessUniqueId}
+        campaignId={selectedCampaignId}
+      />
+
       {!isIngestionActive && <AnomaliesSheet
         open={anomaliesSheetOpen}
         onOpenChange={setAnomaliesSheetOpen}
@@ -1243,7 +1251,7 @@ export function OrganicPerformanceSection({
                           width: `${band.width}%`,
                           transform: `translateX(${band.stack * OVERLAY_LINE_NUDGE_PX}px)`,
                         }}
-                        onClick={() => router.push(`/business/${businessUniqueId}/analytics/campaigns/${band.id}`)}
+                        onClick={() => setSelectedCampaignId(band.id)}
                       >
                         <span
                           className={OVERLAY_LABEL_CLASS}
@@ -1271,7 +1279,7 @@ export function OrganicPerformanceSection({
                           onClick={
                             isOnboarded
                               ? undefined
-                              : () => router.push(`/business/${businessUniqueId}/analytics/campaigns/${marker.id}`)
+                              : () => setSelectedCampaignId(marker.id)
                           }
                         >
                           <span

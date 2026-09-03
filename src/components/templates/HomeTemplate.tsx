@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -27,6 +27,10 @@ import { BusinessPreviewCard } from "@/components/molecules/home/BusinessPreview
 import { OnboardingCard } from "@/components/molecules/home/OnboardingCard";
 import { Typography } from "@/components/ui/typography";
 import { EmptyState } from "@/components/molecules/EmptyState";
+import {
+  readUncheckedHomeTagIds,
+  writeUncheckedHomeTagIds,
+} from "@/utils/home-tag-visibility-storage";
 import {
   HOME_PERIODS,
   HOME_SIGNAL_FILTERS,
@@ -145,6 +149,7 @@ export function HomeTemplate() {
     HomeSignalFilterValue[]
   >([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [showHiddenTag, setShowHiddenTag] = useState(false);
   // Default to nothing selected on first render to avoid briefly showing the wrong
   // selection before localStorage is read.
   const [showActive, setShowActive] = useState(false);
@@ -180,16 +185,77 @@ export function HomeTemplate() {
   const { previews, isLoading: previewsLoading } = useBusinessPreviews(period);
   const { connectGoogleAccount } = useGoogleAccounts();
   const dashboardTags = useDashboardTags();
+  const accountId = String(
+    user?.accountUniqueId ||
+      user?.uniqueId ||
+      user?.UniqueId ||
+      user?.id ||
+      ""
+  );
+  const [tagSelectionAccountId, setTagSelectionAccountId] = useState<
+    string | null
+  >(null);
+  const knownRegularTagIdsRef = useRef<Set<string>>(new Set());
+  const [tagSelectionReady, setTagSelectionReady] = useState(false);
 
-  // Drop selections for tags that disappeared (deleted elsewhere or refetched away).
+  // Persist exclusions instead of selections so newly created tags default to visible.
   useEffect(() => {
-    if (selectedTagIds.length === 0 || dashboardTags.isLoading) return;
-    const knownIds = new Set(dashboardTags.tags.map(tag => tag.id));
-    const stillValid = selectedTagIds.filter(id => knownIds.has(id));
-    if (stillValid.length !== selectedTagIds.length) {
-      setSelectedTagIds(stillValid);
+    if (!accountId || dashboardTags.isLoading || dashboardTags.isError) return;
+
+    const regularTags = dashboardTags.tags.filter(tag => !tag.systemKey);
+    const regularTagIds = regularTags.map(tag => tag.id);
+    const nextKnownTagIds = new Set(regularTagIds);
+
+    if (tagSelectionAccountId !== accountId) {
+      const uncheckedTagIds = new Set(readUncheckedHomeTagIds(accountId));
+      setTagSelectionAccountId(accountId);
+      setSelectedTagIds(
+        regularTagIds.filter(tagId => !uncheckedTagIds.has(tagId))
+      );
+      setShowHiddenTag(false);
+      setTagSelectionReady(true);
+    } else {
+      setSelectedTagIds(current => {
+        const stillValid = current.filter(tagId => nextKnownTagIds.has(tagId));
+        const newTagIds = regularTagIds.filter(
+          tagId => !knownRegularTagIdsRef.current.has(tagId)
+        );
+        return [...stillValid, ...newTagIds];
+      });
     }
-  }, [dashboardTags.isLoading, dashboardTags.tags, selectedTagIds]);
+
+    knownRegularTagIdsRef.current = nextKnownTagIds;
+  }, [
+    accountId,
+    dashboardTags.isError,
+    dashboardTags.isLoading,
+    dashboardTags.tags,
+    tagSelectionAccountId,
+  ]);
+
+  useEffect(() => {
+    if (
+      !tagSelectionReady ||
+      !accountId ||
+      tagSelectionAccountId !== accountId
+    ) {
+      return;
+    }
+
+    const selectedIds = new Set(selectedTagIds);
+    writeUncheckedHomeTagIds(
+      accountId,
+      dashboardTags.tags
+        .filter(tag => !tag.systemKey && !selectedIds.has(tag.id))
+        .map(tag => tag.id)
+    );
+  }, [
+    accountId,
+    dashboardTags.tags,
+    selectedTagIds,
+    tagSelectionAccountId,
+    tagSelectionReady,
+  ]);
 
   const joined = useMemo(() => {
     const profileByUniqueId = new Map<
@@ -221,31 +287,69 @@ export function HomeTemplate() {
     });
   }, [previews, profiles]);
 
-  const selectedDashboardTags = useMemo(
-    () => dashboardTags.tags.filter(tag => selectedTagIds.includes(tag.id)),
+  const hiddenTag = useMemo(
+    () => dashboardTags.tags.find(tag => tag.systemKey === "hidden") || null,
+    [dashboardTags.tags]
+  );
+  const selectedRegularTags = useMemo(
+    () =>
+      dashboardTags.tags.filter(
+        tag => !tag.systemKey && selectedTagIds.includes(tag.id)
+      ),
     [dashboardTags.tags, selectedTagIds]
   );
+  const selectedBusinessIds = useMemo(
+    () =>
+      selectedRegularTags.length > 0
+        ? new Set(selectedRegularTags.flatMap(tag => tag.businessIds))
+        : null,
+    [selectedRegularTags]
+  );
+  const hiddenBusinessIds = useMemo(
+    () => new Set(hiddenTag?.businessIds || []),
+    [hiddenTag?.businessIds]
+  );
+  const tagFilterReady =
+    tagSelectionReady && tagSelectionAccountId === accountId;
+  const hasTagVisibilityFilter =
+    tagFilterReady &&
+    (selectedRegularTags.length > 0 ||
+      selectedTagIds.length <
+        dashboardTags.tags.filter(tag => !tag.systemKey).length ||
+      (!showHiddenTag && hiddenBusinessIds.size > 0));
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    // Several tags act as a union: a business matches if any selected tag holds it.
-    const taggedBusinessIds = selectedDashboardTags.length
-      ? new Set(selectedDashboardTags.flatMap(tag => tag.businessIds))
-      : null;
 
     return joined.filter(item => {
-      if (
-        taggedBusinessIds &&
-        (!item.uniqueId || !taggedBusinessIds.has(item.uniqueId))
-      ) {
-        return false;
+      if (tagFilterReady) {
+        const isHidden = item.uniqueId
+          ? hiddenBusinessIds.has(item.uniqueId)
+          : false;
+
+        if (isHidden) {
+          if (!showHiddenTag) return false;
+        } else if (
+          selectedBusinessIds &&
+          (!item.uniqueId || !selectedBusinessIds.has(item.uniqueId))
+        ) {
+          return false;
+        }
       }
+
       if (!query) return true;
       return (
         item.name.toLowerCase().includes(query) || item.domain.includes(query)
       );
     });
-  }, [joined, search, selectedDashboardTags]);
+  }, [
+    hiddenBusinessIds,
+    joined,
+    search,
+    selectedBusinessIds,
+    showHiddenTag,
+    tagFilterReady,
+  ]);
 
   const onboardingCandidates = useMemo(() => {
     return filtered.filter((item) => Boolean(item.uniqueId));
@@ -451,17 +555,13 @@ export function HomeTemplate() {
     !activeSectionLoading &&
     activeBusinesses.length > 0 &&
     sortedActiveBusinesses.length === 0;
-  const selectedTagLabel =
-    selectedDashboardTags.length === 1
-      ? selectedDashboardTags[0].name
-      : "the selected tags";
-  const activeEmptyDescription = selectedDashboardTags.length
-    ? `No active businesses are assigned to ${selectedTagLabel}.`
+  const activeEmptyDescription = hasTagVisibilityFilter
+    ? "No active businesses match the visible tags."
     : search.trim()
       ? "No active businesses match your search."
       : "Connect your business from Settings or create one manually.";
-  const onboardingEmptyDescription = selectedDashboardTags.length
-    ? `No onboarding businesses are assigned to ${selectedTagLabel}.`
+  const onboardingEmptyDescription = hasTagVisibilityFilter
+    ? "No onboarding businesses match the visible tags."
     : search.trim()
       ? "No onboarding businesses match your search."
       : "No onboarding businesses found.";
@@ -522,6 +622,8 @@ export function HomeTemplate() {
           onShowOnboardingChange={setShowOnboarding}
           selectedTagIds={selectedTagIds}
           onSelectedTagIdsChange={setSelectedTagIds}
+          showHiddenTag={showHiddenTag}
+          onShowHiddenTagChange={setShowHiddenTag}
           profiles={profiles}
           dashboardTags={dashboardTags}
         />
@@ -570,7 +672,7 @@ export function HomeTemplate() {
                       title="No active businesses"
                       cardClassName="bg-white h-full flex items-center justify-center"
                       description={activeEmptyDescription}
-                      buttons={selectedDashboardTags.length || search.trim() ? undefined : [
+                      buttons={hasTagVisibilityFilter || search.trim() ? undefined : [
                           {
                             label: "Go to Settings",
                             href: "/settings",
@@ -724,7 +826,7 @@ export function HomeTemplate() {
                       title="No active businesses"
                       description={activeEmptyDescription}
                       cardClassName="bg-white"
-                      buttons={selectedDashboardTags.length || search.trim() ? undefined : [
+                      buttons={hasTagVisibilityFilter || search.trim() ? undefined : [
                           {
                             label: "Go to Settings",
                             href: "/settings",

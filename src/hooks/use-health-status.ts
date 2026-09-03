@@ -7,6 +7,13 @@ export type HealthColor = "green" | "amber" | "red" | "gray" | null
 export type TrendArrow  = "up" | "flat" | "down" | "none" | null
 export type Confidence  = "high" | "medium" | "low" | null
 
+export interface CurrentHealthStreak {
+  color: Exclude<HealthColor, null>
+  days: number
+  start_date: string
+  end_date: string
+}
+
 export interface HealthStatusRow {
   business_id:        string
   computed_date:      string          // 'YYYY-MM-DD' — the anchor date
@@ -27,6 +34,12 @@ export interface HealthStatusRow {
   ga4_connected:      boolean
   is_stale:           boolean         // true when row is older than current anchor date
   updated_at:         string
+  current_streak?:    CurrentHealthStreak | null
+}
+
+export interface CurrentHealthStreakResponse {
+  current_streak: CurrentHealthStreak | null
+  days: HealthStatusRow[]
 }
 
 interface ApiResponse<T> {
@@ -203,4 +216,25 @@ export function useHealthStatusBatch(
     error:      query.error ? String(query.error) : null,
     refetch:    async () => { await query.refetch() },
   }
+}
+
+/** Fetches the complete current streak only while its detail Sheet is open. */
+export function useCurrentHealthStreak(
+  businessId: string | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ["health-status-current-streak", businessId],
+    queryFn: async () => {
+      if (!businessId) return { current_streak: null, days: [] }
+      const res = await api.get<ApiResponse<CurrentHealthStreakResponse>>(
+        `/analytics/health-status/${businessId}/current-streak`,
+        "node"
+      )
+      return res.data ?? { current_streak: null, days: [] }
+    },
+    enabled: !!businessId && enabled,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  })
 }

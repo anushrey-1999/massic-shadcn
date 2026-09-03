@@ -711,6 +711,7 @@ export function HomeTemplate() {
                           return (
                             <BusinessPreviewCard
                               key={uniqueId ?? domain}
+                              businessId={uniqueId ?? undefined}
                               name={name}
                               url={preview.url}
                               graph={graph}
@@ -865,6 +866,7 @@ export function HomeTemplate() {
                           return (
                             <BusinessPreviewCard
                               key={uniqueId ?? domain}
+                              businessId={uniqueId ?? undefined}
                               name={name}
                               url={preview.url}
                               graph={graph}

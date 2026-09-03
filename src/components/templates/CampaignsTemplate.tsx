@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableElement, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CampaignFormSheet } from "@/components/organisms/campaign-impact/CampaignFormSheet";
+import { CampaignImpactReportSheet } from "@/components/organisms/campaign-impact/CampaignImpactReportSheet";
 import { CampaignMessageBanner } from "@/components/organisms/campaign-impact/CampaignMessageBanner";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import { useCampaignEvents, useCampaignMutations } from "@/hooks/use-campaign-impact";
@@ -91,7 +92,16 @@ function MetricSummary({ summary }: { summary?: CampaignListPerformance }) {
 
 function PerformanceSummary({ summaries = [] }: { summaries?: CampaignListPerformance[] }) {
   const byKey = new Map(summaries.map(summary => [summary.metricKey, summary]));
-  return <div className="grid grid-cols-3 divide-x divide-general-border"><div className="pr-3"><MetricSummary summary={byKey.get("search_clicks")} /></div><div className="px-3"><MetricSummary summary={byKey.get("sessions")} /></div><div className="pl-3"><MetricSummary summary={byKey.get("key_events")} /></div></div>;
+  const metricKeys: CampaignListPerformance["metricKey"][] = ["branded_clicks", "sessions", "key_events", "search_clicks"];
+  return (
+    <div className="grid grid-cols-4 divide-x divide-general-border">
+      {metricKeys.map(metricKey => (
+        <div key={metricKey} className="min-w-0 px-2 first:pl-0 last:pr-0">
+          <MetricSummary summary={byKey.get(metricKey)} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function CampaignsTemplate({ businessId }: { businessId: string }) {
@@ -107,7 +117,7 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<CampaignEvent | null>(null);
   const [deleting, setDeleting] = React.useState<CampaignEvent | null>(null);
-  const [openingCampaignId, setOpeningCampaignId] = React.useState<string | null>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = React.useState<string | null>(null);
   const filters = React.useMemo(() => ({
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(type !== "all" ? { type } : {}),
@@ -139,9 +149,7 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
   function openCreate() { captureCampaignImpactEvent("campaign_tracking_opened", { business_id: businessId, origin: "campaign_list" }); setEditing(null); setFormOpen(true); }
   function openEdit(campaign: CampaignEvent) { setEditing(campaign); setFormOpen(true); }
   function openReport(campaignId: string) {
-    if (openingCampaignId) return;
-    setOpeningCampaignId(campaignId);
-    router.push(`/business/${businessId}/analytics/campaigns/${campaignId}`);
+    setSelectedCampaignId(campaignId);
   }
   async function confirmDelete() {
     if (!deleting) return;
@@ -193,15 +201,14 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
             <div className="flex min-h-[320px] flex-col items-center justify-center px-6 py-10 text-center"><span className="mb-4 grid size-12 place-items-center rounded-full bg-general-secondary"><Megaphone className="size-6 text-muted-foreground" /></span><h2 className="font-medium">{hasFilters ? "No matching campaigns" : "No campaigns yet"}</h2><p className="mt-1 max-w-md text-sm text-muted-foreground">{hasFilters ? "Try clearing a filter or using another search." : "Add a campaign to compare performance before, during, and after it."}</p>{canManage && !hasFilters ? <Button className="mt-4" onClick={openCreate}><Plus className="size-4" />Add first campaign</Button> : null}</div>
           ) : (
             <Table className="w-full">
-              <TableElement className="min-w-[1075px] table-fixed">
-                <colgroup><col className="w-[170px]" /><col className="w-[195px]" /><col className="w-[330px]" /><col className="w-[130px]" /><col className="w-[210px]" /><col className="w-[40px]" /></colgroup>
+              <TableElement className="min-w-[1145px] table-fixed">
+                <colgroup><col className="w-[170px]" /><col className="w-[195px]" /><col className="w-[400px]" /><col className="w-[130px]" /><col className="w-[210px]" /><col className="w-[40px]" /></colgroup>
                 <TableHeader className="bg-general-primary-foreground"><TableRow className="h-9 bg-general-primary-foreground hover:bg-general-primary-foreground"><TableHead className="px-3 text-xs text-muted-foreground">Campaign</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Dates</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Performance vs before</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Status</TableHead><TableHead className="px-3 text-xs text-muted-foreground">Search trend</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
                 <TableBody>{campaigns.data.map(campaign => {
                   const statusKey = (campaign.status || "collecting_data") as CampaignStatus;
                   const statusMeta = CAMPAIGN_STATUS[statusKey];
-                  const isOpening = openingCampaignId === campaign.id;
                   const dateLabel = campaign.eventKind === "one_time" ? formatCampaignDate(campaign.startDate) : formatCampaignDateRange(campaign.startDate, campaign.endDate);
-                  return <TableRow key={campaign.id} className="group h-[84px] cursor-pointer hover:bg-general-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={() => openReport(campaign.id)} tabIndex={0} aria-busy={isOpening} onKeyDown={event => { if (event.key === "Enter") openReport(campaign.id); }}>
+                  return <TableRow key={campaign.id} className="group h-[84px] cursor-pointer hover:bg-general-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" onClick={() => openReport(campaign.id)} tabIndex={0} onKeyDown={event => { if (event.key === "Enter") openReport(campaign.id); }}>
                     <TableCell className="px-3"><div className="min-w-0"><Tooltip><TooltipTrigger asChild><p className="truncate font-medium text-general-foreground">{campaign.name}</p></TooltipTrigger><TooltipContent side="top" sideOffset={6} className="max-w-[320px] whitespace-normal break-words text-left">{campaign.name}</TooltipContent></Tooltip><p className="mt-1 text-xs text-muted-foreground">{CAMPAIGN_TYPE_LABELS[campaign.campaignType]} · {campaign.eventKind === "one_time" ? "One-time event" : campaign.endDate ? "Campaign" : "Ongoing"}</p></div></TableCell>
                     <TableCell className="px-3"><div className="flex min-w-0 items-center gap-2 text-sm"><CalendarRange className="size-4 shrink-0 text-muted-foreground" /><span className="truncate whitespace-nowrap" title={dateLabel}>{dateLabel}</span></div></TableCell>
                     <TableCell className="px-3"><PerformanceSummary summaries={campaign.performanceSummaries} /></TableCell>
@@ -220,7 +227,7 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
                             className="size-8 rounded-[6px] border border-transparent bg-general-secondary text-general-unofficial-mid-alt hover:border-general-border hover:bg-general-border data-[state=open]:border-general-border data-[state=open]:bg-general-border"
                             aria-label={`Actions for ${campaign.name}`}
                           >
-                            {isOpening ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" strokeWidth={1.5} />}
+                            <MoreHorizontal className="size-4" strokeWidth={1.5} />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
@@ -274,6 +281,12 @@ export function CampaignsTemplate({ businessId }: { businessId: string }) {
         </section>
       </main>
 
+      <CampaignImpactReportSheet
+        open={Boolean(selectedCampaignId)}
+        onOpenChange={open => { if (!open) setSelectedCampaignId(null); }}
+        businessId={businessId}
+        campaignId={selectedCampaignId}
+      />
       <CampaignFormSheet open={formOpen} onOpenChange={setFormOpen} businessId={businessId} locations={locations} campaign={editing} />
       <AlertDialog open={Boolean(deleting)} onOpenChange={open => !open && !mutations.remove.isPending && setDeleting(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete campaign?</AlertDialogTitle><AlertDialogDescription>This removes “{deleting?.name}” from Campaign Tracking and Analytics. Previously shared reports stay available.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={mutations.remove.isPending}>Cancel</AlertDialogCancel><AlertDialogAction onClick={event => { event.preventDefault(); void confirmDelete(); }} disabled={mutations.remove.isPending} className="bg-destructive text-white hover:bg-destructive/90">{mutations.remove.isPending ? <><Loader2 className="size-4 animate-spin" />Deleting</> : "Delete campaign"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>

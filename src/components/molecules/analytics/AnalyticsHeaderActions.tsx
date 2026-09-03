@@ -221,6 +221,7 @@ interface AnalyticsDisplayMenuProps {
   metricKeys: readonly AnalyticsMetricKey[];
   visibleLines: Record<string, boolean>;
   onLineToggle: (key: AnalyticsMetricKey, checked: boolean) => void;
+  metricLabels?: Partial<Record<AnalyticsMetricKey, string>>;
   /** The All tab plots a fixed set of lines, so the toggles are read-only. */
   linesLocked?: boolean;
   disabled?: boolean;
@@ -235,6 +236,7 @@ export function AnalyticsDisplayMenu({
   metricKeys,
   visibleLines,
   onLineToggle,
+  metricLabels,
   linesLocked = false,
   disabled = false,
 }: AnalyticsDisplayMenuProps) {
@@ -306,7 +308,7 @@ export function AnalyticsDisplayMenu({
                   className="size-2.5 shrink-0 rounded-[2px]"
                   style={{ backgroundColor: CHART_SERIES_COLORS[key] }}
                 />
-                {ANALYTICS_METRIC_LABELS[key]}
+                {metricLabels?.[key] || ANALYTICS_METRIC_LABELS[key]}
               </span>
             </DropdownMenuCheckboxItem>
           );

@@ -17,6 +17,7 @@ import {
   AreaChart,
   CartesianGrid,
   ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
@@ -38,8 +39,6 @@ import { CampaignFormSheet } from "@/components/organisms/campaign-impact/Campai
 import { CampaignImpactReportSkeleton } from "@/components/organisms/campaign-impact/CampaignImpactReportSkeleton";
 import { CampaignMessageBanner } from "@/components/organisms/campaign-impact/CampaignMessageBanner";
 import { CampaignOverlapWarning } from "@/components/organisms/campaign-impact/CampaignOverlapWarning";
-import { ProductIcon } from "@/components/organisms/access-request/ProductIcon";
-import { PRODUCT_CONFIG } from "@/config/access-request";
 import { useBusinessProfileById } from "@/hooks/use-business-profiles";
 import {
   downloadCampaignImpactPdf,
@@ -85,12 +84,6 @@ const KEY_METRIC_KEYS: Record<CampaignImpactSource["source"], readonly string[]>
   gbp: ["website_clicks", "call_clicks", "direction_requests"],
 };
 
-const SOURCE_GROUP_LABELS: Record<CampaignImpactSource["source"], string> = {
-  ga4: "Google Analytics",
-  gsc: "Google Search Console",
-  gbp: "Google Business Profile",
-};
-
 const REPORT_CHART_KEYS = ["sessions", "clicks", "goals"] as const satisfies readonly AnalyticsMetricKey[];
 const REPORT_CHART_LABELS: Record<(typeof REPORT_CHART_KEYS)[number], string> = {
   sessions: "Sessions",
@@ -119,14 +112,6 @@ interface CampaignImpactReportContentProps {
   campaignId: string;
   variant: "page" | "sheet";
   onBackToCampaigns?: () => void;
-}
-
-function sourceName(source: CampaignImpactSource["source"]): string {
-  return SOURCE_GROUP_LABELS[source] || PRODUCT_CONFIG[source]?.label || source.toUpperCase();
-}
-
-function sourceShortName(source: CampaignImpactSource["source"]): string {
-  return PRODUCT_CONFIG[source]?.shortLabel || source.toUpperCase();
 }
 
 function PresentationChange({ change }: { change: CampaignPresentationChange }) {
@@ -233,10 +218,16 @@ function CampaignWindowChart({
   points,
   primaryWindow,
   primaryLabel,
+  eventKind,
+  eventDate,
+  isScheduled,
 }: {
   points: CampaignImpactChartPoint[];
   primaryWindow: CampaignPresentationWindow | undefined;
   primaryLabel: string;
+  eventKind: "date_range" | "one_time";
+  eventDate: string;
+  isScheduled: boolean;
 }) {
   const availableKeys = REPORT_CHART_KEYS.filter(key => {
     const dataKey = key === "goals" ? "keyEvents" : key;
@@ -249,7 +240,9 @@ function CampaignWindowChart({
   if (!availablePoints.length) {
     return (
       <div className="flex h-[246px] items-center justify-center text-sm text-muted-foreground">
-        Trend will appear here when connected data is available.
+        {isScheduled
+          ? "This campaign has not started. Trend data will appear as measurements arrive."
+          : "Trend will appear here when connected data is available."}
       </div>
     );
   }
@@ -277,7 +270,16 @@ function CampaignWindowChart({
             interval={Math.max(0, Math.floor(points.length / 8) - 1)}
           />
           <YAxis hide width={0} domain={useNormalizedKeys ? [0, 100] : ["auto", "auto"]} />
-          {primaryWindow?.start && primaryWindow.end ? (
+          {eventKind === "one_time" ? (
+            <ReferenceLine
+              x={eventDate}
+              stroke="var(--general-primary)"
+              strokeWidth={1.5}
+              strokeDasharray="3 2"
+              ifOverflow="extendDomain"
+              label={{ value: "Event", position: "insideTopLeft", fill: "var(--general-primary)", fontSize: 10 }}
+            />
+          ) : primaryWindow?.start && primaryWindow.end ? (
             <ReferenceArea
               x1={primaryWindow.start}
               x2={primaryWindow.end}
@@ -325,7 +327,13 @@ function CampaignWindowChart({
   );
 }
 
-function CampaignChartLegend({ points }: { points: CampaignImpactChartPoint[] }) {
+function CampaignChartLegend({
+  points,
+  eventKind,
+}: {
+  points: CampaignImpactChartPoint[];
+  eventKind: "date_range" | "one_time";
+}) {
   const availableKeys = REPORT_CHART_KEYS.filter(key => {
     const dataKey = key === "goals" ? "keyEvents" : key;
     return points.some(point => point[dataKey] != null);
@@ -334,8 +342,16 @@ function CampaignChartLegend({ points }: { points: CampaignImpactChartPoint[] })
   return (
     <div className="flex flex-wrap items-center gap-x-8 gap-y-2 font-mono text-xs font-normal leading-[1.5] text-muted-foreground">
       <div className="flex items-center gap-1">
-        <span className="size-2 rounded-full bg-primary/15" aria-hidden="true" />
-        <span>Campaign Window</span>
+        {eventKind === "one_time" ? (
+          <span className="w-4 border-t-2 border-dashed border-primary" aria-hidden="true" />
+        ) : (
+          <span
+            className="size-2 rounded-full"
+            style={{ backgroundColor: "var(--general-primary)", opacity: 0.12 }}
+            aria-hidden="true"
+          />
+        )}
+        <span>{eventKind === "one_time" ? "Event Date" : "Campaign Window"}</span>
       </div>
       {availableKeys.map(key => (
         <div key={key} className="flex items-center gap-1">
@@ -389,7 +405,7 @@ function CampaignPhaseLabels({
                 type="button"
                 className={cn(
                   "border-r border-general-border px-2 py-1.5 text-center transition-colors last:border-r-0 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  phase.key === "primary" && "bg-primary/10 text-primary hover:bg-primary/15",
+                  phase.key === "primary" && "bg-primary/[0.12] text-primary hover:bg-primary/15",
                 )}
                 style={{ flex: window?.days || 1 }}
               >
@@ -469,11 +485,6 @@ export function CampaignImpactReportContent({
   const keyMetricRows = React.useMemo(() => metricRows.filter(metric => metric.isKeyMetric), [metricRows]);
   const visibleMetricRows = showAllMetrics || !keyMetricRows.length ? metricRows : keyMetricRows;
   const hiddenMetricCount = metricRows.length - keyMetricRows.length;
-
-  const sourceNotes = React.useMemo(
-    () => (report?.presentation.sources || []).filter(source => source.status.tone !== "positive" || source.message),
-    [report],
-  );
 
   const reportCards = React.useMemo(() => REPORT_CARD_METRICS.map(card => {
     const source = report?.presentation.sources.find(item => item.key === card.source);
@@ -641,7 +652,7 @@ export function CampaignImpactReportContent({
         ))}
       </div>
 
-      {!showStatusBanner ? (
+      {report.status !== "unavailable" ? (
         <div>
           <div className="h-px w-full bg-general-border" />
           <div className="flex flex-col gap-8 px-6 py-6">
@@ -649,19 +660,26 @@ export function CampaignImpactReportContent({
               <p className="text-base font-medium text-secondary-foreground">
                 {hasPostPeriod ? "Before, During & After" : `Before & ${presentation.primaryColumnLabel}`}
               </p>
-              <p className="mt-0.5 text-[10px] tracking-[0.15px] text-muted-foreground">The shaded band is the campaign window. Look for a shift that lines up with it.</p>
+              <p className="mt-0.5 text-[10px] tracking-[0.15px] text-muted-foreground">
+                {campaign.eventKind === "one_time"
+                  ? "The dashed line marks the event date. The Impact period covers the seven days starting there."
+                  : "The shaded band is the campaign window. Look for a shift that lines up with it."}
+              </p>
             </div>
             <CampaignWindowChart
               points={report.chartSeries || []}
               primaryWindow={windows.get("primary")}
               primaryLabel={presentation.primaryColumnLabel}
+              eventKind={campaign.eventKind}
+              eventDate={campaign.startDate}
+              isScheduled={report.status === "scheduled"}
             />
             <CampaignPhaseLabels
               windows={windows}
               primaryLabel={presentation.primaryColumnLabel}
               points={report.chartSeries || []}
             />
-            <CampaignChartLegend points={report.chartSeries || []} />
+            <CampaignChartLegend points={report.chartSeries || []} eventKind={campaign.eventKind} />
           </div>
           <div className="h-px w-full bg-general-border" />
         </div>
@@ -690,12 +708,7 @@ export function CampaignImpactReportContent({
                 {visibleMetricRows.map(metric => (
                   <tr key={`${metric.sourceKey}-${metric.key}`} className="border-b border-general-border text-sm font-medium tracking-[0.07px]">
                     <td className="w-[320px] py-2 text-secondary-foreground">
-                      <div className="flex items-center gap-2">
-                        <span>{metric.label}</span>
-                        <span className="rounded border border-general-border px-1 text-[10px] font-medium leading-4 tracking-wide text-muted-foreground">
-                          {sourceShortName(metric.sourceKey)}
-                        </span>
-                      </div>
+                      {metric.label}
                     </td>
                     <td className="py-2 text-center tabular-nums text-secondary-foreground">{metric.baselineText}</td>
                     <td className="py-2 text-center tabular-nums text-secondary-foreground">{metric.primaryText}</td>
@@ -724,16 +737,8 @@ export function CampaignImpactReportContent({
           </button>
         ) : null}
 
-        {report.dataThrough || sourceNotes.length ? (
-          <div className="space-y-1 text-xs text-muted-foreground">
-            {report.dataThrough ? <p>Data through {formatCampaignDate(report.dataThrough)}</p> : null}
-            {sourceNotes.map(source => (
-              <p key={source.key} className="flex items-center gap-1.5">
-                <ProductIcon product={source.key} size={12} />
-                {sourceName(source.key)}: {source.message || source.status.label}
-              </p>
-            ))}
-          </div>
+        {report.dataThrough ? (
+          <p className="text-xs text-muted-foreground">Data through {formatCampaignDate(report.dataThrough)}</p>
         ) : null}
       </div>
 

@@ -26,6 +26,11 @@ import { generatePdfFromWebsiteSnapshotReport } from "@/utils/pdf-generator";
 import {
   type WebsiteSnapshotReport,
   websiteSnapshotReportToMarkdown,
+  issueSeverityTone,
+  issueSeverityLabel,
+  ladderStatusKey,
+  ladderStatusLabel,
+  formatUncapturedMoneyShare,
 } from "@/utils/website-snapshot-report";
 
 type WebsiteSnapshotReportViewerProps = {
@@ -130,51 +135,56 @@ export function WebsiteSnapshotReportViewer({
   const issues = Array.isArray(report.issues) ? report.issues : [];
   const ladder = Array.isArray(report.ladder) ? report.ladder : [];
   const tactics = Array.isArray(report.tactics) ? report.tactics : [];
+  const beats = Array.isArray(report.beats) ? report.beats : [];
   const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
+  const verdict = String(report.verdict || report.hero?.label || "").trim();
+  const verdictSub = String(report.verdict_sub || report.hero?.description || "").trim();
+  const metricLabel = String(report.metric_label || "").trim();
+  const metricSub = String(report.metric_sub || "").trim();
+  const opening = String(report.opening || "").trim();
+  const closing = String(report.close || report.takeaway || "").trim();
+  const planIntro = String(report.plan_intro || goal.body || "").trim();
+  const inferredGoal = String(goal.inferred_goal || "").trim();
+  const dominantCta = String(goal.dominant_cta || "").trim();
+  const hasLegacyFunnel =
+    !inferredGoal &&
+    !dominantCta &&
+    !!(goal.body || (Array.isArray(goal.funnel_steps) && goal.funnel_steps.length) || goal.funnel_end);
+
+  const headroomBits = (() => {
+    const headroom = report.headroom;
+    if (!headroom) return [];
+    const uncaptured = formatUncapturedMoneyShare(headroom.uncaptured_money_share);
+    const missingRungs = headroom.missing_rungs;
+    const peerVolume = headroom.peer_exclusive?.volume;
+    return [
+      uncaptured ? `${uncaptured} of commercial demand still uncaptured` : "",
+      typeof missingRungs === "number" && missingRungs > 0
+        ? `${missingRungs} missing content rung${missingRungs === 1 ? "" : "s"}`
+        : "",
+      typeof peerVolume === "number" && peerVolume > 0
+        ? `${peerVolume.toLocaleString()} monthly searches competitors own that you miss`
+        : "",
+    ].filter(Boolean);
+  })();
+
+  const STATIC_TIERS = [
+    {
+      name: "SEO is a growth channel",
+      blurb: "Search can bring real customers. You rank #1 for your name; the next wins are service and location pages that capture buyers who don't know you yet.",
+    },
+    {
+      name: "SEO is a competitive channel",
+      blurb: "Leads are possible but depend on local competition and demand. Start focused, evaluate at six months.",
+    },
+    {
+      name: "SEO is a visibility channel",
+      blurb: "Supports credibility more than acquisition. Not you — a six-county consumer market rewards being found.",
+    },
+  ] as const;
   
-  // Derive hero from search.brand_share if hero object is missing
-  const hero = React.useMemo(() => {
-    if (report.hero && report.hero.display) {
-      return report.hero;
-    }
-    
-    // Fallback: derive from brand_share if available
-    if (search.brand_share !== undefined) {
-      const brandSharePct = Math.round(search.brand_share * 100);
-      return {
-        display: `${brandSharePct}%`,
-        label: "of your traffic is people already searching for you by name.",
-        description: `Most of your organic visitors already know ${businessName} and look you up directly — which means strangers in your market searching for your services aren't finding you yet. That gap is the whole opportunity.`,
-      };
-    }
-    
-    return {};
-  }, [report.hero, search.brand_share, businessName]);
-  
-  // Generate diagnosis (eyebrow text) if missing
-  const diagnosis = React.useMemo(() => {
-    // Use existing diagnosis if provided
-    if (report.diagnosis) {
-      return report.diagnosis;
-    }
-    
-    // Fallback: generate based on brand_share
-    if (search.brand_share !== undefined) {
-      const brandSharePct = search.brand_share * 100;
-      
-      if (brandSharePct >= 60) {
-        return "Beloved but invisible";
-      } else if (brandSharePct >= 40) {
-        return "Known locally, but not widely";
-      } else if (brandSharePct >= 20) {
-        return "Building awareness";
-      } else {
-        return "Discovery opportunity";
-      }
-    }
-    
-    return null;
-  }, [report.diagnosis, search.brand_share]);
+  const hero = report.hero || {};
+  const diagnosis = report.diagnosis || null;
 
   const markdownForExport = React.useMemo(() => {
     return websiteSnapshotReportToMarkdown(report);
@@ -310,33 +320,65 @@ export function WebsiteSnapshotReportViewer({
               {render.hero !== false && hero.display && (
                 <>
                   <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
-                  {/* Eyebrow label - diagnostic headline (e.g., "Beloved but invisible") */}
                   {diagnosis && (
                     <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
                       {diagnosis}
                     </div>
                   )}
-                  {/* Hero number - make it REALLY BIG as in mockup */}
                   <div className="text-[60px] sm:text-[80px] lg:text-[120px] font-bold tracking-tight leading-[0.85] my-4 sm:my-5" style={{ color: COLORS.green }}>
                     {hero.display}
                   </div>
-                  {/* Hero label - what the number means */}
-                  {hero.label && (
+                  {(metricLabel || metricSub) && (
+                    <div className="mb-4 sm:mb-5">
+                      {metricLabel && (
+                        <p className="text-[14px] sm:text-[15px] font-semibold leading-tight" style={{ color: COLORS.ink }}>
+                          {metricLabel}
+                        </p>
+                      )}
+                      {metricSub && (
+                        <p className="text-[13px] sm:text-[14px] mt-1 leading-relaxed" style={{ color: COLORS.muted }}>
+                          {metricSub}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {verdict && (
                     <p className="text-[16px] sm:text-[18px] lg:text-[21px] font-semibold tracking-tight mb-3 sm:mb-4 leading-tight" style={{ color: COLORS.ink }}>
-                      {hero.label}
+                      {verdict}
                     </p>
                   )}
-                  {/* Hero description - the deeper explanation */}
-                  {hero.description && (
+                  {verdictSub && (
                     <p className="text-[14px] sm:text-[15px] leading-relaxed" style={{ color: COLORS.muted }}>
-                      {hero.description}
+                      {verdictSub}
+                    </p>
+                  )}
+                  {opening && (
+                    <p className="text-[14px] sm:text-[15px] mt-4 leading-relaxed" style={{ color: COLORS.ink }}>
+                      {opening}
                     </p>
                   )}
                 </>
               )}
 
-              {/* Quick Overview Callouts */}
-              {callouts.length > 0 && (
+              {beats.length > 0 ? (
+                <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-11 sm:gap-y-4">
+                  {beats.map((beat, index) => (
+                    <div key={index} className="py-4 sm:py-5 border-t" style={{ borderColor: COLORS.hair }}>
+                      {beat.so_what && (
+                        <div
+                          className="inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2 py-1 rounded mb-2 sm:mb-2.5 leading-snug"
+                          style={{ background: COLORS.greenSoft, color: COLORS.green }}
+                        >
+                          {beat.so_what}
+                        </div>
+                      )}
+                      <div className="text-[13px] sm:text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
+                        {beat.finding}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : callouts.length > 0 ? (
                 <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-11 sm:gap-y-4">
                   {callouts.map((callout, index) => {
                     const dotColor = 
@@ -357,11 +399,11 @@ export function WebsiteSnapshotReportViewer({
                     );
                   })}
                 </div>
-              )}
+              ) : null}
             </div>
 
             {/* PAGE 2: What SEO Can Do */}
-            {(tier.name || goal.body) && (
+            {(tier.name || inferredGoal || dominantCta || hasLegacyFunnel) && (
               <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
                 borderColor: COLORS.hair, 
                 background: COLORS.paper 
@@ -383,8 +425,9 @@ export function WebsiteSnapshotReportViewer({
                 {/* Tier Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 mt-6 sm:mt-8">
                   {[1, 2, 3].map((level) => {
-                    // API provides tier.level
                     const isSelected = tier.level === level;
+                    const defaults = STATIC_TIERS[level - 1];
+                    const name = isSelected && tier.name ? tier.name : defaults.name;
                     return (
                       <div 
                         key={level} 
@@ -405,21 +448,18 @@ export function WebsiteSnapshotReportViewer({
                         <div className="font-mono text-[10px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
                           Tier {level}
                         </div>
-                        <div className="font-semibold text-[15px] my-2.5" style={{ color: COLORS.ink }}>
-                          {level === 1 ? "A growth channel" : level === 2 ? "A competitive channel" : "A visibility channel"}
+                        <div className="font-semibold text-[15px] my-2.5 pr-16" style={{ color: COLORS.ink }}>
+                          {name}
                         </div>
                         <div className="text-[12.5px] leading-relaxed" style={{ color: COLORS.muted }}>
-                          {level === 1 ? "Search can bring real customers. You rank #1 for your name; the next wins are service and location pages that capture buyers who don't know you yet." :
-                           level === 2 ? "Leads are possible but depend on local competition and demand. Start focused, evaluate at six months." :
-                           "Supports credibility more than acquisition. Not you — a six-county consumer market rewards being found."}
+                          {defaults.blurb}
                         </div>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Goal Box */}
-                {goal.body && (
+                {(render.goal_chain !== false && (inferredGoal || dominantCta)) ? (
                   <div className="mt-7 border-l-[3px] p-5.5" style={{ 
                     borderColor: COLORS.green, 
                     background: COLORS.greenSoft 
@@ -427,7 +467,26 @@ export function WebsiteSnapshotReportViewer({
                     <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.greenLine }}>
                       Your goal, read from your own site
                     </div>
-                    <p className="text-[14px] mb-3 leading-normal" style={{ color: COLORS.ink }}>{goal.body}</p>
+                    {inferredGoal && (
+                      <p className="text-[14px] leading-normal" style={{ color: COLORS.ink }}>{inferredGoal}</p>
+                    )}
+                    {dominantCta && (
+                      <p className="text-[13px] mt-2 leading-normal" style={{ color: COLORS.muted }}>
+                        Primary CTA: {dominantCta}
+                      </p>
+                    )}
+                  </div>
+                ) : hasLegacyFunnel ? (
+                  <div className="mt-7 border-l-[3px] p-5.5" style={{ 
+                    borderColor: COLORS.green, 
+                    background: COLORS.greenSoft 
+                  }}>
+                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.greenLine }}>
+                      Your goal, read from your own site
+                    </div>
+                    {goal.body && (
+                      <p className="text-[14px] mb-3 leading-normal" style={{ color: COLORS.ink }}>{goal.body}</p>
+                    )}
                     {Array.isArray(goal.funnel_steps) && goal.funnel_steps.length > 0 && (
                       <div className="flex sm:flex-row flex-col sm:flex-wrap items-center sm:items-center gap-2 text-[12.5px]">
                         {goal.funnel_steps.map((step, i) => (
@@ -458,7 +517,7 @@ export function WebsiteSnapshotReportViewer({
                       </div>
                     )}
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
@@ -969,22 +1028,34 @@ export function WebsiteSnapshotReportViewer({
                 </p>
 
                 <div className="mt-3.5 space-y-0">
-                  {issues.map((issue, i) => (
-                    <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[56px_1fr] sm:grid-cols-[64px_1fr] gap-3 sm:gap-4">
+                  {issues.map((issue, i) => {
+                    const tone = issueSeverityTone(issue.severity);
+                    const finding = String(issue.finding || issue.body || "").trim();
+                    const fix = String(issue.fix || "").trim();
+                    return (
+                    <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[92px_1fr] sm:grid-cols-[110px_1fr] gap-3 sm:gap-4">
                       <div className={cn(
-                        "font-mono text-[10px] tracking-wider text-center py-1 rounded h-fit",
-                        issue.severity === "high" ? "bg-[#f6e9ec] text-red-600" :
-                        issue.severity === "med" ? "bg-[#f5eeda] text-amber-700" :
+                        "font-mono text-[10px] tracking-wider text-center py-1 px-1.5 rounded h-fit leading-snug",
+                        tone === "critical" ? "bg-[#f6e9ec] text-red-600" :
+                        tone === "worth_fixing" ? "bg-[#f5eeda] text-amber-700" :
                         "bg-[#eef0eb] text-gray-600"
                       )}>
-                        {issue.severity?.toUpperCase()}
+                        {issueSeverityLabel(issue.severity)}
                       </div>
                       <div>
                         <div className="font-semibold text-[14.5px] mb-1.5">{issue.title}</div>
-                        <div className="text-[13.5px] text-gray-600 leading-relaxed">{issue.body}</div>
+                        {finding && (
+                          <div className="text-[13.5px] text-gray-600 leading-relaxed">{finding}</div>
+                        )}
+                        {fix && (
+                          <div className="text-[13px] mt-2 leading-relaxed" style={{ color: COLORS.ink }}>
+                            <span className="font-semibold">Fix: </span>{fix}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1005,7 +1076,9 @@ export function WebsiteSnapshotReportViewer({
                 )}
 
                 <div className="mt-3 space-y-0">
-                  {ladder.map((rung, i) => (
+                  {ladder.map((rung, i) => {
+                    const statusKey = ladderStatusKey(rung.status);
+                    return (
                     <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3]">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                         <div className="flex items-center gap-2 sm:gap-3">
@@ -1015,25 +1088,23 @@ export function WebsiteSnapshotReportViewer({
                         <span className="sm:ml-auto">
                           <span className={cn(
                             "inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2.5 py-1 rounded",
-                            rung.status === "in_place" ? "bg-[#e7efe9]" :
-                            rung.status === "partly" || rung.status === "needs_work" ? "bg-[#f5eeda]" :
+                            statusKey === "in_place" ? "bg-[#e7efe9]" :
+                            statusKey === "partly" ? "bg-[#f5eeda]" :
                             "bg-[#f6e9ec]"
                           )}
                           style={{
-                            color: rung.status === "in_place" ? COLORS.green :
-                                   rung.status === "partly" || rung.status === "needs_work" ? COLORS.amber :
+                            color: statusKey === "in_place" ? COLORS.green :
+                                   statusKey === "partly" ? COLORS.amber :
                                    COLORS.red
                           }}>
-                            {rung.status === "in_place" ? "In place" :
-                             rung.status === "partly" ? "Thin" :
-                             rung.status === "needs_work" ? "Needs work" :
-                             "Missing"}
+                            {ladderStatusLabel(rung.status)}
                           </span>
                         </span>
                       </div>
                       <div className="text-[13px] sm:text-[13.5px] text-gray-600 leading-relaxed pl-0 sm:pl-6 mt-2">{rung.body}</div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {report.ladder_summary && (
@@ -1054,8 +1125,21 @@ export function WebsiteSnapshotReportViewer({
                   Where we would start, and why.
                 </h2>
                 <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
-                  A focused route through the map, sequenced for your stage. Everything you rank for sits on one page today — so we build pages first, then optimize.
+                  {planIntro || "A focused route through the map, sequenced for your stage."}
                 </p>
+                {headroomBits.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {headroomBits.map((bit) => (
+                      <span
+                        key={bit}
+                        className="font-mono text-[10.5px] sm:text-[11px] tracking-wide px-2.5 py-1.5 rounded"
+                        style={{ background: COLORS.greenSoft, color: COLORS.green }}
+                      >
+                        {bit}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {(() => {
                   let currentPhase = "";
@@ -1104,7 +1188,7 @@ export function WebsiteSnapshotReportViewer({
             )}
 
             {/* PAGE 9: Takeaway */}
-            {report.takeaway && (
+            {closing && (
               <div className="rounded-lg p-6 sm:p-8 lg:p-11 border-0" style={{ 
                 background: COLORS.green,
                 color: '#eaf1ec'
@@ -1113,10 +1197,10 @@ export function WebsiteSnapshotReportViewer({
                   The honest takeaway
                 </div>
                 <p className="text-[14px] sm:text-[15.5px] leading-relaxed">
-                  {report.takeaway.split('.')[0] && (
-                    <span style={{ color: COLORS.paper, fontWeight: 600 }}>{report.takeaway.split('.')[0]}.</span>
+                  {closing.split('.')[0] && (
+                    <span style={{ color: COLORS.paper, fontWeight: 600 }}>{closing.split('.')[0]}.</span>
                   )}
-                  {report.takeaway.substring(report.takeaway.indexOf('.') + 1)}
+                  {closing.substring(closing.indexOf('.') + 1)}
                 </p>
               </div>
             )}

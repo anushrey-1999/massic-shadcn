@@ -59,8 +59,21 @@ export type WebsiteSnapshotHero = {
   variant?: string;
   display?: string;
   value?: number | null;
+  /** @deprecated Use top-level `verdict`. Kept for saved reports. */
   label?: string;
+  /** @deprecated Use top-level `verdict_sub`. Kept for saved reports. */
   description?: string;
+};
+
+export type WebsiteSnapshotBeat = {
+  finding?: string;
+  so_what?: string;
+};
+
+export type WebsiteSnapshotHeadroom = {
+  uncaptured_money_share?: number | null;
+  missing_rungs?: number;
+  peer_exclusive?: { volume?: number } | null;
 };
 
 export type WebsiteSnapshotTier = {
@@ -117,6 +130,9 @@ export type WebsiteSnapshotSearch = {
   top10?: number;
   referring_domains?: number | null;
   brand_share?: number;
+  navigational_share?: number;
+  effective_brand_share?: number;
+  brand_terms_incomplete?: boolean;
   trend?: WebsiteSnapshotTrend;
   traffic_read?: string;
   you_win?: WebsiteSnapshotYouWin[];
@@ -172,8 +188,11 @@ export type WebsiteSnapshotUnderTheHood = {
 };
 
 export type WebsiteSnapshotIssue = {
-  severity?: "high" | "med" | "low" | string;
+  severity?: "Critical" | "Worth fixing" | "Minor" | "high" | "med" | "low" | string;
   title?: string;
+  finding?: string;
+  fix?: string;
+  /** @deprecated Use `finding` + `fix`. Kept for saved reports. */
   body?: string;
 };
 
@@ -182,7 +201,7 @@ export type WebsiteSnapshotLadderRung = {
   title?: string;
   headline?: string;
   body?: string;
-  status?: "in_place" | "partly" | "needs_work" | "missing" | string;
+  status?: "in_place" | "partly" | "missing" | "needs_work" | string;
   example?: string;
 };
 
@@ -198,6 +217,16 @@ export type WebsiteSnapshotReport = {
   meta?: WebsiteSnapshotMeta;
   diagnosis?: string;
   hero?: WebsiteSnapshotHero;
+  headroom?: WebsiteSnapshotHeadroom;
+  verdict?: string;
+  verdict_sub?: string;
+  metric_label?: string;
+  metric_sub?: string;
+  beats?: WebsiteSnapshotBeat[];
+  opening?: string;
+  close?: string;
+  plan_intro?: string;
+  /** @deprecated Use `beats`. Kept for saved reports. */
   overview_callouts?: WebsiteSnapshotCallout[];
   tier?: WebsiteSnapshotTier;
   goal?: WebsiteSnapshotGoal;
@@ -214,8 +243,47 @@ export type WebsiteSnapshotReport = {
   ladder?: WebsiteSnapshotLadderRung[];
   ladder_summary?: string;
   tactics?: WebsiteSnapshotTactic[];
+  /** @deprecated Use `close`. Kept for saved reports. */
   takeaway?: string;
 };
+
+export function issueSeverityTone(severity?: string): "critical" | "worth_fixing" | "minor" {
+  const key = String(severity || "").trim().toLowerCase();
+  if (key === "critical" || key === "high") return "critical";
+  if (key === "worth fixing" || key === "med" || key === "medium") return "worth_fixing";
+  return "minor";
+}
+
+export function issueSeverityLabel(severity?: string): string {
+  const raw = String(severity || "").trim();
+  if (!raw) return "";
+  const tone = issueSeverityTone(raw);
+  if (tone === "critical") return raw.toLowerCase() === "high" ? "Critical" : raw;
+  if (tone === "worth_fixing") return raw.toLowerCase() === "med" || raw.toLowerCase() === "medium" ? "Worth fixing" : raw;
+  if (raw.toLowerCase() === "low") return "Minor";
+  return raw;
+}
+
+export function ladderStatusKey(status?: string): "in_place" | "partly" | "missing" {
+  const key = String(status || "").trim().toLowerCase();
+  if (key === "in_place") return "in_place";
+  if (key === "partly") return "partly";
+  return "missing";
+}
+
+export function ladderStatusLabel(status?: string): string {
+  const key = ladderStatusKey(status);
+  if (key === "in_place") return "In place";
+  if (key === "partly") return "Thin";
+  return "Missing";
+}
+
+export function formatUncapturedMoneyShare(value?: number | null): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "";
+  const pct = Math.round(value * 100);
+  if (pct <= 0) return "";
+  return `${pct}%`;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -291,28 +359,43 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     lines.push("", `## ${report.diagnosis}`);
   }
 
-  if (report.hero) {
-    const hero = report.hero;
-    const display = mdLine(hero.display || "");
-    const label = mdLine(hero.label || "");
-    const description = mdLine(hero.description || "");
-    if (display || label) {
-      lines.push("", "## Hero");
-      if (display) lines.push("", `**${display}**`);
-      if (label) lines.push("", label);
-      if (description) lines.push("", description);
-    }
+  const verdict = mdLine(report.verdict || report.hero?.label || "");
+  const verdictSub = mdLine(report.verdict_sub || report.hero?.description || "");
+  const metricLabel = mdLine(report.metric_label || "");
+  const metricSub = mdLine(report.metric_sub || "");
+  const opening = mdLine(report.opening || "");
+  const heroDisplay = mdLine(report.hero?.display || "");
+  if (heroDisplay || verdict || metricLabel) {
+    lines.push("", "## Hero");
+    if (heroDisplay) lines.push("", `**${heroDisplay}**`);
+    if (metricLabel) lines.push("", metricLabel);
+    if (metricSub) lines.push("", metricSub);
+    if (verdict) lines.push("", verdict);
+    if (verdictSub) lines.push("", verdictSub);
+    if (opening) lines.push("", opening);
   }
 
-  const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
-  if (callouts.length) {
+  const beats = Array.isArray(report.beats) ? report.beats : [];
+  if (beats.length) {
     lines.push("", "## Overview");
-    for (const c of callouts) {
-      const title = mdLine(c.title || "");
-      const body = mdLine(c.body || "");
-      if (!title && !body) continue;
-      lines.push("", `### ${title || "Callout"}`);
-      if (body) lines.push("", body);
+    for (const beat of beats) {
+      const finding = mdLine(beat.finding || "");
+      const soWhat = mdLine(beat.so_what || "");
+      if (!finding && !soWhat) continue;
+      lines.push("", `### ${soWhat || "Finding"}`);
+      if (finding) lines.push("", finding);
+    }
+  } else {
+    const callouts = Array.isArray(report.overview_callouts) ? report.overview_callouts : [];
+    if (callouts.length) {
+      lines.push("", "## Overview");
+      for (const c of callouts) {
+        const title = mdLine(c.title || "");
+        const body = mdLine(c.body || "");
+        if (!title && !body) continue;
+        lines.push("", `### ${title || "Callout"}`);
+        if (body) lines.push("", body);
+      }
     }
   }
 
@@ -329,11 +412,15 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
 
   if (report.goal) {
     const g = report.goal;
+    const inferredGoal = mdLine(g.inferred_goal || "");
+    const dominantCta = mdLine(g.dominant_cta || "");
     const funnelEnd = mdLine(g.funnel_end || "");
     const goalBody = mdLine(String(g.body ?? ""));
     const steps = Array.isArray(g.funnel_steps) ? g.funnel_steps.map((s) => mdLine(String(s))) : [];
-    if (funnelEnd || goalBody || steps.length) {
+    if (inferredGoal || dominantCta || funnelEnd || goalBody || steps.length) {
       lines.push("", "## Goal");
+      if (inferredGoal) lines.push("", inferredGoal);
+      if (dominantCta) lines.push("", `Primary CTA: ${dominantCta}`);
       if (goalBody) lines.push("", goalBody);
       if (steps.length) {
         lines.push("", "Funnel:");
@@ -441,11 +528,13 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
       lines.push("", "### Issues");
       for (const it of issues) {
         const title = mdLine(it.title || "");
-        const body = mdLine(it.body || "");
-        const sev = mdLine(it.severity || "");
-        if (!title && !body) continue;
-        lines.push("", `- ${[sev ? sev.toUpperCase() : "", title].filter(Boolean).join(" ")}`.trim());
-        if (body) lines.push(`  - ${body}`);
+        const finding = mdLine(it.finding || it.body || "");
+        const fix = mdLine(it.fix || "");
+        const sev = mdLine(issueSeverityLabel(it.severity) || it.severity || "");
+        if (!title && !finding && !fix) continue;
+        lines.push("", `- ${[sev, title].filter(Boolean).join(" ")}`.trim());
+        if (finding) lines.push(`  - ${finding}`);
+        if (fix) lines.push(`  - Fix: ${fix}`);
       }
     }
   }
@@ -457,7 +546,7 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     if (intro) lines.push("", intro);
     for (const rung of ladder) {
       const title = mdLine(String(rung.headline || rung.title || ""));
-      const status = mdLine(rung.status || "");
+      const status = mdLine(ladderStatusLabel(rung.status));
       const body = mdLine(String(rung.body || rung.example || ""));
       const label = `Rung ${rung.rung ?? ""}`.trim();
       lines.push(`- ${[label, title, status ? `(${status})` : ""].filter(Boolean).join(" ")}`);
@@ -470,6 +559,22 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
   const tactics = Array.isArray(report.tactics) ? report.tactics : [];
   if (tactics.length) {
     lines.push("", "## The plan, in order");
+    const planIntro = mdLine(report.plan_intro || String(report.goal?.body ?? ""));
+    if (planIntro) lines.push("", planIntro);
+    const headroom = report.headroom;
+    if (headroom) {
+      const uncaptured = formatUncapturedMoneyShare(headroom.uncaptured_money_share);
+      const missingRungs = headroom.missing_rungs;
+      const peerVolume = headroom.peer_exclusive?.volume;
+      const bits = [
+        uncaptured ? `${uncaptured} of commercial demand still uncaptured` : "",
+        typeof missingRungs === "number" && missingRungs > 0 ? `${missingRungs} missing content rungs` : "",
+        typeof peerVolume === "number" && peerVolume > 0
+          ? `${peerVolume.toLocaleString()} monthly searches competitors own that you miss`
+          : "",
+      ].filter(Boolean);
+      if (bits.length) lines.push("", `Gap: ${bits.join(" · ")}`);
+    }
     let currentPhase = "";
     for (const step of tactics) {
       const phase = mdLine(step.phase || "");
@@ -488,9 +593,9 @@ export function websiteSnapshotReportToMarkdown(report: WebsiteSnapshotReport): 
     }
   }
 
-  const takeaway = mdLine(report.takeaway || "");
-  if (takeaway) {
-    lines.push("", "## Honest takeaway", "", takeaway);
+  const closing = mdLine(report.close || report.takeaway || "");
+  if (closing) {
+    lines.push("", "## Honest takeaway", "", closing);
   }
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();

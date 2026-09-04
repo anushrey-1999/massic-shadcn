@@ -92,7 +92,7 @@ export interface CampaignPresentationSource {
   dataThroughText: string; message: string | null; metrics: CampaignPresentationMetric[];
 }
 export interface CampaignImpactPresentation {
-  version: 1; status: { label: string; tone: CampaignPresentationTone }; campaignTypeLabel: string;
+  version: 2; status: { label: string; tone: CampaignPresentationTone }; campaignTypeLabel: string;
   eventKindLabel: string; dateText: string; comparisonDescription: string; primaryColumnLabel: "Impact" | "During";
   hasPostPeriod: boolean;
   highlights: CampaignPresentationHighlight[]; windows: CampaignPresentationWindow[];

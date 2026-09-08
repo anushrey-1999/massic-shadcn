@@ -32,8 +32,11 @@ import {
   ladderStatusLabel,
   formatUncapturedMoneyShare,
   formatSearchEtv,
+  formatSnapshotLocation,
   frameChipTone,
   formatDeliveryMode,
+  SNAPSHOT_BEAT_QUESTIONS,
+  SNAPSHOT_INTENT_LABELS,
 } from "@/utils/website-snapshot-report";
 
 type WebsiteSnapshotReportViewerProps = {
@@ -86,7 +89,7 @@ export function WebsiteSnapshotReportViewer({
   const meta = report.meta || {};
   const businessName = meta.business_name || "Business";
   const website = stripUrlProtocol(meta.url || "");
-  const location = meta.location || "";
+  const location = formatSnapshotLocation(meta.location || "");
   const phone = (() => {
     try {
       return meta.phone ? decodeURIComponent(String(meta.phone)) : "";
@@ -115,7 +118,6 @@ export function WebsiteSnapshotReportViewer({
   };
   
   const tier = report.tier || {};
-  const goal = report.goal || {};
   const search = report.search || {};
   const intentMix = report.intent_mix || {};
   const scaleComparison = report.scale_comparison;
@@ -150,8 +152,15 @@ export function WebsiteSnapshotReportViewer({
   const opening = String(report.opening || "").trim();
   const closing = String(report.close || "").trim();
   const planIntro = String(report.plan_intro || "").trim();
-  const inferredGoal = String(goal.inferred_goal || "").trim();
-  const dominantCta = String(goal.dominant_cta || "").trim();
+  const directCompetitors = Array.isArray(showsUp.direct_competitors) ? showsUp.direct_competitors : [];
+  const noCompetitorData = directCompetitors.length === 0 && shouldBe.length === 0;
+  const hasCompetitorSection =
+    report.competitor_buckets != null ||
+    Object.keys(showsUp).length > 0 ||
+    shouldBe.length > 0 ||
+    Boolean(String(competitorBuckets.gap || "").trim()) ||
+    Boolean(setupLine) ||
+    Boolean(deliveryLine);
 
   const headroomBits = (() => {
     const headroom = report.headroom;
@@ -195,6 +204,12 @@ export function WebsiteSnapshotReportViewer({
       ? Math.max(0, Math.round(hero.counter_value * 100))
       : null;
   const trafficDisplay = formatSearchEtv(search.etv);
+  const intentRows = [
+    { key: "transactional" as const, color: COLORS.green, label: SNAPSHOT_INTENT_LABELS.transactional },
+    { key: "commercial" as const, color: "#4a7c59", label: SNAPSHOT_INTENT_LABELS.commercial },
+    { key: "informational" as const, color: "#7a8c7e", label: SNAPSHOT_INTENT_LABELS.informational },
+    { key: "navigational" as const, color: "#9aa8a0", label: SNAPSHOT_INTENT_LABELS.navigational },
+  ];
 
   const markdownForExport = React.useMemo(() => {
     return websiteSnapshotReportToMarkdown(report);
@@ -306,8 +321,9 @@ export function WebsiteSnapshotReportViewer({
                   </div>
                 </div>
                 <div className="text-left sm:text-right font-mono text-[11px] sm:text-[11.5px] leading-relaxed" style={{ color: COLORS.muted }}>
-                  {website && <div className="break-all">{website}</div>}
-                  {location && <div>{location}</div>}
+                  {(website || location) && (
+                    <div className="break-all">{[website, location].filter(Boolean).join(" · ")}</div>
+                  )}
                   {phone && <div>{phone}</div>}
                 </div>
               </div>
@@ -390,16 +406,21 @@ export function WebsiteSnapshotReportViewer({
                     </p>
                   )}
                   {opening && (
-                    <p className="text-[14px] sm:text-[15px] mt-4 leading-relaxed" style={{ color: COLORS.ink }}>
-                      {opening}
-                    </p>
+                    <div
+                      className="mt-4 sm:mt-5 border-l-[3px] px-4 py-3 sm:px-5 sm:py-4"
+                      style={{ borderColor: COLORS.green, background: COLORS.greenSoft }}
+                    >
+                      <p className="text-[14px] sm:text-[15px] leading-relaxed" style={{ color: COLORS.ink }}>
+                        {opening}
+                      </p>
+                    </div>
                   )}
                 </>
               )}
 
-              {beats.length > 0 ? (
-                <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-x-11 sm:gap-y-4">
-                  {beats.map((beat, index) => {
+              <div className="mt-6 sm:mt-8">
+                {SNAPSHOT_BEAT_QUESTIONS.map((question, index) => {
+                    const beat = beats[index] || {};
                     const frameBeat = pageOneFrame?.beats?.[index];
                     const chipTone = frameChipTone(frameBeat?.chip?.tone);
                     const chipText = String(frameBeat?.chip?.text || "").trim();
@@ -414,17 +435,30 @@ export function WebsiteSnapshotReportViewer({
                             : { background: COLORS.paper, color: COLORS.faint, border: `1px dashed ${COLORS.hair}` };
                     return (
                     <div key={index} className="py-4 sm:py-5 border-t" style={{ borderColor: COLORS.hair }}>
-                      {chipText && (
-                        <div
-                          className="inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2 py-1 rounded mb-2 sm:mb-2.5 leading-snug uppercase"
-                          style={chipStyle}
-                        >
-                          {chipText}
+                      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2 mb-2">
+                        <span className="font-mono text-[12px] sm:text-[13px] font-medium" style={{ color: COLORS.green }}>
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <span className="text-[14px] sm:text-[15px] font-semibold leading-snug" style={{ color: COLORS.ink }}>
+                          {question}
+                        </span>
+                        {chipText && (
+                          <span
+                            className="inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2 py-1 rounded leading-snug uppercase"
+                            style={chipStyle}
+                          >
+                            {chipText}
+                          </span>
+                        )}
+                      </div>
+                      {beat.finding && (
+                        <div className="text-[13px] sm:text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
+                          {beat.finding}
                         </div>
                       )}
                       {beat.so_what && (
                         <div
-                          className="text-[13px] sm:text-[14px] mb-2 leading-snug"
+                          className="text-[13px] sm:text-[14px] mt-2 leading-snug"
                           style={
                             ownsDiagnosis
                               ? { color: COLORS.green, fontWeight: 600 }
@@ -434,109 +468,131 @@ export function WebsiteSnapshotReportViewer({
                           {beat.so_what}
                         </div>
                       )}
-                      <div className="text-[13px] sm:text-[14px] leading-relaxed" style={{ color: COLORS.muted }}>
-                        {beat.finding}
-                      </div>
                     </div>
                     );
-                  })}
-                </div>
-              ) : null}
+                })}
+              </div>
+              {closing && (
+                <p className="text-[14px] sm:text-[15px] mt-6 sm:mt-8 leading-relaxed" style={{ color: COLORS.ink }}>
+                  {closing}
+                </p>
+              )}
             </div>
 
-            {/* PAGE 2: What SEO Can Do */}
-            {(tier.level != null || tier.name || inferredGoal || dominantCta) && (
-              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
-                borderColor: COLORS.hair, 
-                background: COLORS.paper 
+            {/* 01: Can search engines use the site? */}
+            {Boolean(underTheHood.rows?.length || underTheHood.pills?.length || issues.length) && (
+              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{
+                borderColor: COLORS.hair,
+                background: COLORS.paper
               }}>
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
-                  What SEO can do for you
-                </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  {tier.name || "Your SEO opportunity tier"}
+                  Can search engines use the site?
                 </h2>
-                {tier.reasoning && (
-                  <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
-                    {tier.reasoning}
-                  </p>
+
+                {Array.isArray(underTheHood.rows) && underTheHood.rows.length > 0 && (
+                  <div className="mt-6 overflow-x-auto -mx-6 sm:-mx-10 lg:-mx-14 px-6 sm:px-10 lg:px-14">
+                    <table className="w-full text-[12.5px] sm:text-[13.5px] min-w-[600px]">
+                      <thead>
+                        <tr>
+                          <th className="px-0 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                            Layer
+                          </th>
+                          <th className="px-3 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                            Status
+                          </th>
+                          <th className="px-3 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                            What we found
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {underTheHood.rows.map((row, i) => (
+                          <tr key={i} className="border-b" style={{ borderColor: COLORS.hair }}>
+                            <td className="px-0 py-3.5 font-semibold align-top" style={{ color: COLORS.ink }}>{row.layer}</td>
+                            <td className="px-3 py-3.5 align-top">
+                              <span className={cn(
+                                "inline-block font-mono text-[10.5px] tracking-wider px-2.5 py-1 rounded",
+                                row.verdict === "Fine" ? "bg-[#e7efe9]" :
+                                row.verdict === "Gap" ? "bg-[#f5eeda]" :
+                                row.verdict === "Critical" ? "bg-[#f6e9ec]" :
+                                "bg-gray-100"
+                              )}
+                              style={{
+                                color: row.verdict === "Fine" ? COLORS.green :
+                                       row.verdict === "Gap" ? COLORS.amber :
+                                       row.verdict === "Critical" ? COLORS.red :
+                                       COLORS.muted
+                              }}>
+                                {row.verdict}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3.5 align-top" style={{ color: COLORS.muted }}>{row.detail}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
 
-                <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
+                {Array.isArray(underTheHood.pills) && underTheHood.pills.length > 0 && (
+                  <div className="mt-5.5 flex flex-wrap gap-2">
+                    {underTheHood.pills.map((pill, i) => (
+                      <span key={i} className={cn(
+                        "font-mono text-[11px] border rounded px-2 py-0.5",
+                        pill.status === "warn" ? "bg-[#f5eeda] text-amber-700 border-transparent" :
+                        "text-gray-600 border-[#e6e8e3] bg-white"
+                      )}>
+                        {pill.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
-                {/* Tier Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 mt-6 sm:mt-8">
-                  {[1, 2, 3].map((level) => {
-                    const isSelected = tier.level === level;
-                    const defaults = STATIC_TIERS[level - 1];
-                    const name = isSelected && tier.name ? tier.name : defaults.name;
-                    return (
-                      <div 
-                        key={level} 
-                        className="border rounded p-4.5 relative" 
-                        style={{ 
-                          borderColor: isSelected ? COLORS.green : COLORS.hair,
-                          background: isSelected ? '#fbfdfb' : COLORS.paper
-                        }}
-                      >
-                        {isSelected && (
-                          <div 
-                            className="absolute top-3.5 right-3.5 font-mono text-[9.5px] tracking-wider px-2 py-1 rounded-sm" 
-                            style={{ background: COLORS.green, color: COLORS.paper }}
-                          >
-                            YOUR FIT
-                          </div>
-                        )}
-                        <div className="font-mono text-[10px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
-                          Tier {level}
+                {issues.length > 0 && (
+                  <div className="mt-6 space-y-0">
+                    {issues.map((issue, i) => {
+                      const tone = issueSeverityTone(issue.severity);
+                      const finding = String(issue.finding || "").trim();
+                      const fix = String(issue.fix || "").trim();
+                      return (
+                      <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[92px_1fr] sm:grid-cols-[110px_1fr] gap-3 sm:gap-4">
+                        <div className={cn(
+                          "font-mono text-[10px] tracking-wider text-center py-1 px-1.5 rounded h-fit leading-snug",
+                          tone === "critical" ? "bg-[#f6e9ec] text-red-600" :
+                          tone === "worth_fixing" ? "bg-[#f5eeda] text-amber-700" :
+                          "bg-[#eef0eb] text-gray-600"
+                        )}>
+                          {issueSeverityLabel(issue.severity)}
                         </div>
-                        <div className="font-semibold text-[15px] my-2.5 pr-16" style={{ color: COLORS.ink }}>
-                          {name}
-                        </div>
-                        <div className="text-[12.5px] leading-relaxed" style={{ color: COLORS.muted }}>
-                          {isSelected && tier.reasoning ? tier.reasoning : defaults.blurb}
+                        <div>
+                          <div className="font-semibold text-[14.5px] mb-1.5">{issue.title}</div>
+                          {finding && (
+                            <div className="text-[13.5px] text-gray-600 leading-relaxed">{finding}</div>
+                          )}
+                          {fix && (
+                            <div className="mt-2">
+                              <div className="text-[13px] font-semibold leading-relaxed" style={{ color: COLORS.ink }}>Fix:</div>
+                              <div className="text-[13px] leading-relaxed" style={{ color: COLORS.ink }}>{fix}</div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-
-                {(render.goal_chain !== false && (inferredGoal || dominantCta)) ? (
-                  <div className="mt-7 border-l-[3px] p-5.5" style={{ 
-                    borderColor: COLORS.green, 
-                    background: COLORS.greenSoft 
-                  }}>
-                    <div className="font-mono text-[10.5px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.greenLine }}>
-                      Your goal, read from your own site
-                    </div>
-                    {inferredGoal && (
-                      <p className="text-[14px] leading-normal" style={{ color: COLORS.ink }}>{inferredGoal}</p>
-                    )}
-                    {dominantCta && (
-                      <p className="text-[13px] mt-2 leading-normal" style={{ color: COLORS.muted }}>
-                        Primary CTA: {dominantCta}
-                      </p>
-                    )}
+                      );
+                    })}
                   </div>
-                ) : null}
+                )}
               </div>
             )}
 
-            {/* PAGE 3: Where You Stand */}
+            {/* 02: Who is actually finding you? */}
             {(render.stats_row !== false || search.traffic_read) && (
               <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{ 
                 borderColor: COLORS.hair, 
                 background: COLORS.paper 
               }}>
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
-                  Where you stand in search today
-                </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  Real organic search data, from the U.S. Google index.
+                  Who is actually finding you?
                 </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
-                  Organic positions only · six months of available history · {formatReportDate(reportDate) || "2026"}.
-                </p>
 
                 {/* Stats Row */}
                 {render.stats_row !== false && (
@@ -551,11 +607,7 @@ export function WebsiteSnapshotReportViewer({
                       <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.green }}>
                         {trafficDisplay || "—"}
                       </div>
-                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>
-                        {search.trend?.pct_change
-                          ? `${search.trend.direction === "growing" ? "up" : search.trend.direction === "declining" ? "down" : ""} ${Math.abs(search.trend.pct_change).toFixed(1)}%`.trim()
-                          : "estimated volume"}
-                      </div>
+                      <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>estimated volume</div>
                     </div>
                     <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
                       <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Top 10</div>
@@ -564,7 +616,9 @@ export function WebsiteSnapshotReportViewer({
                     </div>
                     <div className="px-0 sm:px-5 sm:border-l" style={{ borderColor: COLORS.hair }}>
                       <div className="font-mono text-[10px] sm:text-[10.5px] tracking-wider uppercase mb-2" style={{ color: COLORS.faint }}>Authority</div>
-                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>{search.referring_domains || 0}</div>
+                      <div className="text-[28px] sm:text-[34px] font-bold tracking-tight leading-none" style={{ color: COLORS.ink }}>
+                        {search.referring_domains != null ? search.referring_domains : "—"}
+                      </div>
                       <div className="text-[11px] sm:text-[12px] mt-2" style={{ color: COLORS.muted }}>sites linking to you</div>
                     </div>
                   </div>
@@ -611,7 +665,7 @@ export function WebsiteSnapshotReportViewer({
                               fontSize: '13px'
                             }}
                             labelStyle={{ color: COLORS.ink, fontWeight: 600 }}
-                            formatter={(value: number) => [`${value.toLocaleString()} visits`, 'Traffic']}
+                            formatter={(value: number) => [Number(value).toLocaleString(), "Traffic"]}
                           />
                           <Line 
                             type="monotone" 
@@ -624,15 +678,6 @@ export function WebsiteSnapshotReportViewer({
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                    {search.trend.pct_change && (
-                      <div className="mt-3 text-[13px]" style={{ color: COLORS.muted }}>
-                        {search.trend.direction === "growing" ? "↑" : search.trend.direction === "declining" ? "↓" : "→"}{" "}
-                        <span style={{ color: COLORS.ink, fontWeight: 600 }}>
-                          {Math.abs(search.trend.pct_change).toFixed(1)}%
-                        </span>
-                        {" "}{search.trend.direction === "growing" ? "growth" : search.trend.direction === "declining" ? "decline" : "change"} over the period
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -677,70 +722,37 @@ export function WebsiteSnapshotReportViewer({
                       </div>
                     )}
                     
-                    {Object.keys(intentMix).length > 0 && (
+                    {(render.intent_mix !== false || Object.keys(intentMix).length > 0) && (
                       <div>
                         <div className="font-mono text-[10.5px] tracking-wider uppercase mb-3" style={{ color: COLORS.faint }}>
                           Search intent mix
                         </div>
                         <div className="flex h-7 rounded overflow-hidden font-mono text-[11px]" style={{ color: COLORS.paper }}>
-                          {intentMix.transactional != null && intentMix.transactional > 0 && (
-                            <div className="flex items-center justify-center" style={{ 
-                              background: COLORS.green, 
-                              width: `${Math.round(intentMix.transactional * 100)}%` 
-                            }}>
-                              {Math.round(intentMix.transactional * 100)}%
-                            </div>
-                          )}
-                          {intentMix.commercial != null && intentMix.commercial > 0 && (
-                            <div className="flex items-center justify-center" style={{ 
-                              background: '#4a7c59', 
-                              width: `${Math.round(intentMix.commercial * 100)}%` 
-                            }}>
-                              {Math.round(intentMix.commercial * 100)}%
-                            </div>
-                          )}
-                          {intentMix.informational != null && intentMix.informational > 0 && (
-                            <div className="flex items-center justify-center" style={{ 
-                              background: '#7a8c7e', 
-                              width: `${Math.round(intentMix.informational * 100)}%` 
-                            }}>
-                              {Math.round(intentMix.informational * 100)}%
-                            </div>
-                          )}
-                          {intentMix.navigational != null && intentMix.navigational > 0 && (
-                            <div className="flex items-center justify-center" style={{ 
-                              background: '#9aa8a0', 
-                              width: `${Math.round(intentMix.navigational * 100)}%` 
-                            }}>
-                              {Math.round(intentMix.navigational * 100)}%
-                            </div>
-                          )}
+                          {intentRows.map((row) => {
+                            const value = intentMix[row.key];
+                            if (value == null || value <= 0) return null;
+                            return (
+                              <div
+                                key={row.key}
+                                className="flex items-center justify-center"
+                                style={{ background: row.color, width: `${Math.round(value * 100)}%` }}
+                              >
+                                {Math.round(value * 100)}%
+                              </div>
+                            );
+                          })}
                         </div>
                         <div className="flex flex-wrap gap-3 text-[11px] mt-2" style={{ color: COLORS.muted }}>
-                          {intentMix.transactional != null && intentMix.transactional > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: COLORS.green }} />
-                              <span>Transactional: {Math.round(intentMix.transactional * 100)}%</span>
-                            </div>
-                          )}
-                          {intentMix.commercial != null && intentMix.commercial > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: '#4a7c59' }} />
-                              <span>Commercial: {Math.round(intentMix.commercial * 100)}%</span>
-                            </div>
-                          )}
-                          {intentMix.informational != null && intentMix.informational > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: '#7a8c7e' }} />
-                              <span>Informational: {Math.round(intentMix.informational * 100)}%</span>
-                            </div>
-                          )}
-                          {intentMix.navigational != null && intentMix.navigational > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full" style={{ background: '#9aa8a0' }} />
-                              <span>Nav: {Math.round(intentMix.navigational * 100)}%</span>
-                            </div>
-                          )}
+                          {intentRows.map((row) => {
+                            const value = intentMix[row.key];
+                            const pct = value != null ? Math.round(value * 100) : 0;
+                            return (
+                              <div key={row.key} className="flex items-center gap-1.5">
+                                <div className="w-2 h-2 rounded-full" style={{ background: row.color }} />
+                                <span>{row.label}: {pct}%</span>
+                              </div>
+                            );
+                          })}
                         </div>
                         {intentMix.local_share != null && (
                           <div className="text-[12.5px] mt-2" style={{ color: COLORS.muted }}>
@@ -795,7 +807,7 @@ export function WebsiteSnapshotReportViewer({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-10">
                     <div>
                       <div className="font-mono text-[11px] tracking-wider uppercase mb-4" style={{ color: COLORS.green }}>
-                        ▲ You win
+                        Who already knows you
                       </div>
                       {Array.isArray(search.you_win) && search.you_win.map((group, i) => (
                         <div key={i} className="mb-5">
@@ -819,8 +831,8 @@ export function WebsiteSnapshotReportViewer({
                     </div>
 
                     <div>
-                      <div className="font-mono text-[11px] tracking-wider text-red-600 uppercase mb-4">
-                        ▼ What you're missing
+                      <div className="font-mono text-[11px] tracking-wider uppercase mb-4" style={{ color: COLORS.red }}>
+                        Who doesn't
                       </div>
                       {Array.isArray(search.buyers_elsewhere) && search.buyers_elsewhere.map((group, i) => (
                         <div key={i} className="mb-5">
@@ -847,18 +859,69 @@ export function WebsiteSnapshotReportViewer({
               </div>
             )}
 
-            {/* PAGE 4: Who Shows Up */}
-            {(Object.keys(showsUp).length > 0 || shouldBe.length > 0) && (
+            {/* 03: What is not on the site? */}
+            {ladder.length > 0 && (
+              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
+                  What is not on the site?
+                </h2>
+                {report.ladder_intro && (
+                  <p className="text-[14.5px] text-gray-600 leading-normal">
+                    {report.ladder_intro}
+                  </p>
+                )}
+
+                <div className="mt-3 space-y-0">
+                  {ladder.map((rung, i) => {
+                    const statusKey = ladderStatusKey(rung.status);
+                    return (
+                    <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3]">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <span className="font-mono text-[12px] text-gray-400">{String(rung.rung || i + 1).padStart(2, '0')}</span>
+                          <span className="font-semibold text-[14px] sm:text-[14.5px]">{rung.headline || rung.title || ""}</span>
+                        </div>
+                        <span className="sm:ml-auto">
+                          <span className={cn(
+                            "inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2.5 py-1 rounded",
+                            statusKey === "in_place" ? "bg-[#e7efe9]" :
+                            statusKey === "partly" ? "bg-[#f5eeda]" :
+                            "bg-[#f6e9ec]"
+                          )}
+                          style={{
+                            color: statusKey === "in_place" ? COLORS.green :
+                                   statusKey === "partly" ? COLORS.amber :
+                                   COLORS.red
+                          }}>
+                            {ladderStatusLabel(rung.status)}
+                          </span>
+                        </span>
+                      </div>
+                      {rung.example && (
+                        <div className="font-mono text-[11px] text-gray-600 pl-0 sm:pl-6 mb-1">{rung.example}</div>
+                      )}
+                      <div className="text-[13px] sm:text-[13.5px] text-gray-600 leading-relaxed pl-0 sm:pl-6 mt-2">{rung.body}</div>
+                    </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 04: Who is taking that demand? */}
+            {hasCompetitorSection && (
               <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{
                 borderColor: COLORS.hair,
                 background: COLORS.paper
               }}>
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: COLORS.faint }}>
-                  Who shows up in your market
-                </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
-                  {setupLine || "Your competitive landscape."}
+                  Who is taking that demand?
                 </h2>
+                {setupLine && (
+                  <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
+                    {setupLine}
+                  </p>
+                )}
                 {deliveryLine && (
                   <p className="text-[13px] mb-2" style={{ color: COLORS.muted }}>{deliveryLine}</p>
                 )}
@@ -962,12 +1025,8 @@ export function WebsiteSnapshotReportViewer({
                   </div>
                 )}
 
-                {/* Who Should Be There */}
                 {shouldBe.length > 0 && (
                   <div className="mt-7">
-                    <div className="font-mono text-[11px] tracking-wider uppercase mb-2.5" style={{ color: COLORS.faint }}>
-                      Who should be there
-                    </div>
                     {shouldBeNote && (
                       <p className="text-[13.5px] leading-relaxed mb-3" style={{ color: COLORS.muted }}>
                         {shouldBeNote}
@@ -1011,191 +1070,74 @@ export function WebsiteSnapshotReportViewer({
                     <b>The gap:</b> {competitorBuckets.gap}
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* PAGE 5: Under the Hood */}
-            {Boolean(underTheHood.rows?.length || underTheHood.pills?.length) && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
-                  Under the hood
-                </div>
-                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  What the site runs on, and how it's set up to be found.
-                </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
-                  The technical inventory — the plumbing, not the content. Green is fine, amber needs a look, red is a problem.
-                </p>
-
-                {/* Table */}
-                {Array.isArray(underTheHood.rows) && underTheHood.rows.length > 0 && (
-                  <div className="mt-6 overflow-x-auto -mx-6 sm:-mx-10 lg:-mx-14 px-6 sm:px-10 lg:px-14">
-                    <table className="w-full text-[12.5px] sm:text-[13.5px] min-w-[600px]">
-                      <thead>
-                        <tr>
-                          <th className="px-0 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
-                            Layer
-                          </th>
-                          <th className="px-3 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
-                            Status
-                          </th>
-                          <th className="px-3 py-2.5 text-left font-mono text-[10.5px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
-                            What we found
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {underTheHood.rows.map((row, i) => (
-                          <tr key={i} className="border-b" style={{ borderColor: COLORS.hair }}>
-                            <td className="px-0 py-3.5 font-semibold align-top" style={{ color: COLORS.ink }}>{row.layer}</td>
-                            <td className="px-3 py-3.5 align-top">
-                              <span className={cn(
-                                "inline-block font-mono text-[10.5px] tracking-wider px-2.5 py-1 rounded",
-                                row.verdict === "Fine" ? "bg-[#e7efe9]" :
-                                row.verdict === "Gap" ? "bg-[#f5eeda]" :
-                                row.verdict === "Critical" ? "bg-[#f6e9ec]" :
-                                "bg-gray-100"
-                              )}
-                              style={{
-                                color: row.verdict === "Fine" ? COLORS.green :
-                                       row.verdict === "Gap" ? COLORS.amber :
-                                       row.verdict === "Critical" ? COLORS.red :
-                                       COLORS.muted
-                              }}>
-                                {row.verdict}
-                              </span>
-                            </td>
-                            <td className="px-3 py-3.5 align-top" style={{ color: COLORS.muted }}>{row.detail}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* Tech Pills */}
-                {Array.isArray(underTheHood.pills) && underTheHood.pills.length > 0 && (
-                  <div className="mt-5.5 flex flex-wrap gap-2">
-                    {underTheHood.pills.map((pill, i) => (
-                      <span key={i} className={cn(
-                        "font-mono text-[11px] border rounded px-2 py-0.5",
-                        pill.status === "warn" ? "bg-[#f5eeda] text-amber-700 border-transparent" :
-                        "text-gray-600 border-[#e6e8e3] bg-white"
-                      )}>
-                        {pill.name}
-                      </span>
-                    ))}
-                  </div>
+                {noCompetitorData && (
+                  <p className="mt-6 text-[13.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                    No competitor data this run
+                  </p>
                 )}
               </div>
             )}
 
-            {/* PAGE 6: What's Holding Back */}
-            {issues.length > 0 && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
-                  What's holding the site back
-                </div>
-                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  Concrete, fixable items — none of them hard.
+            {/* 05: What SEO can do for you */}
+            {(tier.level != null || tier.name) && (
+              <div className="rounded-lg border p-6 sm:p-10 lg:p-14 shadow-sm" style={{
+                borderColor: COLORS.hair,
+                background: COLORS.paper
+              }}>
+                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3" style={{ color: COLORS.ink }}>
+                  What SEO can do for you
                 </h2>
-                <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
-                  Separate from the plumbing. These are what's capping your momentum, in priority order.
-                </p>
-
-                <div className="mt-3.5 space-y-0">
-                  {issues.map((issue, i) => {
-                    const tone = issueSeverityTone(issue.severity);
-                    const finding = String(issue.finding || "").trim();
-                    const fix = String(issue.fix || "").trim();
-                    return (
-                    <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3] grid grid-cols-[92px_1fr] sm:grid-cols-[110px_1fr] gap-3 sm:gap-4">
-                      <div className={cn(
-                        "font-mono text-[10px] tracking-wider text-center py-1 px-1.5 rounded h-fit leading-snug",
-                        tone === "critical" ? "bg-[#f6e9ec] text-red-600" :
-                        tone === "worth_fixing" ? "bg-[#f5eeda] text-amber-700" :
-                        "bg-[#eef0eb] text-gray-600"
-                      )}>
-                        {issueSeverityLabel(issue.severity)}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-[14.5px] mb-1.5">{issue.title}</div>
-                        {finding && (
-                          <div className="text-[13.5px] text-gray-600 leading-relaxed">{finding}</div>
-                        )}
-                        {fix && (
-                          <div className="text-[13px] mt-2 leading-relaxed" style={{ color: COLORS.ink }}>
-                            <span className="font-semibold">Fix: </span>{fix}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* PAGE 7: Content Map */}
-            {ladder.length > 0 && (
-              <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
-                  Where your content should grow
-                </div>
-                <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  The full opportunity map.
-                </h2>
-                {report.ladder_intro && (
-                  <p className="text-[14.5px] text-gray-600 leading-normal">
-                    {report.ladder_intro}
+                {tier.reasoning && (
+                  <p className="text-[13.5px] sm:text-[14.5px] leading-normal" style={{ color: COLORS.muted }}>
+                    {tier.reasoning}
                   </p>
                 )}
 
-                <div className="mt-3 space-y-0">
-                  {ladder.map((rung, i) => {
-                    const statusKey = ladderStatusKey(rung.status);
+                <hr className="border-0 border-t my-6 sm:my-8" style={{ borderColor: COLORS.hair }} />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 mt-6 sm:mt-8">
+                  {[1, 2, 3].map((level) => {
+                    const isSelected = tier.level === level;
+                    const defaults = STATIC_TIERS[level - 1];
+                    const name = isSelected && tier.name ? tier.name : defaults.name;
                     return (
-                    <div key={i} className="py-4 sm:py-4.5 border-t border-[#e6e8e3]">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <span className="font-mono text-[12px] text-gray-400">{String(rung.rung || i + 1).padStart(2, '0')}</span>
-                          <span className="font-semibold text-[14px] sm:text-[14.5px]">{rung.headline || rung.title}</span>
+                      <div
+                        key={level}
+                        className="border rounded p-4.5 relative"
+                        style={{
+                          borderColor: isSelected ? COLORS.green : COLORS.hair,
+                          background: isSelected ? "#fbfdfb" : COLORS.paper
+                        }}
+                      >
+                        {isSelected && (
+                          <div
+                            className="absolute top-3.5 right-3.5 font-mono text-[9.5px] tracking-wider px-2 py-1 rounded-sm"
+                            style={{ background: COLORS.green, color: COLORS.paper }}
+                          >
+                            YOUR FIT
+                          </div>
+                        )}
+                        <div className="font-mono text-[10px] tracking-wider uppercase" style={{ color: COLORS.faint }}>
+                          Tier {level}
                         </div>
-                        <span className="sm:ml-auto">
-                          <span className={cn(
-                            "inline-block font-mono text-[10px] sm:text-[10.5px] tracking-wider px-2.5 py-1 rounded",
-                            statusKey === "in_place" ? "bg-[#e7efe9]" :
-                            statusKey === "partly" ? "bg-[#f5eeda]" :
-                            "bg-[#f6e9ec]"
-                          )}
-                          style={{
-                            color: statusKey === "in_place" ? COLORS.green :
-                                   statusKey === "partly" ? COLORS.amber :
-                                   COLORS.red
-                          }}>
-                            {ladderStatusLabel(rung.status)}
-                          </span>
-                        </span>
+                        <div className="font-semibold text-[15px] my-2.5 pr-16" style={{ color: COLORS.ink }}>
+                          {name}
+                        </div>
+                        <div className="text-[12.5px] leading-relaxed" style={{ color: COLORS.muted }}>
+                          {isSelected && tier.reasoning ? tier.reasoning : defaults.blurb}
+                        </div>
                       </div>
-                      {rung.example && (
-                        <div className="font-mono text-[11px] text-gray-600 pl-0 sm:pl-6 mb-1">{rung.example}</div>
-                      )}
-                      <div className="text-[13px] sm:text-[13.5px] text-gray-600 leading-relaxed pl-0 sm:pl-6 mt-2">{rung.body}</div>
-                    </div>
                     );
                   })}
                 </div>
               </div>
             )}
 
-            {/* PAGE 8: Tactics */}
+            {/* 06: The plan */}
             {tactics.length > 0 && (
               <div className="rounded-lg border border-[#e6e8e3] bg-white p-6 sm:p-10 lg:p-14 shadow-sm">
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] text-gray-400 uppercase mb-4 sm:mb-5">
-                  The plan, in order
-                </div>
                 <h2 className="text-[18px] sm:text-[20px] lg:text-[23px] font-semibold tracking-tight leading-tight mb-2 sm:mb-3">
-                  Where we would start, and why.
+                  The plan
                 </h2>
                 <p className="text-[13.5px] sm:text-[14.5px] text-gray-600 leading-normal">
                   {planIntro || "A focused route through the map, sequenced for your stage."}
@@ -1216,15 +1158,15 @@ export function WebsiteSnapshotReportViewer({
 
                 {(() => {
                   let currentPhase = "";
-                  let stepInPhase = 0;
+                  let stepNumber = 0;
                   return tactics.map((tactic, i) => {
                     const phase = tactic.phase || "";
                     const isNewPhase = phase !== currentPhase;
                     if (isNewPhase) {
                       currentPhase = phase;
-                      stepInPhase = 1;
-                    } else {
-                      stepInPhase++;
+                    }
+                    if (tactic.title || tactic.body) {
+                      stepNumber += 1;
                     }
 
                     return (
@@ -1242,7 +1184,7 @@ export function WebsiteSnapshotReportViewer({
                               className="font-mono text-[12px] sm:text-[13px] font-medium"
                               style={{ color: COLORS.green }}
                             >
-                              {stepInPhase}.
+                              {stepNumber}.
                             </span>
                             <span className="font-semibold text-[13.5px] sm:text-[14px]">{tactic.title}</span>
                           </div>
@@ -1254,24 +1196,6 @@ export function WebsiteSnapshotReportViewer({
                     );
                   });
                 })()}
-              </div>
-            )}
-
-            {/* PAGE 9: Takeaway */}
-            {closing && (
-              <div className="rounded-lg p-6 sm:p-8 lg:p-11 border-0" style={{ 
-                background: COLORS.green,
-                color: '#eaf1ec'
-              }}>
-                <div className="font-mono text-[10px] sm:text-[11px] font-medium tracking-[0.16em] uppercase mb-4 sm:mb-5" style={{ color: '#8fb8a1' }}>
-                  The honest takeaway
-                </div>
-                <p className="text-[14px] sm:text-[15.5px] leading-relaxed">
-                  {closing.split('.')[0] && (
-                    <span style={{ color: COLORS.paper, fontWeight: 600 }}>{closing.split('.')[0]}.</span>
-                  )}
-                  {closing.substring(closing.indexOf('.') + 1)}
-                </p>
               </div>
             )}
 
